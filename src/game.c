@@ -237,12 +237,12 @@ void Pppk(int pid, byte *p2, int n)
 
 	memcpy(pos + pid, p2, sizeof(pos[0]));
 
-	position.x = p2->x;
-	position.y = p2->y;
-	position.xspeed = p2->xspeed;
-	position.yspeed = p2->yspeed;
-	position.bounty = p2->bounty;
-	position.status = p2->status;
+	position.x = p->x;
+	position.y = p->y;
+	position.xspeed = p->xspeed;
+	position.yspeed = p->yspeed;
+	position.bounty = p->bounty;
+	position.status = p->status;
 	players[pid].position = position;
 }
 
@@ -314,7 +314,7 @@ void PSetShip(int pid, byte *p, int n)
 			LinkedList *lst = mm->LookupCallback(CALLBACK_SHIPCHANGE, arena);
 			Link *l;
 			for (l = LLGetHead(lst); l; l = l->next)
-				((ShipChangeFunc)l->data)(pid, ship, freq);
+				((ShipChangeFunc)l->data)(pid, ship, to.freq);
 		}
 		log->Log(L_DRIVEL, "<game> {%s} [%s] Changed ship to %d",
 				arenas[arena].name,

@@ -43,8 +43,8 @@
 #define I_PERSIST       15
 #define I_STATS         16
 #define I_LOG_FILE      17
+#define I_FLAGS         18
 #define I_ENCRYPTBASE   90
-/*#define I_FLAG */
 /*#define I_BALL */
 /*#define I_DATABASE */
 /*#define I_BRICK */
