@@ -590,7 +590,7 @@ local void PArena(Player *p, byte *pkt, int len)
 
 	if (len != LEN_GOARENAPACKET_VIE && len != LEN_GOARENAPACKET_CONT)
 	{
-		lm->LogP(L_MALICIOUS, "arenaman", p, " bad arena packet len=%i)", len);
+		lm->LogP(L_MALICIOUS, "arenaman", p, " bad arena packet len=%d", len);
 		return;
 	}
 
@@ -653,7 +653,7 @@ local void PLeaving(Player *p, byte *pkt, int len)
 #ifndef CFG_RELAX_LENGTH_CHECKS
 	if (len != 1)
 	{
-		lm->LogP(L_MALICIOUS, "arenaman", p, "bad arena leaving packet len=%i", len);
+		lm->LogP(L_MALICIOUS, "arenaman", p, "bad arena leaving packet len=%d", len);
 		return;
 	}
 #endif
