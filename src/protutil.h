@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #include "util.h"
 
 #define MAXMSGSIZE 1023

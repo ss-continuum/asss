@@ -1,7 +1,8 @@
 
-import sys, time
-
 # utility stuff
+# dist: public
+
+import sys, time
 
 logfile = None
 

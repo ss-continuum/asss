@@ -1,6 +1,7 @@
 
 # vie_bprot.py
 # vie billing server protocol
+# dist: public
 
 import sys, struct, re
 

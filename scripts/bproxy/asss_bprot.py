@@ -1,6 +1,7 @@
 
 # asss_bprot.py
 # asss biller server protocol
+# dist: public
 
 import sys
 from socket import inet_aton
@@ -8,6 +9,9 @@ from socket import inet_aton
 import vie_bprot, util
 
 log = util.log
+
+# config stuff
+maxlogins = 10
 
 # globals
 sock = None
@@ -19,7 +23,9 @@ scoreid = 5000
 # maps pids to Players
 pidmap = {}
 # whether we got a connect command from the server
-gotconnect = 0
+gotconnect = None
+# how many outstanding login requests we have
+curlogins = 0
 
 
 class Player:
@@ -75,11 +81,19 @@ def handle_s2b_connect(line):
 
 
 def handle_s2b_plogin(line):
+	global curlogins
+
 	pid, flag, name, pw, ip, macid, contid = line.split(':')
 
 	pid = int(pid)
 	flag = int(flag)
 	macid = long(macid)
+
+	if curlogins >= maxlogins:
+		send_b2s_pbad(pid, 'The server is currently busy processing other login requests, please try again in a few moments.')
+		return
+
+	curlogins = curlogins + 1
 
 	if contid:
 		contid = util.hex_to_bin(contid)
@@ -227,13 +241,16 @@ def send_b2s_connectbad(billername, reason):
 	send_line('CONNECTBAD:%s:%s' % (billername, reason))
 
 def send_b2s_pok(pid, rtext, name, squad, billerid, usage, firstused):
-	global pidmap
+	global pidmap, curlogins
+	curlogins = curlogins - 1
 	pid = int(pid)
 	pidmap[pid] = Player(name)
 	send_line('POK:%s:%s:%s:%s:%s:%s:%s' %
 		(pid, rtext, name, squad, billerid, usage, firstused))
 
 def send_b2s_pbad(pid, rtext):
+	global curlogins
+	curlogins = curlogins - 1
 	send_line('PBAD:%s:%s' % (pid, rtext))
 
 def send_b2s_bnr(pid, banner):

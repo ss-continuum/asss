@@ -3,6 +3,8 @@
 set -e
 set -x
 
+umask 022
+
 cd ~/src/asss
 
 d="asss-`date +%Y%m%d`"
@@ -14,15 +16,13 @@ tar cf - `grep -lr '[d]ist: public' src scripts` scripts/banner.font | \
 	(cd $d ; tar xf -)
 cp src/Makefile.dist $d/src/Makefile
 
-make -C $d/src foo || true # fail intentionally
-cp $d/src/*.inc $d/src
-
 make -C $d/src install
 make -C $d/src clean
 make -C ~/src/extra-asss/contenc all
 make -C ~/src/extra-asss/contenc clean
 
 cp bin/security.so $d/bin
+ln -s '../scripts/bproxy/bproxy' $d/bin/bproxy
 
 make -C doc/userguide all
 cp doc/userguide/userguide.{dvi,pdf,html,txt} $d/doc
