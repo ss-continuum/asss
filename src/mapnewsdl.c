@@ -47,6 +47,7 @@ local Iconfig *cfg;
 local Inet *net;
 local Imodman *mm;
 local Ilogman *log;
+local Iarenaman *aman;
 
 /* big static array */
 local MapData mapdata[MAXARENA];
@@ -66,15 +67,13 @@ int MM_mapnewsdl(int action, Imodman *mm_)
 	static Imainloop *ml;
 	if (action == MM_LOAD)
 	{
-		Iarenaman *aman;
-
 		/* get interface pointers */
 		mm = mm_;
-		net = mm->GetInterface(I_NET);
-		log = mm->GetInterface(I_LOGMAN);
-		cfg = mm->GetInterface(I_CONFIG);
-		ml = mm->GetInterface(I_MAINLOOP);
-		aman = mm->GetInterface(I_ARENAMAN);
+		mm->RegInterest(I_NET, &net);
+		mm->RegInterest(I_LOGMAN, &log);
+		mm->RegInterest(I_CONFIG, &cfg);
+		mm->RegInterest(I_MAINLOOP, &ml);
+		mm->RegInterest(I_ARENAMAN, &aman);
 		players = mm->players;
 
 		if (!net || !cfg || !log || !ml || !aman) return MM_FAIL;
@@ -104,6 +103,12 @@ int MM_mapnewsdl(int action, Imodman *mm_)
 		net->RemovePacket(C2S_NEWSREQUEST, PMapRequest);
 		free(cmpnews);
 		ml->ClearTimer(RefreshNewsTxt);
+
+		mm->UnregInterest(I_NET, &net);
+		mm->UnregInterest(I_LOGMAN, &log);
+		mm->UnregInterest(I_CONFIG, &cfg);
+		mm->UnregInterest(I_MAINLOOP, &ml);
+		mm->UnregInterest(I_ARENAMAN, &aman);
 	}
 	else if (action == MM_DESCRIBE)
 	{

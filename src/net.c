@@ -93,6 +93,7 @@ local void InitSockets();
 
 local Ilogman *log;
 local Iconfig *cfg;
+local Imainloop *ml;
 local Imodman *mm_;
 local PlayerData *players;
 
@@ -146,21 +147,21 @@ local PacketFunc oohandlers[] =
 
 int MM_net(int action, Imodman *mm)
 {
-	Imainloop *ml;
 	int i;
+
 	if (action == MM_LOAD)
 	{
 		players = mm->players;
-		cfg = mm->GetInterface(I_CONFIG);
-		log = mm->GetInterface(I_LOGMAN);
-		ml = mm->GetInterface(I_MAINLOOP);
+		mm->RegInterest(I_CONFIG, &cfg);
+		mm->RegInterest(I_LOGMAN, &log);
+		mm->RegInterest(I_MAINLOOP, &ml);
 		mm_ = mm;
 		if (!cfg || !log) return MM_FAIL;
 
 		for (i = 0; i < MAXTYPES; i++)
 			handlers[i] = LLAlloc();
 		for (i = 0; i < MAXENCRYPT; i++)
-			encrypt[i] = mm->GetInterface(I_ENCRYPTBASE + i);
+			mm->RegInterest(I_ENCRYPTBASE + i, encrypt + i);
 
 		/* store configuration params */
 		cfg_port = cfg->GetInt(GLOBAL, "Net", "Port", 5000);
@@ -197,6 +198,11 @@ int MM_net(int action, Imodman *mm)
 	{
 		/* uninstall ourself */
 		mm->UnregInterface(&_int);
+		mm->UnregInterest(I_CONFIG, &cfg);
+		mm->UnregInterest(I_LOGMAN, &log);
+		mm->UnregInterest(I_MAINLOOP, &ml);
+		for (i = 0; i < MAXENCRYPT; i++)
+			mm->UnregInterest(I_ENCRYPTBASE + i, encrypt + i);
 
 		/* get rid of main loop entries */
 		ml = mm->GetInterface(I_MAINLOOP);

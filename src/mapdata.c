@@ -39,10 +39,7 @@ int MM_mapdata(int action, Imodman *mm)
 {
 	if (action == MM_LOAD)
 	{
-		Icore *core;
-
-		log = mm->GetInterface(I_LOGMAN);
-		core = mm->GetInterface(I_CORE);
+		mm->RegInterest(I_LOGMAN, &log);
 
 		if (!log || !core) return MM_FAIL;
 
@@ -53,6 +50,7 @@ int MM_mapdata(int action, Imodman *mm)
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregInterface(&_int);
+		mm->UnregInterest(I_LOGMAN, &log);
 	}
 	else if (action == MM_DESCRIBE)
 	{

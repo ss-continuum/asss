@@ -9,19 +9,21 @@ local void LogFile(int, char *);
 
 
 local FILE *logfile;
+Ilogman *log;
+Iconfig *cfg;
 
 
 int MM_log_file(int action, Imodman *mm)
 {
 	char fname[64], *ln;
-	Ilogman *log;
-	Iconfig *cfg;
 
 	if (action == MM_LOAD)
 	{
-		log = mm->GetInterface(I_LOGMAN);
-		cfg = mm->GetInterface(I_CONFIG);
+		mm->RegInterest(I_LOGMAN, &log);
+		mm->RegInterest(I_CONFIG, &cfg);
+
 		if (!log || !cfg) return MM_FAIL;
+
 		ln = cfg->GetStr(GLOBAL,"Log","LogFile");
 		if (!ln) ln = "asss.log";
 		sprintf(fname, "log/%s", ln);
@@ -31,9 +33,10 @@ int MM_log_file(int action, Imodman *mm)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		log = mm->GetInterface(I_LOGMAN);
 		mm->UnregCallback(CALLBACK_LOGFUNC, LogFile);
 		fclose(logfile);
+		mm->UnregInterest(I_LOGMAN, &log);
+		mm->UnregInterest(I_CONFIG, &cfg);
 	}
 	else if (action == MM_DESCRIBE)
 	{

@@ -61,14 +61,17 @@ int main(int argc, char *argv[])
 
 	LoadModuleFile("conf/modules.conf");
 
-	log = mm->GetInterface(I_LOGMAN);
-	ml = mm->GetInterface(I_MAINLOOP);
+	mm->RegInterest(I_LOGMAN, &log);
+	mm->RegInterest(I_MAINLOOP, &ml);
 
 	log->Log(LOG_DEBUG,"Entering main loop");
 
 	ml->RunLoop();
 
 	log->Log(LOG_DEBUG,"Exiting main loop");
+
+	mm->UnregInterest(I_LOGMAN, &log);
+	mm->UnregInterest(I_MAINLOOP, &ml);
 
 	mm->UnloadAllModules();
 

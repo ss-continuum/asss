@@ -7,21 +7,20 @@
 local void LogConsole(int, char *);
 
 
+local Ilogman *log;
+
+
 int MM_log_console(int action, Imodman *mm)
 {
-	Ilogman *log;
-
 	if (action == MM_LOAD)
 	{
-		log = mm->GetInterface(I_LOGMAN);
-		if (!log) return MM_FAIL;
+		mm->RegInterest(I_LOGMAN, &log);
 		mm->RegCallback(CALLBACK_LOGFUNC, LogConsole);
 	}
 	else if (action == MM_UNLOAD)
 	{
-		log = mm->GetInterface(I_LOGMAN);
-		if (!log) return MM_FAIL;
 		mm->UnregCallback(CALLBACK_LOGFUNC, LogConsole);
+		mm->UnregInterface(I_LOGNAM, &log);
 	}
 	else if (action == MM_DESCRIBE)
 	{

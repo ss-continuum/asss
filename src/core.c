@@ -47,6 +47,7 @@ local Inet *net;
 local Imodman *mm;
 local Ilogman *log;
 local Imapnewsdl *map;
+local Iauth *auth;
 
 local PlayerData *players;
 
@@ -62,11 +63,12 @@ int MM_core(int action, Imodman *mm_)
 	{
 		/* get interface pointers */
 		mm = mm_;
-		net = mm->GetInterface(I_NET);
-		log = mm->GetInterface(I_LOGMAN);
-		cfg = mm->GetInterface(I_CONFIG);
-		ml = mm->GetInterface(I_MAINLOOP);
-		map = mm->GetInterface(I_MAPNEWSDL);
+		mm->RegInterest(I_NET, &net);
+		mm->RegInterest(I_LOGMAN, &log);
+		mm->RegInterest(I_CONFIG, &cfg);
+		mm->RegInterest(I_MAINLOOP, &ml);
+		mm->RegInterest(I_MAPNEWSDL, &map);
+		mm->RegInterest(I_AUTH, &auth);
 		players = mm->players;
 
 		if (!net || !cfg || !log || !ml || !map) return MM_FAIL;
@@ -89,6 +91,12 @@ int MM_core(int action, Imodman *mm_)
 		mm->UnregInterface(&_iauth);
 		net->RemovePacket(C2S_LOGIN, PLogin);
 		net->RemovePacket(C2S_LEAVING, PLeaving);
+		mm->UnregInterest(I_NET, &net);
+		mm->UnregInterest(I_LOGMAN, &log);
+		mm->UnregInterest(I_CONFIG, &cfg);
+		mm->UnregInterest(I_MAINLOOP, &ml);
+		mm->UnregInterest(I_MAPNEWSDL, &map);
+		mm->UnregInterest(I_AUTH, &auth);
 	}
 	else if (action == MM_DESCRIBE)
 	{
@@ -104,7 +112,7 @@ void PLogin(int pid, byte *p, int l)
 	if (l != sizeof(struct LoginPacket))
 		log->Log(LOG_BADDATA,"Bad packet length (%s)",players[pid].name);
 	else
-		((Iauth*)mm->GetInterface(I_AUTH))->Authenticate
+		auth->Authenticate
 			(pid, (struct LoginPacket *)p, SendLoginResponse);
 }
 

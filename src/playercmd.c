@@ -19,7 +19,6 @@ local void Cshutdown(const char *, int, int);
 
 local Ichat *chat;
 local Icmdman *cmd;
-local Icore *core;
 local Inet *net;
 local Iconfig *cfg;
 local Imainloop *ml;
@@ -33,13 +32,12 @@ int MM_playercmd(int action, Imodman *mm)
 {
 	if (action == MM_LOAD)
 	{
-		chat = mm->GetInterface(I_CHAT);
-		cmd = mm->GetInterface(I_CMDMAN);
-		core = mm->GetInterface(I_CORE);
-		net = mm->GetInterface(I_NET);
-		cfg = mm->GetInterface(I_CONFIG);
-		ml = mm->GetInterface(I_MAINLOOP);
-		if (!chat || !cmd || !core || !net || !cfg || !ml) return MM_FAIL;
+		mm->RegInterest(I_CHAT, &chat);
+		mm->RegInterest(I_CMDMAN, &cmd);
+		mm->RegInterest(I_NET, &net);
+		mm->RegInterest(I_CONFIG, &cfg);
+		mm->RegInterest(I_MAINLOOP, &ml);
+		if (!cmd || !net || !cfg) return MM_FAIL;
 		players = mm->players;
 
 		configops = cfg->OpenConfigFile("oplevels");
@@ -57,6 +55,12 @@ int MM_playercmd(int action, Imodman *mm)
 		cmd->RemoveCommand("shutdown", Cshutdown);
 
 		cfg->CloseConfigFile(configops);
+		mm->UnregInterest(I_CHAT, &chat);
+		mm->UnregInterest(I_CMDMAN, &cmd);
+		mm->UnregInterest(I_CORE, &core);
+		mm->UnregInterest(I_NET, &net);
+		mm->UnregInterest(I_CONFIG, &cfg);
+		mm->UnregInterest(I_MAINLOOP, &ml);
 	}
 	else if (action == MM_DESCRIBE)
 	{

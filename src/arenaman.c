@@ -31,6 +31,7 @@ local Inet *net;
 local Imodman *mm;
 local Ilogman *log;
 local Imapnewsdl *map;
+local Iassignfreq *afreq;
 
 /* big static arena data array */
 local ArenaData arenas[MAXARENA];
@@ -46,15 +47,16 @@ int MM_arenaman(int action, Imodman *mm_)
 {
 	if (action == MM_LOAD)
 	{
-		mm = mm_
-		net = mm->GetInterface(I_NET);
-		log = mm->GetInterface(I_LOGMAN);
-		cfg = mm->GetInterface(I_CONFIG);
-		ml = mm->GetInterface(I_MAINLOOP);
-		map = mm->GetInterface(I_MAPNEWSDL);
+		mm = mm_;
+		mm->RegInterest(I_NET, &net);
+		mm->RegInterest(I_LOGMAN, &log);
+		mm->RegInterest(I_CONFIG, &cfg);
+		mm->RegInterest(I_MAINLOOP, &ml);
+		mm->RegInterest(I_MAPNEWSDL, &map);
+		mm->RegInterest(I_ASSIGNFREQ, &afreq);
 		players = mm->players;
 
-		if (!net || !cfg || !log || !ml || !map) return MM_FAIL;
+		if (!net || !log || !ml) return MM_FAIL;
 
 		memset(arenas, 0, sizeof(ArenaData) * MAXARENA);
 
@@ -69,6 +71,12 @@ int MM_arenaman(int action, Imodman *mm_)
 		mm->UnregInterface(I_ARENAMAN, &_int);
 		net->RemovePacket(C2S_GOTOARENA, PArena);
 		ml->ClearTimer(ReapArenas);
+		mm->UnregInterest(I_NET, &net);
+		mm->UnregInterest(I_LOGMAN, &log);
+		mm->UnregInterest(I_CONFIG, &cfg);
+		mm->UnregInterest(I_MAINLOOP, &ml);
+		mm->UnregInterest(I_MAPNEWSDL, &map);
+		mm->UnregInterest(I_ASSIGNFREQ, &afreq);
 	}
 	else if (action == MM_DESCRIBE)
 	{
@@ -184,8 +192,7 @@ local void SendOneArenaResponse(int pid)
 	net->SendToOne(pid, (byte*)&whoami, 3, NET_RELIABLE);
 
 	/* figure out his freq */
-	players[pid].freq = ((Iassignfreq*)mm->GetInterface(I_ASSIGNFREQ))
-		->AssignFreq(pid, BADFREQ, players[pid].shiptype);
+	players[pid].freq = afreq->AssignFreq(pid, BADFREQ, players[pid].shiptype);
 
 	/* send settings */
 	/* aset = mm->GetInterface(I_ARENASET);

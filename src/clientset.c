@@ -35,14 +35,11 @@ int MM_clientset(int action, Imodman *mm_)
 {
 	if (action == MM_LOAD)
 	{
-		Icore *core;
-
 		mm = mm_;
-		net = mm->GetInterface(I_NET);
-		cfg = mm->GetInterface(I_CONFIG);
-		log = mm->GetInterface(I_LOGMAN);
-		core = mm->GetInterface(I_CORE);
-		cmd = mm->GetInterface(I_CMDMAN);
+		mm->RegInterest(I_NET, &net);
+		mm->RegInterest(I_CONFIG, &cfg);
+		mm->RegInterest(I_LOGMAN, &log);
+		mm->RegInterest(I_CMDMAN, &cmd);
 
 		if (!net || !cfg || !log || !core) return MM_FAIL;
 
@@ -54,6 +51,10 @@ int MM_clientset(int action, Imodman *mm_)
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregInterface(&_int);
+		mm->UnregInterest(I_NET, &net);
+		mm->UnregInterest(I_CONFIG, &cfg);
+		mm->UnregInterest(I_LOGMAN, &log);
+		mm->UnregInterest(I_CMDMAN, &cmd);
 	}
 	else if (action == MM_DESCRIBE)
 	{

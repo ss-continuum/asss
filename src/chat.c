@@ -36,11 +36,11 @@ int MM_chat(int action, Imodman *mm_)
 	{
 
 		mm = mm_;
-		net = mm->GetInterface(I_NET);
-		cfg = mm->GetInterface(I_CONFIG);
-		log = mm->GetInterface(I_LOGMAN);
-		core = mm->GetInterface(I_CORE);
-		cmd = mm->GetInterface(I_CMDMAN);
+		mm->RegInterest(I_NET, &net);
+		mm->RegInterest(I_CONFIG, &cfg);
+		mm->RegInterest(I_LOGMAN, &log);
+		mm->RegInterest(I_CORE, &core);
+		mm->RegInterest(I_CMDMAN, &cmd);
 
 		if (!net || !cfg || !log || !core) return MM_FAIL;
 
@@ -55,6 +55,11 @@ int MM_chat(int action, Imodman *mm_)
 	{
 		mm->UnregInterface(&_int);
 		net->RemovePacket(C2S_CHAT, PChat);
+		mm->UnregInterest(I_NET, &net);
+		mm->UnregInterest(I_CONFIG, &cfg);
+		mm->UnregInterest(I_LOGMAN, &log);
+		mm->UnregInterest(I_CORE, &core);
+		mm->UnregInterest(I_CMDMAN, &cmd);
 	}
 	else if (action == MM_DESCRIBE)
 	{
@@ -96,7 +101,6 @@ void PChat(int pid, byte *p, int len)
 		case MSG_PUB:
 			if (from->text[0] == CMD_CHAR_1 || from->text[0] == CMD_CHAR_2)
 			{
-				cmd = mm->GetInterface(I_CMDMAN);
 /*				log->Log(LOG_DEBUG,"Command (%s:<arena>) %s", */
 /*						players[pid].name, from->text+1); */
 				if (cmd) cmd->Command(from->text+1, pid, TARGET_ARENA);
@@ -131,7 +135,6 @@ void PChat(int pid, byte *p, int len)
 		case MSG_FREQ:
 			if (from->text[0] == CMD_CHAR_1 || from->text[0] == CMD_CHAR_2)
 			{
-				cmd = mm->GetInterface(I_CMDMAN);
 /*				log->Log(LOG_DEBUG,"Command (%s:<freq>) %s", */
 /*						players[pid].name, from->text+1); */
 				if (cmd) cmd->Command(from->text+1, pid, TARGET_FREQ);
@@ -153,7 +156,6 @@ void PChat(int pid, byte *p, int len)
 		case MSG_PRIV:
 			if (from->text[0] == CMD_CHAR_1 || from->text[0] == CMD_CHAR_2)
 			{
-				cmd = mm->GetInterface(I_CMDMAN);
 /*				log->Log(LOG_DEBUG,"Command (%s:%s) %s", */
 /*						players[pid].name, players[from->pid].name, from->text+1); */
 				if (cmd) cmd->Command(from->text+1, pid, from->pid);

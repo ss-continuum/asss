@@ -56,13 +56,13 @@ int MM_billcore(int action, Imodman *mm)
 {
 	if (action == MM_LOAD)
 	{
-		net = mm->GetInterface(I_NET);
-		ml = mm->GetInterface(I_MAINLOOP);
-		log = mm->GetInterface(I_LOGMAN);
-		cfg = mm->GetInterface(I_CONFIG);
-		core = mm->GetInterface(I_CORE);
-		cmd = mm->GetInterface(I_CMDMAN);
-		if (!net || !ml || !log || !cfg || !core || !cmd) return MM_FAIL;
+		mm->RegInterest(I_NET, &net);
+		mm->RegInterest(I_MAINLOOP, &ml);
+		mm->RegInterest(I_LOGMAN, &log);
+		mm->RegInterest(I_CONFIG, &cfg);
+		mm->RegInterest(I_CMDMAN, &cmd);
+
+		if (!net || !ml || !cfg || !cmd) return MM_FAIL;
 
 		players = mm->players;
 		FindPlayer = mm->FindPlayer;
@@ -98,12 +98,19 @@ int MM_billcore(int action, Imodman *mm)
 		SendToBiller(&dis, 1, NET_RELIABLE | NET_IMMEDIATE);
 		net->DropClient(PID_BILLER);
 
-		/*cmd->RemoveCommand(NULL, DefaultCmd); */
+		cmd->RemoveCommand(NULL, DefaultCmd);
 
 		RemovePacket(0, SendLogin);
 		RemovePacket(B2S_PLAYERDATA, BAuthResponse);
 		ml->ClearTimer(SendPing);
 		mm->UnregInterface(&_iauth);
+		mm->UnregInterface(&_ibillcore);
+
+		mm->UnregInterest(I_NET, &net);
+		mm->UnregInterest(I_MAINLOOP, &ml);
+		mm->UnregInterest(I_LOGMAN, &log);
+		mm->UnregInterest(I_CONFIG, &cfg);
+		mm->UnregInterest(I_CMDMAN, &cmd);
 	}
 	else if (action == MM_DESCRIBE)
 	{

@@ -52,6 +52,9 @@ local Iconfig *cfg;
 local Inet *net;
 local Ilogman *log;
 local Imodman *mm;
+local Iassignfreq *afreq;
+local Iarenaman *aman;
+
 local PlayerData *players;
 local ArenaData *arenas;
 
@@ -69,12 +72,16 @@ int MM_game(int action, Imodman *mm_)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		cfg = mm->GetInterface(I_CONFIG);
-		log = mm->GetInterface(I_LOGMAN);
-		net = mm->GetInterface(I_NET);
+		mm->RegInterest(I_CONFIG, &cfg);
+		mm->RegInterest(I_LOGMAN, &log);
+		mm->RegInterest(I_NET, &net);
+		mm->RegInterest(I_ASSIGNFREQ, &afreq);
+		mm->RegInterest(I_ARENAMAN, &aman);
 		players = mm->players;
-		if (!net || !cfg || !log || !mm->GetInterface(I_ARENAMAN)) return MM_FAIL;
-		arenas = ((Iarenaman*)mm->GetInterface(I_ARENAMAN))->data;
+
+		if (!net || !cfg || !log || !aman) return MM_FAIL;
+		
+		arenas = aman->data;
 
 		cfg_bulletpix = cfg->GetInt(GLOBAL, "Net", "BulletPixels", 1024);
 		cfg_wpnpix = cfg->GetInt(GLOBAL, "Net", "WeaponPixels", 2048);
@@ -93,13 +100,19 @@ int MM_game(int action, Imodman *mm_)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(&_myaf);
 		net->RemovePacket(C2S_POSITION, Pppk);
 		net->RemovePacket(C2S_SETSHIP, PSetShip);
 		net->RemovePacket(C2S_SETFREQ, PSetFreq);
 		net->RemovePacket(C2S_DIE, PDie);
 		net->RemovePacket(C2S_GREEN, PGreen);
 		net->RemovePacket(C2S_ATTACHTO, PAttach);
+		mm->UnregInterest(I_CONFIG, &cfg);
+		mm->UnregInterest(I_LOGMAN, &log);
+		mm->UnregInterest(I_NET, &net);
+		mm->UnregInterest(I_ASSIGNFREQ, &afreq);
+		mm->UnregInterest(I_ARENAMAN, &aman);
+		/* do this last so we don't get prevented from unloading because of ourself */
+		mm->UnregInterface(&_myaf);
 	}
 	else if (action == MM_DESCRIBE)
 	{
@@ -241,8 +254,7 @@ void PSetShip(int pid, byte *p, int n)
 
 	if (arena < 0) return;
 
-	to.freq = ((Iassignfreq*)mm->GetInterface(I_ASSIGNFREQ))->
-		AssignFreq(arena, BADFREQ, ship);
+	to.freq = afreq->AssignFreq(arena, BADFREQ, ship);
 	
 	/* Arena.locked not defined yet */
 	/*if (ship == SPEC && c->arenas[arena]->locked) return; */
@@ -263,8 +275,7 @@ void PSetFreq(int pid, byte *p, int n)
 	int arena = players[pid].arena;
 
 	if (arena < 0) return;
-	newfreq = ((Iassignfreq*)mm->GetInterface(I_ASSIGNFREQ))->
-		AssignFreq(arena, freq, players[pid].shiptype);
+	newfreq = afreq->AssignFreq(arena, freq, players[pid].shiptype);
 	if (newfreq != BADFREQ)
 	{
 		to.d2 = newfreq;

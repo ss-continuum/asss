@@ -41,8 +41,6 @@ local int files = 0;
 
 int MM_config(int action, Imodman *mm)
 {
-	Ilogman *log;
-
 	if (action == MM_LOAD)
 	{
 		files = 0;
@@ -57,7 +55,7 @@ int MM_config(int action, Imodman *mm)
 		mm->UnregInterface(&_int);
 		FreeConfigFile(global);
 		if (files && (log = mm->GetInterface(I_LOGMAN)))
-			log->Log(LOG_ERROR,"Some config files were not freed!");
+			printf("Some config files were not freed!");
 	}
 	else if (action == MM_DESCRIBE)
 	{
