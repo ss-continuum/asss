@@ -117,12 +117,12 @@ typedef struct Iflaggame
 	/* pyint: arena -> void */
 	/* implementation should call flagcore->SetCarryMode */
 
-	int (*FlagTouch)(Arena *a, Player *p, int fid);
-	/* pyint: arena, player, int -> int */
+	void (*FlagTouch)(Arena *a, Player *p, int fid);
+	/* pyint: arena, player, int -> void */
 	/* a player touched a flag */
 
-	int (*Cleanup)(Arena *a, int fid, int reason, Player *oldcarrier, int oldfreq);
-	/* pyint: arena, int, int, player, int -> int */
+	void (*Cleanup)(Arena *a, int fid, int reason, Player *oldcarrier, int oldfreq);
+	/* pyint: arena, int, int, player, int -> void */
 	/* a flag needs to be cleaned up for some reason */
 } Iflaggame;
 
