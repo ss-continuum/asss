@@ -20,7 +20,7 @@ tar cf - `grep -lr '[d]ist: public' src scripts doc` scripts/banner.font | \
 	(cd $d ; tar xf -)
 
 make -C $d/src link_db_statically=yes opt=yes install
-make -C $d/src clean
+make -C $d/src cleanbin
 make -C ~/src/extra-asss/contenc "ASSSDIR=$ASSSDIR" all
 make -C ~/src/extra-asss/contenc "ASSSDIR=$ASSSDIR" clean
 
