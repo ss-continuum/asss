@@ -433,10 +433,18 @@ local void Cattmod(const char *tc, const char *params, Player *p, const Target *
 	{
 		const char *t = params + 2;
 		while (isspace(*t)) t++;
-		mm->DetachModule(t, p->arena);
+		if (mm->DetachModule(t, p->arena) == MM_OK)
+			chat->SendMessage(p, "Module %s detached.", t);
+		else
+			chat->SendMessage(p, "Detaching module %s failed.", t);
 	}
 	else
-		mm->AttachModule(params, p->arena);
+	{
+		if (mm->AttachModule(params, p->arena) == MM_OK)
+			chat->SendMessage(p, "Module %s attached.", params);
+		else
+			chat->SendMessage(p, "Attaching module %s failed.", params);
+	}
 }
 
 

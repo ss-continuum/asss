@@ -22,8 +22,8 @@ typedef struct ModuleData
 local int LoadModule_(const char *);
 local int UnloadModule(const char *);
 local void EnumModules(void (*)(const char *, const char *, void *), void *, Arena *);
-local void AttachModule(const char *, Arena *);
-local void DetachModule(const char *, Arena *);
+local int AttachModule(const char *, Arena *);
+local int DetachModule(const char *, Arena *);
 local const char *GetModuleInfo(const char *);
 
 local void RegInterface(void *iface, Arena *arena);
@@ -291,26 +291,36 @@ void EnumModules(void (*func)(const char *, const char *, void *),
 }
 
 
-void AttachModule(const char *name, Arena *arena)
+int AttachModule(const char *name, Arena *arena)
 {
 	ModuleData *mod;
+	int ret = MM_FAIL;
 	pthread_mutex_lock(&modmtx);
 	mod = get_module_by_name(name);
 	if (mod)
 		if (mod->loader(MM_ATTACH, &mod->args, NULL, arena) == MM_OK)
+		{
 			LLAdd(&mod->attached, arena);
+			ret = MM_OK;
+		}
 	pthread_mutex_unlock(&modmtx);
+	return ret;
 }
 
-void DetachModule(const char *name, Arena *arena)
+int DetachModule(const char *name, Arena *arena)
 {
 	ModuleData *mod;
+	int ret = MM_FAIL;
 	pthread_mutex_lock(&modmtx);
 	mod = get_module_by_name(name);
 	if (mod)
 		if (LLRemove(&mod->attached, arena))
+		{
 			mod->loader(MM_DETACH, &mod->args, NULL, arena);
+			ret = MM_OK;
+		}
 	pthread_mutex_unlock(&modmtx);
+	return ret;
 }
 
 const char * GetModuleInfo(const char *name)

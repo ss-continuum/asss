@@ -152,12 +152,12 @@ typedef struct Imodman
 	 * This is called by the arena manager at the proper stage of arena
 	 * loading, and occasionally while the arena is running also.
 	 */
-	void (*AttachModule)(const char *modname, Arena *arena);
+	int (*AttachModule)(const char *modname, Arena *arena);
 	/** Detaches a module from an arena.
 	 * This is called by the arena manager at the proper stage of arena
 	 * loading, and occasionally while the arena is running also.
 	 */
-	void (*DetachModule)(const char *modname, Arena *arena);
+	int (*DetachModule)(const char *modname, Arena *arena);
 
 
 	/* interface stuff */
