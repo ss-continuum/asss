@@ -233,9 +233,15 @@ local void update_timers(stat_info *si, time_t now)
 
 local void dirty_count_work(TreapHead *node, void *clos)
 {
-	if (((stat_info*)node)->dirty) (*(int*)clos)++;
+	stat_info *si = (stat_info*)node;
+	if (si->dirty)
+	{
+		(*(int*)clos)++;
+		si->dirty = 0;
+	}
 }
 
+/* note that this clears all the dirty bits! */
 local int dirty_count(stat_info *si)
 {
 	int c = 0;
