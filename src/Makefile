@@ -155,7 +155,7 @@ UTIL_OBJS = util.o pathutil.o protutil.o region.o rwlock.o app.o md5.o $(W32COMP
 
 INTERNAL_MODULES = config.o prng.o md5.o player.o core.o logman.o \
 	mainloop.o net.o enc_null.o enc_vie.o arenaman.o mapdata.o \
-	mapnewsdl.o clientset.o capman.o lagdata.o lagaction.o \
+	mapnewsdl.o clientset.o capman.o lagdata.o lagaction.o unixsignal.o \
 	log_file.o log_console.o log_sysop.o \
 	game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
 	banners.o bricks.o objects.o messages.o koth.o fm_lockspec.o \

@@ -30,6 +30,10 @@
 #define PYCBPREFIX "PY-"
 #define PYINTPREFIX "PY-"
 
+#ifndef WIN32
+#define CHECK_SIGS
+#endif
+
 
 /* forward decls */
 
@@ -1306,6 +1310,9 @@ local int pyloader(int action, mod_args_t *args, const char *line, Arena *arena)
 
 EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 {
+#ifdef CHECK_SIGS
+	struct sigaction sa_before;
+#endif
 	if (action == MM_LOAD)
 	{
 		/* grab some modules */
@@ -1324,10 +1331,15 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 		if (pdkey < 0 || adkey < 0)
 			return MM_FAIL;
 
+#ifdef CHECK_SIGS
+		sigaction(SIGINT, NULL, &sa_before);
+#endif
 		/* start up python */
 		Py_Initialize();
-		/* get rid of its annoying habit of grabbing SIGINT */
-		signal(SIGINT, SIG_DFL);
+#ifdef CHECK_SIGS
+		/* if python changed this, reset it */
+		sigaction(SIGINT, &sa_before, NULL);
+#endif
 		/* set up our search path */
 		PyRun_SimpleString(
 				"import sys, os\n"

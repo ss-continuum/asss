@@ -111,5 +111,10 @@
 #define CFG_DEF_SPEC_FREQ 8025
 
 
+/* the file to write asss' pid to when it starts up. set to "NULL" to
+ * disable. */
+#define CFG_PID_FILE "asss.pid"
+
+
 /* dist: public */
 
