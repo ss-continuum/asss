@@ -1,4 +1,4 @@
 #!/bin/sh
-[ -d scripts ] || echo "run from the cvs root" && exit
+[ -d scripts ] || { echo "run from the cvs root" ; exit ; }
 # i love one-liners
-find -name CVS | sed -e 's+/CVS++' -e 's+^\./++' | xargs cvs log -l | cvs2cl --stdin --stdout --no-wrap --no-indent --hide-filenames | sed -e 's+\t+    +g' -e 's+\(:[0-9][0-9]\)  d\(avid\)\?$+\1+' | ssh asss 'cat > web/changelog.txt'
+find -name CVS | sed -e 's+/CVS++' -e 's+^\./++' | xargs cvs log -l | cvs2cl --stdin --stdout --no-wrap --no-indent --hide-filenames | sed -e 's+\t+    +g' -e 's+\(:[0-9][0-9]\)  d\(avid\)\?$+\1+' | ssh asss 'cat > web/changelog.txt ; echo done'
