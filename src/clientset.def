@@ -330,7 +330,7 @@ static char *byte_names[] =
 	 * Whether to check for slow frames on the client (possible cheat
 	 * technique) (flawed on some machines, do not use) */
 	"Misc:SlowFrameCheck",
-	/* DISABLEDcfghelp: Flag:CarryFlags, arena, int
+	/* cfghelp: Flag:CarryFlags, arena, int
 	 * Whether the flags can be picked up and carried (0=no, 1=yes,
 	 * 2=yes-one at a time, 3=yes-two at a time, 4=three, etc..) */
 	"Flag:CarryFlags",

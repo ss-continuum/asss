@@ -36,7 +36,7 @@
 \fi
 
 
-\title{\asss{} User's Guide -- 1.2.0}
+\title{\asss{} User's Guide -- 1.3.6}
 \author{\small Grelminar \lt{}\texttt{grelminar@yahoo.com}\gt{}}
 
 \begin{document}
@@ -116,86 +116,76 @@ architectures, but for now, Intel will have to do.
 
 
 \section{File Layout}
+
 The server always access files relative to the directory it was started
 from, and it expects to have certain files and directories in certain
 places. That means that to run multiple copies of the server on one
 machine, you should make sure that each one is started from its own home
 directory.
 
-Here's what a typical machine's file layout should look like:
+Here's what a typical zone's file layout should look like:
 \begin{verbatim}
-/home/asss
+/home/myzone
++ news.txt
++ scrty
++ scrty1
 + bin
 | + asss
 | + dbtool
 | + backtrace
 | + scoring.so
 | + security.so
-| + database.so
-| + funky.so
+| + fg_wz.py
+| + fg_turf.py
 | + ...
 |
-+ zone1
-| + news.txt
-| + scrty
-| + scrty1
-| + bin  (symlinked to ../bin)
-| + arenas
-| | + (default)
-| | | + arena.conf
-| | |
-| | + (public)
-| | | + arena.conf
-| | |
-| | + duel
-| | | + arena.conf
-| | |
-| | + pb
-| |   + arena.conf
-| |   + balls.conf
-| |   + pb.lvl
++ arenas
+| + (default)
+| | + arena.conf
 | |
-| + conf
-| | + global.conf
-| | + modules.conf
-| | + groupdef.conf
-| | + groupdef.dir
-| | | + default
-| | | + mod
-| | | + smod
-| | | + sysop
-| | |
-| | + defs.h
-| | + svs
-| |   + svs.conf
-| |   + prizeweights
-| |   + misc
-| |   + ship-warbird
-| |   + ...
+| + (public)
+| | + arena.conf
 | |
-| + log
-| | + asss.log
-| | + asss.log.1
+| + duel
+| | + arena.conf
 | |
-| + maps
-| | + zone1-pub.lvl
-| | + another.lvl
-| |
-| + data
-|   + data.db
+| + pb
+|   + arena.conf
+|   + balls.conf
+|   + pb.lvl
 |
-+ zone2
-  + news.txt
-  + bin  (symlinked to ../bin)
-  + ...
++ conf
+| + global.conf
+| + modules.conf
+| + groupdef.conf
+| + groupdef.dir
+| | + default
+| | + mod
+| | + smod
+| | + sysop
+| |
+| + svs
+|   + svs.conf
+|   + prizeweights
+|   + misc
+|   + ship-warbird
+|   + ...
+|
++ log
+| + asss.log
+| + asss.log.1
+|
++ maps
+| + zone1-pub.lvl
+| + another.lvl
+|
++ data
+  + data.db
 \end{verbatim}
 
 The most important directory is \verb/bin/. This directory should
 contain the main \asss{} binary, as well as all files containing modules
-to be loaded by the main binary. To ease administration, it is not
-recommended that each zone on a machine have a full copy of the
-\verb/bin/ directory. Instead, \verb/bin/ should be a symlink to a
-shared directory containing binaries.
+to be loaded by the main binary.
 
 \verb/conf/ contains config files that affect the server as a whole.
 Among the important files are \verb/modules.conf/, which specifies the
@@ -205,12 +195,6 @@ describes which capabilities belong to each group, and
 \verb/staff.conf/, which assigns groups to various players.
 \verb/groupdef.conf/ uses files in the \verb/groupdef.dir/ subdirectory
 to ensure more powerful groups have all the capabilities of lesser ones.
-
-Also in \verb/conf/ is \verb/defs.h/, which includes a bunch of other
-config files that are typically symlinks to files in the source code
-directory. This is done to ensure the server and config files agree on
-numerical values for various constants. All \verb/.conf/ files
-automatically \verb/#include/ \verb/defs.h/.
 
 \verb/conf/ can also contain partial config files for arenas to include.
 The default directory structure contains an \verb/svs/ directory, with
@@ -245,10 +229,6 @@ The file \verb/news.txt/ should be located in the base of the zone
 directory as well, unless another location is specified in
 \verb/global.conf/.
 
-Note that if you're only running one zone, you can skip the extra level
-of directories by just putting the real \verb/bin/ directory in your
-zone directory.
-
 
 \subsection{Running \asss{}}
 
@@ -260,9 +240,9 @@ line:
 \begin{itemize}
 
 \item A directory name on the command line will be interpreted as the
-name of a directory containing the zone files (as described in the last
-section). If no directory is specified, the current directory will be
-used.
+name of a directory containing the zone files (as described in the
+previous section). If no directory is specified, the current directory
+will be used.
 
 \item The optional switch \verb/--daemonize/ (abbreviated \verb/-d/)
 tells it to fork into the background before starting up. You might want
@@ -300,6 +280,11 @@ necessary) to create an \verb/etc/ directory with limited \verb/passwd/
 and \verb/group/ files, and also things like \verb/ld.so.conf/,
 \verb/hosts/, and \verb/nsswitch.conf/.
 
+If you're using Python modules, you'll also need a copy of the Python
+standard library in your chroot environment. It's usually found in
+\verb+/usr/lib/python2.3+. Note that you can hard-link the actual files
+to avoid wasting space.
+
 In order to do a chroot, \asss{} needs to be run as root. It won't
 continue running as root, of course: as soon as it successfully chroots,
 it drops its priviliges and runs as a normal user. The user it runs as
@@ -324,8 +309,8 @@ Unix) or \verb/.dll/ (on Windows). One shared library can contain any
 number of modules.
 
 There are currently
-% grep 'EXPORT *int *MM_[a-z]' ~/src/asss/src/*.c | wc -l
-71
+% expr `grep 'EXPORT *int *MM_[a-z]' ~/src/asss/src/*.c | wc -l` + `ls ~/src/asss/src/*.py | wc -l`
+79
 modules that are part of \asss{}, but each zone might have some
 custom-developed modules for their zone as well.
 
@@ -428,6 +413,11 @@ prevents kicking off for security checksum failures.
 given when the person they are spectating uses the \verb/?spec/ command.
 \item{\texttt{unlimitedchat}} allows a player (e.g., a bot) to bypass
 chat flooding checks.
+\item{\texttt{changesettings}} lets clients use the settings change
+packet (required for ?quickfix/?getsettings).
+\item{\texttt{isstaff}} makes players show up in ?listmod output.
+\item{\texttt{seeallstaff}} allows a player to see all non-default-group
+players, even if they lack \texttt{isstaff}.
 \end{itemize}
 
 
@@ -525,12 +515,12 @@ servers or bugs in the server itself.
 \subsection{What is logged?}
 
 There are currently
-% cat ~/src/asss/src/*.c | grep ">Log[AP]\?(L_" -c
-362
-% cat ~/src/asss/src/*.c | grep ">Log[AP]\?(L_" | sed 's/.*>Log[AP]\?(L_\([A-Z]*\).*/\1/' | sort | uniq -c
-distinct log messages in the server. By type, there are 31 ERROR
-messages, 102 WARN messages, 85 MALICIOUS messages, 64 INFO messages, and
-80 DRIVEL messages.
+% cat ~/src/asss/src/*.{c,py} | grep ">Log[AP]\?(L_" -c
+381
+% cat ~/src/asss/src/*.{c,py} | grep ">Log[AP]\?(L_" | sed 's/.*>Log[AP]\?(L_\([A-Z]*\).*/\1/' | sort | uniq -c
+distinct log messages in the server. By type, there are 37 ERROR
+messages, 111 WARN messages, 81 MALICIOUS messages, 65 INFO messages, and
+87 DRIVEL messages.
 
 \subsection{Filtering}
 
@@ -599,6 +589,13 @@ players with the capabilities \verb/seesysoplogall/ and
 messages that originated in the arena. This logging module also
 implements the \verb/?lastlog/ command.
 
+\item{\verb/log_staff/} broadcasts log lines generated by a specific set
+of commands to all online staff. The intention is to let other staff
+members know when one of them uses certain important commands. The
+default set of commands is \verb/?warn/, \verb/?kick/, and
+\verb/?setcm/, although the list is configurable with the
+\verb/log_staff:commands/ setting in \verb/global.conf/.
+
 \end{itemize}
 
 
@@ -622,8 +619,7 @@ separate between different arenas in the group.
 The group name of an arena (the name without the number at the end) is
 also used for determining staff groups.
 
-
-\subsection{Freq Ownership}
+\subsection{Freq Management}
 
 \requiremod{freqowners}
 If the arena controller allows it, private freqs can now be owned. The
@@ -636,21 +632,20 @@ freq can't be owned.
 The config variable \texttt{Team:AllowFreqOwners} controls whether to
 enable freq ownership. It defaults to on.
 
+\requiremod{fm\_password}
+The \verb/fm_password/ module implements password-protected freqs. It's
+a freq manager module meant to sit on top of another freq manager (like
+\verb/fm_normal/). The \verb/?freqpwd/ can be used by anyone on a
+private freq to set a password. To join a freq with a password, players
+must use the \verb/?joinpwd/ command before attempting to switch to the
+protected freq.
+
 \subsection{Arena limiting}
 
 \requiremod{arenaperm}
 Any arena can specify a \texttt{General:NeedCap} value in it's config
 file. If present, players will not be allowed to enter the arena unless
 they have the specified capability.
-
-
-\subsection{Autowarping}
-
-\requiremod{autowarp}
-Using the region system, certain areas of the map can be configured to
-warp a player who enters them to somewhere else on the map.
-
-FIXME: include details about specifying autowarp settings.
 
 
 \subsection{Moderator chat}
@@ -720,6 +715,14 @@ name out of a zone.
 
 To use a fallback module for the \verb/billing/ module, simply make sure
 that that module is loaded before \verb/billing/ is loaded.
+
+Two more authentication modules are intended to be layered on top of the
+basic ones: \verb/auth_prefix/ lets only staff members log in with
+certain punctuation characters as prefixes to their real account names
+(controlled by the \verb/prefix_x/ capabilities), and \verb/auth_ban/
+implements simple banning by machine-id, as an authentication layer. It
+provides the \verb/?kick/, \verb/?listmidbans/, and \verb/?delmidban/
+commands to control the ban list.
 
 
 \subsection{Multiple ``public'' arenas}
@@ -843,11 +846,55 @@ those used in modern TCP implementations are used to dynamically adjust
 the bandwith limit to players based on their connection quality.
 
 
-%\section{Regions}
-%
-%\subsection{What are regions?}
-%
-%\subsection{Making regions}
+\section{Regions and Extended LVL Files}
+
+\asss{} supports an extention to the classic map file format. The
+extension format is mostly backwards-compatible, so extended lvl files
+should work with any program that supports classic lvl files.
+
+Extended lvl files can contain various types of additional data. The
+simplest is a list of text attributes about the map, such as a name, a
+version, the map and tileset creators, and the programs used to create
+it. This data can be viewed with the \verb/?mapinfo/ command.
+
+The other important data that extended lvl files can contain, that
+\asss{} uses for new functionality, is regions.
+
+\subsection{What are regions?}
+
+A ``region'' is a named set of tiles, with optional assocated
+attributes. The tiles in a region can be an arbitrary set, and don't
+have to be in a certain shape or be connected (although things are more
+efficient if they are). A region has a name, which can be used to refer
+to it from a module (the details of how to do this are in the
+developer's guide, or at least will be eventually). Regions can also
+have several attributes which are interpreted by \asss{} itself.
+
+\subsection{Region attributes}
+
+Currently supported region attribute are: no-antiwarp, no-weapons,
+no-flags, and autowarp. If a region has the no-antiwarp attribute, the
+server will clear the antiwarp bit of any players in that region,
+effectively disabling their antiwarp (although it will appear to them
+that their antiwarp is still on; you should consider this when designing
+a zone using this feature). The no-weapons attribute means that the
+server will ignore weapons from players in the region, although again,
+the players themselves will still see their own weapons on their screen.
+The no-flags attribute prevents flags from being dropped in that region.
+The autowarp attribute (which requires the \verb/autowarp/ module to
+function) will automatically move a player to a different location,
+optionally in a different arena, when the region is entered.
+
+\subsection{Making extended lvl files}
+
+\verb/lvltool/, which is available on the \asss{} web site, is a simple
+command-line tool to manipulate extended lvl files. It's more of a
+proof-of-concept than a useful tool, although if you put enough effort
+in, you can use it to create arbitrary extended lvl files.
+
+The ``Continuum Level / Ini Tool,'' version 1-1-05 or later, is a
+graphical map editor, written in Java, that also supports creating
+extended lvl files.
 
 
 
@@ -1007,67 +1054,22 @@ for each ship.
 
 \subsubsection{Flags}
 
-Until I have time to rework my notes into a nice document, this will
-have to do:
+Flags in \asss{} are implemented by the coordination of several modules:
+\verb/flagcore/ implements the actual flag-related pieces of the game
+protocol, and general state-keeping. The rules for a specific flag game
+is implemented by a \verb/fg_something/ module, of which two are
+supplied with the server: \verb/fg_wz/ is a basic warzone-type flag
+game, where a team has to own all the flags to win. \verb/fg_turf/ is a
+turf-style game, where the flags are stationary, and points are awarded
+based on flags owned.
 
-\begin{verbatim}
-quick guide to transition flag settings:
-
-(all these go in the [Flag] section)
-
-OLD SETTINGS TO KEEP
-FlaggerOnRadar=1
-FlaggerKillMultiplier=2
-FlaggerGunUpgrade=1
-FlaggerBombUpgrade=1
-FlaggerFireCostPercent=1000
-FlaggerDamagePercent=1000
-FlaggerBombFireDelay=0
-FlaggerSpeedAdjustment=0
-FlaggerThrustAdjustment=0
-CarryFlags=1                   make sure this agrees with GameType (see below)
-FlagDropDelay=3000
-FlagDropResetReward=0
-EnterGameFlaggingDelay=1000
-FlagBlankDelay=200
-NoDataFlagDropDelay=500
-
-OLD SETTINGS TO CHANGE
-FlagMode=1                     get rid of this, there's a new way to specify game types
-FlagResetDelay=1440000         rename to ResetDelay (not currently implemented)
-MaxFlags=3                     change to FlagCount=3
-RandomFlags=0                  get rid of this, use FlagCount=5-10
-FlagReward=2500                keep this
-FlagRewardMode=0               change name to SplitPoints
-FlagTerritoryRadius=3          get rid of this, use DropRadius
-FlagTerritoryRadiusCentroid=0  get rid of this, use DropRadius
-FriendlyTransfer=0             keep this the same
-
-NEW SETTINGS
-GameType = FLAGGAME_BASIC
-  options: FLAGGAME_NONE, FLAGGAME_BASIC, FLAGGAME_TURF, FLAGGAME_CUSTOM
-  basic is warzone/running with movable flags. turf is turf (be sure to
-  set CarryFlags=0, for now). custom means you have to load a module to
-  define a new game. note that those constants are in
-  settings/flaggames.h
-
-SpawnX = 512
-SpawnY = 512
-SpawnRadius = 1024
-  define where flags spawn and how far from that center
-
-DropRadius = 2
-  how far from a ship will flags drop
-
-NeutRadius = 2
-  how far from a ship will neuted flags appear
-
-DropOwned = YES
-  are dropped flags owned by the freq?
-
-NeutOwned = NO
-  are neuted flags owned by the freq? (obviously, YES prevents neuting)
-\end{verbatim}
+To get one of these games working, you should make sure \verb/flagcore/
+and the desired flag game module are both loaded. Then attach the
+desired flag game module to your arena, by listing it in the
+\verb/Modules:AttachModules/ setting. Then configure it with the
+appropriate settings, all of which can be found in the \verb/Flag/
+section. At a minimum, for \verb/fg_wz/, you need to set
+\verb/Flag:FlagCount/.
 
 
 \subsubsection{Energy/inventory viewing}
