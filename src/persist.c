@@ -13,6 +13,12 @@
 
 #include "db.h"
 
+#if DB_VERSION_MAJOR < 4
+#error This version of bdb is too old.
+#elif DB_VERSION_MAJOR > 5
+#warning Your version of bdb is too new. Things might not work right.
+#endif
+
 #include "asss.h"
 
 #include "db_layout.h"
@@ -770,6 +776,11 @@ local int init_db(void)
 	}
 	if ((err = db->open(
 				db,
+#if DB_VERSION_MAJOR >= 4 && DB_VERSION_MINOR >= 1
+				/* they added a transaction parameter to the db->open
+				 * call in 4.1.0. */
+				NULL,
+#endif
 				DB_FILENAME,
 				NULL,
 				DB_BTREE,

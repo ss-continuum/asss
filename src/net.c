@@ -78,6 +78,8 @@ typedef struct ClientData
 	/* total amounts sent and recvd */
 	unsigned int pktsent, pktrecvd;
 	unsigned int bytesent, byterecvd;
+	/* duplicate reliable packets and reliable retries */
+	unsigned int reldups, retries;
 	/* encryption type */
 	Iencrypt *enc;
 	/* stuff for recving sized packets, protected by player mtx */
@@ -186,6 +188,7 @@ local Iplayerdata *pd;
 local Ilogman *lm;
 local Imainloop *ml;
 local Iconfig *cfg;
+local Ilagcollect *lagc;
 
 local PlayerData *players;
 
@@ -275,6 +278,7 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
+		lagc = mm->GetInterface(I_LAGCOLLECT, ALLARENAS);
 		if (!pd || !cfg || !lm || !ml) return MM_FAIL;
 
 		players = pd->players;
@@ -369,6 +373,7 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(ml);
+		mm->ReleaseInterface(lagc);
 
 		return MM_OK;
 	}
@@ -798,6 +803,22 @@ donehere:
 }
 
 
+local void submit_rel_stats(int pid)
+{
+	if (lagc)
+	{
+		struct ReliableLagData rld;
+		rld.reldups = clients[pid].reldups;
+		/* the plus one is because c2sn is the rel id of the last packet
+		 * that we've seen, not the one we want to see. */
+		rld.c2sn = clients[pid].c2sn + 1;
+		rld.retries = clients[pid].retries;
+		rld.s2cn = clients[pid].s2cn;
+		lagc->RelStats(pid, &rld);
+	}
+}
+
+
 local void end_sized(int pid, int success)
 {
 	if (clients[pid].sizedrecv.offset != 0)
@@ -889,6 +910,7 @@ local void send_outgoing(int pid)
 
 	unsigned int gtc = GTC();
 	int ucount = 0, rcount = 0, bytessince, pri;
+	int retries = 0;
 	Buffer *buf, *nbuf, *rebuf;
 	byte *uptr = ubuf + 2;
 	byte *rptr = rbuf + 2;
@@ -922,6 +944,10 @@ local void send_outgoing(int pid)
 			    (gtc - buf->lastretry) > config.timeout &&
 			    (bytessince + buf->len + IP_UDP_OVERHEAD) <= limit)
 			{
+				if (buf->lastretry != 0)
+					/* this is a retry, not an initial send */
+					retries++;
+
 				/* sometimes, we have to not group a packet:
 				 *   if it's len > 240
 				 *   if it's reliable with a callback
@@ -1041,6 +1067,9 @@ local void send_outgoing(int pid)
 		SendRaw(pid, rebuf->d.raw, rebuf->len);
 		rebuf->lastretry = gtc;
 	}
+
+	clients[pid].retries += retries;
+	submit_rel_stats(pid);
 }
 
 
@@ -1124,9 +1153,9 @@ void * SendThread(void *dummy)
 		/* first send outgoing packets */
 		for (i = 0; i < (MAXPLAYERS + EXTRA_PID_COUNT); i++)
 			if ( ((players[i].status > S_FREE && players[i].status < S_TIMEWAIT &&
-							IS_OURS(i)) ||
-						i >= MAXPLAYERS /* billing needs to send before connected */) &&
-					pthread_mutex_trylock(outlistmtx + i) == 0)
+			       IS_OURS(i)) ||
+			     i >= MAXPLAYERS /* billing needs to send before connected */) &&
+			     pthread_mutex_trylock(outlistmtx + i) == 0)
 			{
 				send_outgoing(i);
 				pthread_mutex_unlock(outlistmtx + i);
@@ -1150,7 +1179,7 @@ void * SendThread(void *dummy)
 void * RelThread(void *dummy)
 {
 	Buffer *buf, *nbuf;
-	int worked = 0;
+	int worked = 0, pid;
 
 	pthread_mutex_lock(&relmtx);
 	while (!killallthreads)
@@ -1163,10 +1192,11 @@ void * RelThread(void *dummy)
 		for (buf = (Buffer*)rellist.next; (DQNode*)buf != &rellist; buf = nbuf)
 		{
 			nbuf = (Buffer*)buf->node.next;
+			pid = buf->pid;
 
 			/* if player is gone, free buffer */
-			if (players[buf->pid].status <= S_FREE ||
-			    players[buf->pid].status >= S_TIMEWAIT )
+			if (players[pid].status <= S_FREE ||
+			    players[pid].status >= S_TIMEWAIT )
 			{
 				DQRemove((DQNode*)buf);
 				FreeBuffer(buf);
@@ -1182,32 +1212,37 @@ void * RelThread(void *dummy)
 				pthread_mutex_unlock(&relmtx);
 
 				/* process it */
-				ProcessPacket(buf->pid, buf->d.raw, buf->len);
+				ProcessPacket(pid, buf->d.raw, buf->len);
 
 				FreeBuffer(buf);
 				pthread_mutex_lock(&relmtx);
 			}
 #endif
-			else if (buf->d.rel.seqnum == (clients[buf->pid].c2sn + 1) )
+			else if (buf->d.rel.seqnum == (clients[pid].c2sn + 1) )
 			{
 				/* else, if seqnum matches, process */
-				clients[buf->pid].c2sn++;
+				clients[pid].c2sn++;
 				DQRemove((DQNode*)buf);
 				/* don't hold mutex while processing packet */
 				pthread_mutex_unlock(&relmtx);
 
 				/* process it */
-				ProcessPacket(buf->pid, buf->d.rel.data, buf->len - 6);
+				ProcessPacket(pid, buf->d.rel.data, buf->len - 6);
 
 				FreeBuffer(buf);
+
+				submit_rel_stats(pid);
 				pthread_mutex_lock(&relmtx);
 				worked = 1;
 			}
-			else if (buf->d.rel.seqnum <= clients[buf->pid].c2sn)
+			else if (buf->d.rel.seqnum <= clients[pid].c2sn)
 			{
 				/* this is a duplicated reliable packet */
 				DQRemove((DQNode*)buf);
 				FreeBuffer(buf);
+				/* lag data */
+				clients[pid].reldups++;
+				submit_rel_stats(pid);
 			}
 		}
 	}
@@ -1501,16 +1536,20 @@ void ProcessAck(Buffer *buf)
 	RelCallback callback = NULL;
 	void *clos = NULL;
 
+	unsigned int ping;
+
 	pthread_mutex_lock(outlistmtx + buf->pid);
 	outlist = &clients[buf->pid].outlist;
 	for (b = (Buffer*)outlist->next; (DQNode*)b != outlist; b = nbuf)
 	{
 		nbuf = (Buffer*)b->node.next;
+		/* this should only match once */
 		if (IS_REL(b) &&
-				b->d.rel.seqnum == buf->d.rel.seqnum)
+		    b->d.rel.seqnum == buf->d.rel.seqnum)
 		{
 			callback = b->callback;
 			clos = b->clos;
+			ping = (GTC() - b->lastretry) * 10;
 			DQRemove((DQNode*)b);
 			FreeBuffer(b);
 		}
@@ -1519,6 +1558,9 @@ void ProcessAck(Buffer *buf)
 
 	if (callback)
 		callback(buf->pid, 1, clos);
+	
+	if (lagc)
+		lagc->RelDelay(buf->pid, ping);
 
 	FreeBuffer(buf);
 }
@@ -1532,6 +1574,18 @@ void ProcessSyncRequest(Buffer *buf)
 	/* note: this bypasses bandwidth limits */
 	SendRaw(buf->pid, (byte*)&ts, sizeof(ts));
 	pthread_mutex_unlock(outlistmtx + buf->pid);
+
+	/* submit data to lagdata */
+	if (lagc)
+	{
+		struct ClientPLossData data;
+		data.s_pktrcvd = clients[buf->pid].pktrecvd;
+		data.s_pktsent = clients[buf->pid].pktsent;
+		data.c_pktrcvd = cts->pktrecvd;
+		data.c_pktsent = cts->pktsent;
+		lagc->ClientPLoss(buf->pid, &data);
+	}
+
 	FreeBuffer(buf);
 }
 

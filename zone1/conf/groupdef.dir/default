@@ -13,6 +13,10 @@ cmd_version
 cmd_listmods
 cmd_getgroup
 privcmd_getgroup
+cmd_uptime
+
+cmd_lag
+privcmd_lag
 
 ; this isn't as dangerous as it looks.
 ; you need more capabilities to set other people's groups.
@@ -31,6 +35,5 @@ cmd_sheep
 ; not implemented yet
 cmd_packetloss
 cmd_zone
-cmd_lag
 cmd_find
 

@@ -63,6 +63,7 @@ local Iarenaman *aman;
 local Iflags *flags;
 local Icapman *capman;
 local Imapdata *mapdata;
+local Ilagcollect *lagc;
 
 local PlayerData *players;
 local ArenaData *arenas;
@@ -70,6 +71,7 @@ local ArenaData *arenas;
 /* big arrays */
 local struct C2SPosition pos[MAXPLAYERS];
 local int speccing[MAXPLAYERS];
+local unsigned int wpnsent[MAXPLAYERS];
 /* epd/energy stuff */
 local struct { char see, cap, capnrg, pad__; } pl_epd[MAXPLAYERS];
 local struct { char spec, nrg; } ar_epd[MAXARENA];
@@ -94,6 +96,7 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		flags = mm->GetInterface(I_FLAGS, ALLARENAS);
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
+		lagc = mm->GetInterface(I_LAGCOLLECT, ALLARENAS);
 
 		if (!net || !cfg || !lm || !aman) return MM_FAIL;
 
@@ -159,6 +162,7 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(flags);
 		mm->ReleaseInterface(capman);
 		mm->ReleaseInterface(mapdata);
+		mm->ReleaseInterface(lagc);
 		return MM_OK;
 	}
 	return MM_FAIL;
@@ -283,7 +287,10 @@ void Pppk(int pid, byte *p2, int n)
 							( ( p->weapon.type == W_NULL &&
 								dist <= cfg_pospix &&
 								randnum > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0)))))
+					{
 						set->set[set->count++] = i;
+						wpnsent[i]++;
+					}
 				}
 
 			/* terminate sets */
@@ -371,6 +378,10 @@ void Pppk(int pid, byte *p2, int n)
 		if (pl_epd[pid].capnrg) see = SEE_ALL;
 		pl_epd[pid].see = see;
 	}
+
+	/* lag data */
+	if (lagc)
+		lagc->Position(pid, (GTC() - p->time) * 10, wpnsent[pid]);
 
 	/* copy the whole thing. this will copy the epd, or, if the client
 	 * didn't send any epd, it will copy zeros because the buffer was
@@ -667,6 +678,7 @@ void PlayerAction(int pid, int action, int arena)
 		pl_epd[pid].see = 0;
 		pl_epd[pid].cap = capman ? capman->HasCapability(pid, "seeepd") : 0;
 		pl_epd[pid].capnrg = capman ? capman->HasCapability(pid, "seenrg") : 0;
+		wpnsent[pid] = 0;
 		SendOldBricks(pid);
 	}
 }

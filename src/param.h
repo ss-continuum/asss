@@ -106,3 +106,14 @@
 #define CFG_SOCCER_MAXGOALS 16
 
 
+/* number of buckets, and size of each bucket, for lag measurement. note
+ * that the bucket width is in milliseconds, not ticks. */
+#define CFG_LAG_BUCKETS 25
+#define CFG_LAG_BUCKET_WIDTH 20
+
+
+/* whether to enable a few locks that may decrease performance (and
+ * increase lag), but are relatively safe to leave off. you might want
+ * to consider enabling this on a multiprocessor box. */
+/* #define CFG_PEDANTIC_LOCKING */
+

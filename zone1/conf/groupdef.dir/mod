@@ -29,6 +29,8 @@ privcmd_specall
 privcmd_prize
 privcmd_shipreset
 
+privcmd_laginfo
+
 ; fun stuff
 cmd_brickwrite
 

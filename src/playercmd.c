@@ -52,6 +52,7 @@ local Ilog_file *logfile;
 local Iflags *flags;
 local Iballs *balls;
 local Ifiletrans *filetrans;
+local Ilagquery *lagq;
 local Imodman *mm;
 
 local PlayerData *players;
@@ -1199,6 +1200,111 @@ local void Cjackpot(const char *params, int pid, const Target *target)
 }
 
 
+static unsigned int startedat;
+
+local helptext_t uptime_help =
+"Targets: none\n"
+"Args: none\n"
+"Displays how long the server has been running.\n";
+
+local void Cuptime(const char *params, int pid, const Target *target)
+{
+	unsigned int secs = (GTC() - startedat) / 100;
+	int days, hours, mins;
+
+	days = secs / 86400;
+	secs %= 86400;
+	hours = secs / 3600;
+	secs %= 3600;
+	mins = secs / 60;
+	secs %= 60;
+
+	chat->SendMessage(pid, "uptime: %d days %d hours %d minutes %d seconds",
+			days, hours, mins, secs);
+}
+
+
+/* lag commands */
+
+local helptext_t lag_help =
+"Targets: none or player\n"
+"Args: none\n"
+"Displays basic lag information about you or a target player.\n";
+
+local void Clag(const char *params, int pid, const Target *target)
+{
+	struct PingSummary pping, cping;
+	struct PLossSummary ploss;
+	int t = (target->type) == T_PID ? target->u.pid : pid;
+
+	lagq->QueryPPing(t, &pping);
+	lagq->QueryCPing(t, &cping);
+	lagq->QueryPLoss(t, &ploss);
+
+	if (t == pid)
+		chat->SendMessage(pid,
+			"ping: s2c: %d (%d-%d) c2s: %d (%d-%d)  ploss: s2c: %.2f c2s: %.2f",
+			cping.avg, cping.min, cping.max,
+			pping.avg, pping.min, pping.max,
+			100.0*ploss.s2c, 100.0*ploss.c2s);
+	else
+		chat->SendMessage(pid,
+			"%s: ping: s2c: %d (%d-%d) c2s: %d (%d-%d)  ploss: s2c: %.2f c2s: %.2f",
+			players[t].name,
+			cping.avg, cping.min, cping.max,
+			pping.avg, pping.min, pping.max,
+			100.0*ploss.s2c, 100.0*ploss.c2s);
+}
+
+
+local helptext_t laginfo_help =
+"Targets: none or player\n"
+"Args: none\n"
+"Displays tons of lag information about a player.\n";
+
+local void Claginfo(const char *params, int pid, const Target *target)
+{
+	struct PingSummary pping, cping, rping;
+	struct PLossSummary ploss;
+	struct ReliableLagData rlag;
+	int t = (target->type) == T_PID ? target->u.pid : pid;
+
+	lagq->QueryPPing(t, &pping);
+	lagq->QueryCPing(t, &cping);
+	lagq->QueryRPing(t, &rping);
+	lagq->QueryPLoss(t, &ploss);
+	lagq->QueryRelLag(t, &rlag);
+
+	chat->SendMessage(pid, "%s: s2c ping: %d %d (%d-%d)",
+		players[t].name, cping.cur, cping.avg, cping.min, cping.max);
+	chat->SendMessage(pid, "%s: c2s ping: %d %d (%d-%d)",
+		players[t].name, pping.cur, pping.avg, pping.min, pping.max);
+	chat->SendMessage(pid, "%s: rel ping: %d %d (%d-%d)",
+		players[t].name, rping.cur, rping.avg, rping.min, rping.max);
+	chat->SendMessage(pid, "%s: ploss: s2c: %.2f c2s: %.2f s2cwpn: %.2f",
+		players[t].name, 100.0*ploss.s2c, 100.0*ploss.c2s, 100.0*ploss.s2cwpn);
+	chat->SendMessage(pid, "%s: reliable dups: %.2f  reliable resends: %.2f",
+		players[t].name, 100.0*(double)rlag.reldups/(double)rlag.c2sn,
+		100.0*(double)rlag.retries/(double)rlag.s2cn);
+	chat->SendMessage(pid, "%s: s2c slow: %d/%d  s2c fast: %d/%d",
+		players[t].name, cping.s2cslowcurrent, cping.s2cslowtotal,
+		cping.s2cfastcurrent, cping.s2cfasttotal);
+}
+
+
+local helptext_t laghist_help =
+"Targets: none or player\n"
+"Args: [{-r}]\n"
+"Displays lag histograms. If a {-r} is given, do this histogram for\n"
+"\"reliable\" latency instead of c2s pings.\n";
+
+local void Claghist(const char *params, int pid, const Target *target)
+{
+	/* FIXME: write this */
+}
+
+
+
 /* command group system */
 
 /* declarations */
@@ -1342,6 +1448,7 @@ local const struct cmd_info core_commands[] =
 	CMD(arena)
 	CMD(shutdown)
 	CMD(version)
+	CMD(uptime)
 	CMD(lsmod)
 	CMD(insmod)
 	CMD(rmmod)
@@ -1431,6 +1538,20 @@ local const struct cmd_info admin_commands[] =
 };
 
 
+local const struct interface_info lag_requires[] =
+{
+	REQUIRE(lagq, I_LAGQUERY)
+	END()
+};
+local const struct cmd_info lag_commands[] =
+{
+	CMD(lag)
+	CMD(laginfo)
+	CMD(laghist)
+	END()
+};
+
+
 local const struct interface_info misc_requires[] =
 {
 	REQUIRE(capman, I_CAPMAN)
@@ -1462,6 +1583,7 @@ local struct cmd_group all_cmd_groups[] =
 	CMD_GROUP(flag)
 	CMD_GROUP(ball)
 	CMD_GROUP(admin)
+	CMD_GROUP(lag)
 	CMD_GROUP(misc)
 	END()
 };
@@ -1494,6 +1616,8 @@ EXPORT int MM_playercmd(int action, Imodman *_mm, int arena)
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 
 		if (!pd || !chat || !cmd) return MM_FAIL;
+
+		startedat = GTC();
 
 		players = pd->players;
 

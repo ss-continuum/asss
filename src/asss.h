@@ -32,6 +32,7 @@
 #include "objects.h"
 #include "watchdamage.h"
 #include "chatnet.h"
+#include "lagdata.h"
 
 /* utility functions that are linked in directly */
 #include "util.h"
