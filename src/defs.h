@@ -51,18 +51,6 @@
 /*#define I_BANNER */
 
 
-/* action codes for module main functions */
-#define MM_LOAD     1
-#define MM_UNLOAD   2
-#define MM_ATTACH   3
-#define MM_DETACH   4
-
-
-/* return values for the aforementioned */
-#define MM_FAIL 1
-#define MM_OK   0
-
-
 /* player status codes */
 
 #define S_FREE                        0

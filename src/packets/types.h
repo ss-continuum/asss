@@ -70,7 +70,7 @@
 #define C2S_ATTACHTO 0x10
 /* missing 11 12 */
 #define C2S_PICKUPFLAG 0x13
-/* missing 14 */
+#define C2S_TURRETKICKOFF 0x14
 #define C2S_DROPFLAGS 0x15
 /* missing 16 17 */
 #define C2S_SETSHIP 0x18

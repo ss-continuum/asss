@@ -19,6 +19,8 @@ int MM_log_console(int action, Imodman *mm, int arena)
 		mm->UnregCallback(CALLBACK_LOGFUNC, LogConsole, ALLARENAS);
 		return MM_OK;
 	}
+	else if (action == MM_CHECKBUILD)
+		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

@@ -41,6 +41,8 @@ int MM_points_kill(int action, Imodman *mm_, int arena)
 		mm->UnregCallback(CALLBACK_KILL, MyKillFunc, arena);
 		return MM_OK;
 	}
+	else if (action == MM_CHECKBUILD)
+		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

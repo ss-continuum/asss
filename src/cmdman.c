@@ -53,6 +53,8 @@ int MM_cmdman(int action, Imodman *mm, int arena)
 		HashFree(cmds);
 		return MM_OK;
 	}
+	else if (action == MM_CHECKBUILD)
+		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

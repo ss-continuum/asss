@@ -67,6 +67,8 @@ int MM_chat(int action, Imodman *mm_, int arena)
 		mm->UnregInterest(I_CMDMAN, &cmd);
 		return MM_OK;
 	}
+	else if (action == MM_CHECKBUILD)
+		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

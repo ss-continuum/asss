@@ -45,6 +45,8 @@ int MM_mapdata(int action, Imodman *mm, int arenas)
 	{
 		return MM_OK;
 	}
+	else if (action == MM_CHECKBUILD)
+		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

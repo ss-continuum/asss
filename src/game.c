@@ -24,6 +24,7 @@ local void PSetFreq(int, byte *, int);
 local void PDie(int, byte *, int);
 local void PGreen(int, byte *, int);
 local void PAttach(int, byte *, int);
+local void PKickoff(int, byte *, int);
 
 local void Creport(const char *params, int pid, int target);
 
@@ -102,6 +103,7 @@ int MM_game(int action, Imodman *mm_, int arena)
 		net->AddPacket(C2S_DIE, PDie);
 		net->AddPacket(C2S_GREEN, PGreen);
 		net->AddPacket(C2S_ATTACHTO, PAttach);
+		net->AddPacket(C2S_TURRETKICKOFF, PKickoff);
 
 		cmd->AddCommand("report", Creport, 0);
 
@@ -118,6 +120,7 @@ int MM_game(int action, Imodman *mm_, int arena)
 		net->RemovePacket(C2S_DIE, PDie);
 		net->RemovePacket(C2S_GREEN, PGreen);
 		net->RemovePacket(C2S_ATTACHTO, PAttach);
+		net->RemovePacket(C2S_TURRETKICKOFF, PKickoff);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_LOGMAN, &log);
@@ -132,6 +135,8 @@ int MM_game(int action, Imodman *mm_, int arena)
 		mm->UnregInterface(I_ASSIGNFREQ, &_myaf);
 		return MM_OK;
 	}
+	else if (action == MM_CHECKBUILD)
+		return BUILDNUMBER;
 	return MM_FAIL;
 }
 
@@ -428,6 +433,17 @@ void PAttach(int pid, byte *p2, int n)
 		net->SendToArena(arena, -1, (byte*)&to, 5, NET_RELIABLE);
 	}
 	pd->UnlockPlayer(pid2);
+}
+
+
+void PKickoff(int pid, byte *p, int len)
+{
+	int i;
+	byte pkt = S2C_TURRETKICKOFF;
+	for (i = 0; i < MAXPLAYERS; i++)
+		if (players[i].status == S_PLAYING &&
+		    players[i].attachedto == pid)
+			net->SendToOne(i, &pkt, 1, NET_RELIABLE);
 }
 
 

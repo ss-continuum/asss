@@ -45,7 +45,6 @@ local Imodman *mm;
 
 local void (*CachedAuthDone)(int, AuthData*);
 local PlayerData *players;
-local int (*FindPlayer)(char *);
 
 local Iauth _iauth = { BillingAuth };
 local Ibillcore _ibillcore =
@@ -69,7 +68,6 @@ int MM_billcore(int action, Imodman *_mm, int arena)
 		if (!net || !ml || !cfg || !cmd) return MM_FAIL;
 
 		players = pd->players;
-		FindPlayer = mm->FindPlayer;
 
 		cfg_pingtime = cfg->GetInt(GLOBAL, "Billing", "PingTime", 3000);
 		cfg_serverid = cfg->GetInt(GLOBAL, "Billing", "ServerId", 5000),
@@ -119,6 +117,8 @@ int MM_billcore(int action, Imodman *_mm, int arena)
 		mm->UnregInterest(I_CMDMAN, &cmd);
 		return MM_OK;
 	}
+	else if (action == MM_CHECKBUILD)
+		return BUILDNUMBER;
 	return MM_FAIL;
 }
 
@@ -300,7 +300,7 @@ void BMessage(int pid, byte *p, int len)
 			}
 			else
 			{	/* normal priv msg */
-				targ = mm->FindPlayer(msg+1);
+				targ = pd->FindPlayer(msg+1);
 				if (targ >= 0)
 					net->SendToOne(targ, (byte*)to, strlen(t+1)+6, NET_RELIABLE);
 			}

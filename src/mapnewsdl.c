@@ -120,6 +120,8 @@ int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		mm->UnregInterest(I_ARENAMAN, &aman);
 		return MM_OK;
 	}
+	else if (action == MM_CHECKBUILD)
+		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

@@ -261,6 +261,8 @@ int MM_net(int action, Imodman *mm, int arena)
 
 		return MM_OK;
 	}
+	else if (action == MM_CHECKBUILD)
+		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

@@ -11,6 +11,9 @@ typedef struct Iplayerdata
 	void (*UnlockPlayer)(int pid);
 	void (*LockStatus)();
 	void (*UnlockStatus)();
+	int (*FindPlayer)(char *name);
+	/* this is a useful function that doesn't belong here. but it is
+	 * anyway. */
 } Iplayerdata;
 
 #endif

@@ -47,6 +47,8 @@ int MM_encrypt1(int action, Imodman *mm, int arena)
 		mm->UnregInterface(I_ENCRYPTBASE + MYTYPE, &_int);
 		return MM_OK;
 	}
+	else if (action == MM_CHECKBUILD)
+		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

@@ -136,6 +136,8 @@ int MM_flags(int action, Imodman *_mm, int arena)
 		mm->UnregInterest(I_MAINLOOP, &ml);
 		return MM_OK;
 	}
+	else if (action == MM_CHECKBUILD)
+		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

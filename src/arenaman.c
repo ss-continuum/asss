@@ -118,6 +118,8 @@ int MM_arenaman(int action, Imodman *mm_, int arena)
 		mm->UnregInterest(I_CLIENTSET, &clientset);
 		return MM_OK;
 	}
+	else if (action == MM_CHECKBUILD)
+		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

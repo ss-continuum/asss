@@ -135,6 +135,8 @@ int MM_persist(int action, Imodman *_mm, int arena)
 
 		return MM_OK;
 	}
+	else if (action == MM_CHECKBUILD)
+		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

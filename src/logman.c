@@ -44,6 +44,8 @@ int MM_logman(int action, Imodman *mm_, int arena)
 		mm->UnregInterface(I_LOGMAN, &_int);
 		return MM_OK;
 	}
+	else if (action == MM_CHECKBUILD)
+		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

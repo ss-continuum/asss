@@ -83,6 +83,8 @@ int MM_scheme(int action, Imodman *_mm, int arena)
 		mm->UnregInterest(I_ARENAMAN, &aman);
 		return MM_OK;
 	}
+	else if (action == MM_CHECKBUILD)
+		return BUILDNUMBER;
 	return MM_FAIL;
 }
 
@@ -231,7 +233,7 @@ int ProcessMessage(void *data, int size)
 		case E2A_FINDPLAYER:
 			{
 				struct data_e2a_findplayer *d = data;
-				int res = mm->FindPlayer(d->name);
+				int res = pd->FindPlayer(d->name);
 				SendPlayerData(res);
 			}
 			break;

@@ -40,8 +40,6 @@ local LinkedList * LookupCallback(char *, int);
 local void FreeLookupResult(LinkedList *);
 
 
-local int FindPlayer(char *);
-
 
 local HashTable *arenacallbacks, *globalcallbacks;
 
@@ -56,8 +54,7 @@ local Imodman mmint =
 	LoadModule, ReportFailedRequire, UnloadModule, UnloadAllModules,
 	AttachModule, DetachModule,
 	RegInterest, UnregInterest, RegInterface, UnregInterface,
-	RegCallback, UnregCallback, LookupCallback, FreeLookupResult,
-	FindPlayer, NULL
+	RegCallback, UnregCallback, LookupCallback, FreeLookupResult
 };
 
 
@@ -145,6 +142,18 @@ int LoadModule(char *filename)
 
 	astrncpy(mod->name, modname, MAXNAME-2);
 	modname--; *modname = DELIM; modname++;
+
+	ret = mod->mm(MM_CHECKBUILD, &mmint, -1);
+	if (ret != BUILDNUMBER)
+	{
+		if (log) log->Log(L_ERROR,
+				"<module> Build number mismatch: module '%s' was built with %d, we were built with %d",
+				modname,
+				ret,
+				BUILDNUMBER);
+		if (!mod->myself) dlclose(mod->hand);
+		goto die2;
+	}
 
 	ret = mod->mm(MM_LOAD, &mmint, -1);
 
@@ -336,31 +345,6 @@ void FreeLookupResult(LinkedList *lst)
 	LLFree(lst);
 }
 
-
-/* misc helper function */
-
-int FindPlayer(char *name)
-{
-	int i;
-	Iplayerdata *pd;
-	PlayerData *p;
-
-	pd = ints[I_PLAYERDATA];
-
-	if (!pd)
-		return -1;
-
-	pd->LockStatus();
-	for (i = 0, p = pd->players; i < MAXPLAYERS; i++, p++)
-		if (	p->status == S_CONNECTED &&
-				strcasecmp(name, p->name) == 0)
-		{
-			pd->UnlockStatus();
-			return i;
-		}
-	pd->UnlockStatus();
-	return -1;
-}
 
 
 

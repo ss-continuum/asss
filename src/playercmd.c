@@ -85,6 +85,8 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		mm->UnregInterest(I_LOG_FILE, &logfile);
 		return MM_OK;
 	}
+	else if (action == MM_CHECKBUILD)
+		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

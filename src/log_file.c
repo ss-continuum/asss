@@ -46,6 +46,8 @@ int MM_log_file(int action, Imodman *mm, int arenas)
 		mm->UnregInterest(I_CONFIG, &cfg);
 		return MM_OK;
 	}
+	else if (action == MM_CHECKBUILD)
+		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

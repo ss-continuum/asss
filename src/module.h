@@ -9,6 +9,36 @@
 
 #include "util.h"
 
+
+/* action codes for module main functions */
+
+#define MM_LOAD       1
+/* this means the module is being loaded. do all global initialization
+ * here. */
+
+#define MM_UNLOAD     2
+/* the module is being unloaded. try to clean up as best as possible. */
+
+#define MM_ATTACH     3
+/* the module is being attached to an arena. if you have any
+ * arena-specific functionality, now would be a good time to turn it on
+ * for this arena. */
+
+#define MM_DETACH     4
+/* the reverse of the above. disable any special functionality for this
+ * arena. */
+
+#define MM_CHECKBUILD 5
+/* this is used to check runtime compatability of interfaces. all
+ * modules should respond to this by returning the value of the
+ * preprocessor constant BUILDNUMBER. */
+
+
+/* return values for ModMain functions */
+#define MM_FAIL 1
+#define MM_OK   0
+
+
 typedef struct Imodman
 {
 	int (*LoadModule)(char *specifier);
@@ -71,13 +101,6 @@ typedef struct Imodman
 	 * specifically registered with ALLARENAS. (that is, it doesn't
 	 * return callbacks that are specific to an arena. if you think the
 	 * behaviour doesn't make sense, tell me.) */
-
-	int (*FindPlayer)(char *name);
-	/* this is a useful function that doesn't belong here. but it is
-	 * anyway. */
-
-	char *desc;
-	/* um.. ignore this for now. */
 } Imodman;
 
 
