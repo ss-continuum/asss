@@ -1,10 +1,13 @@
 
 /* dist: public */
 
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <string.h>
 
 #include "asss.h"
 #include "log_file.h"
@@ -74,6 +77,16 @@ local void handle_sigusr2(void)
 	}
 }
 
+local void handle_sigsegv(int sig)
+{
+	char cmd[128];
+	memset(cmd, 0, sizeof(cmd));
+	snprintf(cmd, sizeof(cmd), "bin/backtrace bin/asss %d", getpid());
+	system(cmd);
+	write(2, "Segmentation fault (backtrace dumped)\n", 38);
+	_exit(1);
+}
+
 
 local void check_signals(void)
 {
@@ -106,6 +119,11 @@ local void init_signals(void)
 	sigaction(SIGTERM, &sa, NULL);
 	sigaction(SIGUSR1, &sa, NULL);
 	sigaction(SIGUSR2, &sa, NULL);
+
+#ifdef CFG_HANDLE_SEGV
+	sa.sa_handler = handle_sigsegv;
+	sigaction(SIGSEGV, &sa, NULL);
+#endif
 }
 
 local void deinit_signals(void)
@@ -121,6 +139,7 @@ local void deinit_signals(void)
 	sigaction(SIGTERM, &sa, NULL);
 	sigaction(SIGUSR1, &sa, NULL);
 	sigaction(SIGUSR2, &sa, NULL);
+	sigaction(SIGSEGV, &sa, NULL);
 }
 
 local void write_pid(const char *fn)

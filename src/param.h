@@ -109,5 +109,10 @@
 #define CFG_PID_FILE "asss.pid"
 
 
+/* whether the unixsignal module should trap segfaults and attempt to
+ * generate a backtrace. */
+#define CFG_HANDLE_SEGV
+
+
 /* dist: public */
 

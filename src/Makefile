@@ -151,7 +151,7 @@ ifeq ($(have_python),yes)
 DLS += pymod.$(SO)
 endif
 
-ALL_STUFF = $(BINARIES) $(DLS)
+ALL_STUFF = $(BINARIES) $(DLS) backtrace
 
 UTIL_OBJS = util.o pathutil.o protutil.o region.o rwlock.o app.o md5.o $(W32COMPAT)
 

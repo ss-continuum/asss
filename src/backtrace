@@ -1,0 +1,16 @@
+#!/bin/sh
+
+EXE=$1
+PID=$2
+TMPFILE=gdbcmds.$$.tmp
+
+exec 1>segv-$PID.bt 2>&1
+
+cat <<EOF >$TMPFILE
+set height 0
+bt full
+quit
+EOF
+
+gdb -batch -x $TMPFILE $EXE $PID </dev/null
+/bin/rm -f $TMPFILE
