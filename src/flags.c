@@ -334,7 +334,7 @@ local void LoadFlagSettings(int arena)
 	/* and initialize settings for that type */
 	if (d.gametype == FLAGGAME_BASIC)
 	{
-		char *count, *c2;
+		const char *count, *c2;
 		d.resetdelay = cfg->GetInt(c, "Flag", "ResetDelay", 0);
 		d.spawnx = cfg->GetInt(c, "Flag", "SpawnX", 512);
 		d.spawny = cfg->GetInt(c, "Flag", "SpawnY", 512);

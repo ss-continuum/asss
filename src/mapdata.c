@@ -227,7 +227,7 @@ void ArenaAction(int arena, int action)
 int GetMapFilename(int arena, char *buffer, int bufferlen)
 {
 	struct replace_table repls[2];
-	char *map, *searchpath;
+	const char *map, *searchpath;
 
 	map = cfg->GetStr(aman->arenas[arena].cfg, "General", "Map");
 	if (!map) return -1;

@@ -56,7 +56,7 @@ local ArenaData *arenas;
 /* big static array */
 local struct MapDownloadData mapdldata[MAXARENA];
 
-local char *cfg_newsfile;
+local const char *cfg_newsfile;
 local u32 newschecksum, cmpnewssize;
 local byte *cmpnews;
 local time_t newstime;

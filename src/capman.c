@@ -94,7 +94,7 @@ local void UpdateGroup(int pid, int arena)
 	if (ARENA_BAD(arena))
 	{
 		/* only global groups available for now */
-		char *gg = cfg->GetStr(gstaff, "Staff", pd->players[pid].name);
+		const char *gg = cfg->GetStr(gstaff, "Staff", pd->players[pid].name);
 		if (gg)
 		{
 			astrncpy(groups[pid], gg, MAXGROUPLEN);
@@ -107,8 +107,8 @@ local void UpdateGroup(int pid, int arena)
 	}
 	else
 	{
-		char *gg = cfg->GetStr(gstaff, "Staff", pd->players[pid].name);
-		char *ag = cfg->GetStr(astaff[arena], "Staff", pd->players[pid].name);
+		const char *gg = cfg->GetStr(gstaff, "Staff", pd->players[pid].name);
+		const char *ag = cfg->GetStr(astaff[arena], "Staff", pd->players[pid].name);
 		char *aname = aman->arenas[arena].name;
 
 		if (gg)

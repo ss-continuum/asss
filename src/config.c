@@ -23,7 +23,7 @@ struct ConfigFile
 
 /* function prototypes */
 
-local char *GetStr(ConfigHandle, const char *, const char *);
+local const char *GetStr(ConfigHandle, const char *, const char *);
 local int GetInt(ConfigHandle, const char *, const char *, int);
 
 local ConfigHandle LoadConfigFile(const char *arena, const char *name);
@@ -272,7 +272,7 @@ void FreeConfigFile(ConfigHandle ch)
 
 int LocateConfigFile(char *dest, int destlen, const char *arena, const char *name)
 {
-	char *path = NULL;
+	const char *path = NULL;
 	struct replace_table repls[] =
 		{ { 'n', name }, { 'a', arena } };
 
@@ -290,12 +290,12 @@ int LocateConfigFile(char *dest, int destlen, const char *arena, const char *nam
 
 int GetInt(ConfigHandle ch, const char *sec, const char *key, int def)
 {
-	char *res = GetStr(ch, sec, key);
+	const char *res = GetStr(ch, sec, key);
 	return res ? strtol(res, NULL, 0) : def;
 }
 
 
-char *GetStr(ConfigHandle ch, const char *sec, const char *key)
+const char *GetStr(ConfigHandle ch, const char *sec, const char *key)
 {
 	char keystring[MAXNAMELEN+MAXKEYLEN+2];
 

@@ -174,7 +174,7 @@ void SendLogin(int pid, byte *p, int n)
 		S2B_LOGIN, cfg_serverid, cfg_groupid, cfg_scoreid,
 		"<default zone name>", "password"
 	};
-	char *t;
+	const char *t;
 
 	log->Log(L_INFO, "<billcore> Billing server contacted, sending zone information");
 	t = cfg->GetStr(GLOBAL, "Billing", "ServerName");

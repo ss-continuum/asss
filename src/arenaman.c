@@ -138,6 +138,7 @@ local void DoAttach(int arena, int action)
 {
 	void (*func)(const char *name, int arena);
 	char *mods, *t, *_tok;
+	const char *attmods;
 
 	if (action == MM_ATTACH)
 		func = mm->AttachModule;
@@ -146,11 +147,11 @@ local void DoAttach(int arena, int action)
 	else
 		return;
 
-	t = cfg->GetStr(arenas[arena].cfg, "Modules", "AttachModules");
-	if (!t) return;
+	attmods = cfg->GetStr(arenas[arena].cfg, "Modules", "AttachModules");
+	if (!attmods) return;
 
-	mods = alloca(strlen(t)+1);
-	strcpy(mods, t);
+	mods = alloca(strlen(attmods)+1);
+	strcpy(mods, attmods);
 
 #define DELIMS " \t:;,"
 
@@ -257,6 +258,12 @@ void SendArenaResponse(int pid)
 	p = players + pid;
 
 	arena = p->arena;
+	if (ARENA_BAD(arena))
+	{
+		log->Log(L_WARN, "<arenaman> [%s] bad arena id in SendArenaResponse",
+				p->name);
+		return;
+	}
 
 	log->Log(L_INFO, "<arenaman> {%s} [%s] entering arena",
 				arenas[arena].name, p->name);
@@ -277,9 +284,9 @@ void SendArenaResponse(int pid)
 	pd->LockStatus();
 	for (i = 0; i < MAXPLAYERS; i++)
 	{
-		if (	players[i].status == S_PLAYING
-		     && players[i].arena  == arena
-		     && i != pid )
+		if (players[i].status == S_PLAYING &&
+				players[i].arena == arena &&
+				i != pid )
 		{
 			/* send each other info */
 			net->SendToOne(pid, (byte*)(players+i), 64, NET_RELIABLE);

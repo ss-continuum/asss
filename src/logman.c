@@ -95,7 +95,8 @@ void Log(char level, char *format, ...)
 
 int FilterLog(char level, const char *line, const char *modname)
 {
-	char *res, origin[32];
+	const char *res;
+	char origin[32];
 
 	/* if there's no config manager, disable filtering */
 	if (!cfg || !line || !modname)

@@ -358,7 +358,8 @@ void PersistAA(int arena, int action)
 	DB *db;
 	if (action == AA_CREATE)
 	{
-		char fname[PATH_MAX], *template = NULL;
+		char fname[PATH_MAX];
+		const char *template = NULL;
 
 		if (cfg)
 			template = cfg->GetStr(GLOBAL, "Scores", "ScoreFile");

@@ -82,7 +82,8 @@ void FlushLog(void)
 
 void ReopenLog(void)
 {
-	char *ln, fname[256];
+	const char *ln;
+	char fname[256];
 
 	pthread_mutex_lock(&logmtx);
 

@@ -31,7 +31,7 @@ int macro_expand_string(
 int find_file_on_path(
 		char *dest,
 		int destlen,
-		char *searchpath,
+		const char *searchpath,
 		struct replace_table *repls,
 		int replslen);
 

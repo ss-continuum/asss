@@ -41,7 +41,7 @@ typedef struct ConfigFile *ConfigHandle;
 
 typedef struct Iconfig
 {
-	char * (*GetStr)(ConfigHandle ch, const char *section, const char *key);
+	const char * (*GetStr)(ConfigHandle ch, const char *section, const char *key);
 	int (*GetInt)(ConfigHandle ch, const char *section, const char *key, int defvalue);
 
 /*	void (*SetConfigStr)(ConfigHandle, const char *, const char *, const char *); */

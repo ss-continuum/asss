@@ -25,7 +25,8 @@ typedef struct AuthData
  * registered with ALLARENAS to get them. */
 #define PA_PREENTERARENA  3
 /* this is called at some unknown point in player processing that
- * happens to be as early as possible. */
+ * happens to be as early as possible. it can be used for dangerous
+ * stuff like, say, redirecting people to different arenas. */
 #define PA_ENTERARENA     4
 #define PA_LEAVEARENA     5
 /* these two do involve arenas, so callbacks can be registered either
