@@ -1526,11 +1526,12 @@ local void Cjackpot(const char *params, Player *p, const Target *target)
 	{
 		Arena *arena;
 		Link *link;
-		int jp;
+		int jp, seehid = capman->HasCapability(p, CAP_SEEPRIVARENA);
 
 		aman->Lock();
 		FOR_EACH_ARENA(arena)
 			if (arena->status == ARENA_RUNNING &&
+			    (arena->name[0] != '#' || seehid || p->arena == arena) &&
 			    (jp = jackpot->GetJP(arena)) > 0)
 				chat->SendMessage(p, "jackpot in %s: %d", arena->name, jp);
 		aman->Unlock();
