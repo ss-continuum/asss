@@ -191,6 +191,7 @@ typedef struct ListenData
 	int gamesock, pingsock;
 	int port;
 	const char *connectas;
+	int allowvie, allowcont;
 } ListenData;
 
 
@@ -751,58 +752,41 @@ int InitSockets(void)
 	 * clients differently depending on which port or ip they use to
 	 * connect to the server. It serves as a virtual server identifier
 	 * for the rest of the server. */
+
+
 	for (i = 0; i < 10; i++)
 	{
-		unsigned short port;
+		int port;
 		ListenData *ld;
 		char secname[] = "Listen#";
-		char field1[32], field2[32];
-		const char *line, *n;
+		const char *bindaddr, *connectas;
 
 		secname[6] = i ? i+'0' : 0;
-		line = cfg->GetStr(GLOBAL, "Net", secname);
 
-		if (!line) continue;
+		/* cfghelp: Listen:Port, global, int
+		 * The port that the game protocol listens on. Sections named
+		 * Listen1 through Listen9 are also supported. All Listen
+		 * sections must contain a port setting. */
+		port = cfg->GetInt(GLOBAL, secname, "Port", -1);
+		if (port == -1)
+			continue;
 
+		/* allocate a listendata and set up sockaddr */
 		ld = amalloc(sizeof(*ld));
-
-		/* set up sin */
-		memset(&sin, 0, sizeof(sin));
-		sin.sin_family = AF_INET;
-
-		/* figure out what the user has specified */
-		n = delimcpy(field1, line, sizeof(field1), ':');
-		if (!n)
-		{
-			/* single field: port */
-			sin.sin_addr.s_addr = INADDR_ANY;
-			port = (unsigned short)strtol(field1, NULL, 0);
-		}
-		else
-		{
-			n = delimcpy(field2, n, sizeof(field2), ':');
-			if (!n)
-			{
-				/* two fields: port, connectas */
-				sin.sin_addr.s_addr = INADDR_ANY;
-				port = (unsigned short)strtol(field1, NULL, 0);
-				ld->connectas = astrdup(field2);
-			}
-			else
-			{
-				/* three fields: ip, port, connectas */
-				if (inet_aton(field1, &sin.sin_addr) == 0)
-					sin.sin_addr.s_addr = INADDR_ANY;
-				port = (unsigned short)strtol(field2, NULL, 0);
-				ld->connectas = astrdup(n);
-			}
-		}
-
 		ld->port = port;
 
-		/* now try to get and bind the sockets */
+		memset(&sin, 0, sizeof(sin));
+		sin.sin_family = AF_INET;
 		sin.sin_port = htons(port);
 
+		/* cfghelp: Listen:BindAddress, global, string
+		 * The interface address to bind to. This is optional, and if
+		 * omitted, the server will listen on all available interfaces. */
+		bindaddr = cfg->GetStr(GLOBAL, secname, "BindAddress");
+		if (!bindaddr || inet_aton(bindaddr, &sin.sin_addr) == 0)
+			sin.sin_addr.s_addr = INADDR_ANY;
+
+		/* now try to get and bind the sockets */
 		ld->gamesock = socket(PF_INET, SOCK_DGRAM, 0);
 		if (ld->gamesock == -1)
 		{
@@ -846,6 +830,27 @@ int InitSockets(void)
 			afree(ld);
 			continue;
 		}
+
+		/* if all the binding worked, grab a few more settings: */
+
+		/* cfghelp: Listen:AllowVIE, global, bool, def: 1
+		 * Whether VIE protocol clients (i.e., Subspace 1.34 and bots)
+		 * are allowed to connect to this port. */
+		ld->allowvie = cfg->GetInt(GLOBAL, secname, "AllowVIE", 1);
+		/* cfghelp: Listen:AllowCont, global, bool, def: 1
+		 * Whether Continuum clients are allowed to connect to this
+		 * port. */
+		ld->allowcont = cfg->GetInt(GLOBAL, secname, "AllowCont", 1);
+
+		/* cfghelp: Listen:ConnectAs, global, string
+		 * This setting allows you to treat clients differently
+		 * depending on which port they connect to. It serves as a
+		 * virtual server identifier for the rest of the server. The
+		 * standard arena placement module will use this as the name of
+		 * a default arena to put clients who connect through this port
+		 * in. */
+		connectas = cfg->GetStr(GLOBAL, secname, "ConnectAs");
+		ld->connectas = connectas ? astrdup(connectas) : NULL;
 
 		LLAdd(&listening, ld);
 
@@ -1855,6 +1860,11 @@ Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v
 	Player *p;
 	ConnData *conn;
 	ListenData *ld = v_ld;
+
+	/* certain ports might allow only one or another client */
+	if ((type == T_VIE && !ld->allowvie) ||
+	    (type == T_CONT && !ld->allowcont))
+		return NULL;
 
 	/* try to find this sin in the hash table */
 	if (sin && (p = LookupIP(*sin)))
