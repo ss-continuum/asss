@@ -449,7 +449,7 @@ local int start_recording(Arena *a, const char *file, const char *recorder, cons
 			struct file_header header = { "ass$game" };
 
 			/* fill in file header */
-			header.version = 1;
+			header.version = FILE_VERSION;
 			header.offset = sizeof(struct file_header) + cmtlen;
 			/* we don't know these next 3 yet */
 			header.events = 0;
