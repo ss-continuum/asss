@@ -53,6 +53,13 @@ local struct TurretData * new_turret(int pid, int timeout, int interval, int pid
 }
 
 
+local helptext_t dropturret_help =
+"Module: autoturret\n"
+"Targets: none\n"
+"Args: none\n"
+"Drops a turret right where your ship is. The turret will fire 10 level 1\n"
+"bombs, 1.5 seconds apart, and then disappear.\n";
+
 local void Cdropturret(const char *params, int pid, const Target *target)
 {
 	int tpid;
@@ -121,7 +128,7 @@ EXPORT int MM_autoturret(int action, Imodman *mm_, int arena)
 		if (!pd || !cmd || !fake) return MM_FAIL;
 		LLInit(&turrets);
 		mm->RegCallback(CB_MAINLOOP, mlfunc, ALLARENAS);
-		cmd->AddCommand("dropturret", Cdropturret);
+		cmd->AddCommand("dropturret", Cdropturret, dropturret_help);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)

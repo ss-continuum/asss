@@ -396,7 +396,7 @@ void AABall(int arena, int action)
 }
 
 
-local void CleanupAfter(int arena, int pid)
+local void CleanupAfter(int arena, int pid, int neut)
 {
 	/* make sure that if someone leaves, his ball drops */
 	int i;
@@ -411,11 +411,11 @@ local void CleanupAfter(int arena, int pid)
 			f->x = pd->players[pid].position.x;
 			f->y = pd->players[pid].position.y;
 			f->xspeed = f->yspeed = 0;
-			f->carrier = -1;
+			if (neut) f->carrier = -1;
 			f->time = GTC();
 			SendBallPacket(arena, i, NET_UNRELIABLE);
 		}
-		else if (f->carrier == pid)
+		else if (neut && f->carrier == pid)
 		{
 			/* if it's on the map, but last touched by the person, reset
 			 * it's last touched pid to -1 so that the last touched pid
@@ -431,22 +431,22 @@ void PABall(int pid, int action, int arena)
 	/* if he's entering arena, the timer event will send him the ball
 	 * info. */
 	if (action == PA_LEAVEARENA)
-		CleanupAfter(arena, pid);
+		CleanupAfter(arena, pid, 1);
 }
 
 void ShipChange(int pid, int ship, int newfreq)
 {
-	CleanupAfter(pd->players[pid].arena, pid);
+	CleanupAfter(pd->players[pid].arena, pid, 1);
 }
 
 void FreqChange(int pid, int newfreq)
 {
-	CleanupAfter(pd->players[pid].arena, pid);
+	CleanupAfter(pd->players[pid].arena, pid, 1);
 }
 
 void BallKill(int arena, int killer, int killed, int bounty, int flags)
 {
-	CleanupAfter(arena, killed);
+	CleanupAfter(arena, killed, 0);
 }
 
 

@@ -55,6 +55,7 @@ local void ScoreMsg(int, int);
 local void Csetscore(const char *,int, const Target *);
 local void Cscore(const char *, int, const Target *);
 local void Cresetgame(const char *, int, const Target *);
+local helptext_t setscore_help, score_help, resetgame_help;
 
 /* global data */
 local struct ArenaScores scores[MAXARENA];
@@ -80,9 +81,9 @@ EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 
-		cmd->AddCommand("setscore",Csetscore);
-		cmd->AddCommand("score",Cscore);
-		cmd->AddCommand("resetgame",Cresetgame);
+		cmd->AddCommand("setscore",Csetscore, setscore_help);
+		cmd->AddCommand("score",Cscore, score_help);
+		cmd->AddCommand("resetgame",Cresetgame, resetgame_help);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
@@ -371,6 +372,14 @@ void ScoreMsg(int arena, int pid)  // pid = -1 means arena-wide, otherwise priva
 			else chat->SendMessage(pid,_buf,scores[arena].score[0],scores[arena].score[1]);
 }
 
+
+local helptext_t setscore_help =
+"Targets: none\n"
+"Args: <freq 0 score> [<freq 1 score> [... [<freq 7 score>]]]\n"
+"Changes score of current soccer game, based on arguments. Only supports\n"
+"first eight freqs, and arena must be in absolute scoring mode \n"
+"(Soccer:CapturePoints < 0).\n";
+
 void Csetscore(const char *params, int pid, const Target *target)
 {
 	int i, newscores[MAXFREQ], arena = pd->players[pid].arena;
@@ -398,12 +407,24 @@ void Csetscore(const char *params, int pid, const Target *target)
 		chat->SendMessage(pid,"setscore format: *setscore x y z .... where x = freq 0, y = 1,etc");
 }
 
+
+local helptext_t score_help =
+"Targets: none\n"
+"Args: none\n"
+"Returns score of current soccer game.\n";
+
 void Cscore(const char *params, int pid, const Target *target)
 {
 	int arena = pd->players[pid].arena;
 
 	if (scores[arena].mode) ScoreMsg(arena, pid);
 }
+
+
+local helptext_t resetgame_help =
+"Targets: none\n"
+"Args: none\n"
+"Resets soccer game scores and balls.\n";
 
 void Cresetgame(const char *params, int pid, const Target *target)
 {

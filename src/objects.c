@@ -45,9 +45,9 @@ EXPORT int MM_objects(int action, Imodman *_mm, int arena)
 
 		if (!cmd) return MM_FAIL;
 
-		cmd->AddCommand("objon", Cobjon);
-		cmd->AddCommand("objoff", Cobjoff);
-		cmd->AddCommand("objset", Cobjset);
+		cmd->AddCommand("objon", Cobjon, NULL);
+		cmd->AddCommand("objoff", Cobjoff, NULL);
+		cmd->AddCommand("objset", Cobjset, NULL);
 
 		mm->RegInterface(&_myint, ALLARENAS);
 

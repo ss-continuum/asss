@@ -41,6 +41,7 @@ local void DefaultCmd(const char *, int, const Target *);
 
 local void Cusage(const char *, int, const Target *);
 local void Cuserid(const char *, int, const Target *);
+local helptext_t usage_help, userid_help;
 
 
 /* global data */
@@ -114,9 +115,9 @@ EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
 		/* packets from clients */
 		net->AddPacket(C2S_CHAT, PChat);
 
-		cmd->AddCommand(NULL, DefaultCmd);
-		cmd->AddCommand("userid", Cuserid);
-		cmd->AddCommand("usage", Cusage);
+		cmd->AddCommand(NULL, DefaultCmd, NULL);
+		cmd->AddCommand("userid", Cuserid, userid_help);
+		cmd->AddCommand("usage", Cusage, usage_help);
 
 		mm->RegInterface(&_iauth, ALLARENAS);
 		mm->RegInterface(&_ibillcore, ALLARENAS);
@@ -454,6 +455,13 @@ void PChat(int pid, byte *p, int len)
 }
 
 
+local helptext_t usage_help =
+"Targets: player or none\n"
+"Args: none\n"
+"Displays the usage information (current hours and minutes logged in, and\n"
+"total hours and minutes logged in), as well as the first login time, of\n"
+"the target player, or you if no target.\n";
+
 void Cusage(const char *params, int pid, const Target *target)
 {
 	struct client_stats st;
@@ -479,6 +487,12 @@ void Cusage(const char *params, int pid, const Target *target)
 			billing_data[t].second);
 }
 
+
+local helptext_t userid_help =
+"Targets: player or none\n"
+"Args: none\n"
+"Displays the billing server id of the target player, or yours if no\n"
+"target.\n";
 
 void Cuserid(const char *params, int pid, const Target *target)
 {

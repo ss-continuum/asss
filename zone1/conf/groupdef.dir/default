@@ -1,5 +1,6 @@
 ; conf/groups/default
 
+cmd_help
 cmd_arena
 cmd_stats
 cmd_score
@@ -19,12 +20,16 @@ privcmd_setgroup
 privcmd_freqkick
 privcmd_giveowner
 
-; not implemented yet
 cmd_usage
+cmd_userid
+privcmd_usage
+privcmd_userid
+
 cmd_sheep
+
+; not implemented yet
 cmd_packetloss
 cmd_zone
 cmd_lag
 cmd_find
-cmd_version
 

@@ -39,6 +39,7 @@ local void Ctimer(const char *params, int pid, const Target *target);
 local void Ctime(const char *params, int pid, const Target *target);
 local void Ctimereset(const char *params, int pid, const Target *target);
 local void Cpausetimer(const char *params, int pid, const Target *target);
+local helptext_t timer_help, time_help, timereset_help, pausetimer_help;
 
 local inline void DoChecksum(struct S2CWeapons *);
 local inline long lhypot (register long dx, register long dy);
@@ -88,6 +89,7 @@ local struct { char spec, nrg; } ar_epd[MAXARENA];
 local struct { int enabled; long timeout; } ar_tmr[MAXARENA];
 
 local int cfg_bulletpix, cfg_wpnpix, cfg_wpnbufsize, cfg_pospix;
+local int cfg_sendanti;
 local int wpnrange[WEAPONCOUNT]; /* there are 5 bits in the weapon type */
 
 
@@ -118,11 +120,16 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		cfg_wpnpix = cfg->GetInt(GLOBAL, "Net", "WeaponPixels", 2000);
 		cfg_wpnbufsize = cfg->GetInt(GLOBAL, "Net", "WeaponBuffer", 300);
 		cfg_pospix = cfg->GetInt(GLOBAL, "Net", "PositionExtraPixels", 8192);
+		cfg_sendanti = cfg->GetInt(GLOBAL, "Net", "AntiwarpSendPercent", 5);
+		/* convert to a percentage of RAND_MAX */
+		cfg_sendanti = RAND_MAX / 100 * cfg_sendanti;
 
 		for (i = 0; i < WEAPONCOUNT; i++)
 			wpnrange[i] = cfg_wpnpix;
 		for (i = 0; i < MAXARENA; i++)
 			ar_tmr[i].enabled = 0;
+		for (i = 0; i < MAXPLAYERS; i++)
+			speccing[i] = -1;
 
 		/* exceptions: */
 		wpnrange[W_BULLET] = cfg_bulletpix;
@@ -147,11 +154,11 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		net->AddPacket(C2S_TURRETKICKOFF, PKickoff);
 		net->AddPacket(C2S_BRICK, PBrick);
 
-		cmd->AddCommand("report", Creport);
-		cmd->AddCommand("timer", Ctimer);
-		cmd->AddCommand("time", Ctime);
-		cmd->AddCommand("timereset", Ctimereset);
-		cmd->AddCommand("pausetimer", Cpausetimer);
+		cmd->AddCommand("report", Creport, NULL);
+		cmd->AddCommand("timer", Ctimer, timer_help);
+		cmd->AddCommand("time", Ctime, time_help);
+		cmd->AddCommand("timereset", Ctimereset, timereset_help);
+		cmd->AddCommand("pausetimer", Cpausetimer, pausetimer_help);
 
 		mm->RegInterface(&_myint, ALLARENAS);
 
@@ -202,8 +209,9 @@ void Pppk(int pid, byte *p2, int n)
 	struct PlayerPosition position;
 	struct C2SPosition *p = (struct C2SPosition *)p2;
 	int arena = players[pid].arena, i, sendwpn;
+	struct pidset { int count, set[MAXPLAYERS+1]; } regset, epdset;
 	int x1, y1;
-	int regset[MAXPLAYERS+1], epdset[MAXPLAYERS+1];
+	int sendtoall = 0, randnum = rand();
 
 	/* handle common errors */
 	if (ARENA_BAD(arena) || aman->arenas[arena].status != ARENA_RUNNING) return;
@@ -224,7 +232,153 @@ void Pppk(int pid, byte *p2, int n)
 	}
 
 	/* speccers don't get their position sent to anyone */
-	if (players[pid].shiptype == SPEC)
+	if (players[pid].shiptype != SPEC)
+	{
+		/* epd thing */
+		int see = SEE_NONE;
+		/* because this might be SEE_TEAM */
+		if (ar_epd[arena].nrg) see = ar_epd[arena].nrg;
+		if (pl_epd[pid].capnrg) see = SEE_ALL;
+		pl_epd[pid].see = see;
+
+		x1 = p->x;
+		y1 = p->y;
+
+		regset.count = 0;
+		epdset.count = 0;
+
+		/* there are several reasons to send a weapon packet (05) instead of
+		 * just a position one (28) */
+		sendwpn = 0;
+		/* if there's a real weapon */
+		if (p->weapon.type > 0) sendwpn = 1;
+		/* if the bounty is over 255 */
+		if (p->bounty & 0xFF00) sendwpn = 1;
+		/* if the pid is over 255 */
+		if (pid & 0xFF00) sendwpn = 1;
+
+		/* send mines to everyone */
+		if ( ( p->weapon.type == W_BOMB ||
+					p->weapon.type == W_PROXBOMB) &&
+				p->weapon.alternate)
+			sendtoall = 1;
+		/* send some percent of antiwarp positions to everyone */
+		if ( p->weapon.type == 0 &&
+				(p->status & 0x08) && /* FIXME: replace with symbolic constant or bitfield */
+				rand() < cfg_sendanti)
+			sendtoall = 1;
+
+		if (sendwpn)
+		{
+			int range = wpnrange[p->weapon.type], nflags;
+			struct S2CWeapons wpn = {
+				S2C_WEAPON, p->rotation, p->time & 0xFFFF, p->x, p->yspeed,
+				pid, p->xspeed, 0, p->status, 0, p->y, p->bounty
+			};
+			wpn.weapon = p->weapon;
+			wpn.extra = p->extra;
+
+			nflags = NET_UNRELIABLE | (p->weapon.type ? NET_PRI_P5 : NET_PRI_P3);
+
+			for (i = 0; i < MAXPLAYERS; i++)
+				if (players[i].status == S_PLAYING &&
+						players[i].arena == arena &&
+						i != pid)
+				{
+					struct pidset *set = &regset;
+					long dist = lhypot(x1 - pos[i].x, y1 - pos[i].y);
+
+					/* figure out epd thing */
+					if (pl_epd[i].see == SEE_ALL ||
+							( pl_epd[i].see == SEE_TEAM &&
+							  players[pid].freq == players[i].freq) ||
+							( pl_epd[i].see == SEE_SPEC &&
+							  speccing[i] == pid ))
+						set = &epdset;
+
+					if (
+							dist <= range ||
+							sendtoall ||
+							/* send it always to specers */
+							speccing[i] == pid ||
+							/* send it always to turreters */
+							players[i].attachedto == pid ||
+							/* and send some radar packets */
+							( ( p->weapon.type == W_NULL &&
+								dist <= cfg_pospix &&
+								randnum > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0)))))
+						set->set[set->count++] = i;
+				}
+
+			/* terminate sets */
+			regset.set[regset.count] = -1;
+			epdset.set[epdset.count] = -1;
+
+			/* checksum and send packets */
+			DoChecksum(&wpn);
+			net->SendToSet(regset.set,
+					(byte*)&wpn,
+					sizeof(struct S2CWeapons) - sizeof(struct ExtraPosData),
+					nflags);
+			net->SendToSet(epdset.set,
+					(byte*)&wpn,
+					sizeof(struct S2CWeapons),
+					nflags);
+		}
+		else
+		{
+			int nflags;
+			struct S2CPosition sendpos = {
+				S2C_POSITION, p->rotation, p->time & 0xFFFF, p->x, 0,
+				p->bounty, pid, p->status, p->yspeed, p->y, p->xspeed
+			};
+
+			nflags = NET_UNRELIABLE | NET_PRI_P3;
+
+			for (i = 0; i < MAXPLAYERS; i++)
+				if (players[i].status == S_PLAYING &&
+						players[i].arena == arena &&
+						i != pid)
+				{
+					struct pidset *set = &regset;
+					long dist = lhypot(x1 - pos[i].x, y1 - pos[i].y);
+					int res = players[i].xres + players[i].yres;
+
+					if (pl_epd[i].see == SEE_ALL ||
+							( pl_epd[i].see == SEE_TEAM &&
+							  players[pid].freq == players[i].freq) ||
+							( pl_epd[i].see == SEE_SPEC &&
+							  speccing[i] == pid ))
+						set = &epdset;
+
+					if (
+							dist < res ||
+							sendtoall ||
+							/* send it always to specers */
+							speccing[i] == pid ||
+							/* send it always to turreters */
+							players[i].attachedto == pid ||
+							/* and send some radar packets */
+							( dist <= cfg_pospix &&
+							  (randnum > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0)))))
+						set->set[set->count++] = i;
+				}
+
+			/* terminate sets */
+			regset.set[regset.count] = -1;
+			epdset.set[epdset.count] = -1;
+
+			net->SendToSet(regset.set,
+					(byte*)&sendpos,
+					sizeof(struct S2CPosition) - sizeof(struct ExtraPosData),
+					nflags);
+			net->SendToSet(epdset.set,
+					(byte*)&sendpos,
+					sizeof(struct S2CPosition),
+					nflags);
+		}
+	}
+	else
 	{
 		int see = SEE_NONE;
 
@@ -233,147 +387,14 @@ void Pppk(int pid, byte *p2, int n)
 		if (pl_epd[pid].cap) see = SEE_SPEC;
 		if (pl_epd[pid].capnrg) see = SEE_ALL;
 		pl_epd[pid].see = see;
-
-		/* and don't send out packets */
-		goto skipsend;
-	}
-	else
-	{
-		/* epd thing */
-		int see = SEE_NONE;
-		/* because this might be SEE_TEAM */
-		if (ar_epd[arena].nrg) see = ar_epd[arena].nrg;
-		if (pl_epd[pid].capnrg) see = SEE_ALL;
-		pl_epd[pid].see = see;
 	}
 
-	x1 = p->x;
-	y1 = p->y;
-
-	regset[0] = 1;
-	epdset[0] = 1;
-
-	/* there are several reasons to send a weapon packet (05) instead of
-	 * just a position one (28) */
-	sendwpn = 0;
-	/* if there's a real weapon */
-	if (p->weapon.type > 0) sendwpn = 1;
-	/* if the bounty is over 255 */
-	if (p->bounty & 0xFF00) sendwpn = 1;
-	/* if the pid is over 255 */
-	if (pid & 0xFF00) sendwpn = 1;
-
-	if (sendwpn)
-	{
-		int range = wpnrange[p->weapon.type];
-		int nflags = NET_UNRELIABLE;
-		struct S2CWeapons wpn = {
-			S2C_WEAPON, p->rotation, p->time & 0xFFFF, p->x, p->yspeed,
-			pid, p->xspeed, 0, p->status, 0, p->y, p->bounty
-		};
-		wpn.weapon = p->weapon;
-		wpn.extra = p->extra;
-
-		nflags = NET_UNRELIABLE | (p->weapon.type ? NET_PRI_P5 : NET_PRI_P3);
-
-		for (i = 0; i < MAXPLAYERS; i++)
-			if (players[i].status == S_PLAYING &&
-			    players[i].arena == arena &&
-			    i != pid)
-			{
-				int *set = regset;
-				long dist = lhypot(x1 - pos[i].x, y1 - pos[i].y);
-
-				/* figure out epd thing */
-				if (pl_epd[i].see == SEE_ALL ||
-				    ( pl_epd[i].see == SEE_TEAM &&
-				      players[pid].freq == players[i].freq) ||
-				    ( pl_epd[i].see == SEE_SPEC &&
-				      speccing[i] == pid ))
-					set = epdset;
-
-				if ( dist <= range ||
-				     /* send it always to specers */
-				     ( players[i].shiptype == SPEC &&
-				       speccing[i] == pid ) ||
-				     /* send it always to turreters */
-				     players[i].attachedto == pid ||
-				     /* send mines to everyone too */
-				     ( ( p->weapon.type == W_BOMB ||
-				         p->weapon.type == W_PROXBOMB) &&
-				       p->weapon.alternate) ||
-				     /* and send some radar packets */
-				     ( ( p->weapon.type == W_NULL &&
-				         dist <= cfg_pospix &&
-				         rand() > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0)))))
-					set[set[0]++] = i;
-			}
-		/* send regular */
-		DoChecksum(&wpn);
-		regset[regset[0]] = -1;
-		net->SendToSet(regset + 1,
-		               (byte*)&wpn,
-		               sizeof(struct S2CWeapons) - sizeof(struct ExtraPosData),
-		               nflags);
-		/* send epd */
-		epdset[epdset[0]] = -1;
-		net->SendToSet(epdset + 1,
-		               (byte*)&wpn,
-		               sizeof(struct S2CWeapons),
-		               nflags);
-	}
-	else
-	{
-		struct S2CPosition sendpos = {
-			S2C_POSITION, p->rotation, p->time & 0xFFFF, p->x, 0,
-			p->bounty, pid, p->status, p->yspeed, p->y, p->xspeed
-		};
-
-		for (i = 0; i < MAXPLAYERS; i++)
-			if (players[i].status == S_PLAYING &&
-			    players[i].arena == arena &&
-			    i != pid)
-			{
-				int *set = regset;
-				long dist = lhypot(x1 - pos[i].x, y1 - pos[i].y);
-				int res = players[i].xres + players[i].yres;
-
-				if (pl_epd[i].see == SEE_ALL ||
-				    ( pl_epd[i].see == SEE_TEAM &&
-				      players[pid].freq == players[i].freq) ||
-				    ( pl_epd[i].see == SEE_SPEC &&
-				      speccing[i] == pid ))
-					set = epdset;
-
-				if ( dist < res ||
-				     /* send it always to specers */
-				     ( players[i].shiptype == SPEC &&
-				       speccing[i] == pid ) ||
-				     /* send it always to turreters */
-				       players[i].attachedto == pid ||
-				     /* and send some radar packets */
-				     ( dist <= cfg_pospix &&
-				       (rand() > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0)))))
-					set[set[0]++] = i;
-			}
-		regset[regset[0]] = -1;
-		epdset[epdset[0]] = -1;
-		net->SendToSet(regset + 1,
-		               (byte*)&sendpos,
-		               sizeof(struct S2CPosition) - sizeof(struct ExtraPosData),
-		               NET_UNRELIABLE);
-		net->SendToSet(epdset + 1,
-		               (byte*)&sendpos,
-		               sizeof(struct S2CPosition),
-		               NET_UNRELIABLE);
-	}
-
-skipsend:
 	/* copy the whole thing. this will copy the epd, or, if the client
 	 * didn't send any epd, it will copy zeros because the buffer was
 	 * zeroed before data was recvd into it. */
 	memcpy(pos + pid, p2, sizeof(pos[0]));
 
+	/* update position in global players array */
 	position.x = p->x;
 	position.y = p->y;
 	position.xspeed = p->xspeed;
@@ -388,7 +409,8 @@ skipsend:
 void PSpecRequest(int pid, byte *p, int n)
 {
 	int pid2 = ((struct SimplePacket*)p)->d1;
-	speccing[pid] = pid2;
+	if (players[pid].shiptype == SPEC)
+		speccing[pid] = pid2;
 }
 
 
@@ -421,6 +443,7 @@ void SetFreqAndShip(int pid, int ship, int freq)
 
 	SET_DURING_CHANGE(pid);
 	players[pid].shiptype = ship;
+	speccing[pid] = -1;
 	players[pid].freq = freq;
 
 	pd->UnlockPlayer(pid);
@@ -727,6 +750,14 @@ void Creport(const char *params, int pid, const Target *target)
 	}
 }
 
+
+local helptext_t timer_help =
+"Targets: none\n"
+"Args: <minutes>[:<seconds>]\n"
+"Set arena timer to minutes:seconds, only in arenas with TimedGame setting\n"
+"off. Note, that the seconds part is optional, but minutes must always\n"
+"be defined (even if zero). If successful, server replies with ?time response.\n";
+
 void Ctimer(const char *params, int pid, const Target *target)
 {
 	int arena = pd->players[pid].arena, mins = 0, secs = 0;
@@ -744,6 +775,11 @@ void Ctimer(const char *params, int pid, const Target *target)
 	else chat->SendMessage(pid, "Timer is fixed to Misc:TimedGame setting.");
 }
 
+
+local helptext_t time_help =
+"Targets: none\n"
+"Args: none\n"
+"Returns amount of time left in current game.\n";
 
 void Ctime(const char *params, int pid, const Target *target)
 {
@@ -767,6 +803,12 @@ void Ctime(const char *params, int pid, const Target *target)
 		chat->SendMessage(pid, "Time left: 0 minutes 0 seconds");
 }
 
+
+local helptext_t timereset_help =
+"Targets: none\n"
+"Args: none\n"
+"Reset a timed game, but only in arenas with Misc:TimedGame in use.\n";
+
 void Ctimereset(const char *params, int pid, const Target *target)
 {
 	int arena = pd->players[pid].arena;
@@ -779,13 +821,18 @@ void Ctimereset(const char *params, int pid, const Target *target)
 	}
 }
 
+local helptext_t pausetimer_help =
+"Targets: none\n"
+"Args: none\n"
+"Pauses the timer. The timer must have been created with ?timer.\n";
+
 void Cpausetimer(const char *params, int pid, const Target *target)
 {
 	int arena = pd->players[pid].arena;
 
 	if (cfg->GetInt(arenas[arena].cfg, "Misc", "TimedGame", 0)) return;
-	
-	if (ar_tmr[arena].enabled) 
+
+	if (ar_tmr[arena].enabled)
 	{
 		ar_tmr[arena].enabled = 0;
 		ar_tmr[arena].timeout -= GTC();

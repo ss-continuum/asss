@@ -12,6 +12,7 @@
 local void LogSysop(const char *);
 local void PA(int pid, int action, int arena);
 local void Clastlog(const char *params, int pid, const Target *target);
+local helptext_t lastlog_help;
 
 enum { SEE_NONE, SEE_ARENA, SEE_ALL };
 local byte seewhat[MAXPLAYERS];
@@ -57,7 +58,7 @@ EXPORT int MM_log_sysop(int action, Imodman *mm, int arenas)
 		mm->RegCallback(CB_LOGFUNC, LogSysop, ALLARENAS);
 		mm->RegCallback(CB_PLAYERACTION, PA, ALLARENAS);
 
-		cmd->AddCommand("lastlog", Clastlog);
+		cmd->AddCommand("lastlog", Clastlog, lastlog_help);
 
 		return MM_OK;
 	}
@@ -136,6 +137,16 @@ void PA(int pid, int action, int arena)
 		seewhat[pid] = SEE_NONE;
 }
 
+
+local helptext_t lastlog_help =
+"Module: log_sysop\n"
+"Targets: none\n"
+"Args: [<number of lines>] [<limiting text>]\n"
+"Prints out the last 10 lines in the server log. You can specify a number\n"
+"as an argument, ant it will print that many lines instead. If you\n"
+"specify any text as an argument, besides a number, the display will be\n"
+"limited to lines that contain that text. You can specify both a number\n"
+"and limiting text, just put the number first.\n";
 
 void Clastlog(const char *params, int pid, const Target *target)
 {

@@ -98,6 +98,15 @@ local int WatchCount(int pid)
 	return WATCHCOUNT(pid);
 }
 
+
+local helptext_t watchdamage_help =
+"Targets: player, freq, none\n"
+"Args: [0 or 1]\n"
+"Turns damage watching on and off. If sent to a player, an argument of 1\n"
+"turns it on, 0 turns it off, and no argument toggles. If sent as a\n"
+"public command, only {?watchdamage 0} is meaningful, and it turns off\n"
+"damage watching on all players.\n";
+
 local void Cwatchdamage(const char *params, int pid, const Target *target)
 {
 	int c;
@@ -236,7 +245,7 @@ EXPORT int MM_watchdamage(int action, Imodman *_mm, int arena)
 
 		net->AddPacket(C2S_DAMAGE, PDamage);
 
-		cmd->AddCommand("watchdamage", Cwatchdamage);
+		cmd->AddCommand("watchdamage", Cwatchdamage, watchdamage_help);
 
 		mm->RegInterface(&_int, ALLARENAS);
 

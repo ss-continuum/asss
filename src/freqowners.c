@@ -5,6 +5,7 @@
 /* commands */
 local void Cgiveowner(const char *, int, const Target *);
 local void Cfreqkick(const char *, int, const Target *);
+local helptext_t giveowner_help, freqkick_help;
 
 /* callbacks */
 local void MyPA(int pid, int action, int arena);
@@ -39,8 +40,8 @@ EXPORT int MM_freqowners(int action, Imodman *_mm, int arena)
 		mm->RegCallback(CB_FREQCHANGE, MyFreqCh, ALLARENAS);
 		mm->RegCallback(CB_SHIPCHANGE, MyShipCh, ALLARENAS);
 
-		cmd->AddCommand("giveowner", Cgiveowner);
-		cmd->AddCommand("freqkick", Cfreqkick);
+		cmd->AddCommand("giveowner", Cgiveowner, giveowner_help);
+		cmd->AddCommand("freqkick", Cfreqkick, freqkick_help);
 
 		return MM_OK;
 	}
@@ -77,6 +78,14 @@ local int CountFreq(int arena, int freq, int excl)
 }
 
 
+local helptext_t giveowner_help =
+"Module: freqownsers\n"
+"Targets: player\n"
+"Args: none\n"
+"Allows you to share freq ownership with another player on your current\n"
+"private freq. You can't remove ownership once you give it out, but you\n"
+"are safe from being kicked off yourself, as long as you have ownership.\n";
+
 void Cgiveowner(const char *params, int pid, const Target *target)
 {
 	if (target->type != T_PID)
@@ -88,6 +97,14 @@ void Cgiveowner(const char *params, int pid, const Target *target)
 		ownsfreq[target->u.pid] = 1;
 }
 
+
+local helptext_t freqkick_help =
+"Module: freqowners\n"
+"Targets: player\n"
+"Args: none\n"
+"Kicks the player off of your freq. The player must be on your freq and\n"
+"must not be an owner himself. The player giving the command, of course,\n"
+"must be an owner.\n";
 
 void Cfreqkick(const char *params, int pid, const Target *target)
 {

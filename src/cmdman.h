@@ -46,14 +46,16 @@
 typedef void (*CommandFunc)(const char *params, int pid, const Target *target);
 
 
-#define I_CMDMAN "cmdman-2"
+typedef const char *helptext_t;
+
+#define I_CMDMAN "cmdman-3"
 
 typedef struct Icmdman
 {
 	INTERFACE_HEAD_DECL
 
-	void (*AddCommand)(const char *cmdname, CommandFunc func);
-	/* arpc: void(string, CommandFunc callback) */
+	void (*AddCommand)(const char *cmdname, CommandFunc func, helptext_t ht);
+	/* arpc: void(string, CommandFunc callback, string) */
 	void (*RemoveCommand)(const char *cmdname, CommandFunc func);
 	/* arpc: void(string, CommandFunc callback) */
 	void (*Command)(const char *typedline, int pid, const Target *target);

@@ -69,6 +69,12 @@ local int check_arena(char *pkt, int len, char *check)
 	return 1;
 }
 
+local helptext_t arena_help =
+"Targets: none\n"
+"Args: [{all}]\n"
+"Lists the available arenas. Specifying {all} will also include\n"
+"empty arenas that the server knows about.\n";
+
 local void Carena(const char *params, int pid, const Target *target)
 {
 	byte buf[MAXPACKET];
@@ -180,6 +186,11 @@ local void Carena(const char *params, int pid, const Target *target)
 }
 
 
+local helptext_t shutdown_help =
+"Targets: none\n"
+"Args: none\n"
+"Immediately shuts down the server.\n";
+
 local void Cshutdown(const char *params, int pid, const Target *target)
 {
 	byte drop[2] = {0x00, 0x07};
@@ -188,6 +199,14 @@ local void Cshutdown(const char *params, int pid, const Target *target)
 	ml->Quit();
 }
 
+
+local helptext_t admlogfile_help =
+"Targets: none\n"
+"Args: {flush} or {reopen}\n"
+"Administers the log file that the server keeps. There are two possible\n"
+"subcommands: {flush} flushes the log file to disk (in preparation for\n"
+"copying it, for example), and {reopen} tells the server to close and\n"
+"re-open the log file (to rotate the log while the server is running).\n";
 
 local void Cadmlogfile(const char *params, int pid, const Target *target)
 {
@@ -200,6 +219,11 @@ local void Cadmlogfile(const char *params, int pid, const Target *target)
 }
 
 
+local helptext_t flagreset_help =
+"Targets: none\n"
+"Args: none\n"
+"Causes the flag game to immediately reset.\n";
+
 local void Cflagreset(const char *params, int pid, const Target *target)
 {
 	REQUIRE_MOD(flags)
@@ -207,6 +231,13 @@ local void Cflagreset(const char *params, int pid, const Target *target)
 	flags->FlagVictory(players[pid].arena, -1, 0);
 }
 
+
+local helptext_t ballcount_help =
+"Targets: none\n"
+"Args: <number of balls to add or remove>\n"
+"Increases or decreases the number of balls in the arena. Takes an\n"
+"argument that is a positive or negative number, which is the number of\n"
+"balls to add (or, if negative, to remove).\n";
 
 local void Cballcount(const char *params, int pid, const Target *target)
 {
@@ -225,6 +256,11 @@ local void Cballcount(const char *params, int pid, const Target *target)
 }
 
 
+local helptext_t setfreq_help =
+"Targets: player, freq, or arena\n"
+"Args: <freq number>\n"
+"Moves the target player to the specified freq.\n";
+
 local void Csetfreq(const char *params, int pid, const Target *target)
 {
 	if (!*params)
@@ -242,6 +278,12 @@ local void Csetfreq(const char *params, int pid, const Target *target)
 }
 
 
+local helptext_t setship_help =
+"Targets: player, freq, or arena\n"
+"Args: <ship number>\n"
+"Sets the target player to the specified ship. The argument must be a\n"
+"number from 1 (Warbird) to 8 (Shark), or 9 (Spec).\n";
+
 local void Csetship(const char *params, int pid, const Target *target)
 {
 	if (!*params)
@@ -258,6 +300,13 @@ local void Csetship(const char *params, int pid, const Target *target)
 	}
 }
 
+
+local helptext_t version_help =
+"Targets: none\n"
+"Args: none\n"
+"Prints out the version and buildnumber of asss. If the server was built\n"
+"with certain options, it might also print out some information about the\n"
+"machine that it's running on.\n";
 
 local void Cversion(const char *params, int pid, const Target *target)
 {
@@ -310,12 +359,22 @@ local void SendModInfo(const char *name, const char *info, void *p)
 		chat->SendMessage(pid, "  %s", name, info);
 }
 
+local helptext_t lsmod_help =
+"Targets: none\n"
+"Args: none\n"
+"Lists all the modules currently loaded into the server.\n";
+
 local void Clsmod(const char *params, int pid, const Target *target)
 {
 	int p = pid;
 	mm->EnumModules(SendModInfo, (void*)&p);
 }
 
+
+local helptext_t insmod_help =
+"Targets: none\n"
+"Args: <module specifier>\n"
+"Immediately loads the specified module into the server.\n";
 
 local void Cinsmod(const char *params, int pid, const Target *target)
 {
@@ -328,6 +387,11 @@ local void Cinsmod(const char *params, int pid, const Target *target)
 }
 
 
+local helptext_t rmmod_help =
+"Targets: none\n"
+"Args: <module name>\n"
+"Attempts to unload the specified module from the server.\n";
+
 local void Crmmod(const char *params, int pid, const Target *target)
 {
 	int ret;
@@ -338,6 +402,11 @@ local void Crmmod(const char *params, int pid, const Target *target)
 		chat->SendMessage(pid, "Unloading module %s failed", params);
 }
 
+
+local helptext_t getgroup_help =
+"Targets: player or none\n"
+"Args: none\n"
+"Prints out the group of the target player.\n";
 
 local void Cgetgroup(const char *params, int pid, const Target *target)
 {
@@ -354,6 +423,22 @@ local void Cgetgroup(const char *params, int pid, const Target *target)
 		chat->SendMessage(pid, "getgroup: Bad target");
 }
 
+
+local helptext_t setgroup_help =
+"Targets: player\n"
+"Args: [{-a}] [{-t}] <group name>\n"
+"Assigns the group given as an argument to the target player. The player\n"
+"must be in group {default}, or the server will refuse to change his\n"
+"group. Additionally, the player giving the command must have an\n"
+"appropriate capability: {setgroup_foo}, where {foo} is the\n"
+"group that he's trying to set the target to.\n"
+"\n"
+"The optional {-t} means to assign the group only for the current\n"
+"session. When the target player logs out or changes arenas, the group\n"
+"will be lost.\n"
+"\n"
+"The optional {-a} means to make the assignment local to the current\n"
+"arena, rather than being valid in the entire zone.\n";
 
 local void Csetgroup(const char *params, int pid, const Target *target)
 {
@@ -420,6 +505,12 @@ local void Csetgroup(const char *params, int pid, const Target *target)
 }
 
 
+local helptext_t listmods_help =
+"Targets: none\n"
+"Args: none\n"
+"Lists all staff members logged on, which arena they belong to, and\n"
+"which group they are in.\n";
+
 local void Clistmods(const char *params, int pid, const Target *target)
 {
 	int i;
@@ -437,11 +528,19 @@ local void Clistmods(const char *params, int pid, const Target *target)
 }
 
 
+local helptext_t netstats_help =
+"Targets: none\n"
+"Args: none\n"
+"Prints out some statistics from the network layer, including the number\n"
+"of main menu pings the server has received, the total number of packets\n"
+"it has sent and received, and the number of buffers currently in use\n"
+"versus the number allocated.\n";
+
 local void Cnetstats(const char *params, int pid, const Target *target)
 {
 	struct net_stats stats;
 	net->GetStats(&stats);
-	chat->SendMessage(pid, "netstats: pings=%d pkts sent=%d pkts recvd=%d",
+	chat->SendMessage(pid, "netstats: pings=%d  pkts sent=%d  pkts recvd=%d",
 			stats.pcountpings, stats.pktsent, stats.pktrecvd);
 	chat->SendMessage(pid, "netstats: buffers used=%d/%d (%.1f%%)",
 			stats.buffersused, stats.buffercount,
@@ -452,6 +551,13 @@ local void Cnetstats(const char *params, int pid, const Target *target)
 			stats.pri_stats[7]);
 }
 
+
+local helptext_t info_help =
+"Targets: player\n"
+"Args: none\n"
+"Displays various information on the target player, including which\n"
+"client they are using, their resolution, ip address, how long they have\n"
+"been connected, and bandwidth usage information.\n";
 
 local void Cinfo(const char *params, int pid, const Target *target)
 {
@@ -490,6 +596,26 @@ local void Cinfo(const char *params, int pid, const Target *target)
 	}
 }
 
+
+local helptext_t setcm_help =
+"Targets: player or arena\n"
+"Args: see description\n"
+"Modifies the chat mask for the target player, or if no target, for the\n"
+"current arena. The arguments must all be of the form\n"
+"{(-|+)(pub|pubmacro|freq|nmefreq|priv|chat|modchat|all)}. A minus\n"
+"sign and then a word disables that type of chat, and a plus sign enables\n"
+"it. The special type {all} means to apply the plus or minus to\n"
+"all of the above types.\n"
+"\n"
+"Examples:\n"
+" * If someone is spamming public macros: {:player:?setcm -pubmacro}\n"
+" * To disable all blue messages for this arena: {?setcm -pub -pubmacro}\n"
+" * An equivalent to *shutup: {:player:?setcm -all}\n"
+" * To restore chat to normal: {?setcm +all}\n"
+"\n"
+"Current limitations: You can't currently restrict a particular\n"
+"frequency. Leaving and entering an arena will remove a player's chat\n"
+"mask.\n";
 
 local void Csetcm(const char *params, int pid, const Target *target)
 {
@@ -552,6 +678,13 @@ local void Csetcm(const char *params, int pid, const Target *target)
 		chat->SetPlayerChatMask(target->u.pid, mask);
 }
 
+local helptext_t getcm_help =
+"Targets: player or arena\n"
+"Args: none\n"
+"Prints out the chat mask for the target player, or if no target, for the\n"
+"current arena. The chat mask specifies which types of chat messages are\n"
+"allowed.\n";
+
 local void Cgetcm(const char *params, int pid, const Target *target)
 {
 	chat_mask_t mask;
@@ -578,12 +711,24 @@ local void Cgetcm(const char *params, int pid, const Target *target)
 			);
 }
 
+
+local helptext_t a_help =
+"Targets: player, freq, or arena\n"
+"Args: <text>\n"
+"Displays the text as an arena (green) message to the targets.\n";
+
 local void Ca(const char *params, int pid, const Target *target)
 {
 	int set[MAXPLAYERS+1];
 	pd->TargetToSet(target, set);
 	chat->SendSetMessage(set, "%s  -%s", params, players[pid].name);
 }
+
+
+local helptext_t warpto_help =
+"Targets: player, freq, or arena\n"
+"Args: <x coord> <y coord>\n"
+"Warps target player to coordinate x,y.\n";
 
 local void Cwarpto(const char *params, int pid, const Target *target)
 {
@@ -598,6 +743,12 @@ local void Cwarpto(const char *params, int pid, const Target *target)
 	game->WarpTo(target, x, y);
 }
 
+
+local helptext_t shipreset_help =
+"Targets: player, freq, or arena\n"
+"Args: none\n"
+"Resets the target players' ship(s).\n";
+
 local void Cshipreset(const char *params, int pid, const Target *target)
 {
 	byte pkt = S2C_SHIPRESET;
@@ -606,6 +757,9 @@ local void Cshipreset(const char *params, int pid, const Target *target)
 	pd->TargetToSet(target, set);
 	net->SendToSet(set, &pkt, 1, NET_RELIABLE);
 }
+
+
+local helptext_t sheep_help = NULL;
 
 local void Csheep(const char *params, int pid, const Target *target)
 {
@@ -624,6 +778,12 @@ local void Csheep(const char *params, int pid, const Target *target)
 		chat->SendSoundMessage(pid, 24, "Sheep successfully cloned -- hello Dolly");
 }
 
+
+local helptext_t specall_help =
+"Targets: player, freq, or arena\n"
+"Args: none\n"
+"Sends all of the targets to spectator mode.\n";
+
 local void Cspecall(const char *params, int pid, const Target *target)
 {
 	int set[MAXPLAYERS+1], *p, arena, freq;
@@ -639,6 +799,13 @@ local void Cspecall(const char *params, int pid, const Target *target)
 		game->SetFreqAndShip(*p, SPEC, freq);
 }
 
+
+local helptext_t getg_help =
+"Targets: none\n"
+"Args: section:key\n"
+"Displays the value of a global setting. Make sure there are no\n"
+"spaces around the colon.\n";
+
 local void Cgetg(const char *params, int pid, const Target *target)
 {
 	const char *res = cfg->GetStr(GLOBAL, params, NULL);
@@ -647,6 +814,13 @@ local void Cgetg(const char *params, int pid, const Target *target)
 	else
 		chat->SendMessage(pid, "%s not found", params);
 }
+
+
+local helptext_t setg_help =
+"Targets: none\n"
+"Args: section:key=value\n"
+"Sets the value of a global setting. Make sure there are no\n"
+"spaces around either the colon or the equals sign.\n";
 
 local void Csetg(const char *params, int pid, const Target *target)
 {
@@ -667,6 +841,12 @@ local void Csetg(const char *params, int pid, const Target *target)
 	cfg->SetStr(GLOBAL, key, NULL, t, info);
 }
 
+local helptext_t geta_help =
+"Targets: none\n"
+"Args: section:key\n"
+"Displays the value of an arena setting. Make sure there are no\n"
+"spaces around the colon.\n";
+
 local void Cgeta(const char *params, int pid, const Target *target)
 {
 	int arena = players[pid].arena;
@@ -680,6 +860,12 @@ local void Cgeta(const char *params, int pid, const Target *target)
 	else
 		chat->SendMessage(pid, "%s not found", params);
 }
+
+local helptext_t seta_help =
+"Targets: none\n"
+"Args: section:key=value\n"
+"Sets the value of an arena setting. Make sure there are no\n"
+"spaces around either the colon or the equals sign.\n";
 
 local void Cseta(const char *params, int pid, const Target *target)
 {
@@ -703,6 +889,18 @@ local void Cseta(const char *params, int pid, const Target *target)
 	cfg->SetStr(arenas[arena].cfg, key, NULL, t, info);
 }
 
+
+local helptext_t prize_help =
+"Targets: player, freq, or arena\n"
+"Args: see description\n"
+"Gives the specified prizes to the target player(s).\n"
+"\n"
+"Prizes are specified with an optional count, and then a prize name (e.g.\n"
+"{3 reps}, {anti}). Negative prizes can be specified with a '-' before\n"
+"the prize name or the count (e.g. {-prox}, {-3 bricks}, {5 -guns}). More\n"
+"than one prize can be specified in one command. A count without a prize\n"
+"name means {random}. For compatability, numerical prize ids with {#} are\n"
+"supported.\n";
 
 local void Cprize(const char *params, int pid, const Target *target)
 {
@@ -798,6 +996,12 @@ local void Cprize(const char *params, int pid, const Target *target)
 }
 
 
+local helptext_t flaginfo_help =
+"Targets: none\n"
+"Args: none\n"
+"Displays information (status, location, carrier) about all the flags in\n"
+"the arena.\n";
+
 local void Cflaginfo(const char *params, int pid, const Target *target)
 {
 	struct ArenaFlagData *fd;
@@ -846,6 +1050,11 @@ local void Cflaginfo(const char *params, int pid, const Target *target)
 }
 
 
+local helptext_t neutflag_help =
+"Targets: none\n"
+"Args: <flag id>\n"
+"Neuts the specified flag in the middle of the arena.\n";
+
 local void Cneutflag(const char *params, int pid, const Target *target)
 {
 	int flagid, arena = players[pid].arena;
@@ -866,6 +1075,13 @@ local void Cneutflag(const char *params, int pid, const Target *target)
 	flags->UnlockFlagStatus(arena);
 }
 
+
+local helptext_t moveflag_help =
+"Targets: none\n"
+"Args: <flag id> <owning freq> [<x coord> <y coord>]\n"
+"Moves the specified flag. You must always specify the freq that will own\n"
+"the flag. The coordinates are optional: if they are specified, the flag\n"
+"will be moved there, otherwise it will remain where it is.\n";
 
 local void Cmoveflag(const char *params, int pid, const Target *target)
 {
@@ -912,6 +1128,12 @@ mf_unlock:
 }
 
 
+local helptext_t reloadconf_help =
+"Targets: none\n"
+"Args: none\n"
+"Causes the server to check all config files for modifications since\n"
+"they were last loaded, and reload any modified files.\n";
+
 local void Creloadconf(const char *params, int pid, const Target *target)
 {
 	cfg->CheckModifiedFiles();
@@ -924,10 +1146,11 @@ local struct
 {
 	const char *cmdname;
 	CommandFunc func;
+	helptext_t *phelptext;
 }
 const all_commands[] =
 {
-#define CMD(x) {#x, C ## x} /* yay for the preprocessor */
+#define CMD(x) {#x, C ## x, & x ## _help} /* yay for the preprocessor */
 	CMD(arena),
 	CMD(shutdown),
 	CMD(admlogfile),
@@ -981,7 +1204,9 @@ EXPORT int MM_playercmd(int action, Imodman *_mm, int arena)
 		arenas = aman->arenas;
 
 		for (i = 0; all_commands[i].cmdname; i++)
-			cmd->AddCommand(all_commands[i].cmdname, all_commands[i].func);
+			cmd->AddCommand(all_commands[i].cmdname,
+					all_commands[i].func,
+					*all_commands[i].phelptext);
 
 		return MM_OK;
 	}

@@ -20,7 +20,7 @@ EXPORT int MM_bricklayer(int action, Imodman *mm, int arena)
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		game = mm->GetInterface(I_GAME, ALLARENAS);
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
-		cmd->AddCommand("brickwrite", Cbrickwrite);
+		cmd->AddCommand("brickwrite", Cbrickwrite, NULL);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)

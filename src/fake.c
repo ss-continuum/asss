@@ -141,8 +141,8 @@ EXPORT int MM_fake(int action, Imodman *mm_, int arena)
 
 		if (!pd || !aman || !cmd || !net) return MM_FAIL;
 
-		cmd->AddCommand("makefake", Cmakefake);
-		cmd->AddCommand("killfake", Ckillfake);
+		cmd->AddCommand("makefake", Cmakefake, NULL);
+		cmd->AddCommand("killfake", Ckillfake, NULL);
 		_int.ProcessPacket = net->ProcessPacket;
 		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;

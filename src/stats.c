@@ -33,9 +33,10 @@ local void SetG(int, void *);
 local void ClearG(int);
 
 local void PChat(int, byte *, int);
+local void PAFunc(int, int, int);
 local void Cstats(const char *, int, const Target *);
 local void Cmyscore(const char *, int, const Target *);
-local void PAFunc(int, int, int);
+local helptext_t stats_help, myscore_help;
 
 
 /* global data */
@@ -79,8 +80,8 @@ EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 		if (!net || !cmd || !persist) return MM_FAIL;
 
 		mm->RegCallback(CB_PLAYERACTION, PAFunc, ALLARENAS);
-		cmd->AddCommand("stats", Cstats);
-		cmd->AddCommand("myscore", Cmyscore);
+		cmd->AddCommand("stats", Cstats, stats_help);
+		cmd->AddCommand("myscore", Cmyscore, myscore_help);
 		persist->RegPersistantData(&gdatadesc);
 		persist->RegPersistantData(&adatadesc);
 		net->AddPacket(C2S_CHAT, PChat);
@@ -226,6 +227,13 @@ void ClearA(int pid)
 }
 
 
+local helptext_t stats_help =
+"Targets: player or none\n"
+"Args: none\n"
+"Prints out some basic statistics about the target player, or if no\n"
+"target, yourself. The statistics include the number of logins (to this\n"
+"zone only), and counts of messages and commands sent.\n";
+
 void Cstats(const char *params, int pid, const Target *target)
 {
 	struct GlobalStats *d;
@@ -246,6 +254,13 @@ void Cstats(const char *params, int pid, const Target *target)
 		chat->SendMessage(pid, "%6d commands", d->commands);
 	}
 }
+
+
+local helptext_t myscore_help =
+"Targets: player or none\n"
+"Args: none\n"
+"Prints out the target player's current points, kills, and deaths, or\n"
+"yours if no target.\n";
 
 void Cmyscore(const char *params, int pid, const Target *target)
 {
