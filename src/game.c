@@ -160,26 +160,24 @@ local void update_regions(Player *p, int x, int y)
 	ol = LLGetHead(&params.data->lastrgnset);
 	nl = LLGetHead(&params.newrgnset);
 	while (ol || nl)
-	{
-		if (ol->data == nl->data)
-		{
-			/* same state for this region */
-			ol = ol->next;
-			nl = nl->next;
-		}
-		else if (ol->data < nl->data)
+		if (!nl || (ol && ol->data < nl->data))
 		{
 			/* the new set is missing an old one. this is a region exit. */
 			do_region_callback(p, ol->data, x, y, FALSE);
 			ol = ol->next;
 		}
-		else /* ol->data > nl->data */
+		else if (!ol || (nl && ol->data > nl->data))
 		{
 			/* this is a region enter. */
 			do_region_callback(p, nl->data, x, y, TRUE);
 			nl = nl->next;
 		}
-	}
+		else /* ol->data == nl->data */
+		{
+			/* same state for this region */
+			ol = ol->next;
+			nl = nl->next;
+		}
 
 	/* and swap lists */
 	LLEmpty(&params.data->lastrgnset);
