@@ -2,6 +2,7 @@
 /* dist: public */
 
 #include <unistd.h>
+#include <time.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -15,7 +16,15 @@ local void * thread_check(void *dummy)
 	for (;;)
 	{
 		int seen = counter;
+		struct timespec ts = { 10, 0 };
+#ifndef WIN32
+		/* this works correctly even when interrupted by signals */
+		while (nanosleep(&ts, &ts) == -1)
+			;
+#else
+		/* not sure how to do an accurate sleep on windows */
 		sleep(10);
+#endif
 		if (counter == seen)
 		{
 			fprintf(stderr, "E <deadlock> deadlock detected, aborting\n");
