@@ -110,6 +110,7 @@ local void load_settings(struct ClientSettings *cs, ConfigHandle conf)
 	cs->bit_set.ExactDamage = cfg->GetInt(conf, "Bullet", "ExactDamage", 0);
 	cs->bit_set.HideFlags = cfg->GetInt(conf, "Spectator", "HideFlags", 0);
 	cs->bit_set.NoXRadar = cfg->GetInt(conf, "Spectator", "NoXRadar", 0);
+	cs->bit_set.DisablePrintscreen = cfg->GetInt(conf, "General", "DisablePrintscreen", 0);
 
 	/* do ships */
 	for (i = 0; i < 8; i++)

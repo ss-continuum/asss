@@ -50,7 +50,9 @@ struct ClientSettings
 		unsigned int ExactDamage : 1;
 		unsigned int HideFlags : 1;
 		unsigned int NoXRadar : 1;
-		unsigned int Padding : 21;
+		unsigned int Pad1 : 3;
+		unsigned int DisablePrintscreen : 1;
+		unsigned int Pad2 : 17;
 	} bit_set;
 	struct ShipSettings ships[8];
 	i32 long_set[24];

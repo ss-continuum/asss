@@ -400,9 +400,11 @@ local void count_players(Arena *a, int *totalp, int *playingp)
 }
 
 
-local void complete_go(Player *p, const char *name, int ship, int xres, int yres, int gfx,
+local void complete_go(Player *p, const char *reqname, int ship, int xres, int yres, int gfx,
 		int spawnx, int spawny)
 {
+	char name[16], *t;
+
 	/* status should be S_LOGGEDIN or S_PLAYING at this point */
 	spawnloc *sp = PPDATA(p, spawnkey);
 	Arena *a;
@@ -413,6 +415,14 @@ local void complete_go(Player *p, const char *name, int ship, int xres, int yres
 				p->status);
 		return;
 	}
+
+	/* set all illegal characters to underscores, and lowercase name */
+	astrncpy(name, reqname, sizeof(name));
+	for (t = name; *t; t++)
+		if (!isalnum(*t) && !strchr("-_#@", *t))
+			*t = '_';
+		else if (isupper(*t))
+			*t = tolower(*t);
 
 	if (p->arena != NULL)
 		LeaveArena(p);
@@ -480,14 +490,7 @@ local void PArena(Player *p, byte *pkt, int l)
 	/* make a name from the request */
 	if (go->arenatype == -3)
 	{
-		char *t;
 		astrncpy(name, go->arenaname, 16);
-		/* set all illegal characters to underscores, and lowercase name */
-		for (t = name; *t; t++)
-			if (!isalnum(*t) && !strchr("-_#@", *t))
-				*t = '_';
-			else if (isupper(*t))
-				*t = tolower(*t);
 	}
 	else if (go->arenatype == -2 || go->arenatype == -1)
 	{
