@@ -154,7 +154,7 @@ ALL_STUFF = $(BINARIES) $(DLS)
 UTIL_OBJS = util.o pathutil.o protutil.o region.o rwlock.o app.o md5.o $(W32COMPAT)
 
 INTERNAL_MODULES = config.o prng.o md5.o player.o core.o logman.o \
-	mainloop.o net.o nullenc.o encrypt1.o arenaman.o mapdata.o \
+	mainloop.o net.o enc_null.o enc_vie.o arenaman.o mapdata.o \
 	mapnewsdl.o clientset.o capman.o lagdata.o lagaction.o \
 	log_file.o log_console.o log_sysop.o \
 	game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
