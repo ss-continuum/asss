@@ -23,7 +23,6 @@
 #include "watchdamage.h"
 #include "objects.h"
 #include "reldb.h"
-#include "tcpstatus.h"
 
 #include "contrib/turf_reward.h"
 
