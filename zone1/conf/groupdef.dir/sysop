@@ -46,3 +46,6 @@ cmd_addallowed
 ; temporary
 cmd_dropturret
 
+cmd_py
+privcmd_py
+
