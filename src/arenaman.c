@@ -133,19 +133,6 @@ void UnlockStatus(void)
 }
 
 
-local void CallAA(int arena, int action)
-{
-	LinkedList *funcs;
-	Link *l;
-
-	funcs = mm->LookupCallback(CALLBACK_ARENAACTION, arena);
-
-	for (l = LLGetHead(funcs); l; l = l->next)
-		((ArenaActionFunc)l->data)(arena, action);
-
-	mm->FreeLookupResult(funcs);
-}
-
 local void DoAttach(int arena, int action)
 {
 	void (*func)(char *name, int arena);
@@ -205,7 +192,7 @@ void ProcessArenaQueue(void)
 
 			case ARENA_DO_CREATE_CALLBACKS:
 				/* do callbacks */
-				CallAA(i, AA_CREATE);
+				DO_CBS(CALLBACK_ARENAACTION, i, ArenaActionFunc, (i, AA_CREATE));
 
 				/* don't muck with player status now, let it be done in
 				 * the arena processing function */
@@ -218,7 +205,7 @@ void ProcessArenaQueue(void)
 				for (j = 0; j < MAXPLAYERS; j++)
 					if (players[j].status != S_FREE)
 						assert(players[j].arena != i);
-				CallAA(i, AA_DESTROY);
+				DO_CBS(CALLBACK_ARENAACTION, i, ArenaActionFunc, (i, AA_DESTROY));
 				nextstatus = ARENA_DO_UNLOAD_CONFIG;
 				break;
 

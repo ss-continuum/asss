@@ -188,7 +188,7 @@
 #define BADFREQ (-423)
 
 
-#define DEFAULTCONFIGSEARCHPATH "arenas/%a/%n.conf:arenas/%a/%n:defaultarena/%n.conf:defaultarena/%n:%n"
+#define DEFAULTCONFIGSEARCHPATH "arenas/%a/%n.conf:arenas/%a/%n:defaultarena/%n.conf:defaultarena/%n:conf/%n.conf:conf/%n:%n"
 
 #define DEFAULTMAPSEARCHPATH "arenas/%a/%m:defaultarena/%m:maps/%m:%m"
 

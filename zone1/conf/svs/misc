@@ -131,7 +131,7 @@ RocketSpeed=5500
 
 [Door]
 DoorDelay=600
-DoorMode=255
+DoorMode=-2
 
 [Misc]
 WarpPointDelay=6000
@@ -156,7 +156,7 @@ TimedGame=0
 SheepMessage=Baaah
 ResetScoreOnFrequencyChange=0
 MaxPlaying=75
-MaxPlayers=
+MaxPlayers=75
 
 [Territory]
 RewardDelay=60000

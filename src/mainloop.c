@@ -57,7 +57,7 @@ int MM_mainloop(int action, Imodman *mm_, int arena)
 void RunLoop(void)
 {
 	TimerData *td;
-	LinkedList *lst, freelist;
+	LinkedList freelist;
 	Link *l;
 	unsigned int gtc;
 
@@ -66,10 +66,7 @@ void RunLoop(void)
 	while (!privatequit)
 	{
 		/* call all funcs */
-		lst = mm->LookupCallback(CALLBACK_MAINLOOP, ALLARENAS);
-		for (l = LLGetHead(lst); l; l = l->next)
-			((MainLoopFunc)l->data)();
-		mm->FreeLookupResult(lst);
+		DO_CBS(CALLBACK_MAINLOOP, ALLARENAS, MainLoopFunc, ());
 
 		gtc = GTC();
 

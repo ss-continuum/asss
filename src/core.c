@@ -31,7 +31,6 @@ local void AuthDone(int, AuthData *);
 local void GSyncDone(int);
 local void ASyncDone(int);
 
-local void CallPA(int pid, int action, int arena);
 local int SendKeepalive(void *);
 local void ProcessLoginQueue(void);
 local void SendLoginResponse(int);
@@ -203,7 +202,10 @@ void ProcessLoginQueue(void)
 				break;
 
 			case S_DO_GLOBAL_CALLBACKS:
-				CallPA(pid, PA_CONNECT, ALLARENAS);
+				DO_CBS(CALLBACK_PLAYERACTION,
+				       ALLARENAS,
+				       PlayerActionFunc,
+					   (pid, PA_CONNECT, -1));
 				break;
 
 			case S_SEND_LOGIN_RESPONSE:
@@ -227,17 +229,26 @@ void ProcessLoginQueue(void)
 				break;
 
 			case S_DO_ARENA_CALLBACKS:
-				CallPA(pid, PA_ENTERARENA, player->arena);
+				DO_CBS(CALLBACK_PLAYERACTION,
+				       player->arena,
+				       PlayerActionFunc,
+				       (pid, PA_ENTERARENA, player->arena));
 				break;
 
 			case S_LEAVING_ARENA:
-				CallPA(pid, PA_LEAVEARENA, player->oldarena);
+				DO_CBS(CALLBACK_PLAYERACTION,
+				       player->arena,
+				       PlayerActionFunc,
+				       (pid, PA_LEAVEARENA, player->arena));
 				if (persist)
 					persist->SyncToFile(pid, player->oldarena, NULL);
 				break;
 
 			case S_LEAVING_ZONE:
-				CallPA(pid, PA_DISCONNECT, ALLARENAS);
+				DO_CBS(CALLBACK_PLAYERACTION,
+				       ALLARENAS,
+				       PlayerActionFunc,
+					   (pid, PA_DISCONNECT, -1));
 				if (persist)
 					persist->SyncToFile(pid, PERSIST_GLOBAL, NULL);
 				break;
@@ -263,18 +274,6 @@ void PLogin(int pid, byte *p, int l)
 		memcpy(bigloginpkt + pid, p, sizeof(struct LoginPacket));
 		players[pid].status = S_NEED_AUTH;
 	}
-}
-
-
-void CallPA(int pid, int action, int arena)
-{
-	LinkedList *lst;
-	Link *l;
-
-	lst = mm->LookupCallback(CALLBACK_PLAYERACTION, arena);
-	for (l = LLGetHead(lst); l; l = l->next)
-		((PlayerActionFunc)l->data)(pid, action, arena);
-	mm->FreeLookupResult(lst);
 }
 
 

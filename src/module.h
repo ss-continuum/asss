@@ -111,6 +111,17 @@ typedef int (*ModMain)(int action, Imodman *mm, int arena);
 Imodman * InitModuleManager(void);
 
 
+/* this might be a useful macro */
+#define DO_CBS(cb, arena, type, args)                  \
+do {                                                   \
+	LinkedList *lst = mm->LookupCallback(cb, arena);   \
+	Link *l;                                           \
+	for (l = LLGetHead(lst); l; l = l->next)           \
+		((type)l->data) args ;                         \
+	mm->FreeLookupResult(lst);                         \
+} while (0)
+
+
 /* nice macros to set interface variables */
 
 /* use this one if you want an interface, but don't need it for

@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
 
 	mm = InitModuleManager();
 
-	printf("asss 0.1\nLoading modules...\n");
+	printf("asss 0.4\nLoading modules...\n");
 
 	LoadModuleFile("conf/modules.conf");
 

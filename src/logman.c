@@ -53,8 +53,6 @@ int MM_logman(int action, Imodman *mm_, int arena)
 void * LoggingThread(void *dummy)
 {
 	LogLine *ll;
-	LinkedList *lst;
-	Link *l;
 
 	for (;;)
 	{
@@ -62,10 +60,8 @@ void * LoggingThread(void *dummy)
 		if (ll == NULL)
 			return NULL;
 
-		lst = mm->LookupCallback(CALLBACK_LOGFUNC, ALLARENAS);
-		for (l = LLGetHead(lst); l; l = l->next)
-			((LogFunc)(l->data))(ll->level, ll->line);
-		mm->FreeLookupResult(lst);
+		DO_CBS(CALLBACK_LOGFUNC, ALLARENAS, LogFunc,
+				(ll->level, ll->line));
 		afree(ll);
 	}
 }

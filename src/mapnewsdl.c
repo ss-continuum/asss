@@ -178,7 +178,7 @@ int CompressMap(int arena)
 		return MM_FAIL;
 
 	/* get basename */
-	mapname = strchr(fname,'/');
+	mapname = strrchr(fname,'/');
 	if (!mapname)
 		mapname = fname;
 	astrncpy(mapdldata[arena].mapfname, mapname, 20);

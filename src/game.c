@@ -271,7 +271,7 @@ int MyAssignFreq(int pid, int requested, byte ship)
 	arena = players[pid].arena;
 	pd->UnlockPlayer(pid);
 
-	if (arena < 0) return BADFREQ;
+	if (arena < 0 || arena >= MAXARENA) return BADFREQ;
 	ch = arenas[arena].cfg;
 
 	if (requested == BADFREQ)
@@ -309,21 +309,24 @@ void PSetShip(int pid, byte *p, int n)
 		return;
 	}
 
-	if (arena < 0) return;
+	if (arena < 0)
+	{
+		log->Log(L_MALICIOUS, "<game> [%s] Ship request from bad arena",
+				players[pid].name);
+		return;
+	}
 
-	to.freq = afreq->AssignFreq(arena, BADFREQ, ship);
+	to.freq = afreq->AssignFreq(pid, BADFREQ, ship);
 
 	if (to.freq != BADFREQ)
 	{
 		players[pid].shiptype = ship;
 		players[pid].freq = to.freq;
 		net->SendToArena(arena, -1, (byte*)&to, 6, NET_RELIABLE);
-		{
-			LinkedList *lst = mm->LookupCallback(CALLBACK_SHIPCHANGE, arena);
-			Link *l;
-			for (l = LLGetHead(lst); l; l = l->next)
-				((ShipChangeFunc)l->data)(pid, ship, to.freq);
-		}
+
+		DO_CBS(CALLBACK_SHIPCHANGE, arena, ShipChangeFunc,
+				(pid, ship, to.freq));
+
 		log->Log(L_DRIVEL, "<game> {%s} [%s] Changed ship to %d",
 				arenas[arena].name,
 				players[pid].name,
@@ -342,19 +345,20 @@ void PSetFreq(int pid, byte *p, int n)
 
 	if (arena < 0) return;
 
-	newfreq = afreq->AssignFreq(arena, freq, players[pid].shiptype);
+	newfreq = afreq->AssignFreq(pid, freq, players[pid].shiptype);
 
 	if (newfreq != BADFREQ)
 	{
 		to.d2 = newfreq;
 		players[pid].freq = newfreq;
 		net->SendToArena(arena, -1, (byte*)&to, 6, NET_RELIABLE);
-		{
-			LinkedList *lst = mm->LookupCallback(CALLBACK_FREQCHANGE, arena);
-			Link *l;
-			for (l = LLGetHead(lst); l; l = l->next)
-				((FreqChangeFunc)l->data)(pid, newfreq);
-		}
+
+		DO_CBS(CALLBACK_FREQCHANGE, arena, FreqChangeFunc, (pid, newfreq));
+
+		log->Log(L_DRIVEL, "<game> {%s} [%s] Changed freq to %d",
+				arenas[arena].name,
+				players[pid].name,
+				newfreq);
 	}
 }
 
@@ -394,13 +398,8 @@ void PDie(int pid, byte *p, int n)
 			flagcount);
 
 	/* call callbacks */
-	{
-		Link *l;
-		LinkedList *funcs = mm->LookupCallback(CALLBACK_KILL, arena);
-		for (l = LLGetHead(funcs); l; l = l->next)
-			((KillFunc)l->data)(arena, killer, pid, bty, flagcount);
-		mm->FreeLookupResult(funcs);
-	}
+	DO_CBS(CALLBACK_KILL, arena, KillFunc,
+			(arena, killer, pid, bty, flagcount));
 }
 
 
