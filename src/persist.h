@@ -1,6 +1,6 @@
 
-#ifndef __SCOREMAN_H
-#define __SCOREMAN_H
+#ifndef __PERSIST_H
+#define __PERSIST_H
 
 /*
  * Ipersist - score manager
@@ -30,9 +30,9 @@
  * a few things to keep in mind: the PersistantData structure should
  * never change while the program is running. furthermore, the key,
  * length, and global fields should never change at all, even across
- * runs, or any previously created files will become useless. the
- * GetData and SetData functions can be called from any thread, so the
- * must be sure to do whatever locking is appropriate.
+ * runs, or any previously created files will become useless. the player
+ * will be locked before any of the Get/Set/ClearData functions are
+ * called.
  *
  * StabilizeScores can be called with an integer argument to encure the
  * score files will be in a consistent state for that many seconds. This
@@ -42,6 +42,8 @@
 
 
 #define MAXPERSISTLENGTH 64
+
+#define PERSIST_GLOBAL (-1)
 
 
 typedef struct PersistantData
@@ -55,10 +57,10 @@ typedef struct PersistantData
 
 typedef struct Ipersist
 {
-	void (*RegPersistantData)(PersistantData *pd);
-	void (*UnregPersistantData)(PersistantData *pd);
-	void (*SyncToFile)(int pid, int global, void (*callback)(int pid));
-	void (*SyncFromFile)(int pid, int global, void (*callback)(int pid));
+	void (*RegPersistantData)(PersistantData const *pd);
+	void (*UnregPersistantData)(PersistantData const *pd);
+	void (*SyncToFile)(int pid, int arena, void (*callback)(int pid));
+	void (*SyncFromFile)(int pid, int arena, void (*callback)(int pid));
 	void (*StabilizeScores)(int seconds);
 } Ipersist;
 

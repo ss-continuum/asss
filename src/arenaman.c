@@ -265,7 +265,8 @@ void SendArenaResponse(int pid)
 	for (i = 0; i < MAXPLAYERS; i++)
 	{
 		if (	players[i].status == S_PLAYING
-		     && players[i].arena  == arena )
+		     && players[i].arena  == arena
+		     && i != pid )
 		{
 			/* send each other info */
 			net->SendToOne(pid, (byte*)(players+i), 64, NET_RELIABLE);
@@ -462,6 +463,7 @@ void PLeaving(int pid, byte *p, int q)
 		return;
 	}
 
+	players[pid].oldarena = arena;
 	players[pid].arena = -1;
 	players[pid].status = S_LEAVING_ARENA;
 

@@ -134,11 +134,11 @@ static int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashT
 					/* kill it */
 					*t++ = 0;
 					while (*t && *t == ' ') t++;
-					HashAdd(defines, buf, astrdup(t));
+					HashReplace(defines, buf, astrdup(t));
 				}
 				else
 				{	/* empty define */
-					HashAdd(defines, buf, astrdup(""));
+					HashReplace(defines, buf, astrdup(""));
 				}
 			}
 #if 0       /* this stuff will take a bit of work */
@@ -179,7 +179,7 @@ static int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashT
 				if (trydef) t2 = trydef;
 
 				data = SCAdd(thestrings, t2);
-				HashAdd(thetable, key, data);
+				HashReplace(thetable, key, data);
 			}
 		}
 	}

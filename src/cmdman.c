@@ -22,6 +22,7 @@ local void Command(const char *, int, int);
 
 /* static data */
 local Iplayerdata *pd;
+local Ilogman *log;
 
 local HashTable *cmds;
 local CommandFunc defaultfunc;
@@ -34,6 +35,7 @@ int MM_cmdman(int action, Imodman *mm)
 	if (action == MM_LOAD)
 	{
 		mm->RegInterest(I_PLAYERDATA, &pd);
+		mm->RegInterest(I_LOGMAN, &log);
 
 		cmds = HashAlloc(47);
 		defaultfunc = NULL;
@@ -43,6 +45,7 @@ int MM_cmdman(int action, Imodman *mm)
 	{
 		mm->UnregInterface(I_CMDMAN, &_int);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
+		mm->UnregInterest(I_LOGMAN, &log);
 		HashFree(cmds);
 	}
 	else if (action == MM_DESCRIBE)
@@ -106,6 +109,10 @@ void Command(const char *line, int pid, int target)
 	Link *l;
 	CommandData *data;
 	char *saveline = (char*)line, cmd[32], *t = cmd, found = 0;
+	int opl;
+
+	if (log) log->Log(LOG_USELESSINFO, "cmdman: Command '%s' from %s",
+			line, pid >= 0 ? pd->players[pid].name : "<internal>");
 
 	/* find end of command */
 	while (*line && *line != ' ' && *line != '=' && (t-cmd) < 30)
@@ -115,6 +122,13 @@ void Command(const char *line, int pid, int target)
 	/* skip spaces */
 	while (*line && (*line == ' ' || *line == '='))
 		line++;
+
+	if (pid >= 0 && pid < MAXPLAYERS)
+	{
+		pd->LockPlayer(pid);
+		opl = pd->players[pid].oplevel;
+		pd->UnlockPlayer(pid);
+	}
 
 	lst = HashGet(cmds, cmd);
 	for (l = LLGetHead(lst); l; l = l->next)
@@ -126,12 +140,8 @@ void Command(const char *line, int pid, int target)
 		if (pid < 0)
 			runme = 1;
 		else if (pid < MAXPLAYERS)
-		{
-			pd->LockPlayer(pid);
-			if (pd->players[pid].oplevel >= data->oplevel)
+			if (opl >= data->oplevel)
 				runme = 1;
-			pd->UnlockPlayer(pid);
-		}
 		if (runme)
 			data->func(line, pid, target);
 

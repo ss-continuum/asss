@@ -56,6 +56,7 @@ local Imapnewsdl *map;
 local Iauth *auth;
 local Iassignfreq *afreq;
 local Iarenaman *aman;
+local Ipersist *persist;
 
 local PlayerData *players;
 
@@ -80,6 +81,8 @@ int MM_core(int action, Imodman *mm_)
 		mm->RegInterest(I_AUTH, &auth);
 		mm->RegInterest(I_ASSIGNFREQ, &afreq);
 		mm->RegInterest(I_ARENAMAN, &aman);
+		mm->RegInterest(I_PERSIST, &persist);
+
 		players = pd->players;
 
 		if (!net || !ml) return MM_FAIL;
@@ -107,6 +110,7 @@ int MM_core(int action, Imodman *mm_)
 		mm->UnregInterest(I_MAINLOOP, &ml);
 		mm->UnregInterest(I_MAPNEWSDL, &map);
 		mm->UnregInterest(I_AUTH, &auth);
+		mm->UnregInterest(I_PERSIST, &persist);
 	}
 	else if (action == MM_DESCRIBE)
 	{
@@ -194,8 +198,8 @@ void ProcessLoginQueue()
 				break;
 
 			case S_NEED_GLOBAL_SYNC:
-				/* FIXME: persist->SyncFromFile(pid, 1, GSyncDone); */
-				GSyncDone(pid);
+				if (persist)
+					persist->SyncFromFile(pid, PERSIST_GLOBAL, GSyncDone);
 				break;
 
 			case S_DO_GLOBAL_CALLBACKS:
@@ -214,8 +218,8 @@ void ProcessLoginQueue()
 				player->freq = afreq->AssignFreq(pid, BADFREQ,
 						player->shiptype);
 				/* then, sync scores */
-				/* FIXME: persist->SyncFromFile(pid, 0, ASyncDone); */
-				ASyncDone(pid);
+				if (persist)
+					persist->SyncFromFile(pid, player->arena, ASyncDone);
 				break;
 
 			case S_DO_ARENA_CALLBACKS:
@@ -228,12 +232,14 @@ void ProcessLoginQueue()
 
 			case S_LEAVING_ARENA:
 				CallPA(pid, PA_LEAVEARENA);
-				/* FIXME: persist->SyncToFile(pid, 0); */
+				if (persist)
+					persist->SyncToFile(pid, player->oldarena, NULL);
 				break;
 
 			case S_LEAVING_ZONE:
 				CallPA(pid, PA_DISCONNECT);
-				/* FIXME: persist->SyncToFile(pid, 1); */
+				if (persist)
+					persist->SyncToFile(pid, PERSIST_GLOBAL, NULL);
 				break;
 		}
 

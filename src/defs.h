@@ -40,7 +40,7 @@
 #define I_BILLCORE      12
 #define I_MAPNEWSDL     13
 #define I_CLIENTSET     14
-#define I_SCOREMAN      15
+#define I_PERSIST       15
 #define I_ENCRYPTBASE   90
 /*#define I_FLAG */
 /*#define I_BALL */

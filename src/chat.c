@@ -201,9 +201,10 @@ void PChat(int pid, byte *p, int len)
 void SendMessage(int pid, char *str, ...)
 {
 	int size;
-	struct ChatPacket *cp = alloca(256);
+	char _buf[256];
+	struct ChatPacket *cp = (struct ChatPacket*)_buf;
 	va_list args;
-	
+
 	va_start(args, str);
 	size = vsnprintf(cp->text, 250, str, args) + 6;
 	va_end(args);

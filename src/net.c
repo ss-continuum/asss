@@ -403,7 +403,7 @@ void * RecvThread(void *dummy)
 			}
 
 			
-			log->Log(LOG_DEBUG,"Got %i bytes from %s:%i", len, inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
+			/* log->Log(LOG_DEBUG,"Got %i bytes from %s:%i", len, inet_ntoa(sin.sin_addr), ntohs(sin.sin_port)); */
 			/*
 			log->Log(LOG_DEBUG,"recv: %2x %2x %2x %2x %2x %2x %2x %2x",
 					buf->d.raw[0],
@@ -451,7 +451,7 @@ void * RecvThread(void *dummy)
 				}
 			}
 
-			log->Log(LOG_DEBUG,"    --> has status %d", players[pid].status);
+			/* log->Log(LOG_DEBUG,"    --> has status %d", players[pid].status); */
 
 			buf->pid = pid;
 			/* set the last packet time */
