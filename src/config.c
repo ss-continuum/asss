@@ -14,6 +14,8 @@
 
 struct ConfigFile
 {
+	int refcount;
+	char id[64];
 	HashTable *thetable;
 	StringChunk *thestrings;
 };
@@ -39,6 +41,7 @@ local Iconfig _int =
 };
 
 local ConfigHandle global;
+local HashTable *opened;
 local int files = 0;
 
 
@@ -49,6 +52,7 @@ EXPORT int MM_config(int action, Imodman *mm, int arena)
 	if (action == MM_LOAD)
 	{
 		files = 0;
+		opened = HashAlloc(23);
 		global = LoadConfigFile(NULL, NULL);
 		if (!global) return MM_FAIL;
 		mm->RegInterface(I_CONFIG, &_int);
@@ -58,6 +62,7 @@ EXPORT int MM_config(int action, Imodman *mm, int arena)
 	{
 		mm->UnregInterface(I_CONFIG, &_int);
 		FreeConfigFile(global);
+		HashFree(opened);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -208,8 +213,20 @@ ConfigHandle LoadConfigFile(const char *arena, const char *name)
 {
 	ConfigHandle thefile;
 	HashTable *defines;
+	char id[64];
 
+	/* first try to get it out of the table */
+	snprintf(id, 64, "%s:%s", arena ? arena : "", name ? name : "");
+	thefile = HashGetOne(opened, ToLowerStr(id));
+	if (thefile)
+	{
+		thefile->refcount++;
+		return thefile;
+	}
+
+	/* ok, it's not there. open it. */
 	thefile = amalloc(sizeof(struct ConfigFile));
+	thefile->refcount = 1;
 	thefile->thetable = HashAlloc(383);
 	thefile->thestrings = SCAlloc();
 	defines = HashAlloc(17);
@@ -221,6 +238,11 @@ ConfigHandle LoadConfigFile(const char *arena, const char *name)
 		files++;
 		HashEnum(defines, afree_hash, NULL);
 		HashFree(defines);
+
+		/* add this to the opened table */
+		astrncpy(thefile->id, id, 64);
+		HashAdd(opened, id, thefile);
+
 		return thefile;
 	}
 	else
@@ -236,10 +258,11 @@ ConfigHandle LoadConfigFile(const char *arena, const char *name)
 
 void FreeConfigFile(ConfigHandle ch)
 {
-	if (ch)
+	if (ch && --ch->refcount < 1)
 	{
 		SCFree(ch->thestrings);
 		HashFree(ch->thetable);
+		HashRemove(opened, ch->id, ch);
 		afree(ch);
 		files--;
 	}
