@@ -41,7 +41,7 @@
  */
 
 
-#define MAXPERSISTLENGTH 64
+#define MAXPERSISTLENGTH 1024
 
 #define PERSIST_GLOBAL (-1)
 

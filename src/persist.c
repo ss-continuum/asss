@@ -278,28 +278,23 @@ void *DBThread(void *dummy)
 			msg->callback(msg->pid);
 		/* free the message */
 		afree(msg);
-		{
-			/* !!! FIXME FIXME !!! */
-			for (i = 0; i < MAXARENA; i++)
-				if (databases[i])
-					databases[i]->sync(databases[i], 0);
-			globaldb->sync(globaldb, 0);
-		}
 		/* and give up some time */
 		sched_yield();
 	}
+
+	/* sync before leaving */
+	for (i = 0; i < MAXARENA; i++)
+		if (databases[i])
+			databases[i]->sync(databases[i], 0);
+	globaldb->sync(globaldb, 0);
+
 	return NULL;
 }
 
 
 DB *OpenDB(char *name)
 {
-	DB *d;
-
-	d = dbopen(name, O_CREAT|O_RDWR, 0644, DB_HASH, NULL);
-	if (!d)
-		perror("dbopen");
-	return d;
+	return dbopen(name, O_CREAT|O_RDWR, 0644, DB_HASH, NULL);
 }
 
 

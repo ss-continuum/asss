@@ -3,10 +3,12 @@
 
 /* structs */
 
-struct DumbStats
+struct DumbStats /* 80 bytes */
 {
 	int messages[10];
 	int commands, modchat;
+	int logins;
+	int pad7, pad6, pad5, pad4, pad3, pad2, pad1;
 };
 
 
@@ -18,6 +20,7 @@ local void CStats(const char *, int, int);
 local void GetDumb(int, void *);
 local void SetDumb(int, void *);
 local void ClearDumb(int);
+local void PAction(int, int);
 
 
 /* global data */
@@ -47,16 +50,17 @@ int MM_dumbstats(int action, Imodman *mm_)
 
 		if (!net || !cmd || !persist) return MM_FAIL;
 
-		cmd->AddCommand("dumbstats", CStats, 0);
+		mm->RegCallback(CALLBACK_PLAYERACTION, PAction);
+		cmd->AddCommand("stats", CStats, 0);
 		persist->RegPersistantData(&dumbdata);
-
 		net->AddPacket(C2S_CHAT, PChat);
 	}
 	else if (action == MM_UNLOAD)
 	{
 		net->RemovePacket(C2S_CHAT, PChat);
 		persist->UnregPersistantData(&dumbdata);
-		cmd->RemoveCommand("dumbstats", CStats);
+		cmd->RemoveCommand("stats", CStats);
+		mm->UnregCallback(CALLBACK_PLAYERACTION, PAction);
 
 		mm->UnregInterest(I_CHAT, &chat);
 		mm->UnregInterest(I_NET, &net);
@@ -85,6 +89,12 @@ void PChat(int pid, byte *p, int len)
 		thedata[pid].messages[(int)from->type]++;
 }
 
+void PAction(int pid, int action)
+{
+	if (action == PA_CONNECT)
+		thedata[pid].logins++;
+}
+
 void GetDumb(int pid, void *space)
 {
 	memcpy(space, thedata + pid, sizeof(struct DumbStats));
@@ -110,6 +120,7 @@ void CStats(const char *params, int pid, int target)
 
 	if (target >= 0 && target < MAXPLAYERS && chat)
 	{
+		chat->SendMessage(pid, "%6d logins", d->logins);
 		chat->SendMessage(pid, "%6d public messages", d->messages[MSG_PUB]);
 		chat->SendMessage(pid, "%6d private messages", d->messages[MSG_PRIV]);
 		chat->SendMessage(pid, "%6d team messages", d->messages[MSG_FREQ]);

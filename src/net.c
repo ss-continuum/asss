@@ -565,8 +565,8 @@ void * SendThread(void *dummy)
 
 			/* LOCK: lock status here? */
 			/* check if the player still exists */
-			if (    players[buf->pid].status > S_FREE
-			     && players[buf->pid].status < S_TIMEWAIT)
+			if (    players[buf->pid].status <= S_FREE
+			     || players[buf->pid].status >= S_TIMEWAIT)
 				buf->retries = 0;
 
 			/* check if we can send it now */
@@ -644,12 +644,11 @@ void * SendThread(void *dummy)
 			/* process lagouts */
 			if (   players[i].status != S_FREE
 			    && players[i].whenloggedin == 0 /* acts as flag to prevent dups */
+			    && clients[i].lastpkt != 0 /* prevent race */
 			    && (gtc - clients[i].lastpkt) > config.droptimeout)
 			{
-				byte pk7[] = { 0x00, 0x07 };
 				log->Log(LOG_USELESSINFO, "Lag out: %s", players[i].name);
 				/* FIXME: send "you have been disconnected..." msg */
-				SendRaw(i, pk7, 2);
 				/* can't hold lock here for deadlock-related reasons */
 				pd->UnlockStatus();
 				KillConnection(i);
