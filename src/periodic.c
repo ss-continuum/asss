@@ -171,6 +171,7 @@ local void aaction(Arena *arena, int action)
 			set->minplayers = cfg->GetInt(arena->cfg, "Periodic", "RewardMinimumPlayers", 0);
 			set->pp = pp;
 			ml->SetTimer(timer, delay, delay, set, arena);
+			mm->ReleaseInterface(pp);
 		}
 	}
 }
