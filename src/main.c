@@ -28,7 +28,11 @@ local void LoadModuleFile(char *fname)
 
 	f = fopen(fname,"r");
 
-	if (!f) return;
+	if (!f)
+	{
+		fprintf(stderr, "Couldn't open '%s'\n", fname);
+		exit(2);
+	}
 
 	while (fgets(line, 256, f))
 	{

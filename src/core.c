@@ -208,7 +208,7 @@ void ProcessLoginQueue()
 
 			case S_SEND_LOGIN_RESPONSE:
 				SendLoginResponse(pid);
-				log->Log(LOG_INFO, "Player logged on (%s)", player->name);
+				log->Log(LOG_INFO, "core: Player logged on (%s)", player->name);
 				break;
 
 			case S_DO_FREQ_AND_ARENA_SYNC:

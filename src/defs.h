@@ -130,33 +130,35 @@
 
 
 /* hopefully useful exit codes */
-#define ERROR_NONE      0
-#define ERROR_RECYCLE   1
-#define ERROR_GENERAL   2
-#define ERROR_MEMORY    3
-#define ERROR_BIND      4
+#define ERROR_NONE      0 /* an exit from *shutdown */
+#define ERROR_RECYCLE   1 /* an exit from *recycle */
+#define ERROR_GENERAL   2 /* a general 'something went wrong' error */
+#define ERROR_MEMORY    3 /* we ran out of memory */
+#define ERROR_BIND      4 /* we can't bind the port */
+#define ERROR_MODCONF   5 /* the initial module file is missing */
+#define ERROR_MODLOAD   6 /* an error loading initial modules */
 
 
 /* authentication return codes */
-#define AUTH_OK				0x00
-#define AUTH_UNKNOWN		0x01
-#define AUTH_BADPASSWORD	0x02
-#define AUTH_ARENAFULL		0x03
-#define AUTH_LOCKEDOUT		0x04
-#define AUTH_NOPERMISSION	0x05
-#define AUTH_SPECONLY		0x06
-#define AUTH_TOOMANYPOINTS	0x07
-#define AUTH_TOOSLOW		0x08
-#define AUTH_NOPERMISSION2	0x09
-#define AUTH_NONEWCONN		0x0A
-#define AUTH_BADNAME		0x0B
-#define AUTH_OFFENSIVENAME	0x0C
-#define AUTH_NOSCORES		0x0D
-#define AUTH_SERVERBUSY		0x0E
-#define AUTH_EXPONLY		0x0F
-#define AUTH_ISDEMO			0x10
-#define AUTH_TOOMANYDEMO	0x11
-#define AUTH_NODEMO			0x12
+#define AUTH_OK             0x00
+#define AUTH_UNKNOWN        0x01
+#define AUTH_BADPASSWORD    0x02
+#define AUTH_ARENAFULL      0x03
+#define AUTH_LOCKEDOUT      0x04
+#define AUTH_NOPERMISSION   0x05
+#define AUTH_SPECONLY       0x06
+#define AUTH_TOOMANYPOINTS  0x07
+#define AUTH_TOOSLOW        0x08
+#define AUTH_NOPERMISSION2  0x09
+#define AUTH_NONEWCONN      0x0A
+#define AUTH_BADNAME        0x0B
+#define AUTH_OFFENSIVENAME  0x0C
+#define AUTH_NOSCORES       0x0D
+#define AUTH_SERVERBUSY     0x0E
+#define AUTH_EXPONLY        0x0F
+#define AUTH_ISDEMO         0x10
+#define AUTH_TOOMANYDEMO    0x11
+#define AUTH_NODEMO         0x12
 
 
 /* weapon codes */
@@ -181,6 +183,15 @@
 #define LANCASTER 6
 #define SHARK     7
 #define SPEC      8
+
+
+/* constants for targets and pids */
+#define PID_INTERNAL (-1)
+
+#define TARGET_NONE (-1)
+#define TARGET_ARENA (-2)
+#define TARGET_FREQ (-3)
+#define TARGET_ZONE (-4)
 
 
 /* symbolic constant for freq assignemnt

@@ -210,6 +210,7 @@ void SendMessage(int pid, char *str, ...)
 
 	cp->pktype = S2C_CHAT;
 	cp->type = MSG_ARENA;
+	cp->sound = 0;
 	net->SendToOne(pid, (byte*)cp, size, NET_RELIABLE);
 }
 

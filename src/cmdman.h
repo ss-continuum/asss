@@ -44,11 +44,6 @@
  *
  */
 
-#define PID_INTERNAL -1
-
-#define TARGET_ARENA -1
-#define TARGET_FREQ -2
-
 
 typedef void (*CommandFunc)(const char *params, int pid, int target);
 

@@ -4,6 +4,7 @@
 
 /* ppk.h - position and weapons packets */
 
+#pragma pack(1)
 
 struct Weapons
 {   // this is a bit field. the whole thing should fit into 16 bits
@@ -22,13 +23,13 @@ struct S2CWeapons
 	u16 time;
 	i16 x;
 	i16 yspeed;
-	u8 playerid;
-	i8 flags;
+	u16 playerid;
 	i16 xspeed;
 	u8 checksum;
-	i16 unknown1; /* latency? */
+	u8 status;
+	u8 unknown1;
 	i16 y;
-	i16 bounty;
+	u16 bounty;
 	struct Weapons weapon;
 	byte extradata[0];
 };
@@ -39,9 +40,10 @@ struct S2CPosition
 	i8 rotation;
 	u16 time;
 	i16 x;
-	i16 unknown1; /* latency? */
+	u8 unknown1;
+	u8 bounty;
 	u8 playerid;
-	i8 flags;
+	i8 status;
 	i16 yspeed;
 	i16 y;
 	i16 xspeed;
@@ -50,16 +52,16 @@ struct S2CPosition
 
 struct C2SPosition
 {
-	i8 type;
+	i8 type; /* 0x03 */
 	i8 rotation;
 	u32 time;
 	i16 xspeed;
 	i16 y;
 	i8 checksum;
-	i8 flags;
+	i8 status;
 	i16 x;
 	i16 yspeed;
-	i16 bounty;
+	u16 bounty;
 	i16 energy;
 	struct Weapons weapon;
 	byte extradata[0];

@@ -517,6 +517,7 @@ void HashRemove(HashTable *h, const char *s, void *p)
 			l->next = freehashentries;
 			freehashentries = l;
 #endif
+			return;
 		}
 		prev = l;
 		l = l->next;
@@ -562,10 +563,6 @@ void *HashGetOne(HashTable *h, const char *s)
 	}
 	return NULL;
 }
-
-/*  int hashfunction(s) char *s; { int i; */
-/*  for( i=0; *s; s++ ) i = 131*i */
-/*  + *s; return( i % m ); */
 
 
 #ifndef NODQ

@@ -9,7 +9,6 @@
 
 /* structs */
 
-#include "packets/ppk.h"
 #include "packets/kill.h"
 #include "packets/shipchange.h"
 #include "packets/green.h"
@@ -26,8 +25,8 @@ local void PDie(int, byte *, int);
 local void PGreen(int, byte *, int);
 local void PAttach(int, byte *, int);
 
+local void Creport(const char *params, int pid, int target);
 
-/* do weapons checksums */
 local inline void DoChecksum(struct S2CWeapons *, int);
 local inline long lhypot (register long dx, register long dy);
 
@@ -45,12 +44,15 @@ local Ilogman *log;
 local Imodman *mm;
 local Iassignfreq *afreq;
 local Iarenaman *aman;
+local Icmdman *cmd;
+local Ichat *chat;
 
 local PlayerData *players;
 local ArenaData *arenas;
 
 local Iassignfreq _myaf = { MyAssignFreq };
 
+/* big arrays */
 local struct C2SPosition pos[MAXPLAYERS];
 local int speccing[MAXPLAYERS];
 
@@ -71,6 +73,8 @@ int MM_game(int action, Imodman *mm_, int arena)
 		mm->RegInterest(I_NET, &net);
 		mm->RegInterest(I_ASSIGNFREQ, &afreq);
 		mm->RegInterest(I_ARENAMAN, &aman);
+		mm->RegInterest(I_CMDMAN, &cmd);
+		mm->RegInterest(I_CHAT, &chat);
 
 		if (!net || !cfg || !log || !aman) return MM_FAIL;
 
@@ -97,12 +101,15 @@ int MM_game(int action, Imodman *mm_, int arena)
 		net->AddPacket(C2S_GREEN, PGreen);
 		net->AddPacket(C2S_ATTACHTO, PAttach);
 
+		cmd->AddCommand("report", Creport, 0);
+
 		mm->RegInterface(I_ASSIGNFREQ, &_myaf);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
+		cmd->RemoveCommand("report", Creport);
 		net->RemovePacket(C2S_POSITION, Pppk);
 		net->RemovePacket(C2S_SETSHIP, PSetShip);
 		net->RemovePacket(C2S_SETFREQ, PSetFreq);
@@ -115,6 +122,8 @@ int MM_game(int action, Imodman *mm_, int arena)
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_ASSIGNFREQ, &afreq);
 		mm->UnregInterest(I_ARENAMAN, &aman);
+		mm->UnregInterest(I_CMDMAN, &cmd);
+		mm->UnregInterest(I_CHAT, &chat);
 		/* do this last so we don't get prevented from unloading because
 		 * of ourself */
 		mm->UnregInterface(I_ASSIGNFREQ, &_myaf);
@@ -158,14 +167,15 @@ void Pppk(int pid, byte *p2, int n)
 	sendwpn = 0;
 	/* if there's a real weapon */
 	if (p->weapon.type > 0) sendwpn = 1;
-	/* if the bounty has changed */
-	if (p->bounty != pos[pid].bounty) sendwpn = 1;
+	/* if the bounty is over 255 */
+	if (p->bounty & 0xFF00) sendwpn = 1;
 
 	if (sendwpn)
 	{
+		int range = wpnrange[p->weapon.type];
 		struct S2CWeapons wpn = {
 			S2C_WEAPON, p->rotation, p->time & 0xFFFF, p->x, p->yspeed,
-			pid, p->flags, p->xspeed, 0, 0, p->y, p->bounty
+			pid, p->xspeed, 0, p->status, 0, p->y, p->bounty
 		};
 		wpn.weapon = p->weapon;
 
@@ -175,11 +185,15 @@ void Pppk(int pid, byte *p2, int n)
 			     && i != pid)
 			{
 				long dist = lhypot(x1 - pos[i].x, y1 - pos[i].y);
-				if ( dist <= wpnrange[p->weapon.type] ||
+				if ( dist <= range ||
 				     /* send mines to everyone too */
 				     ( ( p->weapon.type == W_BOMB ||
 				         p->weapon.type == W_PROXBOMB) &&
-				       p->weapon.multimine))
+				       p->weapon.multimine) ||
+				     /* and send some radar packets */
+				     ( ( p->weapon.type == W_NULL &&
+				         dist <= cfg_pospix &&
+				         rand() > (dist / cfg_pospix * RAND_MAX))))
 					set[sp++] = i;
 			}
 		set[sp] = -1;
@@ -191,7 +205,7 @@ void Pppk(int pid, byte *p2, int n)
 	{
 		struct S2CPosition sendpos = { 
 			S2C_POSITION, p->rotation, p->time & 0xFFFF, p->x, 0,
-			pid, p->flags, p->yspeed, p->y, p->xspeed
+			p->bounty, pid, p->status, p->yspeed, p->y, p->xspeed
 		};
 
 		for (i = 0; i < MAXPLAYERS; i++)
@@ -205,7 +219,7 @@ void Pppk(int pid, byte *p2, int n)
 				if (dist < res)
 					set[sp++] = i;
 				else if (
-				    dist < cfg_pospix
+				    dist <= cfg_pospix
 				 && (rand() > (dist / cfg_pospix * RAND_MAX)))
 						set[sp++] = i;
 			}
@@ -273,22 +287,22 @@ void PSetShip(int pid, byte *p, int n)
 	if (arena < 0) return;
 
 	to.freq = afreq->AssignFreq(arena, BADFREQ, ship);
-	
-	/* Arena.locked not defined yet */
-	/*if (ship == SPEC && c->arenas[arena]->locked) return; */
 
 	if (to.freq != BADFREQ)
 	{
 		players[pid].shiptype = ship;
 		players[pid].freq = to.freq;
 		net->SendToArena(arena, -1, (byte*)&to, 6, NET_RELIABLE);
+		log->Log(LOG_USELESSINFO, "game: '%s' changed ship to %d",
+				players[pid].name,
+				ship);
 	}
 }
 
 
 void PSetFreq(int pid, byte *p, int n)
 {
-	struct SimplePacket to = { S2C_FREQCHANGE, pid };
+	struct SimplePacket to = { S2C_FREQCHANGE, pid, 0, -1};
 	int freq, arena, newfreq;
 
 	freq = ((struct SimplePacket*)p)->d1;
@@ -302,7 +316,7 @@ void PSetFreq(int pid, byte *p, int n)
 	{
 		to.d2 = newfreq;
 		players[pid].freq = newfreq;
-		net->SendToArena(arena, -1, (byte*)&to, 5, NET_RELIABLE);
+		net->SendToArena(arena, -1, (byte*)&to, 6, NET_RELIABLE);
 	}
 }
 
@@ -327,6 +341,12 @@ void PDie(int pid, byte *p, int n)
 	reldeaths = !!cfg->GetInt(arenas[arena].cfg,
 			"Misc", "ReliableKills", 1);
 	net->SendToArena(arena, pid, (byte*)&kp, sizeof(kp), NET_RELIABLE * reldeaths);
+
+	log->Log(LOG_INFO, "game: '%s(%d:%d)' killed '%s'",
+			players[pid].name,
+			bty,
+			flags,
+			players[killer].name);
 
 	/* call callbacks */
 	{
@@ -365,6 +385,22 @@ void PAttach(int pid, byte *p2, int n)
 			  players[pid].freq  == players[pid2].freq) )
 		net->SendToArena(arena, -1, (byte*)&to, 5, NET_RELIABLE);
 	pd->UnlockPlayer(pid2);
+}
+
+
+void Creport(const char *params, int pid, int target)
+{
+	if (target < 0 || target >= MAXPLAYERS) return;
+
+	if (chat)
+	{
+		struct C2SPosition *p = pos + target;
+		chat->SendMessage(pid, "%s is at (%d, %d) with %d bounty and %d energy",
+				players[target].name,
+				p->x >> 4, p->y >> 4,
+				p->bounty,
+				p->energy);
+	}
 }
 
 
