@@ -1,14 +1,15 @@
 
 #include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
 
 #ifndef WIN32
 #include <unistd.h>
 #include <limits.h>
-#include <string.h>
-#include <sys/stat.h>
 #else
 #include <malloc.h>
 #include <io.h>
+#include "win32compat.h"
 #endif
 
 #include "pathutil.h"

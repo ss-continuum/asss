@@ -2,11 +2,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-
-#ifndef WIN32
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
+
+#ifndef WIN32
 #include <unistd.h>
 #include <sys/mman.h>
 #else

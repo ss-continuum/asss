@@ -451,7 +451,7 @@ int ReapArenas(void *q)
 			/* set its status so that the arena processor will do
 			 * appropriate things */
 			arenas[i].status = ARENA_DO_DESTROY_CALLBACKS;
-skip:
+skip: ;
 		}
 	/* unlock all status info */
 	pd->UnlockStatus();
