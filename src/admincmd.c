@@ -101,7 +101,11 @@ local void Crenfile(const char *tc, const char *params, Player *p, const Target 
 		chat->SendMessage(p, "Invalid old path.");
 	else if (!is_valid_path(newpath))
 		chat->SendMessage(p, "Invalid new path.");
-	else if (rename(oldpath, newpath))
+	else if (
+#ifdef WIN32
+			remove(newpath) ||
+#endif
+			rename(oldpath, newpath))
 		chat->SendMessage(p, "Error renaming '%s' to '%s': %s", oldpath,
 				newpath, strerror(errno));
 	else
