@@ -576,7 +576,7 @@ static int generic_lt(const void *a, const void *b)
 void LLSort(LinkedList *lst, int (*lt)(const void *a, const void *b))
 {
 	/* this disregards the end pointer */
-	sort_work(lst->start, lt ? lt : generic_lt);
+	lst->start = sort_work(lst->start, lt ? lt : generic_lt);
 	if (lst->start)
 	{
 		/* restore the end pointer */
