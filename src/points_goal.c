@@ -50,7 +50,7 @@ struct ArenaScores
 {
 	int mode;                       // stores type of soccer game, 0-6 by default
 	int stealpts;                   // 0 = absolute scoring, else = start value for each team
-	int cpts, reward, winby, timed;
+	int cpts, reward, winby;
 	int score[MAXFREQ];             // score each freq has
 	GoalAreas goals[MAXGOALS];      // array of goal-defined areas for >2 goal arenas
 };
@@ -157,11 +157,10 @@ void MyAA(Arena *arena, int action)
 			goalmode_val(cfg->GetStr(arena->cfg, "Soccer", "Mode"), GOAL_ALL);
 		/* cfghelp: Soccer:CapturePoints, arena, int, def: 1
 		 * If positive, these points are distributed to each goal/team.
-		 * When you make a goal, the points get transferred to your goal/team.
-		 * In timed games, team with most points in their goal wins.  If one 
-		 * team gets all the points, then they win as well.  If negative,
-		 * teams are given 1 point for each goal, first team to reach
-		 * -CapturePoints points wins the game. */
+		 * When you make a goal, the points get transferred to your
+		 * goal/team. If one team gets all the points, then they win as
+		 * well.  If negative, teams are given 1 point for each goal,
+		 * first team to reach -CapturePoints points wins the game. */
 		cpts = scores->cpts = cfg->GetInt(arena->cfg, "Soccer", "CapturePoints", 1);
 		/* cfghelp: Soccer:Reward, arena, int, def: 0
 		 * Negative numbers equal absolute points given,
@@ -170,7 +169,6 @@ void MyAA(Arena *arena, int action)
 		/* cfghelp: Soccer:WinBy, arena, int, def: 0
 		 * Have to beat other team by this many goals */
 		scores->winby  = cfg->GetInt(arena->cfg, "Soccer", "WinBy",0);
-		scores->timed = cfg->GetInt(arena->cfg, "Misc", "TimedGame", 0);
 
 		if (cpts < 0)
 		{
@@ -307,7 +305,7 @@ void MyGoal(Arena *arena, Player *p, int bid, int x, int y)
 		}
 	pd->Unlock();
 
-	if (!scores->timed)
+	if (scores->reward)
 	{
 		int points = RewardPoints(arena, freq);
 
@@ -328,8 +326,7 @@ void MyGoal(Arena *arena, Player *p, int bid, int x, int y)
 
 	if (scores->mode)
 	{
-		if (scores->timed)
-			ScoreMsg(arena, NULL);
+		ScoreMsg(arena, NULL);
 		CheckGameOver(arena, bid);
 	}
 
@@ -437,9 +434,6 @@ void CheckGameOver(Arena *arena, int bid)
 {
 	struct ArenaScores *scores = P_ARENA_DATA(arena, scrkey);
 	int i, j = 0, freq = 0;
-
-	if (scores->timed)
-		return;
 
 	for(i = 0; i < MAXFREQ; i++)
 		if (scores->score[i] > scores->score[freq]) freq = i;
