@@ -5,8 +5,7 @@ set -x
 
 umask 022
 
-: using ASSSDIR=${ASSSDIR:=~/asss}
-extrawinfiles='src/crc.c src/crc.h src/enc_cont.c src/modifiedmd5.xinc src/security.c'
+: using ASSSDIR=${ASSSDIR:=/e/src/asss}
 
 cd $ASSSDIR
 
@@ -14,28 +13,39 @@ cd $ASSSDIR
 d="asss-`sed -n 's/#define ASSSVERSION "\(.*\)"/\1/p' src/defs.h`"
 
 rm -rf $d
-rm -f dist/clients/continuum038.exe
 cp -a dist $d
 mkdir $d/{data,log,tmp}
 
 rm -rf doc/doxygen/*
 tar cf - `grep -lr '[d]ist: public' src scripts doc` scripts/banner.font \
-	wincrap $extrawinfiles | \
+	windeps src/security.c | \
 	(cd $d ; tar xf -)
 
-make -C $d/src install
-mv $d/zone1/bin $d/bin
-rmdir $d/zone1
-make -C $d/src cleanbin
-rm -f $d/src/Makefile.deps
-(cd $d ; rm -f $extrawinfiles)
+make -C $d/src -f Makefile.devcpp debug=no opt=yes install
+make -C /e/src/extra-asss/contenc -f Makefile.win "ASSSDIR=`pwd`/$d" security.dll
+mv /e/src/extra-asss/contenc/security.dll $d/bin/
+make -C /e/src/extra-asss/contenc -f Makefile.win "ASSSDIR=`pwd`/$d" clean
+make -C $d/src -f Makefile.devcpp clean
+rm -f $d/src/security.c
 
 find $d -name CVS -exec rm -rf {} \; -prune
+rm -f $d/README.freebsd
+# force people to download these themselves:
+rm -f $d/windeps/python*.dll $d/windeps/python.exe $d/windeps/pythoninc/*
+# supply different readmes on windows
+mv -f $d/README.win32 $d/README
+mv -f $d/README.developers.win32 $d/README.developers
+# comment out unixsignal
+sed 's/^unixsignal$/; not on windows: &/' $d/conf/modules.conf > modules.conf.win32
+mv -f modules.conf.win32 $d/conf/modules.conf
 
-find $d -exec touch -r $d/bin/asss {} \;
-start zip -v -9 -r $d.zip $d
+find $d -exec touch -r $d/bin/asss.exe {} \;
+start //wait zip -v -9 -r $d.zip $d
 
-exit
+#exit
 
-rm -rf $d
+rm -rf $d/src $d/scripts $d/doc $d/windeps
+start //wait zip -v -9 -r $d-binonly.zip $d
+
+#rm -rf $d
 

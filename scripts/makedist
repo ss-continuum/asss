@@ -37,6 +37,7 @@ done
 
 test -d freebsd && cp -a freebsd $d
 test -d freebsd || rm -f $d/*freebsd*
+rm -f $d/*.win32 $d/*.bat
 
 find $d -name CVS -exec rm -rf {} \; -prune
 
