@@ -19,6 +19,9 @@
 #define WRLOCK() pthread_rwlock_wrlock(&arenalock)
 #define UNLOCK() pthread_rwlock_unlock(&arenalock)
 
+/* let us use arenaman.h macros normally */
+#define aman (&myint)
+
 /* globals */
 
 local Imainloop *ml;
@@ -97,18 +100,14 @@ local void arena_sync_done(Arena *a)
 local int ProcessArenaStates(void *dummy)
 {
 	int status, oops;
-	Link *link, *next;
+	Link *link;
 	Arena *a;
 	adata *ad;
 	Player *p;
 
 	WRLOCK();
-	for (link = LLGetHead(&myint.arenalist); link; link = next)
+	FOR_EACH_ARENA_P(a, ad, adkey)
 	{
-		a = link->data;
-		ad = P_ARENA_DATA(a, adkey);
-		next = link->next;
-
 		/* get the status */
 		status = a->status;
 
@@ -173,15 +172,19 @@ local int ProcessArenaStates(void *dummy)
 				DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_DESTROY));
 				do_attach(a, MM_DETACH);
 				cfg->CloseConfigFile(a->cfg);
+				a->cfg = NULL;
 
 				if (ad->resurrect)
 				{
+					/* clear all private data on recycle, so it looks to
+					 * modules like it was just created. */
+					memset(a->arenaextradata, 0, perarenaspace);
 					ad->resurrect = FALSE;
 					a->status = ARENA_DO_INIT;
 				}
 				else
 				{
-					LLRemove(&myint.arenalist, a);
+					LLRemove(&aman->arenalist, a);
 					afree(a);
 				}
 
@@ -216,7 +219,7 @@ local Arena * create_arena(const char *name)
 	a->cfg = NULL;
 	ad->resurrect = FALSE;
 
-	LLAdd(&myint.arenalist, a);
+	LLAdd(&aman->arenalist, a);
 
 	lm->Log(L_INFO, "<arenaman> {%s} created arena", name);
 
@@ -461,10 +464,7 @@ local Arena * do_find_arena(const char *name, int min, int max)
 {
 	Link *link;
 	Arena *a;
-	for (
-			link = LLGetHead(&myint.arenalist);
-			link && ((a = link->data) || 1);
-			link = link->next)
+	FOR_EACH_ARENA(a)
 		if (a->status >= min &&
 		    a->status <= max &&
 		    !strcmp(a->name, name) )
@@ -533,7 +533,7 @@ local void complete_go(Player *p, const char *reqname, int ship,
 		if (a == NULL)
 		{
 			/* if it fails, dump in first available */
-			Link *l = LLGetHead(&myint.arenalist);
+			Link *l = LLGetHead(&aman->arenalist);
 			if (!l)
 			{
 				lm->Log(L_ERROR,
@@ -675,10 +675,7 @@ local int ReapArenas(void *q)
 
 	RDLOCK();
 	pd->Lock();
-	for (
-			link = LLGetHead(&myint.arenalist);
-			link && ((a = link->data) || 1);
-			link = link->next)
+	FOR_EACH_ARENA(a)
 		if (a->status == ARENA_RUNNING || a->status == ARENA_CLOSING)
 		{
 			Link *link;
@@ -736,7 +733,9 @@ struct block
 
 local int AllocateArenaData(size_t bytes)
 {
-	Link *l, *last = NULL;
+	Arena *a;
+	void *data;
+	Link *link, *last = NULL;
 	struct block *b, *nb;
 	int current = 0;
 
@@ -744,38 +743,39 @@ local int AllocateArenaData(size_t bytes)
 	bytes = (bytes+(sizeof(int)-1)) & (~(sizeof(int)-1));
 
 	WRLOCK();
+
 	/* first try before between two blocks (or at the beginning) */
-	for (l = LLGetHead(&blocks); l; l = l->next)
+	for (link = LLGetHead(&blocks); link; link = link->next)
 	{
-		b = l->data;
+		b = link->data;
 		if ((size_t)(b->start - current) >= bytes)
-		{
-			nb = amalloc(sizeof(*nb));
-			nb->start = current;
-			nb->len = bytes;
-			/* if last == NULL, this will put it in front of the list */
-			LLInsertAfter(&blocks, last, nb);
-			UNLOCK();
-			return current;
-		}
+			goto found;
 		else
 			current = b->start + b->len;
-		last = l;
+		last = link;
 	}
 
 	/* if we couldn't get in between two blocks, try at the end */
 	if ((size_t)(perarenaspace - current) >= bytes)
-	{
-		nb = amalloc(sizeof(*nb));
-		nb->start = current;
-		nb->len = bytes;
-		LLInsertAfter(&blocks, last, nb);
-		UNLOCK();
-		return current;
-	}
+		goto found;
 
 	UNLOCK();
 	return -1;
+
+found:
+	nb = amalloc(sizeof(*nb));
+	nb->start = current;
+	nb->len = bytes;
+	/* if last == NULL, this will put it in front of the list */
+	LLInsertAfter(&blocks, last, nb);
+
+	/* clear all newly allocated space */
+	FOR_EACH_ARENA_P(a, data, current)
+		memset(data, 0, bytes);
+
+	UNLOCK();
+
+	return current;
 }
 
 
@@ -816,11 +816,8 @@ local void GetPopulationSummary(int *totalp, int *playingp)
 	Player *p;
 	int total = 0, playing = 0;
 
-	for (link = LLGetHead(&myint.arenalist); link; link = link->next)
-	{
-		a = link->data;
+	FOR_EACH_ARENA(a)
 		a->playing = a->total = 0;
-	}
 
 	pd->Lock();
 	FOR_EACH_PLAYER(p)
@@ -871,7 +868,7 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 		spawnkey = pd->AllocatePlayerData(sizeof(spawnloc));
 		if (spawnkey == -1) return MM_FAIL;
 
-		LLInit(&myint.arenalist);
+		LLInit(&aman->arenalist);
 
 		pthread_rwlock_init(&arenalock, NULL);
 
@@ -932,8 +929,8 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 		mm->ReleaseInterface(ml);
 
 		pthread_rwlock_destroy(&arenalock);
-		LLEnum(&myint.arenalist, afree);
-		LLEmpty(&myint.arenalist);
+		LLEnum(&aman->arenalist, afree);
+		LLEmpty(&aman->arenalist);
 		return MM_OK;
 	}
 	return MM_FAIL;

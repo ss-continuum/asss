@@ -28,6 +28,8 @@ local pthread_mutex_t plock;
 #define WULOCK() pthread_mutex_unlock(&plock)
 #endif
 
+#define pd (&myint)
+
 local Player **pidmap;
 local int pidmapsize;
 local int perplayerspace;
@@ -93,7 +95,7 @@ local Player * NewPlayer(int type)
 	}
 
 	pidmap[pid] = p;
-	LLAdd(&myint.playerlist, p);
+	LLAdd(&pd->playerlist, p);
 	WULOCK();
 
 	/* set up player struct and packet */
@@ -120,7 +122,7 @@ local void FreePlayer(Player *p)
 	DO_CBS(CB_NEWPLAYER, ALLARENAS, NewPlayerFunc, (p, FALSE));
 
 	WRLOCK();
-	LLRemove(&myint.playerlist, p);
+	LLRemove(&pd->playerlist, p);
 	pidmap[p->pid] = NULL;
 	WULOCK();
 
@@ -165,18 +167,16 @@ local void KickPlayer(Player *p)
 
 local Player * FindPlayer(const char *name)
 {
-	Link *l;
+	Link *link;
+	Player *p;
 
 	RDLOCK();
-	for (l = LLGetHead(&myint.playerlist); l; l = l->next)
-	{
-		Player *p = l->data;
+	FOR_EACH_PLAYER(p)
 		if (strcasecmp(name, p->name) == 0)
 		{
 			RULOCK();
 			return p;
 		}
-	}
 	RULOCK();
 	return NULL;
 }
@@ -206,11 +206,11 @@ local inline int matches(const Target *t, Player *p)
 
 local void TargetToSet(const Target *target, LinkedList *set)
 {
+	Link *link;
 	if (target->type == T_LIST)
 	{
-		Link *l;
-		for (l = LLGetHead(&target->u.list); l; l = l->next)
-			LLAdd(set, l->data);
+		for (link = LLGetHead(&target->u.list); link; link = link->next)
+			LLAdd(set, link->data);
 	}
 	else if (target->type == T_PLAYER)
 	{
@@ -218,14 +218,10 @@ local void TargetToSet(const Target *target, LinkedList *set)
 	}
 	else
 	{
-		Link *l;
 		RDLOCK();
-		for (l = LLGetHead(&myint.playerlist); l; l = l->next)
-		{
-			Player *p = l->data;
+		FOR_EACH_PLAYER(p)
 			if (p->status == S_PLAYING && matches(target, p))
 				LLAdd(set, p);
-		}
 		RULOCK();
 	}
 }
@@ -241,7 +237,9 @@ struct block
 
 local int AllocatePlayerData(size_t bytes)
 {
-	Link *l, *last = NULL;
+	Player *p;
+	void *data;
+	Link *link, *last = NULL;
 	struct block *b, *nb;
 	int current = 0;
 
@@ -249,38 +247,39 @@ local int AllocatePlayerData(size_t bytes)
 	bytes = (bytes+(sizeof(int)-1)) & (~(sizeof(int)-1));
 
 	WRLOCK();
+
 	/* first try before between two blocks (or at the beginning) */
-	for (l = LLGetHead(&blocks); l; l = l->next)
+	for (link = LLGetHead(&blocks); link; link = link->next)
 	{
-		b = l->data;
+		b = link->data;
 		if ((b->start - current) >= (int)bytes)
-		{
-			nb = amalloc(sizeof(*nb));
-			nb->start = current;
-			nb->len = bytes;
-			/* if last == NULL, this will put it in front of the list */
-			LLInsertAfter(&blocks, last, nb);
-			WULOCK();
-			return current;
-		}
+			goto found;
 		else
 			current = b->start + b->len;
-		last = l;
+		last = link;
 	}
 
 	/* if we couldn't get in between two blocks, try at the end */
 	if ((perplayerspace - current) >= (int)bytes)
-	{
-		nb = amalloc(sizeof(*nb));
-		nb->start = current;
-		nb->len = bytes;
-		LLInsertAfter(&blocks, last, nb);
-		WULOCK();
-		return current;
-	}
+		goto found;
 
 	WULOCK();
 	return -1;
+
+found:
+	nb = amalloc(sizeof(*nb));
+	nb->start = current;
+	nb->len = bytes;
+	/* if last == NULL, this will put it in front of the list */
+	LLInsertAfter(&blocks, last, nb);
+
+	/* clear all newly allocated space */
+	FOR_EACH_PLAYER_P(p, data, current)
+		memset(data, 0, bytes);
+
+	WULOCK();
+
+	return current;
 }
 
 local void FreePlayerData(int key)
@@ -339,7 +338,7 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 		for (i = 0; i < pidmapsize; i++)
 			pidmap[i] = NULL;
 
-		LLInit(&myint.playerlist);
+		LLInit(&pd->playerlist);
 
 		LLInit(&blocks);
 
@@ -363,8 +362,8 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 		pthread_mutexattr_destroy(&recmtxattr);
 
 		afree(pidmap);
-		LLEnum(&myint.playerlist, afree);
-		LLEmpty(&myint.playerlist);
+		LLEnum(&pd->playerlist, afree);
+		LLEmpty(&pd->playerlist);
 		return MM_OK;
 	}
 	return MM_FAIL;
