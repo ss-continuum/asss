@@ -1107,7 +1107,8 @@ void ProcessGrouped(Buffer *buf)
 	while (pos < buf->len && len > 0)
 	{
 		len = buf->d.raw[pos++];
-		ProcessPacket(buf->pid, buf->d.raw + pos, len);
+		if (pos + len <= buf->len)
+			ProcessPacket(buf->pid, buf->d.raw + pos, len);
 		pos += len;
 	}
 	FreeBuffer(buf);
