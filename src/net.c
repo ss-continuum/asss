@@ -331,13 +331,13 @@ void InitSockets()
 	if ((mysock = socket(PF_INET,SOCK_DGRAM,0)) == -1)
 		Error(ERROR_NORMAL,"net: socket");
 	if (bind(mysock, (struct sockaddr *) &localsin, sizeof(localsin)) == -1)
-		Error(ERROR_NORMAL,"net: bind");
+		Error(ERROR_BIND,"net: bind");
 
 	localsin.sin_port = htons(config.port+1);
 	if ((myothersock = socket(PF_INET,SOCK_DGRAM,0)) == -1)
 		Error(ERROR_NORMAL,"net: socket");
 	if (bind(myothersock, (struct sockaddr *) &localsin, sizeof(localsin)) == -1)
-		Error(ERROR_NORMAL,"net: bind");
+		Error(ERROR_BIND,"net: bind");
 
 	if (config.usebilling)
 	{

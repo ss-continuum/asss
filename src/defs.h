@@ -134,9 +134,10 @@
 
 /* hopefully useful exit codes */
 #define ERROR_NONE      0
-#define ERROR_NORMAL    5
-#define ERROR_MEMORY    7
-#define ERROR_CRITICAL  10
+#define ERROR_RECYCLE   1
+#define ERROR_GENERAL   2
+#define ERROR_MEMORY    3
+#define ERROR_BIND      4
 
 
 /* authentication return codes */
