@@ -176,9 +176,7 @@ local void mainloop()
 
 local void arenaaction(int arena, int action)
 {
-	if (action == AA_CREATE || action == AA_DESTROY || action == AA_CONFCHANGED)
-		if (limits[arena])
-			afree(limits[arena]);
+	laglimits_t *oldlimits = limits[arena];
 
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
 	{
@@ -214,6 +212,11 @@ local void arenaaction(int arena, int action)
 
 		limits[arena] = ll;
 	}
+	else if (action == AA_DESTROY)
+		limits[arena] = NULL;
+
+	if (action == AA_CREATE || action == AA_DESTROY || action == AA_CONFCHANGED)
+		afree(oldlimits);
 }
 
 
