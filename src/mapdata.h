@@ -62,6 +62,7 @@ enum map_tile_t
 
 
 typedef struct Region Region;
+/* pytype: opaque: struct Region *, region */
 
 
 struct mapdata_memory_stats_t
@@ -103,9 +104,11 @@ typedef struct Imapdata
 	 * @return the key's value, or NULL if not present
 	 */
 	const char * (*GetAttr)(Arena *arena, const char *key);
+	/* pyint: arena, string -> string */
 
 	/** like RegionChunk, but for the map itself. */
 	int (*MapChunk)(Arena *arena, u32 ctype, const void **datap, int *sizep);
+	/* pyint: arena, int, bufp out, int buflenout -> void */
 
 	/** returns the number of flags on the map in this arena. */
 	int (*GetFlagCount)(Arena *arena);
@@ -121,6 +124,7 @@ typedef struct Imapdata
 	/** finds the tile nearest to the given tile that is appropriate for
 	 ** placing a flag. */
 	void (*FindEmptyTileNear)(Arena *arena, int *x, int *y);
+	/* pyint: arena, int inout, int inout -> void */
 
 	/** calculates the placement of a brick of a given length dropped at
 	 ** a certain position. direction is in ship graphic units: 0-39 */
@@ -139,6 +143,7 @@ typedef struct Imapdata
 #define MAKE_CHUNK_TYPE(s) (*(u32*)#s)
 
 /* region chunk types */
+/* pyconst: define int, "RCT_*" */
 #define RCT_ISBASE          MAKE_CHUNK_TYPE(rBSE)
 #define RCT_NOANTIWARP      MAKE_CHUNK_TYPE(rNAW)
 #define RCT_NOWEAPONS       MAKE_CHUNK_TYPE(rNWP)
@@ -152,12 +157,14 @@ typedef struct Imapdata
 	 * @return a handle for the specified region, or NULL if not found.
 	 */
 	Region * (*FindRegionByName)(Arena *arena, const char *name);
+	/* pyint: arena, string -> region */
 
 	/** gets the name of a region.
 	 * @param region a region handle.
 	 * @return the region's name. never NULL.
 	 */
 	const char * (*RegionName)(Region *rgn);
+	/* pyint: region -> string */
 
 	/** gets chunk data for a particular region.
 	 * this checks if the given region has a chunk of the specified
@@ -172,6 +179,7 @@ typedef struct Imapdata
 	 * @return true if the chunk was found, false if not.
 	 */
 	int (*RegionChunk)(Region *rgn, u32 ctype, const void **datap, int *sizep);
+	/* pyint: region, int, bufp out, int buflenout -> void */
 
 	/** checks if the specified point is in the specified region.
 	 * @param rgn a region handle.
@@ -180,6 +188,7 @@ typedef struct Imapdata
 	 * @return true if the point is contained, false if not
 	 */
 	int (*Contains)(Region *rgn, int x, int y);
+	/* pyint: region, int, int -> int */
 
 	/** calls the specified callback for each region defined in the map
 	 ** that contains the given point.
@@ -203,6 +212,7 @@ typedef struct Imapdata
 	 * isn't contained in any region.
 	 */
 	Region * (*GetOneContaining)(Arena *arena, int x, int y);
+	/* pyint: arena, int, int -> region */
 
 } Imapdata;
 

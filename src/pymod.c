@@ -690,6 +690,7 @@ local PyObject * call_gen_py_interface(const char *iid, int idx, PyObject *args)
 }
 
 /* this is where most of the generated code gets inserted */
+#include "py_types.inc"
 #include "py_callbacks.inc"
 #include "py_interfaces.inc"
 

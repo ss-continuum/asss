@@ -22,6 +22,9 @@ re_pyint_func = re.compile(r'\t[A-Za-z].*\(\*([A-Za-z_0-9]*)\)')
 re_pyint_dir = re.compile(r'\s*/\* pyint: (.*?)(\*/)?$')
 re_pyint_done = re.compile(r'^}')
 
+# types
+re_pytype_opaque = re.compile(r'/\* pytype: opaque: (.*), (.*) \*/')
+
 
 # utility functions for constant translation
 
@@ -165,22 +168,6 @@ class type_banner(type_gen):
 	def buf_decl(me):
 		return Exception()
 
-class type_balldata(type_gen):
-	def format_char(me):
-		return 'O&'
-	def decl(me, s):
-		return 'struct BallData *' + s
-	def build_converter(me):
-		return 'cvt_c2p_balldata'
-	def parse_converter(me):
-		return 'cvt_p2c_balldata'
-	def buf_decl(me):
-		return Exception()
-	def needs_free(me):
-		return 1
-	def conv_to_buf(me, buf, val):
-		return 'FIXME'
-
 class type_target(type_gen):
 	def format_char(me):
 		return 'O&'
@@ -195,18 +182,19 @@ class type_target(type_gen):
 	def needs_free(me):
 		return 1
 	def conv_to_buf(me, buf, val):
-		return 'FIXME'
+		raise Exception()
 
-class type_func(type_gen):
+class type_bufp(type_gen):
 	def format_char(me):
-		return 'O&'
+		return 's#'
 	def decl(me, s):
-		args = map(lambda t: t.decl(''), me.argtypes)
-		args = ', '.join(args)
-		if not args:
-			args = 'void'
-		d = '(*%s)(%s)' % (s, args)
-		return me.rettype.decl(d)
+		raise Exception()
+	def buf_decl(me):
+		return 'const void *'
+	def buf_init(me):
+		return 'NULL'
+	def conv_to_buf(me, buf, val):
+		raise Exception()
 
 
 def get_type(tp):
@@ -480,6 +468,14 @@ def create_py_to_c_func(args, out):
 			# it must be passed in, so it's sort of like an
 			# inarg, but it doesn't get parsed.
 			allargs.append('%s' % DEFBUFLEN)
+
+		elif 'buflenout' in opts:
+			# this is an outgoing arg, but it's a buffer length, so it's
+			# treated differenly.
+			argname += '_out'
+			decls.append('\t%s %s = %s;' % (typ.buf_decl(), argname, typ.buf_init()))
+			outargs.append('%s' % argname)
+			allargs.append(typ.buf_addr(argname))
 
 	decls = '\n'.join(decls)
 	if inargs:
@@ -786,10 +782,8 @@ local void deinit_py_interfaces(void)
 
 
 def handle_pyconst_directive(tp, pat):
-	def clear(n):
-		def func(_):
-			del pyconst_pats[-n:]
-		return func
+	def clear(_):
+		del pyconst_pats[:]
 
 	pat = pat.replace('*', '[A-Z_0-9]*')
 
@@ -798,7 +792,7 @@ def handle_pyconst_directive(tp, pat):
 		pat = r'\s*(%s)' % pat
 		newre = re.compile(pat)
 		pyconst_pats.append((newre, const_int))
-		pyconst_pats.append((re.compile(r'.*}.*;.*()'), clear(2)))
+		pyconst_pats.append((re.compile(r'.*}.*;.*()'), clear))
 	elif tp.startswith('define'):
 		# these can be ints or strings, and last until a blank line
 		pat = r'#define (%s)' % pat
@@ -806,20 +800,75 @@ def handle_pyconst_directive(tp, pat):
 		subtp = tp.split()[1].strip()
 		func = { 'int': const_int, 'string': const_string, }[subtp]
 		pyconst_pats.append((newre, func))
-		pyconst_pats.append((re.compile(r'^$()'), clear(2)))
+		pyconst_pats.append((re.compile(r'^$()'), clear))
 	elif tp == 'config':
 		pat = r'#define (%s)' % pat
 		pyconst_pats.append((re.compile(pat + ' "'), const_string))
 		pyconst_pats.append((re.compile(pat + ' [0-9]'), const_int))
 		pyconst_pats.append((re.compile(pat + '$'), const_one))
-		pyconst_pats.append((re.compile(r'/\* pyconst: config end \*/()'),
-			clear(4)))
+		pyconst_pats.append((re.compile(r'/\* pyconst: config end \*/()'), clear))
+
+
+def make_opaque_type(ctype, name):
+	code = """
+/* dummy value for uniqueness */
+static int pytype_desc_%(name)s;
+
+local PyObject * cvt_c2p_%(name)s(void *p)
+{
+	if (p == NULL)
+	{
+		Py_INCREF(Py_None);
+		return Py_None;
+	}
+	else
+		return PyCObject_FromVoidPtrAndDesc(p, &pytype_desc_%(name)s, NULL);
+}
+
+local int cvt_p2c_%(name)s(PyObject *o, void **pp)
+{
+	if (o == Py_None)
+	{
+		*pp = NULL;
+		return TRUE;
+	}
+	else if (PyCObject_Check(o) &&
+	         PyCObject_GetDesc(o) == &pytype_desc_%(name)s)
+	{
+		*pp = PyCObject_AsVoidPtr(o);
+		return TRUE;
+	}
+	else
+	{
+		PyErr_SetString(PyExc_TypeError, "arg isn't a '%(name)s'");
+		return FALSE;
+	}
+}
+""" % vars()
+	type_file.write(code)
+
+	class mytype(type_gen):
+		def format_char(me):
+			return 'O&'
+		def decl(me, s):
+			return ctype + s
+		def build_converter(me):
+			return 'cvt_c2p_' + name
+		def parse_converter(me):
+			return 'cvt_p2c_' + name
+		def buf_decl(me):
+			return Exception()
+		def conv_to_buf(me, buf, val):
+			return Exception()
+
+	globals()['type_' + name] = mytype
 
 
 # output files
 const_file = open('py_constants.inc', 'w')
 callback_file = open('py_callbacks.inc', 'w')
 int_file = open('py_interfaces.inc', 'w')
+type_file = open('py_types.inc', 'w')
 
 warning = """
 /* THIS IS AN AUTOMATICALLY GENERATED FILE */
@@ -828,6 +877,7 @@ warning = """
 const_file.write(warning)
 callback_file.write(warning)
 int_file.write(warning)
+type_file.write(warning)
 
 lines = []
 for pat in sys.argv[1:]:
@@ -844,10 +894,7 @@ const_int('FALSE')
 
 init_pyint()
 
-pyconst_pats = [
-	(re.compile(r'#define (CB_[A-Z_0-9]*)'), const_callback),
-	(re.compile(r'#define (I_[A-Z_0-9]*)'), const_interface),
-]
+pyconst_pats = []
 
 # now process file
 intdirs = []
@@ -873,6 +920,7 @@ for l in lines:
 		lasttypedef = m.group(1)
 	m = re_pycb_dir.match(l)
 	if m:
+		const_callback(lastcbdef)
 		translate_pycb(lastcbdef, lasttypedef, m.group(1))
 
 	# interfaces
@@ -892,8 +940,15 @@ for l in lines:
 	m = re_pyint_done.match(l)
 	if m:
 		if intdirs:
+			const_interface(lastintdef)
 			translate_pyint(lastintdef, lasttypedef, intdirs)
 			intdirs = []
+
+	# types
+	m = re_pytype_opaque.match(l)
+	if m:
+		make_opaque_type(m.group(1).strip(), m.group(2).strip())
+
 
 finish_pycb()
 finish_pyint()
