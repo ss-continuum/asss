@@ -566,7 +566,7 @@ local void SetFreqAndShip(Player *p, int ship, int freq)
 		return;
 	}
 
-	if (freq < 0 || freq > 9999)
+	if (freq < 0 || freq > 9999 || ship < 0 || ship > SPEC)
 		return;
 
 	pd->LockPlayer(p);
