@@ -43,13 +43,13 @@
 
 typedef struct ClientData
 {
-	int s2cn, c2sn, flags;
-	int lastack, nextinbucket;
+	int s2cn, c2sn, flags, nextinbucket;
 	struct sockaddr_in sin;
 	unsigned int lastpkt, key;
 	short enctype;
 	int bigpktsize, bigpktroom;
 	byte *bigpktbuf;
+	DQNode outlist;
 } ClientData;
 
 
@@ -103,7 +103,7 @@ local void ProcessKey(Buffer *);
 local void ProcessKeyResponse(Buffer *);
 local void ProcessReliable(Buffer *);
 local void ProcessGrouped(Buffer *);
-local void ProcessResponse(Buffer *);
+local void ProcessAck(Buffer *);
 local void ProcessSyncRequest(Buffer *);
 local void ProcessBigData(Buffer *);
 local void ProcessPresize(Buffer *);
@@ -125,9 +125,9 @@ local Iencrypt *crypters[MAXENCRYPT];
 local LinkedList handlers[MAXTYPES];
 local int mysock, myothersock, mybillingsock;
 
-local DQNode freelist, rellist, outlist;
-local Mutex freemtx, relmtx, outmtx;
-local Condition outcond, relcond;
+local DQNode freelist, rellist;
+local Mutex freemtx, relmtx;
+local Condition relcond;
 volatile int killallthreads = 0;
 
 /* global clients struct!: */
@@ -139,12 +139,12 @@ local struct
 {
 	int port, retries, timeout, selectusec, process;
 	int biglimit, usebilling, droptimeout, billping;
-	int encmode;
+	int encmode, bufferdelta;
 } config;
 
 local struct
 {
-	int pcountpings, buffercount;
+	int pcountpings, buffercount, pktssent, pktsrecvd;
 } global_stats;
 
 local void (*oohandlers[])(Buffer*) =
@@ -153,7 +153,7 @@ local void (*oohandlers[])(Buffer*) =
 	ProcessKey, /* 01 - key initiation */
 	ProcessKeyResponse, /* 02 - key response (to be used for billing server) */
 	ProcessReliable, /* 03 - reliable */
-	ProcessResponse, /* 04 - reliable response */
+	ProcessAck, /* 04 - reliable response */
 	ProcessSyncRequest, /* 05 - time sync request */
 	NULL, /* 06 - time sync response (possible anti-spoof) */
 	ProcessDrop, /* 07 - close connection */
@@ -205,20 +205,24 @@ int MM_net(int action, Imodman *mm, int arena)
 		config.biglimit = cfg->GetInt(GLOBAL, "Net", "BigLimit", 1);
 		config.encmode = cfg->GetInt(GLOBAL, "Net", "EncryptMode", 0);
 		config.droptimeout = cfg->GetInt(GLOBAL, "Net", "DropTimeout", 3000);
+		config.bufferdelta = cfg->GetInt(GLOBAL, "Net", "MaxBufferDelta", 15);
 		config.usebilling = cfg->GetInt(GLOBAL, "Billing", "UseBilling", 0);
 		config.billping = cfg->GetInt(GLOBAL, "Billing", "PingTime", 3000);
 
-		/* init hash */
+		/* init hash and outlists */
 		for (i = 0; i < HASHSIZE; i++)
 			clienthash[i] = -1;
 		for (i = 0; i < MAXPLAYERS + EXTRA_PID_COUNT; i++)
+		{
 			clients[i].nextinbucket = -1;
+			DQInit(&clients[i].outlist);
+		}
 		InitMutex(&hashmtx);
 
 		/* init buffers */
-		InitCondition(&outcond); InitCondition(&relcond);
-		InitMutex(&freemtx); InitMutex(&relmtx); InitMutex(&outmtx);
-		DQInit(&freelist); DQInit(&rellist); DQInit(&outlist);
+		InitCondition(&relcond);
+		InitMutex(&freemtx); InitMutex(&relmtx);
+		DQInit(&freelist); DQInit(&rellist);
 
 		/* get the sockets */
 		InitSockets();
@@ -308,8 +312,8 @@ Buffer * GetBuffer()
 		DQRemove(dq);
 		UnlockMutex(&freemtx);
 		/* clear it after releasing mtx */
-		memset(dq + 1, 0, sizeof(Buffer) - sizeof(DQNode));
 	}
+	memset(dq + 1, 0, sizeof(Buffer) - sizeof(DQNode));
 	return (Buffer *)dq;
 }
 
@@ -467,6 +471,8 @@ void * RecvThread(void *dummy)
 					log->Log(LOG_DEBUG, "Packet recieved from timewait state");
 				FreeBuffer(buf);
 				goto donehere;
+				/* don't set lastpkt time for timewait stats or we might
+				 * never get out of it */
 			}
 
 			buf->pid = pid;
@@ -487,6 +493,7 @@ void * RecvThread(void *dummy)
 			/* hand it off to appropriate place */
 			ProcessBuffer(buf);
 
+			global_stats.pktsrecvd++;
 donehere:
 		}
 
@@ -537,114 +544,104 @@ donehere:
 }
 
 
-
 void * SendThread(void *dummy)
 {
-#define MAXGROUPED 20
-	static unsigned pcount[MAXPLAYERS+EXTRA_PID_COUNT], bigcount[MAXPLAYERS+EXTRA_PID_COUNT];
-	static Buffer *order[MAXPLAYERS+EXTRA_PID_COUNT][MAXGROUPED];
-	Buffer *buf, *nbuf, *it;
-	unsigned int gtc = GTC(), i, bucket;
+	byte gbuf[MAXPACKET];
+	unsigned int gtc, i;
 
 	while (!killallthreads)
 	{
-		/* zero some arrays */
-		memset(pcount, 0, (MAXPLAYERS+EXTRA_PID_COUNT) * sizeof(unsigned));
-		memset(bigcount, 0, (MAXPLAYERS+EXTRA_PID_COUNT) * sizeof(unsigned));
+		usleep(10000);
 
-		/* grab first buffer */
-		LockMutex(&outmtx);
-		WaitConditionTimed(&outcond, &outmtx, 500);
-		buf = (Buffer*)outlist.next;
-
-		for (buf = (Buffer*)outlist.next; (DQNode*)buf != &outlist; buf = nbuf)
-		{
-			nbuf = (Buffer*)buf->node.next;
-
-			/* remove packets that client has acked */
-			if (    buf->d.rel.t1 == 0x00
-			     && buf->d.rel.t2 == 0x03
-			     && clients[buf->pid].lastack >= buf->d.rel.seqnum)
-			{
-				buf->retries = 0;
-			}
-
-			/* LOCK: lock status here? */
-			/* check if the player still exists */
-			if (    players[buf->pid].status <= S_FREE
-			     || players[buf->pid].status >= S_TIMEWAIT)
-				buf->retries = 0;
-
-			/* check if we can send it now */
-			if (    buf->retries > 0
-			     && (gtc - buf->lastretry) > config.timeout)
-			{
-				if (buf->len > 240)
-				{	/* too big for grouped, send immediately */
-					if (bigcount[buf->pid]++ < config.biglimit)
-					{
-						buf->lastretry = gtc;
-						buf->retries--;
-						/* UnlockMutex(&outmtx); // skipped to save speed */
-						SendRaw(buf->pid, buf->d.raw, buf->len);
-						/* LockMutex(&outmtx); */
-					}
-				}
-				else if (pcount[buf->pid] < MAXGROUPED)
-					order[buf->pid][pcount[buf->pid]++] = buf;
-					/* packets over the group limit don't get sent */
-					/* at all until the first bunch are ack'd */
-			}
-
-			/* free buffers if possible */
-			if (buf->retries < 1)
-			{	/* release buffer */
-				DQRemove((DQNode*)buf);
-				FreeBuffer(buf);
-			}
-		}
-		UnlockMutex(&outmtx);
-
-		/* send packets! */
 		for (i = 0; i < (MAXPLAYERS + EXTRA_PID_COUNT); i++)
 		{
-			if (pcount[i] == 1)
-			{	/* only one packet for this person, send it */
-				it = order[i][0];
-				it->lastretry = gtc;
-				it->retries--;
-				SendRaw(i, it->d.raw, it->len);
-			}
-			else if (pcount[i] > 1)
-			{	/* group all packets to send */
-				static byte gbuf[MAXPACKET];
-				byte *current = gbuf + 2;
-				int j;
+			int sentbig, pcount;
+			DQNode *outlist;
+			Buffer *buf, *nbuf;
+			byte *gptr;
 
-				gbuf[0] = 0x00; gbuf[1] = 0x0E;
+			/* set up context */
+			sentbig = 0;
+			pcount = 0;
+			gptr = gbuf; *gptr++ = 0x00; *gptr++ = 0x0E;
 
-				for (j = 0; j < pcount[i]; j++)
+			/* now lock player for as long as we are using his outlist */
+			pd->LockPlayer(i);
+			gtc = GTC();
+
+			/* iterate through outlist */
+			outlist = &clients[i].outlist;
+			for (buf = (Buffer*)outlist->next; (DQNode*)buf != outlist; buf = nbuf)
+			{
+				nbuf = (Buffer*)buf->node.next;
+
+				/* we don't have to remove packets that the client has
+				 * acked because they shouldn't be here at all. */
+
+				/* check status here */
+				if (players[i].status <= S_FREE ||
+				    players[i].status >= S_TIMEWAIT)
+					buf->retries = 0;
+
+				/* try to send it */
+				if (buf->retries > 0 &&
+				    (gtc - buf->lastretry) > config.timeout)
 				{
-					it = order[i][j];
-					if ( (current-gbuf+it->len+5) < MAXPACKET)
-					{
-						*current++ = it->len;
-						memcpy(current, it->d.raw, it->len);
-						current += it->len;
-						it->lastretry = gtc;
-						it->retries--;
+					if (buf->len > 240)
+					{ /* too big for grouped, send immediately */
+						if (sentbig < config.biglimit)
+						{
+							SendRaw(buf->pid, buf->d.raw, buf->len);
+							buf->lastretry = gtc;
+							buf->retries--;
+							sentbig = 1;
+						}
 					}
 					else
-						break;
+					{ /* add to current grouped packet, if there is room */
+						if (((gptr - gbuf) + buf->len + 10) < MAXPACKET)
+						{
+							*gptr++ = buf->len;
+							memcpy(gptr, buf->d.raw, buf->len);
+							gptr += buf->len;
+							buf->lastretry = gtc;
+							buf->retries--;
+							pcount++;
+						}
+					}
 				}
-				/* send it, finally */
-				SendRaw(i, gbuf, current - gbuf);
+
+				/* free if possible */
+				if (buf->retries < 1)
+				{
+					DQRemove((DQNode*)buf);
+					FreeBuffer(buf);
+				}
 			}
+
+			/* try sending the grouped packet */
+			if (pcount == 1)
+			{
+				/* there's only one in the group, so don't send it
+				 * in a group. +3 to skip past the 00 0E and size of
+				 * first packet */
+				SendRaw(i, gbuf + 3, (gptr - gbuf) - 3);
+			}
+			else if (pcount > 1)
+			{
+				/* send the whole thing as a group */
+				SendRaw(i, gbuf, gptr - gbuf);
+			}
+
+			pd->UnlockPlayer(i);
 		}
 
 		/* process lagouts and timewait */
-		gtc = GTC();
+		/* do this in another loop so that we only have to lock/unlock
+		 * player status once instead of MAXPLAYERS times around the
+		 * loop. */
 		pd->LockStatus();
+		gtc = GTC();
 		for (i = 0; i < (MAXPLAYERS + EXTRA_PID_COUNT); i++)
 		{
 			/* this is used for lagouts and also for timewait */
@@ -652,11 +649,13 @@ void * SendThread(void *dummy)
 
 			/* process lagouts */
 			if (   players[i].status != S_FREE
-			    && players[i].whenloggedin == 0 /* acts as flag to prevent dups */
-			    && clients[i].lastpkt != 0 /* prevent race */
-			    && diff > config.droptimeout)
+				&& players[i].whenloggedin == 0 /* acts as flag to prevent dups */
+				&& clients[i].lastpkt != 0 /* prevent race */
+				&& diff > config.droptimeout)
 			{
-				log->Log(LOG_USELESSINFO, "net: player lagged out: %s", players[i].name);
+				log->Log(LOG_USELESSINFO,
+						"net: player lagged out: %s",
+						players[i].name);
 				/* FIXME: send "you have been disconnected..." msg */
 				/* can't hold lock here for deadlock-related reasons */
 				pd->UnlockStatus();
@@ -675,6 +674,7 @@ void * SendThread(void *dummy)
 				 * (because of udp misorderings) don't cause a new
 				 * connection to be created (at least for a short while)
 				 */
+				int bucket;
 				LockMutex(&hashmtx);
 				bucket = HashIP(clients[i].sin);
 				if (clienthash[bucket] == i)
@@ -704,8 +704,6 @@ void * SendThread(void *dummy)
 		}
 		pd->UnlockStatus();
 
-		/* give up some time */
-		sched_yield();
 	}
 	return NULL;
 #undef MAXGROUPED
@@ -728,7 +726,7 @@ void * RelThread(void *dummy)
 			nbuf = (Buffer*)buf->node.next;
 
 			/* if player is gone, free buffer */
-			if (   players[buf->pid].status == S_FREE
+			if (   players[buf->pid].status <= S_FREE
 			    || players[buf->pid].status >= S_TIMEWAIT )
 			{
 				DQRemove((DQNode*)buf);
@@ -839,11 +837,23 @@ int NewConnection(struct sockaddr_in *sin)
 
 	if (i == MAXPLAYERS) return -1;
 
+	pd->LockPlayer(i);
+
+	{ /* free any buffers remaining in the outlist */
+		Buffer *buf, *nbuf;
+		DQNode *outlist = &clients[i].outlist;
+		for (buf = (Buffer*)outlist->next; (DQNode*)buf != outlist; buf = nbuf)
+		{
+			nbuf = (Buffer*)buf->node.next;
+			DQRemove((DQNode*)buf);
+			FreeBuffer(buf);
+		}
+	}
 	/* set up clientdata */
 	memset(clients + i, 0, sizeof(ClientData));
 	clients[i].c2sn = -1;
 	clients[i].enctype = -1;
-	clients[i].lastack = -1;
+	DQInit(&clients[i].outlist);
 
 	/* add him to his hash bucket */
 	LockMutex(&hashmtx);
@@ -862,7 +872,6 @@ int NewConnection(struct sockaddr_in *sin)
 	UnlockMutex(&hashmtx);
 
 	/* set up playerdata */
-	pd->LockPlayer(i);
 	pd->LockStatus();
 	memset(players + i, 0, sizeof(PlayerData));
 	players[i].type = S2C_PLAYERENTERING; /* restore type */
@@ -872,6 +881,7 @@ int NewConnection(struct sockaddr_in *sin)
 	players[i].attachedto = -1;
 	players[i].status = S_NEED_KEY;
 	pd->UnlockStatus();
+
 	pd->UnlockPlayer(i);
 
 	return i;
@@ -992,19 +1002,30 @@ void ProcessKeyResponse(Buffer *buf)
 
 void ProcessReliable(Buffer *buf)
 {
-	/* FIXME: just drop packet if seqnum is too far ahead
-	 * (prevent DoS by forcing server to buffer lots of packets) */
+	/* calculate seqnum delta to decide if we want to ack it. relmtx
+	 * protects the c2sn values in the clients array. */
+	int sn = buf->d.rel.seqnum;
 
-	/* ack */
-	buf->d.rel.t2++;
-	SendRaw(buf->pid, buf->d.raw, 6);
-	buf->d.rel.t2--;
-
-	/* add to rel list to be processed */
 	LockMutex(&relmtx);
-	DQAdd(&rellist, (DQNode*)buf);
-	UnlockMutex(&relmtx);
-	SignalCondition(&relcond, 0);
+	if ( (sn - clients[buf->pid].c2sn) <= config.bufferdelta)
+	{
+		/* ack. small hack. */
+		buf->d.rel.t2++;
+		SendRaw(buf->pid, buf->d.raw, 6);
+		buf->d.rel.t2--;
+
+		/* add to rel list to be processed */
+		DQAdd(&rellist, (DQNode*)buf);
+		UnlockMutex(&relmtx);
+		SignalCondition(&relcond, 0);
+	}
+	else /* drop it */
+	{
+		UnlockMutex(&relmtx);
+		FreeBuffer(buf);
+		log->Log(LOG_USELESSINFO, "net: Reliable packet with too big delta (%d - %d) from pid %d",
+				sn, clients[buf->pid].c2sn, buf->pid);
+	}
 }
 
 
@@ -1022,10 +1043,25 @@ void ProcessGrouped(Buffer *buf)
 }
 
 
-void ProcessResponse(Buffer *buf)
+void ProcessAck(Buffer *buf)
 {
-	if (buf->d.rel.seqnum > clients[buf->pid].lastack)
-		clients[buf->pid].lastack = buf->d.rel.seqnum;
+	Buffer *b, *nbuf;
+	DQNode *outlist;
+
+	pd->LockPlayer(buf->pid);
+	outlist = &clients[buf->pid].outlist;
+	for (b = (Buffer*)outlist->next; (DQNode*)b != outlist; b = nbuf)
+	{
+		nbuf = (Buffer*)b->node.next;
+		if (b->d.rel.t1 == 0x00 &&
+		    b->d.rel.t2 == 0x03 &&
+		    b->d.rel.seqnum == buf->d.rel.seqnum)
+		{
+			DQRemove((DQNode*)b);
+			FreeBuffer(b);
+		}
+	}
+	pd->UnlockPlayer(buf->pid);
 	FreeBuffer(buf);
 }
 
@@ -1188,6 +1224,7 @@ void SendRaw(int pid, byte *data, int len)
 		sendto(mysock, encbuf, len, 0,
 				(struct sockaddr*)&clients[pid].sin, sizeof(struct sockaddr_in));
 	}
+	global_stats.pktssent++;
 }
 
 
@@ -1209,15 +1246,12 @@ void BufferPacket(int pid, byte *data, int len, int rel)
 	buf->pid = pid;
 	buf->lastretry = 0;
 
+	/* get data into packet */
 	if (rel & NET_RELIABLE)
 	{
 		buf->d.rel.t1 = 0x00;
 		buf->d.rel.t2 = 0x03;
-
-		pd->LockPlayer(pid);
-		buf->d.rel.seqnum = clients[pid].s2cn++;
-		pd->UnlockPlayer(pid);
-
+		/* seqnum is set below */
 		memcpy(buf->d.rel.data, data, len);
 		buf->len = len + 6;
 		buf->retries = config.retries;
@@ -1229,18 +1263,24 @@ void BufferPacket(int pid, byte *data, int len, int rel)
 		buf->retries = 1;
 	}
 
+	pd->LockPlayer(pid);
+
+	/* fill in seqnum */
+	if (rel & NET_RELIABLE)
+		buf->d.rel.seqnum = clients[pid].s2cn++;
+
+	/* add it to out list */
+	DQAdd(&clients[pid].outlist, (DQNode*)buf);
+
+	pd->UnlockPlayer(pid);
+	
+	/* if it's immediate, do one retry now */
 	if (rel & NET_IMMEDIATE)
 	{
 		SendRaw(pid, buf->d.raw, buf->len);
 		buf->lastretry = GTC();
 		buf->retries--;
 	}
-
-	/* add it to out list */
-	LockMutex(&outmtx);
-	DQAdd(&outlist, (DQNode*)buf);
-	UnlockMutex(&outmtx);
-	SignalCondition(&outcond, 0);
 }
 
 

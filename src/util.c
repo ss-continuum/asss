@@ -773,6 +773,7 @@ void WaitConditionTimed(Condition *cond, Mutex *mtx, int millis)
 		ts.tv_nsec -= 1000000000;
 		ts.tv_sec++;
 	}
+	pthread_cond_timedwait(cond, mtx, &ts);
 }
 
 #endif /* THREAD */
