@@ -1,6 +1,6 @@
 
 extended level file format
-version 0.3
+version 0.4
 grelminar@yahoo.com
 ------------------------
 
@@ -305,10 +305,9 @@ destination.
 the data for this chunk specifies the destination, in this format:
 
 struct autowarp_destination {
-    i16 x;           // the destination x coordinate. 0-1023, or -1 for
-                     // the player's current x coordinate.
-    i16 y;           // the destination y coordinate. 0-1023, or -1 for
-                     // the player's current y coordinate.
+    i16 x;           // the destination x coordinate, 1-1023, 0 for the
+                     // default, or -1 for the player's current x coordinate.
+    i16 y;           // the destination y coordinate.
     char arena[16];  // the destination arena name. null if the warp
                      // does not cross arenas.
 };
