@@ -94,7 +94,7 @@ pymod.so: pymod.o
 funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
 	fake.o autoturret.o chatnet.o md5.o auth_file.o ap_multipub.o sendfile.o \
 	record.o
-	$(CC) $(LDFLAGS) -shared -o $@ $^ -lz
+	$(CC) $(LDFLAGS) -shared -o $@ $^ -lz -lm
 
 
 
@@ -135,8 +135,8 @@ include Makefile.deps
 	$(CC) $(LDFLAGS) -shared -o $@ $^
 
 install: $(ALL_STUFF)
-	if [ ! -d $(ASSSHOME)/bin ]; then mkdir $(ASSSHOME)/bin; fi
-	cp -f $(ALL_STUFF) $(ASSSHOME)/bin
+	install -d $(ASSSHOME)/bin
+	install $(ALL_STUFF) $(ASSSHOME)/bin
 
 clean:
 	-rm -f asss dbtool *.o *.so *.inc core Makefile.deps

@@ -47,9 +47,13 @@ typedef enum persist_scope_t
 {
 	PERSIST_ALLARENAS,
 	/* using this for scope means per-player data in every arena */
+	/* using this for scope means per-arena data will be stored
+	 * per-arena */
 
 	PERSIST_GLOBAL
 	/* using this for scope means per-player data shared among all arenas */
+	/* using this for scope means per-arena data will be shared among
+	 * all arenas (so it will effectively be global data). */
 } persist_scope_t;
 
 
@@ -74,11 +78,7 @@ typedef struct ArenaPersistentData
 	void *clos;
 } ArenaPersistentData;
 
-/* for per-player data, scope can be a single arena, or one of the
- * constants above. for per-arena data, scope can be a single arena, or
- * PERSIST_ALLARENAS.
- *
- * for per-player data, any data in the forever and reset intervals will
+/* for per-player data, any data in the forever and reset intervals will
  * be shared among arenas with the same arenagroup. data in game
  * intervals is never shared among arenas. per-arena data is also never
  * shared among arenas.

@@ -255,6 +255,7 @@ void SendUpdates(void)
 	Player *p;
 	Link *link;
 
+	pd->Lock();
 	FOR_EACH_PLAYER_P(p, stats, pdkey)
 		if (p->status == S_PLAYING)
 		{
@@ -279,6 +280,7 @@ void SendUpdates(void)
 			else
 				UNLOCK_PLAYER(stats);
 		}
+	pd->Unlock();
 }
 
 

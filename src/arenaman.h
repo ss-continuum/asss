@@ -5,11 +5,12 @@
 #define __ARENAMAN_H
 
 #include "config.h"
+#include "db_layout.h"
 
 
 struct Arena
 {
-	int status, ispublic, resurrect;
+	int status;
 	char name[20], basename[20];
 	ConfigHandle cfg;
 	/* this setting is so commonly used, it deserves to be here. */
@@ -102,6 +103,8 @@ typedef struct Iarenaman
 	LinkedList arenalist;
 } Iarenaman;
 
+/* this will tell you if an arena is considered a "public" arena */
+#define ARENA_IS_PUBLIC(a) (strcmp((a)->basename, AG_PUBLIC) == 0)
 
 /* use this to access per-arena data */
 #define P_ARENA_DATA(a, mykey) ((void*)((a)->arenaextradata+mykey))

@@ -9,8 +9,6 @@
 
 #ifndef WIN32
 #include <arpa/inet.h>
-#else
-#include <winsock.h>
 #endif
 
 #include "asss.h"
@@ -472,7 +470,7 @@ local void Csetgroup(const char *params, Player *p, const Target *target)
 {
 	int perm = 0, global = 1;
 	Player *t = target->u.p;
-	char cap[MAXGROUPLEN+10];
+	char cap[MAXGROUPLEN+16];
 
 	REQUIRE_MOD(capman)
 	REQUIRE_MOD(groupman)
@@ -491,21 +489,22 @@ local void Csetgroup(const char *params, Player *p, const Target *target)
 	if (!*params) return;
 
 	/* make sure the setter has permissions to set people to this group */
-	snprintf(cap, MAXGROUPLEN+10, "setgroup_%s", params);
+	snprintf(cap, sizeof(cap), "higher_than_%s", params);
 	if (!capman->HasCapability(p, cap))
 	{
-		lm->Log(L_WARN, "<playercmd> [%s] doesn't have permission to set to group '%s'",
-				p->name, params);
+		chat->SendMessage(p, "You don't have permission to give people group %s.", params);
+		lm->LogP(L_WARN, "playercmd", p, "doesn't have permission to set to group '%s'",
+				params);
 		return;
 	}
 
 	/* make sure the target isn't in a group already */
 	if (strcasecmp(groupman->GetGroup(t), "default"))
 	{
-		lm->Log(L_WARN, "<playercmd> [%s] tried to set the group of [%s],"
+		chat->SendMessage(p, "Player %s already has a group. You need to use ?rmgroup first.", t->name);
+		lm->LogP(L_WARN, "playercmd", p, "tried to set the group of [%s],"
 				"who is in '%s' already, to '%s'",
-				p->name, t->name,
-				groupman->GetGroup(t), params);
+				t->name, groupman->GetGroup(t), params);
 		return;
 	}
 
@@ -514,7 +513,7 @@ local void Csetgroup(const char *params, Player *p, const Target *target)
 		time_t tm = time(NULL);
 		char info[128];
 
-		snprintf(info, 128, "set by %s on ", p->name);
+		snprintf(info, sizeof(info), "set by %s on ", p->name);
 		ctime_r(&tm, info + strlen(info));
 		RemoveCRLF(info);
 
@@ -533,6 +532,58 @@ local void Csetgroup(const char *params, Player *p, const Target *target)
 				params, p->name);
 	}
 }
+
+
+local helptext_t rmgroup_help =
+"Targets: player\n"
+"Args: none\n"
+"Removes the group from a player, returning him to group 'default'. If\n"
+"the group was assigned for this session only, then it will be removed\n"
+"for this session; if it is a global group, it will be removed globally;\n"
+"and if it is an arena group, it will be removed for this arena.\n";
+
+local void Crmgroup(const char *params, Player *p, const Target *target)
+{
+	Player *t = target->u.p;
+	char cap[MAXGROUPLEN+16], info[128];
+	const char *grp;
+	time_t tm = time(NULL);
+
+	REQUIRE_MOD(capman)
+	REQUIRE_MOD(groupman)
+
+	if (!*params) return;
+	if (target->type != T_PLAYER) return;
+
+	while (*params && strchr(params, ' '))
+	{
+		params = strchr(params, ' ') + 1;
+	}
+	if (!*params) return;
+
+	grp = groupman->GetGroup(t);
+	snprintf(cap, sizeof(cap), "higher_than_%s", grp);
+
+	if (!capman->HasCapability(p, cap))
+	{
+		chat->SendMessage(p, "You don't have permission to take away group %s.", grp);
+		lm->LogP(L_WARN, "playercmd", p, "doesn't have permission to take away group '%s'",
+				grp);
+		return;
+	}
+
+	chat->SendMessage(p, "%s has been removed from group %s", t->name, grp);
+	chat->SendMessage(t, "You have been removed group %s.", grp);
+
+	snprintf(info, sizeof(info), "set by %s on ", p->name);
+	ctime_r(&tm, info + strlen(info));
+	RemoveCRLF(info);
+
+	/* groupman keeps track of the source of the group, so we just have
+	 * to call this. */
+	groupman->RemoveGroup(t, info);
+}
+
 
 local helptext_t grplogin_help =
 "Targets: none\n"
@@ -1281,9 +1332,13 @@ local void Cflaginfo(const char *params, Player *p, const Target *target)
 				break;
 
 			case FLAG_ONMAP:
-				chat->SendMessage(p,
-						"flag %d: on the map at (%d,%d), owned by freq %d",
-						i, fd->flags[i].x, fd->flags[i].y, fd->flags[i].freq);
+				{
+					unsigned short x = fd->flags[i].x * 20 / 1024;
+					unsigned short y = fd->flags[i].y * 20 / 1024;
+					chat->SendMessage(p,
+							"flag %d: on the map at %c%c (%d,%d), owned by freq %d",
+							i, 'A' + x, '1' + y, fd->flags[i].x, fd->flags[i].y, fd->flags[i].freq);
+				}
 				break;
 
 			case FLAG_CARRIED:
@@ -1785,6 +1840,62 @@ local void Cdisablecmdgroup(const char *params, Player *p, const Target *target)
 		chat->SendMessage(p, "Command group %s not found", params);
 }
 
+local helptext_t owner_help =
+"Targets: none\n"
+"Args: none\n"
+"Displays the arena owner.\n";
+
+local void Cowner(const char *params, Player *p, const Target *target)
+{
+	const char *owner_str;
+
+	/* get the name from the arena conf that this player is in */
+	owner_str = cfg->GetStr(p->arena->cfg, "Owner", "Name");
+
+	chat->SendMessage(p, "arena owner: %s", owner_str ? owner_str : "none");
+}
+
+
+local helptext_t kick_help =
+"Targets: player\n"
+"Args: none\n"
+"Kicks the player off of the server.\n";
+
+local void Ckick(const char *params, Player *p, const Target *target)
+{
+	Player *t = target->u.p;
+	const char *tgrp;
+
+	REQUIRE_MOD(capman);
+	REQUIRE_MOD(groupman);
+
+	if (target->type != T_PLAYER)
+	{
+		chat->SendMessage(p, "Only valid target is a single player");
+		return;
+	}
+
+	if (t == p)
+		return;
+
+	tgrp = groupman->GetGroup(t);
+
+	if (strcasecmp(tgrp, "default") != 0)
+	{
+		/* trying to kick off someone in a group. extra capabilities are
+		 * needed. */
+		char cap[MAXGROUPLEN+16];
+		snprintf(cap, sizeof(cap), "higher_than_%s", tgrp);
+		if (!capman->HasCapability(p, cap))
+		{
+			chat->SendMessage(p, "You don't have permission to use ?kick on that player.");
+			return;
+		}
+	}
+
+	pd->KickPlayer(t);
+}
+
 
 /* actual group definitions */
 
@@ -1806,6 +1917,7 @@ local const struct cmd_info core_commands[] =
 	CMD(disablecmdgroup)
 	CMD(arena)
 	CMD(shutdown)
+	CMD(owner)
 	CMD(version)
 	CMD(uptime)
 	CMD(lsmod)
@@ -1952,12 +2064,14 @@ local const struct cmd_info misc_commands[] =
 {
 	CMD(getgroup)
 	CMD(setgroup)
+	CMD(rmgroup)
 	CMD(grplogin)
 	CMD(listmod)
 	CMD(setcm)
 	CMD(getcm)
 	CMD(listarena)
 	CMD(sheep)
+	CMD(kick)
 	END()
 };
 

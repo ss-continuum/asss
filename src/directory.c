@@ -14,7 +14,6 @@
 #include <netdb.h>
 #include <unistd.h>
 #else
-#include <winsock.h>
 #define close(s) closesocket(s)
 #endif
 

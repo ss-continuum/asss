@@ -6,12 +6,16 @@
 #include <ctype.h>
 #include <stdlib.h>
 
+#ifndef WIN32
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#else
+#include <sys/stat.h>
+#endif
 #include <fcntl.h>
 
-#include <zlib.h>
+#include "zlib.h"
 
 #include "asss.h"
 #include "fake.h"

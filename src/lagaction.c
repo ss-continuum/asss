@@ -303,12 +303,14 @@ EXPORT int MM_lagaction(int action, Imodman *mm, Arena *arena)
 		Player *p;
 
 		/* don't leave stuff like this lying around */
+		pd->Lock();
 		FOR_EACH_PLAYER(p)
 		{
 			p->flags.no_flags_balls = 0;
 			p->flags.no_ship = 0;
 			p->ignoreweapons = 0;
 		}
+		pd->Unlock();
 
 		mm->UnregCallback(CB_MAINLOOP, mainloop, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, arenaaction, ALLARENAS);

@@ -42,7 +42,7 @@
 #define MAXRETRIES 10
 
 /* packets to queue up for sending files */
-#define QUEUE_PACKETS 15
+#define QUEUE_PACKETS 25
 /* threshold to start queuing up more packets */
 #define QUEUE_THRESHOLD 5
 
@@ -228,7 +228,7 @@ local void * RecvThread(void *);
 local void * SendThread(void *);
 local void * RelThread(void *);
 
-local int QueueMoreData(void *);
+local int queue_more_data(void *);
 
 /* network layer header handling: */
 local void ProcessKeyResp(Buffer *);
@@ -405,7 +405,7 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		pthread_create(&send_thread, NULL, SendThread, NULL);
 		pthread_create(&rel_thread, NULL, RelThread, NULL);
 
-		ml->SetTimer(QueueMoreData, 200, 150, NULL, NULL);
+		ml->SetTimer(queue_more_data, 20, 11, NULL, NULL);
 
 		/* install ourself */
 		mm->RegInterface(&netint, ALLARENAS);
@@ -465,7 +465,7 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		if (mm->UnregInterface(&netclientint, ALLARENAS))
 			return MM_FAIL;
 
-		ml->ClearTimer(QueueMoreData, NULL);
+		ml->ClearTimer(queue_more_data, NULL);
 
 		/* clean up */
 		for (i = 0; i < MAXTYPES; i++)
@@ -1150,72 +1150,106 @@ local void end_sized(Player *p, int success)
 }
 
 
-int QueueMoreData(void *dummy)
+local Player *get_next_player(int *pos)
+{
+	Link *l;
+	int i;
+
+	pd->Lock();
+	for (i = 0, l = LLGetHead(&pd->playerlist); l; l = l->next)
+	{
+		Player *cp = l->data;
+		if (!IS_OURS(cp))
+			continue;
+		else if (i++ == *pos)
+			break;
+	}
+	pd->Unlock();
+
+	if (!l)
+	{
+		*pos = 0;
+		l = LLGetHead(&pd->playerlist);
+	}
+
+	(*pos)++;
+
+	if (l && IS_OURS((Player*)(l->data)))
+		return l->data;
+	else
+		return NULL;
+}
+
+
+int queue_more_data(void *dummy)
 {
 #define REQUESTATONCE (QUEUE_PACKETS*480)
+	static int nextplayer = 0;
+
 	byte buffer[REQUESTATONCE], *dp;
 	struct ReliablePacket packet;
 	int needed;
-	Link *link, *l;
+	Link *l;
 	Player *p;
 	ConnData *conn;
 
-	FOR_EACH_PLAYER_P(p, conn, connkey)
-		if (IS_OURS(p) &&
-		    p->status < S_TIMEWAIT &&
-		    pthread_mutex_trylock(&conn->olmtx) == 0)
+	p = get_next_player(&nextplayer);
+	conn = PPDATA(p, connkey);
+
+	if (p &&
+	    p->status < S_TIMEWAIT &&
+	    pthread_mutex_trylock(&conn->olmtx) == 0)
+	{
+		if ((l = LLGetHead(&conn->sizedsends)) &&
+		    DQCount(&conn->outlist) < QUEUE_THRESHOLD)
 		{
-			if ((l = LLGetHead(&conn->sizedsends)) &&
-			    DQCount(&conn->outlist) < QUEUE_THRESHOLD)
-			{
-				struct sized_send_data *sd = l->data;
+			struct sized_send_data *sd = l->data;
 
-				/* unlock while we get the data */
-				pthread_mutex_unlock(&conn->olmtx);
-
-				/* prepare packet */
-				packet.t1 = 0x00;
-				packet.t2 = 0x0A;
-				packet.seqnum = sd->totallen;
-
-				/* get needed bytes */
-				needed = REQUESTATONCE;
-				if ((sd->totallen - sd->offset) < needed)
-					needed = sd->totallen - sd->offset;
-				sd->request_data(sd->clos, sd->offset, buffer, needed);
-				sd->offset += needed;
-
-				/* now lock while we buffer it */
-				pthread_mutex_lock(&conn->olmtx);
-
-				/* put data in outlist, in 480 byte chunks */
-				dp = buffer;
-				while (needed > 480)
-				{
-					memcpy(packet.data, dp, 480);
-					BufferPacket(conn, (byte*)&packet, 486, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
-					dp += 480;
-					needed -= 480;
-				}
-				if (needed > 0)
-				{
-					memcpy(packet.data, dp, needed);
-					BufferPacket(conn, (byte*)&packet, needed + 6, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
-
-				}
-
-				/* check if we need more */
-				if (sd->offset >= sd->totallen)
-				{
-					/* notify sender that this is the end */
-					sd->request_data(sd->clos, sd->offset, NULL, 0);
-					LLRemove(&conn->sizedsends, sd);
-					afree(sd);
-				}
-
-			}
+			/* unlock while we get the data */
 			pthread_mutex_unlock(&conn->olmtx);
+
+			/* prepare packet */
+			packet.t1 = 0x00;
+			packet.t2 = 0x0A;
+			packet.seqnum = sd->totallen;
+
+			/* get needed bytes */
+			needed = REQUESTATONCE;
+			if ((sd->totallen - sd->offset) < needed)
+				needed = sd->totallen - sd->offset;
+			sd->request_data(sd->clos, sd->offset, buffer, needed);
+			sd->offset += needed;
+
+			/* now lock while we buffer it */
+			pthread_mutex_lock(&conn->olmtx);
+
+			/* put data in outlist, in 480 byte chunks */
+			dp = buffer;
+			while (needed > 480)
+			{
+				memcpy(packet.data, dp, 480);
+				BufferPacket(conn, (byte*)&packet, 486, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
+				dp += 480;
+				needed -= 480;
+			}
+			if (needed > 0)
+			{
+				memcpy(packet.data, dp, needed);
+				BufferPacket(conn, (byte*)&packet, needed + 6, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
+			}
+
+			/* check if we need more */
+			if (sd->offset >= sd->totallen)
+			{
+				/* notify sender that this is the end */
+				sd->request_data(sd->clos, sd->offset, NULL, 0);
+				LLRemove(&conn->sizedsends, sd);
+				afree(sd);
+			}
+
 		}
+		pthread_mutex_unlock(&conn->olmtx);
+	}
 
 	return TRUE;
 }
@@ -1664,6 +1698,11 @@ Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v
 	{
 		/* we found it. if its status is S_CONNECTED, just return the
 		 * pid. it means we have to redo part of the connection init. */
+
+		/* whether we return p or not, we still have to drop the
+		 * reference to enc that we were given. */
+		mm->ReleaseInterface(enc);
+
 		if (p->status == S_CONNECTED)
 			return p;
 		else
@@ -1672,7 +1711,6 @@ Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v
 			 * this effect. */
 			lm->Log(L_ERROR, "<net> [pid=%d] NewConnection called for an established address",
 					p->pid);
-			mm->ReleaseInterface(enc);
 			return NULL;
 		}
 	}
@@ -1758,6 +1796,12 @@ void ProcessKeyResp(Buffer *buf)
 {
 	ConnData *conn = buf->conn;
 
+	if (buf->len != 6)
+	{
+		FreeBuffer(buf);
+		return;
+	}
+
 	if (conn->cc)
 		conn->cc->i->Connected();
 	else if (conn->p)
@@ -1772,6 +1816,12 @@ void ProcessReliable(Buffer *buf)
 	 * protects the c2sn values in the clients array. */
 	int sn = buf->d.rel.seqnum;
 	ConnData *conn = buf->conn;
+
+	if (buf->len < 7)
+	{
+		FreeBuffer(buf);
+		return;
+	}
 
 	pthread_mutex_lock(&relmtx);
 
@@ -1818,6 +1868,12 @@ void ProcessGrouped(Buffer *buf)
 {
 	int pos = 2, len = 1;
 
+	if (buf->len < 4)
+	{
+		FreeBuffer(buf);
+		return;
+	}
+
 	while (pos < buf->len && len > 0)
 	{
 		len = buf->d.raw[pos++];
@@ -1840,6 +1896,12 @@ void ProcessAck(Buffer *buf)
 	ConnData *conn = buf->conn;
 	Buffer *b, *nbuf;
 	DQNode *outlist;
+
+	if (buf->len != 6)
+	{
+		FreeBuffer(buf);
+		return;
+	}
 
 	pthread_mutex_lock(&conn->olmtx);
 	outlist = &conn->outlist;
@@ -1884,6 +1946,13 @@ void ProcessSyncRequest(Buffer *buf)
 	ConnData *conn = buf->conn;
 	struct TimeSyncC2S *cts = (struct TimeSyncC2S*)(buf->d.raw);
 	struct TimeSyncS2C ts = { 0x00, 0x06, cts->time };
+
+	if (buf->len != 14)
+	{
+		FreeBuffer(buf);
+		return;
+	}
+
 	pthread_mutex_lock(&conn->olmtx);
 	ts.servertime = current_ticks();
 	/* note: this bypasses bandwidth limits */
@@ -1907,6 +1976,12 @@ void ProcessSyncRequest(Buffer *buf)
 
 void ProcessDrop(Buffer *buf)
 {
+	if (buf->len != 2)
+	{
+		FreeBuffer(buf);
+		return;
+	}
+
 	if (buf->conn->p)
 		KillConnection(buf->conn->p);
 	else if (buf->conn->cc)
@@ -1926,11 +2001,17 @@ void ProcessBigData(Buffer *buf)
 	int newsize;
 	byte *newbuf;
 
+	if (buf->len < 3)
+	{
+		FreeBuffer(buf);
+		return;
+	}
+
 	pthread_mutex_lock(&conn->bigmtx);
 
 	newsize = conn->bigrecv.size + buf->len - 2;
 
-	if (newsize > MAXBIGPACKET)
+	if (newsize <= 0 || newsize > MAXBIGPACKET)
 	{
 		if (conn->p)
 			lm->LogP(L_MALICIOUS, "net", conn->p,
@@ -1947,20 +2028,22 @@ void ProcessBigData(Buffer *buf)
 		if (conn->bigrecv.room < newsize)
 			conn->bigrecv.room = newsize;
 		newbuf = realloc(conn->bigrecv.buf, conn->bigrecv.room);
-		if (!newbuf)
-		{
-			if (conn->p)
-				lm->LogP(L_ERROR, "net", conn->p, "cannot allocate %d bytes "
-						"for bigpacket", newsize);
-			else
-				lm->Log(L_ERROR, "<net> (client connection) cannot allocate %d bytes "
-						"for bigpacket", newsize);
-			goto freebigbuf;
-		}
-		conn->bigrecv.buf = newbuf;
+		if (newbuf)
+			conn->bigrecv.buf = newbuf;
 	}
 	else
 		newbuf = conn->bigrecv.buf;
+
+	if (!newbuf)
+	{
+		if (conn->p)
+			lm->LogP(L_ERROR, "net", conn->p, "cannot allocate %d bytes "
+					"for bigpacket", newsize);
+		else
+			lm->Log(L_ERROR, "<net> (client connection) cannot allocate %d bytes "
+					"for bigpacket", newsize);
+		goto freebigbuf;
+	}
 
 	memcpy(newbuf + conn->bigrecv.size, buf->d.raw + 2, buf->len - 2);
 
@@ -2007,6 +2090,12 @@ void ProcessPresize(Buffer *buf)
 	ConnData *conn = buf->conn;
 	Link *l;
 	int size = buf->d.rel.seqnum;
+
+	if (buf->len < 7)
+	{
+		FreeBuffer(buf);
+		return;
+	}
 
 	pthread_mutex_lock(&conn->bigmtx);
 
@@ -2066,6 +2155,12 @@ void ProcessCancelReq(Buffer *buf)
 	struct sized_send_data *sd;
 	Link *l;
 
+	if (buf->len != 2)
+	{
+		FreeBuffer(buf);
+		return;
+	}
+
 	pthread_mutex_lock(&conn->olmtx);
 
 	/* cancel current presized transfer */
@@ -2086,6 +2181,12 @@ void ProcessCancelReq(Buffer *buf)
 
 void ProcessCancel(Buffer *req)
 {
+	if (req->len != 2)
+	{
+		FreeBuffer(req);
+		return;
+	}
+
 	/* the client is cancelling its current file transfer */
 	if (req->conn->p)
 		end_sized(req->conn->p, 0);

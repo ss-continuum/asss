@@ -5,13 +5,28 @@
 
 #include "asss.h"
 
+#include "db_layout.h"
+
+
+#define DEFAULT "default"
+
 typedef struct
 {
 	char group[MAXGROUPLEN];
+	enum
+	{
+		src_default,
+		src_global,
+		src_arena,
+#ifdef CFG_USE_ARENA_STAFF_LIST
+		src_arenalist,
+#endif
+		src_temp
+	} source;
 } pdata;
 
 /* data */
-local ConfigHandle groupdef, gstaff;
+local ConfigHandle groupdef, staff_conf;
 local int pdkey;
 
 local Imodman *mm;
@@ -21,86 +36,46 @@ local Ilogman *lm;
 local Iconfig *cfg;
 
 
-local void UpdateGroup(Player *p, Arena *arena)
+local void update_group(Player *p, Arena *arena)
 {
-#define LOGIT(from) \
-	lm->Log(L_DRIVEL, "<capman> {%s} [%s] player assigned to group '%s' from %s", \
-			arena->name, \
-			p->name, \
-			group, \
-			from)
-
-	char *group = ((pdata*)PPDATA(p, pdkey))->group;
+	pdata *pdata = PPDATA(p, pdkey);
+	const char *g;
 
 	if (!p->flags.authenticated)
 	{
 		/* if the player hasn't been authenticated against either the
 		 * biller or password file, don't assign groups based on name. */
-		astrncpy(group, "default", MAXGROUPLEN);
+		astrncpy(pdata->group, DEFAULT, MAXGROUPLEN);
+		pdata->source = src_default;
 		return;
 	}
 
-	if (!arena)
+	if ((g = cfg->GetStr(staff_conf, AG_GLOBAL, p->name)))
 	{
 		/* only global groups available for now */
-		const char *gg = cfg->GetStr(gstaff, "Staff", p->name);
-		if (gg)
-		{
-			astrncpy(group, gg, MAXGROUPLEN);
-			lm->Log(L_DRIVEL, "<capman> [%s] player assigned to group '%s' from global staff list",
-					p->name,
-					group);
-		}
-		else
-			astrncpy(group, "default", MAXGROUPLEN);
+		astrncpy(pdata->group, g, MAXGROUPLEN);
+		pdata->source = src_global;
+		lm->LogP(L_DRIVEL, "capman", p, "assigned to group '%s' (global)", pdata->group);
 	}
+	else if (arena && (g = cfg->GetStr(staff_conf, arena->basename, p->name)))
+	{
+		astrncpy(pdata->group, g, MAXGROUPLEN);
+		pdata->source = src_arena;
+		lm->LogP(L_DRIVEL, "capman", p, "assigned to group '%s' (arena)", pdata->group);
+	}
+#ifdef CFG_USE_ARENA_STAFF_LIST
+	else if (arena && arena->cfg && (g = cfg->GetStr(arena->cfg, "Staff", p->name)))
+	{
+		astrncpy(pdata->group, ag, MAXGROUPLEN);
+		pdata->source = src_arenalist;
+		lm->LogP(L_DRIVEL, "capman", p, "assigned to group '%s' (arenaconf)", pdata->group);
+	}
+#endif
 	else
 	{
-		const char *gg = cfg->GetStr(gstaff, "Staff", p->name);
-		const char *ag = cfg->GetStr(arena->cfg, "Staff", p->name);
-
-		if (gg)
-		{
-			char *t;
-			/* check if this is an 'arena:group' thing */
-			t = strstr(gg, arena->basename);
-			if (t)
-			{
-				t = strchr(t, ':');
-				if (t)
-				{
-					int pos = 0;
-					t++; /* skip ':' */
-					while (pos < MAXGROUPLEN && *t && *t != ' ' && *t != ',')
-						group[pos++] = *t++;
-					LOGIT("global staff list (arena)");
-				}
-				else
-				{
-					/* it must not be 'arena:group', so use the whole
-					 * thing */
-					astrncpy(group, gg, MAXGROUPLEN);
-					LOGIT("global staff list (global)");
-				}
-			}
-			else
-			{
-				/* this must be a group valid everywhere, so it takes
-				 * precedence */
-				astrncpy(group, gg, MAXGROUPLEN);
-				LOGIT("global staff list (global)");
-			}
-		}
-		else if (ag)
-		{
-			/* use arena-assigned group */
-			astrncpy(group, ag, MAXGROUPLEN);
-			LOGIT("arena staff list");
-		}
-		else /* just give him the default */
-			astrncpy(group, "default", MAXGROUPLEN);
+		astrncpy(pdata->group, DEFAULT, MAXGROUPLEN);
+		pdata->source = src_default;
 	}
-#undef LOGIT
 }
 
 
@@ -108,9 +83,9 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 {
 	char *group = ((pdata*)PPDATA(p, pdkey))->group;
 	if (action == PA_PREENTERARENA)
-		UpdateGroup(p, arena);
+		update_group(p, arena);
 	else if (action == PA_CONNECT)
-		UpdateGroup(p, NULL);
+		update_group(p, NULL);
 	else if (action == PA_DISCONNECT || action == PA_LEAVEARENA)
 		astrncpy(group, "none", MAXGROUPLEN);
 }
@@ -118,39 +93,82 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 
 local const char *GetGroup(Player *p)
 {
-	char *group = ((pdata*)PPDATA(p, pdkey))->group;
-	return group;
+	return ((pdata*)PPDATA(p, pdkey))->group;
 }
 
 
 local void SetTempGroup(Player *p, const char *newgroup)
 {
-	char *group = ((pdata*)PPDATA(p, pdkey))->group;
+	pdata *pdata = PPDATA(p, pdkey);
 	if (newgroup)
-		astrncpy(group, newgroup, MAXGROUPLEN);
+	{
+		astrncpy(pdata->group, newgroup, MAXGROUPLEN);
+		pdata->source = src_temp;
+	}
 }
 
 
 local void SetPermGroup(Player *p, const char *group, int global, const char *info)
 {
-	ConfigHandle ch;
-	Arena *arena = p->arena;
-
-	/* figure out where to set it */
-	ch = global ? gstaff : (arena ? arena->cfg : NULL);
-	if (!ch) return;
+	pdata *pdata = PPDATA(p, pdkey);
 
 	/* first set it for the current session */
-	SetTempGroup(p, group);
+	astrncpy(pdata->group, group, MAXGROUPLEN);
 
 	/* now set it permanently */
-	cfg->SetStr(ch, "Staff", p->name, group, info);
+	if (global)
+	{
+		cfg->SetStr(staff_conf, AG_GLOBAL, p->name, group, info);
+		pdata->source = src_global;
+	}
+	else if (p->arena)
+	{
+		cfg->SetStr(staff_conf, p->arena->basename, p->name, group, info);
+		pdata->source = src_arena;
+	}
 }
+
+
+local void RemoveGroup(Player *p, const char *info)
+{
+	pdata *pdata = PPDATA(p, pdkey);
+
+	if (!p->arena)
+		return;
+
+	/* in all cases, set current group to default */
+	astrncpy(pdata->group, DEFAULT, MAXGROUPLEN);
+
+	switch (pdata->source)
+	{
+		case src_default:
+			/* player is in the default group already, nothing to do */
+			break;
+
+		case src_global:
+			cfg->SetStr(staff_conf, AG_GLOBAL, p->name, DEFAULT, info);
+			break;
+
+		case src_arena:
+			cfg->SetStr(staff_conf, p->arena->basename, p->name, DEFAULT, info);
+			break;
+
+#ifdef CFG_USE_ARENA_STAFF_LIST
+		case src_arenalist:
+			cfg->SetStr(p->arena->cfg, "Staff", p->name, DEFAULT, info);
+			break;
+#endif
+
+		case src_temp:
+			break;
+	}
+}
+
 
 local int CheckGroupPassword(const char *group, const char *pw)
 {
 	const char *correctpw;
-	correctpw = cfg->GetStr(gstaff, "Groups", group);
+	correctpw = cfg->GetStr(staff_conf, "GroupPasswords", group);
 	return correctpw ? (strcmp(correctpw, pw) == 0) : 0;
 }
 
@@ -158,10 +176,7 @@ local int CheckGroupPassword(const char *group, const char *pw)
 local int HasCapability(Player *p, const char *cap)
 {
 	char *group = ((pdata*)PPDATA(p, pdkey))->group;
-	if (cfg->GetStr(groupdef, group, cap))
-		return 1;
-	else
-		return 0;
+	return cfg->GetStr(groupdef, group, cap) != NULL;
 }
 
 
@@ -170,14 +185,11 @@ local int HasCapabilityByName(const char *name, const char *cap)
 	/* figure out his group */
 	const char *group;
 
-	group = cfg->GetStr(gstaff, "Staff", name);
+	group = cfg->GetStr(staff_conf, AG_GLOBAL, name);
 	if (!group)
-		group = "default";
+		group = DEFAULT;
 
-	if (cfg->GetStr(groupdef, group, cap))
-		return 1;
-	else
-		return 0;
+	return cfg->GetStr(groupdef, group, cap) != NULL;
 }
 
 
@@ -193,6 +205,7 @@ local Igroupman grpint =
 {
 	INTERFACE_HEAD_INIT(I_GROUPMAN, "groupman")
 	GetGroup, SetPermGroup, SetTempGroup,
+	RemoveGroup,
 	CheckGroupPassword
 };
 
@@ -214,7 +227,7 @@ EXPORT int MM_capman(int action, Imodman *_mm, Arena *arena)
 		mm->RegCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
 
 		groupdef = cfg->OpenConfigFile(NULL, "groupdef.conf", NULL, NULL);
-		gstaff = cfg->OpenConfigFile(NULL, "staff.conf", NULL, NULL);
+		staff_conf = cfg->OpenConfigFile(NULL, "staff.conf", NULL, NULL);
 
 		mm->RegInterface(&capint, ALLARENAS);
 		mm->RegInterface(&grpint, ALLARENAS);
@@ -227,7 +240,7 @@ EXPORT int MM_capman(int action, Imodman *_mm, Arena *arena)
 		if (mm->UnregInterface(&grpint, ALLARENAS))
 			return MM_FAIL;
 		cfg->CloseConfigFile(groupdef);
-		cfg->CloseConfigFile(gstaff);
+		cfg->CloseConfigFile(staff_conf);
 		mm->UnregCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
 		pd->FreePlayerData(pdkey);
 		mm->ReleaseInterface(cfg);

@@ -16,6 +16,9 @@
 #endif
 
 #include "db.h"
+#ifdef WIN32
+#pragma comment(lib, "libdb41")
+#endif
 
 #ifdef DB_VERSION_MAJOR
 #if DB_VERSION_MAJOR < 4
@@ -177,8 +180,13 @@ local void put_one_arena(ArenaPersistentData *data, Arena *arena, int serialno)
 	int size, err;
 	DBT key, val;
 
+	/* check correct scope */
+	if ((data->scope == PERSIST_GLOBAL && arena != NULL) ||
+	    (data->scope == PERSIST_ALLARENAS && arena == NULL))
+		return;
+
 	memset(&keydata, 0, sizeof(keydata));
-	strncpy(keydata.arena, arena->name, sizeof(keydata.arena));
+	fill_in_ag(keydata.arena, arena, data->interval);
 
 	/* get data */
 	size = data->GetData(arena, buf, sizeof(buf), data->clos);
@@ -229,6 +237,11 @@ local void put_one_player(PlayerPersistentData *data, Player *p, Arena *arena, i
 	struct player_record_key keydata;
 	int size, err;
 	DBT key, val;
+
+	/* check correct scope */
+	if ((data->scope == PERSIST_GLOBAL && arena != NULL) ||
+	    (data->scope == PERSIST_ALLARENAS && arena == NULL))
+		return;
 
 	memset(&keydata, 0, sizeof(keydata));
 	astrncpy(keydata.name, p->name, sizeof(keydata.name));
@@ -284,12 +297,17 @@ local void get_one_arena(ArenaPersistentData *data, Arena *arena, int serialno)
 	int err;
 	DBT key, val;
 
+	/* check correct scope */
+	if ((data->scope == PERSIST_GLOBAL && arena != NULL) ||
+	    (data->scope == PERSIST_ALLARENAS && arena == NULL))
+		return;
+
 	/* always clear data first */
 	data->ClearData(arena, data->clos);
 
 	/* prepare key */
 	memset(&keydata, 0, sizeof(keydata));
-	strncpy(keydata.arena, arena->name, sizeof(keydata.arena));
+	fill_in_ag(keydata.arena, arena, data->interval);
 	keydata.interval = data->interval;
 	if (serialno == -1)
 		keydata.serialno = get_serialno(keydata.arena, data->interval);
@@ -325,6 +343,11 @@ local void get_one_player(PlayerPersistentData *data, Player *p, Arena *arena, i
 	byte buf[MAXPERSISTLENGTH];
 	int err;
 	DBT key, val;
+
+	/* check correct scope */
+	if ((data->scope == PERSIST_GLOBAL && arena != NULL) ||
+	    (data->scope == PERSIST_ALLARENAS && arena == NULL))
+		return;
 
 	/* always clear data first */
 	data->ClearData(p, data->clos);
@@ -362,27 +385,11 @@ local void get_one_player(PlayerPersistentData *data, Player *p, Arena *arena, i
 }
 
 
-local void do_put_arena(Arena *arena)
-{
-	Link *l;
-	for (l = LLGetHead(&arenapd); l; l = l->next)
-		put_one_arena(l->data, arena, -1);
-}
-
-
 local void do_put_player(Player *p, Arena *arena)
 {
 	Link *l;
-
-	pd->LockPlayer(p);
 	for (l = LLGetHead(&playerpd); l; l = l->next)
-	{
-		PlayerPersistentData *ppd = l->data;
-		if ((ppd->scope == PERSIST_GLOBAL && arena == NULL) ||
-		    (ppd->scope == PERSIST_ALLARENAS && arena != NULL))
-			put_one_player(ppd, p, arena, -1);
-	}
-	pd->UnlockPlayer(p);
+		put_one_player(l->data, p, arena, -1);
 }
 
 
@@ -428,14 +435,15 @@ local void do_end_interval(const char *ag, int interval)
 	pd->Lock();
 	FOR_EACH_PLAYER(p)
 	{
-		pd->LockPlayer(p);
 		if (p->status >= statmin &&
 		    p->status <= statmax &&
 		    (global || arena_match(p->arena, ag, interval)))
 				for (l = LLGetHead(&playerpd); l; l = l->next)
 				{
 					PlayerPersistentData *data = l->data;
-					if (data->interval == interval)
+					if (((data->scope == PERSIST_GLOBAL && global) ||
+					     (data->scope == PERSIST_ALLARENAS && !global)) &&
+					    (data->interval == interval))
 					{
 						/* first, grab the latest data and dump it under the
 						 * old serialno. */
@@ -445,26 +453,44 @@ local void do_end_interval(const char *ag, int interval)
 						data->ClearData(p, data->clos);
 					}
 				}
-		pd->UnlockPlayer(p);
 	}
 	pd->Unlock();
 
 	/* then get/clear all data for these arenas themselves */
-	aman->Lock();
-	FOR_EACH_ARENA(arena)
-		if (arena_match(arena, ag, interval))
-			for (l = LLGetHead(&arenapd); l; l = l->next)
+	if (global)
+	{
+		for (l = LLGetHead(&arenapd); l; l = l->next)
+		{
+			ArenaPersistentData *data = l->data;
+			if (data->scope == PERSIST_GLOBAL &&
+			    data->interval == interval)
 			{
-				ArenaPersistentData *data = l->data;
-				if (data->interval == interval)
-				{
-					/* grab latest arena data */
-					put_one_arena(data, arena, serialno);
-					/* then clear it */
-					data->ClearData(arena, data->clos);
-				}
+				/* grab latest arena data */
+				put_one_arena(data, NULL, serialno);
+				/* then clear it */
+				data->ClearData(NULL, data->clos);
 			}
-	aman->Unlock();
+		}
+	}
+	else
+	{
+		aman->Lock();
+		FOR_EACH_ARENA(arena)
+			if (arena_match(arena, ag, interval))
+				for (l = LLGetHead(&arenapd); l; l = l->next)
+				{
+					ArenaPersistentData *data = l->data;
+					if (data->scope == PERSIST_ALLARENAS &&
+					    data->interval == interval)
+					{
+						/* grab latest arena data */
+						put_one_arena(data, arena, serialno);
+						/* then clear it */
+						data->ClearData(arena, data->clos);
+					}
+				}
+		aman->Unlock();
+	}
 
 	/* finally increment the serial number for this ag/interval */
 	serialno++;
@@ -497,15 +523,8 @@ local void *DBThread(void *dummy)
 				break;
 
 			case DBCMD_GET_PLAYER:
-				pd->LockPlayer(msg->p);
 				for (l = LLGetHead(&playerpd); l; l = l->next)
-				{
-					PlayerPersistentData *ppd = l->data;
-					if ((ppd->scope == PERSIST_GLOBAL && msg->arena == NULL) ||
-					    (ppd->scope == PERSIST_ALLARENAS && msg->arena != NULL))
-						get_one_player(ppd, msg->p, msg->arena, -1);
-				}
-				pd->UnlockPlayer(msg->p);
+					get_one_player(l->data, msg->p, msg->arena, -1);
 				break;
 
 			case DBCMD_PUT_PLAYER:
@@ -518,43 +537,33 @@ local void *DBThread(void *dummy)
 				break;
 
 			case DBCMD_PUT_ARENA:
-				do_put_arena(msg->arena);
+				for (l = LLGetHead(&arenapd); l; l = l->next)
+					put_one_arena(l->data, msg->arena, -1);
 				break;
 
 			case DBCMD_PUTALL:
 				/* try to sync all players */
 				pd->Lock();
 				FOR_EACH_PLAYER(i)
-				{
-					int status;
-					Arena *arena;
-					status = i->status;
-					arena = i->arena;
-					if (status == S_PLAYING)
+					if (i->status == S_PLAYING)
 					{
-						do_put_player(i, NULL);
-						if (arena)
-							do_put_player(i, arena);
+						do_put_player(i, NULL); /* global */
+						if (i->arena)
+							do_put_player(i, i->arena);
 					}
-					/* if we're doing a lot of work, at least be nice
-					 * about it */
-					pthread_mutex_unlock(&dbmtx);
-					sched_yield();
-					pthread_mutex_lock(&dbmtx);
-				}
 				pd->Unlock();
 
 				/* now sync all arenas */
 				aman->Lock();
 				FOR_EACH_ARENA(arena)
-				{
 					if (arena->status == ARENA_RUNNING)
-						do_put_arena(arena);
-					pthread_mutex_unlock(&dbmtx);
-					sched_yield();
-					pthread_mutex_lock(&dbmtx);
-				}
+						for (l = LLGetHead(&arenapd); l; l = l->next)
+							put_one_arena(l->data, arena, -1);
 				aman->Unlock();
+
+				/* now global data */
+				for (l = LLGetHead(&arenapd); l; l = l->next)
+					put_one_arena(l->data, NULL, -1);
 				break;
 
 			case DBCMD_SYNCWAIT:
@@ -611,8 +620,7 @@ local void RegArenaPD(const ArenaPersistentData *pd)
 {
 	pthread_mutex_lock(&dbmtx);
 	if (pd->interval >= 0 &&
-	    pd->interval < MAX_INTERVAL &&
-	    pd->scope != PERSIST_GLOBAL)
+	    pd->interval < MAX_INTERVAL)
 		LLAdd(&arenapd, (void*)pd);
 	pthread_mutex_unlock(&dbmtx);
 }
@@ -758,8 +766,6 @@ local void aaction(Arena *arena, int action)
 		/* arenagrp is used for shared intervals */
 		if (setting)
 			astrncpy(adata->arenagrp, setting, MAXAGLEN);
-		else if (arena->ispublic)
-			astrncpy(adata->arenagrp, AG_PUBLIC, MAXAGLEN);
 		else
 			astrncpy(adata->arenagrp, arena->basename, MAXAGLEN);
 

@@ -5,11 +5,11 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <fcntl.h>
 
 #ifndef WIN32
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
 #endif
@@ -321,7 +321,8 @@ int process_player_states(void *v)
 			case S_DO_FREQ_AND_ARENA_SYNC:
 				/* the arena will be fully loaded here */
 				requested_ship = player->p_ship;
-				player->p_ship = player->p_freq = -1;
+				player->p_ship = -1;
+				player->p_freq = -1;
 				/* first, do pre-callbacks */
 				DO_CBS(CB_PLAYERACTION,
 				       player->arena,
@@ -441,10 +442,13 @@ void PLogin(Player *p, byte *opkt, int l)
 		memcpy(lp, pkt, l);
 		p->macid = pkt->macid;
 		p->permid = pkt->D2;
-		/* replace colons and nonprintables with underscores */
+		/* replace colons and nonprintables with underscores
+		 * and replace series of spaces with a single space + underscore(s) */
 		l = strlen(lp->name);
 		for (c = 0; c < l; c++)
 			if (lp->name[c] == ':' || lp->name[c] < 32 || lp->name[c] > 126)
+				lp->name[c] = '_';
+			else if (c > 1 && lp->name[c] == ' ' && lp->name[c-1] == ' ')
 				lp->name[c] = '_';
 		/* must start with number, letter, or underscore */
 		if (!isalnum(lp->name[0]))
@@ -453,7 +457,7 @@ void PLogin(Player *p, byte *opkt, int l)
 		pd->WriteLock();
 		p->status = S_NEED_AUTH;
 		pd->WriteUnlock();
-		lm->Log(L_DRIVEL, "<core> [pid=%d] login request: '%s'", p->pid, pkt->name);
+		lm->Log(L_DRIVEL, "<core> [pid=%d] login request: '%s'", p->pid, lp->name);
 	}
 }
 

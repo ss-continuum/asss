@@ -12,6 +12,9 @@ struct S2CKoth
 	i16 pid;
 };
 
+#define KOTH_ACTION_ADD_CROWN 1
+#define KOTH_ACTION_REMOVE_CROWN 0
+
 struct S2CSetKothTimer
 {
 	u8 type;

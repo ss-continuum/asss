@@ -13,8 +13,6 @@
 #include <netinet/in.h>
 #include <sys/time.h>
 #include <arpa/inet.h>
-#else
-#include <winsock.h>
 #endif
 
 #include "asss.h"
@@ -124,7 +122,7 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 		if (pending_auths < 15 && interrupted_auths < 20)
 		{
 			struct S2B_UserLogin pkt;
-			uint pktsize;
+			int pktsize;
 
 			pkt.Type = S2B_USER_LOGIN;
 			pkt.MakeNew = lp->flags;
@@ -141,7 +139,7 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 			pktsize = offsetof(struct S2B_UserLogin, ClientExtraData);
 			if (lplen > offsetof(struct LoginPacket, contid))
 			{
-				uint extlen = lplen-offsetof(struct LoginPacket, contid);
+				int extlen = lplen-offsetof(struct LoginPacket, contid);
 				if (extlen > sizeof(pkt.ClientExtraData))
 					extlen = sizeof(pkt.ClientExtraData);
 				memcpy(pkt.ClientExtraData,lp->contid,extlen);
@@ -252,7 +250,7 @@ local void paction(Player *p, int action, Arena *arena)
 		}
 	}
 #endif
-	else if (action == PA_LEAVEARENA && arena->ispublic)
+else if (action == PA_LEAVEARENA && ARENA_IS_PUBLIC(arena))
 	{
 		data->saved_score.Score = stats->GetStat(p, STAT_KILL_POINTS, INTERVAL_RESET);
 		data->saved_score.FlagScore = stats->GetStat(p, STAT_FLAG_POINTS, INTERVAL_RESET);

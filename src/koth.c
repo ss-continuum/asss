@@ -59,7 +59,7 @@ local void start_koth(Arena *arena)
 	struct koth_arena_data *adata = P_ARENA_DATA(arena, akey);
 	struct koth_player_data *pdata;
 	struct S2CKoth pkt =
-		{ S2C_KOTH, 1, adata->expiretime, -1 };
+		{ S2C_KOTH, KOTH_ACTION_ADD_CROWN, adata->expiretime, -1 };
 
 	LinkedList set = LL_INITIALIZER;
 	Link *link;
@@ -184,7 +184,7 @@ local void set_crown_time(Player *p, int time)
 {
 	struct koth_player_data *pdata = PPDATA(p, pkey);
 	struct S2CKoth pkt =
-		{ S2C_KOTH, 1, time, -1 };
+		{ S2C_KOTH, KOTH_ACTION_ADD_CROWN, time, -1 };
 	pdata->crown = 1;
 	SET_HAS_CROWN(pid);
 	pdata->hadcrown = 1;
@@ -198,7 +198,7 @@ local void remove_crown(Player *p)
 	struct koth_arena_data *adata = P_ARENA_DATA(arena, akey);
 	struct koth_player_data *pdata = PPDATA(p, pkey);
 	struct S2CKoth pkt =
-		{ S2C_KOTH, 0, 0, p->pid };
+		{ S2C_KOTH, KOTH_ACTION_REMOVE_CROWN, 0, p->pid };
 
 	if (adata->expiretime == 0)
 		return;

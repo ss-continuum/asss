@@ -59,6 +59,8 @@ typedef struct Igroupman
 	/* pyint: player, string, int, string -> void */
 	void (*SetTempGroup)(Player *p, const char *group);
 	/* pyint: player, string -> void */
+	void (*RemoveGroup)(Player *p, const char *info);
+	/* pyint: player, string -> void */
 
 	int (*CheckGroupPassword)(const char *group, const char *pwd);
 	/* true if the password is correct */

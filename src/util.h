@@ -192,6 +192,10 @@ void SCFree(StringChunk *chunk);
 
 #include "pthread.h"
 
+#ifdef WIN32
+#pragma comment(lib, "pthreadvc")
+#endif
+
 /* message passing queue stuff */
 
 typedef struct MPQueue

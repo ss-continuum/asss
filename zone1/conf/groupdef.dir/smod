@@ -29,6 +29,6 @@ privcmd_send
 ; prefix chars
 prefix_>
 
-; setgroup
-setgroup_mod
+; what groups can this group control
+higher_than_mod
 

@@ -38,8 +38,7 @@ prefix_$$
 prefix_@
 
 ; setgroup:
-setgroup_smod
-setgroup_sysop
+higher_than_smod
 
 cmd_pidinfo
 

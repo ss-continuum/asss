@@ -53,10 +53,13 @@ EXPORT int MM_points_kill(int action, Imodman *mm_, Arena *arena)
 
 void MyKillFunc(Arena *arena, Player *killer, Player *killed, int bounty, int flags)
 {
-	int tk, pts;
+	int tk, pts, fixedreward;
 
 	tk = killer->p_freq == killed->p_freq;
 	pts = bounty;
+
+	fixedreward = cfg->GetInt(arena->cfg, "Kill", "FixedKillReward", -1);
+	pts = (fixedreward != -1) ? fixedreward : bounty;
 
 	/* cfghelp: Kill:FlagValue, arena, int, def: 100
 	 * The number of extra points to give for each flag a killed player

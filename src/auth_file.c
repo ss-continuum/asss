@@ -66,9 +66,13 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 	AuthData ad;
 	const char *line;
 	char name[24];
+	char pass[24];
 
 	/* copy to local storage in case it's not null terminated */
 	astrncpy(name, lp->name, sizeof(name));
+
+	/* ignore zone password in player password */
+	delimcpy(pass, lp->password, sizeof(pass), '*');
 
 	/* setup basic authdata */
 	memset(&ad, 0, sizeof(ad));
@@ -89,7 +93,7 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 		{
 			char hex[33];
 
-			hash_password(name, lp->password, hex);
+			hash_password(name, pass, hex);
 
 			if (strcmp(hex, line))
 				ad.code = AUTH_BADPASSWORD;

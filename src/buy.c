@@ -65,7 +65,7 @@ local void print_costs(ConfigHandle ch, Player *p)
 	}
 
 	if (avail == 0)
-		chat->SendMessage(p, "buy: There are no items available in this arena.");
+		chat->SendMessage(p, "There are no items available to purchase in this arena.");
 }
 
 
@@ -73,25 +73,8 @@ local void Cbuy(const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	ConfigHandle ch = arena->cfg;
-	int anywhere;
 
 	if (!arena) return;
-
-	/* cfghelp: Cost:PurchaseAnytime, arena, bool, def: 0
-	 * Whether players can buy items outside a safe zone. */
-	anywhere = cfg->GetInt(ch, "Cost", "PurchaseAnytime", 0);
-
-	if (p->p_ship == SPEC)
-	{
-		chat->SendMessage(p, "Spectators cannot purchase items.");
-		return;
-	}
-
-	if (!anywhere && !(p->position.status & 0x20))
-	{
-		chat->SendMessage(p, "You must be in a safe zone to purchase items.");
-		return;
-	}
 
 	if (params[0] == 0)
 		print_costs(ch, p);
@@ -111,8 +94,26 @@ local void Cbuy(const char *params, Player *p, const Target *target)
 				chat->SendMessage(p, "That item isn't available for purchase.");
 			else
 			{
-				int pts = stats->GetStat(p, STAT_KILL_POINTS, INTERVAL_RESET) +
-				          stats->GetStat(p, STAT_FLAG_POINTS, INTERVAL_RESET);
+				int pts, anywhere;
+
+				if (p->p_ship == SPEC)
+				{
+					chat->SendMessage(p, "Spectators cannot purchase items.");
+					return;
+				}
+
+				/* cfghelp: Cost:PurchaseAnytime, arena, bool, def: 0
+				 * Whether players can buy items outside a safe zone. */
+				anywhere = cfg->GetInt(ch, "Cost", "PurchaseAnytime", 0);
+
+				if (!anywhere && !(p->position.status & 0x20))
+				{
+					chat->SendMessage(p, "You must be in a safe zone to purchase items.");
+					return;
+				}
+
+				pts = stats->GetStat(p, STAT_KILL_POINTS, INTERVAL_RESET) +
+				      stats->GetStat(p, STAT_FLAG_POINTS, INTERVAL_RESET);
 				if (pts < cost)
 					chat->SendMessage(p, "You don't have enough points to purchase that item.");
 				else

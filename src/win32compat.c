@@ -32,12 +32,12 @@ const char * strcasestr(const char* haystack, const char* needle)
 }
 
 
-int mkstemp(char *template)
+int mkstemp(char *templ)
 {
-	if (mktemp(template) == NULL)
+	if (mktemp(templ) == NULL)
 		return -1;
-	else
-		return open(template, _O_CREAT | _O_TEMPORARY);
+
+	return open(templ, _O_CREAT);
 }
 
 

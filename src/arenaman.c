@@ -43,6 +43,9 @@ local pthread_rwlock_t arenalock;
 /* stuff to keep track of private per-arena memory */
 local int perarenaspace;
 
+typedef struct { int resurrect; } adata;
+local int adkey;
+
 /* forward declaration */
 local Iarenaman myint;
 
@@ -99,12 +102,14 @@ local int ProcessArenaStates(void *dummy)
 	int status, oops;
 	Link *link, *next;
 	Arena *a;
+	adata *ad;
 	Player *p;
 
 	WRLOCK();
 	for (link = LLGetHead(&myint.arenalist); link; link = next)
 	{
 		a = link->data;
+		ad = P_ARENA_DATA(a, adkey);
 		next = link->next;
 
 		/* get the status */
@@ -123,7 +128,7 @@ local int ProcessArenaStates(void *dummy)
 		{
 			case ARENA_DO_INIT:
 				/* config file */
-				a->cfg = cfg->OpenConfigFile(a->name, NULL, arena_conf_changed, a);
+				a->cfg = cfg->OpenConfigFile(a->basename, NULL, arena_conf_changed, a);
 				/* cfghelp: Team:SpectatorFrequency, arena, int, range: 0-9999, def: 8025
 				 * The frequency that spectators are assigned to, by default. */
 				a->specfreq = cfg->GetInt(a->cfg, "Team", "SpectatorFrequency", CFG_DEF_SPEC_FREQ);
@@ -172,9 +177,9 @@ local int ProcessArenaStates(void *dummy)
 				do_attach(a, MM_DETACH);
 				cfg->CloseConfigFile(a->cfg);
 
-				if (a->resurrect)
+				if (ad->resurrect)
 				{
-					a->resurrect = FALSE;
+					ad->resurrect = FALSE;
 					a->status = ARENA_DO_INIT;
 				}
 				else
@@ -197,18 +202,22 @@ local Arena * create_arena(const char *name)
 {
 	char *t;
 	Arena *a;
+	adata *ad;
 
 	a = amalloc(sizeof(*a) + perarenaspace);
+	ad = P_ARENA_DATA(a, adkey);
 
 	astrncpy(a->name, name, 20);
 	astrncpy(a->basename, name, 20);
 	t = a->basename + strlen(a->basename) - 1;
-	while ((t > a->basename) && isdigit(*t))
+	while ((t >= a->basename) && isdigit(*t))
 		*(t--) = 0;
+	if (t < a->basename)
+		astrncpy(a->basename, AG_PUBLIC, 20);
 
 	a->status = ARENA_DO_INIT;
-	a->ispublic = (name[1] == '\0' && name[0] >= '0' && name[0] <= '9');
 	a->cfg = NULL;
+	ad->resurrect = 0;
 
 	LLAdd(&myint.arenalist, a);
 
@@ -289,8 +298,11 @@ local void SendArenaResponse(Player *p)
 		/* send to himself */
 		net->SendToOne(p, (byte*)(&p->pkt), 64, NET_RELIABLE);
 
-		if (map) map->SendMapFilename(p);
-		mm->ReleaseInterface(map);
+		if (map)
+		{
+			map->SendMapFilename(p);
+			mm->ReleaseInterface(map);
+		}
 
 		/* send brick clear and finisher */
 		whoami.type = S2C_BRICK;
@@ -299,7 +311,7 @@ local void SendArenaResponse(Player *p)
 		whoami.type = S2C_ENTERINGARENA;
 		net->SendToOne(p, (byte*)&whoami, 1, NET_RELIABLE);
 
-		if (sp->x > 0 && sp->y > 0)
+		if (sp->x > 0 && sp->y > 0 && sp->x < 1024 && sp->y < 1024)
 		{
 			struct SimplePacket wto = { S2C_WARPTO, sp->x, sp->y };
 			net->SendToOne(p, (byte *)&wto, 5, NET_RELIABLE | NET_PRI_P3);
@@ -391,6 +403,7 @@ local void RecycleArena(Arena *a)
 {
 	Link *link;
 	Player *p;
+	adata *ad = P_ARENA_DATA(a, adkey);
 
 	WRLOCK();
 
@@ -429,7 +442,7 @@ local void RecycleArena(Arena *a)
 
 	/* then tell it to die and then resurrect itself */
 	a->status = ARENA_CLOSING;
-	a->resurrect = TRUE;
+	ad->resurrect = TRUE;
 
 	UNLOCK();
 }
@@ -526,7 +539,8 @@ local void complete_go(Player *p, const char *reqname, int ship, int xres, int y
 	{
 		/* if we caught an arena on the way out, no problem, just make
 		 * sure it cycles back into existence. */
-		a->resurrect = TRUE;
+		adata *ad = P_ARENA_DATA(a, adkey);
+		ad->resurrect = TRUE;
 	}
 
 	/* set up player info */
@@ -600,11 +614,10 @@ local void PArena(Player *p, byte *pkt, int l)
 		else
 			strcpy(name, "0");
 	}
-	else if (go->arenatype >= 0 && go->arenatype <= 9)
+	else if (go->arenatype >= 0 /* && go->arenatype <= 0x7fff */)
 	{
 		if (!has_cap_go(p)) return;
-		name[0] = go->arenatype + '0';
-		name[1] = 0;
+		snprintf(name, sizeof(name), "%d", go->arenatype);
 	}
 	else
 	{
@@ -670,7 +683,10 @@ local int ReapArenas(void *q)
 				 * wants to re-enter, but we first make sure that it
 				 * will reappear. */
 				else if (p->newarena == a)
-					a->resurrect = TRUE;
+				{
+					adata *ad = P_ARENA_DATA(a, adkey);
+					ad->resurrect = TRUE;
+				}
 
 			lm->Log(L_DRIVEL, "<arenaman> {%s} arena being %s", a->name,
 					a->status == ARENA_RUNNING ? "destroyed" : "recycled");
@@ -815,6 +831,9 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 		LLInit(&blocks);
 		perarenaspace = cfg->GetInt(GLOBAL, "General", "PerArenaBytes", 10000);
 
+		adkey = AllocateArenaData(sizeof(adata));
+		if (adkey == -1) return MM_FAIL;
+
 		if (net)
 		{
 			net->AddPacket(C2S_GOTOARENA, PArena);
@@ -872,5 +891,6 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 	}
 	return MM_FAIL;
 }
+
 
 

@@ -793,9 +793,7 @@ void PPickupFlag(Player *p, byte *pkt, int len)
 	/* make sure someone else didn't get it first */
 	if (fd.state != FLAG_ONMAP)
 	{
-		logm->Log(L_MALICIOUS, "<flags> {%s} [%s] tried to pick up a carried flag",
-				arena->name,
-				p->name);
+		logm->LogP(L_MALICIOUS, "flags", p, "tried to pick up a carried flag");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -803,6 +801,14 @@ void PPickupFlag(Player *p, byte *pkt, int len)
 	switch (pfd->gametype)
 	{
 		case FLAGGAME_BASIC:
+			/* we have to handle carryflags == 2 specially here */
+			if (pfd->carryflags == 2 && p->pkt.flagscarried > 0)
+			{
+				logm->LogP(L_DRIVEL, "flags", p, "tried to pick up too many flags");
+				UNLOCK_STATUS(arena);
+				return;
+			}
+
 			/* in this game, flags are carried */
 			fd.state = FLAG_CARRIED;
 			fd.x = -1; fd.y = -1;

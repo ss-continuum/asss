@@ -768,7 +768,7 @@ void PDie(Player *p, byte *pkt, int n)
 {
 	struct SimplePacket *dead = (struct SimplePacket*)pkt;
 	int bty = dead->d2;
-	int flagcount, reldeaths, green;
+	int flagcount, reldeaths, green, killreward;
 	Arena *arena = p->arena;
 	Player *killer;
 
@@ -797,7 +797,12 @@ void PDie(Player *p, byte *pkt, int n)
 
 	reldeaths = cfg->GetInt(arena->cfg, "Misc", "ReliableKills", 1);
 
-	notify_kill(killer, p, bty, flagcount, green, reldeaths);
+	/* cfghelp: Kill:FixedKillReward, arena, int, def: -1
+	 * If this is set (to a value other than -1), specifies a fixed
+	 * number of points to give for each kill (instead of the bounty. */
+	killreward = cfg->GetInt(arena->cfg, "Kill", "FixedKillReward", -1);
+
+	notify_kill(killer, p, (killreward != -1) ? killreward : bty, flagcount, green, reldeaths);
 
 	lm->Log(L_DRIVEL, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d)",
 			arena->name,
@@ -867,16 +872,10 @@ void PAttach(Player *p, byte *pkt2, int n)
 
 void PKickoff(Player *p, byte *pkt2, int len)
 {
-	Link *link;
-	Player *i;
-	byte pkt = S2C_TURRETKICKOFF;
+	struct SimplePacket pkt = { S2C_TURRETKICKOFF, p->pid };
 
-	pd->Lock();
-	FOR_EACH_PLAYER(i)
-		if (i->status == S_PLAYING &&
-		    i->p_attached == p->pid)
-			net->SendToOne(i, &pkt, 1, NET_RELIABLE);
-	pd->Unlock();
+	if (p->status == S_PLAYING)
+		net->SendToArena(p->arena, NULL, (byte*)&pkt, 3, NET_RELIABLE);
 }
 
 

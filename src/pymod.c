@@ -30,7 +30,7 @@
 #define PYINTPREFIX "PY-"
 
 
-/* foward decls */
+/* forward decls */
 
 typedef struct PlayerObject
 {
@@ -77,9 +77,11 @@ local int mods_loaded;
 local PyObject *cPickle;
 local PyObject *sysdict;
 
+#if not_yet
 local pthread_mutex_t pymtx = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK() pthread_mutex_lock(&pymtx)
 #define UNLOCK() pthread_mutex_unlock(&pymtx)
+#endif
 
 
 /* utility functions */
@@ -486,12 +488,6 @@ local PyObject *Arena_get_status(PyObject *obj, void *v)
 	return PyInt_FromLong(a->status);
 }
 
-local PyObject *Arena_get_ispublic(PyObject *obj, void *v)
-{
-	Arena *a = ((ArenaObject*)obj)->a;
-	return PyInt_FromLong(a->ispublic);
-}
-
 local PyObject *Arena_get_name(PyObject *obj, void *v)
 {
 	Arena *a = ((ArenaObject*)obj)->a;
@@ -523,7 +519,6 @@ local PyGetSetDef Arena_getseters[] =
 {
 #define SIMPLE_GETTER(n, doc) { #n, Arena_get_ ## n, NULL, doc, NULL },
 	SIMPLE_GETTER(status, "current status")
-	SIMPLE_GETTER(ispublic, "whether this is a 'public' arena or not")
 	SIMPLE_GETTER(name, "arena name")
 	SIMPLE_GETTER(basename, "arena basename (without a number at the end)")
 	SIMPLE_GETTER(cfg, "arena config file handle")

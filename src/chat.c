@@ -559,8 +559,12 @@ local void PChat(Player *p, byte *pkt, int len)
 
 		case MSG_NMEFREQ:
 			targ = pd->PidToPlayer(from->pid);
-			if (targ)
+			if (!targ) break;
+
+			if (targ->arena == p->arena)
 				handle_freq(p, targ->p_freq, from->text, sound);
+			else
+				lm->LogP(L_MALICIOUS, "chat", p, "cross-arena nmefreq chat message");
 			break;
 
 		case MSG_FREQ:
@@ -569,8 +573,12 @@ local void PChat(Player *p, byte *pkt, int len)
 
 		case MSG_PRIV:
 			targ = pd->PidToPlayer(from->pid);
-			if (targ)
+			if (!targ) break;
+
+			if (targ->arena == p->arena)
 				handle_priv(p, targ, from->text, sound);
+			else
+				lm->LogP(L_MALICIOUS, "chat", p, "cross-arena private chat message");
 			break;
 
 		case MSG_REMOTEPRIV:
@@ -583,6 +591,10 @@ local void PChat(Player *p, byte *pkt, int len)
 
 		case MSG_CHAT:
 			handle_chat(p, from->text, sound);
+			break;
+
+		default:
+			lm->LogP(L_MALICIOUS, "chat", p, "recieved undefined type %d chat message", from->type);
 			break;
 	}
 

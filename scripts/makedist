@@ -47,7 +47,7 @@ set +e
 rm -f $d/doc/*.pdf $d/clients/* $d/scrty* $d/arenas/scf/scf.lvl
 rm -f $d/bin/* $d/freebsd/bin/*
 
-find $d -exec touch -r $d/bin/asss {} \;
+#find $d -exec touch -r $d/bin/asss {} \;
 tar --numeric-owner -czvf $d-srconly.tar.gz $d
 
 rm -rf $d
