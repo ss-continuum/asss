@@ -77,3 +77,125 @@ messages of the specified class are sent.
 If a certain logging module is loaded but doesn't have an entry in
 [Logging], no messages will be sent to it.
 
+
+-----
+
+No, that's no good. Start over.
+
+-----
+
+apache avalon logkit
+
+has priorities:
+  debug
+  info
+  warn
+  error
+  fatal_error
+
+has classes:
+  names separated by dots, can be hierarchically organized
+
+has both sync and async logging calls
+
+can format output based on contexts
+
+
+things i should do
+
+right now, all logging is async. introduce a synchronous call
+
+have separate classes and priorities? yes!
+
+classes will be simple strings (no hierarchy) and will mostly correspond
+to module names. ok, they will completely correspond to module names.
+
+
+introduce preformatted calls for logging things associated with players
+and arenas.
+
+
+format for file:
+
+Nov 26 11:41:05 I <arenaman> {arena1} created
+Nov 26 11:41:03 I <core> {arena1} [player] entered arena
+Nov 26 11:43:34 M <net> {arena1} [playerx] tried to make us allocate 123152322 bytes
+
+1-15    timestamp
+16      space
+17      priority
+18      space
+19      {module} (arena) [player] message
+
+conventions to make grepping/parsing easier:
+player names are in []
+arena names are in {}
+module names are in <>
+
+priority codes:
+name         letter   C constant
+debug        D        DBG
+info         I        INF
+malicious    M        MAL
+warn         W        WRN
+error        E        ERR
+
+
+desired capabilities:
+
+filter based on class AND priority!
+
+logger should recieve priority, class, and message separately.
+
+what if we want to send certain classes of messages to sysops and other
+classes to moderators? we either need the logger module to do its own
+filtering, or we need multiply instantiable modules. arrgh!
+
+worse yet: the sysop/smod/mod model is going to be changed to arbitrary
+groups. and we want to be able to configure which messages go to which
+groups.
+
+it would also be nice if certain groups would only recieve messages
+about things going on in their arena. i.e.: refs would recieve messages
+about people getting specced because of lag in their arena only, and
+they could also get kill messages there.
+update: don't do this in the logger. let the logger send all important
+messages to log_sysop, and then log_sysop will do filtering based on
+arena by string search for (arenaname) and indexing message[17] ==
+MALICIOUS.
+
+(it would also be good if the server could get an "official" log of
+league games through its logging mechanism.) no: do this with a
+dedicated module specifically for this purpose.
+
+
+
+
+sample config file:
+
+;; each section corresponds to a logging module.
+;; each key within a section corresponds to a class name, or the special
+;; class "all".
+;; each value is a string containing some combination of the five
+;; prorities:
+;;
+;; D  debug       debugging stuff
+;; I  info        miscelaneous info
+;; M  malicious   bad data from players
+;; W  warn        potentially bad things
+;; E  error       really bad things
+;;
+;; within each section, specific class names always take precedence over
+;; "all", if it is present.
+
+[sysop]
+all = ME
+
+[file]
+all = DIMWE
+
+[console]
+all = IMWE
+net = DIMWE
+
+
