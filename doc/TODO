@@ -3,7 +3,9 @@
 short term
 ----------
 
-scoreman!
+test scoreman
+
+redo a bit of logging to use classes
 
 more game stuff
 
@@ -13,6 +15,7 @@ work on more modules, in roughly this order:
 clientset, scoreman, game/flag/ball, etc.
 
 better authority model (groups, capabilities)
+  write about it first!
 
 
 
