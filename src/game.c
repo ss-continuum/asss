@@ -172,7 +172,10 @@ local void Pppk(Player *p, byte *pkt, int len)
 
 		/* this check should be before the weapon ignore hook */
 		if (pos->weapon.type)
+		{
 			p->flags.sent_wpn = 1;
+			data->deathwofiring = 0;
+		}
 
 		/* this is the weapons ignore hook */
 		if (pos->weapon.type && prng->Rand() < p->ignoreweapons)
@@ -548,7 +551,6 @@ local void SetFreqAndShip(Player *p, int ship, int freq)
 	pdata *data = PPDATA(p, pdkey);
 	struct ShipChangePacket to = { S2C_SHIPCHANGE, ship, p->pid, freq };
 	Arena *arena = p->arena;
-	adata *ad = P_ARENA_DATA(arena, adkey);
 
 	if (p->type == T_CHAT && ship != SPEC)
 	{
@@ -576,9 +578,6 @@ local void SetFreqAndShip(Player *p, int ship, int freq)
 	pthread_mutex_lock(&specmtx);
 	clear_speccing(data);
 	pthread_mutex_unlock(&specmtx);
-
-	/* reset this counter on each ship or freq change */
-	data->deathwofiring = ad->deathwofiring;
 
 	pd->UnlockPlayer(p);
 
@@ -837,7 +836,8 @@ local void PDie(Player *p, byte *pkt, int len)
 	if (!p->flags.sent_wpn)
 	{
 		pdata *data = PPDATA(p, pdkey);
-		if (data->deathwofiring-- <= 0)
+		adata *ad = P_ARENA_DATA(arena, adkey);
+		if (data->deathwofiring++ == ad->deathwofiring)
 		{
 			lm->LogP(L_DRIVEL, "game", p, "specced for too many deaths without firing");
 			SetFreqAndShip(p, SPEC, arena->specfreq);
@@ -975,7 +975,8 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 		data->epd_queries = 0;
 
 		data->wpnsent = 0;
-		data->deathwofiring = ad->deathwofiring;
+		data->deathwofiring = 0;
+		p->flags.sent_wpn = 0;
 	}
 	else if (action == PA_LEAVEARENA)
 	{
