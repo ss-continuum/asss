@@ -193,7 +193,7 @@ void ProcessLoginQueue()
 				break;
 
 			case S_NEED_GLOBAL_SYNC:
-				/* FIXME: scoreman->SyncFromFileAsync(pid, 1, GSyncDone); */
+				/* FIXME: scoreman->SyncFromFile(pid, 1, GSyncDone); */
 				GSyncDone(pid);
 				break;
 
@@ -213,7 +213,7 @@ void ProcessLoginQueue()
 				player->freq = afreq->AssignFreq(pid, BADFREQ,
 						player->shiptype);
 				/* then, sync scores */
-				/* FIXME: scoreman->SyncFromFileAsync(pid, 0, ASyncDone); */
+				/* FIXME: scoreman->SyncFromFile(pid, 0, ASyncDone); */
 				ASyncDone(pid);
 				break;
 

@@ -34,6 +34,7 @@ EXTMODS = loggers.so  \
           game.so     \
           command.so  \
           billing.so  \
+          scoring.so  \
           scheme.so
 
 
@@ -48,6 +49,9 @@ game.so: game.o chat.o
 command.so: cmdman.o playercmd.o
 
 billing.so: billcore.o
+
+scoring.so: scoreman.o
+	$(CC) $(LDFLAGS) -shared -o $@ $^ -ldb1
 
 scheme.so: scheme.o ooputils.o
 

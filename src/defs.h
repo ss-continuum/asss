@@ -25,20 +25,22 @@
 
 
 /* interface ids, kept here to make sure they're unique */
-#define I_MODMAN        0
-#define I_PLAYERDATA    1
-#define I_MAINLOOP      2
-#define I_CONFIG        3
-#define I_NET           4
-#define I_LOGMAN        5
-#define I_CMDMAN        6
-#define I_CHAT          7
-#define I_ARENAMAN      8
-#define I_ASSIGNFREQ    9
-#define I_AUTH          10
-#define I_BILLCORE      11
-#define I_MAPNEWSDL     12
-#define I_CLIENTSET     13
+#define I_NULL          0
+#define I_MODMAN        1
+#define I_PLAYERDATA    2
+#define I_MAINLOOP      3
+#define I_CONFIG        4
+#define I_NET           5
+#define I_LOGMAN        6
+#define I_CMDMAN        7
+#define I_CHAT          8
+#define I_ARENAMAN      9
+#define I_ASSIGNFREQ    10
+#define I_AUTH          11
+#define I_BILLCORE      12
+#define I_MAPNEWSDL     13
+#define I_CLIENTSET     14
+#define I_SCOREMAN      15
 #define I_ENCRYPTBASE   90
 /*#define I_FLAG */
 /*#define I_BALL */

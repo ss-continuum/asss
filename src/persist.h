@@ -34,6 +34,10 @@
  * GetData and SetData functions can be called from any thread, so the
  * must be sure to do whatever locking is appropriate.
  *
+ * StabilizeScores can be called with an integer argument to encure the
+ * score files will be in a consistent state for that many seconds. This
+ * can be used to perform backups while the server is running.
+ *
  */
 
 
@@ -45,6 +49,7 @@ typedef struct PersistantData
 	int key, length, global;
 	void (*GetData)(int pid, void *data);
 	void (*SetData)(int pid, void *data);
+	void (*ClearData)(int pid);
 } PersistantData;
 
 
@@ -52,9 +57,9 @@ typedef struct Iscoreman
 {
 	void (*RegPersistantData)(PersistantData *pd);
 	void (*UnregPersistantData)(PersistantData *pd);
-	int (*SyncToFile)(int pid, int global);
-	int (*SyncFromFileAsync)(int pid, int global, void (*callback)(int pid));
-	int (*SyncFromFile)(int pid, int global);
+	void (*SyncToFile)(int pid, int global, void (*callback)(int pid));
+	void (*SyncFromFile)(int pid, int global, void (*callback)(int pid));
+	void (*StabilizeScores)(int seconds);
 } Iscoreman;
 
 
