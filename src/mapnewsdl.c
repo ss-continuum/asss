@@ -143,7 +143,7 @@ char * GetMapFilename(int arena)
 }
 
 
-int ArenaAction(int action, int arena)
+int ArenaAction(int arena, int action)
 {
 	if (action == AA_CREATE)
 	{
@@ -155,8 +155,8 @@ int ArenaAction(int action, int arena)
 	{
 		afree(mapdata[arena].cmpmap);
 		mapdata[arena].cmpmaplen = 0;
+		return MM_OK;
 	}
-	return MM_OK;
 }
 
 
@@ -226,7 +226,7 @@ void PMapRequest(int pid, byte *p, int q)
 	int arena = players[pid].arena;
 	if (p[0] == C2S_MAPREQUEST)
 	{
-		log->Log(LOG_DEBUG,"Sending map (%s)", players[pid].name);
+		log->Log(LOG_DEBUG,"mapnewsdl: Sending map (%s)", players[pid].name);
 		if (arena < 0)
 			log->Log(LOG_BADDATA, "Map request before entering arena (%s)",
 					players[pid].name);
@@ -238,7 +238,7 @@ void PMapRequest(int pid, byte *p, int q)
 	}
 	else if (p[0] == C2S_NEWSREQUEST)
 	{
-		log->Log(LOG_DEBUG,"Sending news (%s)", players[pid].name);
+		log->Log(LOG_DEBUG,"mapnewsdl: Sending news (%s)", players[pid].name);
 		if (cmpnews)
 			net->SendToOne(pid, cmpnews, cmpnewssize, NET_RELIABLE | NET_PRESIZE);
 		else

@@ -7,25 +7,26 @@ have any suggestions of any kind, please let me know.
 
 
 Recent updates:
+    * tons and tons of bugfixes
+
     * totally recreated player status system, login processing, and arena
       management. this should make it much more robust and extendable.
 
     * along with player status system, made things multithreaded and put a lot
       of processing in separate threads.
 
-	* some work on clientset and scoreman. it should soon be possible to use
-      server.cfg files on here.
+	* some work on clientset and scoreman. it is now possible to use
+	  server.cfg files on here.
 
 
 High-level to-do list:
-    * work on more modules, in roughly this order:
-        clientset, scoreman, game/flag/ball, etc.
+    * work on more modules
 
     * better authority model (groups, capabilities)
 
     * come up with better interface to other languages (python, and others)
 
-    * latency/ploss handling
+    * latency/ploss handling and security
 
 
 Stuff it does now:
@@ -50,32 +51,6 @@ Stuff it does now:
         staff log on by default with no powers, you need to type ?logon to
         enable them. you can also get rid of them by typing ?logon 0 or any
         text that isn't a password.
-
-
-Fun stuff it might do if I feel like it: (no protocol modifications)
-    * server-side version of minewriter
-    * bricklayer: minewriter with bricks
-    * dynamicly generated news.txt
-        (not sure if this is useful... maybe include extra info for staff?)
-    * player-to-player file transfer (should be possible with the current client)
-    * integrated game recorder/player
-    * working chess player with 32 real ships
-    * implement ?buy, but much more flexible. it should be possible to
-        set up an RPG-type zone where you keep upgrades across deaths
-        and earn money you can purchase upgrades with, etc.
-
-
-Really cool stuff that's only possible with protocol modifications:
-    * configurable spawn points and forcing into arenas, enabling
-        multi-arena" maps where going to a specific area in one map would warp
-        you to some other area on another map.
-    * more possibilities with doors
-    * much more I can't think of at the moment
-
-
-Stuff it will do only if people request it:
-    * ads
-    * lots of subgame features that aren't really used
 
 
 

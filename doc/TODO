@@ -1,9 +1,7 @@
 
 per-arena
 ---------
-think really hard about how to make per-arena interfaces and things work
-nicely.
-
+ok, per-arena callbacks are good to go. what about interfaces?
 
 log
 ---

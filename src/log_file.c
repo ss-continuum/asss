@@ -20,7 +20,7 @@ int MM_log_file(int action, Imodman *mm, int arenas)
 	{
 		mm->RegInterest(I_CONFIG, &cfg);
 
-		if (!log || !cfg) return MM_FAIL;
+		if (!cfg) return MM_FAIL;
 
 		ln = cfg->GetStr(GLOBAL,"Log","LogFile");
 		if (!ln) ln = "asss.log";

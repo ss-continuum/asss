@@ -22,7 +22,7 @@ local void ProcessArgs(int argc, char *argv[])
 
 local void LoadModuleFile(char *fname)
 {
-	static char line[64];
+	static char line[256];
 	int ret;
 	FILE *f;
 
@@ -30,7 +30,7 @@ local void LoadModuleFile(char *fname)
 
 	if (!f) return;
 
-	while (fgets(line, 64, f))
+	while (fgets(line, 256, f))
 	{
 		RemoveCRLF(line);
 		if (line[0] && line[0] != ';' && line[0] != '#' && line[0] != '/')

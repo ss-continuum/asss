@@ -458,7 +458,7 @@ void * RecvThread(void *dummy)
 
 			/* check that it's in a reasonable status */
 			status = players[pid].status;
-			log->Log(LOG_DEBUG, "net: pkt recv: %d bytes from status %d", len, status);
+			/*log->Log(LOG_DEBUG, "net: pkt recv: %d bytes from status %d", len, status);*/
 			if (status <= S_FREE || status >= S_TIMEWAIT)
 			{
 				if (status <= S_FREE)
@@ -565,7 +565,9 @@ void * SendThread(void *dummy)
 			if (    buf->d.rel.t1 == 0x00
 			     && buf->d.rel.t2 == 0x03
 			     && clients[buf->pid].lastack >= buf->d.rel.seqnum)
+			{
 				buf->retries = 0;
+			}
 
 			/* LOCK: lock status here? */
 			/* check if the player still exists */
@@ -581,7 +583,7 @@ void * SendThread(void *dummy)
 				{	/* too big for grouped, send immediately */
 					if (bigcount[buf->pid]++ < config.biglimit)
 					{
-						buf->lastretry = GTC();
+						buf->lastretry = gtc;
 						buf->retries--;
 						/* UnlockMutex(&outmtx); // skipped to save speed */
 						SendRaw(buf->pid, buf->d.raw, buf->len);
@@ -689,8 +691,6 @@ void * SendThread(void *dummy)
 				}
 
 				players[i].status = S_FREE;
-
-				log->Log(LOG_DEBUG, "net: pid %d freed", i);
 
 				UnlockMutex(&hashmtx);
 			}
@@ -882,8 +882,6 @@ void KillConnection(int pid)
 {
 	int type;
 	byte leaving = C2S_LEAVING;
-
-	log->Log(LOG_DEBUG, "net: KillConnection(%d)", pid);
 
 	pd->LockPlayer(pid);
 
@@ -1165,7 +1163,7 @@ reallyexit:
 
 void SendRaw(int pid, byte *data, int len)
 {
-	static byte encbuf[MAXPACKET];
+	byte encbuf[MAXPACKET];
 	int type = clients[pid].enctype;
 
 	if (clients[pid].flags & NET_FAKE) return;
@@ -1215,7 +1213,11 @@ void BufferPacket(int pid, byte *data, int len, int rel)
 	{
 		buf->d.rel.t1 = 0x00;
 		buf->d.rel.t2 = 0x03;
+
+		pd->LockPlayer(pid);
 		buf->d.rel.seqnum = clients[pid].s2cn++;
+		pd->UnlockPlayer(pid);
+
 		memcpy(buf->d.rel.data, data, len);
 		buf->len = len + 6;
 		buf->retries = config.retries;

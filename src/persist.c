@@ -342,7 +342,8 @@ void ScoreAA(int arena, int action)
 		if (!db)
 		{
 			/* this db doesn't exist, try default */
-			sprintf(fname, template, "default");
+			/* sprintf(fname, template, "default"); */
+			astrncpy(fname, "defaultarena/scores.db", PATH_MAX);
 			log->Log(LOG_DEBUG, "Opening db '%s'", fname);
 			db = OpenDB(fname);
 

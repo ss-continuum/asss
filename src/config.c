@@ -78,6 +78,8 @@ local int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashTa
 	char _realbuf[LINESIZE], *buf, *t, *t2;
 	char key[MAXNAMELEN+MAXKEYLEN+3], *thespot = NULL, *data;
 
+	/*printf("config: ProcessConfigFile(%s)\n", fname);*/
+
 	f = fopen(fname, "r");
 	if (!f) return MM_FAIL;
 
@@ -187,10 +189,10 @@ local int FindAndProcessConfigFile(HashTable *thetable, StringChunk *thestrings,
 {
 	char buf[PATH_MAX];
 
-	if (LocateConfigFile(buf, LINESIZE, arena, name) == -1)
+	if (LocateConfigFile(buf, PATH_MAX, arena, name) == -1)
 		return MM_FAIL;
 	else
-		return ProcessConfigFile(thetable thestrings, defines, buf);
+		return ProcessConfigFile(thetable, thestrings, defines, buf);
 }
 
 
@@ -203,6 +205,8 @@ ConfigHandle LoadConfigFile(const char *arena, const char *name)
 	thefile->thetable = HashAlloc(383);
 	thefile->thestrings = SCAlloc();
 	defines = HashAlloc(17);
+
+	/*printf("config: LoadConfigFile(%s, %s)\n", arena, name);*/
 
 	if (FindAndProcessConfigFile(thefile->thetable, thefile->thestrings, defines, arena, name) == MM_OK)
 	{
@@ -224,9 +228,12 @@ ConfigHandle LoadConfigFile(const char *arena, const char *name)
 
 void FreeConfigFile(ConfigHandle ch)
 {
-	SCFree(ch->thestrings);
-	HashFree(ch->thetable);
-	afree(ch);
+	if (ch)
+	{
+		SCFree(ch->thestrings);
+		HashFree(ch->thetable);
+		afree(ch);
+	}
 	files--;
 }
 

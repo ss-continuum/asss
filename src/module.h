@@ -81,7 +81,7 @@ typedef struct Imodman
 } Imodman;
 
 
-typedef int (*ModMain)(int action, Imodman *mm);
+typedef int (*ModMain)(int action, Imodman *mm, int arena);
 /* all module entry points must be of this type */
 
 

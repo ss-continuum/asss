@@ -94,13 +94,13 @@ void LoadSettings(int arena)
 		/* basic stuff */
 		for (j = 0; j < COUNT(ss->long_set); j++)
 			ss->long_set[j] = cfg->GetInt(conf,
-					ship_names[i], ship_long_names[i], 0);
+					ship_names[i], ship_long_names[j], 0);
 		for (j = 0; j < COUNT(ss->short_set); j++)
 			ss->short_set[j] = cfg->GetInt(conf,
-					ship_names[i], ship_short_names[i], 0);
+					ship_names[i], ship_short_names[j], 0);
 		for (j = 0; j < COUNT(ss->byte_set); j++)
 			ss->byte_set[j] = cfg->GetInt(conf,
-					ship_names[i], ship_byte_names[i], 0);
+					ship_names[i], ship_byte_names[j], 0);
 		/* weapons bits */
 		wb = &(ss->Weapons);
 #define DO(x) \

@@ -133,7 +133,7 @@ void UnlockStatus()
 }
 
 
-local void CallAA(int action, int arena)
+local void CallAA(int arena, int action)
 {
 	LinkedList *funcs;
 	Link *l;
@@ -141,7 +141,7 @@ local void CallAA(int action, int arena)
 	funcs = mm->LookupCallback(CALLBACK_ARENAACTION, arena);
 
 	for (l = LLGetHead(funcs); l; l = l->next)
-		((ArenaActionFunc)l->data)(action, arena);
+		((ArenaActionFunc)l->data)(arena, action);
 
 	mm->FreeLookupResult(funcs);
 }
