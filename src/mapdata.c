@@ -28,17 +28,21 @@ typedef struct chunk
 	byte data[1];
 } chunk;
 
+struct ELVL;
+
 struct Region
 {
+	struct ELVL *lvl;
 	const char *name;
-	/* FIXME: make this more memory-efficient */
-	sparse_arr tiles;
 	HashTable *chunks;
+	u32 setmap[8];
 };
 
 typedef struct ELVL
 {
 	sparse_arr tiles;
+	sparse_arr rgntiles;
+	Region ***rgnsets;
 	HashTable *attrs;
 	HashTable *regions;
 	HashTable *rawchunks;
@@ -144,13 +148,70 @@ local void free_region(Region *rgn)
 		HashEnum(rgn->chunks, hash_enum_afree, NULL);
 		HashFree(rgn->chunks);
 	}
-	if (rgn->tiles)
-		delete_sparse(rgn->tiles);
 	afree(rgn);
 }
 
 
-local int read_rle_tile_data(sparse_arr arr, const byte *d, int len)
+local int Contains(Region *rgn, int x, int y)
+{
+	if (rgn->lvl->rgntiles)
+	{
+		int i = lookup_sparse(rgn->lvl->rgntiles, x, y);
+		return rgn->setmap[i >> 5] & (1 << (i & 31));
+	}
+	else
+		return FALSE;
+}
+
+
+local int rgn_set_len(Region **rgnset)
+{
+	int c;
+	for (c = 0; *rgnset; c++, rgnset++) ;
+	return c;
+}
+
+local void add_rgn_tile(Region *newrgn, int x, int y)
+{
+	ELVL *lvl = newrgn->lvl;
+	Region **oldset, **newset;
+	int i, len;
+
+	oldset = lvl->rgnsets[lookup_sparse(lvl->rgntiles, x, y)];
+
+	len = oldset ? rgn_set_len(oldset) : 0;
+
+	/* try looking up new set */
+	for (i = 1; i < 256; i++)
+	{
+		Region **tryset = lvl->rgnsets[i];
+		if (!tryset)
+			break;
+		if (memcmp(oldset, tryset, len * sizeof(Region *)) == 0 &&
+		    tryset[len] == newrgn)
+		{
+			/* we found the correct set */
+			insert_sparse(lvl->rgntiles, x, y, i);
+			return;
+		}
+	}
+
+	/* the correct set doesn't exist yet */
+	if (i < 256)
+	{
+		newset = amalloc((len + 2) * sizeof(Region *));
+		memcpy(newset, oldset, len * sizeof(Region *));
+		newset[len] = newrgn;
+		newset[len+1] = NULL;
+		lvl->rgnsets[i] = newset;
+		newrgn->setmap[i >> 5] |= (1 << (i & 31));
+		insert_sparse(lvl->rgntiles, x, y, i);
+	}
+	else
+		lm->Log(L_WARN, "<mapdata> overlap limit reached. some region data will be lost.");
+}
+
+local int read_rle_tile_data(Region *rgn, const byte *d, int len)
 {
 	int cx = 0, cy = 0, i = 0, b, op, d1, n, x, y;
 
@@ -176,7 +237,7 @@ local int read_rle_tile_data(sparse_arr arr, const byte *d, int len)
 			case 1:
 				/* n present in a row */
 				for (x = cx; x < (cx + n); x++)
-					insert_sparse(arr, x, cy, 1);
+					add_rgn_tile(rgn, x, cy);
 				cx += n;
 				break;
 			case 2:
@@ -191,8 +252,8 @@ local int read_rle_tile_data(sparse_arr arr, const byte *d, int len)
 					return FALSE;
 				for (y = cy; y < (cy + n); y++)
 					for (x = 0; x < 1024; x++)
-						if (lookup_sparse(arr, x, cy - 1))
-							insert_sparse(arr, x, y, 1);
+						if (Contains(rgn, x, cy - 1))
+							add_rgn_tile(rgn, x, y);
 				cy += n;
 				break;
 		}
@@ -229,12 +290,12 @@ local int process_region_chunk(const char *key, void *vchunk, void *vrgn)
 	}
 	else if (chunk->type == MAKE_CHUNK_TYPE(rTIL))
 	{
-		if (!rgn->tiles)
-		{
-			rgn->tiles = init_sparse();
-			if (!read_rle_tile_data(rgn->tiles, chunk->data, chunk->size))
-				lm->Log(L_WARN, "<mapdata> error in lvl file while reading rle tile data");
-		}
+		if (!rgn->lvl->rgntiles)
+			rgn->lvl->rgntiles = init_sparse();
+		if (!rgn->lvl->rgnsets)
+			rgn->lvl->rgnsets = amalloc(256 * sizeof(Region **));
+		if (!read_rle_tile_data(rgn, chunk->data, chunk->size))
+			lm->Log(L_WARN, "<mapdata> error in lvl file while reading rle tile data");
 		afree(chunk);
 		return TRUE;
 	}
@@ -268,6 +329,7 @@ local int process_map_chunk(const char *key, void *vchunk, void *vlvl)
 	else if (chunk->type == MAKE_CHUNK_TYPE(REGN))
 	{
 		Region *rgn = amalloc(sizeof(*rgn));
+		rgn->lvl = lvl;
 		rgn->chunks = HashAlloc();
 		if (!read_chunks(rgn->chunks, chunk->data, chunk->size))
 			lm->Log(L_WARN, "<mapdata> error in lvl while reading region chunks");
@@ -283,6 +345,7 @@ local int process_map_chunk(const char *key, void *vchunk, void *vlvl)
 			afree(t);
 		}
 		else
+			/* all regions must have a name */
 			free_region(rgn);
 		afree(chunk);
 		return TRUE;
@@ -370,6 +433,24 @@ local int hash_enum_free_region(const char *key, void *rgn, void *clos)
 
 local void clear_level(ELVL *lvl)
 {
+	if (lvl->tiles)
+	{
+		delete_sparse(lvl->tiles);
+		lvl->tiles = NULL;
+	}
+	if (lvl->rgntiles)
+	{
+		delete_sparse(lvl->rgntiles);
+		lvl->rgntiles = NULL;
+	}
+	if (lvl->rgnsets)
+	{
+		int i;
+		for (i = 0; i < 256; i++)
+			afree(lvl->rgnsets[i]);
+		afree(lvl->rgnsets);
+		lvl->rgnsets = NULL;
+	}
 	if (lvl->attrs)
 	{
 		HashEnum(lvl->attrs, hash_enum_afree, NULL);
@@ -387,11 +468,6 @@ local void clear_level(ELVL *lvl)
 		HashEnum(lvl->rawchunks, hash_enum_afree, NULL);
 		HashFree(lvl->rawchunks);
 		lvl->rawchunks = NULL;
-	}
-	if (lvl->tiles)
-	{
-		delete_sparse(lvl->tiles);
-		lvl->tiles = NULL;
 	}
 }
 
@@ -903,16 +979,35 @@ local void DoBrick(Arena *arena, int drop, int x1, int y1, int x2, int y2)
 
 local void GetMemoryStats(Arena *arena, struct mapdata_memory_stats_t *stats)
 {
-	int bts = 0, blks = 0;
+	int bts, blks, i;
 	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
 
+	memset(stats, 0, sizeof(*stats));
+
+	/* get data for lvl itself */
+	bts = blks = 0;
 	pthread_mutex_lock(&lvl->mtx);
 	sparse_allocated(lvl->tiles, &bts, &blks);
 	pthread_mutex_unlock(&lvl->mtx);
-
-	memset(stats, 0, sizeof(*stats));
 	stats->lvlbytes = bts;
 	stats->lvlblocks = blks;
+
+	/* now data for regions */
+	bts = blks = 0;
+	if (lvl->rgntiles)
+		sparse_allocated(lvl->rgntiles, &bts, &blks);
+	if (lvl->rgnsets)
+		for (i = 0; i < 256; i++)
+		{
+			Region **set = lvl->rgnsets[i];
+			if (set)
+			{
+				bts += (rgn_set_len(set) + 1) * sizeof(Region *);
+				blks += 1;
+			}
+		}
+	stats->rgnbytes = bts;
+	stats->rgnblocks = blks;
 }
 
 
@@ -953,32 +1048,16 @@ local int RegionChunk(Region *rgn, u32 ctype, const void **datap, int *sizep)
 }
 
 
-local int Contains(Region *rgn, int x, int y)
+struct enum_all_clos
 {
-	if (rgn->tiles)
-		return lookup_sparse(rgn->tiles, x, y);
-	else
-		return FALSE;
-}
-
-
-struct enum_containing_clos
-{
-	int x, y;
 	void *clos;
 	void (*cb)(void *clos, Region *rgn);
 };
 
-local int enum_containing_work(const char *rname, void *vreg, void *clos)
+local int enum_all_work(const char *rname, void *rgn, void *clos)
 {
-	Region *rgn = vreg;
-	struct enum_containing_clos *ecc = clos;
-
-	if (ecc->x < 0 ||
-	    ecc->y < 0 ||
-	    (rgn->tiles && lookup_sparse(rgn->tiles, ecc->x, ecc->y)))
-		ecc->cb(ecc->clos, rgn);
-
+	struct enum_all_clos *eac = clos;
+	eac->cb(eac->clos, rgn);
 	return FALSE;
 }
 
@@ -986,24 +1065,37 @@ local void EnumContaining(Arena *arena, int x, int y,
 		void (*cb)(void *clos, Region *rgn), void *clos)
 {
 	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
-	struct enum_containing_clos ecc = { x, y, clos, cb };
 
-	if (lvl->regions)
-		HashEnum(lvl->regions, enum_containing_work, &ecc);
+	if (!lvl->regions || !lvl->rgntiles || !lvl->rgnsets)
+		return;
+
+	if (x >= 0 && y >= 0)
+	{
+		int i = lookup_sparse(lvl->rgntiles, x, y);
+		Region **set = lvl->rgnsets[i];
+		if (set)
+			for (; *set; set++)
+				cb(clos, *set);
+	}
+	else
+	{
+		/* special case: enum all regions */
+		struct enum_all_clos eac = { clos, cb };
+		HashEnum(lvl->regions, enum_all_work, &eac);
+	}
 }
 
-
-local void get_one_containing_work(void *clos, Region *rgn)
-{
-	*(Region**)clos = rgn;
-}
 
 local Region * GetOneContaining(Arena *arena, int x, int y)
 {
-	/* FIXME: this implementation is, um, a little stupid */
-	Region *rgn = NULL;
-	EnumContaining(arena, x, y, get_one_containing_work, &rgn);
-	return rgn;
+	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
+	Region **set;
+
+	if (!lvl->regions || !lvl->rgntiles || !lvl->rgnsets)
+		return NULL;
+
+	set = lvl->rgnsets[lookup_sparse(lvl->rgntiles, x, y)];
+	return set ? *set : NULL;
 }
 
 
