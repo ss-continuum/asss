@@ -2,7 +2,7 @@
 # ccc - a console chat client for asss <grelminar@yahoo.com>
 # dist: public
 
-ccc_version = '2.2'
+ccc_version = '2.3'
 
 import sys, time, curses, socket, select, os
 
@@ -34,7 +34,7 @@ class View:
 		me.scrollback = 0
 		me.newcrap = 0
 
-		add_line('Window: %s' % me.name, 'info', me, setnewcrap=0)
+		add_line('Window: %s' % me.name, view = me, setnewcrap = 0)
 
 	def display(me, wins):
 		# draw lines
@@ -314,6 +314,10 @@ class Text:
 			s = '%d more' % view.newcrap
 			scr.addstr(h-1, w-len(s)-1, s, curses.A_REVERSE)
 
+		if not sock and last_login_try:
+			s = 'reconnecting in %d' % int(login_retry_time - (time.time() - last_login_try) + 0.5)
+			scr.addstr(h-2, w-len(s)-1, s, curses.A_REVERSE)
+
 		if view.scrollback:
 			for i in range(1, h-1):
 				scr.addch(i, w-1, curses.ACS_CKBOARD)
@@ -521,7 +525,7 @@ class PlayerList:
 		try:
 			player = me.data[name]
 		except:
-			add_line("Unknown player name in ship change: '%s'" % name, colors.info)
+			add_line("Unknown player name in ship change: '%s'" % name)
 			return
 
 		player.ship = ship
@@ -690,10 +694,10 @@ def init_logfile(fname):
 
 	try:
 		logfile = open(fname, 'a', 1)
-		add_line("Logging to file %s" % fname, 'info')
+		add_line("Logging to file %s" % fname)
 	except:
 		logfile = 0
-		print "Can't open '%s'. Logging disabled."
+		add_line("Can't open '%s'. Logging disabled." % fname)
 
 def reload_logfile():
 	init_logfile(original_log_filename)
@@ -752,8 +756,17 @@ def end_curses():
 	curses.endwin()
 
 
+def disconnect():
+	global myname, sock, last_login_try
+
+	myname = '(not connected)'
+	sock.close()
+	sock = None
+	last_login_try = time.time()
+
+
 def process_cmd(cmd):
-	global showtime, breakloop
+	global showtime, breakloop, sock, last_login_try
 
 	if cmd.startswith('exit') or cmd.startswith('quit'):
 		breakloop = 1
@@ -790,6 +803,19 @@ def process_cmd(cmd):
 	elif cmd == 'close':
 		if views[0] != find_arena_view():
 			del views[:1]
+	elif cmd == 'connect':
+		if sock:
+			add_line("Already connected!")
+		else:
+			last_login_try = 0
+	elif cmd == 'disconnect':
+		if not sock:
+			add_line("Not connected!")
+		else:
+			add_line("Disconnected.")
+			log(L_INFO, "Disconnected.")
+			disconnect()
+			last_login_try = None # disable auto-login
 	else:
 		send_line("SEND:PUB:?%s" % cmd)
 
@@ -845,18 +871,18 @@ def process_typed(prefix, line):
 	elif line.startswith('?'):
 		# possible command
 		cmd = line[1:]
-		try: process_cmd(cmd)
-		except: pass
 		txt = "%s> %s" % (myname, line)
 		add_line(txt, colors.default)
 		log(L_CMD, txt)
+		try: process_cmd(cmd)
+		except: pass
 	elif line.startswith('='):
 		# freq change
 		try:
 			freq = int(line[1:])
 			send_line("CHANGEFREQ:%d" % freq)
 		except:
-			add_line("Bad freq number", colors.info)
+			add_line("Bad freq number")
 	elif prefix:
 		# recur, with prefix
 		process_typed('', prefix+line)
@@ -869,14 +895,42 @@ def process_typed(prefix, line):
 
 
 def process_loginok(line):
-	global myname, logindone
-	logindone = ("Login ok.", 1)
+	global myname
 	myname = line
+
+	txt = "Connected to %s:%d as %s" % (opts['server'], opts['port'], myname)
+	add_line(txt)
+	log(L_INFO, txt)
+
+	# enter arena
+	send_line("GO:%s" % opts.get('arena', ''))
+
+	# join chats and other autocommands
+	if opts.has_key('chats'):
+		deferred_typed_lines.append('?chat=%s' % opts['chats'])
+		if opts.get('chatwindows', 0):
+			chats = opts['chats'].split(',')
+			idx = 1
+			for c in chats:
+				if not find_chat_view(idx):
+					views.append(make_chat_view(idx, c))
+				idx += 1
+
+	# init lines can be split by newlines or bars
+	if opts.has_key('init'):
+		for l1 in opts['init'].split('\n'):
+			for l2 in l1.split('|'):
+				deferred_typed_lines.append(l2)
+
 
 
 def process_loginbad(line):
-	global logindone
-	logindone = ("Bad login: %s" % line, 0)
+	global sock
+
+	txt = "Bad login: %s" % line
+	add_line(txt)
+	log(L_INFO, txt)
+	disconnect()
 
 
 def process_inarena(line):
@@ -885,7 +939,7 @@ def process_inarena(line):
 	arena, freq = line.split(':')
 	myfreq = int(freq)
 	txt = "Entered arena: %s" % arena
-	add_line(txt, 'info')
+	add_line(txt)
 	log(L_INFO, txt)
 
 	view = find_arena_view()
@@ -901,7 +955,7 @@ def process_inarena(line):
 def process_player(line):
 	name, ship, freq = line.split(':')
 	txt = "Player here: %s" % name
-	add_line(txt, 'info')
+	add_line(txt)
 	log(L_INFO, txt)
 	view = find_arena_view()
 	if view: view.players.add(Player(name, int(freq)))
@@ -910,7 +964,7 @@ def process_player(line):
 def process_entering(line):
 	name, ship, freq = line.split(':')
 	txt = "Player entering: %s" % name
-	add_line(txt, 'info')
+	add_line(txt)
 	log(L_INFO, txt)
 	view = find_arena_view()
 	if view: view.players.add(Player(name, int(freq)))
@@ -920,7 +974,7 @@ def process_leaving(line):
 	name = line
 
 	txt = "Player leaving: %s" % name
-	add_line(txt, 'info')
+	add_line(txt)
 	log(L_INFO, txt)
 	view = find_arena_view()
 	if view: view.players.remove(name)
@@ -969,7 +1023,7 @@ def process_msg(line):
 		add_line(txt, colors.squad)
 		log(L_SQUAD, txt)
 	else:
-		add_line("Bad message subtype from server: '%s'" % type, colors.info)
+		add_line("Bad message subtype from server: '%s'" % type)
 
 
 def process_sfc(line):
@@ -984,11 +1038,11 @@ def process_sfc(line):
 
 	if ship == 8:
 		txt = '%s is now on freq %s as a spectator' % (player, freq)
-		add_line(txt, colors.info)
+		add_line(txt)
 		log(L_INFO, txt)
 	else:
 		txt = '%s is now on freq %s in a %s' % (player, freq, ship_names[ship])
-		add_line(txt, colors.info)
+		add_line(txt)
 		log(L_INFO, txt)
 
 
@@ -1024,31 +1078,25 @@ def process_incoming(line):
 	if dispatch.has_key(type):
 		dispatch[type](rest)
 	else:
-		add_line("Bad message type from server: '%s'" % type, colors.info)
+		add_line("Bad message type from server: '%s'" % type)
 
 
 def send_line(line):
 	if line == "SEND:PUB:?chat":
 		# special handling for the results of ?chat:
 		chatparser.reset()
-	sock.sendall(line + '\n')
+	if sock:
+		sock.sendall(line + '\n')
 
 
-deferred_lines = []
-def add_line(line, color = None, view = None, setnewcrap = 1):
-	if not colors:
-		# if we're trying to add a line before curses initialization,
-		# save it in a list for later.
-		global deferred_lines
-		deferred_lines.append((line, color, view, setnewcrap))
+def add_line(line, color = None, view = None, setnewcrap = 1, sync = 0):
+	if not views:
 		return
 	# by default, send things to the arena view
 	if view is None:
 		view = find_arena_view()
-	if color == None:
-		color = colors.default
-	elif type(color) == type(''):
-		color = getattr(colors, color)
+	if color is None:
+		color = colors.info
 	view.text.addline(Line(line, color))
 	if view != views[0] and setnewcrap:
 		view.newcrap += 1
@@ -1058,13 +1106,8 @@ def add_line(line, color = None, view = None, setnewcrap = 1):
 		if view == views[0]:
 			view.newcrap += 1
 		view.scrollback += 1
-
-
-def complete_deferred_lines():
-	global deferred_lines
-	for args in deferred_lines:
-		add_line(*args)
-	del deferred_lines
+	if sync:
+		redisplay()
 
 
 colonstate = 0
@@ -1121,7 +1164,10 @@ def read_data():
 		if r:
 			inbuf = inbuf + r
 		else:
-			raise "Server disconnected!"
+			add_line("Server disconnected.")
+			log(L_INFO, "Server disconnected.")
+			disconnect()
+			return
 
 		lines = inbuf.splitlines(1)
 		inbuf = ''
@@ -1139,7 +1185,7 @@ last_sent_keepalive = time.time()
 def send_keepalive(tm):
 	global keepalive, last_sent_keepalive
 
-	if keepalive and (tm - last_sent_keepalive) > keepalive:
+	if sock and keepalive and (tm - last_sent_keepalive) > keepalive:
 		send_line('NOOP')
 		last_sent_keepalive = tm
 
@@ -1155,25 +1201,58 @@ def check_logfile(tm):
 		last_days_value = days
 
 
+def redisplay():
+	views[0].display(wins)
+	curses.doupdate()
+
+
+def try_connect():
+	global sock, last_login_try
+
+	last_login_try = time.time()
+	try:
+		add_line("Connecting to %s:%d..." % (opts['server'], opts['port']), sync = 1)
+
+		sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		sock.connect((opts['server'], opts['port']))
+
+		add_line("Logging in as %s..." % opts['name'], sync = 1)
+		send_line("LOGIN:1;ccc %s:%s:%s" % (ccc_version, opts['name'], opts['password']))
+	except socket.error, e:
+		disconnect()
+		_, etxt = e
+		add_line("Socket error: %s" % etxt, sync = 1)
+
+
+
 def main_loop():
-	global wins, sock, breakloop
+	global wins, breakloop
 
 	breakloop = 0
 
 	while not breakloop:
 		# show stuff
-		views[0].display(wins)
-		curses.doupdate()
+		redisplay()
+
+		# maybe try to connect
+		if (
+				not sock and
+				last_login_try is not None and
+				(time.time() - last_login_try) > login_retry_time):
+			try_connect()
 
 		# do a select
 		try:
-			ready, _, _ = select.select([sys.stdin, sock], [], [], 10)
+			if sock:
+				ready, _, _ = select.select([sys.stdin, sock], [], [], 10)
+			else:
+				ready, _, _ = select.select([sys.stdin], [], [], 1)
 		except:
 			ready = []
 
 		tm = time.time()
 
-		# get key
+		# read keyboard input
 		if sys.stdin in ready: process_key()
 		# read some data
 		if sock in ready: read_data()
@@ -1194,6 +1273,7 @@ deferred_color_args = []
 def process_config(file):
 	global bindings
 	global editheight, pwidth, showtime, indent, jumpback, keeplines, keepalive
+	global login_retry_time
 
 	bindings = Bindings()
 
@@ -1271,23 +1351,25 @@ def process_config(file):
 	jumpback = opts.get('jumpback', 0)
 	keeplines = opts.get('keeplines', 1000)
 	keepalive = opts.get('keepalive', 0)
+	login_retry_time = opts.get('login_retry_time', 60)
 
 	return opts
 
 
 def main():
-	global wins, sock, views, myname, colors, chatparser
-	global logindone, last_priv_list, deferred_typed_lines
+	global wins, sock, views, myname, colors, chatparser, opts
+	global last_priv_list, deferred_typed_lines, last_login_try
 
-	colors = 0
-	myname = ''
+	colors = None
+	myname = '(not connected)'
 	myfreq = 0
 	deferred_typed_lines = []
+	last_login_try = 0
 
-	views = [make_arena_view()]
 	last_priv_list = LastPrivList(10)
 	wins = MyWindows()
 	chatparser = ChatParser()
+	sock = None
 
 	# get config file
 	if os.environ.get('CCC_CONFIG_FILE'):
@@ -1308,56 +1390,6 @@ def main():
 		sys.exit(2)
 
 	print "ccc %s - a console chat client <grelminar@yahoo.com>" % ccc_version
-	print "Connecting to %s:%d as %s..." % \
-		(opts['server'], opts['port'], opts['name'])
-
-	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	sock.connect((opts['server'], opts['port']))
-
-	print "Logging in..."
-
-	send_line("LOGIN:1;ccc %s:%s:%s" % (ccc_version, opts['name'], opts['password']))
-
-	# limited version of main loop just to get login result
-	logindone = 0
-	while not logindone:
-		try:
-			ready, _, _ = select.select([sock], [], [], 10)
-		except:
-			ready = []
-
-		if sock in ready: read_data()
-
-	msg, ok = logindone
-	print msg
-
-	if not ok:
-		return
-
-	init_logfile(opts.get('logfile'))
-
-	txt = "Connected to %s:%d as %s" % (opts['server'], opts['port'], myname)
-	add_line(txt, 'info')
-	log(L_INFO, txt)
-
-	# enter arena
-	send_line("GO:%s" % opts.get('arena', ''))
-
-	# join chats and other autocommands
-	if opts.has_key('chats'):
-		deferred_typed_lines.append('?chat=%s' % opts['chats'])
-		if opts.get('chatwindows', 0):
-			chats = opts['chats'].split(',')
-			idx = 1
-			for c in chats:
-				views.append(make_chat_view(idx, c))
-				idx += 1
-
-	# init lines can be split by newlines or bars
-	if opts.has_key('init'):
-		for l1 in opts['init'].split('\n'):
-			for l2 in l1.split('|'):
-				deferred_typed_lines.append(l2)
 
 	start_curses()
 
@@ -1369,9 +1401,11 @@ def main():
 
 		colors = Colors()
 
-		# curses initialization is done, add lines that we couldn't add
-		# before.
-		complete_deferred_lines()
+		views = None
+		views = [make_arena_view()]
+		add_line('Window: messages', view = find_arena_view(), setnewcrap = 0)
+
+		init_logfile(opts.get('logfile'))
 
 		main_loop()
 
@@ -1379,7 +1413,6 @@ def main():
 		end_curses()
 
 	log(L_INFO, "Disconnected.")
-	print "Disconnected."
 
 
 if __name__ == '__main__':
