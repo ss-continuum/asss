@@ -1,8 +1,7 @@
 
 simple chat protocol
-version 1.4
+version 1.5
 grelminar@yahoo.com
-
 --------------------
 
 the protocol is ascii over tcp. each message contains several fields,
@@ -14,7 +13,8 @@ combination of those two.
 either side can close the connection at any time. the other side should
 respond to this by closing their end of the connection also.
 
-for each message type, the last field is allowed to contain colons.
+unless otherwise specified, the last field for each message type is
+allowed to contain colons.
 
 player names are used to differentiate players. case is insignificant
 when comparing player names, but the server is required to use the same
@@ -22,15 +22,22 @@ capitalization for all instances of the same player in the same session
 (i.e., if someone logs out and logs in again, the case of their name
 might change).
 
+the rest of this document will describe the possible message types. if
+you recieve an unsupported message type, you should ignore it. in the
+following, capital letters generally designate stuff that should be sent
+literally, as it is printed here. lowercase letters are descriptions of
+fields will be filled in with the relevant data.
+
 
 login:
 
 client sends:
 	LOGIN:version:name:password
-		(version is an integer specifying the version of this protocol
-		that this client supports. it should be 1 for now.)
+		(the version field contains the protocol version, and also some
+		information about the client. it should be of the form "1;client
+		name and version". for example, "1;ccc 1.2, by grelminar".)
 
-server will respond:
+server will respond with one of:
 	LOGINBAD:message
 		(disconnect)
 or
@@ -50,7 +57,8 @@ client sends:
 server may reply:
 	INARENA:arenaname:freq
 		(client should clear its player list when it gets this. freq is
-		the freq that the client has been assigned.)
+		the freq that the client has been assigned. chat clients are
+		always in spectator mode, and never in ships.)
 	PLAYER:name:ship:freq
 		(one line for each player who's in the arena at the time when it
 		is entered.)
@@ -85,6 +93,7 @@ chat (the important part):
 
 client sends:
 	SEND:PUB:msg
+	SEND:PUBM:msg
 	SEND:PRIV:name:msg
 		(the same message type works for both regular and remove priv msgs)
 	SEND:FREQ:freq:msg
@@ -100,12 +109,25 @@ server sends:
 	MSG:ARENA:msg
 	MSG:CMD:msg
 	MSG:PUB:name:msg
+	MSG:PUBM:name:msg
+		(macroed pub message)
 	MSG:PRIV:name:msg
 	MSG:FREQ:name:msg
 	MSG:CHAT:channelnum:msg
 	MSG:MOD:name:msg
 	MSG:SYSOP:msg
 	MSG:SQUAD:squad:sender:msg
+
+
+
+document history:
+
+1.5:
+	added client name in the version field of LOGIN.
+	added PUBM message type.
+
+1.4 and before:
+	detailed history unavailble
 
 
 # dist: public
