@@ -1857,6 +1857,7 @@ local void Cenablecmdgroup(const char *params, Player *p, const Target *target)
 		chat->SendMessage(p, "Command group %s not found", params);
 }
 
+
 local helptext_t disablecmdgroup_help =
 "Targets: none\n"
 "Args: <command group>\n"
@@ -1882,6 +1883,7 @@ local void Cdisablecmdgroup(const char *params, Player *p, const Target *target)
 		chat->SendMessage(p, "Command group %s not found", params);
 }
 
+
 local helptext_t owner_help =
 "Targets: none\n"
 "Args: none\n"
@@ -1895,48 +1897,6 @@ local void Cowner(const char *params, Player *p, const Target *target)
 	owner_str = cfg->GetStr(p->arena->cfg, "Owner", "Name");
 
 	chat->SendMessage(p, "arena owner: %s", owner_str ? owner_str : "none");
-}
-
-
-local helptext_t kick_help =
-"Targets: player\n"
-"Args: none\n"
-"Kicks the player off of the server.\n";
-
-local void Ckick(const char *params, Player *p, const Target *target)
-{
-	Player *t = target->u.p;
-	const char *tgrp;
-
-	REQUIRE_MOD(capman);
-	REQUIRE_MOD(groupman);
-
-	if (target->type != T_PLAYER)
-	{
-		chat->SendMessage(p, "Only valid target is a single player");
-		return;
-	}
-
-	if (t == p)
-		return;
-
-	tgrp = groupman->GetGroup(t);
-
-	if (strcasecmp(tgrp, "default") != 0)
-	{
-		/* trying to kick off someone in a group. extra capabilities are
-		 * needed. */
-		char cap[MAXGROUPLEN+16];
-		snprintf(cap, sizeof(cap), "higher_than_%s", tgrp);
-		if (!capman->HasCapability(p, cap))
-		{
-			chat->SendMessage(p, "You don't have permission to use ?kick on that player.");
-			chat->SendMessage(t, "%s tried to use ?kick on you.", p->name);
-			return;
-		}
-	}
-
-	pd->KickPlayer(t);
 }
 
 
@@ -2116,7 +2076,6 @@ local const struct cmd_info misc_commands[] =
 	CMD(getcm)
 	CMD(listarena)
 	CMD(sheep)
-	CMD(kick)
 	END()
 };
 

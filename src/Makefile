@@ -181,7 +181,7 @@ include */*.mk
 
 funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
 	fake.o autoturret.o chatnet.o md5.o auth_file.o ap_multipub.o sendfile.o \
-	record.o $(EXTRA_FUNKY_OBJS) $(DL_UTIL_OBJS)
+	record.o auth_ban.o $(EXTRA_FUNKY_OBJS) $(DL_UTIL_OBJS)
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -lz -lm
 
 
