@@ -39,6 +39,7 @@ privcmd_prize
 privcmd_shipreset
 
 privcmd_laginfo
+privcmd_spec
 
 privcmd_usage
 privcmd_billingid

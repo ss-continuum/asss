@@ -3,6 +3,7 @@
 cmd_help
 cmd_go
 cmd_arena
+cmd_spec
 cmd_stats
 privcmd_stats
 cmd_score

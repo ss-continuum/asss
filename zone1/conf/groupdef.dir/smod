@@ -11,10 +11,6 @@ cmd_za
 
 cmd_attmod
 
-; not implemented
-cmd_recycle
-cmd_restart
-
 cmd_moveflag
 
 cmd_watchdamage
@@ -24,6 +20,8 @@ privcmd_watchdamage
 cmd_quickfix
 cmd_getsettings
 changesettings
+
+cmd_putmap
 
 cmd_userdbadm
 
