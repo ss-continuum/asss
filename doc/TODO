@@ -11,12 +11,17 @@ more game stuff
 
 persistant arena names for ?arena
 
+work on more modules, in roughly this order:
+clientset, scoreman, game/flag/ball, etc.
+
+better authority model (groups, capabilities)
+
 
 
 long term
 ---------
 
-python module support
+come up with better interface to other languages (python, and others)
 
 make an array for "connection titles" in Inet and have core set them
   so net doesn't require core and can be used unchanged for billcore
@@ -28,4 +33,5 @@ make module that contains map data for arenas
 
 make brick module that uses map data module
 
+latency/ploss handling
 
