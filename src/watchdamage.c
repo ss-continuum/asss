@@ -41,8 +41,9 @@ local void ToggleWatch(Player *p, byte on)
 	{
 		net->SendToOne(p, pk, 2, NET_RELIABLE | NET_PRI_N1);
 
-		/* for temp debugging to make sure we arn't sending more of these packets than we need */
+		/* for temp debugging to make sure we arn't sending more of these packets than we need
 		chat->SendMessage(p, "(Your damage watching turned %s)", on ? "on" : "off");
+		*/
 	}
 }
 
@@ -115,7 +116,7 @@ local int WatchCount(Player *p)
 
 
 local helptext_t watchdamage_help =
-"Targets: player, freq, none\n"
+"Targets: player, none\n"
 "Args: [0 or 1]\n"
 "Turns damage watching on and off. If sent to a player, an argument of 1\n"
 "turns it on, 0 turns it off, and no argument toggles. If sent as a\n"
@@ -124,12 +125,6 @@ local helptext_t watchdamage_help =
 
 local void Cwatchdamage(const char *tc, const char *params, Player *p, const Target *target)
 {
-	if (p->type != T_CONT)
-	{
-		if (chat) chat->SendMessage(p, "This command requires you to use Continuum");
-		return;
-	}
-
 	if (target->type == T_ARENA)
 	{
 		if (params[0] == '0' && params[1] == 0)
