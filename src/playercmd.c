@@ -1371,8 +1371,8 @@ local void Cflaginfo(const char *params, Player *p, const Target *target)
 					unsigned short y = fd->flags[i].y * 20 / 1024;
 
 					chat->SendMessage(p,
-							"flag %d: on the map at %c%c (%d,%d), owned by freq %d",
-							i, 'A' + x, '1' + y, fd->flags[i].x, fd->flags[i].y, fd->flags[i].freq);
+							"flag %d: on the map at %c%d (%d,%d), owned by freq %d",
+							i, 'A'+x, y+1, fd->flags[i].x, fd->flags[i].y, fd->flags[i].freq);
 				}
 				break;
 
