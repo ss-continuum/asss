@@ -502,6 +502,7 @@ local void Cspec(const char *params, Player *p, const Target *target)
 				end += 2;
 				strcpy(end, pp->name);
 				end += strlen(pp->name);
+				scnt++;
 			}
 		}
 	pd->Unlock();
@@ -519,7 +520,7 @@ local void Cspec(const char *params, Player *p, const Target *target)
 	else if (p == t)
 		chat->SendMessage(p, "No players spectating you.");
 	else
-		chat->SendMessage(p, "No players spectating %s", t->name);
+		chat->SendMessage(p, "No players spectating %s.", t->name);
 }
 
 
