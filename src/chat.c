@@ -216,6 +216,8 @@ local void SendArenaMessage(Arena *arena, const char *str, ...)
 	va_start(args, str);
 	v_send_msg(&set, MSG_ARENA, 0, NULL, str, args);
 	va_end(args);
+
+	LLEmpty(&set);
 }
 
 local void SendArenaSoundMessage(Arena *arena, char sound, const char *str, ...)
@@ -228,6 +230,8 @@ local void SendArenaSoundMessage(Arena *arena, char sound, const char *str, ...)
 	va_start(args, str);
 	v_send_msg(&set, MSG_ARENA, sound, NULL, str, args);
 	va_end(args);
+
+	LLEmpty(&set);
 }
 
 local void SendAnyMessage(LinkedList *set, char type, char sound, Player *from, const char *str, ...)
@@ -246,6 +250,7 @@ local void SendModMessage(const char *fmt, ...)
 	va_start(args, fmt);
 	v_send_msg(&set, MSG_ARENA, 0, NULL, fmt, args);
 	va_end(args);
+	LLEmpty(&set);
 }
 
 local void SendRemotePrivMessage(LinkedList *set, int sound,
@@ -372,6 +377,7 @@ local void handle_modchat(Player *p, const char *msg, int sound)
 			if (net) net->SendToSet(&set, (byte*)to, strlen(to->text)+6, NET_RELIABLE);
 			if (chatnet) chatnet->SendToSet(&set, "MSG:MOD:%s:%s",
 					p->name, msg);
+			LLEmpty(&set);
 			DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_MODCHAT, sound, NULL, -1, msg));
 			lm->LogP(L_DRIVEL, "chat", p, "mod chat: %s", msg);
 		}

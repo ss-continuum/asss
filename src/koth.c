@@ -158,6 +158,8 @@ local void check_koth(Arena *arena)
 			start_koth(arena);
 	}
 
+	LLEmpty(&hadset);
+
 	/* now mark anyone without a crown as not having had a crown */
 	pd->Lock();
 	FOR_EACH_PLAYER_P(p, pdata, pkey)
