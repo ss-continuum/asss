@@ -49,7 +49,7 @@ def tokenize_signature(s):
 	t = ''
 	dash = 0
 	for c in s:
-		if ord(c) >= ord('a') and ord(c) <= ord('z'):
+		if c in string.letters or c in string.digits or c == '_':
 			t += c
 		else:
 			if t:
@@ -100,8 +100,8 @@ def parse_arg(tokens):
 		tokens.pop(0)
 	else:
 		tp = tokens.pop(0)
-		while tokens and tokens[0] not in [',', '->', ')']:
-			flags.append(tokens.pop(0))
+	while tokens and tokens[0] not in [',', '->', ')']:
+		flags.append(tokens.pop(0))
 
 	return Arg(tp, flags)
 
@@ -280,7 +280,7 @@ def get_type(tp):
 		return None
 
 
-def create_c_to_py_func(name, func, code, description):
+def create_c_to_py_func(name, func, body, description, checkretval = 0):
 
 	args = func.args
 	out = func.out
@@ -290,8 +290,6 @@ def create_c_to_py_func(name, func, code, description):
 	inargs = []
 	outargs = []
 	decls = []
-	extras1 = []
-	extras2 = []
 	extras3 = []
 	allargs = []
 
@@ -395,15 +393,17 @@ def create_c_to_py_func(name, func, code, description):
 	informat = ''.join(informat)
 	outformat = ''.join(outformat)
 	decls = '\n'.join(decls)
-	extras1 = '\n'.join(extras1)
-	extras2 = '\n'.join(extras2)
 	extras3 = '\n'.join(extras3)
 	funcdecl = '%s(%s)' % (name, allargs)
 	funcdecl = rettype.decl(funcdecl)
-	code1 = """
-local %(funcdecl)s
-{
-	PyObject *args, *out = NULL;
+
+	code = []
+	code.append("local %(funcdecl)s\n{\n")
+	if outargs or checkretval:
+		code.append("\tPyObject *args, *out;\n")
+	else:
+		code.append("\tPyObject *args;\n")
+	code.append("""\
 %(decls)s
 	args = Py_BuildValue("(%(informat)s)"%(inargs)s);
 	if (!args)
@@ -412,18 +412,20 @@ local %(funcdecl)s
 			"%(description)s");
 		return %(defretval)s;
 	}
-%(extras1)s
-%(code)s
-	Py_DECREF(args);"""
-	if outargs:
-		code2 = """
+%(body)s
+	Py_DECREF(args);
+""")
+	if outargs or checkretval:
+		code.append("""\
 	if (!out)
 	{
 		log_py_exception(L_ERROR, "python error calling "
 			"%(description)s");
 		return %(defretval)s;
 	}
-%(extras2)s
+""")
+	if outargs:
+		code.append("""\
 	if (!PyArg_ParseTuple(out, "%(outformat)s"%(outargs)s))
 	{
 		Py_XDECREF(out);
@@ -432,17 +434,15 @@ local %(funcdecl)s
 		return %(defretval)s;
 	}
 %(extras3)s
-	Py_XDECREF(out);
-	return %(retorblank)s;
-}
-"""
-	else:
-		code2 = """
-	Py_XDECREF(out);
-}
-"""
+""")
+	if outargs or checkretval:
+		# this can be just a DECREF because of the check above.
+		# if you change the conditions above, this might have to be
+		# changed.
+		code.append("\tPy_DECREF(out);\n")
+	code.append("\treturn %(retorblank)s;\n}\n\n")
 
-	return (code1 + code2) % vars()
+	return (''.join(code)) % vars()
 
 
 def create_py_to_c_func(func):
@@ -506,11 +506,6 @@ def create_py_to_c_func(func):
 
 		elif is_func(arg.tp):
 			cbfuncname = genid()
-			code1 = create_c_to_py_func(cbfuncname, arg.tp,
-					'\tout = PyObject_Call(closobj, args, NULL);',
-					'callback function')
-			extracode.append(code1)
-
 			informat.append('O')
 			decls.append('\tPyObject *cbfunc;')
 			inargs.append('&cbfunc')
@@ -522,7 +517,25 @@ def create_py_to_c_func(func):
 		return NULL;
 	}
 """)
-			extras2.append('\tPy_DECREF(cbfunc);')
+			if 'dynamic' in opts:
+				extras1.append('\tPy_INCREF(cbfunc);')
+				if 'failval' in opts:
+					# provides a way to clean up the extra reference if
+					# the return value from the function indicates that
+					# the callback won't be called. otherwise, we expect
+					# the callback to be called exactly once.
+					failval = opts[opts.index('failval')+1]
+					extras2.append(
+							'\tif (ret == (%s)) { Py_DECREF(cbfunc); }' % failval)
+				cbcode = create_c_to_py_func(cbfuncname, arg.tp,
+					'\tout = PyObject_Call(closobj, args, NULL);\n'
+					'\tPy_DECREF(closobj);',
+					'callback function', 1)
+			else:
+				cbcode = create_c_to_py_func(cbfuncname, arg.tp,
+					'\tout = PyObject_Call(closobj, args, NULL);',
+					'callback function', 1)
+			extracode.append(cbcode)
 
 		elif 'in' in opts or not opts:
 			# this is an incoming arg
@@ -837,7 +850,7 @@ local PyTypeObject %(typestructname)s = {
 			funcname = 'pyint_func_%s_%s' % (iid, name)
 			code = create_c_to_py_func(funcname, func,
 				"\tout = call_gen_py_interface(PYINTPREFIX %(iid)s, %(funcidx)d, args);" % vars(),
-				'function %(name)s in interface %(iid)s' % vars())
+				'function %(name)s in interface %(iid)s' % vars(), 1)
 			funcs.append(code)
 			funcnames.append(funcname)
 
