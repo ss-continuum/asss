@@ -9,7 +9,7 @@
 \newcommand{\asss}{\texttt{asss}}
 \newcommand{\subgame}{\texttt{subgame}}
 
-\title{\asss{} Development Guide -- 1.2.0}
+\title{\asss{} Development Guide -- 1.3.0}
 %\author{Grelminar \texttt{<grelminar@yahoo.com>}}
 
 \begin{document}
@@ -188,25 +188,6 @@ allows a module to register a "default" implementation for an interface,
 and let other modules override it for specific arenas.
 
 
-\subsubsection{Priorities}
-
-Another feature available when using the interface system to select
-among different behaviors is priorities. Priorities should be used when
-it is expected that multiple implementations of the same interface will
-be registered globally at the same time. Currently, priorities are used
-when selecting which authentication implementation to use.
-
-An implementation of an interface may specify a priority (any positive
-integer) using a variant of the macro used to specify the identifier and
-implementation name. As long as all implementations of that interface
-are registered with a priority, \verb/GetInterface/ will always return
-the one with the highest priority (in the absence of priorities, the
-last one registered will be returned).
-
-Note that to use the priorities feature, \emph{all} implementations of
-that interface must be registered with priorities.
-
-
 \subsubsection{Example: declaring, using, and defining interfaces}
 
 \paragraph{Declaring}
@@ -286,8 +267,7 @@ implementation. The first thing in the struct initializer is a macro,
 analogous to the macro used in the declaration.
 \verb/INTERFACE_HEAD_INIT/ takes two arguments: the first is the
 interface identifier, and the second is the unique name given to this
-implementation. Alternately, \verb/INTERFACE_HEAD_INIT_PRI/ can be used,
-which takes a third argument that is the priority.
+implementation.
 
 
 \subsection{Callbacks}
@@ -412,15 +392,15 @@ struct Player {
 #define p_freq pkt.freq
 #define p_attached pkt.attachedto
     int pid, status, type, whenloggedin;
-    Arena *arena, *oldarena;
+    Arena *arena, *newarena;
     char name[24], squad[24];
     i16 xres, yres;
     ticks_t connecttime;
-    unsigned int ignoreweapons;
     struct PlayerPosition position;
     u32 macid, permid;
     char ipaddr[16];
     const char *connectas;
+    char clientname[32];
     struct {
         unsigned authenticated : 1;
         unsigned during_change : 1;
@@ -429,8 +409,11 @@ struct Player {
         unsigned no_ship : 1;
         unsigned no_flags_balls : 1;
         unsigned sent_ppk : 1;
+        unsigned sent_wpn : 1;
         unsigned see_all_posn : 1;
-        unsigned padding1 : 24;
+        unsigned see_own_posn : 1;
+        unsigned leave_arena_when_done_waiting : 1;
+        unsigned padding1 : 21;
     } flags;
     byte playerextradata[0];
 };
@@ -510,9 +493,9 @@ make the proper transitions when a player is logging out.
 \item[arena] A pointer to the arena that this player is in. It may be
 null if the player isn't in an arena yet, or is between arenas.
 
-\item[oldarena] This stores the previous value of arena when arena is
-set to null. It's used to make sure scores and other persistent
-information is saved properly when switching arenas or logging out.
+\item[newarena] The arena that they player will eventually enter, once
+the arena is done loading and the player has his scores and stuff loaded
+from the db.
 
 \item[name] The player's name, guaranteed to be null terminated.
 
@@ -537,6 +520,9 @@ connected from.
 specifies a default arena name, this will point to that name. Otherwise
 it will be null.
 
+\item[clientname] Some indication of what client this player is using to
+connect.
+
 \item[flags] These are a bunch of one-bit flags that are used throughout
 the server:
 
@@ -560,8 +546,19 @@ flags or balls.
 \item[sent\_ppk] If the player has sent a position packet since entering
 the arena.
 
+\item[sent\_wpn] If the player has sent a position packet with weapons
+since entering the arena. Used to implement
+spec-on-n-deaths-without-firing.
+
 \item[see\_all\_posn] If the player is a bot who wants all position
 packets.
+
+\item[see\_own\_posn] If the player is a bot who wants to get mirror
+position packets for himself.
+
+\item[leave\_arena\_when\_done\_waiting] This has to do with the state
+machine, and is used to make people exit cleanly if they're disconnected
+before scores come back from the database.
 
 \end{description}
 
@@ -709,6 +706,7 @@ This is just like per-player data, except you will use the functions
 and the macro \verb/P_ARENA_DATA(arena, key)/ to access the data for a
 given arena.
 
+
 \subsection{Everything else}
 
 To allocate arbitrary chunks of memory, use the functions \verb/amalloc/
@@ -737,10 +735,10 @@ player, not just the ones that need it. There are two possible solutions
 here. One is to just do it anyway, and waste a bit of memory. The other
 is to allocate only room for a pointer in the per-player data, and have
 the pointer be null for players who don't need the data, and point to
-valid data (allocated with \verb/afree/ when the player enters an arena)
-for players who do need it. Which solution to use depends on several
-factors, such as how many bytes are being allocated, and what proportion
-of players are expected to need the data.
+valid data (allocated with \verb/amalloc/ when the player enters an
+arena) for players who do need it. Which solution to use depends on
+several factors, such as how many bytes are being allocated, and what
+proportion of players are expected to need the data.
 
 In general, if the data is more than 20-24 bytes in length and a
 significant proportion of players are expected not to need the data, you
@@ -771,6 +769,12 @@ particularly concerned about memory might want to check the amount of
 per-player and per-arena space used by some desired set of modules, then
 set the allocated amounts to be slightly more than those (just to be on
 the safe side).
+
+Another significant disadvantage is a lack of any semblance of
+type-safely. This can lead to hard-to-debug crashes caused by modules
+writing over each other's data. There's nothing to do here except to be
+aware of the situation and watch carefully for writing outside the
+bounds of your reserved space.
 
 
 \section{Threading}
