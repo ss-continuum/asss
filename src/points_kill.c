@@ -14,7 +14,7 @@ local Imodman *mm;
 local Iplayerdata *pd;
 local Iarenaman *aman;
 local Iconfig *cfg;
-local Istats *stats;
+local Iflags *flags;
 
 EXPORT int MM_points_kill(int action, Imodman *mm_, Arena *arena)
 {
@@ -24,9 +24,8 @@ EXPORT int MM_points_kill(int action, Imodman *mm_, Arena *arena)
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
-		stats = mm->GetInterface(I_STATS, ALLARENAS);
+		flags = mm->GetInterface(I_FLAGS, ALLARENAS);
 
-		if (!stats) return MM_FAIL;
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
@@ -34,7 +33,7 @@ EXPORT int MM_points_kill(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);
-		mm->ReleaseInterface(stats);
+		mm->ReleaseInterface(flags);
 		return MM_OK;
 	}
 	else if (action == MM_ATTACH)
@@ -51,7 +50,8 @@ EXPORT int MM_points_kill(int action, Imodman *mm_, Arena *arena)
 }
 
 
-void MyKillFunc(Arena *arena, Player *killer, Player *killed, int bounty, int flags, int *totalpts)
+void MyKillFunc(Arena *arena, Player *killer, Player *killed,
+		int bounty, int transflags, int *totalpts)
 {
 	int tk, fixedreward, pts;
 
@@ -59,23 +59,45 @@ void MyKillFunc(Arena *arena, Player *killer, Player *killed, int bounty, int fl
 	fixedreward = cfg->GetInt(arena->cfg, "Kill", "FixedKillReward", -1);
 	pts = (fixedreward != -1) ? fixedreward : bounty;
 
-	/* cfghelp: Kill:FlagValue, arena, int, def: 100
-	 * The number of extra points to give for each flag a killed player
-	 * was carrying. */
-	if (flags)
-		pts += flags *
-			cfg->GetInt(arena->cfg, "Kill", "FlagValue", 100);
+	/* cfghelp: Kill:FlagMinimumBounty, arena, int, def: 0
+	 * The minimum bounty the killing player must have to get any bonus
+	 * kill points for flags transferred, carried or owned. */
+	if (killer->position.bounty >=
+	    cfg->GetInt(arena->cfg, "Kill", "FlagMinimumBounty", 0))
+	{
+		/* cfghelp: Kill:PointsPerKilledFlag, arena, int, def: 100
+		 * The number of extra points to give for each flag a killed player
+		 * was carrying. Note that the flags don't actually have to be
+		 * transferred to the killer to be counted here. */
+		if (transflags)
+			pts += transflags *
+				cfg->GetInt(arena->cfg, "Kill", "PointsPerKilledFlag", 0);
+
+		if (flags)
+		{
+			/* cfghelp: Kill:PointsPerCarriedFlag, arena, int, def: 0
+			 * The number of extra points to give for each flag the killing
+			 * player is carrying. Note that flags that were transfered to
+			 * the killer as part of the kill are counted here, so adjust
+			 * PointsPerKilledFlag accordingly. */
+			pts += flags->GetCarriedFlags(killer) *
+				cfg->GetInt(arena->cfg, "Kill", "PointsPerCarriedFlag", 0);
+
+			/* cfghelp: Kill:PointsPerTeamFlag, arena, int, def: 0
+			 * The number of extra points to give for each flag owned by
+			 * the killing team. Note that flags that were transfered to
+			 * the killer as part of the kill are counted here, so
+			 * adjust PointsPerKilledFlag accordingly. */
+			pts += flags->GetFreqFlags(arena, killer->p_freq) *
+				cfg->GetInt(arena->cfg, "Kill", "PointsPerTeamFlag", 0);
+		}
+	}
 
 	/* cfghelp: Misc:TeamKillPoints, arena, bool, def: 0
 	 * Whether points are awarded for a team-kill. */
 	if (tk &&
 	    cfg->GetInt(arena->cfg, "Misc", "TeamKillPoints", 0))
 		pts = 0;
-
-	if (stats)
-		stats->IncrementStat(killer, STAT_KILL_POINTS, pts);
-	/* no need for SendUpdates here because the client figures it out
-	 * from the kill packet. */
 
 	*totalpts += pts;
 }

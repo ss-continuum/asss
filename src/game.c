@@ -929,6 +929,15 @@ local void PDie(Player *p, byte *pkt, int len)
 	DO_CBS(CB_KILL, arena, KillFunc,
 			(arena, killer, p, bty, flagcount, &pts, &green));
 
+	/* record the kill points on our side */
+	if (pts)
+	{
+		Istats *stats = mm->GetInterface(I_STATS, arena);
+		if (stats) stats->IncrementStat(killer, STAT_KILL_POINTS, pts);
+		mm->ReleaseInterface(stats);
+	}
+
+	/* pick a random green, if no one else has set one */
 	if (green == -1)
 	{
 		Iclientset *cset = mm->GetInterface(I_CLIENTSET, arena);

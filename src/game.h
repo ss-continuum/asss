@@ -20,6 +20,7 @@
  * @param killed the player who got killed
  * @param bounty the number displayed in the kill message (not
  * necessarily equal to the killed->position.bounty)
+ * @param flags the number of flags the killed player was carrying
  * @param pts a pointer to the total number of points this kill will be
  * worth. callbacks can do "*pts += x" to add points.
  * @param green a pointer to the kill green that will be placed for this
