@@ -4,6 +4,19 @@
 
 /* ppk.h - position and weapons packets */
 
+
+/* weapon codes */
+#define W_NULL          0
+#define W_BULLET        1
+#define W_BOUNCEBULLET  2
+#define W_BOMB          3
+#define W_PROXBOMB      4
+#define W_REPEL         5
+#define W_DECOY         6
+#define W_BURST         7
+#define W_THOR          8
+#define W_WORMHOLE      0 /* used in watchdamage packet only */
+
 struct Weapons
 {
 	/* this is a bit field. the whole thing should fit into 16 bits */
@@ -14,6 +27,7 @@ struct Weapons
 	unsigned short shrap : 5;
 	unsigned short alternate : 1;
 };
+
 
 struct ExtraPosData
 {
@@ -31,6 +45,7 @@ struct ExtraPosData
 	unsigned int portals : 4;
 	unsigned int padding : 2;
 };
+
 
 struct S2CWeapons
 {
@@ -50,6 +65,7 @@ struct S2CWeapons
 	struct ExtraPosData extra;
 };
 
+
 struct S2CPosition
 {
 	u8 type; /* 0x28 */
@@ -65,6 +81,7 @@ struct S2CPosition
 	i16 xspeed;
 	struct ExtraPosData extra;
 };
+
 
 struct C2SPosition
 {

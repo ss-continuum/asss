@@ -91,6 +91,9 @@ char *astrdup(const char *s)
 
 void afree(const void *ptr)
 {
+#ifdef FREE_DOESNT_CHECK_NULL
+	if (ptr)
+#endif
 	free((void*)ptr);
 }
 

@@ -52,10 +52,10 @@ core.so: config.o player.o core.o logman.o mainloop.o net.o \
 loggers.so: log_file.o log_console.o log_sysop.o
 
 game.so: game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
-	banners.o objects.o
+	banners.o objects.o messages.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -lm
 
-command.so: cmdman.o playercmd.o watchdamage.o
+command.so: cmdman.o playercmd.o watchdamage.o buy.o
 
 external.so: billcore.o directory.o
 
@@ -69,7 +69,7 @@ database.so: mysql.o aliasdb.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(MYSQLLIB) -lmysqlclient_r -lz
 
 funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
-	fake.o autoturret.o chatnet.o buy.o md5.o auth_file.o
+	fake.o autoturret.o chatnet.o md5.o auth_file.o
 
 
 

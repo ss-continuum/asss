@@ -240,7 +240,7 @@ local Ireldb my_int =
 
 EXPORT int MM_mysql(int action, Imodman *mm, int arena)
 {
-	sighandler_t oldh;
+	static sighandler_t oldh;
 
 	if (action == MM_LOAD)
 	{
