@@ -959,8 +959,6 @@ local void Cwarn(const char *params, Player *p, const Target *target)
 		LinkedList lst = { &link, &link };
 		chat->SendAnyMessage(&lst, MSG_SYSOPWARNING, SOUND_BEEP1, NULL,
 				"WARNING: %s  -%s", params, p->name);
-		chat->SendModMessage("warn {%s} %s to %s: %s",
-				p->arena->name, p->name, target->u.p->name, params);
 		chat->SendMessage(p, "Player warned");
 	}
 }
