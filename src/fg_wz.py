@@ -285,10 +285,11 @@ def init(a):
 
 
 def flagtouch(a, p, fid):
-	if a.sets.carryflags == asss.CARRY_ALL:
+	sets = a.fg_wz_sets
+	if sets.carryflags == asss.CARRY_ALL:
 		cancarry = MAXFLAGS
 	else:
-		cancarry = a.sets.carryflags - 1
+		cancarry = sets.carryflags - 1
 
 	if p.flagscarried >= cancarry:
 		lm.LogP(asss.L_MALICIOUS, 'flagcore', p, "tried to pick up too many flags")
@@ -305,8 +306,10 @@ def cleanup(a, fid, reason, carrier, freq):
 	sets = a.fg_wz_sets
 
 	def spawn(owned, center, func=spawn_flag):
-		if not owned:
-			freq = -1
+		if owned:
+			myfreq = freq
+		else:
+			myfreq = -1
 		if center:
 			x = sets.spawnx
 			y = sets.spawnx
@@ -315,7 +318,7 @@ def cleanup(a, fid, reason, carrier, freq):
 			x = carrier.position[0] >> 4
 			y = carrier.position[1] >> 4
 			r = sets.dropr
-		func(a, fid, x, y, r, freq)
+		func(a, fid, x, y, r, myfreq)
 
 	if reason == asss.CLEANUP_DROPPED or \
 	   reason == asss.CLEANUP_KILL_CANTCARRY or \
