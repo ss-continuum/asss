@@ -24,6 +24,103 @@ class MyWindows:
 		me.stdscr = me.twin = me.iwin = me.pwin = None
 
 
+class View:
+	def __init__(me, name, prefix = ''):
+		me.name = name
+		me.text = Text()
+		me.edit = Edit()
+		me.players = PlayerList()
+		me.prefix = prefix
+		me.scrollback = 0
+		me.newcrap = 0
+
+		add_line('Window: %s' % me.name, 'info', me, setnewcrap=0)
+
+	def display(me, wins):
+		# draw lines
+		h, w = wins.stdscr.getmaxyx()
+		wins.stdscr.hline(h-editheight-1, 0, curses.ACS_HLINE, w)
+		if pwidth:
+			wins.stdscr.vline(0, w-pwidth-1, curses.ACS_VLINE, h-editheight-1)
+			wins.stdscr.addch(h-editheight-1, w-pwidth-1, curses.ACS_BTEE)
+			if len(views) > 2:
+				wins.stdscr.addch(h-editheight-len(views)-2, w-pwidth-1, curses.ACS_LTEE)
+		wins.stdscr.noutrefresh()
+
+		# then draw this stuff
+		me.text.display(wins.twin, me)
+		me.players.display(wins.pwin)
+		display_view_list(wins.pwin)
+		# edit box last so the cursor shows up there
+		me.edit.display(wins.iwin)
+
+# the naming of views determines what messages go where, so these
+# functions have to agree on the naming conventions.
+
+def make_arena_view():
+	return View('messages', '')
+
+def make_mod_view():
+	return View('mod chat', '\\')
+
+def make_chat_view(num, name):
+	return View('chat %d (%s)' % (num, name), ';%d;' % num)
+
+def make_priv_view(name):
+	return View('priv %s' % name, ':%s:' % name)
+
+def find_arena_view():
+	for v in views:
+		if v.name == 'messages':
+			return v
+	else:
+		return None
+
+def find_mod_view():
+	for v in views:
+		if v.name == 'mod chat':
+			return v
+	else:
+		return None
+
+def find_chat_view(num):
+	name = 'chat %d' % num
+	for v in views:
+		if v.name.startswith(name):
+			return v
+	else:
+		return None
+
+def find_priv_view(name):
+	name = ('priv %s' % name).lower()
+	for v in views:
+		if v.name.lower() == name:
+			return v
+	else:
+		return None
+
+def display_view_list(scr):
+	if not scr or len(views) < 2:
+		return
+
+	h, w = scr.getmaxyx()
+
+	y = h-len(views)
+	scr.hline(y-1, 0, curses.ACS_HLINE, w)
+	color = colors.pl_selected
+	for v in views:
+		if y >= h: break
+		if v.newcrap:
+			txt = '!' + v.name
+		else:
+			txt = ' ' + v.name
+		scr.addstr(y, 0, txt[:w-1], color)
+		color = colors.pl_player
+		y = y + 1
+
+	scr.noutrefresh()
+
+
 class Bindings:
 	def __init__(me):
 		me.bindings = {}
@@ -59,74 +156,63 @@ class Bindings:
 
 	# the possible functions
 	def finish_line(me):
-		global edit
+		edit = views[0].edit
 		l = edit.gettext()
 		edit.cleartext()
 		if l:
-			process_typed(l)
+			process_typed(views[0].prefix, l)
 
 	def kill_line(me):
-		global edit
-		edit.cleartext()
+		views[0].edit.cleartext()
 
 	def backspace(me):
-		global edit
-		edit.backspace()
+		views[0].edit.backspace()
 
 	def delete(me):
-		global edit
-		edit.delete()
+		views[0].edit.delete()
 
 	def curs_left(me):
-		global edit
-		edit.curs_left()
+		views[0].edit.curs_left()
 
 	def curs_right(me):
-		global edit
-		edit.curs_right()
+		views[0].edit.curs_right()
 
 	def curs_up(me):
-		global edit
-		edit.curs_up()
+		views[0].edit.curs_up()
 
 	def curs_down(me):
-		global edit
-		edit.curs_down()
+		views[0].edit.curs_down()
 
 	def curs_home(me):
-		global edit
-		edit.curs_home()
+		views[0].edit.curs_home()
 
 	def curs_end(me):
-		global edit
-		edit.curs_end()
+		views[0].edit.curs_end()
 
 	def scroll_up(me, lines = 1):
-		global scrollback
-		scrollback += lines
+		views[0].scrollback += lines
 
 	def scroll_down(me, lines = 1):
-		global scrollback
-		scrollback -= lines
-		if scrollback < 0:
-			scrollback = 0
+		views[0].scrollback -= lines
+		if views[0].scrollback < 0:
+			views[0].scrollback = 0
 
 	def player_select_up(me):
-		global players
-		players.move_select_up()
+		views[0].players.move_select_up()
 
 	def player_select_down(me):
-		global players
-		players.move_select_down()
+		views[0].players.move_select_down()
 
 	def sort_player_list(me):
-		global players
-		players.set_sort()
+		views[0].players.set_sort()
+
+	def rotate_view(me, rot = 1):
+		views[:] = views[rot:] + views[:rot]
 
 
 class Line:
 	def __init__(me, msg, color, tm = 0):
-		me.msg = msg
+		me.msg = msg.expandtabs()
 		me.color = color
 		if tm == 0:
 			me.time = time.time()
@@ -141,43 +227,40 @@ class Line:
 		if me.lastopts != (width, showtime, indent):
 			me.lastopts = (width, showtime, indent)
 
-			def totlen(wds):
-				t = len(wds)
-				for w in wds:
-					t += len(w)
-				return t
-
+			istr = ' ' * indent
 			words = me.msg.split(' ')
 			lines = []
 			if showtime:
-				cl= [time.strftime('[%I:%M]', time.localtime(me.time))]
+				cl = time.strftime('[%I:%M]', time.localtime(me.time))
 			else:
-				cl = []
+				cl = ''
 
-			for w in words:
-				# too big to fit on a line alone
-				while len(w) > width:
-					# grab what can fit on this line
-					if cl:
-						i = width - totlen(cl) - 1
-					else:
-						i = width
-					# add to this line, start new
-					cl.append(w[:i])
+			idx = 0
+			while idx < len(words):
+				w = words[idx]
+				if len(cl) + 1 + len(w) <= width:
+					# fits on current line
+					if cl and cl is not istr: cl += ' '
+					cl += w
+					idx += 1
+				elif len(w) <= (width - indent):
+					# fits on next line
 					lines.append(cl)
-					cl = [''] * indent
-					w = w[i:]
-				# if it will overflow this line
-				if len(w) + totlen(cl) + 1 > width:
+					cl = ' '*indent + w
+					idx += 1
+				else:
+					# has to be split
+					if cl and cl is not istr: cl += ' '
+					i = width - len(cl)
+					cl += w[:i]
 					lines.append(cl)
-					cl = [''] * indent
-				# now add it
-				cl.append(w)
+					cl = istr
+					words[idx] = w[i:]
 
 			# append last partial line
 			lines.append(cl)
 
-			me.lastres = map(lambda wds: ' '.join(wds), lines)
+			me.lastres = lines
 
 		return me.lastres
 
@@ -187,28 +270,25 @@ class Text:
 		me.lines = []
 
 	def addline(me, l):
-		global keeplines
 		me.lines.append(l)
 		if len(me.lines) > keeplines:
 			me.lines = me.lines[-keeplines:]
 
-	def display(me, scr):
-		global scrollback, showtime, indent, newcrap
-
+	def display(me, scr, view):
 		# get window size
 		h, w = scr.getmaxyx()
 
 		rlines = []
 		# only work on the last h lines
-		for l in me.lines[-(h+scrollback):]:
+		for l in me.lines[-(h+view.scrollback):]:
 			rlines.extend(map(lambda ln: (ln, l.color),
-				l.wordbreak(w, showtime, indent)))
+				l.wordbreak(w-1, showtime, indent)))
 		rlines.reverse()
 		# go that many lines up
-		if scrollback >= len(rlines):
-			scrollback = len(rlines) - 1
-		scrollmark = (len(rlines)-1-scrollback)*(h-2)/(len(rlines))+1
-		rlines = rlines[scrollback:]
+		if view.scrollback >= len(rlines):
+			view.scrollback = len(rlines) - 1
+		scrollmark = (len(rlines)-1-view.scrollback)*(h-2)/(len(rlines))+1
+		rlines = rlines[view.scrollback:]
 		# and cut to the top of the window
 		rlines = rlines[:h]
 
@@ -216,19 +296,18 @@ class Text:
 		y = h - 1
 		scr.erase()
 		for l, c in rlines:
-			l = l.expandtabs()
 			scr.addstr(y, 0, l, c)
 			y = y - 1
 
-		if scrollback < newcrap:
-			newcrap = scrollback
+		if view.scrollback < view.newcrap:
+			view.newcrap = view.scrollback
 
 		# display the "%d more" message at the bottom of the window
-		if newcrap:
-			s = '%d more' % newcrap
+		if view.newcrap:
+			s = '%d more' % view.newcrap
 			scr.addstr(h-1, w-len(s)-1, s, curses.A_REVERSE)
 
-		if scrollback:
+		if view.scrollback:
 			for i in range(1, h-1):
 				scr.addch(i, w-1, curses.ACS_CKBOARD)
 			scr.addch(scrollmark, w-1, curses.ACS_BULLET)
@@ -237,7 +316,7 @@ class Text:
 			# it causes curses error.
 
 		s = '%d lines' % len(me.lines)
-		scr.addstr(0, w-len(s), s,curses.A_REVERSE)
+		scr.addstr(0, w-len(s), s, curses.A_REVERSE)
 
 		scr.noutrefresh()
 
@@ -443,8 +522,7 @@ class PlayerList:
 		me.sort()
 
 	def display(me, scr):
-		if not scr:
-			return
+		if not scr: return
 
 		h, w = scr.getmaxyx()
 		scr.erase()
@@ -468,8 +546,7 @@ class PlayerList:
 
 		y = 1
 		for thing in me.sorted[me.offset:]:
-			if y >= h:
-				break
+			if y >= h: break
 			if type(thing) == type(''):
 				scr.addstr(y, 0, thing[:w], colors.pl_txt)
 			else:
@@ -569,16 +646,14 @@ def init_logfile(fname):
 	except:
 		pass
 
-	logfile = 0
-
 	try:
 		logfile = open(fname, 'a', 1)
 		add_line("Logging to file %s" % fname, 'info')
 	except:
+		logfile = 0
 		print "Can't open '%s'. Logging disabled."
 
 def reload_logfile():
-	global original_log_filename
 	init_logfile(original_log_filename)
 
 
@@ -606,11 +681,10 @@ def log(type, text):
 
 
 def start_curses():
-	global wins
-
 	wins.stdscr = curses.initscr()
 	curses.cbreak()
 	curses.noecho()
+	curses.nonl()
 	wins.stdscr.keypad(1)
 	wins.stdscr.nodelay(1)
 	curses.start_color()
@@ -618,46 +692,79 @@ def start_curses():
 
 
 def init_wins():
-	global wins, editheight, pwidth
-
 	h, w = wins.stdscr.getmaxyx()
 
-	wins.stdscr.clear()
-
 	wins.iwin = curses.newwin(editheight, w, h-editheight, 0)
-	wins.stdscr.hline(h-editheight-1, 0, curses.ACS_HLINE, w)
 
 	if pwidth:
 		wins.twin = curses.newwin(h-editheight-1, w-pwidth-1, 0, 0)
 		wins.pwin = curses.newwin(h-editheight-1, pwidth, 0, w-pwidth)
-		wins.stdscr.vline(0, w-pwidth-1, curses.ACS_VLINE, h-editheight-1)
-		wins.stdscr.addch(h-editheight-1, w-pwidth-1, curses.ACS_BTEE)
 	else:
 		wins.twin = curses.newwin(h-editheight-1, w, 0, 0)
 
-	wins.stdscr.refresh()
-
 
 def end_curses():
-	global wins
-
 	wins.stdscr.keypad(0)
 	curses.echo()
 	curses.nocbreak()
 	curses.endwin()
 
 
-def process_typed(line):
-	global myname, colors, showtime, breakloop
+def process_cmd(cmd):
+	global showtime, breakloop
+
+	if cmd.startswith('exit') or cmd.startswith('quit'):
+		breakloop = 1
+	elif cmd.startswith('showtime'):
+		showtime = 1
+	elif cmd.startswith('hidetime'):
+		showtime = 0
+	elif cmd.startswith('go '):
+		send_line("GO:%s" % cmd[3:])
+	elif cmd.startswith('namesort'):
+		order = cmd[8:].strip()
+		if order == 'name':
+			views[0].players.set_sort(PlayerList.SORT_NAME)
+		elif order == 'team':
+			views[0].players.set_sort(PlayerList.SORT_TEAM)
+		elif order == 'none':
+			views[0].players.set_sort(PlayerList.SORT_NONE)
+		else:
+			views[0].players.set_sort()
+	elif cmd.startswith('mkwin'):
+		subrest = cmd[6:].split(None, 1)
+		try: sub, rest = subrest
+		except: sub, = subrest
+		if sub == 'mod':
+			if not find_mod_view():
+				views.append(make_mod_view())
+		elif sub == 'chat':
+			num = int(rest)
+			if not find_chat_view(num):
+				views.append(make_chat_view(num, ''))
+		elif sub == 'priv':
+			if not find_priv_view(rest):
+				views.append(make_priv_view(rest))
+	elif cmd == 'close':
+		if views[0] != find_arena_view():
+			del views[:1]
+	else:
+		send_line("SEND:PUB:?%s" % cmd)
+
+
+def process_typed(prefix, line):
+	def send_priv(dest, msg):
+		send_line("SEND:PRIV:%s:%s" % (dest, msg))
+		txt = "%s to %s> %s" % (myname, dest, msg)
+		add_line(txt, colors.priv, find_priv_view(dest))
+		log(L_PRIV, txt)
 
 	if not line:
 		return
 
-	def send_priv(dest, msg):
-		send_line("SEND:PRIV:%s:%s" % (dest, msg))
-		txt = "%s to %s> %s" % (myname, dest, msg)
-		add_line(txt, colors.priv)
-		log(L_PRIV, txt)
+	# commands don't obey the view prefix
+	if not line.startswith('?'):
+		line = prefix + line
 
 	if line.startswith(';'):
 		# chat message
@@ -676,7 +783,7 @@ def process_typed(line):
 
 		send_line("SEND:CHAT:%s" % line[1:])
 		txt = "%s:%s> %s" % (chan, myname, msg)
-		add_line(txt, colors.chat)
+		add_line(txt, colors.chat, find_chat_view(int(chan)))
 		log(L_CHAT, txt)
 	elif line.startswith("'") or line.startswith('//') or line.startswith('"'):
 		# team chat
@@ -688,38 +795,20 @@ def process_typed(line):
 			send_priv(line[1:ns], line[ns+1:])
 	elif line.startswith('/'):
 		# priv msg
-		dest = players.get_selected()
+		dest = views[0].players.get_selected()
 		if dest:
 			send_priv(dest.name, line[1:])
 	elif line.startswith('\\'):
 		# mod chat
 		send_line("SEND:MOD:%s" % line[1:])
 		txt = "%s> %s" % (myname, line[1:])
-		add_line(txt, colors.mod)
+		add_line(txt, colors.mod, find_mod_view())
 		log(L_MOD, txt)
 	elif line.startswith('?'):
 		# possible command
 		cmd = line[1:]
-		if cmd.startswith('exit') or cmd.startswith('quit'):
-			breakloop = 1
-		elif cmd.startswith('showtime'):
-			showtime = 1
-		elif cmd.startswith('hidetime'):
-			showtime = 0
-		elif cmd.startswith('go '):
-			send_line("GO:%s" % cmd[3:])
-		elif cmd.startswith('namesort'):
-			order = cmd[8:].strip()
-			if order == 'name':
-				players.set_sort(PlayerList.SORT_NAME)
-			elif order == 'team':
-				players.set_sort(PlayerList.SORT_TEAM)
-			elif order == 'none':
-				players.set_sort(PlayerList.SORT_NONE)
-			else:
-				players.set_sort()
-		else:
-			send_line("SEND:PUB:%s" % line)
+		try: process_cmd(cmd)
+		except: pass
 		txt = "%s> %s" % (myname, line)
 		add_line(txt, colors.default)
 		log(L_CMD, txt)
@@ -750,7 +839,7 @@ def process_loginbad(line):
 
 
 def process_inarena(line):
-	global players, myname, myfreq
+	global myname, myfreq
 
 	arena, freq = line.split(':')
 	myfreq = int(freq)
@@ -758,44 +847,41 @@ def process_inarena(line):
 	add_line(txt, 'info')
 	log(L_INFO, txt)
 
-	players.clear()
-	players.add(Player(myname, myfreq))
+	view = find_arena_view()
+	if view:
+		view.players.clear()
+		view.players.add(Player(myname, myfreq))
 
 
 def process_player(line):
-	global players
-
 	name, ship, freq = line.split(':')
 	txt = "Player here: %s" % name
 	add_line(txt, 'info')
 	log(L_INFO, txt)
-	players.add(Player(name, int(freq)))
+	view = find_arena_view()
+	if view: view.players.add(Player(name, int(freq)))
 
 
 def process_entering(line):
-	global players
-
 	name, ship, freq = line.split(':')
 	txt = "Player entering: %s" % name
 	add_line(txt, 'info')
 	log(L_INFO, txt)
-	players.add(Player(name, int(freq)))
+	view = find_arena_view()
+	if view: view.players.add(Player(name, int(freq)))
 
 
 def process_leaving(line):
-	global players
-
 	name = line
 
 	txt = "Player leaving: %s" % name
 	add_line(txt, 'info')
 	log(L_INFO, txt)
-	players.remove(name)
+	view = find_arena_view()
+	if view: view.players.remove(name)
 
 
 def process_msg(line):
-	global colors, last_priv_list
-
 	type, rest = line.split(':', 1)
 	if type == 'ARENA':
 		msg = rest
@@ -809,7 +895,7 @@ def process_msg(line):
 	elif type == 'PRIV':
 		name, msg = rest.split(':', 1)
 		txt = '%s> %s' % (name, msg)
-		add_line(txt, colors.priv)
+		add_line(txt, colors.priv, find_priv_view(name))
 		last_priv_list.add(name)
 		log(L_PRIV, txt)
 	elif type == 'FREQ':
@@ -819,12 +905,13 @@ def process_msg(line):
 		log(L_FREQ, txt)
 	elif type == 'CHAT':
 		msg = rest
-		add_line(msg, colors.chat)
+		chan, _ = rest.split(':', 1)
+		add_line(msg, colors.chat, find_chat_view(int(chan)))
 		log(L_CHAT, msg)
 	elif type == 'MOD':
 		name, msg = rest.split(':', 1)
 		txt = '%s> %s' % (name, msg)
-		add_line(txt, colors.mod)
+		add_line(txt, colors.mod, find_mod_view())
 		log(L_MOD, txt)
 	elif type == 'SYSOP':
 		msg = rest
@@ -840,13 +927,14 @@ def process_msg(line):
 
 
 def process_sfc(line):
-	global colors, players
+	global colors
 
 	player, ship, freq = line.split(':')
 	ship = int(ship)
 	freq = int(freq)
 
-	players.sfc(player, ship, freq)
+	view = find_arena_view()
+	if view: view.players.sfc(player, ship, freq)
 
 	if ship == 8:
 		txt = '%s is now on freq %s as a spectator' % (player, freq)
@@ -899,36 +987,42 @@ def send_line(line):
 
 
 deferred_lines = []
-def add_line(line, color = None):
-	global text, colors, scrollback, jumpback, newcrap
+def add_line(line, color = None, view = None, setnewcrap = 1):
+	global colors, jumpback
 	if not colors:
 		# if we're trying to add a line before curses initialization,
 		# save it in a list for later.
 		global deferred_lines
-		deferred_lines.append((line, color))
+		deferred_lines.append((line, color, view, setnewcrap))
 		return
+	# by default, send things to the arena view
+	if view is None:
+		view = find_arena_view()
 	if color == None:
 		color = colors.default
 	elif type(color) == type(''):
 		color = getattr(colors, color)
-	text.addline(Line(line, color))
+	view.text.addline(Line(line, color))
+	if view != views[0] and setnewcrap:
+		view.newcrap += 1
 	if jumpback:
-		scrollback = 0
-	elif scrollback > 0:
-		newcrap += 1
-		scrollback += 1
+		view.scrollback = 0
+	elif view.scrollback > 0:
+		if view == views[0]:
+			view.newcrap += 1
+		view.scrollback += 1
 
 
 def complete_deferred_lines():
 	global deferred_lines
-	for l, c in deferred_lines:
-		add_line(l, c)
+	for args in deferred_lines:
+		add_line(*args)
 	del deferred_lines
 
 
 colonstate = 0
 def process_key():
-	global wins, bindings, edit, colonstate
+	global wins, bindings, colonstate
 	colon = ord(':')
 
 	ch = wins.stdscr.getch()
@@ -955,20 +1049,20 @@ def process_key():
 			f()
 	elif ch == colon:
 		if colonstate == 0:
-			if edit.get_text() == ':':
+			if views[0].edit.get_text() == ':':
 				colonstate = 1
-				edit.set_text(':%s:' % last_priv_list.get(0))
+				views[0].edit.set_text(':%s:' % last_priv_list.get(0))
 			else:
-				edit.insert(ch)
+				views[0].edit.insert(ch)
 		elif colonstate == 1:
-			edit.set_text(':%s:' % last_priv_list.get())
+			views[0].edit.set_text(':%s:' % last_priv_list.get())
 	else:
 		# hand off to bindings
 		f = bindings.getbinding([ch])
 		if f:
 			f()
 		elif ch >= 32 and ch < 127:
-			edit.insert(ch)
+			views[0].edit.insert(ch)
 
 
 inbuf = ''
@@ -1015,15 +1109,13 @@ def check_logfile(tm):
 
 
 def main_loop():
-	global wins, text, edit, sock, breakloop
+	global wins, sock, breakloop
 
 	breakloop = 0
 
 	while not breakloop:
 		# show stuff
-		text.display(wins.twin)
-		players.display(wins.pwin)
-		edit.display(wins.iwin)
+		views[0].display(wins)
 		curses.doupdate()
 
 		# do a select
@@ -1054,13 +1146,13 @@ def cleanup_code(code):
 deferred_color_args = []
 def process_config(file):
 	global bindings
-	global editheight, pwidth, showtime, indent, jumpback, keeplines
-	global keepalive
+	global editheight, pwidth, showtime, indent, jumpback, keeplines, keepalive
 
 	bindings = Bindings()
 
 	# default bindings
 	bindings.bind('^J', bindings.finish_line)
+	bindings.bind('^M', bindings.finish_line)
 	bindings.bind(curses.KEY_ENTER, bindings.finish_line)
 	bindings.bind(curses.KEY_BACKSPACE, bindings.backspace)
 	bindings.bind(curses.KEY_DC, bindings.delete)
@@ -1073,6 +1165,8 @@ def process_config(file):
 	bindings.bind(curses.KEY_UP, bindings.scroll_up, 1)
 	bindings.bind(curses.KEY_DOWN, bindings.scroll_down, 1)
 	bindings.bind('^U', bindings.kill_line)
+	bindings.bind('^I', bindings.rotate_view)
+	bindings.bind(curses.KEY_BTAB, bindings.rotate_view, -1)
 
 	bindings.bind(curses.KEY_PPAGE, bindings.player_select_up)
 	bindings.bind(curses.KEY_NPAGE, bindings.player_select_down)
@@ -1135,13 +1229,16 @@ def process_config(file):
 
 
 def main():
-	global wins, text, edit, sock, players, myname, colors, scrollback
-	global newcrap, logindone, last_priv_list
+	global wins, sock, views, myname, colors
+	global logindone, last_priv_list
 
 	colors = 0
 	myname = ''
 	myfreq = 0
-	players = PlayerList()
+
+	views = [make_arena_view()]
+	last_priv_list = LastPrivList(10)
+	wins = MyWindows()
 
 	# get config file
 	if os.environ.get('CCC_CONFIG_FILE'):
@@ -1160,15 +1257,6 @@ def main():
 	   not opts.has_key('server') or not opts.has_key('port'):
 		print "The config file must include a name, password, server, and port."
 		sys.exit(2)
-
-	last_priv_list = LastPrivList(opts.get('playerhistory'))
-
-	scrollback = 0
-	newcrap = 0
-
-	wins = MyWindows()
-	text = Text()
-	edit = Edit()
 
 	print "ccc - a console chat client <grelminar@yahoo.com>"
 	print "Connecting to %s:%d as %s..." % \
@@ -1209,6 +1297,12 @@ def main():
 	# join chats and other autocommands
 	if opts.has_key('chats'):
 		send_line("SEND:CMD:?chat=%s" % opts['chats'])
+		if opts.get('chatwindows', 1):
+			chats = opts['chats'].split(',')
+			idx = 1
+			for c in chats:
+				views.append(make_chat_view(idx, c))
+				idx += 1
 
 	start_curses()
 
@@ -1228,7 +1322,7 @@ def main():
 		if opts.has_key('init'):
 			for l1 in opts['init'].split('\n'):
 				for l2 in l1.split('|'):
-					process_typed(l2)
+					process_typed('', l2)
 
 		main_loop()
 
