@@ -521,6 +521,8 @@ local void complete_go(Player *p, const char *reqname, int ship,
 			*t = 'x';
 		else if (isupper(*t))
 			*t = tolower(*t);
+	if (name[0] == '\0')
+		strcpy(name, "x");
 
 	if (p->arena != NULL)
 		LeaveArena(p);

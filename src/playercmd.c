@@ -984,7 +984,7 @@ local helptext_t send_help =
 local void Csend(const char *params, Player *p, const Target *target)
 {
 	Player *t = target->u.p;
-	if (target->type != T_PLAYER)
+	if (target->type != T_PLAYER || *params == '\0')
 		return;
 	if (t->type == T_CONT)
 		aman->SendToArena(t, params, 0, 0);
