@@ -113,6 +113,20 @@ char *astrncpy(char *dest, const char *source, size_t n)
 
 /* LinkedList data type */
 
+#define LINKSATONCE 510 /* enough to almost fill a page */
+
+local void GetSomeLinks()
+{
+	Link *mem, *start;
+	int i;
+
+	start = mem = amalloc(LINKSATONCE * sizeof(Link));
+	for (i = 0; i < LINKSATONCE-1; i++, mem++)
+		mem->next = mem + 1;
+	mem->next = freelinks;
+	freelinks = start;
+}
+
 local void LLInit(LinkedList *lst)
 {
 	lst->start = lst->end = NULL;
@@ -124,13 +138,9 @@ LinkedList * LLAlloc()
 	/* HUGE HACK!!!
 	 * depends on LinkedList and Link being the same size!
 	 */
-	if (freelinks)
-	{
-		ret = (LinkedList*) freelinks;
-		freelinks = freelinks->next;
-	}
-	else
-		ret = amalloc(sizeof(LinkedList));
+	if (!freelinks) GetSomeLinks();
+	ret = (LinkedList*) freelinks;
+	freelinks = freelinks->next;
 	LLInit(ret);
 	return ret;
 }
@@ -166,13 +176,9 @@ void LLAdd(LinkedList *l, void *p)
 {
 	Link *n;
 
-	if (freelinks)
-	{
-		n = freelinks;
-		freelinks = freelinks->next;
-	}
-	else
-		n = amalloc(sizeof(Link));
+	if (!freelinks) GetSomeLinks();
+	n = freelinks;
+	freelinks = freelinks->next;
 
 	n->next = NULL;
 	n->data = p;
