@@ -5,6 +5,10 @@
 
 #include "asss.h"
 
+/* extra includes */
+#include "packets/flags.h"
+
+
 /* defines */
 #define MODULE "flags"
 
@@ -28,7 +32,9 @@ local void LoadFlagSettings(int arena);
 local void SpawnFlag(int arena, int fid);
 local void AAFlag(int arena, int action);
 local void PAFlag(int pid, int action, int arena);
-local void ShipChange(int pid, int ship);
+local void ShipChange(int, int, int);
+local void FreqChange(int, int);
+local void FlagKill(int, int, int, int, int);
 
 /* timers */
 local int BasicFlagTimer(void *);
@@ -43,6 +49,7 @@ local void MoveFlag(int arena, int fid, int x, int y, int freq);
 local void FlagVictory(int arena, int freq, int points);
 local void LockFlagStatus(int arena);
 local void UnlockFlagStatus(int arena);
+local int GetCarriedFlags(int pid);
 
 
 /* local data */
@@ -60,7 +67,7 @@ local struct MyArenaData pflagdata[MAXARENA];
 local pthread_mutex_t flagmtx[MAXARENA];
 
 local Iflags _myint =
-{ MoveFlag, FlagVictory, LockFlagStatus, UnlockFlagStatus, flagdata };
+{ MoveFlag, FlagVictory, GetCarriedFlags, LockFlagStatus, UnlockFlagStatus, flagdata };
 
 
 
@@ -79,6 +86,8 @@ int MM_flags(int action, Imodman *_mm, int arena)
 		mm->RegCallback(CALLBACK_ARENAACTION, AAFlag, ALLARENAS);
 		mm->RegCallback(CALLBACK_PLAYERACTION, PAFlag, ALLARENAS);
 		mm->RegCallback(CALLBACK_SHIPCHANGE, ShipChange, ALLARENAS);
+		mm->RegCallback(CALLBACK_FREQCHANGE, FreqChange, ALLARENAS);
+		mm->RegCallback(CALLBACK_KILL, FlagKill, ALLARENAS);
 
 		net->AddPacket(C2S_PICKUPFLAG, PPickupFlag);
 		net->AddPacket(C2S_DROPFLAGS, PDropFlag);
@@ -113,6 +122,8 @@ int MM_flags(int action, Imodman *_mm, int arena)
 		mm->UnregCallback(CALLBACK_ARENAACTION, AAFlag, ALLARENAS);
 		mm->UnregCallback(CALLBACK_PLAYERACTION, PAFlag, ALLARENAS);
 		mm->UnregCallback(CALLBACK_SHIPCHANGE, ShipChange, ALLARENAS);
+		mm->UnregCallback(CALLBACK_FREQCHANGE, FreqChange, ALLARENAS);
+		mm->UnregCallback(CALLBACK_KILL, FlagKill, ALLARENAS);
 		net->RemovePacket(C2S_PICKUPFLAG, PPickupFlag);
 		net->RemovePacket(C2S_DROPFLAGS, PDropFlag);
 		ml->ClearTimer(BasicFlagTimer);
@@ -128,44 +139,6 @@ int MM_flags(int action, Imodman *_mm, int arena)
 	return MM_FAIL;
 }
 
-
-
-void AAFlag(int arena, int action)
-{
-	if (action == AA_CREATE)
-		LoadFlagSettings(arena);
-	else if (action == AA_DESTROY)
-		pflagdata[arena].gametype = FLAGGAME_NONE;
-}
-
-
-local void CleanupAfter(int arena, int pid)
-{
-	/* make sure that if someone leaves, his flags respawn */
-	int f;
-	LOCK_STATUS(arena);
-	if (pflagdata[arena].gametype != FLAGGAME_NONE)
-		for (f = 0; f < MAXFLAGS; f++)
-			if (flagdata[arena].flags[f].state == FLAG_CARRIED &&
-				flagdata[arena].flags[f].carrier == pid)
-			{
-				flagdata[arena].flags[f].state = FLAG_NEUTED;
-				flagdata[arena].flags[f].x = pd->players[pid].position.x>>4;
-				flagdata[arena].flags[f].y = pd->players[pid].position.y>>4;
-				/* the freq field will be set here. leave it as is. */
-			}
-	UNLOCK_STATUS(arena);
-}
-
-void PAFlag(int pid, int action, int arena)
-{
-	if (action == PA_LEAVEARENA) CleanupAfter(arena, pid);
-}
-
-void ShipChange(int pid, int ship)
-{
-	if (ship == SPEC) CleanupAfter(pd->players[pid].arena, pid);
-}
 
 
 void LoadFlagSettings(int arena)
@@ -282,9 +255,6 @@ void SpawnFlag(int arena, int fid)
 }
 
 
-#include "packets/flags.h"
-
-
 void MoveFlag(int arena, int fid, int x, int y, int freq)
 {
 	struct S2CFlagLocation fl = { S2C_FLAGLOC, fid, x, y, freq };
@@ -338,6 +308,129 @@ void LockFlagStatus(int arena)
 void UnlockFlagStatus(int arena)
 {
 	UNLOCK_STATUS(arena);
+}
+
+int GetCarriedFlags(int pid)
+{
+	int tot = 0, arena = pd->players[pid].arena, i;
+	struct FlagData *f;
+
+	if (arena < 0 || arena >= MAXARENA) return -1;
+
+	f = flagdata[arena].flags;
+	LOCK_STATUS(arena);
+	for (i = 0; i < MAXFLAGS; i++, f++)
+		if (f->state == FLAG_CARRIED &&
+		    f->carrier == pid)
+			tot++;
+	UNLOCK_STATUS(arena);
+	return tot;
+}
+
+
+void AAFlag(int arena, int action)
+{
+	if (action == AA_CREATE)
+		LoadFlagSettings(arena);
+	else if (action == AA_DESTROY)
+		pflagdata[arena].gametype = FLAGGAME_NONE;
+}
+
+
+local void CleanupAfter(int arena, int pid)
+{
+	/* make sure that if someone leaves, his flags respawn */
+	int f;
+	LOCK_STATUS(arena);
+	if (pflagdata[arena].gametype != FLAGGAME_NONE)
+		for (f = 0; f < MAXFLAGS; f++)
+			if (flagdata[arena].flags[f].state == FLAG_CARRIED &&
+				flagdata[arena].flags[f].carrier == pid)
+			{
+				flagdata[arena].flags[f].state = FLAG_NEUTED;
+				flagdata[arena].flags[f].x = pd->players[pid].position.x>>4;
+				flagdata[arena].flags[f].y = pd->players[pid].position.y>>4;
+				/* the freq field will be set here. leave it as is. */
+			}
+	UNLOCK_STATUS(arena);
+}
+
+
+void PAFlag(int pid, int action, int arena)
+{
+	if (action == PA_ENTERARENA)
+	{
+		/* send him flag locations */
+		int i;
+		struct FlagData *f = flagdata[arena].flags;
+
+		LOCK_STATUS(arena);
+		for (i = 0; i < MAXFLAGS; i++, f++)
+		{
+			if (f->state == FLAG_ONMAP)
+			{
+				struct S2CFlagLocation fl = { S2C_FLAGLOC, i, f->x, f->y, f->freq };
+				net->SendToOne(pid, (byte*)&fl, sizeof(fl), NET_RELIABLE);
+			}
+			else if (f->state == FLAG_CARRIED)
+			{
+				struct S2CFlagPickup fp = { S2C_FLAGPICKUP, i, f->carrier};
+				net->SendToOne(pid, (byte*)&fp, sizeof(fp), NET_RELIABLE);
+			}
+		}
+		UNLOCK_STATUS(arena);
+	}
+	else if (action == PA_LEAVEARENA)
+		CleanupAfter(arena, pid);
+}
+
+
+void ShipChange(int pid, int ship, int newfreq)
+{
+	CleanupAfter(pd->players[pid].arena, pid);
+}
+
+void FreqChange(int pid, int newfreq)
+{
+	CleanupAfter(pd->players[pid].arena, pid);
+}
+
+void FlagKill(int arena, int killer, int killed, int bounty, int flags)
+{
+	int i;
+	struct FlagData *f;
+
+	if (flags < 1) return;
+
+	f = flagdata[arena].flags;
+	LOCK_STATUS(arena);
+	if (pd->players[killer].freq != pd->players[killed].freq ||
+	    pflagdata[arena].friendlytransfer)
+		for (i = 0; i < MAXFLAGS; i++, f++)
+		{
+			if (f->state == FLAG_CARRIED &&
+				f->carrier == killed)
+				f->carrier = killer;
+		}
+	else
+	{
+		/* friendlytransfer is off. we have to drop the flags from the
+		 * killer and spawn them. */
+		struct S2CFlagDrop sfd = { S2C_FLAGDROP, killer };
+		net->SendToArena(arena, -1, (byte*)&sfd, sizeof(sfd), NET_RELIABLE);
+
+		for (i = 0; i < MAXFLAGS; i++, f++)
+		{
+			if (f->state == FLAG_CARRIED &&
+				f->carrier == killed)
+				SpawnFlag(arena, i);
+		}
+	}
+	UNLOCK_STATUS(arena);
+	/* logm->Log(L_DRIVEL, "<flags> [%s] by [%s] Flag kill: %d flags transferred",
+			pd->players[killed].name,
+			pd->players[killer].name,
+			tot); */
 }
 
 

@@ -63,6 +63,9 @@ typedef struct Iflags
 	void (*FlagVictory)(int arena, int freq, int points);
 	/* ends the flag game (freq=-1 to reset flags with no winner) */
 
+	int (*GetCarriedFlags)(int pid);
+	/* a utility function to get the number of flags carried by a player */
+
 	void (*LockFlagStatus)(int arena);
 	void (*UnlockFlagStatus)(int arena);
 	/* since the following array is global data, access must be

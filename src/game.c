@@ -46,6 +46,7 @@ local Iassignfreq *afreq;
 local Iarenaman *aman;
 local Icmdman *cmd;
 local Ichat *chat;
+local Iflags *flags;
 
 local PlayerData *players;
 local ArenaData *arenas;
@@ -75,6 +76,7 @@ int MM_game(int action, Imodman *mm_, int arena)
 		mm->RegInterest(I_ARENAMAN, &aman);
 		mm->RegInterest(I_CMDMAN, &cmd);
 		mm->RegInterest(I_CHAT, &chat);
+		mm->RegInterest(I_FLAGS, &flags);
 
 		if (!net || !cfg || !log || !aman) return MM_FAIL;
 
@@ -124,6 +126,7 @@ int MM_game(int action, Imodman *mm_, int arena)
 		mm->UnregInterest(I_ARENAMAN, &aman);
 		mm->UnregInterest(I_CMDMAN, &cmd);
 		mm->UnregInterest(I_CHAT, &chat);
+		mm->UnregInterest(I_FLAGS, &flags);
 		/* do this last so we don't get prevented from unloading because
 		 * of ourself */
 		mm->UnregInterface(I_ASSIGNFREQ, &_myaf);
@@ -357,7 +360,7 @@ void PDie(int pid, byte *p, int n)
 	struct KillPacket kp = { S2C_KILL };
 	int killer = dead->d1;
 	int bty = dead->d2;
-	int flags = dead->d3;
+	int flagcount;
 	int arena = players[pid].arena, reldeaths;
 
 	if (arena < 0) return;
@@ -368,25 +371,29 @@ void PDie(int pid, byte *p, int n)
 	kp.killer = killer;
 	kp.killed = pid;
 	kp.bounty = bty;
-	kp.flags = flags;
+	if (flags)
+		flagcount = flags->GetCarriedFlags(pid);
+	else
+		flagcount = 0;
+	kp.flags = flagcount;
 
 	reldeaths = !!cfg->GetInt(arenas[arena].cfg,
 			"Misc", "ReliableKills", 1);
-	net->SendToArena(arena, pid, (byte*)&kp, sizeof(kp), NET_RELIABLE * reldeaths);
+	net->SendToArena(arena, -1, (byte*)&kp, sizeof(kp), NET_RELIABLE * reldeaths);
 
 	log->Log(L_DRIVEL, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d)",
 			arenas[arena].name,
 			players[pid].name,
 			players[killer].name,
 			bty,
-			flags);
+			flagcount);
 
 	/* call callbacks */
 	{
 		Link *l;
 		LinkedList *funcs = mm->LookupCallback(CALLBACK_KILL, arena);
 		for (l = LLGetHead(funcs); l; l = l->next)
-			((KillFunc)l->data)(arena, killer, pid, bty, 0);
+			((KillFunc)l->data)(arena, killer, pid, bty, flagcount);
 		mm->FreeLookupResult(funcs);
 	}
 }

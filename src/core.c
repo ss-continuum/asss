@@ -157,8 +157,8 @@ void ProcessLoginQueue()
 			case S_DO_GLOBAL_CALLBACKS: ns = S_SEND_LOGIN_RESPONSE; break;
 			case S_SEND_LOGIN_RESPONSE: ns = S_LOGGEDIN;            break;
 			case S_DO_FREQ_AND_ARENA_SYNC: ns = S_WAIT_ARENA_SYNC;  break;
-			case S_DO_ARENA_CALLBACKS:  ns = S_SEND_ARENA_RESPONSE; break;
-			case S_SEND_ARENA_RESPONSE: ns = S_PLAYING;             break;
+			case S_SEND_ARENA_RESPONSE: ns = S_DO_ARENA_CALLBACKS;  break;
+			case S_DO_ARENA_CALLBACKS:  ns = S_PLAYING;             break;
 			case S_LEAVING_ARENA:       ns = S_LOGGEDIN;            break;
 			case S_LEAVING_ZONE:        ns = S_TIMEWAIT;            break;
 
@@ -220,12 +220,12 @@ void ProcessLoginQueue()
 					persist->SyncFromFile(pid, player->arena, ASyncDone);
 				break;
 
-			case S_DO_ARENA_CALLBACKS:
-				CallPA(pid, PA_ENTERARENA, player->arena);
-				break;
-
 			case S_SEND_ARENA_RESPONSE:
 				aman->SendArenaResponse(pid);
+				break;
+
+			case S_DO_ARENA_CALLBACKS:
+				CallPA(pid, PA_ENTERARENA, player->arena);
 				break;
 
 			case S_LEAVING_ARENA:
@@ -319,7 +319,7 @@ void ASyncDone(int pid)
 	if (players[pid].status != S_WAIT_ARENA_SYNC)
 		log->Log(L_WARN, "<core> ASyncDone called from wrong stage: %d", pid, players[pid].status);
 	else
-		players[pid].status = S_DO_ARENA_CALLBACKS;
+		players[pid].status = S_SEND_ARENA_RESPONSE;
 	pd->UnlockStatus();
 }
 

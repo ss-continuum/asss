@@ -104,11 +104,11 @@
 #define S_WAIT_ARENA_SYNC             11
 /* waiting for scores sync */
 
-#define S_DO_ARENA_CALLBACKS          12
-/* scores sync complete, will call arena entering callbacks */
+#define S_SEND_ARENA_RESPONSE         12
+/* done with scores, needs to send arena response */
 
-#define S_SEND_ARENA_RESPONSE         13
-/* all done with initalizing, needs to send arena response */
+#define S_DO_ARENA_CALLBACKS          13
+/* area response sent, now call arena entering callbacks */
 
 #define S_PLAYING                     14
 /* player is playing in an arena. typically the longest stage */
