@@ -49,7 +49,7 @@ class Pkt:
 	def __init__(me, data, seqnum = None):
 		me.data = data
 		me.lastretry = 0
-		me.reliable = (ord(data[0]) == 0 and ord(data[0]) == 3)
+		me.reliable = (ord(data[0]) == 0 and ord(data[1]) == 3)
 		if seqnum != None:
 			me.seqnum = seqnum
 		else:
