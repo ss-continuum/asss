@@ -651,7 +651,12 @@ void player_sync_done(Player *p)
 {
 	pd->WriteLock();
 	if (p->status == S_WAIT_ARENA_SYNC1)
-		p->status = S_SEND_ARENA_RESPONSE;
+	{
+		if (!p->flags.leave_arena_when_done_waiting)
+			p->status = S_SEND_ARENA_RESPONSE;
+		else
+			p->status = S_DO_ARENA_SYNC2;
+	}
 	else if (p->status == S_WAIT_ARENA_SYNC2)
 		p->status = S_LOGGEDIN;
 	else if (p->status == S_WAIT_GLOBAL_SYNC1)

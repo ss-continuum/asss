@@ -224,8 +224,11 @@ struct Player
 		u32 see_all_posn : 1;
 		/** if the player is a bot who wants his own position packets */
 		u32 see_own_posn : 1;
+		/** if the player needs to transition to a leaving arena state
+		 ** while wainting for the database to return */
+		u32 leave_arena_when_done_waiting : 1;
 		/** fill this up to 32 bits */
-		u32 padding : 22;
+		u32 padding : 21;
 	} flags;
 	/** space for private data associated with this player */
 	byte playerextradata[0];

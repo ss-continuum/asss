@@ -335,6 +335,13 @@ local int initiate_leave_arena(Player *p)
 			p->status = S_LOGGEDIN;
 			break;
 		case S_WAIT_ARENA_SYNC1:
+			/* this is slightly tricky: we want to wait until persist is
+			 * done loading the scores before changing the state, or
+			 * things will get screwed up. so mark it here and let core
+			 * take care of it. this is really messy and it would be
+			 * nice to find a better way to handle it. */
+			p->flags.leave_arena_when_done_waiting = 1;
+			break;
 		case S_SEND_ARENA_RESPONSE:
 			/* in these, stuff has come out of the database. put it back
 			 * in. */

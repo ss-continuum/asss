@@ -1961,11 +1961,6 @@ void KillConnection(Player *p)
 
 	pd->WriteLock();
 
-	/* make sure that he's on his way out, in case he was kicked before
-	 * fully logging in. */
-	if (p->status < S_LEAVING_ARENA)
-		p->status = S_LEAVING_ZONE;
-
 	/* set this special flag so that the player will be set to leave
 	 * the zone when the S_LEAVING_ARENA-initiated actions are
 	 * completed. */
