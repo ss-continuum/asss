@@ -1,4 +1,5 @@
 #!/bin/sh
+# dist: public
 
 EXE=$1
 PID=$2

@@ -16,11 +16,13 @@ rm -rf $d
 cp -a dist $d
 mkdir $d/{data,log,tmp}
 
+rm -rf doc/doxygen/*
 tar cf - `grep -lr '[d]ist: public' src scripts doc` scripts/banner.font | \
 	(cd $d ; tar xf -)
 
 make -C $d/src link_db_statically=yes opt=yes install
 make -C $d/src cleanbin
+rm -f $d/src/Makefile.deps
 make -C ~/src/extra-asss/contenc "ASSSDIR=$ASSSDIR" all
 make -C ~/src/extra-asss/contenc "ASSSDIR=$ASSSDIR" clean
 
