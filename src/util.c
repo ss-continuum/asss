@@ -656,6 +656,20 @@ void WaitCondition(Condition *cond, Mutex *mtx)
 	pthread_cond_wait(cond, mtx);
 }
 
+void WaitConditionTimed(Condition *cond, Mutex *mtx, int millis)
+{
+	struct timeval tv;
+	struct timespec ts;
+
+	gettimeofday(&tv, NULL);
+	ts.tv_sec = tv.tv_sec;
+	ts.tv_nsec = (tv.tv_usec + millis * 1000) * 1000;
+	if (ts.tv_nsec >= 1000000000)
+	{
+		ts.tv_nsec -= 1000000000;
+		ts.tv_sec++;
+	}
+}
 
 #endif /* THREAD */
 

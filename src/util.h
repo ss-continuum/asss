@@ -133,6 +133,7 @@ typedef pthread_cond_t Condition;
 
 Thread StartThread(ThreadFunc func, void *data);
 void JoinThread(Thread th);
+void WaitConditionTimed(Condition *cond, Mutex *mtx, int millis);
 
 #ifdef USE_PROTOTYPES
 
