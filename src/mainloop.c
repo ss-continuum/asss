@@ -93,6 +93,9 @@ void RunLoop()
 			afree(l->data);
 		}
 		LLEmpty(&freelist);
+
+		/* rest a bit */
+		usleep(10000);
 	}
 }
 
