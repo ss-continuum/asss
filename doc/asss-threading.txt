@@ -63,4 +63,43 @@ what about access to players?
 
 
 
+----------
+
+
+some new ideas:
+
+buffer lists are maintained as doubly linked circular linked lists
+there is an unreliable list, a free list, a reliable list, and an
+outgoing list
+
+net thread:
+	recieves packets with recvfrom
+	if they are unreliable, add then to the unreliable buffer list
+	if not, process them with one of the oohandlers
+		if the oohandlers come up with a packet to process (03, 09, 0A,
+		0E), they will add it to the reliable list
+	handle outgoing packets (CheckBuffers)
+	loop
+
+unreliable thread:
+	grab packet from unreliable list
+	process it
+	loop
+
+reliable thread:
+	scan reliable list and find packets that are ready to be processed
+	process them in order, one per iteration
+	loop
+
+outgoing packets:
+	all of the send functions will put packets onto the outgoing list
+
+locks:
+	there's one lock for each of the big lists
+	there's a big lock on player status
+	there's a lock for each player
+	might it be possible to use reader/writer locks for the players and
+	player status?
+
+
 
