@@ -785,6 +785,14 @@ const_file = open('py_constants.inc', 'w')
 callback_file = open('py_callbacks.inc', 'w')
 int_file = open('py_interfaces.inc', 'w')
 
+warning = """
+/* THIS IS AN AUTOMATICALLY GENERATED FILE */
+"""
+
+const_file.write(warning)
+callback_file.write(warning)
+int_file.write(warning)
+
 
 lines = sys.stdin.readlines()
 
