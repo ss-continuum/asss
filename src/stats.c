@@ -462,6 +462,8 @@ EXPORT int MM_stats(int action, Imodman *mm_, Arena *arena)
 		persist->RegArenaPD(&my_reset_end_time_data);
 		persist->RegArenaPD(&my_game_end_time_data);
 
+		mm->RegCallback(CB_INTERVAL_ENDED, SendUpdates, ALLARENAS);
+
 		mm->RegInterface(&_myint, ALLARENAS);
 		return MM_OK;
 	}
@@ -469,6 +471,7 @@ EXPORT int MM_stats(int action, Imodman *mm_, Arena *arena)
 	{
 		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
+		mm->UnregCallback(CB_INTERVAL_ENDED, SendUpdates, ALLARENAS);
 		persist->UnregPlayerPD(&my_forever_data);
 		persist->UnregPlayerPD(&my_reset_data);
 		persist->UnregPlayerPD(&my_game_data);

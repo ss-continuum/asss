@@ -836,8 +836,6 @@ local void process_scorereset(const char *data,int len)
 		if (persist)
 			persist->EndInterval(AG_PUBLIC, NULL, INTERVAL_RESET);
 		mm->ReleaseInterface(persist);
-
-		stats->SendUpdates();
 	}
 }
 

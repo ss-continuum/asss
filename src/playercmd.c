@@ -1721,8 +1721,6 @@ local void Cendinterval(const char *params, Player *p, const Target *target)
 		persist->EndInterval(ag, NULL, interval);
 	else if (p->arena)
 		persist->EndInterval(NULL, p->arena, interval);
-
-	stats->SendUpdates();
 }
 
 

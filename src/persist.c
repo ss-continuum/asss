@@ -582,6 +582,8 @@ local void *DBThread(void *dummy)
 		/* if we were looking for notification, notify */
 		if (msg->playercb) msg->playercb(msg->p);
 		if (msg->arenacb) msg->arenacb(msg->arena);
+		if (msg->command == DBCMD_ENDINTERVAL)
+			DO_CBS(CB_INTERVAL_ENDED, ALLARENAS, EndIntervalFunc, ());
 
 		/* free the message */
 		afree(msg);

@@ -107,16 +107,11 @@ void MyFlagWin(Arena *arena, int freq)
 	LLEmpty(&set);
 
 	/* this isn't obvious: we have to call FlagVictory _after_ all the
-	 * IncrementStat calls, because FlagVictory calls
-	 * persist->EndInterval, which swaps out the current scores for the
-	 * next game's scores. so to get the points to go in the right
-	 * place, we do them in the current game, then switch games. */
+	 * IncrementStat calls, because FlagVictory calls EndInterval, which
+	 * swaps out the current scores for the next game's scores. so to
+	 * get the points to go in the right place, we do them in the
+	 * current game, then switch games. EndInterval will also invoke a
+	 * callback that sends out the updated scores. */
 	flags->FlagVictory(arena, freq, points);
-
-	/* for more or less the same reason, we SendUpdates after
-	 * FlagVictory so that if the arena uses game interval stats in one
-	 * of its boxes, we're sending the current values, not the values
-	 * from the last game. */
-	stats->SendUpdates();
 }
 

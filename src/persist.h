@@ -85,6 +85,13 @@ typedef struct ArenaPersistentData
  */
 
 
+/* this will be called after any interval is ended; it will probably be
+ * preceeded by a lot of ClearData calls. */
+#define CB_INTERVAL_ENDED "endinterval"
+typedef void (*EndIntervalFunc)(void);
+/* pyint: void */
+
+
 #define I_PERSIST "persist-6"
 
 typedef struct Ipersist
