@@ -15,6 +15,7 @@ cmd_netstats
 cmd_lastlog
 
 cmd_lsmod
+cmd_modinfo
 cmd_insmod
 cmd_rmmod
 cmd_attmod
