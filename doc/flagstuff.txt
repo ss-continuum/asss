@@ -123,8 +123,8 @@ FlagMode=1                        get rid of this, there's a new way to specify 
 FlagResetDelay=1440000            rename to ResetDelay (not currently implemented)
 MaxFlags=3                        change to FlagCount=3
 RandomFlags=0                     get rid of this, use FlagCount=5-10
-FlagReward=2500                   (wait until i write points_flag)
-FlagRewardMode=0                  (wait until i write points_flag)
+FlagReward=2500                   keep this
+FlagRewardMode=0                  change name to SplitPoints
 FlagTerritoryRadius=3             get rid of this, use DropRadius
 FlagTerritoryRadiusCentroid=0     get rid of this, use DropRadius
 FriendlyTransfer=0                keep this the same (not currently implemented)

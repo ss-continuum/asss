@@ -56,7 +56,7 @@ typedef struct Imodman
 	/* unloads a module. only the name should be given (not the file).
 	 */
 
-	void (*UnloadAllModules)();
+	void (*UnloadAllModules)(void);
 	/* unloads all modules (in reverse order). this is only called by
 	 * main to clean up before shutting down. */
 

@@ -26,7 +26,7 @@ typedef struct ModuleData
 
 local int LoadModule(char *);
 local void ReportFailedRequire(char *, char *);
-local void UnloadAllModules();
+local void UnloadAllModules(void);
 local void UnloadModule(char *);
 local void AttachModule(char *, int);
 local void DetachModule(char *, int);
@@ -226,7 +226,7 @@ local void RecursiveUnload(Link *l)
 	}
 }
 
-void UnloadAllModules()
+void UnloadAllModules(void)
 {
 	RecursiveUnload(LLGetHead(mods));
 	LLFree(mods);

@@ -13,7 +13,7 @@ local void Carena(const char *, int, int);
 local void Clogin(const char *, int, int);
 local void Csetop(const char *, int, int);
 local void Cshutdown(const char *, int, int);
-
+local void Cflagreset(const char *, int, int);
 local void Clogfile(const char *, int, int);
 
 
@@ -28,6 +28,7 @@ local Iconfig *cfg;
 local Imainloop *ml;
 local Iarenaman *aman;
 local Ilog_file *logfile;
+local Iflags *flags;
 
 local PlayerData *players;
 local ArenaData *arenas;
@@ -49,9 +50,10 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		mm->RegInterest(I_ARENAMAN, &aman);
 		mm->RegInterest(I_MAINLOOP, &ml);
 		mm->RegInterest(I_LOG_FILE, &logfile);
-		
+		mm->RegInterest(I_FLAGS, &flags);
+
 		if (!cmd || !net || !cfg || !aman) return MM_FAIL;
-		
+
 		players = pd->players;
 		arenas = aman->arenas;
 
@@ -62,7 +64,7 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		cmd->AddCommand("setop", Csetop, 0);
 		cmd->AddCommand("shutdown", Cshutdown, 200);
 		cmd->AddCommand("logfile", Clogfile, 200);
-
+		cmd->AddCommand("flagreset", Cflagreset, 100);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
@@ -72,6 +74,7 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		cmd->RemoveCommand("setop", Csetop);
 		cmd->RemoveCommand("shutdown", Cshutdown);
 		cmd->RemoveCommand("logfile", Clogfile);
+		cmd->RemoveCommand("flagreset", Cflagreset);
 
 		cfg->CloseConfigFile(configops);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
@@ -83,6 +86,7 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		mm->UnregInterest(I_ARENAMAN, &aman);
 		mm->UnregInterest(I_MAINLOOP, &ml);
 		mm->UnregInterest(I_LOG_FILE, &logfile);
+		mm->UnregInterest(I_FLAGS, &flags);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -94,7 +98,7 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 
 void Carena(const char *params, int pid, int target)
 {
-	static byte buf[MAXPACKET];
+	byte buf[MAXPACKET];
 	byte *pos = buf;
 	int i = 0, l, pcount[MAXARENA];
 
@@ -106,8 +110,8 @@ void Carena(const char *params, int pid, int target)
 
 	/* count up players */
 	for (i = 0; i < MAXPLAYERS; i++)
-		if (	players[i].status == S_CONNECTED &&
-				players[i].arena >= 0)
+		if (players[i].status == S_PLAYING &&
+		    players[i].arena >= 0)
 			pcount[players[i].arena]++;
 
 	/* signify current arena */
@@ -190,6 +194,7 @@ void Cshutdown(const char *params, int pid, int target)
 	ml->Quit();
 }
 
+
 void Clogfile(const char *params, int pid, int target)
 {
 	if (!strcasecmp(params, "flush"))
@@ -197,4 +202,11 @@ void Clogfile(const char *params, int pid, int target)
 	else if (!strcasecmp(params, "reopen"))
 		logfile->ReopenLog();
 }
+
+
+void Cflagreset(const char *params, int pid, int target)
+{
+	flags->FlagVictory(players[pid].arena, -1, 0);
+}
+
 

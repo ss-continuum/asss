@@ -20,7 +20,7 @@ struct ArenaStats /* 64 bytes */
 /* prototypes */
 
 local void IncrementStat(int, stat_t, int);
-local void SendUpdates();
+local void SendUpdates(void);
 
 local void GetA(int, void *);
 local void SetA(int, void *);
@@ -118,7 +118,7 @@ void IncrementStat(int pid, stat_t stat, int amount)
 
 #include "packets/scoreupd.h"
 
-void SendUpdates()
+void SendUpdates(void)
 {
 	int pid;
 	struct ScorePacket sp = { S2C_SCOREUPDATE };

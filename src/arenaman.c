@@ -23,13 +23,13 @@
 local int ReapArenas(void *);
 
 /* main loop */
-local void ProcessArenaQueue();
+local void ProcessArenaQueue(void);
 
 /* arena management funcs */
 local int FindArena(char *, int, int);
 local int CreateArena(char *);
-local void LockStatus();
-local void UnlockStatus();
+local void LockStatus(void);
+local void UnlockStatus(void);
 
 local void PArena(int, byte *, int);
 local void PLeaving(int, byte *, int);
@@ -122,12 +122,12 @@ int MM_arenaman(int action, Imodman *mm_, int arena)
 }
 
 
-void LockStatus()
+void LockStatus(void)
 {
 	LOCK_STATUS();
 }
 
-void UnlockStatus()
+void UnlockStatus(void)
 {
 	UNLOCK_STATUS();
 }
@@ -175,7 +175,7 @@ local void DoAttach(int arena, int action)
 }
 
 
-void ProcessArenaQueue()
+void ProcessArenaQueue(void)
 {
 	int i, j, nextstatus;
 	ArenaData *a;

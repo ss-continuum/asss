@@ -46,7 +46,7 @@
 /* prototypes */
 
 void run_child(int);
-void install_primitives();
+void install_primitives(void);
 
 
 /* globals */
@@ -403,7 +403,7 @@ Scheme_Object * prim_sendmessage(int argc, Scheme_Object **argv)
 
 /* end of new primitives */
 
-void install_primitives()
+void install_primitives(void)
 {
 #define ADD_PRIM(fname, name, mina, maxa) \
 	scheme_add_global(name, scheme_make_prim_w_arity(prim_##fname, name, mina, maxa), global)

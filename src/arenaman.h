@@ -48,8 +48,8 @@ typedef struct ArenaData
 typedef struct Iarenaman
 {
 	void (*SendArenaResponse)(int pid);
-	void (*LockStatus)();
-	void (*UnlockStatus)();
+	void (*LockStatus)(void);
+	void (*UnlockStatus)(void);
 	ArenaData *arenas;
 } Iarenaman;
 

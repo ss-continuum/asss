@@ -33,7 +33,7 @@ local void ASyncDone(int);
 
 local void CallPA(int pid, int action, int arena);
 local int SendKeepalive(void *);
-local void ProcessLoginQueue();
+local void ProcessLoginQueue(void);
 local void SendLoginResponse(int);
 
 /* default auth, can be replaced */
@@ -122,7 +122,7 @@ int MM_core(int action, Imodman *mm_, int arena)
 }
 
 
-void ProcessLoginQueue()
+void ProcessLoginQueue(void)
 {
 	int pid, ns, oldstatus;
 	PlayerData *player;

@@ -17,8 +17,8 @@ typedef struct TimerData
 local void SetTimer(TimerFunc, int, int, void *);
 local void ClearTimer(TimerFunc);
 
-local void RunLoop();
-local void KillML();
+local void RunLoop(void);
+local void KillML(void);
 
 
 
@@ -54,7 +54,7 @@ int MM_mainloop(int action, Imodman *mm_, int arena)
 }
 
 
-void RunLoop()
+void RunLoop(void)
 {
 	TimerData *td;
 	LinkedList *lst, freelist;
@@ -100,7 +100,7 @@ void RunLoop()
 }
 
 
-void KillML()
+void KillML(void)
 {
 	privatequit = 1;
 }

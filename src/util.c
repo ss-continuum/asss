@@ -131,7 +131,7 @@ char *astrncpy(char *dest, const char *source, size_t n)
 
 #define LINKSATONCE 510 /* enough to almost fill a page */
 
-local void GetSomeLinks()
+local void GetSomeLinks(void)
 {
 	Link *mem, *start;
 	int i;

@@ -57,7 +57,7 @@ command.so: cmdman.o playercmd.o
 
 billing.so: billcore.o
 
-scoring.so: persist.o stats.o points_kill.o
+scoring.so: persist.o stats.o points_kill.o points_flag.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -ldb1
 
 scheme.so: scheme.o ooputils.o
@@ -81,6 +81,9 @@ sparse.inc: $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py
 
 Makefile.deps: *.c *.h
 	$(CC) -I $(SCHEMEINC) -MM *.c > $@
+
+# gcc -MM is too dumb to figure this one out
+mapdata.o: sparse.inc
 
 include Makefile.deps
 

@@ -40,8 +40,8 @@ typedef struct Imainloop
 	void (*SetTimer)(TimerFunc func, int initialdelay, int interval, void *param);
 	void (*ClearTimer)(TimerFunc func);
 
-	void (*RunLoop)();
-	void (*Quit)();
+	void (*RunLoop)(void);
+	void (*Quit)(void);
 } Imainloop;
 
 

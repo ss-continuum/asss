@@ -9,8 +9,8 @@ typedef struct Iplayerdata
 	PlayerData *players;
 	void (*LockPlayer)(int pid);
 	void (*UnlockPlayer)(int pid);
-	void (*LockStatus)();
-	void (*UnlockStatus)();
+	void (*LockStatus)(void);
+	void (*UnlockStatus)(void);
 	int (*FindPlayer)(char *name);
 	/* this is a useful function that doesn't belong here. but it is
 	 * anyway. */

@@ -24,8 +24,12 @@ typedef struct Imapdata
 	int (*GetTile)(int arena, int x, int );
 	/* returns the contents of the given tile. */
 
-	void (*FindNearestOpenTile)(int arena, int *x, int *y);
-	/* finds the tile nearest to the given tile that is empty. */
+	/* the following functions are in this module because of efficiency
+	 * concerns. */
+
+	void (*FindFlagTile)(int arena, int *x, int *y);
+	/* finds the tile nearest to the given tile that is appropriate for
+	 * placing a flag (empty and accessible). */
 
 	void (*FindBrickEndpoints)(int arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2);
 	/* calculates the placement of a brick of a given length dropped at

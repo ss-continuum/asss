@@ -36,7 +36,7 @@ int read_lvl(char *name, struct MapData *md);
 local int GetMapFilename(int arena, char *buffer, int bufferlen);
 local int GetFlagCount(int arena);
 local int GetTile(int arena, int x, int y);
-local void FindNearestOpenTile(int arena, int *x, int *y);
+local void FindFlagTile(int arena, int *x, int *y);
 local void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2);
 
 /* global data */
@@ -52,7 +52,7 @@ local Ilogman *log;
 
 /* this module's interface */
 local Imapdata _int =
-{ GetMapFilename, GetFlagCount, GetTile, FindNearestOpenTile, FindBrickEndpoints };
+{ GetMapFilename, GetFlagCount, GetTile, FindFlagTile, FindBrickEndpoints };
 
 
 
@@ -179,7 +179,7 @@ int GetMapFilename(int arena, char *buffer, int bufferlen)
 	char *map, *searchpath;
 
 	map = cfg->GetStr(aman->arenas[arena].cfg, "General", "Map");
-	if (!map) return 1;
+	if (!map) return -1;
 
 	repls[0].repl = 'a';
 	repls[0].with = aman->arenas[arena].name;
@@ -200,7 +200,10 @@ int GetMapFilename(int arena, char *buffer, int bufferlen)
 
 int GetTile(int arena, int x, int y)
 {
-	return (int)lookup_sparse(mapdata[arena].arr, x, y);
+	if (mapdata[arena].arr)
+		return (int)lookup_sparse(mapdata[arena].arr, x, y);
+	else
+		return -1;
 }
 
 int GetFlagCount(int arena)
@@ -208,8 +211,70 @@ int GetFlagCount(int arena)
 	return mapdata[arena].flags;
 }
 
-void FindNearestOpenTile(int arena, int *x, int *y)
+void FindFlagTile(int arena, int *x, int *y)
 {
+	struct SpiralContext
+	{
+		enum { down, right, up, left } dir;
+		int upto, remaining;
+		int x, y;
+	} ctx;
+	int good;
+	sparse_arr arr = mapdata[arena].arr;
+
+	if (!arr) return;
+
+	/* init context. these values are funny because they are one
+	 * iteration before where we really want to start from. */
+	ctx.dir = left;
+	ctx.upto = 0;
+	ctx.remaining = 1;
+	ctx.x = *x + 1;
+	ctx.y = *y;
+	good = 0;
+
+	/* do it */
+	do
+	{
+		/* move 1 in current dir */
+		switch (ctx.dir)
+		{
+			case down:  ctx.y++; break;
+			case right: ctx.x++; break;
+			case up:    ctx.y--; break;
+			case left:  ctx.x--; break;
+		}
+		ctx.remaining--;
+		/* if we're at the end of the line */
+		if (ctx.remaining == 0)
+		{
+			ctx.dir = (ctx.dir + 1) % 4;
+			if (ctx.dir == 0 || ctx.dir == 2)
+				ctx.upto++;
+			ctx.remaining = ctx.upto;
+		}
+
+		/* check if it's ok */
+		good = 1;
+		/* check if the tile is empty */
+		if (lookup_sparse(arr, ctx.x, ctx.y))
+			good = 0;
+		/* check if it's surrounded on top and bottom */
+		if (lookup_sparse(arr, ctx.x, ctx.y + 1) &&
+		    lookup_sparse(arr, ctx.x, ctx.y - 1))
+			good = 0;
+		/* check if it's surrounded on left and right */
+		if (lookup_sparse(arr, ctx.x + 1, ctx.y) &&
+		    lookup_sparse(arr, ctx.x - 1, ctx.y))
+			good = 0;
+	}
+	while (!good && ctx.upto < 35);
+
+	if (good)
+	{
+		/* return values */
+		*x = ctx.x; *y = ctx.y;
+	}
 }
 
 void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2)

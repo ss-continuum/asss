@@ -190,7 +190,7 @@
 
 #define DEFAULTCONFIGSEARCHPATH "arenas/%a/%n.conf:arenas/%a/%n:defaultarena/%n.conf:defaultarena/%n:%n"
 
-#define DEFAULTMAPSEARCHPATH "arenas/%a/%m:defaultarena/%m:maps/%m"
+#define DEFAULTMAPSEARCHPATH "arenas/%a/%m:defaultarena/%m:maps/%m:%m"
 
 
 /* useful typedefs */

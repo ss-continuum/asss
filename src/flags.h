@@ -23,7 +23,8 @@ typedef enum
 } flagstate_t;
 
 
-/* called when a player picks up a flag (in regular AND turf games) */
+/* called when a player picks up a flag (in turf games, this means he
+ * claimed the flag) */
 #define CALLBACK_FLAGPICKUP ("flagpickup")
 typedef void (*FlagPickupFunc)(int arena, int pid, int fid, int oldfreq);
 
@@ -35,7 +36,8 @@ typedef void (*FlagDropFunc)(int arena, int pid);
 #define CALLBACK_FLAGPOS ("flagpos")
 typedef void (*FlagPosFunc)(int arena, int fid, int x, int y, int freq);
 
-/* called when a freq owns all the flags in an arena */
+/* called when a freq owns all the flags in an arena (in regular games
+ * only) */
 #define CALLBACK_FLAGWIN ("flagwin")
 typedef void (*FlagWinFunc)(int arena, int freq);
 
@@ -65,6 +67,9 @@ typedef struct Iflags
 
 	int (*GetCarriedFlags)(int pid);
 	/* a utility function to get the number of flags carried by a player */
+
+	int (*GetFreqFlags)(int arena, int freq);
+	/* a utility function to get the number of flags owned by a freq */
 
 	void (*LockFlagStatus)(int arena);
 	void (*UnlockFlagStatus)(int arena);

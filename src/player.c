@@ -7,8 +7,8 @@
 /* prototypes */
 local void LockPlayer(int pid);
 local void UnlockPlayer(int pid);
-local void LockStatus();
-local void UnlockStatus();
+local void LockStatus(void);
+local void UnlockStatus(void);
 local int FindPlayer(char *name);
 
 
@@ -80,12 +80,12 @@ void UnlockPlayer(int pid)
 		pthread_mutex_unlock(playermtx + pid);
 }
 
-void LockStatus()
+void LockStatus(void)
 {
 	pthread_mutex_lock(&statusmtx);
 }
 
-void UnlockStatus()
+void UnlockStatus(void)
 {
 	pthread_mutex_unlock(&statusmtx);
 }

@@ -25,7 +25,7 @@ typedef struct Istats
 	void (*IncrementStat)(int pid, stat_t stat, int amount);
 
 	/* sends out score updates for everyone that needs to be updated */
-	void (*SendUpdates)();
+	void (*SendUpdates)(void);
 } Istats;
 
 #endif

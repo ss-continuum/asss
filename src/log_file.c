@@ -10,8 +10,8 @@
 
 
 local void LogFile(char, char *);
-local void FlushLog();
-local void ReopenLog();
+local void FlushLog(void);
+local void ReopenLog(void);
 
 local FILE *logfile;
 local pthread_mutex_t logmtx = PTHREAD_MUTEX_INITIALIZER;
@@ -69,14 +69,14 @@ void LogFile(char lev, char *s)
 	pthread_mutex_unlock(&logmtx);
 }
 
-void FlushLog()
+void FlushLog(void)
 {
 	pthread_mutex_lock(&logmtx);
 	if (logfile) fflush(logfile);
 	pthread_mutex_unlock(&logmtx);
 }
 
-void ReopenLog()
+void ReopenLog(void)
 {
 	char *ln, fname[256];
 

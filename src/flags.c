@@ -50,6 +50,7 @@ local void FlagVictory(int arena, int freq, int points);
 local void LockFlagStatus(int arena);
 local void UnlockFlagStatus(int arena);
 local int GetCarriedFlags(int pid);
+local int GetFreqFlags(int arena, int freq);
 
 
 /* local data */
@@ -60,6 +61,7 @@ local Ilogman *logm;
 local Iplayerdata *pd;
 local Iarenaman *aman;
 local Imainloop *ml;
+local Imapdata *mapdata;
 
 /* the big flagdata array */
 local struct ArenaFlagData flagdata[MAXARENA];
@@ -67,7 +69,10 @@ local struct MyArenaData pflagdata[MAXARENA];
 local pthread_mutex_t flagmtx[MAXARENA];
 
 local Iflags _myint =
-{ MoveFlag, FlagVictory, GetCarriedFlags, LockFlagStatus, UnlockFlagStatus, flagdata };
+{
+	MoveFlag, FlagVictory, GetCarriedFlags, GetFreqFlags,
+	LockFlagStatus, UnlockFlagStatus, flagdata
+};
 
 
 
@@ -82,6 +87,7 @@ int MM_flags(int action, Imodman *_mm, int arena)
 		mm->RegInterest(I_PLAYERDATA, &pd);
 		mm->RegInterest(I_ARENAMAN, &aman);
 		mm->RegInterest(I_MAINLOOP, &ml);
+		mm->RegInterest(I_MAPDATA, &mapdata);
 
 		mm->RegCallback(CALLBACK_ARENAACTION, AAFlag, ALLARENAS);
 		mm->RegCallback(CALLBACK_PLAYERACTION, PAFlag, ALLARENAS);
@@ -137,6 +143,7 @@ int MM_flags(int action, Imodman *_mm, int arena)
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_ARENAMAN, &aman);
 		mm->UnregInterest(I_MAINLOOP, &ml);
+		mm->UnregInterest(I_MAPDATA, &mapdata);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -151,8 +158,10 @@ void LoadFlagSettings(int arena)
 	struct MyArenaData d;
 	ConfigHandle c = aman->arenas[arena].cfg;
 
+	/* get flag game type */
 	d.gametype = cfg->GetInt(c, "Flag", "GameType", FLAGGAME_NONE);
 
+	/* and initialize settings for that type */
 	if (d.gametype == FLAGGAME_BASIC)
 	{
 		char *count, *c2;
@@ -183,9 +192,23 @@ void LoadFlagSettings(int arena)
 		else
 			d.maxflags = d.minflags = 0;
 		d.currentflags = 0;
+		/* the timer event will notice that currentflags < maxflags and
+		 * spawn the flags. */
 	}
 	else if (d.gametype == FLAGGAME_TURF)
 	{
+		int i;
+		struct FlagData *f;
+
+		d.minflags = d.maxflags = d.currentflags = mapdata->GetFlagCount(arena);
+
+		for (i = 0, f = flagdata[arena].flags; i < d.currentflags; i++, f++)
+		{
+			f->state = FLAG_ONMAP;
+			f->freq = -1;
+			f->x = -1;
+			f->y = -1;
+		}
 	}
 
 	LOCK_STATUS(arena);
@@ -204,7 +227,7 @@ void SpawnFlag(int arena, int fid)
 {
 	/* note that this function should be called only for arenas with
 	 * FLAGGAME_BASIC */
-	int cx, cy, rad, x, y, freq;
+	int cx, cy, rad, x, y, freq, good;
 	struct FlagData *f = &flagdata[arena].flags[fid];
 
 	LOCK_STATUS(arena);
@@ -246,22 +269,39 @@ void SpawnFlag(int arena, int fid)
 		UNLOCK_STATUS(arena);
 		return;
 	}
-	UNLOCK_STATUS(arena);
 
 	do {
+		int i;
 		float rndrad, rndang;
+		/* pick random point */
 		rndrad = (float)rand()/(RAND_MAX+1.0) * (float)rad;
 		rndang = (float)rand()/(RAND_MAX+1.0) * M_PI * 2.0;
 		x = cx + (rndrad * cos(rndang));
 		y = cy + (rndrad * sin(rndang));
-		if (x < 0) x = 0;
-		if (x > 1023) x = 1023;
-		if (y < 0) y = 0;
-		if (y > 1023) y = 1023;
-	} while (0 /* the square is occupied. need to wait for mapdata */);
+		/* wrap around, don't clip, so radii of 2048 from a corner
+		 * work properly. */
+		while (x < 0) x += 1024;
+		while (x > 1023) x -= 1024;
+		while (y < 0) y += 1024;
+		while (y > 1023) y -= 1024;
+
+		/* ask mapdata to move it to nearest empty tile */
+		mapdata->FindFlagTile(arena, &x, &y);
+
+		/* finally make sure it doesn't hit any other flags */
+		good = 1;
+		for (i = 0, f = flagdata[arena].flags; i < MAXFLAGS; i++, f++)
+			if (f->state == FLAG_ONMAP && /* only check placed flags */
+			    fid != i && /* don't compare with ourself */
+			    f->x == x &&
+			    f->y == y)
+				good = 0;
+	} while (!good);
 
 	/* whew, finally place the thing */
 	MoveFlag(arena, fid, x, y, freq);
+
+	UNLOCK_STATUS(arena);
 }
 
 
@@ -300,13 +340,6 @@ void FlagVictory(int arena, int freq, int points)
 	UNLOCK_STATUS(arena);
 
 	net->SendToArena(arena, -1, (byte*)&fv, sizeof(fv), NET_RELIABLE);
-
-	{ /* do callbacks */
-		LinkedList *lst = mm->LookupCallback(CALLBACK_FLAGWIN, arena);
-		Link *l;
-		for (l = LLGetHead(lst); l; l = l->next)
-			((FlagWinFunc)l->data)(arena, freq);
-	}
 }
 
 
@@ -337,6 +370,23 @@ int GetCarriedFlags(int pid)
 	return tot;
 }
 
+int GetFreqFlags(int arena, int freq)
+{
+	int tot = 0, i;
+	struct FlagData *f;
+
+	if (arena < 0 || arena >= MAXARENA) return -1;
+
+	f = flagdata[arena].flags;
+	LOCK_STATUS(arena);
+	for (i = 0; i < MAXFLAGS; i++, f++)
+		if (f->state == FLAG_ONMAP &&
+		    f->freq == freq)
+			tot++;
+	UNLOCK_STATUS(arena);
+	return tot;
+}
+
 
 void AAFlag(int arena, int action)
 {
@@ -344,6 +394,45 @@ void AAFlag(int arena, int action)
 		LoadFlagSettings(arena);
 	else if (action == AA_DESTROY)
 		pflagdata[arena].gametype = FLAGGAME_NONE;
+}
+
+
+local void CheckWin(int arena)
+{
+	struct FlagData *f;
+	int freq = -1, flagc = 0, i, cflags;
+
+	/* figure out how many flags are owned by some freq that owns flags.
+	 * note that we don't need the max, because by definition, a win is
+	 * when you're the _only_ freq that owns flags. */
+	LOCK_STATUS(arena);
+	cflags = pflagdata[arena].currentflags;
+	for (i = 0, f = flagdata[arena].flags; i < MAXFLAGS; i++, f++)
+		if (f->state == FLAG_ONMAP)
+		{
+			if (f->freq == freq)
+				flagc++;
+			else
+			{
+				freq = f->freq;
+				flagc = 1;
+			}
+		}
+	UNLOCK_STATUS(arena);
+
+	if (freq != -1 && flagc == cflags)
+	{
+		/* signal a win by calling callbacks. they should at least call
+		 * flags->FlagVictory to reset the game. */
+		LinkedList *lst = mm->LookupCallback(CALLBACK_FLAGWIN, arena);
+		Link *l;
+		for (l = LLGetHead(lst); l; l = l->next)
+			((FlagWinFunc)l->data)(arena, freq);
+
+		logm->Log(L_INFO, "<flags> {%s} Flag victory: freq %d won",
+				aman->arenas[arena].name, freq);
+	}
+
 }
 
 
@@ -595,6 +684,11 @@ void PDropFlag(int pid, byte *p, int len)
 	logm->Log(L_DRIVEL, "<flags> {%s} [%s] Player dropped flags",
 			aman->arenas[arena].name,
 			pd->players[pid].name);
+
+	/* do this after the drop callbacks have been called because this
+	 * has the potential to call the win callbacks and we don't want the
+	 * drop ones called after the win ones. */
+	CheckWin(arena);
 }
 
 
@@ -613,7 +707,7 @@ int BasicFlagTimer(void *dummy)
 			if (pflagdata[arena].currentflags < pflagdata[arena].minflags)
 			{
 				float diff, cflags;
-				diff = pflagdata[arena].maxflags - pflagdata[arena].minflags;
+				diff = pflagdata[arena].maxflags - pflagdata[arena].minflags + 1;
 				cflags = diff * ((float)rand() / (RAND_MAX+1.0));
 				pflagdata[arena].currentflags = (int)cflags + pflagdata[arena].minflags;
 			}
@@ -624,6 +718,10 @@ int BasicFlagTimer(void *dummy)
 			for (f = 0; f < flagcount; f++)
 				if (flags[f].state == FLAG_NONE || flags[f].state == FLAG_NEUTED)
 					SpawnFlag(arena, f);
+
+			/* also check wins in case it wasn't due to a drop. it is
+			 * possible, if you have NeutOwned on. */
+			CheckWin(arena);
 		}
 		UNLOCK_STATUS(arena);
 	}
@@ -641,6 +739,15 @@ int TurfFlagTimer(void *dummy)
 		if (pflagdata[arena].gametype == FLAGGAME_TURF)
 		{
 			/* send big turf flag summary */
+			int i, fc;
+			struct SimplePacketA *pkt;
+
+			fc = pflagdata[arena].currentflags;
+			pkt = alloca(1 + fc * 2);
+			pkt->type = S2C_TURFFLAGS;
+			for (i = 0; i < fc; i++)
+				pkt->d[i] = flagdata[arena].flags[i].freq;
+			net->SendToArena(arena, -1, (byte*)pkt, 1 + fc * 2, NET_UNRELIABLE);
 		}
 		UNLOCK_STATUS(arena);
 	}

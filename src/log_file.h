@@ -5,10 +5,10 @@
 
 typedef struct Ilog_file
 {
-	void (*FlushLog)();
+	void (*FlushLog)(void);
 	/* flushes the current log file to disk */
 
-	void (*ReopenLog)();
+	void (*ReopenLog)(void);
 	/* closes and reopens the current log file */
 } Ilog_file;
 

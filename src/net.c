@@ -89,7 +89,7 @@ local inline void SendRaw(int, byte *, int);
 local void KillConnection(int pid);
 local void BufferPacket(int, byte *, int, int);
 local void ProcessBuffer(Buffer *);
-local void InitSockets();
+local void InitSockets(void);
 local Buffer * GetBuffer();
 local void FreeBuffer(Buffer *);
 
@@ -328,7 +328,7 @@ void FreeBuffer(Buffer *dq)
 }
 
 
-void InitSockets()
+void InitSockets(void)
 {
 	struct sockaddr_in localsin;
 
