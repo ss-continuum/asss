@@ -159,7 +159,7 @@ int CreateArena(char *name, int initialpid)
 
 	if (FindArena(name, TRUE) != -1)
 	{
-		log->Log(LOG_ERROR,"Internal error in CreateArena: arena %s already exists!", name);
+		log->Log(LOG_ERROR,"Internal error in CreateArena: arena '%s' already exists!", name);
 		return -1;
 	}
 
@@ -190,6 +190,9 @@ void SendOneArenaResponse(int pid)
 	int arena, i;
 
 	arena = players[pid].arena;
+
+	log->Log(LOG_USELESSINFO, "Player '%s' entering arena '%s' (S)",
+				players[pid].name, arenas[arena].name);
 
 	/* send whoami packet */
 	whoami.d1 = pid;
@@ -243,7 +246,12 @@ void SendMultipleArenaResponses(int arena)
 	/* pass 1: whoami, freq, settings */
 	for (i = 0; i < pidc; i++)
 	{
-		int pid = pidset[i];
+		int pid;
+		
+		pid = pidset[i];
+		/* log this banal event */
+		log->Log(LOG_USELESSINFO, "Player '%s' entering arena '%s' (M)",
+				players[pid].name, arenas[arena].name);
 		/* send whoami */
 		whoami.d1 = pid;
 		net->SendToOne(pid, (byte*)&whoami, 3, NET_RELIABLE);
@@ -339,6 +347,7 @@ void PArena(int pid, byte *p, int l)
 
 	if (arena == -1)
 	{
+		log->Log(LOG_INFO, "Arena '%s' doesn't exist, creating it", name);
 		arena = CreateArena(name, pid);
 		if (arena == -1)
 		{
@@ -378,9 +387,15 @@ void PArena(int pid, byte *p, int l)
 
 void PLeaving(int pid, byte *p, int q)
 {
-	struct SimplePacket pk = { S2C_PLAYERLEAVING, pid, 0, 0, 0, 0 };
-	net->SendToArena(players[pid].arena, pid, (byte*)&pk, 3, NET_RELIABLE);
+	int arena;
+	struct SimplePacket pk = { S2C_PLAYERLEAVING };
+
+	pk.d1 = pid;
+	arena = players[pid].arena;
+	net->SendToArena(arena, pid, (byte*)&pk, 3, NET_RELIABLE);
 	players[pid].arena = -1;
+	log->Log(LOG_USELESSINFO, "Player '%s' leaving arena '%s'",
+			players[pid].name, arenas[arena].name);
 }
 
 
@@ -396,7 +411,7 @@ int ReapArenas(void *q)
 						players[j].arena == i)
 					goto skip;
 			
-			log->Log(LOG_USELESSINFO, "Arena %s (%i) being reaped",
+			log->Log(LOG_USELESSINFO, "Arena '%s' (%i) being reaped",
 					arenas[i].name, i);
 			FreeArena(i);
 skip:

@@ -145,6 +145,8 @@ void Csetop(const char *params, int pid, int target)
 	players[target].oplevel = op;
 	chat->SendMessage(pid, "You have assigned oplevel %i to %s", op, players[target].name);
 	chat->SendMessage(target, "Your current oplevel is %i", op);
+/*	log->Log(LOG_INFO, "Player '%s' assigned oplevel %i to '%s'",
+			players[pid].name, op, players[target].name); */
 }
 
 

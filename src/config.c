@@ -120,7 +120,7 @@ static int ProcessConfigFile(HashTable *thetable, HashTable *defines, const char
 				while (*buf == ' ' || *buf == '\t') buf++;
 				if (ProcessConfigFile(thetable, defines, buf) == MM_FAIL)
 				{
-					if (log) log->Log(LOG_ERROR, "Cannot find #included file: %s", buf);
+					if (log) log->Log(LOG_ERROR, "Cannot find #included file '%s'", buf);
 					/* return MM_FAIL; let's not abort on #include error */ 
 				}
 			}
@@ -159,7 +159,7 @@ static int ProcessConfigFile(HashTable *thetable, HashTable *defines, const char
 #endif
 			else
 			{
-				if (log) log->Log(LOG_ERROR, "Unexpected configuration directive: %s", buf);
+				if (log) log->Log(LOG_ERROR, "Unexpected configuration directive '%s'", buf);
 			}
 		}
 		else if (thespot && !(*buf == '/' || *buf == ';' || *buf == '}'))

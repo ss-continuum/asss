@@ -106,7 +106,7 @@ int MM_core(int action, Imodman *mm_)
 void PLogin(int pid, byte *p, int l)
 {
 	if (l != sizeof(struct LoginPacket))
-		log->Log(LOG_BADDATA,"Bad packet length (%s)",players[pid].name);
+		log->Log(LOG_BADDATA,"Bad login packet length (%s)",players[pid].name);
 	else
 		auth->Authenticate
 			(pid, (struct LoginPacket *)p, SendLoginResponse);

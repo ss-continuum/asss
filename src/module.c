@@ -101,7 +101,7 @@ int LoadModule(char *filename)
 		return MM_FAIL;
 	}
 
-	if (log) log->Log(LOG_DEBUG,"Loading module %s from '%s'", modname, filename);
+	if (log) log->Log(LOG_DEBUG,"Loading module '%s' from '%s'", modname, filename);
 
 
 	mod = amalloc(sizeof(ModuleData));
@@ -144,7 +144,7 @@ int LoadModule(char *filename)
 	if (ret != MM_OK)
 	{
 		if (log) log->Log(LOG_ERROR,
-				"Error loading module string %s from %s", modname, filename);
+				"Error loading module string '%s' from '%s'", modname, filename);
 		if (!mod->myself) dlclose(mod->hand);
 		afree(mod);
 		return ret;
@@ -157,7 +157,7 @@ int LoadModule(char *filename)
 
 local void UnloadModuleByPtr(ModuleData *mod)
 {
-	printf("Unloading module %s\n", mod->name);
+	printf("Unloading module '%s'\n", mod->name);
 /*	if (ints[I_LOGMAN]) */
 /*		((Ilogman*)ints[I_LOGMAN])->Log(LOG_DEBUG, "Unloading module %s", mod->name); */
 	if (mod->mm) (mod->mm)(MM_UNLOAD, &mmint);

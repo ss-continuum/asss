@@ -221,7 +221,7 @@ void PMapRequest(int pid, byte *p, int q)
 	int arena = players[pid].arena;
 	if (p[0] == C2S_MAPREQUEST)
 	{
-		log->Log(LOG_DEBUG,"Sending map to %s", players[pid].name);
+		log->Log(LOG_DEBUG,"Sending map (%s)", players[pid].name);
 		if (arena < 0)
 			log->Log(LOG_BADDATA, "Map request before entering arena (%s)",
 					players[pid].name);
@@ -233,7 +233,7 @@ void PMapRequest(int pid, byte *p, int q)
 	}
 	else if (p[0] == C2S_NEWSREQUEST)
 	{
-		log->Log(LOG_DEBUG,"Sending news to %s", players[pid].name);
+		log->Log(LOG_DEBUG,"Sending news (%s)", players[pid].name);
 		if (cmpnews)
 			net->SendToOne(pid, cmpnews, cmpnewssize, NET_RELIABLE | NET_PRESIZE);
 		else
@@ -302,7 +302,7 @@ int RefreshNewsTxt(void *dummy)
 
 		if (cmpnews) afree(cmpnews);
 		cmpnews = cnews;
-		log->Log(LOG_USELESSINFO,"News file %s reread", cfg_newsfile);
+		log->Log(LOG_USELESSINFO,"News file '%s' reread", cfg_newsfile);
 	}
 	close(fd);
 	return 1;

@@ -359,7 +359,7 @@ void PChat(int pid, byte *p, int len)
 		t = strchr(from->text+1, ':');
 		if (from->text[0] != ':' || !t)
 		{
-			log->Log(LOG_BADDATA,"Malformed remote priv (%s) \"%s\"", players[pid].name,
+			log->Log(LOG_BADDATA,"Malformed remote priv (%s) '%s'", players[pid].name,
 					from->text);
 		}
 		else
