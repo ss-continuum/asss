@@ -6,6 +6,7 @@
 #include <stdio.h>
 
 #include "asss.h"
+#include "clientset.h"
 
 
 #define WEAPONCOUNT 32
@@ -719,7 +720,11 @@ void PDie(Player *p, byte *pkt, int n)
 		return;
 	}
 
-	kp.green = 0; /* FIXME */
+	{
+		Iclientset *cset = mm->GetInterface(I_CLIENTSET, arena);
+		kp.green = cset ? cset->GetRandomPrize(arena) : 0;
+		mm->ReleaseInterface(cset);
+	}
 	kp.killer = killer->pid;
 	kp.killed = p->pid;
 	kp.bounty = bty;

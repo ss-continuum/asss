@@ -185,15 +185,15 @@ local int BalanceFreqs(Arena *arena, Player *excl, int inclspec)
 
 local int screen_res_allowed(Player *p, ConfigHandle ch)
 {
-	int max_x=MAXXRES(ch);
-	int max_y=MAXYRES(ch);
-	if((!max_x || p->xres <= max_x) && (!max_y || p->yres <= max_y))
+	int max_x = MAXXRES(ch);
+	int max_y = MAXYRES(ch);
+	if((max_x == 0 || p->xres <= max_x) && (max_y == 0 || p->yres <= max_y))
 		return 1;
 
 	if (chat)
 		chat->SendMessage(p,
 			"Maximum allowed screen resolution is %dx%d in this arena",
-			max_x,max_y);
+			max_x, max_y);
 
 	return 0;
 }
@@ -221,6 +221,8 @@ void Initial(Player *p, int *ship, int *freq)
 	}
 	else
 	{
+		/* LOCK: check arena's initial lock-to-spec status */
+
 		/* we have to assign him to a freq */
 		int inclspec = INCLSPEC(ch);
 		f = BalanceFreqs(arena, p, inclspec);
@@ -253,16 +255,7 @@ void Ship(Player *p, int *ship, int *freq)
 	else
 	{
 		/* he's changing to a ship */
-		if (count_current_playing(arena) >= MAXPLAYING(ch))
-		{
-			/* too many playing, cancel request */
-			s = p->p_ship;
-			f = p->p_freq;
-			if (chat)
-				chat->SendMessage(p,
-						"There are too many people playing in this arena.");
-		}
-		else if (p->flags.no_ship)
+		if (p->flags.no_ship)
 		{
 			s = p->p_ship;
 			f = p->p_freq;
@@ -281,14 +274,30 @@ void Ship(Player *p, int *ship, int *freq)
 			int oldfreq = p->p_freq;
 			if (oldfreq == specfreq)
 			{
-				/* we have to assign him to a freq */
-				int inclspec = INCLSPEC(ch);
-				f = BalanceFreqs(arena, p, inclspec);
-				/* and make sure the ship is still legal */
-				s = FindLegalShip(arena, f, s);
+				/* LOCK: check locked-in-spec state */
+
+				if (count_current_playing(arena) >= MAXPLAYING(ch))
+				{
+					/* too many playing, cancel request */
+					s = p->p_ship;
+					f = p->p_freq;
+					if (chat)
+						chat->SendMessage(p,
+								"There are too many people playing in this arena.");
+				}
+				else
+				{
+					/* leaving spec, we have to assign him to a freq */
+					int inclspec = INCLSPEC(ch);
+					f = BalanceFreqs(arena, p, inclspec);
+					/* and make sure the ship is still legal */
+					s = FindLegalShip(arena, f, s);
+				}
 			}
 			else
 			{
+				/* LOCK: check locked-in-ship state */
+
 				/* don't touch freq, but make sure ship is ok */
 				s = FindLegalShip(arena, f, s);
 			}
@@ -332,6 +341,8 @@ void Freq(Player *p, int *ship, int *freq)
 	/* special case: speccer re-entering spec freq */
 	if (s == SPEC && f == specfreq)
 		return;
+
+	/* LOCK: check locked-in-freq state */
 
 	if (f < 0 || f > maxfreq)
 		/* he requested a bad freq. drop him elsewhere. */

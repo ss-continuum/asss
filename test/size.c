@@ -6,7 +6,7 @@ typedef short i16;
 typedef int i32;
 typedef unsigned char byte;
 
-#include "/home/david/src/bot/work/realsettings.txt"
+#include "../../bot/work/realsettings.txt"
 
 int main()
 {

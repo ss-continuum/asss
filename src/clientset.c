@@ -15,15 +15,25 @@
 #define COUNT(x) (sizeof(x)/sizeof(x[0]))
 
 
+typedef struct adata
+{
+	struct ClientSettings cs;
+	/* prizeweight partial sums. 0-27 are used for now, representing
+	 * prizes 1 to 28. */
+	unsigned short pwps[32];
+} adata;
+
+
 /* prototypes */
 local void ActionFunc(Arena *arena, int action);
 local void SendClientSettings(Player *p);
 local void Reconfigure(Arena *arena);
 local u32 GetChecksum(Arena *arena, u32 key);
+local int GetRandomPrize(Arena *arena);
 
 /* global data */
 
-local int csetkey;
+local int adkey;
 local pthread_mutex_t setmtx = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK() pthread_mutex_lock(&setmtx)
 #define UNLOCK() pthread_mutex_unlock(&setmtx)
@@ -40,7 +50,7 @@ local Iarenaman *aman;
 local Iclientset _myint =
 {
 	INTERFACE_HEAD_INIT(I_CLIENTSET, "clientset")
-	SendClientSettings, Reconfigure, GetChecksum
+	SendClientSettings, Reconfigure, GetChecksum, GetRandomPrize
 };
 
 /* the client settings definition */
@@ -60,8 +70,8 @@ EXPORT int MM_clientset(int action, Imodman *mm_, Arena *arena)
 
 		if (!net || !cfg || !lm || !aman) return MM_FAIL;
 
-		csetkey = aman->AllocateArenaData(sizeof(struct ClientSettings));
-		if (csetkey == -1) return MM_FAIL;
+		adkey = aman->AllocateArenaData(sizeof(adata));
+		if (adkey == -1) return MM_FAIL;
 
 		mm->RegCallback(CB_ARENAACTION, ActionFunc, ALLARENAS);
 
@@ -87,7 +97,7 @@ EXPORT int MM_clientset(int action, Imodman *mm_, Arena *arena)
 		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
 		mm->UnregCallback(CB_ARENAACTION, ActionFunc, ALLARENAS);
-		aman->FreeArenaData(csetkey);
+		aman->FreeArenaData(adkey);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(cfg);
@@ -99,9 +109,11 @@ EXPORT int MM_clientset(int action, Imodman *mm_, Arena *arena)
 }
 
 
-local void load_settings(struct ClientSettings *cs, ConfigHandle conf)
+local void load_settings(adata *ad, ConfigHandle conf)
 {
+	struct ClientSettings *cs = &ad->cs;
 	int i, j;
+	unsigned short total = 0;
 
 	/* clear and set type */
 	memset(cs, 0, sizeof(*cs));
@@ -176,8 +188,11 @@ local void load_settings(struct ClientSettings *cs, ConfigHandle conf)
 	for (i = 0; i < COUNT(cs->byte_set); i++)
 		cs->byte_set[i] = cfg->GetInt(conf, byte_names[i], NULL, 0);
 	for (i = 0; i < COUNT(cs->prizeweight_set); i++)
+	{
 		cs->prizeweight_set[i] = cfg->GetInt(conf,
 				prizeweight_names[i], NULL, 0);
+		ad->pwps[i] = (total += cs->prizeweight_set[i]);
+	}
 
 	/* the funky ones */
 	cs->long_set[0] *= 1000; /* BombDamageLevel */
@@ -188,33 +203,24 @@ local void load_settings(struct ClientSettings *cs, ConfigHandle conf)
 }
 
 
-/* call with lock held! */
-local void LoadSettings(Arena *arena)
-{
-	struct ClientSettings *cs = P_ARENA_DATA(arena, csetkey);
-	load_settings(cs, arena->cfg);
-}
-
-
 void ActionFunc(Arena *arena, int action)
 {
+	adata *ad = P_ARENA_DATA(arena, adkey);
 	LOCK();
 	if (action == AA_CREATE)
 	{
-		LoadSettings(arena);
+		load_settings(ad, arena->cfg);
 	}
 	else if (action == AA_CONFCHANGED)
 	{
-		byte *data = P_ARENA_DATA(arena, csetkey);
-		LoadSettings(arena);
-		net->SendToArena(arena, NULL, data, sizeof(struct ClientSettings), NET_RELIABLE);
+		load_settings(ad, arena->cfg);
+		net->SendToArena(arena, NULL, (byte*)&ad->cs, sizeof(struct ClientSettings), NET_RELIABLE);
 		lm->LogA(L_INFO, "clientset", arena, "Sending modified settings");
 	}
 	else if (action == AA_DESTROY)
 	{
 		/* mark settings as destroyed (for asserting later) */
-		struct ClientSettings *cs = P_ARENA_DATA(arena, csetkey);
-		cs->bit_set.type = 0;
+		ad->cs.bit_set.type = 0;
 	}
 	UNLOCK();
 }
@@ -222,28 +228,29 @@ void ActionFunc(Arena *arena, int action)
 
 void SendClientSettings(Player *p)
 {
-	byte *data = P_ARENA_DATA(p->arena, csetkey);
+	adata *ad = P_ARENA_DATA(p->arena, adkey);
 	LOCK();
-	if (p->arena && data[0] == S2C_SETTINGS)
-		net->SendToOne(p, data, sizeof(struct ClientSettings), NET_RELIABLE);
+	if (p->arena && ad->cs.bit_set.type == S2C_SETTINGS)
+		net->SendToOne(p, (byte*)&ad->cs, sizeof(struct ClientSettings), NET_RELIABLE);
 	UNLOCK();
 }
 
 
 void Reconfigure(Arena *arena)
 {
-	byte *data = P_ARENA_DATA(arena, csetkey);
+	adata *ad = P_ARENA_DATA(arena, adkey);
 	LOCK();
-	LoadSettings(arena);
-	net->SendToArena(arena, NULL, data, sizeof(struct ClientSettings), NET_RELIABLE);
+	load_settings(ad, arena->cfg);
+	net->SendToArena(arena, NULL, (byte*)&ad->cs, sizeof(struct ClientSettings), NET_RELIABLE);
 	UNLOCK();
 }
 
 
 u32 GetChecksum(Arena *arena, u32 key)
 {
+	adata *ad = P_ARENA_DATA(arena, adkey);
+	u32 *data = (u32*)&ad->cs;
 	u32 csum = 0, i;
-	u32 *data = P_ARENA_DATA(arena, csetkey);
 	LOCK();
 	for (i = 0; i < 357; i++, data++)
 		csum += (*data ^ key);
@@ -251,4 +258,28 @@ u32 GetChecksum(Arena *arena, u32 key)
 	return csum;
 }
 
+
+int GetRandomPrize(Arena *arena)
+{
+	adata *ad = P_ARENA_DATA(arena, adkey);
+	int max = ad->pwps[27], r, i = 0, j = 27;
+
+	if (max == 0)
+		return 0;
+
+	r = random() % max;
+
+	/* binary search */
+	while (r >= ad->pwps[i])
+	{
+		int m = (i + j)/2;
+		if (r < ad->pwps[m])
+			j = m;
+		else
+			i = m + 1;
+	}
+
+	/* our indexes are zero-based but prize numbers are one-based */
+	return i + 1;
+}
 

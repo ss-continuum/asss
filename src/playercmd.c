@@ -1233,12 +1233,34 @@ local void Creloadconf(const char *params, Player *p, const Target *target)
 
 local helptext_t jackpot_help =
 "Targets: none\n"
-"Args: none\n"
-"Displays the current jackpot for this arena.\n";
+"Args: none or <arena name> or {all}\n"
+"Displays the current jackpot for this arena, the named arena, or all arenas.\n";
 
 local void Cjackpot(const char *params, Player *p, const Target *target)
 {
-	chat->SendMessage(p, "jackpot: %d", jackpot->GetJP(p->arena));
+	if (!strcasecmp(params, "all"))
+	{
+		Arena *arena;
+		Link *link;
+		int jp;
+
+		aman->Lock();
+		FOR_EACH_ARENA(arena)
+			if (arena->status == ARENA_RUNNING &&
+			    (jp = jackpot->GetJP(arena)) > 0)
+				chat->SendMessage(p, "jackpot in %s: %d", arena->name, jp);
+		aman->Unlock();
+	}
+	else if (*params)
+	{
+		Arena *arena = aman->FindArena(params, NULL, NULL);
+		if (arena)
+			chat->SendMessage(p, "jackpot in %s: %d", arena->name, jackpot->GetJP(arena));
+		else
+			chat->SendMessage(p, "arena '%s' doesn't exist", params);
+	}
+	else
+		chat->SendMessage(p, "jackpot: %d", jackpot->GetJP(p->arena));
 }
 
 

@@ -177,33 +177,8 @@ local void kill_connection(Player *p)
 	 * completed. */
 	p->whenloggedin = S_LEAVING_ZONE;
 
-	pd->Unlock();
+	pd->WriteUnlock();
 	pd->UnlockPlayer(p);
-}
-
-
-/* call with big lock */
-local void do_read(Player *p)
-{
-	sp_conn *cli = PPDATA(p, cdkey);
-	if (do_sp_read(cli) == sp_read_died)
-		kill_connection(p);
-}
-
-
-/* call w/big lock */
-local void try_process(Player *p)
-{
-	sp_conn *cli = PPDATA(p, cdkey);
-	do_sp_process(cli, process_line, p);
-}
-
-
-/* call with big lock */
-local void do_write(Player *p)
-{
-	sp_conn *cli = PPDATA(p, cdkey);
-	do_sp_write(cli);
 }
 
 
@@ -217,6 +192,8 @@ local int do_one_iter(void *dummy)
 	fd_set readset, writeset;
 	struct timeval tv = { 0, 0 };
 	LinkedList toremove = LL_INITIALIZER;
+	LinkedList tokill = LL_INITIALIZER;
+	LinkedList toproc = LL_INITIALIZER;
 
 	FD_ZERO(&readset);
 	FD_ZERO(&writeset);
@@ -233,7 +210,7 @@ local int do_one_iter(void *dummy)
 		    p->status >= S_CONNECTED &&
 		    cli->socket > 2)
 		{
-			if (p->status != S_TIMEWAIT)
+			if (p->status < S_TIMEWAIT)
 			{
 				/* always check for incoming data */
 				FD_SET(cli->socket, &readset);
@@ -257,6 +234,11 @@ local int do_one_iter(void *dummy)
 		}
 	pd->Unlock();
 
+	/* remove players that disconnected above */
+	for (link = LLGetHead(&toremove); link; link = link->next)
+		pd->FreePlayer(link->data);
+	LLEmpty(&toremove);
+
 	ret = select(max + 1, &readset, &writeset, NULL, &tv);
 
 	/* new connections? */
@@ -271,23 +253,37 @@ local int do_one_iter(void *dummy)
 		{
 			/* data to read? */
 			if (FD_ISSET(cli->socket, &readset))
-				do_read(p);
+			{
+				if (do_sp_read(cli) == sp_read_died)
+					/* we can't call kill_connection in here because we have the
+					 * player status mutex for reading instead of writing. so add to
+					 * list and do it later. */
+					LLAdd(&tokill, p);
+			}
 			/* or write? */
 			if (FD_ISSET(cli->socket, &writeset))
-				do_write(p);
+				do_sp_write(cli);
 			/* or process? */
 			if (cli->inbuf &&
 			    TICK_DIFF(gtc, cli->lastmsgtime) > cfg_msgdelay)
-				try_process(p);
+				LLAdd(&toproc, p);
 		}
 	pd->Unlock();
 
-	UNLOCK();
+	/* kill players where we read eof above */
+	for (link = LLGetHead(&tokill); link; link = link->next)
+		kill_connection(link->data);
+	LLEmpty(&tokill);
 
-	/* remove players that disconnected above */
-	for (link = LLGetHead(&toremove); link; link = link->next)
-		pd->FreePlayer(link->data);
-	LLEmpty(&toremove);
+	/* process clients who had info above */
+	for (link = LLGetHead(&toproc); link; link = link->next)
+	{
+		p = link->data;
+		do_sp_process(PPDATA(p, cdkey), process_line, p);
+	}
+	LLEmpty(&tokill);
+
+	UNLOCK();
 
 	return TRUE;
 }

@@ -203,6 +203,7 @@ class Text:
 		y = h - 1
 		scr.erase()
 		for l, c in rlines:
+			l = l.expandtabs()
 			scr.addstr(y, 0, l, c)
 			y = y - 1
 

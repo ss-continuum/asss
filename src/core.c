@@ -45,7 +45,7 @@ local void GSyncDone(Player *);
 local void ASyncDone(Player *);
 
 local int SendKeepalive(void *);
-local void ProcessLoginQueue(void);
+local void process_player_states(void);
 local void SendLoginResponse(Player *);
 
 /* default auth, can be replaced */
@@ -139,7 +139,7 @@ EXPORT int MM_core(int action, Imodman *mm_, Arena *arena)
 		if (chatnet)
 			chatnet->AddHandler("LOGIN", MLogin);
 
-		mm->RegCallback(CB_MAINLOOP, ProcessLoginQueue, ALLARENAS);
+		mm->RegCallback(CB_MAINLOOP, process_player_states, ALLARENAS);
 
 		/* register default interfaces which may be replaced later */
 		mm->RegInterface(&_iauth, ALLARENAS);
@@ -167,7 +167,7 @@ EXPORT int MM_core(int action, Imodman *mm_, Arena *arena)
 		if (mm->UnregInterface(&_iauth, ALLARENAS))
 			return MM_FAIL;
 		ml->ClearTimer(SendKeepalive, NULL);
-		mm->UnregCallback(CB_MAINLOOP, ProcessLoginQueue, ALLARENAS);
+		mm->UnregCallback(CB_MAINLOOP, process_player_states, ALLARENAS);
 		if (net)
 		{
 			net->RemovePacket(C2S_LOGIN, PLogin);
@@ -191,7 +191,7 @@ EXPORT int MM_core(int action, Imodman *mm_, Arena *arena)
 }
 
 
-void ProcessLoginQueue(void)
+void process_player_states(void)
 {
 	int ns, oldstatus;
 	Player *player;
@@ -261,7 +261,7 @@ void ProcessLoginQueue(void)
 		/* now unlock status, lock player (because we might be calling
 		 * callbacks and we want to have player locked already), and
 		 * finally perform the actual action */
-		pd->Unlock();
+		pd->WriteUnlock();
 		pd->LockPlayer(player);
 
 		switch (oldstatus)
@@ -377,7 +377,7 @@ void ProcessLoginQueue(void)
 		pd->UnlockPlayer(player);
 		pd->WriteLock();
 	}
-	pd->Unlock();
+	pd->WriteUnlock();
 }
 
 
@@ -429,7 +429,7 @@ void PLogin(Player *p, byte *opkt, int l)
 		/* set up status */
 		pd->WriteLock();
 		p->status = S_NEED_AUTH;
-		pd->Unlock();
+		pd->WriteUnlock();
 		lm->Log(L_DRIVEL, "<core> [pid=%d] Login request: '%s'", p->pid, pkt->name);
 	}
 }
@@ -483,7 +483,7 @@ void MLogin(Player *p, const char *line)
 	/* set up status */
 	pd->WriteLock();
 	p->status = S_NEED_AUTH;
-	pd->Unlock();
+	pd->WriteUnlock();
 	lm->Log(L_DRIVEL, "<core> [pid=%d] Login request: '%s'", p->pid, lp->name);
 }
 
@@ -517,7 +517,7 @@ void AuthDone(Player *p, AuthData *auth)
 		/* increment stage */
 		pd->WriteLock();
 		p->status = S_NEED_GLOBAL_SYNC;
-		pd->Unlock();
+		pd->WriteUnlock();
 	}
 	else
 	{
@@ -527,7 +527,7 @@ void AuthDone(Player *p, AuthData *auth)
 		SendLoginResponse(p);
 		pd->WriteLock();
 		p->status = S_CONNECTED;
-		pd->Unlock();
+		pd->WriteUnlock();
 	}
 }
 
@@ -539,7 +539,7 @@ void GSyncDone(Player *p)
 		lm->Log(L_WARN, "<core> [pid=%s] GSyncDone called from wrong stage", p->pid, p->status);
 	else
 		p->status = S_DO_GLOBAL_CALLBACKS;
-	pd->Unlock();
+	pd->WriteUnlock();
 }
 
 
@@ -550,7 +550,7 @@ void ASyncDone(Player *p)
 		lm->Log(L_WARN, "<core> [pid=%s] ASyncDone called from wrong stage", p->pid, p->status);
 	else
 		p->status = S_SEND_ARENA_RESPONSE;
-	pd->Unlock();
+	pd->WriteUnlock();
 }
 
 

@@ -12,7 +12,7 @@
  * the arena response procedure.
  */
 
-#define I_CLIENTSET "clientset-1"
+#define I_CLIENTSET "clientset-2"
 
 typedef struct Iclientset
 {
@@ -23,6 +23,8 @@ typedef struct Iclientset
 	void (*Reconfigure)(Arena *arena);
 
 	u32 (*GetChecksum)(Arena *arena, u32 key);
+
+	int (*GetRandomPrize)(Arena *arena);
 } Iclientset;
 
 #endif

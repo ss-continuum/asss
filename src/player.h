@@ -160,7 +160,7 @@ struct Player
 };
 
 
-#define I_PLAYERDATA "playerdata-2"
+#define I_PLAYERDATA "playerdata-3"
 
 typedef struct Iplayerdata
 {
@@ -185,6 +185,7 @@ typedef struct Iplayerdata
 	void (*Lock)(void);
 	void (*WriteLock)(void);
 	void (*Unlock)(void);
+	void (*WriteUnlock)(void);
 	/* these must always be used to iterate over all the players
 	 * (with the FOR_EACH_PLAYER macro). you can usually use the reguar
 	 * (read-only) lock. you need the write lock if you're going to be

@@ -4,23 +4,28 @@
 #include <string.h>
 #include <assert.h>
 
+#include "rwlock.h"
+
 #include "asss.h"
 
+#define USE_RWLOCK
 
 /* static data */
 
 local Imodman *mm;
 local int magickey, mtxkey;
-#if 0
-local pthread_rwlock_t plock;
-#define RDLOCK() pthread_rwlock_rdlock(&plock)
-#define WRLOCK() pthread_rwlock_wrlock(&plock)
-#define UNLOCK() pthread_rwlock_unlock(&plock)
+#ifdef USE_RWLOCK
+local rwlock_t plock;
+#define RDLOCK() rwl_readlock(&plock)
+#define WRLOCK() rwl_writelock(&plock)
+#define RULOCK() rwl_readunlock(&plock)
+#define WULOCK() rwl_writeunlock(&plock)
 #else
 local pthread_mutex_t plock;
 #define RDLOCK() pthread_mutex_lock(&plock)
 #define WRLOCK() pthread_mutex_lock(&plock)
-#define UNLOCK() pthread_mutex_unlock(&plock)
+#define RULOCK() pthread_mutex_unlock(&plock)
+#define WULOCK() pthread_mutex_unlock(&plock)
 #endif
 
 local Player **pidmap;
@@ -55,7 +60,12 @@ local void WriteLock(void)
 
 local void Unlock(void)
 {
-	UNLOCK();
+	RULOCK();
+}
+
+local void WriteUnlock(void)
+{
+	WULOCK();
 }
 
 
@@ -84,7 +94,7 @@ local Player * NewPlayer(int type)
 
 	pidmap[pid] = p;
 	LLAdd(&myint.playerlist, p);
-	UNLOCK();
+	WULOCK();
 
 	/* set up player struct and packet */
 	p->pkt.pktype = S2C_PLAYERENTERING;
@@ -108,7 +118,7 @@ local void FreePlayer(Player *p)
 	WRLOCK();
 	LLRemove(&myint.playerlist, p);
 	pidmap[p->pid] = NULL;
-	UNLOCK();
+	WULOCK();
 	
 	pthread_mutex_destroy((pthread_mutex_t*)PPDATA(p, mtxkey));
 
@@ -122,10 +132,10 @@ local Player * PidToPlayer(int pid)
 	if (pid >= 0 && pid < pidmapsize)
 	{
 		Player *p = pidmap[pid];
-		UNLOCK();
+		RULOCK();
 		return p;
 	}
-	UNLOCK();
+	RULOCK();
 	return NULL;
 }
 
@@ -159,11 +169,11 @@ local Player * FindPlayer(const char *name)
 		Player *p = l->data;
 		if (strcasecmp(name, p->name) == 0)
 		{
-			UNLOCK();
+			RULOCK();
 			return p;
 		}
 	}
-	UNLOCK();
+	RULOCK();
 	return NULL;
 }
 
@@ -212,7 +222,7 @@ local void TargetToSet(const Target *target, LinkedList *set)
 			if (p->status == S_PLAYING && matches(target, p))
 				LLAdd(set, p);
 		}
-		UNLOCK();
+		RULOCK();
 	}
 }
 
@@ -246,7 +256,7 @@ local int AllocatePlayerData(size_t bytes)
 			nb->len = bytes;
 			/* if last == NULL, this will put it in front of the list */
 			LLInsertAfter(&blocks, last, nb);
-			UNLOCK();
+			WULOCK();
 			return current;
 		}
 		else
@@ -261,11 +271,11 @@ local int AllocatePlayerData(size_t bytes)
 		nb->start = current;
 		nb->len = bytes;
 		LLInsertAfter(&blocks, last, nb);
-		UNLOCK();
+		WULOCK();
 		return current;
 	}
 
-	UNLOCK();
+	WULOCK();
 	return -1;
 }
 
@@ -283,7 +293,7 @@ local void FreePlayerData(int key)
 			break;
 		}
 	}
-	UNLOCK();
+	WULOCK();
 }
 
 
@@ -296,7 +306,7 @@ local Iplayerdata myint =
 	PidToPlayer, FindPlayer,
 	TargetToSet,
 	AllocatePlayerData, FreePlayerData,
-	Lock, WriteLock, Unlock
+	Lock, WriteLock, Unlock, WriteUnlock
 };
 
 
@@ -312,9 +322,9 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 		/* init locks */
 		pthread_mutexattr_init(&recmtxattr);
 		pthread_mutexattr_settype(&recmtxattr, PTHREAD_MUTEX_RECURSIVE);
-
-#if 0
-		pthread_rwlock_init(&plock, NULL);
+		pthread_mutexattr_settype(&recmtxattr, PTHREAD_MUTEX_RECURSIVE);
+#ifdef USE_RWLOCK
+		rwl_init(&plock);
 #else
 		pthread_mutex_init(&plock, &recmtxattr);
 #endif

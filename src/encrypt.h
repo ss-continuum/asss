@@ -62,8 +62,8 @@ typedef struct Iclientencrypt
 {
 	INTERFACE_HEAD_DECL
 
-	/* FIXME: this probably isn't flexible enough for other encryption
-	 * types. sorry. */
+	/* this probably isn't flexible enough for other encryption types.
+	 * sorry. */
 	ClientEncryptData * (*Init)(void);
 
 	int (*Encrypt)(ClientEncryptData *ced, byte *pkt, int len);

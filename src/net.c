@@ -14,7 +14,6 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <sched.h>
 #else
 #define close(a) closesocket(a)
 #endif
@@ -1335,7 +1334,7 @@ local void send_outgoing(ConnData *conn)
 
 
 /* call with player status locked */
-local void process_lagouts(Player *p, unsigned int gtc)
+local void process_lagouts(Player *p, unsigned int gtc, LinkedList *tokill, LinkedList *tofree)
 {
 	ConnData *conn = PPDATA(p, connkey);
 	/* this is used for lagouts and also for timewait */
@@ -1345,20 +1344,23 @@ local void process_lagouts(Player *p, unsigned int gtc)
 	if (p->whenloggedin == 0 && /* acts as flag to prevent dups */
 	    (diff > config.droptimeout || conn->hitmaxretries))
 	{
+		Ichat *chat= mm->GetInterface(I_CHAT, ALLARENAS);
+		if (chat)
+			chat->SendMessage(p, "You have been disconnected because the server has not "
+					"been receiving data from you.");
+		mm->ReleaseInterface(chat);
+
 		lm->Log(L_INFO,
 				conn->hitmaxretries ?
 					"<net> [%s] [pid=%d] player kicked for too many reliable retries" :
 					"<net> [%s] [pid=%d] player kicked for no data (lagged off)",
 				p->name, p->pid);
-		/* FIXME: send "you have been disconnected..." msg */
-		/* can't hold lock here for deadlock-related reasons */
-		pd->Unlock();
-		KillConnection(p);
-		pd->Lock();
+
+		LLAdd(tokill, p);
 	}
 
-	/* process timewait state */
-	/* btw, status is locked in here */
+	/* process timewait state. */
+	/* status is locked in here. */
 	if (p->status == S_TIMEWAIT)
 	{
 		char drop[2] = {0x00, 0x07};
@@ -1404,7 +1406,7 @@ local void process_lagouts(Player *p, unsigned int gtc)
 		ClearOutlist(p);
 		pthread_mutex_destroy(&conn->olmtx);
 
-		pd->FreePlayer(p);
+		LLAdd(tofree, p);
 	}
 }
 
@@ -1418,11 +1420,13 @@ void * SendThread(void *dummy)
 		Player *p;
 		Link *link;
 		ClientConnection *dropme;
+		LinkedList tofree = LL_INITIALIZER;
+		LinkedList tokill = LL_INITIALIZER;
 
-		sched_yield();
 		usleep(10000); /* 1/100 second */
 
 		/* first send outgoing packets (players) */
+		pd->/*Read*/Lock();
 		FOR_EACH_PLAYER_P(p, conn, connkey)
 			if (p->status < S_TIMEWAIT &&
 			    IS_OURS(p) &&
@@ -1432,16 +1436,25 @@ void * SendThread(void *dummy)
 				submit_rel_stats(p);
 				pthread_mutex_unlock(&conn->olmtx);
 			}
+		pd->Unlock();
 
-		/* process lagouts and timewait
-		 * do this in another loop so that we only have to lock/unlock
-		 * player status once. */
+		/* process lagouts and timewait */
 		pd->Lock();
 		gtc = current_ticks();
 		FOR_EACH_PLAYER(p)
 			if (IS_OURS(p))
-				process_lagouts(p, gtc);
+				process_lagouts(p, gtc, &tokill, &tofree);
 		pd->Unlock();
+
+		/* now kill the ones we needed to above */
+		for (link = LLGetHead(&tokill); link; link = link->next)
+			KillConnection(link->data);
+		LLEmpty(&tokill);
+
+		/* and free ... */
+		for (link = LLGetHead(&tofree); link; link = link->next)
+			pd->FreePlayer(link->data);
+		LLEmpty(&tofree);
 
 		/* outgoing packets and lagouts for client connections */
 		dropme = NULL;
@@ -1689,7 +1702,7 @@ void KillConnection(Player *p)
 		mm->ReleaseInterface(aman);
 	}
 
-	pd->Lock();
+	pd->WriteLock();
 
 	/* make sure that he's on his way out, in case he was kicked before
 	 * fully logging in. */
@@ -1702,7 +1715,7 @@ void KillConnection(Player *p)
 	 * completed. */
 	p->whenloggedin = S_LEAVING_ZONE;
 
-	pd->Unlock();
+	pd->WriteUnlock();
 	pd->UnlockPlayer(p);
 
 	/* remove outgoing packets from the queue. this partially eliminates
