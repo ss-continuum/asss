@@ -3,13 +3,13 @@
 
 #ifndef WIN32
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #else
 #include <direct.h>
 #endif
 
+#include <sys/stat.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
