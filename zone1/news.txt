@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 1.1.7.
+Welcome to asss (a small subspace server) 1.2.0.
 
 asss is a new subspace server, written from scratch. It has lots of cool
 new features and improvements over subgame.
@@ -8,14 +8,18 @@ This news.txt will be used for updates about new features and other
 important information. If you have any suggestions of any kind, please
 let me know.
 
-This server is now connected to the SSC billing server. If you notice
-any problems with inter-zone features (features that involve the billing
+This server is connected to the SSC billing server. If you notice any
+problems with inter-zone features (features that involve the billing
 server), please let me know.
 
 
 Recent updates:
-    * lots of tiny bug fixes and internal improvements. new brick modes.
-      ForceEvenTeams. ?setjackpot.
+
+    * many bug fixes
+
+    * new object stuff
+
+    * more detail at http://sscx.net/asss/changelog.txt
 
 
 Contact: grelminar@yahoo.com
