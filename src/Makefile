@@ -24,13 +24,13 @@ INTMODS = config.o    \
           net.o       \
           encrypt1.o  \
           arenaman.o  \
-		  mapnewsdl.o
+          mapnewsdl.o
 
 EXTMODS = loggers.so  \
           game.so     \
           command.so  \
           billing.so  \
-		  scheme.so
+          scheme.so
 
 
 
