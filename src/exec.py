@@ -1,4 +1,6 @@
 
+# dist: public
+
 import sys, cStringIO, asss
 
 env = {}
