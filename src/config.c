@@ -71,11 +71,13 @@ int MM_config(int action, Imodman *mm)
 
 #define LINESIZE 512
 
-static int ProcessConfigFile(HashTable *thetable, const char *name)
+static int ProcessConfigFile(HashTable *thetable, HashTable *defines, const char *name)
 {
 	FILE *f;
 	char _realbuf[LINESIZE], *buf = _realbuf, *t, *t2;
 	char key[MAXNAMELEN+MAXKEYLEN+3], *thespot = NULL, *data;
+	LinkedList *lst;
+	Link *lnk;
 
 	sprintf(buf, "conf/%s.conf", name);
 	f = fopen(buf, "r");
@@ -88,7 +90,7 @@ static int ProcessConfigFile(HashTable *thetable, const char *name)
 
 	while (buf = _realbuf, fgets(buf, LINESIZE, f))
 	{
-		while (*buf == ' ' || *buf == '\t') buf++; /* kill leading spaces */
+		while (*buf && (*buf == ' ' || *buf == '\t')) buf++; /* kill leading spaces */
 		RemoveCRLF(buf); /* get rid of newlines */
 
 		if (*buf == '[' || *buf == '{')
@@ -105,18 +107,60 @@ static int ProcessConfigFile(HashTable *thetable, const char *name)
 		}
 		else if (*buf == '#')
 		{
+			/* skip '#' */
 			buf++;
+			/* strip trailing spaces */
+			t = buf + strlen(buf) - 1;
+			while (*t == ' ' || *t == '\t') t--;
+			*++t = 0;
+			/* process */
 			if (!strncmp(buf, "include", 7))
 			{
 				buf += 7;
 				while (*buf == ' ' || *buf == '\t') buf++;
-				if (ProcessConfigFile(thetable, buf) == MM_FAIL)
+				if (ProcessConfigFile(thetable, defines, buf) == MM_FAIL)
 				{
 					if (log) log->Log(LOG_ERROR, "Cannot find #included file: %s", buf);
 					/* return MM_FAIL; let's not abort on #include error */ 
 				}
 			}
-			/* add define, ifdef, etc */
+			else if (!strncmp(buf, "define", 6))
+			{
+				buf += 6;
+				while (*buf == ' ' || *buf == '\t') buf++;
+				/* find the space */
+				t = strchr(buf, ' ');
+				if (!t) t = strchr(buf, '\t');
+				if (t)
+				{
+					/* kill it */
+					*t++ = 0;
+					while (*t && *t == ' ') t++;
+					HashAdd(defines, buf, astrdup(t));
+				}
+				else
+				{	/* empty define */
+					HashAdd(defines, buf, astrdup(""));
+				}
+			}
+#if 0       /* this stuff will take a bit of work */
+			else if (!strncmp(buf, "ifdef", 5))
+			{
+				buf += 5;
+				while (*buf == ' ' || *buf == '\t') buf++;
+				lst = HashGet(defines, buf);
+				lnk = LLGetHead(lst);
+				if (lnk) ???
+			}
+			if (!strncmp(buf, "endif", 5))
+			{
+				/* do nothing */
+			}
+#endif
+			else
+			{
+				if (log) log->Log(LOG_ERROR, "Unexpected configuration directive: %s", buf);
+			}
 		}
 		else if (thespot && !(*buf == '/' || *buf == ';' || *buf == '}'))
 		{
@@ -130,7 +174,13 @@ static int ProcessConfigFile(HashTable *thetable, const char *name)
 				/* kill spaces before value */
 				while (*t2 == ' ' || *t2 == '=' || *t2 == '\t') t2++;
 
-				astrncpy(thespot, buf, MAXKEYLEN);
+				astrncpy(thespot, buf, MAXKEYLEN); /* modifies key */
+
+				/* process #defines */
+				lst = HashGet(defines, t2);
+				if ((lnk = LLGetHead(lst)))
+					t2 = lnk->data;
+
 				data = astrdup(t2);
 				HashAdd(thetable, key, data);
 			}
@@ -140,16 +190,22 @@ static int ProcessConfigFile(HashTable *thetable, const char *name)
 	return MM_OK;
 }
 
+
 ConfigHandle LoadConfigFile(const char *name)
 {
 	HashTable *thetable = HashAlloc(983);
-	if (ProcessConfigFile(thetable, name) == MM_OK)
+	HashTable *defines = HashAlloc(17);
+	if (ProcessConfigFile(thetable, defines, name) == MM_OK)
 	{
 		files++;
+		HashEnum(defines, afree);
+		HashFree(defines);
 		return (ConfigHandle)thetable;
 	}
 	else
 	{
+		HashEnum(defines, afree);
+		HashFree(defines);
 		HashFree(thetable);
 		return NULL;
 	}
@@ -158,7 +214,7 @@ ConfigHandle LoadConfigFile(const char *name)
 void FreeConfigFile(ConfigHandle ch)
 {
 	HashTable *thetable = (HashTable*)ch;
-	HashEnum(thetable, free);
+	HashEnum(thetable, afree);
 	HashFree(thetable);
 	files--;
 }

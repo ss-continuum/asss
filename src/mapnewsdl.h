@@ -6,7 +6,7 @@
 typedef struct Imapnewsdl
 {
 	i32 (*GetMapChecksum)(int arena);
-	char *(*GetMapFileName)(int arena);
+	char *(*GetMapFilename)(int arena);
 	i32 (*GetNewsChecksum)();
 } Imapnewsdl;
 

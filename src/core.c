@@ -27,7 +27,6 @@
 
 /* packet funcs */
 local void PLogin(int, byte *, int);
-local void PLeaving(int, byte *, int);
 
 local void SendLoginResponse(int, AuthData *);
 
@@ -75,7 +74,6 @@ int MM_core(int action, Imodman *mm_)
 
 		/* set up callbacks */
 		net->AddPacket(C2S_LOGIN, PLogin);
-		net->AddPacket(C2S_LEAVING, PLeaving);
 
 		/* register default interfaces which may be replaced later */
 		mm->RegInterface(I_AUTH, &_iauth);
@@ -89,7 +87,6 @@ int MM_core(int action, Imodman *mm_)
 		mm->UnregInterface(I_ASSIGNFREQ, &_iaf);
 		mm->UnregInterface(I_AUTH, &_iauth);
 		net->RemovePacket(C2S_LOGIN, PLogin);
-		net->RemovePacket(C2S_LEAVING, PLeaving);
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_CONFIG, &cfg);
@@ -162,14 +159,6 @@ int DefaultAssignFreq(int pid, int freq, byte ship)
 	return freq;
 }
 
-
-
-void PLeaving(int pid, byte *p, int q)
-{
-	struct SimplePacket pk = { S2C_PLAYERLEAVING, pid, 0, 0, 0, 0 };
-	net->SendToArena(players[pid].arena, pid, (byte*)&pk, 3, NET_RELIABLE);
-	players[pid].arena = -1;
-}
 
 
 #define KEEPALIVESECONDS 5

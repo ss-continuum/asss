@@ -19,6 +19,7 @@ local int CreateArena(char *, int);
 local void FreeArena(int);
 
 local void PArena(int, byte *, int);
+local void PLeaving(int, byte *, int);
 
 local void SendMultipleArenaResponses(int);
 local void SendOneArenaResponse(int);
@@ -63,6 +64,7 @@ int MM_arenaman(int action, Imodman *mm_)
 		memset(arenas, 0, sizeof(ArenaData) * MAXARENA);
 
 		net->AddPacket(C2S_GOTOARENA, PArena);
+		net->AddPacket(C2S_LEAVING, PLeaving);
 
 		ml->SetTimer(ReapArenas, 1000, 3000, NULL);
 
@@ -72,6 +74,7 @@ int MM_arenaman(int action, Imodman *mm_)
 	{
 		mm->UnregInterface(I_ARENAMAN, &_int);
 		net->RemovePacket(C2S_GOTOARENA, PArena);
+		net->RemovePacket(C2S_LEAVING, PLeaving);
 		ml->ClearTimer(ReapArenas);
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_LOGMAN, &log);
@@ -185,7 +188,6 @@ void SendOneArenaResponse(int pid)
 	struct SimplePacket whoami = { S2C_WHOAMI, 0 };
 	struct MapFilename mapfname;
 	int arena, i;
-	/* Iarenaset *aset; */
 
 	arena = players[pid].arena;
 
@@ -197,8 +199,7 @@ void SendOneArenaResponse(int pid)
 	players[pid].freq = afreq->AssignFreq(pid, BADFREQ, players[pid].shiptype);
 
 	/* send settings */
-	/* aset = mm->GetInterface(I_ARENASET);
-	 * net->SendToOne(pid, (byte*)aset->GetSettingData(arena),
+	/* net->SendToOne(pid, (byte*)aset->GetSettingData(arena),         FIXME
 	 *                   aset->GetSettingDataSize(), NET_RELIABLE);
 	 */
 
@@ -211,7 +212,7 @@ void SendOneArenaResponse(int pid)
 	/* send mapfilename */
 	mapfname.type = S2C_MAPFILENAME;
 	mapfname.checksum = map->GetMapChecksum(arena);
-	astrncpy(mapfname.filename, map->GetMapFileName(arena), 16);
+	astrncpy(mapfname.filename, map->GetMapFilename(arena), 16);
 	net->SendToOne(pid, (byte*)&mapfname, sizeof(struct MapFilename), NET_RELIABLE);
 
 	/* send brick clear and finisher */
@@ -228,27 +229,50 @@ void SendOneArenaResponse(int pid)
 
 void SendMultipleArenaResponses(int arena)
 {
-/*
- * we want to make this one as efficient as possible. thus:
- * 
- * enumerate all the pids first
- *
- * whoamis: loop and sendtoone
- *
- * freqs: loop and figure them all out
- *
- * settings: sendtoset
- *
- * player lists: it seems like everyone will have to know about everyone
- * else, so: loop and sendtoset everyone to everyone
- *
- * mapfilenames: sendtoset
- *
- * brick clear and finisher: sendtoset both
- *
- * alert others: taken care of above
- *
- */
+	int pidset[MAXPLAYERS], pidc = 0, i;
+	struct SimplePacket whoami = { S2C_WHOAMI, 0 };
+	struct MapFilename mapfname;
+
+	/* enumerate all the pids first */
+	for (i = 0; i < MAXPLAYERS; i++)
+		if (   players[i].status == S_CONNECTED
+		    && players[i].arena == arena)
+			pidset[pidc++] = i;
+	pidset[pidc] = -1;
+
+	/* pass 1: whoami, freq, settings */
+	for (i = 0; i < pidc; i++)
+	{
+		int pid = pidset[i];
+		/* send whoami */
+		whoami.d1 = pid;
+		net->SendToOne(pid, (byte*)&whoami, 3, NET_RELIABLE);
+		/* assign freq */
+		players[pid].freq = afreq->AssignFreq(pid, BADFREQ, players[pid].shiptype);
+		/* send settings */
+		/* FIXME: see above */
+	}
+
+	/* pass 2: player data */
+	for (i = 0; i < pidc; i++)
+	{
+		/* send player lists */
+		net->SendToSet(pidset, (byte*)(players+i), 64, NET_RELIABLE);
+	}
+
+	/* remainder:
+	 *   mapfilename   */
+	mapfname.type = S2C_MAPFILENAME;
+	mapfname.checksum = map->GetMapChecksum(arena);
+	astrncpy(mapfname.filename, map->GetMapFilename(arena), 16);
+	net->SendToSet(pidset, (byte*)&mapfname, sizeof(struct MapFilename), NET_RELIABLE);
+
+	/*    brick clear and finisher*/
+	mapfname.type = S2C_BRICK;
+	net->SendToSet(pidset, (byte*)&mapfname, 1, NET_RELIABLE);
+	mapfname.type = S2C_ENTERINGARENA;
+	net->SendToSet(pidset, (byte*)&mapfname, 1, NET_RELIABLE);
+	
 }
 
 
@@ -352,6 +376,13 @@ void PArena(int pid, byte *p, int l)
 }
 
 
+void PLeaving(int pid, byte *p, int q)
+{
+	struct SimplePacket pk = { S2C_PLAYERLEAVING, pid, 0, 0, 0, 0 };
+	net->SendToArena(players[pid].arena, pid, (byte*)&pk, 3, NET_RELIABLE);
+	players[pid].arena = -1;
+}
+
 
 int ReapArenas(void *q)
 {
@@ -373,101 +404,4 @@ skip:
 	return 1;
 }
 
-
-#if 0
-
-void SendArenaResponse(int arena)
-{
-	struct SimplePacket whoami = {S2C_WHOAMI, 0, 0, 0, 0, 0};
-	int pids[MAXPLAYERS], pidc = 0, i;
-	byte misc;
-
-	for (i = 0; i < MAXPLAYERS; i++)
-		if (players[i].status == S_CONNECTED && players[i].arena == arena)
-			pids[pidc++] = i;
-	pids[pidc++] = -1;
-
-	/* send whoami packet */
-	net->SendToOne(pid, (byte*)&whoami, 3, NET_RELIABLE);
-
-	/* set up info */
-	players[pid].shiptype = pk->shiptype;
-	players[pid].xres = pk->xres;
-	players[pid].yres = pk->yres;
-	players[pid].arena = arena = AssignArena(pk);
-	players[pid].freq = ((Iassignfreq*)mm->GetInterface(I_ASSIGNFREQ))->
-		AssignFreq(pid, BADFREQ, pk->shiptype);
-
-	/* send settings */
-	net->SendToOne(pid, arenas[arena]->settings, SETTINGSIZE, NET_RELIABLE);
-
-	/* send player list */
-	for (i = 0; i < MAXPLAYERS; i++)
-		if (	net->GetStatus(i) == S_CONNECTED &&
-				players[i].arena == arena)
-			net->SendToOne(pid, (byte*)(players+i), 64, NET_RELIABLE);
-
-	/* send brick clear and finisher */
-	net->SendToOne(pid, (byte*)&arenas[arena]->map,
-			sizeof(struct MapFilename), NET_RELIABLE);
-	misc = S2C_BRICK;
-	net->SendToOne(pid, &misc, 1, NET_RELIABLE);
-	misc = 0x02;
-	net->SendToOne(pid, &misc, 1, NET_RELIABLE);
-
-	/* alert others */
-	net->SendToArena(players[pid].arena, pid,
-			(byte*)(players+pid), 64, NET_RELIABLE);
-
-	log->Log(LOG_INFO, "Player entering arena '%s' (%s)",
-			arenas[arena]->name, players[pid].name);
-}
-
-
-
-int CreateArena(char *name)
-{
-	FILE *f;
-    struct stat st;
-	int i = 0, mapfd, fsize;
-    byte *map, *cmap;
-	ConfigHandle config;
-	uLong csize;
-	ArenaData *me = amalloc(sizeof(ArenaData));
-	char fname[64];
-
-	/* find a slot */
-	while (arenas[i] && i < MAXARENA) i++;
-	if (i == MAXARENA)
-	{
-		log->Log(LOG_ERROR,"Too many arenas!!! Cannot create arena %s", name);
-		return -1;
-	}
-
-	/* fill in simple data */
-	strcpy(me->name, name);
-
-	/* try to open config file */
-	snprintf(fname, 64, "arena-%s", name);
-	config = cfg->OpenConfigFile(fname);
-	/* if not, try default config */
-	if (!config)
-	{
-		log->Log(LOG_USELESSINFO,"Config file '%s' not found, using default", fname);
-		config = cfg->OpenConfigFile("arena-default");
-	}
-	if (!config)
-	{	/* if not, fail */
-		log->Log(LOG_ERROR,"Default config file not found");
-		afree(me); return -1;
-	}
-	me->config = config;
-
-	arenas[i] = me;
-	log->Log(LOG_USELESSINFO,"Arena %s (%i) created sucessfully", name, i);
-	return i;
-}
-
-
-#endif
 
