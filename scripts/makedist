@@ -36,7 +36,19 @@ done
 test -d freebsd && cp -a freebsd $d
 test -d freebsd || rm -f $d/*freebsd*
 
+find $d -name CVS -exec rm -rf {} \; -prune
+
 find $d -exec touch -r $d/bin/asss {} \;
-tar --numeric-owner --exclude CVS -czvf $d.tar.gz $d
-#rm -rf $d
+tar --numeric-owner -czvf $d.tar.gz $d
+
+set +e
+
+# make smaller package
+rm -f $d/doc/*.pdf $d/clients/* $d/scrty* $d/arenas/scf/scf.lvl
+rm -f $d/bin/* $d/freebsd/bin/*
+
+find $d -exec touch -r $d/bin/asss {} \;
+tar --numeric-owner -czvf $d-srconly.tar.gz $d
+
+rm -rf $d
 

@@ -27,7 +27,7 @@ PYTHON_LDFLAGS = -L$(PYTHON_LIB)/config -lpython2.2 -lutil -lm
 LDFLAGS = -fPIC $(PROF_FLAGS)
 #PROF_FLAGS = -pg
 
-OPT_CFLAGS = -O2 -fomit-frame-pointer -Wall -fpedantic -DNDEBUG
+OPT_CFLAGS = -O2 -Wall -fpedantic -DNDEBUG
 DEBUG_CFLAGS = -g -Wall -fpedantic
 STD_CFLAGS = -D_REENTRANT -D_GNU_SOURCE -fPIC
 
