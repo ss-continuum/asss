@@ -5,7 +5,7 @@ ok, per-arena callbacks are good to go. what about interfaces?
 
 log
 ---
-redo a bit of logging to use classes
+add filtering capability
 
 
 game
@@ -27,8 +27,22 @@ better authority model (groups, capabilities)
 
 net
 ---
-does my implementation of acking (the lastack thing) really work?!  fix it!
-and make outgoing queues separate per player. (these go together)
+bandwidth limiting feature. should have these abilities:
+  don't send more than x bytes per second to a given player, averaged
+  over a configurable amount of time. that is, don't do the averaging
+  over the whole session, because it won't be accurate. and don't do it
+  over 1/100 of a second for the same reason (is this true?). one second
+  is probably good.
+
+  add a new flag to the SendToX interface to send immediately anyway,
+  even if it's over the limit.
+
+  ability to prioritize packets (even two priorities would be helpful)
+  so we can make sure to send lots of weapons now, even if the player
+  happens to be downloading a file at the moment.
+
+  later, automatically adjust player's bandwidth limits based on
+  packetloss stats.
 
 latency/ploss handling
 
@@ -39,8 +53,9 @@ persist
 
 config
 ------
-implement the suggestion that other arenas only have to supply settings
-that override main arena's. this has potentially large consequences.
+maybe use a real parser engine and scrap my ugly code?
+
+better pre-processor.
 
 
 arenaman
@@ -68,6 +83,13 @@ discarded ideas
 sort data entries by key so matching keys on read is faster
    even if there are 20 types of persistant data (which I don't even
    expect), linear search is fast enough.
+
+implement the suggestion that other arenas only have to supply settings
+that override main arena's. this has potentially large consequences.
+	a better idea is to have those arenas #include config files from the
+	default. this gives people better control at the expense of a tiny
+	bit more work. and i've now improved include to allow relative
+	paths, so it should be even easier.
 
 
 really really super long-term
