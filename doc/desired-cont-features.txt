@@ -266,6 +266,18 @@ struct S2CSettingsChange
 
 
 ========================================================================
+fix autowarp bug, add energy modification support
+========================================================================
+
+when cont gets a position packet for itself, it should extract as much
+information from it as possible, including position, velocity, rotation,
+bounty, and energy. but it should not use the timestamp value in any
+way, especially not in a way that throws off the internal physics model,
+like it does now.
+
+
+
+========================================================================
 fix brick bug
 ========================================================================
 
