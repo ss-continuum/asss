@@ -41,6 +41,7 @@ local pthread_mutex_t mtx;
 struct PingData
 {
 	unsigned int buckets[MAX_BUCKET];
+	/* total is in centiseconds, everything else in milliseconds */
 	unsigned int current, total, count, max, min;
 };
 
@@ -82,7 +83,7 @@ local void add_ping(struct PingData *pd, int ping)
 {
 	pd->current = ping;
 	pd->buckets[MS_TO_BUCKET(ping)]++;
-	pd->total += ping;
+	pd->total += ping / 10;
 	pd->count++;
 	if (ping < pd->min)
 		pd->min = ping;
@@ -150,7 +151,7 @@ local void QueryPPing(int pid, struct PingSummary *p)
 	{
 		struct PingData *pd = &data[pid]->pping;
 		p->cur = pd->current;
-		p->avg = pd->count ? pd->total / pd->count : 0;
+		p->avg = pd->count ? (pd->total*10) / pd->count : 0;
 		p->min = pd->min;
 		p->max = pd->max;
 	}
@@ -188,7 +189,7 @@ local void QueryRPing(int pid, struct PingSummary *p)
 	{
 		struct PingData *pd = &data[pid]->rping;
 		p->cur = pd->current;
-		p->avg = pd->count ? pd->total / pd->count : 0;
+		p->avg = pd->count ? (pd->total*10) / pd->count : 0;
 		p->min = pd->min;
 		p->max = pd->max;
 	}

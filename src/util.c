@@ -89,9 +89,9 @@ char *astrdup(const char *s)
 	return r;
 }
 
-void afree(void *ptr)
+void afree(const void *ptr)
 {
-	free(ptr);
+	free((void*)ptr);
 }
 
 void Error(int level, char *format, ...)
@@ -379,7 +379,7 @@ int LLCount(LinkedList *ll)
 	return c;
 }
 
-void LLEnum(LinkedList *lst, void (*func)(void *ptr))
+void LLEnum(LinkedList *lst, void (*func)(const void *ptr))
 {
 	Link *l;
 	for (l = lst->start; l; l = l->next)
@@ -848,11 +848,15 @@ void * MPTryRemove(MPQueue *q)
 void * MPRemove(MPQueue *q)
 {
 	void *data;
+	/* this is a cancellation point, so we have to be careful about
+	 * cleanup. this casting is a bit hacky, but it's in the man page,
+	 * so it can't be that bad. */
+	pthread_cleanup_push((void(*)(void*)) pthread_mutex_unlock, (void*) &q->mtx);
 	pthread_mutex_lock(&q->mtx);
-	while (LLIsEmpty(&q->list))
-		pthread_cond_wait(&q->cond, &q->mtx);
-	data = LLRemoveFirst(&q->list);
-	pthread_mutex_unlock(&q->mtx);
+		while (LLIsEmpty(&q->list))
+			pthread_cond_wait(&q->cond, &q->mtx);
+		data = LLRemoveFirst(&q->list);
+	pthread_cleanup_pop(1);
 	return data;
 }
 

@@ -5,15 +5,20 @@ SCRIPTS = $(ASSSHOME)/scripts
 
 # change this to the directory of your bdb 4.x install
 DBHOME = /opt/db-4.0.14
-DBINC = $(DBHOME)/include
+DBINC = -I$(DBHOME)/include
 DBLIB = $(DBHOME)/lib
+
+# change this to the directory of your mysql install
+MYSQLHOME = /opt/mysql
+MYSQLINC = -I$(MYSQLHOME)/include
+MYSQLLIB = $(MYSQLHOME)/lib
 
 LDFLAGS = -fPIC $(PROF_FLAGS)
 #PROF_FLAGS = -pg
 
 OPT_CFLAGS = -O2 -fomit-frame-pointer -Wall -fpedantic
 DEBUG_CFLAGS = -g -Wall -fpedantic
-ALL_CFLAGS = -D_REENTRANT -D_GNU_SOURCE -fPIC -I$(DBINC)
+ALL_CFLAGS = -D_REENTRANT -D_GNU_SOURCE -fPIC $(DBINC) $(MYSQLINC)
 
 CFLAGS = $(ALL_CFLAGS) $(DEBUG_CFLAGS) $(PROF_FLAGS)
 
@@ -25,6 +30,7 @@ ALL_STUFF = asss         \
             external.so  \
             scoring.so   \
             admin.so     \
+            database.so  \
             funky.so
 
 
@@ -58,6 +64,9 @@ scoring.so: persist.o stats.o statcodes.o points_kill.o points_flag.o points_goa
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(DBLIB) -Wl,-rpath,$(DBLIB) -ldb-4
 
 admin.so: filetrans.o
+
+database.so: mysql.o aliasdb.o
+	$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(MYSQLLIB) -lmysqlclient -lz
 
 funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
 	fake.o autoturret.o chatnet.o buy.o

@@ -4,6 +4,9 @@
 
 /* pdata.h - player data packet plus internal fields */
 
+#include "ppk.h"
+#include "login.h"
+
 
 struct PlayerPosition
 {
@@ -36,6 +39,7 @@ typedef struct PlayerData
 	i16 xres, yres;
 	unsigned int connecttime;
 	struct PlayerPosition position;
+	struct LoginPacket *loginpkt;
 } PlayerData;
 
 
@@ -53,6 +57,12 @@ typedef struct PlayerData
 #define SET_ALL_LVZ(pid) (pd->players[pid].pflags |= F_ALL_LVZ)
 #define UNSET_ALL_LVZ(pid) (pd->players[pid].pflags &= ~F_ALL_LVZ)
 #define WANT_ALL_LVZ(pid) (pd->players[pid].pflags & F_ALL_LVZ)
+
+/* if user is waiting for db query results */
+#define F_DURING_QUERY 0x04
+#define SET_DURING_QUERY(pid) (pd->players[pid].pflags |= F_DURING_QUERY)
+#define UNSET_DURING_QUERY(pid) (pd->players[pid].pflags &= ~F_DURING_QUERY)
+#define IS_DURING_QUERY(pid) (pd->players[pid].pflags & F_DURING_QUERY)
 
 #endif
 

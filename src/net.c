@@ -1536,7 +1536,7 @@ void ProcessAck(Buffer *buf)
 	RelCallback callback = NULL;
 	void *clos = NULL;
 
-	unsigned int ping;
+	unsigned int ping = 1;
 
 	pthread_mutex_lock(outlistmtx + buf->pid);
 	outlist = &clients[buf->pid].outlist;
@@ -1559,7 +1559,7 @@ void ProcessAck(Buffer *buf)
 	if (callback)
 		callback(buf->pid, 1, clos);
 	
-	if (lagc)
+	if (lagc && ping != 1)
 		lagc->RelDelay(buf->pid, ping);
 
 	FreeBuffer(buf);

@@ -265,8 +265,6 @@ typedef unsigned char byte;
 
 #include "packets/types.h"
 
-#include "packets/ppk.h"
-
 #include "packets/pdata.h"
 
 #include "packets/simple.h"

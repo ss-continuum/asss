@@ -46,8 +46,8 @@ local void DefaultAuth(int, struct LoginPacket *, int, void (*)(int, AuthData *)
 
 /* GLOBALS */
 
-AuthData bigauthdata[MAXPLAYERS];
-struct LoginPacket bigloginpkt[MAXPLAYERS];
+local AuthData bigauthdata[MAXPLAYERS];
+local struct LoginPacket bigloginpkt[MAXPLAYERS];
 
 local Imodman *mm;
 local Iplayerdata *pd;
@@ -328,6 +328,7 @@ void ProcessLoginQueue(void)
 					   (pid, PA_DISCONNECT, -1));
 				if (persist)
 					persist->PutPlayer(pid, PERSIST_GLOBAL, NULL);
+				pd->players[pid].loginpkt = NULL;
 				break;
 		}
 
@@ -371,6 +372,7 @@ void PLogin(int pid, byte *p, int l)
 
 		/* copy into storage for use by authenticator */
 		memcpy(bigloginpkt + pid, p, l);
+		pd->players[pid].loginpkt = bigloginpkt + pid;
 		/* replace colons with underscores */
 		for (c = 0; c < sizeof(bigloginpkt->name); c++)
 			if (bigloginpkt[pid].name[c] == ':')
@@ -411,6 +413,7 @@ void MLogin(int pid, const char *line)
 
 	/* copy into storage for use by authenticator */
 	memcpy(bigloginpkt + pid, &pkt, sizeof(pkt));
+	pd->players[pid].loginpkt = NULL;
 	/* set up status */
 	players[pid].status = S_NEED_AUTH;
 	lm->Log(L_DRIVEL, "<core> [pid=%d] Login request: '%s'", pid, pkt.name);

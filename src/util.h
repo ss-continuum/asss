@@ -57,7 +57,7 @@ char *ToLowerStr(char *str);
 
 void *amalloc(size_t bytes);
 char *astrdup(const char *str);
-void afree(void *ptr);
+void afree(const void *ptr);
 
 char *astrncpy(char *dest, const char *source, size_t destlength);
 const char *delimcpy(char *dest, const char *source, size_t destlen, char delim);
@@ -95,7 +95,7 @@ int LLRemoveAll(LinkedList *lst, void *data);
 void *LLRemoveFirst(LinkedList *lst);
 int LLIsEmpty(LinkedList *lst);
 int LLCount(LinkedList *lst);
-void LLEnum(LinkedList *lst, void (*func)(void *ptr));
+void LLEnum(LinkedList *lst, void (*func)(const void *ptr));
 
 #ifdef USE_PROTOTYPES
 Link *LLGetHead(LinkedList *lst);
