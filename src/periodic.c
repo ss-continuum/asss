@@ -107,7 +107,7 @@ local int timer(void *set_)
 	if (totalplayers >= set->minplayers && set->pp)
 	{
 		/* get packet */
-		byte *pkt = amalloc(freqcount*4)+1;
+		byte *pkt = amalloc(freqcount*4+1);
 
 		pkt[0] = S2C_PERIODICREWARD;
 		set->pkt = pkt + 1;

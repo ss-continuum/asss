@@ -11,4 +11,6 @@ tar czvf $file asss
 
 scp $file ellie:web
 
+echo "http://asss.yi.org:81/download/$file"
+
 rm -rf asss $file

@@ -1,6 +1,6 @@
 
 #host = 'localhost'
-host = 'tb2.sscx.net'
+host = 'server.sscx.net'
 port = 5002
 
 name = 'grelminar'

@@ -520,7 +520,9 @@ void SendLoginResponse(int pid)
 		lr.demodata = auth->demodata;
 		lr.newschecksum = map->GetNewsChecksum();
 
+#ifndef CFG_IGNORE_CHECKSUMS
 		if (capman && capman->HasCapability(pid, "seeprivfreq"))
+#endif
 		{
 			/* to make the client think it's a mod, set these checksums to -1 */
 			lr.exechecksum = -1;

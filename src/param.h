@@ -23,7 +23,7 @@
 /* whether to enable persistent chat masks. this is normally a good
  * idea. the only downside is that it introduces a dependence of chat on
  * persist (i.e. you can't enable chatting without also loading the
- * database module. */
+ * database module). */
 #define CFG_PERSISTENT_CHAT_MASKS
 
 
@@ -36,8 +36,15 @@
 /* whether to include uname info in the ?version output */
 #define CFG_EXTRA_VERSION_INFO
 
+
 /* whether to scan the arenas directory for ?arena all */
 #define CFG_DO_EXTRAARENAS
+
+
+/* whether to ignore exe and other checksums on login. unfortunately,
+ * this needs to be enabled to allow continuum clients to log in for
+ * now. */
+#define CFG_IGNORE_CHECKSUMS
 
 
 /* if this is defined and the capability mananger isn't loaded, all
