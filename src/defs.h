@@ -8,12 +8,12 @@
 
 #include "util.h"
 
-#define ASSSVERSION "0.9.0"
-#define ASSSVERSION_NUM 0x00000900
+#define ASSSVERSION "0.9.8"
+#define ASSSVERSION_NUM 0x00000908
 #define BUILDDATE __DATE__ " " __TIME__
 
 
-/* do it upfront so we don't have to worry :) */
+/* do it upfront so we don't have to worry */
 #ifdef WIN32
 #pragma warning ( disable : 4103 )
 #endif

@@ -385,7 +385,8 @@ void PLogin(Player *p, byte *opkt, int l)
 		p->macid = pkt->macid;
 		p->permid = pkt->D2;
 		/* replace colons and nonprintables with underscores */
-		for (c = 0; c < sizeof(lp->name); c++)
+		l = strlen(lp->name);
+		for (c = 0; c < l; c++)
 			if (lp->name[c] == ':' || lp->name[c] < 32 || lp->name[c] > 126)
 				lp->name[c] = '_';
 		/* must start with number, letter, or underscore */
@@ -407,7 +408,7 @@ void MLogin(Player *p, const char *line)
 	char vers[16];
 	struct LoginPacket *lp;
 	Player *oldp;
-	int c;
+	int c, l;
 
 	if (p->status != S_CONNECTED)
 	{
@@ -424,7 +425,8 @@ void MLogin(Player *p, const char *line)
 	lp->cversion = atoi(vers);
 	t = delimcpy(lp->name, t, sizeof(lp->name), ':');
 	/* replace nonprintables with underscores */
-	for (c = 0; c < sizeof(lp->name); c++)
+	l = strlen(lp->name);
+	for (c = 0; c < l; c++)
 		if (lp->name[c] < 32 || lp->name[c] > 126)
 			lp->name[c] = '_';
 	/* must start with number, letter, or underscore */

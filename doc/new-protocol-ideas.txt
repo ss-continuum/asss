@@ -245,3 +245,20 @@ code if you get something you're not allowed to.
 
 
 
+setting changes:
+
+the server should be able to send a delta of the changed settings,
+instead of the whole big settings packet. here's what it can look like:
+
+#define S2C_SETTINGS_CHANGE 0x52
+
+struct S2CSettingsChange
+{
+	u8 type;
+	struct
+	{
+		i16 offset;   /* from start of packet */
+		u32 newvaule; /* always overwrite 32 bits starting at offset */
+	} changes[1]; /* can be any number of these */
+};
+
