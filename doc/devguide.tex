@@ -1,0 +1,61 @@
+
+\documentclass{article}
+
+% enlarge the page a bit
+\addtolength{\hoffset}{-1cm}
+\addtolength{\textwidth}{1.6cm}
+
+% make new commands to enforce some style
+\newcommand{\requiremod}[1]{\noindent\textbf{Requires module:} \texttt{#1}\\}
+\newcommand{\targets}[1]{\noindent\textbf{Possible targets:} #1\\}
+\newcommand{\args}[1]{\noindent\textbf{Arguments:} #1\\}
+\newcommand{\asss}{\texttt{asss}}
+\newcommand{\subgame}{\texttt{subgame}}
+
+\title{\asss{} Development Guide}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+
+\section{Basic Concepts}
+
+\subsection{Interfaces}
+
+\subsection{Callbacks}
+
+
+\section{Interfaces}
+
+\subsection{Defining Interfaces}
+
+\subsubsection{Priorities}
+
+% be sure to note: if you want to use priorities to pick implementations
+% for a certain interface id, you must be sure to use
+% INTERFACE_HEAD_INIT_PRI for every single implementation. if you define
+% any implementations with INTERFACE_HEAD_INIT, priorities won't work
+% right.
+
+
+\subsection{Using Interfaces}
+
+
+\section{Callbacks}
+
+\subsection{Defining Callbacks}
+
+\subsection{Invoking Callbacks}
+
+
+\section{Tutorial 1: \texttt{log\_console}}
+
+\section{Tutorial 2: \texttt{logman}}
+
+
+
+\end{document}
+

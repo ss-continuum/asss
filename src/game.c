@@ -46,7 +46,7 @@ local void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2);
 
 local Igame _myint =
 {
-	INTERFACE_HEAD_INIT("game")
+	INTERFACE_HEAD_INIT(I_GAME, "game")
 	SetFreq, SetShip, SetFreqAndShip, DropBrick
 };
 
@@ -131,13 +131,13 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 
 		cmd->AddCommand("report", Creport);
 
-		mm->RegInterface(I_GAME, &_myint, ALLARENAS);
+		mm->RegInterface(&_myint, ALLARENAS);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(I_GAME, &_myint, ALLARENAS))
+		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
 		cmd->RemoveCommand("report", Creport);
 		net->RemovePacket(C2S_POSITION, Pppk);

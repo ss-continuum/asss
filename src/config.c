@@ -36,7 +36,7 @@ local int LocateConfigFile(char *dest, int destlen, const char *arena, const cha
 
 local Iconfig _int =
 {
-	INTERFACE_HEAD_INIT("config-file")
+	INTERFACE_HEAD_INIT(I_CONFIG, "config-file")
 	GetStr, GetInt, /*SetConfigStr, SetConfigInt, */
 	LoadConfigFile, FreeConfigFile
 };
@@ -56,12 +56,12 @@ EXPORT int MM_config(int action, Imodman *mm, int arena)
 		opened = HashAlloc(23);
 		global = LoadConfigFile(NULL, NULL);
 		if (!global) return MM_FAIL;
-		mm->RegInterface(I_CONFIG, &_int, ALLARENAS);
+		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(I_CONFIG, &_int, ALLARENAS))
+		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 		FreeConfigFile(global);
 		HashFree(opened);

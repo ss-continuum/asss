@@ -21,7 +21,7 @@ local Ilogman *lm;
 
 local Ilog_file _lfint =
 {
-	INTERFACE_HEAD_INIT("log_file")
+	INTERFACE_HEAD_INIT(I_LOG_FILE, "log_file")
 	FlushLog, ReopenLog
 };
 
@@ -40,14 +40,14 @@ EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
 
 		mm->RegCallback(CB_LOGFUNC, LogFile, ALLARENAS);
 
-		mm->RegInterface(I_LOG_FILE, &_lfint, ALLARENAS);
+		mm->RegInterface(&_lfint, ALLARENAS);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		if (logfile) fclose(logfile);
-		if (mm->UnregInterface(I_LOG_FILE, &_lfint, ALLARENAS))
+		if (mm->UnregInterface(&_lfint, ALLARENAS))
 			return MM_FAIL;
 		mm->UnregCallback(CB_LOGFUNC, LogFile, ALLARENAS);
 		mm->ReleaseInterface(cfg);

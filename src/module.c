@@ -41,8 +41,8 @@ local void EnumModules(void (*)(const char *, const char *, void *), void *);
 local void AttachModule(const char *, int);
 local void DetachModule(const char *, int);
 
-local void RegInterface(const char *id, void *iface, int arena);
-local int UnregInterface(const char *id, void *iface, int arena);
+local void RegInterface(void *iface, int arena);
+local int UnregInterface(void *iface, int arena);
 local void *GetInterface(const char *id, int arena);
 local void *GetInterfaceByName(const char *name);
 local void ReleaseInterface(void *iface);
@@ -62,7 +62,7 @@ local LinkedList *mods;
 
 local Imodman mmint =
 {
-	INTERFACE_HEAD_INIT("modman")
+	INTERFACE_HEAD_INIT(NULL, "modman")
 	LoadMod, UnloadModule, UnloadAllModules, EnumModules,
 	AttachModule, DetachModule,
 	RegInterface, UnregInterface, GetInterface, GetInterfaceByName, ReleaseInterface,
@@ -277,11 +277,15 @@ void DetachModule(const char *name, int arena)
 
 /* interface management stuff */
 
-void RegInterface(const char *id, void *iface, int arena)
+void RegInterface(void *iface, int arena)
 {
+	const char *id;
 	InterfaceHead *head = (InterfaceHead*)iface;
+
 	assert(iface);
 	assert(head->magic == MODMAN_MAGIC);
+
+	id = head->iid;
 
 	HashAdd(intsbyname, head->name, iface);
 
@@ -298,10 +302,14 @@ void RegInterface(const char *id, void *iface, int arena)
 	head->refcount = 0;
 }
 
-int UnregInterface(const char *id, void *iface, int arena)
+int UnregInterface(void *iface, int arena)
 {
+	const char *id;
 	InterfaceHead *head = (InterfaceHead*)iface;
+
 	assert(head->magic == MODMAN_MAGIC);
+
+	id = head->iid;
 
 	if (head->refcount > 0)
 		return head->refcount;
@@ -321,21 +329,46 @@ int UnregInterface(const char *id, void *iface, int arena)
 }
 
 
+local inline InterfaceHead *get_int(HashTable *hash, const char *id)
+{
+	InterfaceHead *head;
+	head = HashGetOne(hash, id);
+	if (head && head->priority != -1)
+	{
+		/* ok, we can't use the fast path. we have to try to find
+		 * the best one now. */
+		int bestpri = -1;
+		LinkedList *lst;
+		Link *l;
+
+		lst = HashGet(hash, id);
+		for (l = LLGetHead(lst); l; l = l->next)
+			if (((InterfaceHead*)l->data)->priority > bestpri)
+			{
+				head = l->data;
+				bestpri = head->priority;
+			}
+		LLFree(lst);
+	}
+	return head;
+}
+
+
 void * GetInterface(const char *id, int arena)
 {
 	InterfaceHead *head;
 
 	if (arena == ALLARENAS)
-		head = HashGetOne(globalints, id);
+		head = get_int(globalints, id);
 	else
 	{
 		char key[64];
 		key[0] = arena + ' ';
 		astrncpy(key + 1, id, 63);
-		head = HashGetOne(arenaints, key);
+		head = get_int(arenaints, key);
 		/* if the arena doesn't have it, fall back to a global one */
 		if (!head)
-			head = HashGetOne(globalints, id);
+			head = get_int(globalints, id);
 	}
 	if (head)
 		head->refcount++;

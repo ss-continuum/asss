@@ -9,8 +9,9 @@
 typedef struct AuthData
 {
 	int demodata;
-	byte code;
+	int code;
 	char name[24];
+	char sendname[20];
 	char squad[24];
 } AuthData;
 

@@ -28,7 +28,7 @@ local Iarenaman *aman;
 
 local Ilogman _int =
 {
-	INTERFACE_HEAD_INIT("logman")
+	INTERFACE_HEAD_INIT(I_LOGMAN, "logman")
 	Log, LogA, LogP, FilterLog
 };
 
@@ -43,12 +43,12 @@ EXPORT int MM_logman(int action, Imodman *mm_, int arena)
 		aman = NULL;
 		MPInit(&queue);
 		thd = StartThread(LoggingThread, NULL);
-		mm->RegInterface(I_LOGMAN, &_int, ALLARENAS);
+		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(I_LOGMAN, &_int, ALLARENAS))
+		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 		MPAdd(&queue, NULL);
 		JoinThread(thd);

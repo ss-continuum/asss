@@ -63,7 +63,7 @@ local time_t newstime;
 
 local Imapnewsdl _int =
 {
-	INTERFACE_HEAD_INIT("mapnewsdl")
+	INTERFACE_HEAD_INIT(I_MAPNEWSDL, "mapnewsdl")
 	SendMapFilename, GetNewsChecksum
 };
 
@@ -105,12 +105,12 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		if (!cfg_newsfile) cfg_newsfile = "news.txt";
 		newstime = 0; cmpnews = NULL;
 
-		mm->RegInterface(I_MAPNEWSDL, &_int, ALLARENAS);
+		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(I_MAPNEWSDL, &_int, ALLARENAS))
+		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 		net->RemovePacket(C2S_MAPREQUEST, PMapRequest);
 		net->RemovePacket(C2S_NEWSREQUEST, PMapRequest);

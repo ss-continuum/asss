@@ -56,7 +56,7 @@ local int cfg_msgrel;
 
 local Ichat _int =
 {
-	INTERFACE_HEAD_INIT("chat")
+	INTERFACE_HEAD_INIT(I_CHAT, "chat")
 	SendMessage_, SendSetMessage,
 	SendSoundMessage, SendSetSoundMessage,
 	SendAnyMessage, SendArenaMessage,
@@ -89,12 +89,12 @@ EXPORT int MM_chat(int action, Imodman *mm_, int arena)
 
 		cfg_msgrel = cfg->GetInt(GLOBAL, "Chat", "MessageReliable", 1);
 		net->AddPacket(C2S_CHAT, PChat);
-		mm->RegInterface(I_CHAT, &_int, ALLARENAS);
+		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(I_CHAT, &_int, ALLARENAS))
+		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 		net->RemovePacket(C2S_CHAT, PChat);
 		mm->UnregCallback(CB_PLAYERACTION, PAction, ALLARENAS);

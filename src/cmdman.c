@@ -34,7 +34,7 @@ local CommandFunc defaultfunc;
 
 local Icmdman _int =
 {
-	INTERFACE_HEAD_INIT("cmdman")
+	INTERFACE_HEAD_INIT(I_CMDMAN, "cmdman")
 	AddCommand, RemoveCommand, Command
 };
 
@@ -50,12 +50,12 @@ EXPORT int MM_cmdman(int action, Imodman *mm, int arena)
 
 		cmds = HashAlloc(47);
 		defaultfunc = NULL;
-		mm->RegInterface(I_CMDMAN, &_int, ALLARENAS);
+		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(I_CMDMAN, &_int, ALLARENAS))
+		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(lm);

@@ -71,7 +71,7 @@ local Ilogman *lm;
 /* this module's interface */
 local Imapdata _int =
 {
-	INTERFACE_HEAD_INIT("mapdata")
+	INTERFACE_HEAD_INIT(I_MAPDATA, "mapdata")
 	GetMapFilename, GetFlagCount, GetTile,
 	GetRegion, InRegion,
 	FindFlagTile, FindBrickEndpoints
@@ -90,12 +90,12 @@ EXPORT int MM_mapdata(int action, Imodman *_mm, int arenas)
 
 		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
-		mm->RegInterface(I_MAPDATA, &_int, ALLARENAS);
+		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(I_MAPDATA, &_int, ALLARENAS))
+		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);

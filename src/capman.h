@@ -33,6 +33,11 @@ typedef struct Icapman
 	/* arpc: int(int, string) */
 	/* returns true if the given player has the given capability. */
 
+	int (*HasCapabilityByName)(const char *name, const char *cap);
+	/* arpc: int(string, string) */
+	/* same as HasCapability, but intented to be used in strange places
+	 * like before the player has logged in yet */
+
 	const char *(*GetGroup)(int pid);
 	/* arpc: string(int) */
 	void (*SetGroup)(int pid, const char *group);

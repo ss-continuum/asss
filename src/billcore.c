@@ -68,13 +68,13 @@ struct
 
 local Iauth _iauth =
 {
-	INTERFACE_HEAD_INIT("auth-billing")
+	INTERFACE_HEAD_INIT_PRI(I_AUTH, "auth-billing", 5)
 	BillingAuth
 };
 
 local Ibillcore _ibillcore =
 {
-	INTERFACE_HEAD_INIT("billcore-udp")
+	INTERFACE_HEAD_INIT(I_BILLCORE, "billcore-udp")
 	SendToBiller, AddPacket, RemovePacket, GetStatus
 };
 
@@ -118,17 +118,17 @@ int MM_billcore(int action, Imodman *_mm, int arena)
 		cmd->AddCommand("userid", Cuserid);
 		cmd->AddCommand("usage", Cusage);
 
-		mm->RegInterface(I_AUTH, &_iauth, ALLARENAS);
-		mm->RegInterface(I_BILLCORE, &_ibillcore, ALLARENAS);
+		mm->RegInterface(&_iauth, ALLARENAS);
+		mm->RegInterface(&_ibillcore, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		byte dis = S2B_LOGOFF;
 
-		if (mm->UnregInterface(I_AUTH, &_iauth, ALLARENAS))
+		if (mm->UnregInterface(&_iauth, ALLARENAS))
 			return MM_FAIL;
-		if (mm->UnregInterface(I_BILLCORE, &_ibillcore, ALLARENAS))
+		if (mm->UnregInterface(&_ibillcore, ALLARENAS))
 			return MM_FAIL;
 
 		/* send logoff packet (immediate so it gets there before */
@@ -267,6 +267,7 @@ void BillingAuth(int pid, struct LoginPacket *lp, int lplen,
 		/* prepend names with ^ to indicate they're not authenticated */
 		auth.name[0] = '^';
 		astrncpy(auth.name+1, lp->name, 23);
+		strncpy(auth.sendname, auth.name, 20);
 		Done(pid, &auth);
 		memset(billing_data + pid, 0, sizeof(billing_data[pid]));
 	}
@@ -283,6 +284,7 @@ void BAuthResponse(int bpid, byte *p, int n)
 	/*ad.demodata = 0; // FIXME: figure out where in the billing response that is */
 	ad.code = r->loginflag;
 	astrncpy(ad.name, r->name, 24);
+	strncpy(ad.sendname, ad.name, 20);
 	astrncpy(ad.squad, r->squad, 24);
 
 	/* all scores are local!

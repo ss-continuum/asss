@@ -9,3 +9,6 @@ cmd_recycle
 cmd_restart
 cmd_prize
 
+
+; prefix chars
+prefix_>

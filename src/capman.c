@@ -7,6 +7,7 @@
 
 /* interface funcs */
 local int HasCapability(int pid, const char *cap);
+local int HasCapabilityByName(const char *name, const char *cap);
 local const char *GetGroup(int pid);
 local void SetGroup(int pid, const char *group);
 
@@ -26,8 +27,8 @@ local Iconfig *cfg;
 
 local Icapman _myint =
 {
-	INTERFACE_HEAD_INIT("capman-groups")
-	HasCapability, GetGroup, SetGroup
+	INTERFACE_HEAD_INIT(I_CAPMAN, "capman-groups")
+	HasCapability, HasCapabilityByName, GetGroup, SetGroup
 };
 
 
@@ -49,12 +50,12 @@ EXPORT int MM_capman(int action, Imodman *_mm, int arena)
 		groupdef = cfg->OpenConfigFile(NULL, "groupdef.conf");
 		gstaff = cfg->OpenConfigFile(NULL, "staff.conf");
 
-		mm->RegInterface(I_CAPMAN, &_myint, ALLARENAS);
+		mm->RegInterface(&_myint, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(I_CAPMAN, &_myint, ALLARENAS))
+		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
 		cfg->CloseConfigFile(groupdef);
 		cfg->CloseConfigFile(gstaff);
@@ -186,6 +187,22 @@ void SetGroup(int pid, const char *group)
 int HasCapability(int pid, const char *cap)
 {
 	if (cfg->GetStr(groupdef, groups[pid], cap))
+		return 1;
+	else
+		return 0;
+}
+
+
+int HasCapabilityByName(const char *name, const char *cap)
+{
+	/* figure out his group */
+	const char *group;
+
+	group = cfg->GetStr(gstaff, "Staff", name);
+	if (!group)
+		group = "default";
+
+	if (cfg->GetStr(groupdef, group, cap))
 		return 1;
 	else
 		return 0;

@@ -69,7 +69,7 @@ local pthread_mutex_t ballmtx[MAXARENA];
 
 local Iballs _myint =
 {
-	INTERFACE_HEAD_INIT("ball-core")
+	INTERFACE_HEAD_INIT(I_BALLS, "ball-core")
 	SetBallCount, PlaceBall, BallVictory,
 	LockBallStatus, UnlockBallStatus, balldata
 };
@@ -119,7 +119,7 @@ EXPORT int MM_balls(int action, Imodman *_mm, int arena)
 		/* timers */
 		ml->SetTimer(BasicBallTimer, 300, 100, NULL);
 
-		mm->RegInterface(I_BALLS, &_myint, ALLARENAS);
+		mm->RegInterface(&_myint, ALLARENAS);
 
 		/* seed random number generator */
 		srand(GTC());
@@ -127,7 +127,7 @@ EXPORT int MM_balls(int action, Imodman *_mm, int arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(I_BALLS, &_myint, ALLARENAS))
+		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
 		ml->ClearTimer(BasicBallTimer);
 		net->RemovePacket(C2S_GOAL, PGoal);

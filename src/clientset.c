@@ -37,7 +37,7 @@ local ArenaData *arenas;
 /* interfaces */
 local Iclientset _myint =
 {
-	INTERFACE_HEAD_INIT("clientset")
+	INTERFACE_HEAD_INIT(I_CLIENTSET, "clientset")
 	SendClientSettings, Reconfigure
 };
 
@@ -62,7 +62,7 @@ EXPORT int MM_clientset(int action, Imodman *mm_, int arena)
 
 		mm->RegCallback(CB_ARENAACTION, ActionFunc, ALLARENAS);
 
-		mm->RegInterface(I_CLIENTSET, &_myint, ALLARENAS);
+		mm->RegInterface(&_myint, ALLARENAS);
 
 		/* do these at least once */
 		{
@@ -82,7 +82,7 @@ EXPORT int MM_clientset(int action, Imodman *mm_, int arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(I_CLIENTSET, &_myint, ALLARENAS))
+		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
 		mm->UnregCallback(CB_ARENAACTION, ActionFunc, ALLARENAS);
 		mm->ReleaseInterface(pd);

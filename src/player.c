@@ -23,7 +23,7 @@ local PlayerData players[MAXPLAYERS+EXTRA_PID_COUNT];
 /* interface */
 local Iplayerdata _myint =
 {
-	INTERFACE_HEAD_INIT("playerdata")
+	INTERFACE_HEAD_INIT(I_PLAYERDATA, "playerdata")
 	players, LockPlayer, UnlockPlayer, LockStatus, UnlockStatus, FindPlayer
 };
 
@@ -52,12 +52,12 @@ EXPORT int MM_playerdata(int action, Imodman *mm, int arena)
 		}
 
 		/* register interface */
-		mm->RegInterface(I_PLAYERDATA, &_myint, ALLARENAS);
+		mm->RegInterface(&_myint, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(I_PLAYERDATA, &_myint, ALLARENAS))
+		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
 
 		/* destroy mutexes */

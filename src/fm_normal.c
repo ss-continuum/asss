@@ -8,7 +8,7 @@ local void Freq(int pid, int *ship, int *freq);
 
 local Ifreqman _fm =
 {
-	INTERFACE_HEAD_INIT("fm-normal")
+	INTERFACE_HEAD_INIT(I_FREQMAN, "fm-normal")
 	Initial, Ship, Freq
 };
 
@@ -37,11 +37,11 @@ EXPORT int MM_fm_normal(int action, Imodman *_mm, int arena)
 	}
 	else if (action == MM_ATTACH)
 	{
-		mm->RegInterface(I_FREQMAN, &_fm, arena);
+		mm->RegInterface(&_fm, arena);
 	}
 	else if (action == MM_DETACH)
 	{
-		mm->UnregInterface(I_FREQMAN, &_fm, arena);
+		mm->UnregInterface(&_fm, arena);
 	}
 	return MM_FAIL;
 }

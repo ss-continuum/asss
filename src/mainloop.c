@@ -26,7 +26,7 @@ local void KillML(void);
 
 local Imainloop _int =
 {
-	INTERFACE_HEAD_INIT("mainloop")
+	INTERFACE_HEAD_INIT(I_MAINLOOP, "mainloop")
 	StartTimer, ClearTimer, RunLoop, KillML
 };
 
@@ -42,13 +42,13 @@ EXPORT int MM_mainloop(int action, Imodman *mm_, int arena)
 		mm = mm_;
 		privatequit = 0;
 		timers = LLAlloc();
-		mm->RegInterface(I_MAINLOOP, &_int, ALLARENAS);
+		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		LLFree(timers);
-		if (mm->UnregInterface(I_MAINLOOP, &_int, ALLARENAS))
+		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 		return MM_OK;
 	}

@@ -222,7 +222,7 @@ local void (*oohandlers[])(Buffer*) =
 
 local Inet _int =
 {
-	INTERFACE_HEAD_INIT("net-udp")
+	INTERFACE_HEAD_INIT(I_NET, "net-udp")
 	SendToOne, SendToArena, SendToSet, SendToAll, SendWithCallback,
 	ReallyRawSend,
 	KillConnection, ProcessPacket, AddPacket, RemovePacket,
@@ -288,14 +288,14 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		StartThread(RelThread, NULL);
 
 		/* install ourself */
-		mm->RegInterface(I_NET, &_int, ALLARENAS);
+		mm->RegInterface(&_int, ALLARENAS);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		/* uninstall ourself */
-		if (mm->UnregInterface(I_NET, &_int, ALLARENAS))
+		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 
 		/* release these */
@@ -847,11 +847,22 @@ void * SendThread(void *dummy)
 			/* btw, status is locked in here */
 			if (players[i].status == S_TIMEWAIT)
 			{
-				/* here, send disconnection packet */
 				char drop[2] = {0x00, 0x07};
 				int bucket;
 
+				/* here, send disconnection packet */
 				SendToOne(i, drop, 2, NET_PRI_P5);
+
+				/* tell encryption to forget about him */
+				if (clients[i].enc)
+				{
+					clients[i].enc->Void(i);
+					clients[i].enc = NULL;
+				}
+
+				/* log message */
+				lm->Log(L_INFO, "<net> [%s] [pid=%d] Disconnected",
+						players[i].name, i);
 
 				LockMutex(&hashmtx);
 				bucket = HashIP(clients[i].sin);
@@ -866,13 +877,8 @@ void * SendThread(void *dummy)
 						clients[j].nextinbucket = clients[i].nextinbucket;
 					else
 					{
-						/* release hash mutex just to be safe. set the
-						 * status before releasing it, also to be safe. */
-						players[i].status = S_FREE;
-						UnlockMutex(&hashmtx);
 						lm->Log(L_ERROR, "<net> Internal error: "
 								"established connection not in hash table");
-						LockMutex(&hashmtx);
 					}
 				}
 
@@ -1113,9 +1119,6 @@ void KillConnection(int pid)
 		 * functions. but it doesn't do that for biller, so we set
 		 * S_TIMEWAIT directly right here. */
 		players[pid].status = S_TIMEWAIT;
-		pd->UnlockStatus();
-		pd->UnlockPlayer(pid);
-		return;
 	}
 	else
 	{
@@ -1131,17 +1134,6 @@ void KillConnection(int pid)
 	/* remove outgoing packets from the queue. this partially eliminates
 	 * the need for a timewait state. */
 	ClearOutlist(pid);
-
-	/* tell encryption to forget about him */
-	if (clients[pid].enc)
-	{
-		clients[pid].enc->Void(pid);
-		clients[pid].enc = NULL;
-	}
-
-	/* log message */
-	lm->Log(L_INFO, "<net> [%s] [pid=%d] Disconnected",
-			players[pid].name, pid);
 }
 
 

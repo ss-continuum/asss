@@ -60,7 +60,7 @@ local byte adata_dirty[MAXPLAYERS];
 
 local Istats _myint =
 {
-	INTERFACE_HEAD_INIT("stats")
+	INTERFACE_HEAD_INIT(I_STATS, "stats")
 	IncrementStat, SendUpdates
 };
 
@@ -84,12 +84,12 @@ EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 		persist->RegPersistantData(&gdatadesc);
 		persist->RegPersistantData(&adatadesc);
 		net->AddPacket(C2S_CHAT, PChat);
-		mm->RegInterface(I_STATS, &_myint, ALLARENAS);
+		mm->RegInterface(&_myint, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(I_STATS, &_myint, ALLARENAS))
+		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
 		net->RemovePacket(C2S_CHAT, PChat);
 		persist->UnregPersistantData(&gdatadesc);

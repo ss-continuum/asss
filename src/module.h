@@ -44,16 +44,17 @@ typedef int (*ModMain)(int action, Imodman *mm, int arena);
 /* all interfaces declarations MUST start with this macro */
 #define INTERFACE_HEAD_DECL struct InterfaceHead head;
 
-/* and all interface initializers must start with this macro */
-#define INTERFACE_HEAD_INIT(name) { MODMAN_MAGIC, name, 0 },
+/* and all interface initializers must start with one of these macros */
+#define INTERFACE_HEAD_INIT(iid, name) { MODMAN_MAGIC, iid, name, -1, 0 },
+#define INTERFACE_HEAD_INIT_PRI(iid, name, pri) { MODMAN_MAGIC, iid, name, pri, 0 },
 
 
 /* stuff used for implementing the above */
 typedef struct InterfaceHead
 {
 	unsigned long magic;
-	const char *name;
-	int refcount;
+	const char *iid, *name;
+	int priority, refcount;
 } InterfaceHead;
 
 #define MODMAN_MAGIC 0x46692016
@@ -93,8 +94,8 @@ struct Imodman
 
 	/* interface stuff */
 
-	void (*RegInterface)(const char *id, void *iface, int arena);
-	int (*UnregInterface)(const char *id, void *iface, int arena);
+	void (*RegInterface)(void *iface, int arena);
+	int (*UnregInterface)(void *iface, int arena);
 	/* these are the way of providing interfaces for other modules. they
 	 * should be called with an interface id and a pointer to the
 	 * interface. UnregInterface will refuse to unregister an interface

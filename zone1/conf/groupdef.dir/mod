@@ -25,3 +25,6 @@ cmd_setcm
 privcmd_getcm
 privcmd_setcm
 
+
+; prefix chars
+prefix_+

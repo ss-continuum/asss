@@ -72,7 +72,7 @@ local pthread_mutex_t flagmtx[MAXARENA];
 
 local Iflags _myint =
 {
-	INTERFACE_HEAD_INIT("flag-core")
+	INTERFACE_HEAD_INIT(I_FLAGS, "flag-core")
 	MoveFlag, FlagVictory, GetCarriedFlags, GetFreqFlags,
 	LockFlagStatus, UnlockFlagStatus, flagdata
 };
@@ -122,7 +122,7 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 		ml->SetTimer(BasicFlagTimer, 500, 500, NULL);
 		ml->SetTimer(TurfFlagTimer, 1500, 1500, NULL);
 
-		mm->RegInterface(I_FLAGS, &_myint, ALLARENAS);
+		mm->RegInterface(&_myint, ALLARENAS);
 
 		/* seed random number generator */
 		srand(GTC());
@@ -130,7 +130,7 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(I_FLAGS, &_myint, ALLARENAS))
+		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
 		mm->UnregCallback(CB_ARENAACTION, AAFlag, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, PAFlag, ALLARENAS);

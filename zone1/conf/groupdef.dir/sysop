@@ -15,3 +15,8 @@ cmd_makefake
 privcmd_killfake
 cmd_dropturret
 
+
+; prefix chars
+prefix_#
+prefix_$
+prefix_@

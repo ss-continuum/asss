@@ -63,7 +63,7 @@ scoring.so: persist.o stats.o points_kill.o points_flag.o points_goal.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -ldb1
 
 
-funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o
+funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o
 
 fake.so: fake.o autoturret.o
 

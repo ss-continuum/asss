@@ -85,7 +85,7 @@ local int cfg_syncseconds;
 
 local Ipersist _myint =
 {
-	INTERFACE_HEAD_INIT("persist-bdb185")
+	INTERFACE_HEAD_INIT(I_PERSIST, "persist-bdb185")
 	RegPersistantData, UnregPersistantData,
 	SyncToFile, SyncFromFile, StabilizeScores
 };
@@ -114,7 +114,7 @@ EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 		globaldb = OpenDB("global.db");
 		defarenadb = OpenDB("defaultarena/scores.db");
 
-		mm->RegInterface(I_PERSIST, &_myint, ALLARENAS);
+		mm->RegInterface(&_myint, ALLARENAS);
 
 		cfg_syncseconds = cfg ?
 				cfg->GetInt(GLOBAL, "Persist", "SyncSeconds", 180) : 180;
@@ -126,7 +126,7 @@ EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 	else if (action == MM_UNLOAD)
 	{
 		ml->ClearTimer(SyncTimer);
-		if (mm->UnregInterface(I_PERSIST, &_myint, ALLARENAS))
+		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
 		mm->UnregCallback(CB_ARENAACTION, PersistAA, ALLARENAS);
 		mm->ReleaseInterface(pd);

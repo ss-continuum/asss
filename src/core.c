@@ -63,7 +63,7 @@ local PlayerData *players;
 
 local Iauth _iauth =
 {
-	INTERFACE_HEAD_INIT("auth-default")
+	INTERFACE_HEAD_INIT_PRI(I_AUTH, "auth-default", 1)
 	DefaultAuth
 };
 
@@ -96,7 +96,7 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 		mm->RegCallback(CB_MAINLOOP, ProcessLoginQueue, ALLARENAS);
 
 		/* register default interfaces which may be replaced later */
-		mm->RegInterface(I_AUTH, &_iauth, ALLARENAS);
+		mm->RegInterface(&_iauth, ALLARENAS);
 
 		/* set up periodic events */
 		ml->SetTimer(SendKeepalive, 500, 500, NULL);
@@ -105,7 +105,7 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(I_AUTH, &_iauth, ALLARENAS))
+		if (mm->UnregInterface(&_iauth, ALLARENAS))
 			return MM_FAIL;
 		mm->UnregCallback(CB_MAINLOOP, ProcessLoginQueue, ALLARENAS);
 		net->RemovePacket(C2S_LOGIN, PLogin);
@@ -351,7 +351,7 @@ void AuthDone(int pid, AuthData *auth)
 	memcpy(bigauthdata + pid, auth, sizeof(AuthData));
 
 	/* also copy to player struct */
-	strncpy(player->sendname, auth->name, 20);
+	strncpy(player->sendname, auth->sendname, 20);
 	astrncpy(player->name, auth->name, 21);
 	strncpy(player->sendsquad, auth->squad, 20);
 	astrncpy(player->squad, auth->squad, 21);
@@ -417,6 +417,7 @@ void DefaultAuth(int pid, struct LoginPacket *p, int lplen,
 	auth.demodata = 0;
 	auth.code = AUTH_OK;
 	astrncpy(auth.name, p->name, 24);
+	strncpy(auth.sendname, p->name, 20);
 	memset(auth.squad, 0, sizeof(auth.squad));
 
 	Done(pid, &auth);

@@ -31,7 +31,7 @@ local Inet *net;
 
 local Iencrypt _int =
 {
-	INTERFACE_HEAD_INIT("vieenc")
+	INTERFACE_HEAD_INIT(NULL, "vieenc")
 	Encrypt, Decrypt, Void
 };
 

@@ -87,7 +87,7 @@ local void Ckillfake(const char *params, int pid, int target)
 
 local Ifake _int =
 {
-	INTERFACE_HEAD_INIT("fake")
+	INTERFACE_HEAD_INIT(I_FAKE, "fake")
 	CreateFakePlayer, EndFaked, NULL
 };
 
@@ -108,12 +108,12 @@ EXPORT int MM_fake(int action, Imodman *mm_, int arena)
 		cmd->AddCommand("makefake", Cmakefake);
 		cmd->AddCommand("killfake", Ckillfake);
 		_int.ProcessPacket = net->ProcessPacket;
-		mm->RegInterface(I_FAKE, &_int, ALLARENAS);
+		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(I_FAKE, &_int, ALLARENAS);
+		mm->UnregInterface(&_int, ALLARENAS);
 		cmd->RemoveCommand("makefake", Cmakefake);
 		cmd->RemoveCommand("killfake", Ckillfake);
 		mm->ReleaseInterface(pd);

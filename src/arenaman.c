@@ -60,7 +60,7 @@ local pthread_mutex_t arenastatusmtx;
 
 local Iarenaman _int =
 {
-	INTERFACE_HEAD_INIT("arenaman")
+	INTERFACE_HEAD_INIT(I_ARENAMAN, "arenaman")
 	SendArenaResponse, LockStatus, UnlockStatus, arenas
 };
 
@@ -97,12 +97,12 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, int arena)
 
 		ml->SetTimer(ReapArenas, 1000, 1500, NULL);
 
-		mm->RegInterface(I_ARENAMAN, &_int, ALLARENAS);
+		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(I_ARENAMAN, &_int, ALLARENAS))
+		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 		net->RemovePacket(C2S_GOTOARENA, PArena);
 		net->RemovePacket(C2S_LEAVING, PLeaving);
