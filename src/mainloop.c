@@ -101,15 +101,8 @@ startover:
 		}
 		UNLOCK();
 
-		/* rest a bit: 1/100 sec */
-#ifndef WIN32
-		{
-			struct timespec ts = { 0, 10000000 };
-			while (nanosleep(&ts, &ts) == -1) /* retry */;
-		}
-#else
-		usleep(10000);
-#endif
+		/* rest a bit */
+		fullsleep(10);
 	}
 
 	return privatequit & 0xff;

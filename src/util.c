@@ -66,6 +66,21 @@ ticks_t current_millis(void)
 }
 
 
+void fullsleep(long millis)
+{
+#ifndef WIN32
+	{
+		struct timespec ts = { millis / 1000L , (millis % 1000L) * 1000000L };
+		while (nanosleep(&ts, &ts) == -1)
+			/* retry if interrupted */;
+	}
+#else
+	/* FIXME: can we do this more accurately? */
+	usleep(millis * 1000L);
+#endif
+}
+
+
 char *RemoveCRLF(char *p)
 {
 	char *t;

@@ -42,6 +42,9 @@ ticks_t current_ticks(void);
  ** of ticks for things that need better resolution. */
 ticks_t current_millis(void);
 
+/** sleep for this many milliseconds, accurately. */
+void fullsleep(long millis);
+
 /** strips a trailing CR or LF off the end of a string. this modifies
  ** the string, and returns it. */
 char *RemoveCRLF(char *str);

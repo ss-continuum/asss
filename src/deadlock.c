@@ -15,18 +15,14 @@ local volatile int counter;
 
 local void * thread_check(void *dummy)
 {
+	/* wait a minute initially */
+	fullsleep(60 * 1000);
+
 	for (;;)
 	{
 		int seen = counter;
-#ifndef WIN32
-		struct timespec ts = { 10, 0 };
-		/* this works correctly even when interrupted by signals */
-		while (nanosleep(&ts, &ts) == -1)
-			;
-#else
-		/* not sure how to do an accurate sleep on windows */
-		sleep(10);
-#endif
+		/* and then 10 seconds each iteration */
+		fullsleep(10 * 1000);
 		if (counter == seen)
 		{
 			fprintf(stderr, "E <deadlock> deadlock detected, aborting\n");
