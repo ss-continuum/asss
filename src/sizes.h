@@ -4,7 +4,11 @@
 #ifndef __PACKETS_SIZES_H
 #define __PACKETS_SIZES_H
 
+#ifndef __FreeBSD__
 #include <stdint.h>
+#else
+#include <sys/types.h>
+#endif
 
 typedef int8_t i8;
 typedef int16_t i16;
