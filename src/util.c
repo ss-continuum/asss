@@ -304,9 +304,9 @@ LinkedList * LLAlloc(void)
 	return ret;
 }
 
-void LLEmpty(LinkedList *l)
+void LLEmpty(LinkedList *lst)
 {
-	Link *n = l->start, *t;
+	Link *n = lst->start, *t;
 
 #ifdef CFG_USE_FREE_LINK_LIST
 	if (n)
@@ -327,7 +327,7 @@ void LLEmpty(LinkedList *l)
 		n = t;
 	}
 #endif
-	l->start = l->end = NULL;
+	lst->start = lst->end = NULL;
 }
 
 void LLFree(LinkedList *lst)
@@ -337,21 +337,21 @@ void LLFree(LinkedList *lst)
 	FreeALink((Link*)lst);
 }
 
-void LLAdd(LinkedList *l, const void *p)
+void LLAdd(LinkedList *lst, const void *p)
 {
 	Link *n = GetALink();
 
 	n->next = NULL;
 	n->data = (void*)p;
 
-	if (l->end)
+	if (lst->end)
 	{
-		l->end->next = n;
-		l->end = n;
+		lst->end->next = n;
+		lst->end = n;
 	}
 	else
 	{
-		l->start = l->end = n;
+		lst->start = lst->end = n;
 	}
 }
 
@@ -384,22 +384,22 @@ void LLInsertAfter(LinkedList *lst, Link *link, const void *data)
 		LLAddFirst(lst, data);
 }
 
-int LLRemove(LinkedList *l, const void *p)
+int LLRemove(LinkedList *lst, const void *p)
 {
-	Link *n = l->start, *prev = NULL;
+	Link *n = lst->start, *prev = NULL;
 	while (n)
 	{
 		if (n->data == p)
 		{
-			if (l->start == n)
+			if (lst->start == n)
 			{
-				l->start = n->next;
-				if (l->start == NULL) l->end = NULL;
+				lst->start = n->next;
+				if (lst->start == NULL) lst->end = NULL;
 			}
 			else
 			{
 				prev->next = n->next;
-				if (n == l->end) l->end = prev;
+				if (n == lst->end) lst->end = prev;
 			}
 			FreeALink(n);
 			return 1;
@@ -410,9 +410,9 @@ int LLRemove(LinkedList *l, const void *p)
 	return 0;
 }
 
-int LLRemoveAll(LinkedList *l, const void *p)
+int LLRemoveAll(LinkedList *lst, const void *p)
 {
-	Link *n = l->start, *prev = NULL, *next;
+	Link *n = lst->start, *prev = NULL, *next;
 	int removed = 0;
 
 	while (n)
@@ -421,14 +421,10 @@ int LLRemoveAll(LinkedList *l, const void *p)
 		if (n->data == p)
 		{
 			if (prev == NULL) /* first link */
-			{
-				l->start = next;
-			}
+				lst->start = next;
 			else
-			{
 				prev->next = next;
-				if (next == NULL) l->end = prev;
-			}
+			if (next == NULL) lst->end = prev;
 			FreeALink(n);
 			removed++;
 		}
@@ -461,9 +457,9 @@ void *LLRemoveFirst(LinkedList *lst)
 	return ret;
 }
 
-Link * LLGetHead(LinkedList *l)
+Link * LLGetHead(LinkedList *lst)
 {
-	return l->start;
+	return lst->start;
 }
 
 int LLIsEmpty(LinkedList *lst)
@@ -471,11 +467,11 @@ int LLIsEmpty(LinkedList *lst)
 	return lst->start == NULL;
 }
 
-int LLCount(LinkedList *ll)
+int LLCount(LinkedList *lst)
 {
 	Link *l;
 	int c = 0;
-	for (l = ll->start; l; l = l->next) c++;
+	for (l = lst->start; l; l = l->next) c++;
 	return c;
 }
 
