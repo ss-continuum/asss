@@ -27,6 +27,7 @@
 #include "mapdata.h"
 #include "fake.h"
 #include "objects.h"
+#include "watchdamage.h"
 
 /* utility functions that are linked in directly */
 #include "util.h"

@@ -4,8 +4,8 @@
 
 struct KillPacket
 {
-	u8 type,unknown;
-	i16 killer,killed,bounty,flags;
+	u8 type, green;
+	i16 killer, killed, bounty, flags;
 };
 
 #endif

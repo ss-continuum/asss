@@ -91,7 +91,12 @@ int LLRemove(LinkedList *lst, void *data);
 int LLRemoveAll(LinkedList *lst, void *data);
 void *LLRemoveFirst(LinkedList *lst);
 int LLIsEmpty(LinkedList *lst);
+
+#ifdef USE_PROTOTYPES
 Link *LLGetHead(LinkedList *lst);
+#else
+#define LLGetHead(lst) ((lst)->start)
+#endif
 
 
 /* hashing stuff */

@@ -24,6 +24,11 @@
 #include "app.h"
 
 
+#ifdef WIN32
+#define BROKEN_VSNPRINTF
+#endif
+
+
 #define DIRECTIVECHAR '#'
 #define MACROCHAR '$'
 #define CONTINUECHAR '\\'
@@ -63,8 +68,16 @@ struct APPContext
 static void do_error(APPContext *ctx, const char *fmt, ...)
 {
 	int len;
-	char *buf;
 	va_list args;
+
+#ifdef BROKEN_VSNPRINTF
+	char buf[1024];
+
+	va_start(args, fmt);
+	vsnprintf(buf, 1024, fmt, args);
+	va_end(args);
+#else
+	char *buf;
 
 	va_start(args, fmt);
 	len = vsnprintf(NULL, 0, fmt, args);
@@ -74,6 +87,7 @@ static void do_error(APPContext *ctx, const char *fmt, ...)
 	va_start(args, fmt);
 	vsnprintf(buf, len+1, fmt, args);
 	va_end(args);
+#endif
 
 	ctx->err(buf);
 }

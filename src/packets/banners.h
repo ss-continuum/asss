@@ -5,7 +5,7 @@
 /* a single banner */
 typedef struct Banner
 {
-	byte data[96];
+	u8 data[96];
 } Banner;
 
 

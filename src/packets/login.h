@@ -15,10 +15,10 @@ struct LoginPacket
 	i8 blah;
 	u32 permid;
 	i16 cversion;
-	i32 field444,field555;
+	i32 field444, field555;
 	u32 D2;
 	i8 blah2[12];
-	byte contid[64]; /* cont only */
+	u8 contid[64]; /* cont only */
 };
 
 #define LEN_LOGINPACKET_VIE (sizeof(struct LoginPacket) - 64)

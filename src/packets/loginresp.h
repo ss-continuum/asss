@@ -9,7 +9,7 @@ struct LoginResponse
 {
 	u8 type;
 	u8 code;
-	u32 serverversion,blah,exechecksum;
+	u32 serverversion, blah, exechecksum;
 	u8 blah2[2];
 	u32 demodata, blah3;
 	u32 newschecksum;

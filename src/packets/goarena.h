@@ -9,7 +9,7 @@ struct GoArenaPacket
 	u8 type;
 	i8 shiptype;
 	i16 wavmsg;
-	i16 xres,yres,arenatype;
+	i16 xres, yres, arenatype;
 	char arenaname[16];
 	u8 optionalgraphics; /* cont */
 };

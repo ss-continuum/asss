@@ -4,16 +4,15 @@
 
 /* ppk.h - position and weapons packets */
 
-#pragma pack(1)
-
 struct Weapons
-{   /* this is a bit field. the whole thing should fit into 16 bits */
-	unsigned int type : 5;
-	unsigned int level : 2;
-	unsigned int bouncing : 1;
-	unsigned int shraplevel : 2;
-	unsigned int shrap : 5;
-	unsigned int multimine : 1;
+{
+	/* this is a bit field. the whole thing should fit into 16 bits */
+	unsigned short type : 5;
+	unsigned short level : 2;
+	unsigned short bouncing : 1;
+	unsigned short shraplevel : 2;
+	unsigned short shrap : 5;
+	unsigned short alternate : 1;
 };
 
 struct ExtraPosData

@@ -47,6 +47,12 @@ typedef struct PlayerData
 #define RESET_DURING_CHANGE(pid) pd->players[pid].pflags &= ~F_DURING_CHANGE
 #define IS_DURING_CHANGE(pid) (pd->players[pid].pflags & F_DURING_CHANGE)
 
+/* if user wants optional .lvz files */
+#define F_ALL_LVZ 0x02
+#define SET_ALL_LVZ(pid) pd->players[pid].pflags |= F_ALL_LVZ
+#define UNSET_ALL_LVZ(pid) pd->players[pid].pflags &= ~F_ALL_LVZ
+#define WANT_ALL_LVZ(pid) (pd->players[pid].pflags & F_ALL_LVZ)
+
 #endif
 
 

@@ -7,13 +7,13 @@
 struct TimeSyncS2C
 {
 	i8 t1,t2;
-	i32 clienttime,servertime;
+	i32 clienttime, servertime;
 };
 
 struct TimeSyncC2S
 {
-	i8 t1,t2;
-	i32 time,pktsent,pktrecvd;
+	i8 t1, t2;
+	i32 time, pktsent, pktrecvd;
 };
 
 #endif
