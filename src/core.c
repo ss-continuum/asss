@@ -308,6 +308,7 @@ void PLogin(int pid, byte *p, int l)
 
 		memcpy(bigloginpkt + pid, p, sizeof(struct LoginPacket));
 		players[pid].status = S_NEED_AUTH;
+		log->Log(L_DRIVEL,"<core> Login request: \"%s\"", pkt->name);
 	}
 }
 

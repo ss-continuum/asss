@@ -290,6 +290,57 @@ i32 GetIP(int pid)
 }
 
 
+local void ClearOutlist(int pid)
+{
+	Buffer *buf, *nbuf;
+	DQNode *outlist;
+
+	LockMutex(outlistmtx + pid);
+
+	outlist = &clients[pid].outlist;
+	for (buf = (Buffer*)outlist->next; (DQNode*)buf != outlist; buf = nbuf)
+	{
+		nbuf = (Buffer*)buf->node.next;
+		DQRemove((DQNode*)buf);
+		FreeBuffer(buf);
+	}
+
+	UnlockMutex(outlistmtx + pid);
+}
+
+
+local void InitClient(int i)
+{
+	/* free any buffers remaining in the outlist. there probably should
+	 * be any. just be sure. */
+	ClearOutlist(i);
+
+	/* set up clientdata */
+	LockMutex(outlistmtx + i);
+	memset(clients + i, 0, sizeof(ClientData));
+	clients[i].c2sn = -1;
+	clients[i].enctype = -1;
+	DQInit(&clients[i].outlist);
+	UnlockMutex(outlistmtx + i);
+}
+
+local void InitPlayer(int i)
+{
+	/* set up playerdata */
+	pd->LockPlayer(i);
+	pd->LockStatus();
+	memset(players + i, 0, sizeof(PlayerData));
+	players[i].type = S2C_PLAYERENTERING; /* restore type */
+	players[i].arena = -1;
+	players[i].pid = i;
+	players[i].shiptype = SPEC;
+	players[i].attachedto = -1;
+	players[i].status = S_NEED_KEY;
+	pd->UnlockStatus();
+	pd->UnlockPlayer(i);
+}
+
+
 Buffer * GetBuffer(void)
 {
 	DQNode *dq;
@@ -418,7 +469,10 @@ void * RecvThread(void *dummy)
 
 			/* search for an existing connection */
 			hashbucket = HashIP(sin);
-			/* LOCK: lock status here? */
+
+			/***** lock status here *****/
+			pd->LockStatus();
+
 			LockMutex(&hashmtx);
 			pid = clienthash[hashbucket];
 			while (pid >= 0)
@@ -433,14 +487,15 @@ void * RecvThread(void *dummy)
 
 			if (pid == -1)
 			{	/* new client */
+				pd->UnlockStatus(); /* NewConnection needs status unlocked */
 				pid = NewConnection(&sin);
+				pd->LockStatus();
 				if (pid == -1)
 				{
 					byte pk7[] = { 0x00, 0x07 };
 					sendto(mysock, pk7, 2, 0, (struct sockaddr*)&sin, sinsize);
 					log->Log(L_WARN,"<net> Too many players! Dropping extra connections!");
-					FreeBuffer(buf);
-					goto donehere;
+					goto freeit;
 				}
 				else
 				{
@@ -451,22 +506,54 @@ void * RecvThread(void *dummy)
 
 			/* check that it's in a reasonable status */
 			status = players[pid].status;
-			if (status <= S_FREE || status >= S_TIMEWAIT)
+
+			if (status == S_TIMEWAIT2)
 			{
-				/* FIXME: if the player is in timewait, reset his state
-				 * somehow. probably just setting state to S_NEED_KEY
-				 * would work, but we should also go through and remove
-				 * his outgoing packets at some point. in general, the
-				 * whole timewait idea needs reworking. */
-				if (status <= S_FREE)
-					log->Log(L_WARN, "<net> [pid=%d] Packet recieved from bad state %d", pid, status);
-				if (status >= S_TIMEWAIT)
-					log->Log(L_WARN, "<net> [pid=%d] Packet recieved from timewait state", pid);
-				FreeBuffer(buf);
-				goto donehere;
-				/* don't set lastpkt time for timewait stats or we might
-				 * never get out of it */
+				/* if we're in the long timewait state, we should accept
+				 * key negiciation packets. */
+				if (buf->d.rel.t1 == 0x00 && buf->d.rel.t2 == 0x01)
+				{
+					/* this is a key negociation. do all the stuff that
+					 * NewConnection would except the hash table bits.
+					 * note that we also manually set the status to
+					 * S_NEED_KEY. i'm pretty sure we have to do that to
+					 * be safe, since we release the mutex momentarily.
+					 * the better solution would be to make the status
+					 * mutex recursive and also get rid of the
+					 * per-player mutexes, so InitPlayer could be called
+					 * while holding the lock. */
+					players[pid].status = S_NEED_KEY;
+					pd->UnlockStatus(); /* InitPlayer needs status unlocked */
+					InitClient(pid);
+					/* initclient wipes the client struct. we need to restore
+					 * the socket address. this feels a bit hackish. */
+					memcpy(&clients[pid].sin, &sin, sizeof(struct sockaddr_in));
+					InitPlayer(pid);
+					pd->LockStatus();
+					log->Log(L_DRIVEL,"<net> [pid=%d] Reconnected from timewait2", pid);
+				}
+				else
+					/* oh well, let's just ignore it. don't set lastpkt
+					 * time for timewait state or we might never get out
+					 * of it */
+					goto freeit;
 			}
+
+			if (status == S_TIMEWAIT)
+				/* we want to stay in this (shorter) timewait state
+				 * until the sendthread moves us to the next one. still,
+				 * don't set lastpkt time. */
+				goto freeit;
+
+			if (status <= S_FREE || status > S_TIMEWAIT2)
+			{
+				log->Log(L_WARN, "<net> [pid=%d] Packet recieved from bad state %d", pid, status);
+				goto freeit;
+				/* don't set lastpkt time here */
+			}
+
+			pd->UnlockStatus();
+			/***** unlock status here *****/
 
 			buf->pid = pid;
 			/* set the last packet time */
@@ -485,8 +572,14 @@ void * RecvThread(void *dummy)
 			/* hand it off to appropriate place */
 			ProcessBuffer(buf);
 
+			goto donehere;
+freeit:
+			/* unlock status here because we locked it up above and
+			 * escaped from the section with a goto. */
+			pd->UnlockStatus();
+			FreeBuffer(buf);
+donehere:
 			global_stats.pktsrecvd++;
-donehere: ;
 		}
 
 		if (FD_ISSET(myothersock, &fds))
@@ -659,6 +752,7 @@ void * SendThread(void *dummy)
 			 * this is done with two states to ensure a complete pass
 			 * through the outgoing buffer before marking these pids as
 			 * free */
+			/* btw, status is locked in here */
 			if (players[i].status == S_TIMEWAIT2 && diff > 500)
 			{
 				/* remove from hash table. we do this now so that
@@ -679,7 +773,15 @@ void * SendThread(void *dummy)
 					if (j >= 0)
 						clients[j].nextinbucket = clients[i].nextinbucket;
 					else
-						log->Log(L_ERROR, "<net> Internal error: established connection not in hash table");
+					{
+						/* release hash mutex just to be safe. set the
+						 * status before releasing it, also to be safe. */
+						players[i].status = S_FREE;
+						UnlockMutex(&hashmtx);
+						log->Log(L_ERROR, "<net> Internal error: "
+								"established connection not in hash table");
+						LockMutex(&hashmtx);
+					}
 				}
 
 				players[i].status = S_FREE;
@@ -827,24 +929,7 @@ int NewConnection(struct sockaddr_in *sin)
 
 	if (i == MAXPLAYERS) return -1;
 
-
-	LockMutex(outlistmtx + i);
-	{ /* free any buffers remaining in the outlist */
-		Buffer *buf, *nbuf;
-		DQNode *outlist = &clients[i].outlist;
-		for (buf = (Buffer*)outlist->next; (DQNode*)buf != outlist; buf = nbuf)
-		{
-			nbuf = (Buffer*)buf->node.next;
-			DQRemove((DQNode*)buf);
-			FreeBuffer(buf);
-		}
-	}
-	/* set up clientdata */
-	memset(clients + i, 0, sizeof(ClientData));
-	clients[i].c2sn = -1;
-	clients[i].enctype = -1;
-	DQInit(&clients[i].outlist);
-	UnlockMutex(outlistmtx + i);
+	InitClient(i);
 
 	/* add him to his hash bucket */
 	LockMutex(&hashmtx);
@@ -862,18 +947,7 @@ int NewConnection(struct sockaddr_in *sin)
 	}
 	UnlockMutex(&hashmtx);
 
-	/* set up playerdata */
-	pd->LockPlayer(i);
-	pd->LockStatus();
-	memset(players + i, 0, sizeof(PlayerData));
-	players[i].type = S2C_PLAYERENTERING; /* restore type */
-	players[i].arena = -1;
-	players[i].pid = i;
-	players[i].shiptype = SPEC;
-	players[i].attachedto = -1;
-	players[i].status = S_NEED_KEY;
-	pd->UnlockStatus();
-	pd->UnlockPlayer(i);
+	InitPlayer(i);
 
 	return i;
 }
@@ -922,6 +996,10 @@ void KillConnection(int pid)
 
 	pd->UnlockStatus();
 	pd->UnlockPlayer(pid);
+
+	/* remove outgoing packets from the queue. this partially eliminates
+	 * the need for a timewait state. */
+	ClearOutlist(pid);
 
 	/* tell encryption to forget about him */
 	type = clients[pid].enctype;
