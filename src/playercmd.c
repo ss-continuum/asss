@@ -821,8 +821,8 @@ local void Cwhere(const char *tc, const char *params, Player *p, const Target *t
 	const char *verb = t == p ? "are" : "is";
 	if (IS_STANDARD(t))
 	{
-		int x = t->position.x << 4;
-		int y = t->position.y << 4;
+		int x = t->position.x >> 4;
+		int y = t->position.y >> 4;
 		chat->SendMessage(p, "%s %s at %c%d (%d,%d)",
 				name, verb, 'A' + (x * 20 / 1024), (y * 20 / 1024) + 1, x, y);
 	}
