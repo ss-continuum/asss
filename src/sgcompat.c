@@ -164,8 +164,8 @@ local void Csg_listmod(const char *tc, const char *params, Player *p, const Targ
 local void Csg_where(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Player *t = target->type == T_PLAYER ? target->u.p : p;
-	int x = t->position.x << 4;
-	int y = t->position.y << 4;
+	int x = t->position.x >> 4;
+	int y = t->position.y >> 4;
 	chat->SendMessage(p, "%s: %c%d", t->name, 'A' + (x * 20 / 1024), (y * 20 / 1024) + 1);
 }
 
