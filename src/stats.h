@@ -19,7 +19,11 @@ typedef enum Stat
 
 typedef struct Istats
 {
+	/* increments a particular statistic */
 	void (*IncrementStat)(int pid, Stat stat, int amount);
+
+	/* sends out score updates for a particular arena (or -1 for all) */
+	void (*SendUpdates)(int arena);
 } Istats;
 
 #endif

@@ -20,6 +20,7 @@ struct ArenaStats /* 64 bytes */
 /* prototypes */
 
 local void IncrementStat(int, Stat, int);
+local void SendUpdates(int);
 
 local void GetA(int, void *);
 local void SetA(int, void *);
@@ -37,8 +38,9 @@ local void PAFunc(int, int);
 
 /* global data */
 
-local Inet *net;
 local Imodman *mm;
+local Inet *net;
+local Iplayerdata *pd;
 local Icmdman *cmd;
 local Ipersist *persist;
 local Ichat *chat;
@@ -52,8 +54,9 @@ local const PersistantData adatadesc =
 /* the big arrays for stats */
 local struct GlobalStats gdata[MAXPLAYERS];
 local struct ArenaStats adata[MAXPLAYERS];
+local byte adata_dirty[MAXPLAYERS];
 
-local Istats _myint = { IncrementStat };
+local Istats _myint = { IncrementStat, SendUpdates };
 
 
 int MM_stats(int action, Imodman *mm_)
@@ -62,6 +65,7 @@ int MM_stats(int action, Imodman *mm_)
 	{
 		mm = mm_;
 		mm->RegInterest(I_NET, &net);
+		mm->RegInterest(I_PLAYERDATA, &pd);
 		mm->RegInterest(I_CMDMAN, &cmd);
 		mm->RegInterest(I_PERSIST, &persist);
 		mm->RegInterest(I_CHAT, &chat);
@@ -90,6 +94,7 @@ int MM_stats(int action, Imodman *mm_)
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_CMDMAN, &cmd);
 		mm->UnregInterest(I_PERSIST, &persist);
+		mm->UnregInterest(I_PLAYERDATA, &pd);
 	}
 	return MM_OK;
 }
@@ -100,7 +105,50 @@ void IncrementStat(int pid, Stat stat, int amount)
 	struct ArenaStats *d = adata + pid;
 
 	if (pid >= 0 && pid < MAXPLAYERS)
+	{
 		d->stats[stat] += amount;
+		adata_dirty[pid] = 1;
+	}
+}
+
+
+#include "packets/scoreupd.h"
+
+void SendUpdates(int arena)
+{
+	int pid;
+	struct ScorePacket sp = { S2C_SCOREUPDATE };
+	struct ArenaStats *d;
+
+	printf("DEBUG: SendUpdates running...\n");
+
+	pd->LockStatus();
+
+	for (pid = 0; pid < MAXPLAYERS; pid++)
+	{
+		if ( adata_dirty[pid]
+		     && ( pd->players[pid].arena == arena
+		          || arena == -1 ) )
+		{
+			adata_dirty[pid] = 0;
+			d = adata + pid;
+			sp.pid = pid;
+			sp.killpoints = d->stats[STAT_KPOINTS];
+			sp.flagpoints = d->stats[STAT_FPOINTS];
+			sp.kills = d->stats[STAT_KILLS];
+			sp.deaths = d->stats[STAT_DEATHS];
+
+			net->SendToArena(
+					pd->players[pid].arena,
+					-1,
+					(char*)&sp,
+					sizeof(sp),
+					NET_UNRELIABLE);
+			printf("DEBUG: SendUpdates sent scores of %s\n", pd->players[pid].name);
+		}
+	}
+
+	pd->UnlockStatus();
 }
 
 
