@@ -14,8 +14,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #else
-#include <direct.h>
+#include <windef.h>
 #include <wincon.h>
+#include <direct.h>
 #endif
 
 #include "asss.h"
