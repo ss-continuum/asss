@@ -85,14 +85,13 @@ typedef struct ClientData
 } ClientData;
 
 
-/* lastretry: only valid for buffers in outlist
- * pid, len: valid for all buffers
- */
 
 typedef struct Buffer
 {
 	DQNode node;
+	/* pid, len: valid for all buffers */
 	int pid, len, pri;
+	/* lastretry: only valid for buffers in outlist */
 	unsigned int lastretry;
 	/* used for reliable buffers in the outlist only { */
 	RelCallback callback;
@@ -1181,8 +1180,8 @@ void ProcessReliable(Buffer *buf)
 
 		/* add to rel list to be processed */
 		DQAdd(&rellist, (DQNode*)buf);
-		UnlockMutex(&relmtx);
 		SignalCondition(&relcond, 0);
+		UnlockMutex(&relmtx);
 
 		/* send the ack. use priority 3 so it gets sent as soon as
 		 * possible, but not urgent, because we want to combine multiple

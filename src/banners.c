@@ -130,7 +130,7 @@ local void PA(int pid, int action, int arena)
 		if (banner_status[pid] == 1 && CheckBanner(pid))
 		{
 			banner_status[pid] = 2;
-			BannerToArena(i);
+			BannerToArena(pid);
 		}
 
 		/* then send everyone else's banner to him */

@@ -741,8 +741,8 @@ void MPAdd(MPQueue *q, void *data)
 {
 	LockMutex(&q->mtx);
 	LLAdd(&q->list, data);
-	UnlockMutex(&q->mtx);
 	SignalCondition(&q->cond, 0);
+	UnlockMutex(&q->mtx);
 }
 
 void * MPTryRemove(MPQueue *q)

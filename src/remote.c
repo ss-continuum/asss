@@ -121,17 +121,17 @@ void * recv_thread(void *dummy)
 		{
 			pthread_mutex_lock(&con->resp_mtx);
 			LLAdd(&con->resp_q, cuke);
-			pthread_mutex_unlock(&con->resp_mtx);
 			/* let all threads waiting wake up and check if it's their
 			 * response. */
 			pthread_cond_broadcast(&con->resp_cond);
+			pthread_mutex_unlock(&con->resp_mtx);
 		}
 		else if (type > 0)
 		{
 			pthread_mutex_lock(&con->req_mtx);
 			LLAdd(&con->req_q, cuke);
-			pthread_mutex_unlock(&con->req_mtx);
 			pthread_cond_broadcast(&con->req_cond);
+			pthread_mutex_unlock(&con->req_mtx);
 		}
 		else
 			free_cuke(cuke);

@@ -453,7 +453,7 @@ local void Ca(const char *params, int pid, int target)
 	int arena = players[pid].arena;
 
 	if (target == TARGET_ARENA)
-		chat->SendArenaMessage(arena,"%s - %s",params,players[pid].name);
+		chat->SendArenaMessage(arena,"%s -%s",params,players[pid].name);
 	else if (PID_OK(target))
 		chat->SendMessage(target, "%s  -%s", params, players[pid].name);
 }

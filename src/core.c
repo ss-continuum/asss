@@ -279,7 +279,7 @@ void ProcessLoginQueue(void)
 
 			case S_LEAVING_ARENA:
 				DO_CBS(CB_PLAYERACTION,
-				       player->arena,
+				       player->oldarena,
 				       PlayerActionFunc,
 				       (pid, PA_LEAVEARENA, player->oldarena));
 				if (persist)

@@ -352,8 +352,14 @@ void PArena(int pid, byte *p, int l)
 
 	if (players[pid].arena != -1)
 	{
+#if 0
 		lm->Log(L_MALICIOUS, "<arenaman> [%s] Recvd arena request from player already in an arena", players[pid].name);
 		return;
+#endif
+		/* stupid cont doesn't send leaving packet...
+		 * fake it, and make sure not to set oldarena below, or the old
+		 * stuff won't get set right. */
+		PLeaving(pid, NULL, 0);
 	}
 
 	go = (struct GoArenaPacket*)p;
@@ -410,7 +416,6 @@ void PArena(int pid, byte *p, int l)
 
 	/* set up player info */
 	players[pid].arena = arena;
-	players[pid].oldarena = arena;
 	players[pid].shiptype = go->shiptype;
 	players[pid].xres = go->xres;
 	players[pid].yres = go->yres;
