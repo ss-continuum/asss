@@ -46,7 +46,7 @@ local int cfg_msgrel, cfg_floodlimit, cfg_floodshutup, cfg_cmdlimit;
 local int cmkey, pmkey;
 
 /* protects player_mask_t structs */
-local pthread_mutex_t mtx;
+local pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK() pthread_mutex_lock(&mtx)
 #define UNLOCK() pthread_mutex_unlock(&mtx)
 

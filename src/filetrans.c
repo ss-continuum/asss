@@ -47,7 +47,7 @@ local Iplayerdata *pd;
 local int udkey;
 
 /* protects work_dir. possibly other fields later. */
-local pthread_mutex_t mtx;
+local pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK() pthread_mutex_lock(&mtx)
 #define UNLOCK() pthread_mutex_unlock(&mtx)
 
