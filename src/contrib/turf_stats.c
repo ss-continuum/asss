@@ -37,23 +37,25 @@ local Ilogman     *logman;     /* logging services */
 local Ichat       *chat;       /* message players */
 local Icmdman     *cmdman;     /* for command handling */
 
-struct TurfStatsData
+typedef struct TurfStatsData
 {
 	int numFlags;
 	int numPlayers;
 	int numTeams;
 	long int numWeights;
 	unsigned long int numPoints;
-	double sumPerCapitas;
+	double sumPerCapitaFlags;
+	double sumPerCapitaWeights;
 
-	unsigned int numTags;
-	unsigned int numLost;
-	unsigned int numRecovers;
+	unsigned int tags;
+	unsigned int steals;
+	unsigned int lost;
+	unsigned int recoveries;
 
-	LinkedList freqs; /* linked list of FreqInfo structs */
-};
+	LinkedList teams; /* linked list of TurfTeam structs */
+} TurfStatsData;
 
-struct TurfStats
+typedef struct TurfStats
 {
 	/* config settings */
 	int maxHistory;
@@ -65,7 +67,7 @@ struct TurfStats
 	LinkedList stats; /* linked list of TurfStatsInfo structs
                        * for history order the idea is to add a link
                        * to the front and remove from the end */
-};
+} TurfStats;
 
 
 local int tskey;  /* key to turf stats data */
@@ -74,14 +76,14 @@ local int mtxkey; /* key to turf stats mutexes */
 
 /* function prototypes */
 /* connected to callbacks */
-local void postReward(Arena *arena, struct TurfArena *ta);
+local void postReward(Arena *arena, TurfArena *ta);
 local void arenaAction(Arena *arena, int action);
 
 
 /* comands */
 local helptext_t turfstats_help, forcestats_help;
 /* standard user commands:
- * C_turfStats: to get stats for all freqs
+ * C_turfStats: to get stats for all teams
  */
 
  local void C_turfStats(const char *, Player *, const Target *);
@@ -96,7 +98,7 @@ local void clearHistory(Arena *arena);
 local void ADisplay(Arena *arena, int histNum);
 local void PDisplay(Arena *arena, Player *pid, int histNum);
 
-EXPORT const char info_turf_stats[] = "v0.2.2 by GiGaKiLLeR <gigamon@hotmail.com>";
+EXPORT const char info_turf_stats[] = "v0.2.4 by GiGaKiLLeR <gigamon@hotmail.com>";
 
 EXPORT int MM_turf_stats(int action, Imodman *_mm, Arena *arena)
 {
@@ -116,7 +118,7 @@ EXPORT int MM_turf_stats(int action, Imodman *_mm, Arena *arena)
 		if (!playerdata || !arenaman || !config || !logman || !chat || !cmdman)
 			return MM_FAIL;
 
-		tskey = arenaman->AllocateArenaData(sizeof(struct TurfStats *));
+		tskey = arenaman->AllocateArenaData(sizeof(TurfStats *));
 		mtxkey = arenaman->AllocateArenaData(sizeof(pthread_mutex_t));
 		if (tskey == -1 || mtxkey == -1) return MM_FAIL;
 
@@ -162,7 +164,7 @@ EXPORT int MM_turf_stats(int action, Imodman *_mm, Arena *arena)
 
 local void arenaAction(Arena *arena, int action)
 {
-	struct TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
+	TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
 
 	if (action == AA_CREATE)
 	{
@@ -173,7 +175,7 @@ local void arenaAction(Arena *arena, int action)
 		pthread_mutex_init((pthread_mutex_t*)P_ARENA_DATA(arena, mtxkey), &attr);
 		pthread_mutexattr_destroy(&attr);
 
-		ts = amalloc(sizeof(struct TurfStats));
+		ts = amalloc(sizeof(TurfStats));
 		*p_ts = ts;
 	}
 
@@ -233,11 +235,11 @@ local void arenaAction(Arena *arena, int action)
 	}
 }
 
-local void postReward(Arena *arena, struct TurfArena *ta)
+local void postReward(Arena *arena, TurfArena *ta)
 {
-	struct TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
+	TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
 	Link *l = NULL;
-	struct TurfStatsData *tsd;
+	TurfStatsData *tsd;
 
 	if (!arena || !*p_ts) return; else ts = *p_ts;
 
@@ -248,7 +250,7 @@ local void postReward(Arena *arena, struct TurfArena *ta)
 		/* we already have the maximum # of histories
 		 * erase oldest history (end of linked list) */
 		Link *nextL = NULL;
-		struct TurfStatsData *data;
+		TurfStatsData *data;
 
 		for(nextL = LLGetHead(&ts->stats) ; nextL ; nextL=nextL->next)
 		{
@@ -262,7 +264,7 @@ local void postReward(Arena *arena, struct TurfArena *ta)
 	}
 
 	/* create new node for stats data, add it to the linked list, and fill in data */
-	tsd = amalloc(sizeof(struct TurfStatsData));
+	tsd = amalloc(sizeof(TurfStatsData));
 	LLAddFirst(&ts->stats, tsd);
 	ts->numStats++;
 
@@ -271,33 +273,24 @@ local void postReward(Arena *arena, struct TurfArena *ta)
 	tsd->numTeams       = ta->numTeams;
 	tsd->numWeights     = ta->numWeights;
 	tsd->numPoints      = ta->numPoints;
-	tsd->sumPerCapitas  = ta->sumPerCapitas;
+	tsd->sumPerCapitaFlags   = ta->sumPerCapitaFlags;
+	tsd->sumPerCapitaWeights = ta->sumPerCapitaWeights;
 
-	tsd->numTags        = ta->numTags;
-	tsd->numLost        = ta->numLost;
-	tsd->numRecovers    = ta->numRecovers;
+	tsd->tags       = ta->tags;
+	tsd->steals     = ta->steals;
+	tsd->lost       = ta->lost;
+	tsd->recoveries = ta->recoveries;
 
-	/* copy freqs data */
-	LLInit(&tsd->freqs);
-	for(l = LLGetHead(&ta->freqs) ; l ; l=l->next)
+	/* copy teams data */
+	LLInit(&tsd->teams);
+	for(l = LLGetHead(&ta->teams) ; l ; l=l->next)
 	{
-		struct FreqInfo *src = l->data;
-		struct FreqInfo *dst = amalloc(sizeof(struct FreqInfo));;
+		TurfTeam *src = l->data;
+		TurfTeam *dst = amalloc(sizeof(TurfTeam));
 
-		dst->freq           = src->freq;
-		dst->numFlags       = src->numFlags;
-		dst->percentFlags   = src->percentFlags;
-		dst->numWeights     = src->numWeights;
-		dst->percentWeights = src->percentWeights;
-		dst->numTags        = src->numTags;
-		dst->numRecovers    = src->numRecovers;
-		dst->numLost        = src->numLost;
-		dst->numPlayers     = src->numPlayers;
-		dst->perCapita      = src->perCapita;
-		dst->percent        = src->percent;
-		dst->numPoints      = src->numPoints;
+		*dst = *src;
 
-		LLAdd(&tsd->freqs, dst);
+		LLAdd(&tsd->teams, dst);
 	}
 
 	ts->dingCount++;
@@ -310,17 +303,17 @@ local void postReward(Arena *arena, struct TurfArena *ta)
 /* arena should be locked already */
 local void clearHistory(Arena *arena)
 {
-	struct TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
+	TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
 	Link *l = NULL;
 
 	if (!arena || !*p_ts) return; else ts = *p_ts;
 
 	for(l = LLGetHead(&ts->stats) ; l ; l=l->next)
 	{
-		struct TurfStatsData *data = l->data;;
+		TurfStatsData *data = l->data;;
 
-		LLEnum(&data->freqs, afree);
-		LLEmpty(&data->freqs);
+		LLEnum(&data->teams, afree);
+		LLEmpty(&data->teams);
 	}
 
 	LLEnum(&ts->stats, afree);
@@ -333,11 +326,11 @@ local void clearHistory(Arena *arena)
 /* arena should be locked already */
 local void ADisplay(Arena *arena, int histNum)
 {
-	struct TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
+	TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
 	Link *l;
 	int x;
-	struct TurfStatsData *tsd;
-	struct FreqInfo *pFreq;
+	TurfStatsData *tsd;
+	TurfTeam *pFreq;
 
 	if (!arena || !*p_ts) return; else ts = *p_ts;
 
@@ -354,14 +347,14 @@ local void ADisplay(Arena *arena, int histNum)
 		}
 	}
 
-	chat->SendArenaMessage(arena, "Freq Plyrs Flags %%Flgs Wghts  %%Wghts PerCap %%JP  Pts");
-	chat->SendArenaMessage(arena, "---- ----- ----- ----- ------ ------ ------ ---- ------");
+	chat->SendArenaMessage(arena, "Freq Plyrs Flags %%Flgs Wghts  %%Wghts PerCap %%JP   Pts");
+	chat->SendArenaMessage(arena, "---- ----- ----- ----- ------ ------ ------ ----- ------");
 
 	/* tsd now points to the stats we want to output, output freq stats */
-	for(l = LLGetHead(&tsd->freqs); l; l = l->next)
+	for(l = LLGetHead(&tsd->teams); l; l = l->next)
 	{
 		int freq, numFlags, numPlayers;
-		unsigned int numTags, numRecovers, numLost, numPoints;
+		unsigned int tags, steals, recoveries, lost, numPoints;
 		long int numWeights;
 		double percentFlags, percentWeights, perCapita, percent;
 		pFreq = l->data;
@@ -372,11 +365,12 @@ local void ADisplay(Arena *arena, int histNum)
 		percentFlags   = pFreq->percentFlags;
 		numWeights     = pFreq->numWeights;
 		percentWeights = pFreq->percentWeights;
-		numTags        = pFreq->numTags;
-		numRecovers    = pFreq->numRecovers;
-		numLost        = pFreq->numLost;
+		tags           = pFreq->tags;
+		steals         = pFreq->steals;
+		recoveries     = pFreq->recoveries;
+		lost           = pFreq->lost;
 		numPlayers     = pFreq->numPlayers;
-		perCapita      = pFreq->perCapita;
+		perCapita      = pFreq->perCapitaWeights;
 		percent        = pFreq->percent;
 		numPoints      = pFreq->numPoints;
 
@@ -384,17 +378,17 @@ local void ADisplay(Arena *arena, int histNum)
 		{
 			if (freq < 100)
 			{
-				/* public freqs */
+				/* public teams */
 				chat->SendArenaMessage(arena,
-					"%04d %5d %5d %5.1f %6ld %6.1f %6.1f %4.1f %6u",
+					"%04d %5d %5d %5.1f %6ld %6.1f %6.1f %3.1f %6u",
 					freq, numPlayers, numFlags, percentFlags, numWeights,
 					percentWeights, perCapita, percent, numPoints);
 			}
 			else
 			{
-				/* private freqs */
+				/* private teams */
 				chat->SendArenaMessage(arena,
-					"priv %5d %5d %5.1f %6ld %6.1f %6.1f %4.1f %6u",
+					"priv %5d %5d %5.1f %6ld %6.1f %6.1f %3.1f %6u",
 					numPlayers, numFlags, percentFlags, numWeights,
 					percentWeights, perCapita, percent, numPoints);
 			}
@@ -406,11 +400,11 @@ local void ADisplay(Arena *arena, int histNum)
 /* arena should be locked already */
 local void PDisplay(Arena *arena, Player *pid, int histNum)
 {
-	struct TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
+	TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
 	Link *l;
 	int x;
-	struct TurfStatsData *tsd;
-	struct FreqInfo *pFreq;
+	TurfStatsData *tsd;
+	TurfTeam *pFreq;
 
 	if (!arena || !*p_ts) return; else ts = *p_ts;
 
@@ -430,14 +424,14 @@ local void PDisplay(Arena *arena, Player *pid, int histNum)
 		}
 	}
 
-	chat->SendMessage(pid, "Freq Plyrs Flags %%Flgs Wghts  %%Wghts PerCap %%JP  Pts");
-	chat->SendMessage(pid, "---- ----- ----- ----- ------ ------ ------ ---- ------");
+	chat->SendMessage(pid, "Freq Plyrs Flags %%Flgs Wghts  %%Wghts PerCap %%JP   Pts");
+	chat->SendMessage(pid, "---- ----- ----- ----- ------ ------ ------ ----- ------");
 
 	/* tsd now points to the stats we want to output, output freq stats */
-	for(l = LLGetHead(&tsd->freqs) ; l ; l=l->next)
+	for(l = LLGetHead(&tsd->teams) ; l ; l=l->next)
 	{
 		int freq, numFlags, numPlayers;
-		unsigned int numTags, numRecovers, numLost, numPoints;
+		unsigned int tags, steals, recoveries, lost, numPoints;
 		long int numWeights;
 		double percentFlags, percentWeights, perCapita, percent;
 		pFreq = l->data;
@@ -448,11 +442,12 @@ local void PDisplay(Arena *arena, Player *pid, int histNum)
 		percentFlags   = pFreq->percentFlags;
 		numWeights     = pFreq->numWeights;
 		percentWeights = pFreq->percentWeights;
-		numTags        = pFreq->numTags;
-		numRecovers    = pFreq->numRecovers;
-		numLost        = pFreq->numLost;
+		tags           = pFreq->tags;
+		steals         = pFreq->steals;
+		recoveries     = pFreq->recoveries;
+		lost           = pFreq->lost;
 		numPlayers     = pFreq->numPlayers;
-		perCapita      = pFreq->perCapita;
+		perCapita      = pFreq->perCapitaWeights;
 		percent        = pFreq->percent;
 		numPoints      = pFreq->numPoints;
 
@@ -460,17 +455,17 @@ local void PDisplay(Arena *arena, Player *pid, int histNum)
 		{
 			if (freq < 100)
 			{
-				/* public freqs */
+				/* public teams */
 				chat->SendMessage(pid,
-					"%04d %5d %5d %5.1f %6ld %6.1f %6.1f %4.1f %6u",
+					"%04d %5d %5d %5.1f %6ld %6.1f %6.1f %3.1f %6u",
 					freq, numPlayers, numFlags, percentFlags, numWeights,
 					percentWeights, perCapita, percent, numPoints);
 			}
 			else
 			{
-				/* private freqs */
+				/* private teams */
 				chat->SendMessage(pid,
-					"priv %5d %5d %5.1f %6ld %6.1f %6.1f %4.1f %6u",
+					"priv %5d %5d %5.1f %6ld %6.1f %6.1f %3.1f %6u",
 					numPlayers, numFlags, percentFlags, numWeights,
 					percentWeights, perCapita, percent, numPoints);
 			}
@@ -507,7 +502,7 @@ local helptext_t forcestats_help =
 local void C_forceStats(const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
-	struct TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
+	TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
 	int histNum = 0;
 
 	if (!arena || !*p_ts) return; else ts = *p_ts;

@@ -27,6 +27,10 @@ struct Iturfrewardpoints;
 typedef void (*TurfTagFunc)(Arena *arena, Player *p, int fid);
 /* pycb: arena, player, int */
 
+#define CB_TURFSTEAL "turfsteal"
+typedef void (*TurfStealFunc)(Arena *arena, Player *p, int fid);
+/* pycb: arena, player, int */
+
 /* called when a flag is 'recovered' (note: CB_TURFTAG will still be called)
  * possible use would be to have a module that manipulates lvz objects telling
  * player that the flag tagged was recovered */
@@ -50,7 +54,6 @@ typedef void (*TurfLostFunc)(Arena *arena, int fid, int pid, int freq,
 #define CB_TURFPOSTREWARD "turfpostreward"
 typedef void (*TurfPostRewardFunc)(Arena *arena, struct TurfArena *ta);
 
-
 /* called during a flag game victory */
 /* NOT CURRENTLY IMPLEMENTED */
 #define CB_TURFVICTORY "turfvictory"
@@ -59,63 +62,103 @@ typedef void (*TurfVictoryFunc) (Arena *arena);
 
 
 /* for linked list for data on teams that have a chance to 'recover' */
-struct OldNode
+typedef struct TurfFlagPrevious
 {
-	int lastOwned;   /* how many dings ago the flag was owned */
+	int lastOwned;       /* how many dings ago the flag was owned */
 
-	int freq;        /* previous team that owned the flag */
-	int dings;       /* previous # of dings */
-	int weight;      /* previous weight of flag */
-	int taggerPID;   /* pid of player that owned the flag last */
-	int recovered;   /* number of times was recovered */
-	ticks_t tagTC;   /* time flag was originally tagged in ticks */
-	ticks_t lostTC;  /* time flag was lost in ticks */
-};
+	char taggerName[24]; /* name of player that tagged flag before stolen */
+	int freq;            /* previous flag owner's freq */
+	int dings;           /* previous # of dings */
+	int weight;          /* previous weight of flag */
+	int recovered;       /* number of times was recovered */
+
+	ticks_t tagTC;       /* time flag was originally tagged in ticks */
+	ticks_t lostTC;      /* time flag was lost in ticks */
+} TurfFlagPrevious;
 
 /* to hold extra flag data for turf flags */
-struct TurfFlag
+typedef struct TurfFlag
 {
-	int freq;        /* freq of player that last tagged flag */
-	int dings;       /* number of dings the flag has been owned for */
+	struct TurfTeam   *team;   /* team that owns flag     */
+	struct TurfPlayer *tagger; /* player that tagged flag */
+
+	int dings;       /* # of dings the flag has been owned for */
 	int weight;      /* weight of the flag (how much it's worth) */
-	int taggerPID;   /* id of player that tagged the flag */
-	                 /* note: player may have been on another team when tag */
-	                 /* occured or may have even left the game */
-	int recovered;   /* number of times flag was recovered */
+	int recovered;   /* # of times flag was recovered */
+
 	ticks_t tagTC;   /* time flag was originally tagged in ticks */
 	ticks_t lastTC;  /* time flag was last tagged in ticks */
 
-	LinkedList old;  /* linked list of OldNodes storing data of flag's */
+	LinkedList old;  /* linked list of TurfFlagPrevious storing data of flag's */
 	                 /* previous owners who have a chance to 'recover' it */
-};
+} TurfFlag;
 
-struct FreqInfo
+typedef struct TurfPlayer
 {
-	int freq;                  /* freq number */
+	char name[24];           /* name of player */
 
-	int numFlags;              /* number of flags freq owns */
-	double percentFlags;       /* percent of the flags owned */
+	struct TurfTeam *team;   /* pointer to player's team */
+	LinkedList flags;        /* flags the player tagged and still owns */
 
-	long int numWeights;       /* sum of weights for owned flags */
-	double percentWeights;     /* percent of the total weights */
+	unsigned int points;     /* points to award player */
+	unsigned int tags;       /* # of flags tagged */
+	unsigned int steals;     /* # of flags player stole from enemy */
+	unsigned int recoveries; /* # of flags recovered from enemy */
+	unsigned int lost;       /* # of flags tagged by this player that were lost */
 
-	unsigned int numTags;      /* # of flag tags */
-	unsigned int numRecovers;  /* # of flag recoveries */
-	unsigned int numLost;      /* # of flags lost */
+	unsigned int kills;      /* # of kills */
+	unsigned int bountyTaken;/* sum of bounty taken from others for kills */
+	unsigned int deaths;     /* # of deaths */
+	unsigned int bountyGiven;/* sum of bounty given to others for deaths */
 
-	int numPlayers;            /* # of players on the freq */
-	double perCapita;          /* weights per player on freq */
-	double percent;            /* percent of jackpot to recieve */
-	unsigned int numPoints;    /* number of points to award to freq */
-};
+	void *extra;             /* use to hook on your own data */
 
-struct TurfArena
+	/* internal data members, do not touch these!! */
+	int isActive;            /* flag to tell if node is to an active player */
+	int pid;                 /* pid of player (fastest way to get Player */
+	                         /* pointer from  player module) */
+} TurfPlayer;
+
+typedef struct TurfTeam
 {
-	/* cfg settings for turf reward */
+	int freq;                /* freq # */
+
+	int numFlags;            /* # of flags team owns */
+	double percentFlags;     /* % of the flags owned */
+	double perCapitaFlags;   /* flags per player on team */
+
+	long int numWeights;     /* sum of weights for owned flags */
+	double percentWeights;   /* % of the total weights */
+	double perCapitaWeights; /* weights per player on team */
+
+	unsigned int tags;       /* # of flag tagged */
+	unsigned int steals;     /* # of flags stolen */
+	unsigned int recoveries; /* # of flag recovered */
+	unsigned int lost;       /* # of flags lost */
+
+	unsigned int kills;      /* # of kills */
+	unsigned int bountyTaken;/* sum of bounty taken from others for kills */
+	unsigned int deaths;     /* # of deaths */
+	unsigned int bountyGiven;/* sum of bounty given to others for deaths */
+
+	int numPlayers;          /* # of players on the team */
+	double percent;          /* % of jackpot to recieve */
+	unsigned int numPoints;  /* # of points to award to team */
+
+	LinkedList flags;        /* linked list of TurfFlags owned */
+	LinkedList players;      /* all TurfPlayers linked to team */
+	LinkedList playersPts;   /* TurfPlayers playing (get pts) */
+    LinkedList playersNoPts; /* TurfPlayers not playing; in spec/safe zone; (no pts) */
+
+	void *extra;             /* use to hook on your own data */
+} TurfTeam;
+
+
+/* cfg settings for turf reward */
+typedef struct TurfSettings
+{
 	int reward_style;           /* change reward algorithms */
-	void *multi_arena_id;       /* when using a multi arena algorithm, arenas */
-	                            /* with matching id's are scored together */
-	int min_players_on_freq;    /* min # of players needed on a freq for that */
+	int min_players_on_team;    /* min # of players needed on a freq for that */
 	                            /* freq to recieve reward pts */
 	int min_players_in_arena;   /* min # of players needed in the arena for */
 	                            /* anyone to recieve reward pts */
@@ -131,9 +174,11 @@ struct TurfArena
 	                            /* freq in order to recieve reward pts */
 	double min_percent;         /* min percentage of jackpot needed to */
 	                            /* recieve an award */
-	int jackpot_modifier;       /* modifies the jackpot based on how many */
-	                            /* points per player playing */
+	int reward_modifier;
 	int max_points;             /*maximum # of points to award a single person */
+
+	int spec_recieve_points;    /* do spectators recieve rewards */
+	int safe_recieve_points;    /* do players in safe zones recieve rewards */
 
 	int recovery_cutoff;        /* recovery cutoff style to be used */
 	int recover_dings;
@@ -150,80 +195,170 @@ struct TurfArena
 	int min_tags_freq;     todo: min # of tags needed by a freq for that freq to recieve rewards
 */
 	/* data for timer */
-	ticks_t dingTime;              /* time of last ding */
-	int timer_initial;             /* initial timer delay */
-	int timer_interval;            /* interval for timer to repeat */
+	int timer_initial;          /* initial timer delay */
+	int timer_interval;         /* interval for timer to repeat */
+} TurfSettings;
+
+typedef struct TurfState
+{
+	enum
+	{
+		TR_CALC_SUCCESS, /* CalcReward completed successfully */
+		TR_CALC_FAIL     /* no futher reward events */
+	} status;
+
+	enum
+	{
+		TR_AWARD_PLAYER, /* reward per player */
+		TR_AWARD_TEAM,   /* reward per team */
+		TR_AWARD_BOTH,   /* reward by both player and team */
+		TR_AWARD_NONE    /* no rewards */
+	} award;
+
+	int update:1; /* update flags? 1=yes 0=no */
+} TurfState;
+
+/* turf reward data for an arena */
+typedef struct TurfArena
+{
+	TurfSettings settings;       /* cfg settings */
 	struct Iturfrewardpoints *trp; /* turf reward scoring interface */
 
-	/* reward data */
-	int numFlags;                /* # of flags on the map */
-	int numPlayers;              /* # of people playing (not inc. spec) */
-	int numTeams;                /* # of teams (not including ones */
-	                             /* with < MinPlayersOnFreq) */
-	long int numWeights;         /* the complete number of flag weights */
-	unsigned long int numPoints; /* number of points to split up */
-	double sumPerCapitas;        /* sum of all teams percapitas */
+	ticks_t dingTime;            /* time of last ding */
 
-	unsigned int numTags;        /* # of flag tags during reward interval */
-	unsigned int numLost;        /* # of flag losses during reward interval */
-	unsigned int numRecovers;    /* # of flag recoveries during reward interval */
-	/* unsigned int numKills;*/     /* # of kills during reward interval */
+	/* reward data */
+	int numPlayers;              /* # of ppl playing (not inc. spec) */
+	int numValidPlayers;         /* # of ppl on teams that passed requirements */
+	int numTeams;                /* # of teams */
+	int numValidTeams;           /* # of teams that passed requirements */
+	int numInvalidTeams;         /* # of teams that didn't pass requirements */
+
+	int numFlags;                /* # of flags on the map */
+	double sumPerCapitaFlags;    /* sum of all teams percapita flags */
+
+	long int numWeights;         /* the complete # of flag weights */
+	double sumPerCapitaWeights;  /* sum of all teams percapitas weights */
+
+	unsigned long int numPoints; /* # of points to split up */
+
+	unsigned int tags;           /* # of flag tags during reward interval */
+	unsigned int steals;         /* # of flag steals during reward interval */
+	unsigned int recoveries;     /* # of flag recoveries during reward interval */
+	unsigned int lost;           /* # of flag losses during reward interval */
+
+	unsigned int kills;          /* # of kills during reward interval */
+	unsigned int bountyExchanged;/* sum of bounties from kills */
 
 	struct TurfFlag *flags;      /* pointer to array of turf flags */
-	LinkedList freqs;            /* linked list of FreqInfo */
-};
 
-typedef enum
+	LinkedList teams;            /* all TurfTeams */
+	LinkedList validTeams;       /* teams that passed minimum requirements */
+	LinkedList invalidTeams;     /* teams that didn't pass minimum requirements */
+
+	LinkedList players;          /* all TurfPlayers */
+	LinkedList playersPts;       /* players playing and not in nonPlayers */
+	LinkedList playersNoPts;     /* spectators, ppl entering arena, etc */
+
+	/* this struct is used to store the status set by a scoring module */
+	TurfState calcState;
+} TurfArena; 
+
+typedef enum RewardMessage_t
 {
-	/* single arena codes */
-	TR_AWARD_UPDATE,       /* do award and update */
-	TR_AWARD_ONLY,         /* do award only */
-	TR_UPDATE_ONLY,        /* do update only */
-	TR_NO_AWARD_NO_UPDATE, /* don't do award or update */
-	TR_FAIL_REQUIREMENTS,  /* arena failed minimum requirements, update only */
-	TR_FAIL_CALCULATIONS,  /* error while doing calculations, no award or update */
-
-	/* multi arena codes */
-	TR_AWARD_UPDATE_MULTI,
-	TR_AWARD_ONLY_MULTI,
-	TR_UPDATE_ONLY_MULTI,
-	TR_NO_AWARD_NO_UPDATE_MULTI,
-	TR_FAIL_REQUIREMENTS_MULTI
-} trstate_t;
-
+	TR_RM_PLAYER,      /* message to a player */
+	TR_RM_PLAYER_MAX,  /* message to a player, maximum pts awarded */
+	TR_RM_INVALID_TEAM,/* message to a player on an invalid team */
+	TR_RM_NON_PLAYER   /* message to a non-player */
+} RewardMessage_t;
 
 #define I_TURFREWARD_POINTS "turfreward-points"
 typedef struct Iturfrewardpoints
 {
 	INTERFACE_HEAD_DECL
-	trstate_t (*CalcReward)(Arena *arena, struct TurfArena *tr);
-	/* This will be called by the turf_reward module for each arena that
-	 * exists when points should be awarded. It should figure out and
-	 * fill in the many stats for each freq. The ta->freqs linked list
-	 * already has as a node: every freq that owns flags OR has players.
-	 * The ta->freqs linked list is what turf_reward searches through
-	 * when awarding points.  If the module that registered with this
-	 * interface did not fill in data for that freq anyone on that team
-	 * will NOT recieve any points.  Ideally the module that registers
-	 * this interface will fill in numPoints for ALL the teams.
-	 * Obviously, to not award a freq points, set numPoints=0.  The
-	 * module has access to ALL arena's data for the arena through *tr.
-	 * The arena is already locked when this function is is called.
+	void (*CalcReward)(Arena *arena, struct TurfArena *ta);
+	/*
+	 * This will be called by the turf_reward module when points should be 
+	 * awarded. It should figure out and fill in data stored in the TurfArena
+	 * struct *ta (parameter).  
 	 *
-	 * Note: for multi-arena scoring, only the arena that called the
-	 * timer is assured to have the freqs linked list initialized.  This
-	 * means you have to go through the flags array and the playerdata
-	 * array for every arena with the same multi arena id in order to
-	 * figure out what freqs exist.
+	 * Upon call to this function: 
+	 * - The ta->teams linked list has a TurfTeam node for every team that
+	 *   existed at any time during the past reward period.
+	 * - The ta->validTeams linked list has a TurfTeam node for every team that 
+	 *   passed the minimum requirements (conf settings).
+	 * - The ta->players linked list already had a TurfPlayer node for every 
+	 *   player that existed at any time during the past reward period.  A 
+     *   player that played on more than one team will have separate nodes that
+	 *   are linked to each team.  Every TurfPlayer node is guaranteed to be
+	 *   linked to a TurfTeam node.
+	 * - The ta->nonPlayers linked list contains nodes for all non-players.  A
+	 *   non-player is:
+	 *     1. someone marked as not playing (ex. entering arena)
+	 *     2. someone in spectator mode (based on conf setting)
+	 *     3. someone in a safe zone (based on conf setting)
+	 * - Each team in ta->validTeams has
+	 *     1. flags linked list of TurfFlags owned by the team
+	 *     2. players linked list of TurfPlayers 'linked' to the team
+	 *        Note: a TurfPlayer node is 'linked' if:
+	 *          - player had played on the team at anytime during the previous
+	 *            reward period
+	 *          - team owns a flag that was tagged by that player
+	 *     3. playersPts linked list of TurfPlayers that are playing
+	 *     4. playersNoPts linkes list of TurfPlayers that are not playing
+	 *        (same as ta->nonPlayers but for each team)
 	 *
-	 * params:
-	 *     arena - specifies which arena it is scoring for
-	 *     *tr   - points to the TurfReward data for the specific arena
+	 * To calculate, a normal scoring module will go through each team in 
+	 * ta->validTeams and use the team->playersPts linked list to access
+	 * each player's statistics.
 	 *
-	 * The return code tells turf_reward what to do after the function
-	 * is called See enum declaration of trstate_t for more info on each
-	 * code
+	 * The module that registers this interface should fill in numPoints for 
+	 * each team, each player, or both.  Obviously, to not award a team points, 
+	 * set numPoints = 0.  By default, numPoints=0 for all players and teams. 
+	 * The module has access to the arena's TurfArena data for the arena through 
+	 * *ta.  There is no restriction on what can be altered within the TurfArena
+	 * structure. Of course, bad data can be filled in, so use caution.
+	 *
+	 * The module that registers this interface should fill in the ta->calcState
+	 * structure in order to tell turf_reward what to do after calling this
+	 * function.
+	 *
+	 * The turf_reward lock for this arena is already in place upon call to this
+	 * function.
+	 *
+	 * Parameters:
+	 *     *arena - the arena being scored
+	 *     *ta    - pointer to the TurfReward data for the specified arena
 	 */
+	 
+	 void (*RewardMessage)(Player *player, 
+	                       struct TurfPlayer *tplayer, 
+	                       struct TurfArena *tarena,
+	                       RewardMessage_t messageType,
+	                       unsigned int pointsAwarded);
+	 /* When awarding a player points, turf_reward calls this function.  The
+	  * connected reward algorithm/points module can define a function to
+	  * send a customized message to the player being awarded.  However, of
+	  * course it is not limited to only doing that.
+	  *
+	  * Noe: Player data is already locked prior to this call.
+	  *
+	  * Parameters: 
+	  *   player  - pointer to player being awarded
+	  *   tplayer - pointer to the appropriate the player's turf_reward data
+	  *   tarena  - pointer to the entire arena's data
+	  *   messageType   - type of reward message
+	  *                   (see definition of RewardMessage_t enum)
+	  *   pointsAwarded - # of points awarded to player (this is usually 
+	  *                   equal to tplayer->points, unless it is over max)
+	  */
+
+	/* Called before removing a TurfPlayer node 
+	 * - useful for cleanup when attaching data to void* extra */
+	void (*RemoveTurfPlayer)(struct TurfPlayer *pPlayer);
+
+	/* Called before removing a TurfTeam node
+	 * - useful for cleanup when attaching data to void* extra */
+	void (*RemoveTurfTeam)(struct TurfTeam *pTeam);
 } Iturfrewardpoints;
 
 
@@ -239,7 +374,7 @@ typedef struct Iturfreward
 	void (*ResetTimer)(Arena *arena);
 	/* a utility function to reset the ding timer for an arena */
 
-	void (*DoReward)(Arena *arena);
+	int (*DoReward)(Arena *arena);
 	/* a utility function to force a ding to occur immedately */
 
 	struct TurfArena * (*GetTurfData)(Arena *arena);

@@ -1,9 +1,11 @@
 /*
- * Defines the basic scoring algorithms for the turf_reward module
+ * Defines some basic scoring algorithms for use with the turf_reward module
  *
  * dist: public
  */
 
+#include <stdio.h>
+#include <string.h>
 #include "asss.h"
 #include "turf_reward.h"
 #include "settings/turfreward.h"  /* bring in the settings for reward types */
@@ -19,25 +21,32 @@ local Iturfreward *turfreward; /* for multi arena processing
 /* function prototypes */
 /* connected to interface */
 /* decides which of the basic scoring algorithms to use */
-local trstate_t calcReward(Arena *arena, struct TurfArena *tr);
+local void calcReward(Arena *arena, TurfArena *ta);
+local void rewardMessage(Player *player, struct TurfPlayer *tplayer, 
+	struct TurfArena *tarena, RewardMessage_t messageType, unsigned int pointsAwarded);
+local void removeTurfPlayer(struct TurfPlayer *pPlayer);
+local void removeTurfTeam(struct TurfTeam *pTeam);
 
 /* reward calculation functions */
-local trstate_t crStandard(Arena *arena, struct TurfArena *ta); /* REWARD_STD */
-local trstate_t crPeriodic(Arena *arena, struct TurfArena *ta); /* REWARD_PERIODIC */
-local trstate_t crFixedPts(Arena *arena, struct TurfArena *ta); /* REWARD_FIXED_PTS */
-local trstate_t crStdMulti(Arena *arena, struct TurfArena *tr); /* REWARD_STD_MULTI */
+local void crPeriodic(Arena *arena, TurfArena *ta); /* TR_STYLE_PERIODIC */
+local void crStandard(Arena *arena, TurfArena *ta); /* TR_STYLE_STANDARD */
+local void crWeights(Arena *arena, TurfArena *ta);  /* TR_STYLE_WEIGHTS */
+local void crFixedPts(Arena *arena, TurfArena *ta); /* TR_STYLE_FIXED_PTS */
 
 
 /* register with interface so that this module does scoring for turf_reward */
-local Iturfrewardpoints myint =
+local struct Iturfrewardpoints myint =
 {
 	INTERFACE_HEAD_INIT(I_TURFREWARD_POINTS, "trp-basic")
-	calcReward
+	calcReward,
+	rewardMessage,
+	removeTurfPlayer,
+	removeTurfTeam
 };
 
 
 EXPORT const char info_points_turf_reward[]
-	= "v1.2 by GiGaKiLLeR <gigamon@hotmail.com>";
+	= "v2.1 by GiGaKiLLeR <gigamon@hotmail.com>";
 
 EXPORT int MM_points_turf_reward(int action, Imodman *mm, Arena *arena)
 {
@@ -73,236 +82,222 @@ EXPORT int MM_points_turf_reward(int action, Imodman *mm, Arena *arena)
 }
 
 
-local trstate_t calcReward(Arena *arena, struct TurfArena *tr)
+local void calcReward(Arena *arena, TurfArena *ta)
 {
-	switch(tr->reward_style)
+	switch(ta->settings.reward_style)
 	{
-	case REWARD_PERIODIC:  return crPeriodic(arena, tr);
-	case REWARD_FIXED_PTS: return crFixedPts(arena, tr);
-	case REWARD_STD:       return crStandard(arena, tr);
-	case REWARD_STD_MULTI: return crStdMulti(arena, tr);
-	case REWARD_DISABLED:  return TR_NO_AWARD_NO_UPDATE;
+	case TR_STYLE_PERIODIC:  crPeriodic(arena, ta); return;
+	case TR_STYLE_STANDARD:  crStandard(arena, ta); return;
+	case TR_STYLE_WEIGHTS:   crWeights(arena, ta);  return;
+	case TR_STYLE_FIXED_PTS: crFixedPts(arena, ta); return;
+	case TR_STYLE_DISABLED:  return;
 	}
-	return TR_FAIL_CALCULATIONS;  /* unknown reward style, failed calculations,
-	                               * no reward or update.  It's possible that
-	                               * someone forgot to take this module out of
-	                               * loading from the conf when they wrote their
-	                               * own custom reward module */
+	
+	/* unknown reward style, failed calculations, no reward or update.  It's 
+	 * possible that someone forgot to take this module out of loading from the 
+	 * conf when they wrote their own custom reward module */
+	ta->calcState.status = TR_CALC_FAIL;
+	ta->calcState.award = TR_AWARD_NONE;
+	ta->calcState.update = 0;
 }
 
 
-local trstate_t crStandard(Arena *arena, struct TurfArena *ta)
+local void rewardMessage(Player *player, struct TurfPlayer *tplayer, 
+	struct TurfArena *ta, RewardMessage_t messageType, unsigned int pointsAwarded)
 {
-	struct FreqInfo *pFreq = NULL;
-	LinkedList getPts;  /* linked list of freqs that will recieve points */
+	char message[128];
+
+	if(messageType == TR_RM_INVALID_TEAM)
+	{
+		chat->SendSoundMessage(player, SOUND_DING, 
+			"Reward: 0 (minimum team requirements not met)");
+		return;
+	}
+
+	if(messageType == TR_RM_NON_PLAYER)
+	{
+		chat->SendSoundMessage(player, SOUND_DING, "Reward: 0 (not playing)");
+		return;
+	}
+
+	snprintf(message, sizeof(message), "Reward: %d", pointsAwarded);
+	
+	if(messageType==TR_RM_PLAYER_MAX)
+		strcat(message, " [MAX] ");
+
+	switch(ta->calcState.award)
+	{
+	case TR_AWARD_PLAYER:
+		chat->SendSoundMessage(player, SOUND_DING, "%s", message);
+		break;
+	case TR_AWARD_TEAM:
+		chat->SendSoundMessage(player, SOUND_DING, "%s", message);
+		break;
+	case TR_AWARD_BOTH:
+	{
+		int pointsFreq   = tplayer->team->numPoints;
+		int pointsPlayer = tplayer->points;
+
+		chat->SendSoundMessage(player, SOUND_DING,
+			"%s [%i:%i]", message, pointsPlayer, pointsFreq);
+		break;
+	}
+	default:
+		break;
+	}
+}
+
+
+local void removeTurfPlayer(struct TurfPlayer *pPlayer)
+{
+	/* noop */
+}
+
+
+local void removeTurfTeam(struct TurfTeam *pTeam)
+{
+	/* noop */
+}
+
+
+local void crStandard(Arena *arena, TurfArena *ta)
+{
+	TurfTeam *pTeam = NULL;
 	Link *l;
 
 	/* make sure cfg settings are valid (we dont want any crashes in here) */
-	if(ta->min_players_on_freq < 1)
-		ta->min_players_on_freq = 1;
-	if(ta->min_flags < 1)
-		ta->min_flags = 1;
-	if(ta->min_weights < 1)
-		ta->min_weights = 1;
+	if(ta->settings.min_players_on_team < 1)
+		ta->settings.min_players_on_team = 1;
+	if(ta->settings.min_flags < 1)
+		ta->settings.min_flags = 1;
+	if(ta->settings.min_weights < 1)
+		ta->settings.min_weights = 1;
 
-	/* make sure freq info for each freq is initalized */
-	for(l = LLGetHead(&ta->freqs) ; l ; l=l->next)
-	{
-		pFreq = l->data;
-		pFreq->percent   = 0;
-		pFreq->numPoints = 0;
-	}
-
-	/* # flags, # weights, and # of players for every freq (and thus the entire
-	 * arena) is already recorded for us.  In order for us to figure out % flags
-	 * we must be sure # Flags in arena > 0.  So lets make sure that map does in
-	 * fact have flags to score for (numFlags for arena > 0) */
+	/* check that map has flags */
 	if (ta->numFlags < 1)
 	{
 		/* no flags, therefore no weights, stop right here */
 		logman->LogA(L_WARN, "points_turf_reward", arena, "map has no flags.");
-		return TR_FAIL_CALCULATIONS;
+		
+		/* fail calculaions */
+		ta->calcState.status = TR_CALC_FAIL;
+		ta->calcState.award = TR_AWARD_NONE;
+		ta->calcState.update = 0;
 	}
 
-	/* in order for us to figure out % weights we must be sure that numWeights
-	 * for arena > 0 */
-	if (ta->numWeights < 1)
+	/* check that numWeights for arena > 0 */
+	if (ta->numWeights < 1 || ta->sumPerCapitaWeights<=0)
 	{
 		/* no team owns flags */
-		logman->LogA(L_DRIVEL, "points_turf_reward", arena,
+		logman->LogA(L_DRIVEL, "points_turf_reward", arena, 
 			"no one owns any weights.");
 		chat->SendArenaMessage(arena, "Notice: All flags are unowned.");
 		chat->SendArenaSoundMessage(arena, SOUND_DING,
 			"Reward:0 (arena minimum requirements not met)");
-		return TR_FAIL_REQUIREMENTS;
+		
+		/* fail requirements */
+		ta->calcState.status = TR_CALC_SUCCESS;
+		ta->calcState.award = TR_AWARD_NONE;
+		ta->calcState.update = 0;
 	}
 
-	/* fill in % flags and % weights */
-	for(l = LLGetHead(&ta->freqs) ; l ; l=l->next)
-	{
-		pFreq = l->data;
-		if ( (pFreq->numFlags>=0) && (pFreq->numWeights>=0) )
-		{
-			pFreq->percentFlags
-				= ((double)pFreq->numFlags) / ((double)ta->numFlags) * 100.0;
-
-			pFreq->percentWeights
-				= ((double)pFreq->numWeights) / ((double)ta->numWeights) * 100.0;
-		}
-		else
-		{
-			/* negative numFlags or numWeights, which is bad, fix it */
-			pFreq->percentFlags = 0;
-			pFreq->percentWeights = 0;
-		}
-	}
-
-	/* # flags, %flags, # weights, % weights, and # of players known for every
-	 * freq and # flags, # weights, and # players for the arena */
-
-	/* now that we know how many players there are, check if there are
-	 * enough players for rewards */
-	if ( ta->numPlayers < ta->min_players_in_arena )
+	/* check if there are enough players for rewards */
+	if ( ta->numPlayers < ta->settings.min_players_in_arena )
 	{
 		logman->LogA(L_DRIVEL, "points_turf_reward", arena,
 			"Not enough players in arena for rewards.  Current:%i Minimum:%i",
 			ta->numPlayers,
-			ta->min_players_in_arena);
+			ta->settings.min_players_in_arena);
 		chat->SendArenaMessage(arena, "Notice: not enough players for rewards.");
 		chat->SendArenaSoundMessage(arena, SOUND_DING,
 			"Reward:0 (arena minimum requirements not met)");
-		return TR_FAIL_REQUIREMENTS;
+		
+		/* fail requirements */
+		ta->calcState.status = TR_CALC_SUCCESS;
+		ta->calcState.award = TR_AWARD_NONE;
+		ta->calcState.update = 0;
 	}
 
-	/* count how many valid teams exist (valid meaning enough players to be
-	 * considered a team) */
-	for(l = LLGetHead(&ta->freqs) ; l ; l=l->next)
-	{
-		pFreq = l->data;
-		if ( pFreq->numPlayers >= ta->min_players_on_freq )
-			ta->numTeams++;
-	}
-
-	/* at this point # flags, %flags, # weights, % weights, and # of players for
-	 * every freq and # flags, # weights, # players, and # teams for arena are
-	 *recorded */
-
-	/* now that we know how many teams there are, check if there are enough
-	 * teams for rewards */
-	if (ta->numTeams < ta->min_teams)
+	/* check if there are enough teams for rewards */
+	if( ta->numValidTeams < ta->settings.min_teams )
 	{
 		logman->LogA(L_DRIVEL, "points_turf_reward", arena,
 			"Not enough teams in arena for rewards.  Current:%i Minimum:%i",
 			ta->numTeams,
-			ta->min_teams);
+			ta->settings.min_teams);
 		chat->SendArenaMessage(arena, "Notice: not enough teams for rewards.");
 		chat->SendArenaSoundMessage(arena, SOUND_DING,
 			"Reward:0 (arena minimum requirements not met)");
-		return TR_FAIL_REQUIREMENTS;
+
+		/* fail requirements */
+		ta->calcState.status = TR_CALC_SUCCESS;
+		ta->calcState.award = TR_AWARD_NONE;
+		ta->calcState.update = 0;
 	}
-
-	LLInit(&getPts);
-	for(l = LLGetHead(&ta->freqs) ; l ; l=l->next)
-	{
-		pFreq = l->data;
-
-		if (pFreq->numPlayers > 0)  /* fill in percapita for all teams with players */
-			pFreq->perCapita = ((double)pFreq->numWeights) / ((double)pFreq->numPlayers);
-
-		if ( (pFreq->numPlayers     >= ta->min_players_on_freq)
-			&& (pFreq->numFlags       >= ta->min_flags)
-			&& (pFreq->numWeights     >= ta->min_weights)
-			&& (pFreq->percentFlags   >= ta->min_percent_flags)
-			&& (pFreq->percentWeights >= ta->min_percent_weights) )
-		{
-			/* sum up the percapitas for freqs that PASSED minimum requirements */
-			ta->sumPerCapitas+=pFreq->perCapita;
-
-			LLAddFirst(&getPts, pFreq);  /* freq passed reward requirements */
-		}
-	}
-
-	/* # flags, %flags, # weights, % weights, # of players, and perCapita is set
-	 * for every freq and # flags, # weights, # players, # teams, and
-	 * sumPerCapita for arena are recorded */
 
 	/* figure out percent of jackpot team will recieve and how many points
 	 * that relates to */
-	ta->numPoints = ta->jackpot_modifier * ta->numPlayers;
+	ta->numPoints = ta->settings.reward_modifier * ta->numPlayers;
 
-	if(LLIsEmpty(&getPts) || ta->sumPerCapitas<1)
+	/* at least one team passed minimum requirements, award them points */
+	for(l = LLGetHead(&ta->validTeams) ; l ; l=l->next)
 	{
-		/* no team passed min requirements, no one gets points, however,
-		 * arena requirements passed */
-		for(l = LLGetHead(&ta->freqs) ; l ; l=l->next)
+		pTeam = l->data;
+		pTeam->percent = 
+			(double)(pTeam->perCapitaWeights / ta->sumPerCapitaWeights * 100.0);
+
+		/* double check, min_players_on_freq should have already weeded any out */
+		if(pTeam->numPlayers>0)
+			pTeam->numPoints = (int)(ta->numPoints * (pTeam->percent/100) / pTeam->numPlayers);
+		else
 		{
-			pFreq = l->data;
-
-			pFreq->percent   = 0;
-			pFreq->numPoints = 0;
-		}
-
-		/* tell everyone they got no points */
-		chat->SendArenaMessage(arena,
-			"Notice: no teams met reward requirements but arena requirements were OK.");
-	}
-	else
-	{
-		/* at least one team passed minimum requirements, award them points */
-		for(l = LLGetHead(&getPts) ; l ; l=l->next)
-		{
-			pFreq = l->data;
-			pFreq->percent = (double)(pFreq->perCapita / ta->sumPerCapitas * 100.0);
-
-			/* double check, min_players_on_freq should have already weeded any out */
-			if(pFreq->numPlayers>0)
-				pFreq->numPoints = (int)(ta->numPoints * (pFreq->percent/100) / pFreq->numPlayers);
-			else
-			{
-				/* this should never ever happen */
-				logman->LogA(L_WARN, "points_turf_reward", arena,
-					"When calculating numPoints, a team that passed min requirements had 0 players. Check that min_players_freq > 0.");
-			}
+			/* this should never ever happen */
+			logman->LogA(L_WARN, "points_turf_reward", arena,
+				"When calculating numPoints, a team that passed min requirements had 0 players. Check that min_players_freq > 0.");
 		}
 	}
-
-	LLEmpty(&getPts);  /* empty linked list, but DO NOT free the memory of the
-	                    * nodes up because they are also attached to freqs */
-	return TR_AWARD_UPDATE;
+	
+	/* success! award and update */
+	ta->calcState.status = TR_CALC_SUCCESS;
+	ta->calcState.award = TR_AWARD_TEAM;
+	ta->calcState.update = 1;
 }
 
 
-local trstate_t crPeriodic(Arena *arena, struct TurfArena *ta)
+local void crPeriodic(Arena *arena, TurfArena *ta)
 {
-	int modifier = ta->jackpot_modifier;
-	struct FreqInfo *pFreq;
+	int modifier = ta->settings.reward_modifier;
+	TurfTeam *pTeam;
 	Link *l;
 
-	crStandard(arena, ta);  /* cheap way of doing it
-	                         * TODO: change to do it's own dirty work */
+	crStandard(arena, ta);
 
 	if(modifier == 0)  /* means dings disabled */
 	{
 		/* no one gets points */
-		for(l = LLGetHead(&ta->freqs) ; l ; l=l->next)
+		for(l = LLGetHead(&ta->validTeams) ; l ; l=l->next)
 		{
-			pFreq = l->data;
+			pTeam = l->data;
 
-			pFreq->percent   = 0;
-			pFreq->numPoints = 0;
+			pTeam->percent   = 0;
+			pTeam->numPoints = 0;
 		}
-		return TR_UPDATE_ONLY;
+		
+		/* success! update only */
+		ta->calcState.status = TR_CALC_SUCCESS;
+		ta->calcState.award = TR_AWARD_NONE;
+		ta->calcState.update = 1;
 	}
 
 	if(modifier > 0)
 	{
 		/* # points = modifier * # flags owned */
-		for(l = LLGetHead(&ta->freqs) ; l ; l=l->next)
+		for(l = LLGetHead(&ta->validTeams) ; l ; l=l->next)
 		{
-			pFreq = l->data;
+			pTeam = l->data;
 
-			pFreq->percent   = 0;
-			pFreq->numPoints = modifier * pFreq->numFlags;
+			pTeam->percent   = 0;
+			pTeam->numPoints = modifier * pTeam->numFlags;
 		}
 	}
 	else
@@ -310,64 +305,49 @@ local trstate_t crPeriodic(Arena *arena, struct TurfArena *ta)
 		/* # points = modifier * # flags owned * # players in arena */
 		int numPlayers = ta->numPlayers;
 
-		for(l = LLGetHead(&ta->freqs) ; l ; l=l->next)
+		for(l = LLGetHead(&ta->validTeams) ; l ; l=l->next)
 		{
-			pFreq = l->data;
+			pTeam = l->data;
 
-			pFreq->percent   = 0;
-			pFreq->numPoints = numPlayers * (-modifier) * pFreq->numFlags;
+			pTeam->percent   = 0;
+			pTeam->numPoints = numPlayers * (-modifier) * pTeam->numFlags;
 		}
 	}
-	return TR_AWARD_UPDATE;
+	
+	/* success! award and update */
+	ta->calcState.status = TR_CALC_SUCCESS;
+	ta->calcState.award = TR_AWARD_TEAM;
+	ta->calcState.update = 1;
 }
 
 
-local trstate_t crFixedPts(Arena *arena, struct TurfArena *ta)
+local void crWeights(Arena *arena, TurfArena *ta)
+{
+	Link *l;
+
+	for(l = LLGetHead(&ta->validTeams) ; l ; l=l->next)
+	{
+		TurfTeam *pTeam = l->data;
+
+		pTeam->percent   = 0;
+		pTeam->numPoints = (pTeam->numWeights<0) ? 0 : pTeam->numWeights;
+	}
+		
+	ta->calcState.status = TR_CALC_SUCCESS;
+	ta->calcState.award = TR_AWARD_TEAM;
+	ta->calcState.update = 1;
+}
+
+
+local void crFixedPts(Arena *arena, TurfArena *ta)
 {
 	crStandard(arena, ta);
 
 	/* TODO: havn't decided how to specify points
 	 * now figure out which freq is 1st place, 2nd place, 3rd place... */
 
-	return TR_FAIL_CALCULATIONS;
-}
-
-
-/* TODO: for multiple arenas there can must only be 1 timer,
- * turf_reward.c is going to need a couple modifications
- * before multiple arena scoring can be handled */
-local trstate_t crStdMulti(Arena *arena, struct TurfArena *tr)
-{
-#if 0
-	int x;
-	int id = tr[arena].multi_arena_id;
-	struct TurfArena *arenaPtr;
-	LinkedList *arenaLL;
-	Link *l;
-
-	LLInit(&arenaLL);
-
-	/* add the arena that called the timer */
-	LLAdd(&arenaLL, tr[arena]);
-
-	/* figure out what arenas are included in the calculations */
-	for(x=0 ; x<MAXARENA ; x++)
-	{
-		if(x==arena)
-			continue;
-		turfreward->LockTurfStatus(x);
-		if (tr[x] && tr[x].flags
-				&& (tr[x].reward_style==REWARD_STD_MULTI)
-				&& (tr[x].multi_arena_id==id))
-			LLAdd(&arenaLL, tr[x])
-		else
-			turfreward->UnlockTurfStatus(x);  /* only unlock arenas that are not part of this */
-	}
-
-	LLEmpty(&arenaLL);
-
-#endif
-
-	return TR_FAIL_CALCULATIONS;
+	ta->calcState.status = TR_CALC_FAIL;
+	ta->calcState.award = TR_AWARD_NONE;
+	ta->calcState.update = 0;
 }
 
