@@ -1316,7 +1316,7 @@ def main():
 
 	print "Logging in..."
 
-	send_line("LOGIN:1:%s:%s" % (opts['name'], opts['password']))
+	send_line("LOGIN:1;ccc %s:%s:%s" % (ccc_version, opts['name'], opts['password']))
 
 	# limited version of main loop just to get login result
 	logindone = 0
