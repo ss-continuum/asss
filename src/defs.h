@@ -23,12 +23,16 @@
 #define local static
 
 
+/* bring in local config options */
+#include "param.h"
+
+
 /* really important constants */
-#define MAXPLAYERS 255
-#define MAXARENA 50
+#define MAXPLAYERS CFG_MAX_PLAYERS
+#define MAXARENA CFG_MAX_ARENAS
 
 #define MAXPACKET 512
-#define MAXBIGPACKET 524288
+#define MAXBIGPACKET CFG_MAX_BIG_PACKET
 
 
 /* client types */
@@ -213,11 +217,6 @@ enum
 #define TARGET_ARENA (-2)
 #define TARGET_FREQ (-3)
 #define TARGET_ZONE (-4)
-
-
-#define DEFAULTCONFIGSEARCHPATH "arenas/%a/%n:defaultarena/%n:conf/%n:%n"
-
-#define DEFAULTMAPSEARCHPATH "arenas/%a/%m:defaultarena/%m:maps/%m:%m"
 
 
 /* useful typedefs */

@@ -9,21 +9,17 @@
 #include <winsock.h>
 #endif
 
-#ifndef WIN32
-#define DOUNAME
-#define EXTRAARENAS
-#endif
+#include "asss.h"
 
-#ifdef DOUNAME
+
+#ifdef CFG_USE_UNAME
 #include <sys/utsname.h>
 #endif
 
-#ifdef EXTRAARENAS
+#ifdef CFG_DO_EXTRAARENAS
 #include <dirent.h>
 #include <unistd.h>
 #endif
-
-#include "asss.h"
 
 
 #define CAP_SEEPRIVARENA "seeprivarena"
@@ -49,6 +45,20 @@ local Imodman *mm;
 local PlayerData *players;
 local ArenaData *arenas;
 
+
+/* returns 0 if found, 1 if not */
+local int check_arena(char *pkt, int len, char *check)
+{
+	char *pos = pkt + 1;
+	while (pos-pkt < len)
+	{
+		if (strcasecmp(pos, check) == 0)
+			return 0;
+		/* skip over string, null terminator, and two bytes of count */
+		pos += strlen(pos) + 3;
+	}
+	return 1;
+}
 
 local void Carena(const char *params, int pid, int target)
 {
@@ -85,12 +95,12 @@ local void Carena(const char *params, int pid, int target)
 			l = strlen(arenas[i].name) + 1;
 			strncpy(pos, arenas[i].name, l);
 			pos += l;
-			*(short*)pos = pcount[i];
-			pos += 2;
+			*pos++ = (pcount[i] >> 0) & 0xFF;
+			*pos++ = (pcount[i] >> 8) & 0xFF;
 		}
 	aman->UnlockStatus();
 
-#ifdef EXTRAARENAS
+#ifdef CFG_DO_EXTRAARENAS
 	/* add in more arenas if requested */
 	if (!strcasecmp(params, "all"))
 	{
@@ -107,7 +117,8 @@ local void Carena(const char *params, int pid, int target)
 				if (
 						(pos-buf+strlen(de->d_name)) < 480 &&
 						access(aconf, R_OK) == 0 &&
-						(de->d_name[0] != '#' || seehid)
+						(de->d_name[0] != '#' || seehid) &&
+						check_arena(buf, pos-buf, de->d_name)
 				   )
 				{
 					l = strlen(de->d_name) + 1;
@@ -203,13 +214,16 @@ local void Csetship(const char *params, int pid, int target)
 local void Cversion(const char *params, int pid, int target)
 {
 	chat->SendMessage(pid, "asss %s built at %s", ASSSVERSION, BUILDDATE);
-#ifdef DOUNAME
+#ifdef CFG_USE_UNAME
 	{
 		struct utsname un;
 		uname(&un);
 		chat->SendMessage(pid, "running on %s %s, host: %s, machine: %s",
 				un.sysname, un.release, un.nodename, un.machine);
 	}
+#endif
+#ifdef CFG_LOG_PRIVATE
+	chat->SendMessage(pid, "This server IS logging private and chat messages.");
 #endif
 }
 
@@ -510,7 +524,21 @@ local void Csheep(const char *params, int pid, int target)
 		chat->SendSoundMessage(pid, 24, "Sheep successfully cloned -- hello Dolly");
 }
 
+local void Cspecall(const char *params, int pid, int target)
+{
+	int arena = players[pid].arena, i;
+	int freq = cfg->GetInt(arenas[arena].cfg, "Team", "SpectatorFrequency", 8025);
 
+	if (target == TARGET_ARENA)
+	{
+		for (i = 0; i < MAXPLAYERS; i++)
+		{
+			if (players[pid].arena == arena && players[pid].status == S_PLAYING &&
+					players[pid].shiptype != SPEC)
+					game->SetFreqAndShip(i, SPEC, freq);
+		}
+	}
+}
 
 local struct
 {
@@ -542,6 +570,7 @@ const all_commands[] =
 	CMD(warpto),
 	CMD(shipreset),
 	CMD(sheep),
+	CMD(specall),
 	{ NULL }
 #undef CMD
 };

@@ -7,8 +7,9 @@
 #include "settings/soccer.h"
 
 
-#define MAXFREQ  8
-#define MAXGOALS 16
+#define MAXFREQ  CFG_SOCCER_MAXFREQ
+#define MAXGOALS CFG_SOCCER_MAXGOALS
+
 
 /*  Soccer modes:
  *  0 - All goals are open for scoring by any freq

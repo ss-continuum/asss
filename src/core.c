@@ -350,16 +350,30 @@ void AuthDone(int pid, AuthData *auth)
 	/* copy the authdata */
 	memcpy(bigauthdata + pid, auth, sizeof(AuthData));
 
-	/* also copy to player struct */
-	strncpy(player->sendname, auth->sendname, 20);
-	astrncpy(player->name, auth->name, 21);
-	strncpy(player->sendsquad, auth->squad, 20);
-	astrncpy(player->squad, auth->squad, 21);
+	if (auth->code == AUTH_OK)
+	{
+		/* login suceeded */
+		/* also copy to player struct */
+		strncpy(player->sendname, auth->sendname, 20);
+		astrncpy(player->name, auth->name, 21);
+		strncpy(player->sendsquad, auth->squad, 20);
+		astrncpy(player->squad, auth->squad, 21);
 
-	/* increment stage */
-	pd->LockStatus();
-	player->status = S_NEED_GLOBAL_SYNC;
-	pd->UnlockStatus();
+		/* increment stage */
+		pd->LockStatus();
+		player->status = S_NEED_GLOBAL_SYNC;
+		pd->UnlockStatus();
+	}
+	else
+	{
+		/* stuff other than AUTH_OK means the login didn't succeed.
+		 * status should go to S_CONNECTED instead of moving forward,
+		 * and send the login response now, since we won't do it later. */
+		SendLoginResponse(pid);
+		pd->LockStatus();
+		player->status = S_CONNECTED;
+		pd->UnlockStatus();
+	}
 }
 
 

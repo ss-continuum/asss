@@ -63,6 +63,8 @@ local pthread_mutex_t modmtx = PTHREAD_MUTEX_INITIALIZER;
 local pthread_mutex_t intmtx = PTHREAD_MUTEX_INITIALIZER;
 local pthread_mutex_t cbmtx = PTHREAD_MUTEX_INITIALIZER;
 
+local volatile int during_shutdown;
+
 
 local Imodman mmint =
 {
@@ -87,6 +89,7 @@ Imodman * InitModuleManager(void)
 	globalints = HashAlloc(53);
 	intsbyname = HashAlloc(23);
 	mmint.head.refcount = 1;
+	during_shutdown = 0;
 	return &mmint;
 }
 
@@ -214,11 +217,13 @@ local int UnloadModuleByPtr(ModuleData *mod)
 {
 	if (mod)
 	{
+		if (mod->mm)
+			if ((mod->mm)(MM_UNLOAD, &mmint, ALLARENAS) == MM_FAIL)
+				return MM_FAIL;
+		if (mod->hand && !mod->myself) dlclose(mod->hand);
 		pthread_mutex_lock(&modmtx);
 		LLRemove(mods, mod);
 		pthread_mutex_unlock(&modmtx);
-		if (mod->mm) (mod->mm)(MM_UNLOAD, &mmint, ALLARENAS);
-		if (mod->hand && !mod->myself) dlclose(mod->hand);
 		afree(mod);
 	}
 	return MM_OK;
@@ -262,6 +267,7 @@ local void RecursiveUnload(Link *l)
 
 void UnloadAllModules(void)
 {
+	during_shutdown = 1;
 	RecursiveUnload(LLGetHead(mods));
 	LLFree(mods);
 	mods = NULL;
@@ -333,6 +339,10 @@ int UnregInterface(void *iface, int arena)
 	InterfaceHead *head = (InterfaceHead*)iface;
 
 	assert(head->magic == MODMAN_MAGIC);
+
+	/* this is an ugly hack to enable things to shut down as cleanly as
+	 * possible when there are cyclic references among modules. */
+	if (during_shutdown) return 0;
 
 	id = head->iid;
 

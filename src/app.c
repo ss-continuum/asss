@@ -413,7 +413,11 @@ static void handle_directive(APPContext *ctx, char *buf)
 
 
 
+#ifdef CFG_MAX_LINE
+#define MAXLINE CFG_MAX_LINE
+#else
 #define MAXLINE 1024
+#endif
 
 /* returns false on eof */
 int GetLine(APPContext *ctx, char *buf, int buflen)

@@ -20,16 +20,7 @@
 
 /* DEFINES */
 
-/* #define DUMP_RAW_PACKETS */
-#define DUMP_UNKNOWN_PACKETS
-
 #define MAXTYPES 128
-
-/* size of ip/port hash table */
-#define HASHSIZE 256
-
-/* resolution for bandwidth limiting, in ticks. this might need tuning. */
-#define BANDWIDTH_RES 100
 
 /* ip/udp overhead, in bytes per physical packet */
 #define IP_UDP_OVERHEAD 28
@@ -174,7 +165,7 @@ volatile int killallthreads = 0;
 
 /* global clients struct! */
 local ClientData clients[MAXPLAYERS+EXTRA_PID_COUNT];
-local int clienthash[HASHSIZE];
+local int clienthash[CFG_HASHSIZE];
 local Mutex hashmtx;
 local Mutex outlistmtx[MAXPLAYERS+EXTRA_PID_COUNT];
 
@@ -265,7 +256,7 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		config.deflimit = cfg->GetInt(GLOBAL, "Net", "BandwidthLimit", 3500);
 
 		/* init hash and outlists */
-		for (i = 0; i < HASHSIZE; i++)
+		for (i = 0; i < CFG_HASHSIZE; i++)
 			clienthash[i] = -1;
 		for (i = 0; i < MAXPLAYERS + EXTRA_PID_COUNT; i++)
 		{
@@ -340,7 +331,7 @@ int HashIP(struct sockaddr_in sin)
 {
 	register unsigned ip = sin.sin_addr.s_addr;
 	register unsigned short port = sin.sin_port;
-	return ((port>>1) ^ (ip) ^ (ip>>23) ^ (ip>>17)) & (HASHSIZE-1);
+	return ((port>>1) ^ (ip) ^ (ip>>23) ^ (ip>>17)) & (CFG_HASHSIZE-1);
 }
 
 int LookupIP(struct sockaddr_in sin)
@@ -512,7 +503,7 @@ void InitSockets(void)
 }
 
 
-#ifdef DUMP_RAW_PACKETS
+#ifdef CFG_DUMP_RAW_PACKETS
 local void dump_pk(byte *data, int len)
 {
 	FILE *f = popen("xxd", "w");
@@ -546,7 +537,9 @@ void * RecvThread(void *dummy)
 			tv.tv_usec = 0;
 
 			/* perform select */
+			printf("selecting...\n");
 		} while (select(maxfd+1, &fds, NULL, NULL, &tv) < 1 && !killallthreads);
+			printf("got data\n");
 
 		/* first handle the main socket */
 		if (FD_ISSET(mysock, &fds))
@@ -561,7 +554,7 @@ void * RecvThread(void *dummy)
 
 			if (len < 1) goto freebuf;
 
-#ifdef DUMP_RAW_PACKETS
+#ifdef CFG_DUMP_RAW_PACKETS
 			printf("RECV: %d bytes\n", len);
 			dump_pk(buf->d.raw, len);
 #endif
@@ -652,7 +645,7 @@ void * RecvThread(void *dummy)
 				goto freebuf;
 			}
 
-#ifdef DUMP_RAW_PACKETS
+#ifdef CFG_DUMP_RAW_PACKETS
 			printf("RECV: about to process %d bytes:\n", len);
 			dump_pk(buf->d.raw, len);
 #endif
@@ -730,6 +723,7 @@ void * SendThread(void *dummy)
 
 	while (!killallthreads)
 	{
+		sched_yield();
 		usleep(5000);
 
 		/* first send outgoing packets */
@@ -748,7 +742,7 @@ void * SendThread(void *dummy)
 				gtc = GTC();
 
 				/* check if it's time to clear the bytessent */
-				if ( (gtc - clients[i].sincetime) >= BANDWIDTH_RES)
+				if ( (gtc - clients[i].sincetime) >= CFG_BANDWIDTH_RES)
 				{
 					clients[i].sincetime = gtc;
 					clients[i].bytessince = 0;
@@ -1032,7 +1026,7 @@ void ProcessPacket(int pid, byte *d, int len)
 	{
 		LinkedList *lst = handlers+d[0];
 		Link *l;
-#ifdef DUMP_UNKNOWN_PACKETS
+#ifdef CFG_DUMP_UNKNOWN_PACKETS
 		int count = 0;
 #endif
 
@@ -1040,7 +1034,7 @@ void ProcessPacket(int pid, byte *d, int len)
 			lst = handlers+(d[0] + PKT_BILLBASE);
 
 		pd->LockPlayer(pid);
-#ifndef DUMP_UNKNOWN_PACKETS
+#ifndef CFG_DUMP_UNKNOWN_PACKETS
 		for (l = LLGetHead(lst); l; l = l->next)
 #else
 		for (l = LLGetHead(lst); l; l = l->next, count++)
@@ -1048,7 +1042,7 @@ void ProcessPacket(int pid, byte *d, int len)
 			((PacketFunc)l->data)(pid, d, len);
 		pd->UnlockPlayer(pid);
 
-#ifdef DUMP_UNKNOWN_PACKETS
+#ifdef CFG_DUMP_UNKNOWN_PACKETS
 		if (!count)
 		{
 			char str[256];
@@ -1480,7 +1474,7 @@ void SendRaw(int pid, byte *data, int len)
 	{
 		memcpy(encbuf, data, len);
 
-#ifdef DUMP_RAW_PACKETS
+#ifdef CFG_DUMP_RAW_PACKETS
 		printf("SEND: %d bytes to pid %d\n", len, pid);
 		dump_pk(encbuf, len);
 #endif
@@ -1488,7 +1482,7 @@ void SendRaw(int pid, byte *data, int len)
 		if (enc)
 			len = enc->Encrypt(pid, encbuf, len);
 
-#ifdef DUMP_RAW_PACKETS
+#ifdef CFG_DUMP_RAW_PACKETS
 		printf("SEND: %d bytes (after encryption):\n", len);
 		dump_pk(encbuf, len);
 #endif
@@ -1692,7 +1686,7 @@ i32 GetIP(int pid)
 
 void SetLimit(int pid, int limit)
 {
-	clients[pid].limit = limit * BANDWIDTH_RES / 100;
+	clients[pid].limit = limit * CFG_BANDWIDTH_RES / 100;
 }
 
 
@@ -1719,7 +1713,7 @@ void GetClientStats(int pid, struct client_stats *stats)
 	else
 		stats->encname = "none";
 	/* convert to bytes per second */
-	stats->limit = clients->limit * 100 / BANDWIDTH_RES;
+	stats->limit = clients->limit * 100 / CFG_BANDWIDTH_RES;
 	/* RACE: inet_ntoa is not thread-safe */
 	astrncpy(stats->ipaddr, inet_ntoa(clients[pid].sin.sin_addr), 16);
 	stats->port = clients[pid].sin.sin_port;

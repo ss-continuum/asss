@@ -5,10 +5,6 @@
 #include "asss.h"
 
 
-#define TIMEFORMAT "%b %d %H:%M:%S"
-#define TIMEFORMATLEN 20
-
-
 local void LogFile(const char *);
 local void FlushLog(void);
 local void ReopenLog(void);
@@ -66,10 +62,10 @@ void LogFile(const char *s)
 		if (logfile)
 		{
 			time_t t1;
-			char t3[TIMEFORMATLEN];
+			char t3[CFG_TIMEFORMATLEN];
 
 			time(&t1);
-			strftime(t3, TIMEFORMATLEN, TIMEFORMAT, localtime(&t1));
+			strftime(t3, CFG_TIMEFORMATLEN, CFG_TIMEFORMAT, localtime(&t1));
 			fputs(t3, logfile);
 			putc(' ', logfile);
 			fputs(s, logfile);

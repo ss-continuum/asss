@@ -17,8 +17,9 @@ enum { SEE_NONE, SEE_ARENA, SEE_ALL };
 local byte seewhat[MAXPLAYERS];
 
 /* stuff for lastlog */
-#define MAXLAST 100
-#define MAXLINE 128
+#define MAXLAST CFG_LAST_LINES
+#define MAXLINE CFG_LAST_LENGTH
+
 /* this is a circular buffer structure */
 local int ll_pos;
 local char ll_data[MAXLAST][MAXLINE]; /* 12.5k */

@@ -329,40 +329,39 @@ DONE
 
 arena          D              commands       lists open arenas
 report         D              game           displays someone's loc, nrg, and bty
+a              I (chat)       commands       sends arena msg to all in arena
+version        D              commands       displays the server version
+setfreq        I (game)       commands       changes a player's freq
+setship        I (game)       commands       changes a player's ship (and maybe locks)
+shipreset      ?              commands       resets a ship
+setlimit       I (net)        commands       modifies network parameters
+info           ?              commands       prints info on player
+setcm          I (chat)       commands       blocks messages of a certain type
+flagreset      I (flags)      flags          resets flag game
+lastlog        D              log_sysop      displays last 20 entries in server log
+shutdown       I (ml)         commands       shuts down the server
 
 TODO SOON
 
-a              I (chat)       commands       sends arena msg to all in arena
 find           D              commands       locates player
 kick           I (net)        commands       kicks player off
 prize          I (game)       commands       gives a player prizes
-version        D              commands       displays the server version
 whospec        D              game           lists who is speccing a player
 zone           I (chat)       commands       sends a message to the whole zone
+sheep          D              commands       sheep!
 
 TODO LATER
 
 trace          ?              childproc      displays a traceroute to a player
-lockmsg        I (chat)       commands       blocks messages of a certain type
-setfreq        I (game)       commands       changes a player's freq
-setship        I (game)       commands       changes a player's ship (and maybe locks)
-shipreset      ?              commands       resets a ship
 getfile        I (fileops)    commands       downloads file
-lowbandwidth   I (net)        commands       modifies network parameters
-info           ?              commands       prints info on player
 delfile        I (fileops)    commands       removes file from server
 lag            I (net)        commands       reports lag stats
 scorereset     I (stats)      commands       reset someones score
 get            I (config)     commands       retrieves config setting
 cheater        D              commands       sends message to mods
 set            I (config)     commands       sets a config setting
-sheep          D              commands       sheep!
-shutdown       I (ml)         commands       shuts down the server
-shutup         I (chat)       commands       stops a player from talking
 ufo            I (game)       commands       toggles the ufo bit for someone
 putfile        I (fileops)    commands       uploads a file to the server
 moveflag       I (flags)      flags          moves a flag to a location
-flagreset      I (flags)      flags          resets flag game
-log            D              log_sysop      displays last 20 entries in server log
 
 

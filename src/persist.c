@@ -21,8 +21,7 @@ typedef enum db_command
 	DB_GET,
 	DB_PUT,
 	DB_SYNCWAIT,
-	DB_PUTALL,
-	DB_QUIT,
+	DB_PUTALL
 } db_command;
 
 #define GLOBALTEST(arena,global) ((((arena)==PERSIST_GLOBAL) && (global)) || (((arena)!=PERSIST_GLOBAL) && (!(global))))
@@ -134,11 +133,7 @@ EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(aman);
 
-		{
-			DBMessage *msg = amalloc(sizeof(DBMessage));
-			msg->command = DB_QUIT;
-			MPAdd(&dbq, msg);
-		}
+		MPAdd(&dbq, NULL);
 		pthread_join(dbthread, NULL);
 		MPDestroy(&dbq);
 		LLEmpty(&ddlist);
@@ -161,6 +156,14 @@ local void DoPut(int pid, int arena)
 	PersistantData *data;
 	DB *db;
 	DBT key, val;
+
+	/* LOCK: we don't lock player status here because arena shouldn't be
+	 * changing while we're doing score stuff */
+	db = (arena == PERSIST_GLOBAL) ? globaldb : databases[arena];
+
+	if (!db)
+		/* no scores for this arena */
+		return;
 
 	strncpy(namebuf, pd->players[pid].name, 24);
 
@@ -194,21 +197,14 @@ local void DoPut(int pid, int arena)
 
 	assert((cp - value) == size);
 
-	/* LOCK: we don't lock player status here because arena shouldn't be
-	 * changing while we're doing score stuff */
-	db = (arena == PERSIST_GLOBAL) ? globaldb : databases[arena];
-
 	key.data = namebuf;
 	key.size = 24;
 	val.data = value;
 	val.size = size;
 
-	if (!db)
-		lm->Log(L_ERROR, "<persist> {%s} Database not open when we need it",
-				(arena == PERSIST_GLOBAL) ? "<global>" : arenas[arena].name);
-	else /* do it! */ 
-		if (db->put(db, &key, &val, 0) == -1)
-			lm->Log(L_ERROR, "<persist> {%s} Error entering key in database",
+	/* do it! */
+	if (db->put(db, &key, &val, 0) == -1)
+		lm->Log(L_WARN, "<persist> {%s} Error entering key in database",
 				(arena == PERSIST_GLOBAL) ? "<global>" : arenas[arena].name);
 }
 
@@ -233,16 +229,18 @@ local void DoGet(int pid, int arena)
 			data->ClearData(pid);
 	}
 
-	/* now try to retrieve it */
-	strncpy(namebuf, pd->players[pid].name, 24);
-
 	/* LOCK: see above */
 	db = (arena == PERSIST_GLOBAL) ? globaldb : databases[arena];
+
+	if (!db) return;
+
+	/* now try to retrieve it */
+	strncpy(namebuf, pd->players[pid].name, 24);
 
 	key.data = namebuf;
 	key.size = 24;
 
-	if (!db || db->get(db, &key, &val, 0) == -1)
+	if (db->get(db, &key, &val, 0) == -1)
 		return; /* new player */
 
 	cp = value = val.data;
@@ -271,12 +269,15 @@ local void DoGet(int pid, int arena)
 void *DBThread(void *dummy)
 {
 	DBMessage *msg;
-	int i, stop = 0;
+	int i;
 
-	while (!stop)
+	for (;;)
 	{
 		/* get next command */
 		msg = MPRemove(&dbq);
+		/* break on null */
+		if (!msg)
+			break;
 		/* lock data descriptor lists */
 		pthread_mutex_lock(&dbmtx);
 		/* and do something with it */
@@ -317,8 +318,6 @@ void *DBThread(void *dummy)
 				/* make sure nobody modifies db's for some time */
 				sleep(msg->data);
 				break;
-
-			case DB_QUIT: stop = 1; break;
 		}
 		/* and unlock */
 		pthread_mutex_unlock(&dbmtx);
@@ -385,10 +384,7 @@ void PersistAA(int arena, int action)
 		db = OpenDB(fname);
 
 		if (!db)
-		{
-			/* this db doesn't exist, use default */
-			db = defarenadb;
-		}
+			lm->Log(L_INFO, "<persist> {%s} Can't open/create database; no scores will be saved", arenas[arena].name);
 
 		/* enter in db array */
 		databases[arena] = db;
@@ -405,7 +401,7 @@ void PersistAA(int arena, int action)
 		if (db)
 			CloseDB(db);
 		else
-			lm->Log(L_ERROR, "<persist> {%s} Score database doesn't exist for closing arena", arenas[arena].name);
+			lm->Log(L_DRIVEL, "<persist> {%s} Score database doesn't exist for closing arena", arenas[arena].name);
 
 		databases[arena] = NULL;
 

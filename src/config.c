@@ -98,7 +98,7 @@ local int LocateConfigFile(char *dest, int destlen, const char *arena, const cha
 	if (global)
 		path = GetStr(global, "General", "ConfigSearchPath");
 	if (!path)
-		path = DEFAULTCONFIGSEARCHPATH;
+		path = CFG_CONFIG_SEARCH_PATH;
 
 	return find_file_on_path(dest, destlen, path, repls, arena ? 2 : 1);
 }

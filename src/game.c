@@ -37,6 +37,7 @@ local void PBrick(int, byte *, int);
 local void Creport(const char *params, int pid, int target);
 local void Ctimer(const char *params, int pid, int target);
 local void Ctime(const char *params, int pid, int target);
+local void Ctimereset(const char *params, int pid, int target);
 
 local inline void DoChecksum(struct S2CWeapons *);
 local inline long lhypot (register long dx, register long dy);
@@ -146,6 +147,7 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		cmd->AddCommand("report", Creport);
 		cmd->AddCommand("timer", Ctimer);
 		cmd->AddCommand("time", Ctime);
+		cmd->AddCommand("timereset", Ctimereset);
 
 		mm->RegInterface(&_myint, ALLARENAS);
 
@@ -158,6 +160,7 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		cmd->RemoveCommand("report", Creport);
 		cmd->RemoveCommand("timer", Ctimer);
 		cmd->RemoveCommand("time", Ctime);
+		cmd->RemoveCommand("timereset", Ctimereset);
 		net->RemovePacket(C2S_POSITION, Pppk);
 		net->RemovePacket(C2S_SETSHIP, PSetShip);
 		net->RemovePacket(C2S_SETFREQ, PSetFreq);
@@ -726,6 +729,17 @@ void Ctime(const char *params, int pid, int target)
 		chat->SendMessage(pid, "Time left: 0 minutes 0 seconds");
 }
 
+void Ctimereset(const char *params, int pid, int target)
+{
+	int arena = pd->players[pid].arena;
+	long gamelen = cfg->GetInt(arenas[arena].cfg, "Misc", "TimedGame", 0);
+
+	if (gamelen)
+	{
+		ar_tmr[arena].timeout = GTC() + gamelen;
+		Ctime(params, pid, target);
+	}
+}
 
 void DoChecksum(struct S2CWeapons *pkt)
 {

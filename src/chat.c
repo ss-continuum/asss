@@ -258,9 +258,11 @@ void PChat(int pid, byte *p, int len)
 			}
 			else if (PID_OK(from->pid) && OK(MSG_PRIV))
 			{
+#ifdef CFG_LOG_PRIVATE
 				lm->Log(L_DRIVEL,"<chat> {%s} [%s] to [%s] Priv msg: %s",
 					arenas[arena].name, players[pid].name,
 					players[from->pid].name, from->text);
+#endif
 				net->SendToOne(from->pid, (byte*)to, len, cfg_msgrel);
 			}
 			break;
@@ -277,8 +279,10 @@ void PChat(int pid, byte *p, int len)
 			break;
 
 		case MSG_CHAT:
+#ifdef CFG_LOG_PRIVATE
 			lm->Log(L_DRIVEL,"<chat> {%s} [%s] Chat msg: %s",
 				arenas[arena].name, players[pid].name, from->text);
+#endif
 			/* the billcore module picks these up, so nothing more here */
 			break;
 	}

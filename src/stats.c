@@ -142,8 +142,8 @@ void SendUpdates(void)
 			d = adata + pid;
 
 			sp.pid = pid;
-			p->killpoints = sp.killpoints = d->stats[STAT_KPOINTS];
-			p->flagpoints = sp.flagpoints = d->stats[STAT_FPOINTS];
+			p->killpoints = sp.killpoints = d->stats[STAT_KILL_POINTS];
+			p->flagpoints = sp.flagpoints = d->stats[STAT_FLAG_POINTS];
 			p->wins = sp.kills = d->stats[STAT_KILLS];
 			p->losses = sp.deaths = d->stats[STAT_DEATHS];
 
@@ -161,6 +161,7 @@ void SendUpdates(void)
 
 #define CMD_CHAR_1 '?'
 #define CMD_CHAR_2 '*'
+#define CMD_CHAR_3 '!'
 #define MOD_CHAT_CHAR '\\'
 
 void PChat(int pid, byte *p, int len)
@@ -169,7 +170,7 @@ void PChat(int pid, byte *p, int len)
 
 	if (len <= sizeof(struct ChatPacket)) return;
 
-	if (from->text[0] == CMD_CHAR_1 || from->text[0] == CMD_CHAR_2)
+	if (from->text[0] == CMD_CHAR_1 || from->text[0] == CMD_CHAR_2 || from->text[0] == CMD_CHAR_3)
 		gdata[pid].commands++;
 	else if (from->type == MSG_PUB && from->text[0] == MOD_CHAT_CHAR)
 		gdata[pid].messages[MSG_MODCHAT]++;
@@ -213,8 +214,8 @@ void SetA(int pid, void *space)
 	memcpy(adata + pid, space, sizeof(struct ArenaStats));
 
 	/* and the player data */
-	p->killpoints = d->stats[STAT_KPOINTS];
-	p->flagpoints = d->stats[STAT_FPOINTS];
+	p->killpoints = d->stats[STAT_KILL_POINTS];
+	p->flagpoints = d->stats[STAT_FLAG_POINTS];
 	p->wins = d->stats[STAT_KILLS];
 	p->losses = d->stats[STAT_DEATHS];
 }
@@ -258,7 +259,7 @@ void Cmyscore(const char *params, int pid, int target)
 	if (PID_OK(target) && chat)
 	{
 		chat->SendMessage(pid, "%d kill points, %d flag points",
-				d->stats[STAT_KPOINTS], d->stats[STAT_FPOINTS]);
+				d->stats[STAT_KILL_POINTS], d->stats[STAT_FLAG_POINTS]);
 		chat->SendMessage(pid, "%d kills, %d deaths",
 				d->stats[STAT_KILLS], d->stats[STAT_DEATHS]);
 	}

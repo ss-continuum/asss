@@ -9,6 +9,8 @@
  *
  * that way, each new connection only needs one new thread.
  *
+ * OR: use select in the mainloop method and avoid the recv thread too?
+ *
  */
 
 

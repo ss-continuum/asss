@@ -84,18 +84,16 @@ local int FindLegalShip(int arena, int freq, int ship)
 }
 
 
-#define MAXDES 10
-
 local int BalanceFreqs(int arena, int excl, int inclspec)
 {
-	int counts[MAXDES] = { 0 }, i, desired, min = MAXPLAYERS, best = -1, max;
+	int counts[CFG_MAX_DESIRED] = { 0 }, i, desired, min = MAXPLAYERS, best = -1, max;
 
 	max = cfg->GetInt(aman->arenas[arena].cfg, "Team", "MaxPerTeam", 0);
 	desired = cfg->GetInt(aman->arenas[arena].cfg,
 			"Team", "DesiredTeams", 1);
 
 	if (desired < 1) desired = 1;
-	if (desired > MAXDES) desired = MAXDES;
+	if (desired > CFG_MAX_DESIRED) desired = CFG_MAX_DESIRED;
 
 	/* get counts */
 	pd->LockStatus();

@@ -239,7 +239,7 @@ int GetMapFilename(int arena, char *buffer, int bufferlen)
 
 	searchpath = cfg->GetStr(GLOBAL, "General", "MapSearchPath");
 	if (!searchpath)
-		searchpath = DEFAULTMAPSEARCHPATH;
+		searchpath = CFG_MAP_SEARCH_PATH;
 
 	return find_file_on_path(
 			buffer,

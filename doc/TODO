@@ -7,8 +7,6 @@ moderate
 --------
 lag handling
 
-better pre-processor for config
-
 locking. lots of options here:
 	lock to freq
 	lock to ship

@@ -55,11 +55,11 @@ local int AddWatch(int pid, int target)
 
 	/* check to see if already on */
 	for (l = LLGetHead(watches + target); l; l = l->next)
-		if ((int)(l->data) == pid)
+		if ((short*)l->data - modwatch == pid)
 			return -1;
 
 	/* add new int to end of list */
-	LLAdd(watches + target, (void*)pid);
+	LLAdd(watches + target, modwatch + pid);
 
 	/* check to see if need to send a packet */
 	if (WATCHCOUNT(target) == 1)
@@ -70,7 +70,7 @@ local int AddWatch(int pid, int target)
 
 local void RemoveWatch(int pid, int target)
 {
-	LLRemoveAll(watches + target, (void*)pid);
+	LLRemoveAll(watches + target, modwatch + pid);
 
 	/* check to see if need to send a packet */
 	if (WATCHCOUNT(target) == 0)
@@ -199,7 +199,7 @@ local void PDamage(int pid, byte *p, int len)
 
 	/* forward all damage packets to those watching */
 	for (l = LLGetHead(watches + pid); l; l = l->next)
-		net->SendToOne((int)(l->data), (byte*)&s2cwd, sizeof(struct S2CWatchDamage), NET_RELIABLE | NET_PRI_N1);
+		net->SendToOne((short*)l->data - modwatch, (byte*)&s2cwd, sizeof(struct S2CWatchDamage), NET_RELIABLE | NET_PRI_N1);
 
 	/* do callbacks only if a module is watching, since these can go in mass spamming sometimes */
 	if (modwatch[pid] > 0)

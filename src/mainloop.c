@@ -94,6 +94,7 @@ void RunLoop(void)
 		LLEmpty(&freelist);
 
 		/* rest a bit */
+		sched_yield();
 		usleep(10000);
 	}
 }

@@ -177,6 +177,8 @@ int main(int argc, char *argv[])
 
 	mm->UnloadAllModules();
 
+	DeInitModuleManager(mm);
+
 	return 0;
 }
 

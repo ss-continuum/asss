@@ -11,6 +11,9 @@ cmd_ballcount
 cmd_flagreset
 cmd_listmods
 cmd_a
+cmd_timer
+cmd_timereset
+cmd_specall
 
 privcmd_report
 

@@ -221,11 +221,12 @@ void DefaultCmd(const char *cmd, int pid, int target)
 
 	if (target == TARGET_ARENA)
 	{
-		to = alloca(strlen(cmd)+6);
+		to = alloca(strlen(cmd)+7);
 		to->type = S2B_COMMAND;
 		to->pid = pid;
-		strcpy(to->text, cmd);
-		SendToBiller((byte*)to, strlen(cmd)+6, NET_RELIABLE);
+		to->text[0] = '?';
+		strcpy(to->text+1, cmd);
+		SendToBiller((byte*)to, strlen(cmd)+7, NET_RELIABLE);
 	}
 }
 

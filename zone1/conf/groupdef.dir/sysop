@@ -11,7 +11,6 @@ cmd_insmod
 cmd_rmmod
 cmd_setscore
 cmd_resetgame
-cmd_timer
 privcmd_warpto
 
 ; temporary
