@@ -9,7 +9,7 @@
 \newcommand{\asss}{\texttt{asss}}
 \newcommand{\subgame}{\texttt{subgame}}
 
-\title{\asss{} Development Guide}
+\title{\asss{} Development Guide\\Version 1.2}
 
 \begin{document}
 
@@ -282,7 +282,7 @@ First the functions that will implement the interface are defined. In
 this case, one real function is being used to implement three functions
 in the interface. Then a static struct is declared to represent the
 implementation. The first thing in the struct initializer is a macro,
-analagous to the macro used in the declaration.
+analogous to the macro used in the declaration.
 \verb/INTERFACE_HEAD_INIT/ takes two arguments: the first is the
 interface identifier, and the second is the unique name given to this
 implementation. Alternately, \verb/INTERFACE_HEAD_INIT_PRI/ can be used,
@@ -545,7 +545,7 @@ the server:
 billing server or a password file.
 
 \item[during\_change] Set when the player has changed freqs or ships,
-but before he has acknowleged it.
+but before he has acknowledged it.
 
 \item[want\_all\_lvz] If the player wants optional .lvz files.
 
@@ -573,36 +573,356 @@ See the section on per-player data below.
 
 \subsection{Arena}
 
-FIXME
+Compared to players, the arena struct is relatively simple. Arenas are
+often used solely by comparing pointers for equality, although there are
+several useful fields:
+
+\begin{verbatim}
+struct Arena {
+    int status;
+    char name[20], basename[20];
+    ConfigHandle cfg;
+    int specfreq;
+    byte arenaextradata[0];
+};
+\end{verbatim}
+
+\begin{description}
+
+\item[status] Stores the loading/unloading state of the arena. Most
+arenas will be in \verb/ARENA_RUNNING/.
+
+\item[name] This is the arena's actual name, used for displaying to
+clients, keeping track of non-shared scores, and many other things.
+
+\item[basename] This is a name derived from the arena name, but will
+trailing digits stripped off (for public arenas, whose ``name'' field
+contains only digits, the ``basename'' field contains the word
+``public''). This is used for keeping track of shared scores and for
+locating settings for the arena.
+
+\item[cfg] This is a handle for the arena's main configuration file.
+There is only one configuration file loaded by default for each arena,
+although it may include other files, and modules may load different
+configuration files themselves.
+
+\item[specfreq] This field is a concession to practicality. The
+``Team:SpectatorFrequency'' setting was being queried in several places
+in different modules, so rather than duplicate work, this setting is
+provided here for modules to use without querying the configuration
+file.
+
+\item[arenaextradata] Like ``playerextradata,'' this variable-sized
+array is managed by the arena manager to provide per-arena space for
+other modules.
+
+\end{description}
+
 
 \subsection{Target}
 
-FIXME
+A target is a (sometimes implicit) representation of a set of players.
+Currently, targets are used as a parameter to command callbacks, to
+indicate who the command should be applied to, and they are also used as
+parameters to some of the functions in the \verb/game/ interface, to
+warp or prize some set of players at once.
+
+In a command function, targets can be used by accessing their fields
+directly, or by using the \verb/TargetToSet/ function in the
+\verb/playerdata/ interface to convert the target into a simple list of
+players.
+
+Targets can be constructed simply by declaring one on the stack and
+initializing its fields. They can also be dynamically allocated,
+although this isn't often necessary.
+
+Targets come in several types, some of which use additional data
+(besides the type itself) to specify the set. The data is kept in a
+C union, since targets can only be of one type at once.
+
+The most trivial target is of type \verb/T_NONE/ and means the empty set
+of players. A single-player target is of type \verb/T_PLAYER/ and the
+\verb/p/ field of the data union points to that player. An arena target
+(\verb/T_ARENA/) indicates all players in the given arena. A freq target
+(\verb/T_FREQ/) means all the players on a given team in a given arena.
+Another simple target, \verb/T_ZONE/, means everyone logged into the
+server. Finally, an arbitrary set of players can be specified using the
+\verb/T_LIST/ type, which uses the \verb/list/ field of the data union.
+
+This is the definition of the target struct:
+
+\begin{verbatim}
+typedef struct {
+    enum {
+        T_NONE,
+        T_PLAYER,
+        T_ARENA,
+        T_FREQ,
+        T_ZONE,
+        T_LIST
+    } type;
+    union {
+        Player *p;
+        Arena *arena;
+        struct { Arena *arena; int freq; } freq;
+        LinkedList list;
+    } u;
+} Target;
+\end{verbatim}
 
 
 \section{Memory management}
 
-FIXME
+Memory management in \asss{} is relatively simple. Many sorts of memory
+in the server, such as the global list of players and arenas, are
+managed by core modules. Others, such as the links of the linked list
+library, are handled by the utility library, and a module only has to
+use the linked list functions.
+
+Sometimes, though, a module will need to allocate memory to store
+private data in. There are three types of memory a module will want to
+allocate: some amount of space to store data for each player, space to
+store data for each arena, and arbitrary chunks of memory for whatever
+use. Each type will require a different way of allocating memory.
 
 \subsection{Per-player data}
 
-FIXME
+A module can call the \verb/AllocatePlayerData/ function in
+\verb/playerdata/ with a number of bytes to reserve that amount of space
+for each player. The value returned is a key, which can later be used to
+access that memory, given a player pointer. (Valid keys are positive
+integers. If the return value is negative, the allocation failed.)
+Modules that have used \verb/AllocatePlayerData/ must call
+\verb/FreePlayerData/ when they don't need the space anymore (typically
+during unloading).
+
+To access the data, a macro has been provided: \verb/PPDATA(player, key)/
+which will return a pointer to the start of the per-player space
+specified by the key, for the given player.
+
 
 \subsection{Per-arena data}
 
-FIXME
+This is just like per-player data, except you will use the functions
+\verb/AllocateArenaData/ and \verb/FreeArenaData/ in \verb/arenaman/,
+and the macro \verb/P_ARENA_DATA(arena, key)/ to access the data for a
+given arena.
 
+\subsection{Everything else}
+
+To allocate arbitrary chunks of memory, use the functions \verb/amalloc/
+and \verb/afree/, which work just like standard \verb/malloc/ and
+\verb/free/, except that \verb/amalloc/ will never return \verb/NULL/
+(it will halt the server with a memory error instead), and \verb/afree/
+can safely be used on null pointers.
+
+Also try to be aware of instances where data can be allocated on the
+stack, which will generally be more efficient than dynamic allocation.
+If the size of the data isn't known in advance, the system's
+\verb/alloca/ function can be used. If you need to pass a single-element
+linked list to a function, one can be constructed on the stack by
+cheating a little bit with the list abstraction, although you might want
+to use the lists normally to improve the clarity of your code.
+
+
+\subsection{Typical usage}
+
+Sometimes a module needs to store a large amount of data for each
+player, but it's for a specific game type that's only running in a few
+arenas, and it will only apply to a small number of the players in the
+zone. Allocating a large amount of data with \verb/AllocatePlayerData/
+will waste space in that situation, since that reserves space for every
+player, not just the ones that need it. There are two possible solutions
+here. One is to just do it anyway, and waste a bit of memory. The other
+is to allocate only room for a pointer in the per-player data, and have
+the pointer be null for players who don't need the data, and point to
+valid data (allocated with \verb/afree/ when the player enters an arena)
+for players who do need it. Which solution to use depends on several
+factors, such as how many bytes are being allocated, and what proportion
+of players are expected to need the data.
+
+In general, if the data is more than 20-24 bytes in length and a
+significant proportion of players are expected not to need the data, you
+should consider using a per-player pointer and manually allocating the
+bulk of the data.
+
+
+\subsection{Internals}
+
+Per-player and per-arena data work by allocating a big chunk of space at
+the end of the player and arena structs, which is divided up between
+modules to store the data. As an example, let's say \verb/playerdata/
+allocates 4096 bytes of extra space along with each player struct (the
+exact amount is configurable). It might provide bytes 128-192 of that
+space to one module to use for its private data, and then bytes 192-204
+to another module. The offset of the range from the start of the extra
+data array is the key returned to client modules, and the macro simply
+adds that offset to the start of the array.
+
+This solution is simple and efficient. The only disadvantage is that the
+amount of extra data for players, and for arenas, is determined at
+server bootup, and can't be increased or decreased while the server is
+running. This may lead to situations where a module can't be loaded at
+runtime because there isn't enough room in the per-player space left. It
+might also waste a significant amount of space if 4k is allocated for
+each player but only 1.5k is used by the loaded of modules. An admin
+particularly concerned about memory might want to check the amount of
+per-player and per-arena space used by some desired set of modules, then
+set the allocated amounts to be slightly more than those (just to be on
+the safe side).
 
 
 \section{Threading}
 
-FIXME
+\asss{} is a multithreaded program, and will generally have several
+threads of execution doing important things at the same time. You don't
+need to know all the threads and their functions to write a module, but
+you do have to be aware of concurrency issues in shared data.
 
+The most important shared data are the global lists of players and
+arenas. The player list, managed by \verb/playerdata/, is protected by a
+read-write lock, and you must acquire it before iterating through the
+list (the same lock protects a few other items, like player status
+values). The arena list is also protected with a read-write lock,
+managed by \verb/arenaman/.
+
+FIXME: write more here
+
+
+\subsection{How to use threads in a module}
+
+First, consider well whether you really need a separate thread. Possible
+good reasons to use threads in your module are: it \emph{greatly}
+simplifies the implementation of some aspect of the module, or the
+module makes unavoidable calls that can potentially block for a very
+long time.
+
+How long a call needs to block before you should consider using threads
+depends on the path on which that call is made. If it only blocks for a
+long time during module load, like \verb/gethostbyname/ in the
+\verb/directory/ module, then there's no need for a thread. If it's
+something that happens relatively often, like writing to a file during
+on every position packet, as in the \verb/record/ module, a thread is
+probably called for.
+
+If you've decided that you need threads, you can simply go ahead and use
+any of the pthreads library to create and synchronize your threads. A
+simple synchronized queue for message passing between threads is part of
+the utility library, and may be useful for modules that deal with
+threads.
+
+
+\subsection{Internals}
+
+The main thread in \asss{} runs in the main loop module, and is used for
+running timer events. The \verb/net/ module has three threads of its
+own, one for receiving packets from the network and processing
+unreliable packets, one for processing reliable packets, and one for
+sending packets. The logging module has one thread that runs log
+handlers. The \verb/persist/ module uses one thread to do its database
+work, and \verb/mysql/ uses a thread to communicate with the mysql
+database server. The \verb/record/ module uses one thread (dynamically
+created) for each arena that is either recording or playing back a saved
+game.
 
 
 \section{Persistent data}
 
-FIXME
+The persistent data interface is one of the most confusing parts of
+\asss{}, but the concept behind it is relatively simple, so it shouldn't
+be hard to use it after a little thought.
+
+The service provided by the \verb/persist/ module is persistence of
+per-player, per-arena, and global data. Some examples of things that
+might use it are player scores, arena statistics (e.g., kills by ship
+type), a private staff message board, player inventory (in a RPG-type
+game), and a shutup timeout.
+
+Data stored by \verb/persist/ is opaque binary data. Serialization of
+the actual data that the module wants to store into a byte stream is the
+responsibility of the client module. Keeping that data around between
+invocations of the server and sessions of the player is the
+responsibility of \verb/persist/.
+
+To use \verb/persist/ a client module must provide some information,
+along with three functions that \verb/persist/ will call to manipulate
+the module's data.
+
+The first choice is whether the persistent data is to be stored
+per-player or per-arena. Note that really global data (one copy for the
+whole server) counts as per-arena data.
+
+The second choice is the scope of the data. There are two choices for
+scope: either there is a single copy of the data for all arenas, or
+there's a separate copy for each arena. The single copy model is
+specified by \verb/PERSIST_ALLARENAS/, and the one copy model by
+\verb/PERSIST_GLOBAL/. Note that either option can be specified for both
+per-player and per-arena data. Per-player global data means there's one
+copy of the data for each player (e.g., an inventory in an RPG spanning
+multiple arenas). Per-player all-arena data means there's one copy for
+each (player, arena) pair (e.g., regular scores). Per-arena global data
+is simply global data; there is only one copy. Per-arena all-arena data
+means there's one copy for each arena (e.g., base win statistics).
+
+Note that you don't have to actually store data for each entity. If you
+want some per-arena data stored only for a few arenas, simply return an
+empty piece of memory when queried for the data for an arena to which it
+doesn't apply.
+
+The third choice is the interval that the data should be stored for.
+This basically indicates when the data gets reset. There are several
+intervals defined in the server: ``forever,'' which as its name implies,
+never gets reset; ``per-reset,'' which is supposed to be something like
+a score reset (around two weeks); ``per-game,'' which is reset at the
+end of each flag or ball game (or at the staff's discretion); and
+``per-map-rotation,'' which is reset when the map changes\footnote{This
+currently doesn't happen automatically when the map changes.}
+
+Historical data for intervals before the current one is saved in the
+database also, and can be queried by the appropriate tools (see the User
+Guide section on querying the database).
+
+Finally, you must provide a unique key that will differentiate your data
+from data stored by other modules. A key is just a 32-bit integer.
+
+After all that information, you'll need to write three functions (no
+matter whether your data is per-player or arena and what its scope is).
+
+The \verb/GetData/ function (you can name it whatever you want, that's
+just the name of the pointer in the struct you provide to
+\verb/persist/) is used to query your module for data to be written to
+the database. It's called when a player leaves an arena or disconnects
+from the server, or when an arena is being unloaded, to save the data
+from that entity before it's gone, and it's also called periodically
+every few minutes, to make sure the data on disk is relatively recent,
+in case of a server crash.
+
+When \verb/GetData/ is called, the client module should serialize its
+data into the buffer passed into the function, and then return the
+length of the serialized data. Returning zero indicates that it has no
+data to store for this entity.
+
+The \verb/SetData/ function is called when a player logs in or enters an
+arena, or when an arena is created. When called, the client module
+should deserialize data from the provided buffer into whatever form it
+will use it in.
+
+\verb/ClearData/ is called before \verb/SetData/ and can be used to
+clean up memory from the previous version of the data. When called, the
+client module should set the relevant data to starting values, as if a
+player or arena with no previously recorded data is being created.
+\verb/ClearData/ will also be called when an interval ends (immediately
+after a \verb/GetData/ call to get the last version of the data), to
+clear all data for the new interval.
+
+
+Finally, you pack up all that information and pointers to your functions
+in a statically allocated and initialized struct (of type
+\verb/PlayerPersistentData/ or \verb/ArenaPersistentData/), and call
+\verb/persist->RegPlayerPD/ or \verb/persist->RegArenaPD/. The
+\verb/persist/ module will be calling your getters and setters from its
+own thread, so you should use whatever locking is necessary to ensure
+correctness.
 
 
 \section{The Python interface}
