@@ -1,7 +1,6 @@
 
 #include <string.h>
 #include <stdio.h>
-#include <assert.h>
 #include <stdlib.h>
 
 #ifdef WIN32
@@ -163,13 +162,15 @@ local void DoAttach(int arena, int action)
 local void arena_conf_changed(void *aptr)
 {
 	int arena = ((ArenaData*)aptr) - arenas;
-	DO_CBS(CB_ARENAACTION, arena, ArenaActionFunc, (arena, AA_CONFCHANGED));
+	/* only running arenas should recieve confchanged events */
+	if (arenas[arena].status == ARENA_RUNNING)
+		DO_CBS(CB_ARENAACTION, arena, ArenaActionFunc, (arena, AA_CONFCHANGED));
 }
 
 
 void ProcessArenaQueue(void)
 {
-	int i, j, nextstatus;
+	int i, j, nextstatus, oops;
 	ArenaData *a;
 
 	LOCK_STATUS();
@@ -206,12 +207,22 @@ void ProcessArenaQueue(void)
 				break;
 
 			case ARENA_DO_DESTROY_CALLBACKS:
-				/* ASSERT there is nobody in here */
+				/* make sure there is nobody in here */
+				oops = 0;
 				for (j = 0; j < MAXPLAYERS; j++)
 					if (players[j].status != S_FREE)
-						assert(players[j].arena != i);
-				DO_CBS(CB_ARENAACTION, i, ArenaActionFunc, (i, AA_DESTROY));
-				nextstatus = ARENA_DO_UNLOAD_CONFIG;
+						if (players[j].arena == i)
+							oops = 1;
+				if (!oops)
+				{
+					DO_CBS(CB_ARENAACTION, i, ArenaActionFunc, (i, AA_DESTROY));
+					nextstatus = ARENA_DO_UNLOAD_CONFIG;
+				}
+				else
+				{
+					/* let's not destroy this after all... */
+					nextstatus = ARENA_RUNNING;
+				}
 				break;
 
 			case ARENA_DO_UNLOAD_CONFIG:

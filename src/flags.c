@@ -319,88 +319,86 @@ int GetFreqFlags(int arena, int freq)
 }
 
 
-local void LoadFlagSettings(int arena, int spawn)
+local void LoadFlagSettings(int arena, int init)
 {
-	struct MyArenaData d;
+	struct MyArenaData *d = pflagdata + arena;
 	ConfigHandle c = aman->arenas[arena].cfg;
 
-	memset(&d, 0, sizeof(d));
+	if (init)
+	{
+		/* get flag game type, only the first time */
+		d->gametype = cfg->GetInt(c, "Flag", "GameType", FLAGGAME_NONE);
 
-	/* get flag game type */
-	d.gametype = cfg->GetInt(c, "Flag", "GameType", FLAGGAME_NONE);
+		if (d->gametype)
+			logm->Log(L_INFO, "<flags> {%s} Arena has flaggame %d (%d-%d flags)",
+					aman->arenas[arena].name,
+					d->gametype,
+					d->minflags,
+					d->maxflags);
+	}
 
 	/* and initialize settings for that type */
-	if (d.gametype == FLAGGAME_BASIC)
+	if (d->gametype == FLAGGAME_BASIC)
 	{
 		const char *count, *c2;
-		d.resetdelay = cfg->GetInt(c, "Flag", "ResetDelay", 0);
-		d.spawnx = cfg->GetInt(c, "Flag", "SpawnX", 512);
-		d.spawny = cfg->GetInt(c, "Flag", "SpawnY", 512);
-		d.spawnr = cfg->GetInt(c, "Flag", "SpawnRadius", 1024);
-		d.dropr = cfg->GetInt(c, "Flag", "DropRadius", 2);
-		d.neutr = cfg->GetInt(c, "Flag", "NeutRadius", 2);
-		d.friendlytransfer = cfg->GetInt(c, "Flag", "FriendlyTransfer", 1);
-		d.dropowned = cfg->GetInt(c, "Flag", "DropOwned", 1);
-		d.neutowned = cfg->GetInt(c, "Flag", "NeutOwned", 0);
-		count = cfg->GetStr(c, "Flag", "FlagCount");
-		if (count)
+
+		d->resetdelay = cfg->GetInt(c, "Flag", "ResetDelay", 0);
+		d->spawnx = cfg->GetInt(c, "Flag", "SpawnX", 512);
+		d->spawny = cfg->GetInt(c, "Flag", "SpawnY", 512);
+		d->spawnr = cfg->GetInt(c, "Flag", "SpawnRadius", 1024);
+		d->dropr = cfg->GetInt(c, "Flag", "DropRadius", 2);
+		d->neutr = cfg->GetInt(c, "Flag", "NeutRadius", 2);
+		d->friendlytransfer = cfg->GetInt(c, "Flag", "FriendlyTransfer", 1);
+		d->dropowned = cfg->GetInt(c, "Flag", "DropOwned", 1);
+		d->neutowned = cfg->GetInt(c, "Flag", "NeutOwned", 0);
+
+		if (init)
 		{
-			d.minflags = strtol(count, NULL, 0);
-			if (d.minflags < 0) d.minflags = 0;
-			c2 = strchr(count, '-');
-			if (c2)
+			count = cfg->GetStr(c, "Flag", "FlagCount");
+			if (count)
 			{
-				d.maxflags = strtol(c2+1, NULL, 0);
-				if (d.maxflags < d.minflags)
-					d.maxflags = d.minflags;
+				d->minflags = strtol(count, NULL, 0);
+				if (d->minflags < 0) d->minflags = 0;
+				c2 = strchr(count, '-');
+				if (c2)
+				{
+					d->maxflags = strtol(c2+1, NULL, 0);
+					if (d->maxflags < d->minflags)
+						d->maxflags = d->minflags;
+				}
+				else
+					d->maxflags = d->minflags;
 			}
 			else
-				d.maxflags = d.minflags;
-		}
-		else
-			d.maxflags = d.minflags = 0;
-
-		if (spawn)
-		{
-			/* the timer event will notice that flagcount < maxflags and
-			 * spawn the flags. */
-			flagdata[arena].flagcount = 0;
+				d->maxflags = d->minflags = 0;
 
 			/* allocate array for public flag data */
-			flagdata[arena].flags = amalloc(d.maxflags * sizeof(struct FlagData));
+			flagdata[arena].flags = amalloc(d->maxflags * sizeof(struct FlagData));
+
+			/* the timer event will notice that flagcount < maxflags and
+			 * init the flags. */
+			flagdata[arena].flagcount = 0;
 		}
 	}
-	else if (d.gametype == FLAGGAME_TURF)
+	else if (d->gametype == FLAGGAME_TURF && init)
 	{
 		int i;
 		struct FlagData *f;
 
-		d.minflags = d.maxflags = flagdata[arena].flagcount =
+		d->minflags = d->maxflags = flagdata[arena].flagcount =
 			mapdata->GetFlagCount(arena);
 
-		if (spawn)
-		{
-			/* allocate array for public flag data */
-			flagdata[arena].flags = amalloc(d.maxflags * sizeof(struct FlagData));
+		/* allocate array for public flag data */
+		flagdata[arena].flags = amalloc(d->maxflags * sizeof(struct FlagData));
 
-			for (i = 0, f = flagdata[arena].flags; i < d.maxflags; i++, f++)
-			{
-				f->state = FLAG_ONMAP;
-				f->freq = -1;
-				f->x = -1;
-				f->y = -1;
-			}
+		for (i = 0, f = flagdata[arena].flags; i < d->maxflags; i++, f++)
+		{
+			f->state = FLAG_ONMAP;
+			f->freq = -1;
+			f->x = -1;
+			f->y = -1;
 		}
 	}
-
-	pflagdata[arena] = d;
-
-	if (d.gametype)
-		logm->Log(L_INFO, "<flags> {%s} Arena has flaggame %d (%d-%d flags)",
-				aman->arenas[arena].name,
-				d.gametype,
-				d.minflags,
-				d.maxflags);
 }
 
 
@@ -418,6 +416,7 @@ void AAFlag(int arena, int action)
 		}
 		pflagdata[arena].gametype = FLAGGAME_NONE;
 	}
+
 	if (action == AA_CREATE)
 	{
 		/* only if we're creating, load the data */

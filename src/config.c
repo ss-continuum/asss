@@ -348,6 +348,9 @@ local void FreeConfigFile(ConfigHandle ch)
 	pthread_mutex_lock(&ch->mutex);
 	if (--ch->refcount < 1)
 	{
+		/* don't call callbacks for dirty values that are written as
+		 * we're closing the file */
+		ch->changed = NULL;
 		write_dirty_values(NULL);
 		pthread_mutex_unlock(&ch->mutex);
 
