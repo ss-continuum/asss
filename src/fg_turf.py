@@ -49,7 +49,8 @@ def get_ownership(a):
 	if getattr(a, 'fg_turf_persist', 0):
 		owners = []
 		for i in range(a.fg_turf_fc):
-			f = flagcore.GetFlags(a, i)
+			n, f = flagcore.GetFlags(a, i)
+			assert n == 1
 			owners.append(f.freq)
 		return owners
 	else:
