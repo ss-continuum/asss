@@ -428,7 +428,7 @@ local void Pppk(Player *p, byte *pkt, int len)
 				    i->arena == arena &&
 				    (i != p || p->flags.see_own_posn))
 				{
-					long dist = lhypot(x1 - idata->pos.x, y1 - data->pos.y);
+					long dist = lhypot(x1 - idata->pos.x, y1 - idata->pos.y);
 					int res = i->xres + i->yres;
 
 					if (
