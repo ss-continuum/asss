@@ -1040,6 +1040,20 @@ void * MPRemove(MPQueue *q)
 	return data;
 }
 
+void MPClear(MPQueue *q)
+{
+	pthread_mutex_lock(&q->mtx);
+	LLEmpty(&q->list);
+	pthread_mutex_unlock(&q->mtx);
+}
+
+void MPClearOne(MPQueue *q, void *data)
+{
+	pthread_mutex_lock(&q->mtx);
+	LLRemoveAll(&q->list, data);
+	pthread_mutex_unlock(&q->mtx);
+}
+
 #endif /* MPQUEUE */
 
 

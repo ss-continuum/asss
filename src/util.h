@@ -210,6 +210,8 @@ void MPDestroy(MPQueue *mpq);
 void MPAdd(MPQueue *mpq, void *data); /* will not block  */
 void * MPTryRemove(MPQueue *mpq); /* will not block */
 void * MPRemove(MPQueue *mpq); /* will block */
+void MPClear(MPQueue *mpq);
+void MPClearOne(MPQueue *mpq, void *data);
 
 #endif /* MPQUEUE */
 
