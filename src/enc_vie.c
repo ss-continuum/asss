@@ -66,6 +66,10 @@ void Init(int pid, int k)
 
 	if (k == 0) return;
 
+	LockMutex(&statmtx);
+	enc->key = k;
+	UnlockMutex(&statmtx);
+
 	for (loop = 0; loop < 0x104; loop++)
 	{
 		asm ( "imul %%ecx" : "=d" (t) : "a" (k), "c" (0x834E0B5F) );
@@ -76,14 +80,17 @@ void Init(int pid, int k)
 		if (!k || (k & 0x80000000)) k += 0x7FFFFFFF;
 		mytable[loop] = (short)k;
 	}
-	enc->key = k;
 }
 
 
 void Encrypt(int pid, char *data, int len)
 {
 	int *mytable = (int *) enc[pid].enctable, *mydata = (int *) data;
-	int work = enc[pid].key, loop, until = (len/4)+1;
+	int work, loop, until = (len/4)+1;
+
+	LockMutex(&statmtx);
+	work = enc[pid].key;
+	UnlockMutex(&statmtx);
 
 	if (work == 0) return;
 
@@ -98,7 +105,11 @@ void Encrypt(int pid, char *data, int len)
 void Decrypt(int pid, char *data, int len)
 {
 	int *mytable = (int *) enc[pid].enctable, *mydata = (int *) data;
-	int work = enc[pid].key, loop, until = (len/4)+1, esi, edx;
+	int work, loop, until = (len/4)+1, esi, edx;
+
+	LockMutex(&statmtx);
+	work = enc[pid].key;
+	UnlockMutex(&statmtx);
 
 	if (work == 0) return;
 
@@ -117,6 +128,8 @@ void Decrypt(int pid, char *data, int len)
 
 void Void(int pid)
 {
+	LockMutex(&statmtx);
 	enc[pid].key = 0;
+	UnlockMutex(&statmtx);
 }
 
