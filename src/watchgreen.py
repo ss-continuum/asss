@@ -66,7 +66,7 @@ cmd1 = asss.add_command('watchgreen', c_watchgreen)
 
 
 def my_green(p, x, y, type):
-	wathchers = watchmap.get(p)
+	watchers = watchmap.get(p)
 	if watchers:
 		msg = '%s picked up %s' % (p.name, greenmap.get(type, 'Unknown'))
 		for watcher in watchers:
