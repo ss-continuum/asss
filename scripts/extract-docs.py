@@ -4,12 +4,15 @@
 import sys, re, string, glob
 
 
-re_helptext = re.compile(r"^local helptext_t ([a-z]*)_help =$")
+re_helptext = re.compile(r"^local helptext_t ([a-z_]*)_help =$")
 re_crap = re.compile(r'"?(.*?)(\\n)?"?;?$')
 re_targets = re.compile(r"Targets: (.*)")
 re_args = re.compile(r"Args: (.*)")
 re_module = re.compile(r"Module: (.*)")
 re_braces = re.compile(r"({.*?})")
+
+re_py_cmddef = re.compile(r"^def c_([a-z_]*)\(")
+re_py_quote = re.compile(r"'''" + r'|' + r'"""')
 
 
 def rem_crap(l):
@@ -98,8 +101,29 @@ def extract_docs(lines):
 
 			# remove crap
 			text = map(rem_crap, text)
-			
+
 			# output docs
+			docs[cmdname] = print_doc(cmdname, text)
+
+		m = re_py_cmddef.match(l)
+		if m:
+			# found a command, in python
+			cmdname = m.group(1)
+
+			# make sure we have a multi-line quote
+			i = i + 1
+			if not re_py_quote.search(lines[i]):
+				continue
+
+			text = [lines[i]]
+			i = i + 1
+			while not re_py_quote.search(lines[i]):
+				text.append(lines[i])
+				i = i + 1
+			text.append(lines[i])
+			i = i + 1
+
+			text = eval('\n'.join(text)).splitlines()
 			docs[cmdname] = print_doc(cmdname, text)
 
 		i = i + 1

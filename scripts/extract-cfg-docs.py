@@ -3,14 +3,14 @@
 
 import sys, re, string, glob
 
-re_cfghelp = re.compile(r"/* cfghelp: (.*?):(.*?), (.*)$")
-re_crap = re.compile(r'^\s*\* (.*?) ?(\*/)?$')
+re_cfghelp = re.compile(r"(/\*|#) cfghelp: (.*?):(.*?), (.*)$")
+re_crap = re.compile(r'(\*|#) (.*?) ?(\*/)?$')
 
 
 def rem_crap(l):
 	m = re_crap.match(l)
 	if m:
-		return m.group(1)
+		return m.group(2)
 	else:
 		return l
 
@@ -154,16 +154,18 @@ def extract_docs(lines):
 
 		m = re_cfghelp.search(l)
 		if m:
-			sec, key, attrs = m.groups()
+			cmtchar, sec, key, attrs = m.groups()
 			while attrs.endswith('\\'):
 				attrs = attrs[:-1] + rem_crap(lines[i])
 				i = i + 1
 			text = []
-			while not lines[i].endswith('*/'):
+			while (cmtchar == '#' and lines[i].startswith('#')) or \
+			      (cmtchar != '#' and not lines[i].endswith('*/')):
 				text.append(lines[i])
 				i = i + 1
-			text.append(lines[i])
-			i = i + 1
+			if cmtchar != '#':
+				text.append(lines[i])
+				i = i + 1
 
 			text = ' '.join(map(rem_crap, text))
 			attrs = map(string.strip, attrs.split(','))

@@ -209,7 +209,7 @@ letters.inc: $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font
 	$(PYTHON) $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font $@
 
 cfghelp.inc: $(SCRIPTS)/extract-cfg-docs.py
-	$(PYTHON) $(SCRIPTS)/extract-cfg-docs.py -c $@ *.c */*.c *.def
+	$(PYTHON) $(SCRIPTS)/extract-cfg-docs.py -c $@ *.c */*.c *.py */*.py *.def
 
 py_constants.inc py_callbacks.inc py_interfaces.inc: $(SCRIPTS)/pymod-process.py $(PYMOD_HEADERS)
 	$(PYTHON) $(SCRIPTS)/pymod-process.py $(PYMOD_HEADERS)

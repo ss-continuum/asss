@@ -43,15 +43,16 @@ clean:
 publish: pdf html
 	scp *.pdf *.html asss:web
 	#scp *.pdf *.html ellie:userguide
+	#ncftpput -v -u asssweb -p `cat ../../asssweb.yi.org-password` asssweb.yi.org www *.pdf *.html
 
 
 ### Dependencies and commands
 
 commands.tex: $(ASSSDIR)/src/*.c $(ASSSDIR)/scripts/extract-docs.py
-	python $(ASSSDIR)/scripts/extract-docs.py $@ $(ASSSDIR)/src/*.c
+	python $(ASSSDIR)/scripts/extract-docs.py $@ $(ASSSDIR)/src/*.{c,py}
 
 settings.tex: $(ASSSDIR)/src/*.c $(ASSSDIR)/scripts/extract-cfg-docs.py
-	python $(ASSSDIR)/scripts/extract-cfg-docs.py -l $@ $(ASSSDIR)/src/*.{c,def}
+	python $(ASSSDIR)/scripts/extract-cfg-docs.py -l $@ $(ASSSDIR)/src/*.{c,def,py}
 
 userguide.dvi: userguide.tex commands.tex settings.tex
 	latex userguide.tex

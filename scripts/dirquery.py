@@ -27,6 +27,7 @@ def query(host, minp = 1, printstatus = 0):
 		while p:
 			ip, port, players, scoresp, vers, title = \
 					struct.unpack('<4sHHHI64s', p[:78])
+			title = title.strip('\x00')
 			p = p[78:]
 			idx = p.index('\x00')
 			descr = p[:idx]
