@@ -5,6 +5,9 @@ cmd_stats
 cmd_score
 cmd_chat
 
+privcmd_freqkick
+privcmd_giveowner
+
 ; not implemented yet
 cmd_usage
 cmd_sheep

@@ -10,7 +10,7 @@ CFLAGS = $(BUILDNO) -D_REENTRANT -D_GNU_SOURCE -fPIC $(DEBUG_CFLAGS) $(PROF_FLAG
 
 ASSSLIBS = -ldl -lz -lpthread
 
-SCHEMEROOT = /home/david/src/plt/collects/mzscheme
+SCHEMEROOT = /home/david/scheme/plt
 SCHEMEINC = $(SCHEMEROOT)/include
 SCHEMELIB = $(SCHEMEROOT)/lib/i386-linux
 
@@ -52,7 +52,7 @@ EXTMODS = loggers.so  \
 
 all: pre install
 
-pre: sparse.inc letters.inc Makefile.deps
+pre: sparse.inc letters.inc buildnumber
 
 loggers.so: log_file.o log_console.o
 
@@ -68,7 +68,7 @@ scoring.so: persist.o stats.o points_kill.o points_flag.o points_goal.o
 
 scheme.so: scheme.o ooputils.o
 
-funky.so: autowarp.o bricklayer.o
+funky.so: autowarp.o bricklayer.o freqowners.o
 
 
 asss: main.o $(INTMODS) $(EXTRAOBJS)

@@ -16,6 +16,9 @@ local void Cflagreset(const char *, int, int);
 local void Cadmlogfile(const char *, int, int);
 local void Cballcount(const char *, int, int);
 
+local void Csetfreq(const char *, int, int);
+local void Csetship(const char *, int, int);
+
 
 /* global data */
 
@@ -28,6 +31,7 @@ local Iconfig *cfg;
 local Icapman *capman;
 local Imainloop *ml;
 local Iarenaman *aman;
+local Igame *game;
 local Ilog_file *logfile;
 local Iflags *flags;
 local Iballs *balls;
@@ -49,6 +53,7 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		mm->RegInterest(I_CONFIG, &cfg);
 		mm->RegInterest(I_CAPMAN, &capman);
 		mm->RegInterest(I_ARENAMAN, &aman);
+		mm->RegInterest(I_GAME, &game);
 		mm->RegInterest(I_MAINLOOP, &ml);
 		mm->RegInterest(I_LOG_FILE, &logfile);
 		mm->RegInterest(I_FLAGS, &flags);
@@ -64,6 +69,8 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		cmd->AddCommand("admlogfile", Cadmlogfile);
 		cmd->AddCommand("flagreset", Cflagreset);
 		cmd->AddCommand("ballcount", Cballcount);
+		cmd->AddCommand("setfreq", Csetfreq);
+		cmd->AddCommand("setship", Csetship);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
@@ -73,6 +80,8 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		cmd->RemoveCommand("admlogfile", Cadmlogfile);
 		cmd->RemoveCommand("flagreset", Cflagreset);
 		cmd->RemoveCommand("ballcount", Cballcount);
+		cmd->RemoveCommand("setfreq", Csetfreq);
+		cmd->RemoveCommand("setship", Csetship);
 
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_CHAT, &chat);
@@ -82,6 +91,7 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_CAPMAN, &capman);
 		mm->UnregInterest(I_ARENAMAN, &aman);
+		mm->UnregInterest(I_GAME, &game);
 		mm->UnregInterest(I_MAINLOOP, &ml);
 		mm->UnregInterest(I_LOG_FILE, &logfile);
 		mm->UnregInterest(I_FLAGS, &flags);
@@ -175,5 +185,30 @@ void Cballcount(const char *params, int pid, int target)
 		balls->UnlockBallStatus(arena);
 	}
 }
+
+
+void Csetfreq(const char *params, int pid, int target)
+{
+	if (target < 0 || target >= MAXPLAYERS)
+		return;
+
+	if (!*params)
+		return;
+
+	game->SetFreq(target, atoi(params));
+}
+
+
+void Csetship(const char *params, int pid, int target)
+{
+	if (target < 0 || target >= MAXPLAYERS)
+		return;
+
+	if (!*params)
+		return;
+
+	game->SetShip(target, atoi(params));
+}
+
 
 

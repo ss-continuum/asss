@@ -161,9 +161,9 @@ void PlayerAction(int pid, int action, int arena)
 {
 	if (action == PA_PREENTERARENA)
 		UpdateGroup(pid, arena);
-	else if (action == PA_LEAVEARENA || action == PA_CONNECT)
+	else if (action == PA_CONNECT)
 		UpdateGroup(pid, -1);
-	else if (action == PA_DISCONNECT)
+	else if (action == PA_DISCONNECT || action == PA_LEAVEARENA)
 		astrncpy(groups[pid], "none", MAXGROUPLEN);
 }
 

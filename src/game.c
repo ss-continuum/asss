@@ -39,10 +39,11 @@ local inline long lhypot (register long dx, register long dy);
 
 /* interface? */
 local void SetFreq(int pid, int freq);
-local void SetShip(int pid, int ship, int freq);
+local void SetShip(int pid, int ship);
+local void SetFreqAndShip(int pid, int ship, int freq);
 local void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2);
 
-local Igame _myint = { SetFreq, SetShip, DropBrick };
+local Igame _myint = { SetFreq, SetShip, SetFreqAndShip, DropBrick };
 
 
 /* global data */
@@ -344,7 +345,7 @@ void PSpecRequest(int pid, byte *p, int n)
 }
 
 
-void SetShip(int pid, int ship, int freq)
+void SetFreqAndShip(int pid, int ship, int freq)
 {
 	struct ShipChangePacket to = { S2C_SHIPCHANGE, ship, pid, freq };
 	int arena = players[pid].arena;
@@ -364,11 +365,23 @@ void SetShip(int pid, int ship, int freq)
 			ship);
 }
 
-void PSetShip(int pid, byte *p, int n)
+void SetShip(int pid, int ship)
 {
-	int ship = p[1];
 	int arena = players[pid].arena;
 	int freq = players[pid].freq;
+
+	DO_CBS(CB_FREQMANAGER,
+	       arena,
+	       FreqManager,
+	       (pid, REQUEST_SHIP, &ship, &freq));
+
+	SetFreqAndShip(pid, ship, freq);
+}
+
+void PSetShip(int pid, byte *p, int n)
+{
+	int arena = players[pid].arena;
+	int ship = p[1];
 
 	if (ship < WARBIRD || ship > SPEC)
 	{
@@ -386,12 +399,7 @@ void PSetShip(int pid, byte *p, int n)
 		return;
 	}
 
-	DO_CBS(CB_FREQMANAGER,
-	       arena,
-	       FreqManager,
-	       (pid, REQUEST_SHIP, &ship, &freq));
-
-	SetShip(pid, ship, freq);
+	SetShip(pid, ship);
 }
 
 
@@ -431,7 +439,7 @@ void PSetFreq(int pid, byte *p, int n)
 	if (ship == players[pid].shiptype)
 		SetFreq(pid, freq);
 	else
-		SetShip(pid, ship, freq);
+		SetFreqAndShip(pid, ship, freq);
 }
 
 

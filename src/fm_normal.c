@@ -14,6 +14,7 @@ int MM_fm_normal(int action, Imodman *_mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
+		mm = _mm;
 		mm->RegInterest(I_PLAYERDATA, &pd);
 		mm->RegInterest(I_ARENAMAN, &aman);
 		mm->RegInterest(I_CONFIG, &cfg);
@@ -81,10 +82,12 @@ local int FindLegalShip(int arena, int freq, int ship)
 
 local int BalanceFreqs(int arena, int excl, int inclspec)
 {
-	int counts[MAXDES] = { 0 }, i, desired, min = MAXPLAYERS, best = -1;
+	int counts[MAXDES] = { 0 }, i, desired, min = MAXPLAYERS, best = -1, max;
 
+	max = cfg->GetInt(aman->arenas[arena].cfg, "Team", "MaxPerTeam", 0);
 	desired = cfg->GetInt(aman->arenas[arena].cfg,
 			"Team", "DesiredTeams", 1);
+
 	if (desired < 1) desired = 1;
 	if (desired > MAXDES) desired = MAXDES;
 
@@ -107,15 +110,22 @@ local int BalanceFreqs(int arena, int excl, int inclspec)
 
 	if (best == -1) /* shouldn't happen */
 		return 0;
-	else
+	else if (max == 0 || best < max) /* we found a spot */
 		return best;
+	else /* no spots within desired freqs */
+	{
+		/* try incrementing freqs until we find one with < max players */
+		i = desired;
+		while (CountFreq(arena, i, excl, inclspec) >= max)
+			i++;
+		return i;
+	}
 }
 
 
 void MyFreqManager(int pid, int request, int *ship, int *freq)
 {
 	int arena, f = *freq, s = *ship;
-	int privlimit = 100;
 	ConfigHandle ch;
 
 	arena = pd->players[pid].arena;
@@ -127,12 +137,12 @@ void MyFreqManager(int pid, int request, int *ship, int *freq)
 	if (request == REQUEST_INITIAL || request == REQUEST_SHIP)
 	{
 		/* he's changing ship */
-		if (s == SPEC)
+		if (s >= SPEC)
 		{
 			/* if he's switching to spec, it's easy */
 			f = cfg->GetInt(ch, "Team", "SpectatorFrequency", 8025);
 		}
-		else
+		else if (request == REQUEST_INITIAL)
 		{
 			/* we have to assign him to a freq */
 			int inclspec = cfg->GetInt(ch, "Team", "IncludeSpectators", 0);
@@ -140,24 +150,34 @@ void MyFreqManager(int pid, int request, int *ship, int *freq)
 			/* and make sure the ship is still legal */
 			s = FindLegalShip(arena, f, s);
 		}
+		else /* request == REQUEST_SHIP */
+		{
+			/* don't touch freq, but make sure ship is ok */
+			s = FindLegalShip(arena, f, s);
+		}
 	}
-	else
+	else /* REQUEST_FREQ */
 	{
-		/* he's changing freq */
 		int count, max;
 		int inclspec = cfg->GetInt(ch, "Team", "IncludeSpectators", 0);
+		int maxfreq = cfg->GetInt(ch, "Team", "MaxFrequency", 9999);
+		int privlimit = cfg->GetInt(ch, "Team", "PrivFreqStart", 100);
 
 		if (f >= privlimit)
 			max = cfg->GetInt(ch, "Team", "MaxPerPrivateTeam", 0);
 		else
 			max = cfg->GetInt(ch, "Team", "MaxPerTeam", 0);
 
-		/* check to make sure the new freq is ok */
-		count = CountFreq(arena, f, pid, inclspec);
-		if (max > 0 && count >= max)
-		{
-			/* the freq has too many people, assign him to another */
+		if (f < 0 || f > maxfreq)
+			/* he requested a bad freq. drop him elsewhere. */
 			f = BalanceFreqs(arena, pid, inclspec);
+		else
+		{
+			/* check to make sure the new freq is ok */
+			count = CountFreq(arena, f, pid, inclspec);
+			if (max > 0 && count >= max)
+				/* the freq has too many people, assign him to another */
+				f = BalanceFreqs(arena, pid, inclspec);
 		}
 		/* make sure he has an appropriate ship for this freq */
 		s = FindLegalShip(arena, f, s);

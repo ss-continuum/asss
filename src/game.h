@@ -21,7 +21,8 @@ typedef void (*ShipChangeFunc)(int pid, int newship, int newfreq);
 typedef struct Igame
 {
 	void (*SetFreq)(int pid, int freq);
-	void (*SetShip)(int pid, int ship, int freq);
+	void (*SetShip)(int pid, int ship);
+	void (*SetFreqAndShip)(int pid, int ship, int freq);
 	void (*DropBrick)(int arena, int freq, int x1, int y1, int x2, int y2);
 } Igame;
 

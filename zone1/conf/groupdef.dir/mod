@@ -8,7 +8,11 @@ findinprivs
 
 cmd_ballcount
 cmd_flagreset
+
 privcmd_report
+
+privcmd_setship
+privcmd_setfreq
 
 ; fun stuff
 cmd_brickwrite
