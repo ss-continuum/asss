@@ -2,7 +2,7 @@
 # ccc - a console chat client for asss <grelminar@yahoo.com>
 # dist: public
 
-ccc_version = '2.1'
+ccc_version = '2.2'
 
 import sys, time, curses, socket, select, os
 
@@ -933,7 +933,7 @@ def process_msg(line):
 		add_line(msg, colors.arena)
 		log(L_ARENA, msg)
 		chatparser.line(rest)
-	elif type == 'PUB':
+	elif type == 'PUB' or type == 'PUBM':
 		name, msg = rest.split(':', 1)
 		txt = '%s> %s' % (name, msg)
 		add_line(txt, colors.pub)
