@@ -1286,6 +1286,13 @@ local void SetIgnoreWeapons(Player *p, double proportion)
 }
 
 
+local void ShipReset(const Target *target)
+{
+	byte pkt = S2C_SHIPRESET;
+	net->SendToTarget(target, &pkt, 1, NET_RELIABLE);
+}
+
+
 local void clear_data(Player *p, void *v)
 {
 	/* this was taken care of in PA_PREENTERARENA */
@@ -1342,7 +1349,8 @@ local Igame _myint =
 	SetFreq, SetShip, SetFreqAndShip, WarpTo, GivePrize,
 	Lock, Unlock, LockArena, UnlockArena,
 	FakePosition, FakeKill,
-	GetIgnoreWeapons, SetIgnoreWeapons
+	GetIgnoreWeapons, SetIgnoreWeapons,
+	ShipReset
 };
 
 

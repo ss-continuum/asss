@@ -102,7 +102,7 @@ typedef void (*GreenFunc)(Player *p, int x, int y, int prize);
 
 
 /** the game interface id */
-#define I_GAME "game-6"
+#define I_GAME "game-7"
 
 /** the game interface struct */
 typedef struct Igame
@@ -217,6 +217,12 @@ typedef struct Igame
 
 	double (*GetIgnoreWeapons)(Player *p);
 	void (*SetIgnoreWeapons)(Player *p, double proportion);
+
+	/** Resets the target's ship(s).
+	 * @param target the players to shipreset
+	 */
+	void (*ShipReset)(const Target *target);
+	/* pyint: target -> void */
 } Igame;
 
 

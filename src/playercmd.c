@@ -1057,8 +1057,7 @@ local helptext_t shipreset_help =
 
 local void Cshipreset(const char *tc, const char *params, Player *p, const Target *target)
 {
-	byte pkt = S2C_SHIPRESET;
-	net->SendToTarget(target, &pkt, 1, NET_RELIABLE);
+	game->ShipReset(target);
 }
 
 
