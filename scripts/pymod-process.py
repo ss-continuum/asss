@@ -1131,7 +1131,7 @@ def add_converted_type(ctype, name, isstruct):
 				return '%s %s' % (ctype, s)
 		if isstruct:
 			def buf_init(me):
-				return '{ }';
+				return '{ 0 }';
 		else:
 			def buf_init(me):
 				raise Exception()

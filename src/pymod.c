@@ -353,8 +353,9 @@ local PyObject *Player_get_type(PyObject *obj, void *v)
 
 local PyObject *Player_get_arena(PyObject *obj, void *v)
 {
+	PyObject *ao;
 	GET_AND_CHECK_PLAYER(p)
-	PyObject *ao = p->arena ?
+	ao = p->arena ?
 		(PyObject*)(((adata*)P_ARENA_DATA(p->arena, adkey))->obj) :
 		Py_None;
 	Py_XINCREF(ao);
@@ -393,8 +394,9 @@ local PyObject *Player_get_res(PyObject *obj, void *v)
 
 local PyObject *Player_get_onfor(PyObject *obj, void *v)
 {
+	int tm;
 	GET_AND_CHECK_PLAYER(p)
-	int tm = TICK_DIFF(current_ticks(), p->connecttime);
+	tm = TICK_DIFF(current_ticks(), p->connecttime);
 	return PyLong_FromLong(tm/100);
 }
 
