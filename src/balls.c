@@ -554,8 +554,6 @@ void PGoal(int pid, byte *p, int len)
 	int arena = pd->players[pid].arena, bid;
 	struct BallData *bd;
 
-	printf("DEBUG: packet from %s\n", pd->players[pid].name);
-
 	if (len != sizeof(struct C2SGoal))
 	{
 		logm->Log(L_MALICIOUS, "<balls> [%s] Bad size for goal packet", pd->players[pid].name);

@@ -37,7 +37,6 @@ local void SendLoginResponse(int);
 
 /* default auth, can be replaced */
 local void DefaultAuth(int, struct LoginPacket *, void (*)(int, AuthData *));
-local int DefaultAssignFreq(int, int, byte);
 
 
 /* GLOBALS */
@@ -53,13 +52,11 @@ local Imodman *mm;
 local Ilogman *log;
 local Imapnewsdl *map;
 local Iauth *auth;
-local Iassignfreq *afreq;
 local Iarenaman *aman;
 local Ipersist *persist;
 
 local PlayerData *players;
 
-local Iassignfreq _iaf = { DefaultAssignFreq };
 local Iauth _iauth = { DefaultAuth };
 
 
@@ -78,7 +75,6 @@ int MM_core(int action, Imodman *mm_, int arena)
 		mm->RegInterest(I_MAINLOOP, &ml);
 		mm->RegInterest(I_MAPNEWSDL, &map);
 		mm->RegInterest(I_AUTH, &auth);
-		mm->RegInterest(I_ASSIGNFREQ, &afreq);
 		mm->RegInterest(I_ARENAMAN, &aman);
 		mm->RegInterest(I_PERSIST, &persist);
 
@@ -92,7 +88,6 @@ int MM_core(int action, Imodman *mm_, int arena)
 
 		/* register default interfaces which may be replaced later */
 		mm->RegInterface(I_AUTH, &_iauth);
-		mm->RegInterface(I_ASSIGNFREQ, &_iaf);
 
 		/* set up periodic events */
 		ml->SetTimer(SendKeepalive, 500, 500, NULL);
@@ -101,7 +96,6 @@ int MM_core(int action, Imodman *mm_, int arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(I_ASSIGNFREQ, &_iaf);
 		mm->UnregInterface(I_AUTH, &_iauth);
 		mm->UnregCallback(CB_MAINLOOP, ProcessLoginQueue, ALLARENAS);
 		net->RemovePacket(C2S_LOGIN, PLogin);
@@ -183,6 +177,11 @@ void ProcessLoginQueue(void)
 				log->Log(L_ERROR,"<core> [pid=%d] Internal error: unknown player status %d", pid, oldstatus);
 				break;
 		}
+
+		/* check for missing persist module */
+		if (!persist && (ns == S_WAIT_GLOBAL_SYNC || ns == S_WAIT_ARENA_SYNC) )
+			ns++;
+
 		player->status = ns; /* set it */
 
 		/* now unlock status, lock player (because we might be calling
@@ -223,8 +222,19 @@ void ProcessLoginQueue(void)
 				/* then, get a freq */
 				/* yes, player->shiptype will be set here because it's
 				 * done in PArena */
-				player->freq = afreq->AssignFreq(pid, BADFREQ,
-						player->shiptype);
+				{
+					int freq = 0, ship = player->shiptype;
+
+					/* this should call a callback attached to the
+					 * arena, or none */
+					DO_CBS(CB_FREQMANAGER,
+					       player->arena,
+					       FreqManager,
+					       (pid, REQUEST_INITIAL, &ship, &freq));
+					/* set the results back */
+					player->shiptype = ship;
+					player->freq = freq;
+				}
 				/* then, sync scores */
 				if (persist)
 					persist->SyncFromFile(pid, player->arena, ASyncDone);
@@ -357,12 +367,6 @@ void DefaultAuth(int pid, struct LoginPacket *p, void (*Done)(int, AuthData *))
 	memset(auth.squad, 0, sizeof(auth.squad));
 
 	Done(pid, &auth);
-}
-
-
-int DefaultAssignFreq(int pid, int freq, byte ship)
-{
-	return freq;
 }
 
 

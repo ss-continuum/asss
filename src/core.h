@@ -34,21 +34,26 @@ typedef struct AuthData
 typedef void (*PlayerActionFunc)(int pid, int action, int arena);
 
 
-/* INTERFACES */
+/* freq management
+ * when a player's ship/freq need to be changed for any reason, one of
+ * these functions will be called. it gets the pid that we're dealing
+ * with, a request type specifying what type of request was made, the
+ * current ship, and the current freq (or -1 if the player has no freq
+ * yet). this function may modify one or both of the ship and freq
+ * variables. the caller will take care of generating the correct types
+ * of events. I can't imagine this callback being called from a place
+ * where the player mutex is not held, so callbacks of this type don't
+ * have to bother locking the player. */
 
-/*
- * this is used by modules who want to replace the freq assignment
- * method. for example, if you want to run a clockwork chaos-type game
- * (each ship type on its own freq) or some strange star warzone
- * settings, you can use this. the interface might change because I
- * don't really like it this way.
- *
- */
+#define CB_FREQMANAGER "freqman"
+typedef void (*FreqManager)(int pid, int request, int *ship, int *freq);
 
-typedef struct Iassignfreq
+enum
 {
-	int (*AssignFreq)(int pid, int requested, byte shiptype);
-} Iassignfreq;
+	REQUEST_INITIAL, /* used for initial freq assignment */
+	REQUEST_SHIP,    /* the player requested a ship change */
+	REQUEST_FREQ     /* the player requested a freq change */
+};
 
 
 

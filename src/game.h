@@ -17,5 +17,14 @@ typedef void (*FreqChangeFunc)(int pid, int newfreq);
 #define CB_SHIPCHANGE ("shipchange")
 typedef void (*ShipChangeFunc)(int pid, int newship, int newfreq);
 
+
+typedef struct Igame
+{
+	void (*SetFreq)(int pid, int freq);
+	void (*SetShip)(int pid, int ship, int freq);
+	void (*DropBrick)(int arena, int freq, int x1, int y1, int x2, int y2);
+} Igame;
+
+
 #endif
 

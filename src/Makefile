@@ -10,7 +10,7 @@ CFLAGS = $(BUILDNO) -D_REENTRANT -D_GNU_SOURCE -fPIC $(DEBUG_CFLAGS) $(PROF_FLAG
 
 ASSSLIBS = -ldl -lz -lpthread
 
-SCHEMEROOT = /home/david/scheme/plt/collects/mzscheme
+SCHEMEROOT = /home/david/src/plt/collects/mzscheme
 SCHEMEINC = $(SCHEMEROOT)/include
 SCHEMELIB = $(SCHEMEROOT)/lib/i386-linux
 
@@ -55,7 +55,7 @@ all: install
 
 loggers.so: log_file.o log_console.o
 
-game.so: game.o chat.o flags.o balls.o
+game.so: game.o chat.o flags.o balls.o fm_normal.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -lm
 
 command.so: cmdman.o playercmd.o

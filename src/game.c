@@ -37,10 +37,11 @@ local inline void DoChecksum(struct S2CWeapons *, int);
 local inline long lhypot (register long dx, register long dy);
 
 /* interface? */
+local void SetFreq(int pid, int freq);
+local void SetShip(int pid, int ship, int freq);
 local void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2);
 
-local int MyAssignFreq(int, int, byte);
-
+local Igame _myint = { SetFreq, SetShip, DropBrick };
 
 
 /* global data */
@@ -50,7 +51,6 @@ local Iconfig *cfg;
 local Inet *net;
 local Ilogman *log;
 local Imodman *mm;
-local Iassignfreq *afreq;
 local Iarenaman *aman;
 local Icmdman *cmd;
 local Ichat *chat;
@@ -60,8 +60,6 @@ local Imapdata *mapdata;
 
 local PlayerData *players;
 local ArenaData *arenas;
-
-local Iassignfreq _myaf = { MyAssignFreq };
 
 /* big arrays */
 local struct C2SPosition pos[MAXPLAYERS];
@@ -85,7 +83,6 @@ int MM_game(int action, Imodman *mm_, int arena)
 		mm->RegInterest(I_CONFIG, &cfg);
 		mm->RegInterest(I_LOGMAN, &log);
 		mm->RegInterest(I_NET, &net);
-		mm->RegInterest(I_ASSIGNFREQ, &afreq);
 		mm->RegInterest(I_ARENAMAN, &aman);
 		mm->RegInterest(I_CMDMAN, &cmd);
 		mm->RegInterest(I_CHAT, &chat);
@@ -125,12 +122,13 @@ int MM_game(int action, Imodman *mm_, int arena)
 
 		cmd->AddCommand("report", Creport);
 
-		mm->RegInterface(I_ASSIGNFREQ, &_myaf);
+		mm->RegInterface(I_GAME, &_myint);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
+		mm->UnregInterface(I_GAME, &_myint);
 		cmd->RemoveCommand("report", Creport);
 		net->RemovePacket(C2S_POSITION, Pppk);
 		net->RemovePacket(C2S_SETSHIP, PSetShip);
@@ -146,7 +144,6 @@ int MM_game(int action, Imodman *mm_, int arena)
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_NET, &net);
-		mm->UnregInterest(I_ASSIGNFREQ, &afreq);
 		mm->UnregInterest(I_ARENAMAN, &aman);
 		mm->UnregInterest(I_CMDMAN, &cmd);
 		mm->UnregInterest(I_CHAT, &chat);
@@ -155,7 +152,6 @@ int MM_game(int action, Imodman *mm_, int arena)
 		mm->UnregInterest(I_MAPDATA, &mapdata);
 		/* do this last so we don't get prevented from unloading because
 		 * of ourself */
-		mm->UnregInterface(I_ASSIGNFREQ, &_myaf);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -347,45 +343,33 @@ void PSpecRequest(int pid, byte *p, int n)
 }
 
 
-int MyAssignFreq(int pid, int requested, byte ship)
+void SetShip(int pid, int ship, int freq)
 {
-	int arena;
-	ConfigHandle ch;
+	struct ShipChangePacket to = { S2C_SHIPCHANGE, ship, pid, freq };
+	int arena = players[pid].arena;
 
 	pd->LockPlayer(pid);
-	arena = players[pid].arena;
+	players[pid].shiptype = ship;
+	players[pid].freq = freq;
+	net->SendToArena(arena, -1, (byte*)&to, 6, NET_RELIABLE);
 	pd->UnlockPlayer(pid);
 
-	if (arena < 0 || arena >= MAXARENA) return BADFREQ;
-	ch = arenas[arena].cfg;
+	DO_CBS(CB_SHIPCHANGE, arena, ShipChangeFunc,
+			(pid, ship, freq));
 
-	if (requested == BADFREQ)
-	{
-		if (ship == SPEC)
-			return cfg->GetInt(ch, "Freq", "SpecFreq", 8025);
-		else
-			return 0; /* BalanceFreqs(arena); */
-	}
-	else
-	{
-		if (requested < 0 ||
-				requested > cfg->GetInt(ch, "Freq", "MaxFreq", 9999))
-			return BADFREQ;
-		else if (ship == SPEC && cfg->GetInt(ch, "Freq", "LockSpec", 0))
-			return BADFREQ;
-		else
-			return requested;
-	}
+	log->Log(L_DRIVEL, "<game> {%s} [%s] Changed ship to %d",
+			arenas[arena].name,
+			players[pid].name,
+			ship);
 }
-
 
 void PSetShip(int pid, byte *p, int n)
 {
-	byte ship = p[1];
-	struct ShipChangePacket to = { S2C_SHIPCHANGE, ship, pid, 0 };
+	int ship = p[1];
 	int arena = players[pid].arena;
+	int freq = players[pid].freq;
 
-	if (/* ship < WARBIRD || */ ship > SPEC)
+	if (ship < WARBIRD || ship > SPEC)
 	{
 		log->Log(L_MALICIOUS, "<game> {%s} [%s] Bad ship number: %d",
 				arenas[arena].name,
@@ -394,57 +378,59 @@ void PSetShip(int pid, byte *p, int n)
 		return;
 	}
 
-	if (arena < 0)
+	if (arena < 0 || arena >= MAXARENA)
 	{
 		log->Log(L_MALICIOUS, "<game> [%s] Ship request from bad arena",
 				players[pid].name);
 		return;
 	}
 
-	to.freq = afreq->AssignFreq(pid, BADFREQ, ship);
+	DO_CBS(CB_FREQMANAGER,
+	       arena,
+	       FreqManager,
+	       (pid, REQUEST_SHIP, &ship, &freq));
 
-	if (to.freq != BADFREQ)
-	{
-		players[pid].shiptype = ship;
-		players[pid].freq = to.freq;
-		net->SendToArena(arena, -1, (byte*)&to, 6, NET_RELIABLE);
-
-		DO_CBS(CB_SHIPCHANGE, arena, ShipChangeFunc,
-				(pid, ship, to.freq));
-
-		log->Log(L_DRIVEL, "<game> {%s} [%s] Changed ship to %d",
-				arenas[arena].name,
-				players[pid].name,
-				ship);
-	}
+	SetShip(pid, ship, freq);
 }
 
 
+void SetFreq(int pid, int freq)
+{
+	struct SimplePacket to = { S2C_FREQCHANGE, pid, freq, -1};
+	int arena = players[pid].arena;
+
+	pd->LockPlayer(pid);
+	players[pid].freq = freq;
+	net->SendToArena(arena, -1, (byte*)&to, 6, NET_RELIABLE);
+	pd->UnlockPlayer(pid);
+
+	DO_CBS(CB_FREQCHANGE, arena, FreqChangeFunc, (pid, freq));
+
+	log->Log(L_DRIVEL, "<game> {%s} [%s] Changed freq to %d",
+			arenas[arena].name,
+			players[pid].name,
+			freq);
+}
+
 void PSetFreq(int pid, byte *p, int n)
 {
-	struct SimplePacket to = { S2C_FREQCHANGE, pid, 0, -1};
-	int freq, arena, newfreq;
+	int freq, arena, ship;
 
-	freq = ((struct SimplePacket*)p)->d1;
 	arena = players[pid].arena;
+	freq = ((struct SimplePacket*)p)->d1;
+	ship = players[pid].shiptype;
 
-	if (arena < 0) return;
+	if (arena < 0 || arena >= MAXARENA) return;
 
-	newfreq = afreq->AssignFreq(pid, freq, players[pid].shiptype);
+	DO_CBS(CB_FREQMANAGER,
+	       arena,
+	       FreqManager,
+	       (pid, REQUEST_SHIP, &ship, &freq));
 
-	if (newfreq != BADFREQ)
-	{
-		to.d2 = newfreq;
-		players[pid].freq = newfreq;
-		net->SendToArena(arena, -1, (byte*)&to, 6, NET_RELIABLE);
-
-		DO_CBS(CB_FREQCHANGE, arena, FreqChangeFunc, (pid, newfreq));
-
-		log->Log(L_DRIVEL, "<game> {%s} [%s] Changed freq to %d",
-				arenas[arena].name,
-				players[pid].name,
-				newfreq);
-	}
+	if (ship == players[pid].shiptype)
+		SetFreq(pid, freq);
+	else
+		SetShip(pid, ship, freq);
 }
 
 
