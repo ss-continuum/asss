@@ -291,6 +291,7 @@ local void SendRemotePrivMessage(LinkedList *set, int sound,
 
 #define CMD_CHAR_1 '?'
 #define CMD_CHAR_2 '*'
+#define CMD_MULTI_CHAR '|'
 #define MOD_CHAT_CHAR '\\'
 
 #define OK(type) IS_ALLOWED(pm->mask | *am, type)
@@ -299,26 +300,24 @@ local void SendRemotePrivMessage(LinkedList *set, int sound,
 local void run_commands(const char *text, Player *p, Target *target)
 {
 	char buf[512], *b;
-	int count = 0, initial = 0;
+	int count = 0, initial, multi;
 
 	if (!cmd) return;
 
-	for (;;)
+	/* skip initial * or ? */
+	initial = *text++;
+	/* check if this is a multi-command */
+	multi = (*text == CMD_MULTI_CHAR);
+
+	while (*text && count++ < cfg_cmdlimit)
 	{
-		/* skip over *, ?, and | */
-		while (*text == CMD_CHAR_1 || *text == CMD_CHAR_2 || *text == '|')
-		{
-			if (*text != '|')
-				initial = *text;
+		while (*text == CMD_MULTI_CHAR)
 			text++;
-		}
-
-		if (*text == '\0' || count++ >= cfg_cmdlimit)
-			break;
-
 		b = buf;
-		while (*text && *text != '|' && (b-buf) < sizeof(buf))
+		while (*text && (!multi || *text != CMD_MULTI_CHAR) && (b-buf) < sizeof(buf))
 			*b++ = *text++;
+		if ((b-buf) >= sizeof(buf))
+			break;
 		*b = '\0';
 		/* give modules a chance to rewrite the command */
 		DO_CBS(CB_REWRITECOMMAND, ALLARENAS, CommandRewriterFunc, (initial, buf, sizeof(buf)));

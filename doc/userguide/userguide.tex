@@ -662,12 +662,13 @@ and send mod chat.
 
 \subsection{Multiple commands}
 
-You can specify multiple commands on one line by dividing them with
-vertical bars (\verb/|/). The subsequent commands (after the first bar)
-don't need question marks (although they are ignored if present). You
-can send multiple private commands, but you can't send both public and
-private commands on the same line. There's a hard limit of five commands
-on one line.
+You can specify multiple commands on one line by putting a vertical bar
+(\verb/|/) directly after the command character (\verb/?/ or \verb/*/),
+and the separating commands with more bars. Do not put any spaces or
+other characters between the bars and the start of the command. Multiple
+private commands are supported, but you can't mix public and private
+commands on the same line. There's a hard limit of five commands on one
+line. Example: \verb/?|flagreset|shipreset|prize warp|aa go!/.
 
 
 \subsection{Built-in alias database}
