@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #include <time.h>
 #include "asss.h"
 #include "idle.h"

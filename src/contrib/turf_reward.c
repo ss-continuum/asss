@@ -112,6 +112,7 @@
  * -----------------------------------------------------------------------------
  */
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include "asss.h"                /* necessary include to connect the module */
