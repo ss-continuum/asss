@@ -80,6 +80,7 @@ local void handle_sigusr2(void)
 local void handle_sigsegv(int sig)
 {
 	char cmd[128];
+	fcloseall();
 	memset(cmd, 0, sizeof(cmd));
 	snprintf(cmd, sizeof(cmd), "bin/backtrace bin/asss %d", getpid());
 	system(cmd);
