@@ -16,6 +16,7 @@
 
 # this should point to the root directory of the asss tree.
 ASSSHOME = ..
+BINDIR = $(ASSSHOME)/bin
 SCRIPTS = $(ASSSHOME)/scripts
 
 # default options:
@@ -37,7 +38,7 @@ link_db_statically = no
 
 # change this to the directory of your bdb 4.x install
 DB_HOME = /opt/db-4.0.14
-# you might have to add a '/db4' to the end of the next line:
+# these probably won't have to change:
 DB_INC = $(DB_HOME)/include
 DB_LIB = $(DB_HOME)/lib
 DB_CFLAGS = -I$(DB_INC)
@@ -50,7 +51,7 @@ endif
 
 # change this to the directory of your mysql install
 MYSQL_HOME = /opt/mysql
-# these shouldn't have to change
+# these probably won't have to change
 MYSQL_INC = $(MYSQL_HOME)/include
 MYSQL_LIB = $(MYSQL_HOME)/lib
 MYSQL_CFLAGS = -I$(MYSQL_INC)
@@ -60,7 +61,7 @@ MYSQL_LDFLAGS = -L$(MYSQL_LIB) -Wl,-rpath,$(MYSQL_LIB) -lmysqlclient_r
 PYTHON_HOME = /opt/python-2.2.2
 # change this to the major/minor version number of your python install
 PYTHON_VERSION = 2.2
-# these shouldn't have to change
+# these probably won't have to change
 PYTHON_INC = $(PYTHON_HOME)/include/python$(PYTHON_VERSION)
 PYTHON_LIB = $(PYTHON_HOME)/lib/python$(PYTHON_VERSION)
 PYTHON_CFLAGS = -I$(PYTHON_INC)
@@ -122,7 +123,7 @@ PROF_FLAGS = -pg
 endif
 
 ifeq ($(opt),yes)
-OPT_CFLAGS = -O2 -fomit-frame-pointer -Wall -fpedantic -DNDEBUG
+OPT_CFLAGS = -O2 -Wall -fpedantic
 endif
 
 CC = gcc -pipe
@@ -221,14 +222,16 @@ pymod.o: CFLAGS += $(PYTHON_CFLAGS)
 	$(CC) $(LDFLAGS) -shared -o $@ $^ $(SO_LDFLAGS) $(LIBS)
 
 install: $(ALL_STUFF)
-	install -d $(ASSSHOME)/bin
-	install $(ALL_STUFF) $(ASSSHOME)/bin
+	install -d $(BINDIR)
+	install $(ALL_STUFF) $(BINDIR)
 
-clean:
-	-rm -f asss$(EXE) dbtool$(EXE) *.o */*.o *.$(SO) */*.$(SO) *.inc core Makefile.deps
+clean: cleanbin
+	-rm -f *.inc core Makefile.deps
 
+cleanbin:
+	-rm -f asss$(EXE) dbtool$(EXE) *.o */*.o *.$(SO) */*.$(SO)
 
-.PHONY: clean install all
+.PHONY: clean cleanbin install all
 
 
 Makefile.deps: sparse.inc letters.inc cfghelp.inc py_constants.inc \
