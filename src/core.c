@@ -376,6 +376,7 @@ int process_player_states(void *v)
 				}
 				aman->SendArenaResponse(player);
 				player->flags.sent_ppk = 0;
+				player->flags.sent_wpn = 0;
 				break;
 
 			case S_DO_ARENA_CALLBACKS:

@@ -34,6 +34,7 @@ typedef struct
 	struct { int seenrg, seenrgspec, seeepd; } pl_epd;
 	/*           enum    enum        bool              */
 	int lockship;
+	int deathwofiring;
 } pdata;
 
 typedef struct
@@ -42,6 +43,7 @@ typedef struct
 	/*  bool      enum      enum     */
 	u32 personalgreen;
 	int initlockship, initspec;
+	int deathwofiring;
 } adata;
 
 
@@ -162,6 +164,10 @@ local void Pppk(Player *p, byte *pkt, int len)
 	{
 		x1 = pos->x;
 		y1 = pos->y;
+
+		/* this check should be before the weapon ignore hook */
+		if (pos->weapon.type)
+			p->flags.sent_wpn = 1;
 
 		/* this is the weapons ignore hook */
 		if (pos->weapon.type && prng->Rand() < p->ignoreweapons)
@@ -520,9 +526,8 @@ local void SetFreqAndShip(Player *p, int ship, int freq)
 {
 	pdata *data = PPDATA(p, pdkey);
 	struct ShipChangePacket to = { S2C_SHIPCHANGE, ship, p->pid, freq };
-	Arena *arena;
-
-	arena = p->arena;
+	Arena *arena = p->arena;
+	adata *ad = P_ARENA_DATA(arena, adkey);
 
 	pd->LockPlayer(p);
 
@@ -541,6 +546,9 @@ local void SetFreqAndShip(Player *p, int ship, int freq)
 	pthread_mutex_lock(&specmtx);
 	clear_speccing(data);
 	pthread_mutex_unlock(&specmtx);
+
+	/* reset this counter on each ship change */
+	data->deathwofiring = ad->deathwofiring;
 
 	pd->UnlockPlayer(p);
 
@@ -814,6 +822,19 @@ local void PDie(Player *p, byte *pkt, int len)
 			bty,
 			flagcount,
 			pts);
+
+	if (!p->flags.sent_wpn)
+	{
+		pdata *data = PPDATA(p, pdkey);
+		if (data->deathwofiring-- <= 0)
+		{
+			lm->LogP(L_DRIVEL, "game", p, "specced for too many deaths without firing");
+			SetFreqAndShip(p, SPEC, arena->specfreq);
+		}
+	}
+
+	/* reset this so we can accurately check deaths without firing */
+	p->flags.sent_wpn = 0;
 }
 
 local void FakeKill(Player *killer, Player *killed, int pts, int flags)
@@ -942,6 +963,7 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 		data->epd_queries = 0;
 
 		data->wpnsent = 0;
+		data->deathwofiring = ad->deathwofiring;
 	}
 	else if (action == PA_LEAVEARENA)
 	{
@@ -989,6 +1011,12 @@ local void ArenaAction(Arena *arena, int action)
 		 * else's, $SEE_ALL is everyone's, $SEE_TEAM is only teammates. */
 		ad->all_nrg =
 			cfg->GetInt(arena->cfg, "Misc", "SeeEnergy", SEE_NONE);
+
+		/* cfghelp: Security:MaxDeathWithoutFiring, arena, int, def: 5
+		 * The number of times a player can die without firing a weapon
+		 * before being placed in spectator mode. */
+		ad->deathwofiring =
+			cfg->GetInt(arena->cfg, "Security", "MaxDeathWithoutFiring", 5);
 
 		/* cfghelp: Prize:DontShareThor, arena, bool, def: 0
 		 * Whether Thor greens don't go to the whole team. */
