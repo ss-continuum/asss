@@ -216,7 +216,6 @@ int process_player_states(void *v)
 		{
 			/* for all of these states, there's nothing to do in this
 			 * loop */
-			case S_CONNECTED:
 			case S_WAIT_AUTH:
 			case S_WAIT_GLOBAL_SYNC1:
 			case S_WAIT_GLOBAL_SYNC2:
@@ -227,7 +226,10 @@ int process_player_states(void *v)
 				continue;
 
 			/* this is an interesting state: this function is
-			 * responsible for some transitions away from loggedin */
+			 * responsible for some transitions away from loggedin. we
+			 * also do the whenloggedin transition if the player is just
+			 * connected and not logged in yet. */
+			case S_CONNECTED:
 			case S_LOGGEDIN:
 				/* at this point, the player can't have an arena */
 				player->arena = NULL;

@@ -165,7 +165,8 @@ local void kill_connection(Player *p)
 
 	pd->WriteLock();
 
-	/* will put in S_LEAVING_ARENA */
+	/* this will set state to S_LEAVING_ARENA, if it was anywhere above
+	 * S_LOGGEDIN. */
 	if (p->arena)
 		process_line("LEAVE", NULL, p);
 
