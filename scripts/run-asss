@@ -14,36 +14,57 @@ E_GENERAL=2
 E_OOM=3
 E_MODCONF=4
 E_MODLOAD=5
+E_CHROOT=6
 
-DATEFORM='+%Y.%m.%d %H:%M:%S'
-pdate () { date "$DATEFORM"; }
-
-ASSS=$ASSSHOME/bin/asss
-
-ZONE=$1
-ZONEDIR=$ASSSHOME/$1
+if [ "$1" ]; then
+  ZONEDIR=$ASSSHOME/$1
+else
+  ZONEDIR=$ASSSHOME
+fi
 
 SCRIPTLOG=$ZONEDIR/log/wrapper.log
+log ()
+{
+  echo "*** $*"
+  echo "`date '+%Y.%m.%d %H:%M:%S'`: $*" >> $SCRIPTLOG
+}
 
 if [ ! -d $ZONEDIR ]; then
-  echo "Zone '$ZONE' not found. Please run $0 with a valid zone name."
+  echo "Directory '$ZONEDIR' not found."
   exit 1
 fi
 
 cd $ZONEDIR
 
+# check sanity
+if [ ! -e conf/modules.conf ]; then
+  echo "This directory doesn't look like a valid zone directory."
+  exit 1
+fi
+
+# figure out which binary to run
+if [ -e bin/asss ]; then
+  ASSS=bin/asss
+else
+  ASSS=$ASSSHOME/bin/asss
+fi
+
+# figure out if this zone is set up for chrooting
+if [ \( -e lib/ld-linux.so.2 \) -a \( -u $ASSS \) ]; then
+  echo "*** chroot enabled"
+  CHROOT=--chroot
+fi
+
 CONTINUE=true
 
 while $CONTINUE; do
 
-  echo "`pdate`: $ZONE: asss started" >> $SCRIPTLOG
+  log "asss started"
 
-  $ASSS
+  $ASSS $CHROOT
   EXIT=$?
 
-  for c in core*; do
-    mv $c $c-`date +%m%d%H%M`
-  done
+  [ -e core ] && mv core core-`date +%m%d%H%M`
 
   SLEEP=3
 
@@ -63,6 +84,9 @@ while $CONTINUE; do
   elif [ $EXIT -eq $E_MODLOAD ]; then
     MSG="error loading modules"
     CONTINUE=false
+  elif [ $EXIT -eq $E_CHROOT ]; then
+    MSG="error in chroot"
+    CONTINUE=false
   elif [ $EXIT -gt 128 ]; then
     MSG="due to signal `expr $EXIT - 128`, restarting"
   else
@@ -70,7 +94,7 @@ while $CONTINUE; do
     CONTINUE=false
   fi
 
-  echo "`pdate`: $ZONE: asss exited: $MSG" >> $SCRIPTLOG
+  log "asss exited: $MSG"
 
   sleep $SLEEP
 
