@@ -4,6 +4,7 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <sched.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,16 @@
 
 #include "asss.h"
 
+/* SYNCHRONIZATION DEBUGGING
+#define LockMutex(mtx) \
+	log->Log(LOG_DEBUG, "waiting on " #mtx " at %i", __LINE__); \
+	pthread_mutex_lock(mtx); \
+	log->Log(LOG_DEBUG, "    locked " #mtx " at %i", __LINE__)
+
+#define UnlockMutex(mtx) \
+	log->Log(LOG_DEBUG, " unlocking " #mtx " at %i", __LINE__); \
+	pthread_mutex_unlock(mtx)
+*/
 
 /* MACROS */
 
@@ -50,7 +61,7 @@ typedef struct ClientData
 typedef struct Buffer
 {
 	DQNode node;
-	int retries, pid, len, flags;
+	int retries, pid, len;
 	unsigned int lastretry;
 	union
 	{
@@ -198,6 +209,8 @@ int MM_net(int action, Imodman *mm)
 		/* init hash */
 		for (i = 0; i < HASHSIZE; i++)
 			clienthash[i] = -1;
+		for (i = 0; i < MAXPLAYERS + EXTRA_PID_COUNT; i++)
+			clients[i].nextinbucket = -1;
 
 		/* init buffers */
 		InitCondition(&outcond); InitCondition(&relcond);
@@ -318,7 +331,6 @@ void InitSockets()
 	if (bind(myothersock, (struct sockaddr *) &localsin, sizeof(localsin)) == -1)
 		Error(ERROR_NORMAL,"net: bind");
 
-	memset(clients + PID_BILLER, 0, sizeof(ClientData));
 	if (config.usebilling)
 	{
 		/* get socket */
@@ -336,7 +348,6 @@ void InitSockets()
 			inet_addr(cfg->GetStr(GLOBAL, "Billing", "IP"));
 		clients[PID_BILLER].sin.sin_port = 
 			htons(cfg->GetInt(GLOBAL, "Billing", "Port", 1850));
-		memset(clients[PID_BILLER].sin.sin_zero, 0, sizeof(localsin.sin_zero));
 	}
 }
 
@@ -384,9 +395,6 @@ void * RecvThread(void *dummy)
 
 			buf->len = len;
 
-			/*printf("packet from %i:%i, p[0].status = %i\n", sin.sin_addr.s_addr, sin.sin_port,
-					players[0].status); */
-
 			/* search for an existing connection */
 			hashbucket = HashIP(sin);
 			pid = clienthash[hashbucket];
@@ -411,7 +419,7 @@ void * RecvThread(void *dummy)
 				}
 				else
 				{
-					log->Log(LOG_DEBUG,"New connection (%s:%i) assigning pid %i",
+					log->Log(LOG_USELESSINFO,"New connection (%s:%i) assigning pid %i",
 							inet_ntoa(sin.sin_addr), ntohs(sin.sin_port), pid);
 				}
 			}
@@ -490,26 +498,23 @@ void * SendThread(void *dummy)
 
 	while (!killallthreads)
 	{
-
 		/* zero some arrays */
-		memset(pcount, 0, (MAXPLAYERS+1) * sizeof(unsigned int));
-		memset(bigcount, 0, (MAXPLAYERS+1) * sizeof(unsigned int));
+		memset(pcount, 0, (MAXPLAYERS+EXTRA_PID_COUNT) * sizeof(unsigned));
+		memset(bigcount, 0, (MAXPLAYERS+EXTRA_PID_COUNT) * sizeof(unsigned));
 
 		/* grab first buffer */
 		LockMutex(&outmtx);
-		while (outlist.next == &outlist)
-			WaitCondition(&outcond, &outmtx);
+		WaitConditionTimed(&outcond, &outmtx, 200);
 		buf = (Buffer*)outlist.next;
-		UnlockMutex(&outmtx);
 
-		gtc = GTC();
-
-		while ((DQNode*)buf != &outlist)
+		for (buf = (Buffer*)outlist.next; (DQNode*)buf != &outlist; buf = nbuf)
 		{
+			nbuf = (Buffer*)buf->node.next;
+
 			/* remove packets that client has acked */
 			if (    buf->d.rel.t1 == 0x00
 			     && buf->d.rel.t2 == 0x03
-			     && clients[buf->pid].lastack > buf->d.rel.seqnum)
+			     && clients[buf->pid].lastack >= buf->d.rel.seqnum)
 				buf->retries = 0;
 
 			/* check if the player still exists */
@@ -517,16 +522,18 @@ void * SendThread(void *dummy)
 				buf->retries = 0;
 
 			/* check if we can send it now */
-			if (    buf->retries
+			if (    buf->retries > 0
 			     && (gtc - buf->lastretry) > config.timeout)
 			{
 				if (buf->len > 240)
 				{	/* too big for grouped, send immediately */
 					if (bigcount[buf->pid]++ < config.biglimit)
 					{
-						buf->lastretry = gtc;
+						buf->lastretry = GTC();
 						buf->retries--;
+						/* UnlockMutex(&outmtx); // skipped to save speed */
 						SendRaw(buf->pid, buf->d.raw, buf->len);
+						/* LockMutex(&outmtx); */
 					}
 				}
 				else if (pcount[buf->pid] < MAXGROUPED)
@@ -535,17 +542,16 @@ void * SendThread(void *dummy)
 					/* at all until the first bunch are ack'd */
 			}
 
-			/* move to next */
-			LockMutex(&outmtx);
-			nbuf = (Buffer*)buf->node.next;
+			/* free buffers if possible */
 			if (buf->retries < 1)
 			{	/* release buffer */
 				DQRemove((DQNode*)buf);
 				FreeBuffer(buf);
 			}
-			UnlockMutex(&outmtx);
-			buf = nbuf;
 		}
+		UnlockMutex(&outmtx);
+
+		gtc = GTC();
 
 		for (i = 0; i < (MAXPLAYERS + EXTRA_PID_COUNT); i++)
 		{
@@ -558,9 +564,11 @@ void * SendThread(void *dummy)
 			}
 			else if (pcount[i] > 1)
 			{	/* group all packets to send */
-				static byte gbuf[MAXPACKET] = { 0x00, 0x0E };
+				static byte gbuf[MAXPACKET];
 				byte *current = gbuf + 2;
 				int j;
+
+				gbuf[0] = 0x00; gbuf[1] = 0x0E;
 
 				for (j = 0; j < pcount[i]; j++)
 				{
@@ -585,11 +593,12 @@ void * SendThread(void *dummy)
 			    && (gtc - clients[i].lastpkt) > config.droptimeout)
 			{
 				byte pk7[] = { 0x00, 0x07 };
+				log->Log(LOG_USELESSINFO, "Player '%s' lagged off", players[i].name);
 				/* FIXME: send "you have been disconnected..." msg */
 				SendRaw(i, pk7, 2);
 				KillConnection(i);
 			}
-			
+
 			/* process timewait states
 			 * this is done with two states to ensure a complete pass
 			 * through the outgoing buffer before marking these pids as
@@ -599,8 +608,12 @@ void * SendThread(void *dummy)
 			if (players[i].status == S_TIMEWAIT)
 				players[i].status = S_TIMEWAIT2;
 		}
+
+		/* give up some time */
+		sched_yield();
 	}
 	return NULL;
+#undef MAXGROUPED
 }
 
 
@@ -610,9 +623,11 @@ void * RelThread(void *dummy)
 
 	while (!killallthreads)
 	{
+		/* wait for reliable pkt to process */
 		LockMutex(&relmtx);
 		while (rellist.next == &rellist)
 			WaitCondition(&relcond, &relmtx);
+
 		for (buf = (Buffer*)rellist.next; (DQNode*)buf != &rellist; buf = nbuf)
 		{
 			nbuf = (Buffer*)buf->node.next;
@@ -633,8 +648,12 @@ void * RelThread(void *dummy)
 				/* don't hold mutex while processing packet */
 				UnlockMutex(&relmtx);
 
+				/* log->Log(LOG_DEBUG, "processing rel pkt, %i bytes, type %i (((", buf->len, buf->d.rel.data[0]); */
+
 				/* process it */
 				ProcessPacket(buf->pid, buf->d.rel.data, buf->len - 6);
+
+				/* log->Log(LOG_DEBUG, "done processing rel pkt )))"); */
 
 				FreeBuffer(buf);
 				LockMutex(&relmtx);
@@ -721,6 +740,7 @@ int NewConnection(struct sockaddr_in *sin)
 	memset(clients + i, 0, sizeof(ClientData));
 	clients[i].c2sn = -1;
 	clients[i].enctype = -1;
+	clients[i].lastack = -1;
 	if (sin)
 	{
 		memcpy(&clients[i].sin, sin, sizeof(struct sockaddr_in));
@@ -730,7 +750,10 @@ int NewConnection(struct sockaddr_in *sin)
 		clienthash[bucket] = i;
 	}
 	else
+	{
+		clients[i].nextinbucket = -1;
 		clients[i].flags = NET_FAKE;
+	}
 	/* set up playerdata */
 	memset(players + i, 0, sizeof(PlayerData));
 	players[i].type = S2C_PLAYERENTERING; /* restore type */
@@ -745,23 +768,23 @@ void KillConnection(int pid)
 	int bucket, type;
 	byte leaving = C2S_LEAVING;
 
+	/* leave arena again, just in case */
+	if (players[pid].arena >= 0)
+		ProcessPacket(pid, &leaving, 1);
+
 	/* set status */
 	players[pid].status = S_TIMEWAIT;
+
+	if (pid == PID_BILLER)
+	{
+		log->Log(LOG_IMPORTANT, "Connection to billing server lost");
+		return;
+	}
 
 	/* tell encryption to forget about him */
 	type = clients[pid].enctype;
 	if (type >= 0 && type < MAXENCRYPT)
 		encrypt[type]->Void(pid);
-
-	/* log message */
-	if (pid == PID_BILLER)
-		log->Log(LOG_IMPORTANT, "Connection to billing server lost");
-	else
-		log->Log(LOG_INFO, "Player '%s' disconnected", players[pid].name);
-
-	/* leave arena again, just in case */
-	if (players[pid].arena >= 0)
-		ProcessPacket(pid, &leaving, 1);
 
 	/* remove from hash table */
 	bucket = HashIP(clients[pid].sin);
@@ -779,6 +802,9 @@ void KillConnection(int pid)
 			log->Log(LOG_BADDATA, "Internal error: established connection not in hash table");
 		}
 	}
+
+	/* log message */
+	log->Log(LOG_INFO, "Player '%s' disconnected", players[pid].name);
 }
 
 
@@ -828,6 +854,12 @@ void ProcessKeyResponse(Buffer *buf)
 
 void ProcessReliable(Buffer *buf)
 {
+	/* ack */
+	buf->d.rel.t2++;
+	SendRaw(buf->pid, buf->d.raw, 6);
+	buf->d.rel.t2--;
+
+	/* add to rel list to be processed */
 	LockMutex(&relmtx);
 	DQAdd(&rellist, (DQNode*)buf);
 	UnlockMutex(&relmtx);
@@ -1068,12 +1100,19 @@ void BufferPacket(int pid, byte *data, int len, int rel)
 		buf->lastretry = GTC();
 		buf->retries--;
 	}
+
+	/* add it to out list */
+	LockMutex(&outmtx);
+	DQAdd(&outlist, (DQNode*)buf);
+	UnlockMutex(&outmtx);
+	SignalCondition(&outcond, 0);
 }
 
 
 void SendToOne(int pid, byte *data, int len, int reliable)
 {
-	if (len < MAXPACKET && ~(reliable & NET_PRESIZE))
+	/* see if we can do it the quick way */
+	if (len < MAXPACKET && !(reliable & NET_PRESIZE))
 		BufferPacket(pid, data, len, reliable);
 	else
 	{
@@ -1147,8 +1186,11 @@ void SendToSet(int *set, byte *data, int len, int rel)
 	}
 	else
 	{
-		while (*set++ != -1)
+		while (*set != -1)
+		{
 			BufferPacket(*set, data, len, rel);
+			set++;
+		}
 	}
 }
 
