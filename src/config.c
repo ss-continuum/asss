@@ -263,6 +263,10 @@ local void ReloadConfigFile(ConfigHandle ch)
 {
 	struct stat st;
 
+	if (lm)
+		lm->Log(L_INFO, "<config> reloading file from disk: %s",
+				ch->filename);
+
 	pthread_mutex_lock(&ch->mutex);
 
 	/* just in case */
@@ -295,8 +299,16 @@ local void AddRef(ConfigHandle ch)
 }
 
 
-local int check_modified_files(void *dummy)
+struct maybe_reload_data
 {
+	const char *pathname;
+	void (*callback)(const char *pathname, void *clos);
+	void *clos;
+};
+
+local int maybe_reload_files(void *v)
+{
+	struct maybe_reload_data *data = v;
 	Link *l;
 	ConfigHandle ch;
 	struct stat st;
@@ -305,15 +317,15 @@ local int check_modified_files(void *dummy)
 	for (l = LLGetHead(&files); l; l = l->next)
 	{
 		ch = l->data;
-		if (stat(ch->filename, &st) == 0)
-			if (st.st_mtime != ch->lastmod)
-			{
-				if (lm)
-					lm->Log(L_INFO, "<config> reloading modified file from disk: %s",
-							ch->filename);
-				/* this calls changed callback */
-				ReloadConfigFile(ch);
-			}
+		if (data ?
+		    (!data->pathname || strstr(ch->filename, data->pathname)) :
+		    (stat(ch->filename, &st) == 0 && st.st_mtime != ch->lastmod))
+		{
+			/* this calls changed callback */
+			ReloadConfigFile(ch);
+			if (data && data->callback)
+				data->callback(ch->filename, data->clos);
+		}
 	}
 	pthread_mutex_unlock(&cfgmtx);
 
@@ -322,7 +334,14 @@ local int check_modified_files(void *dummy)
 
 local void CheckModifiedFiles(void)
 {
-	check_modified_files(NULL);
+	maybe_reload_files(NULL);
+}
+
+local void ForceReload(const char *pathname,
+		void (*cb)(const char *path, void *clos), void *clos)
+{
+	struct maybe_reload_data data = { pathname, cb, clos };
+	maybe_reload_files(&data);
 }
 
 
@@ -462,7 +481,7 @@ local int GetInt(ConfigHandle ch, const char *sec, const char *key, int def)
 local void SetStr(ConfigHandle ch, const char *sec, const char *key,
 		const char *val, const char *info, int perm)
 {
-	struct Entry *e;
+	struct Entry *e = NULL;
 	char keystring[MAXSECTIONLEN+MAXKEYLEN+2];
 	const char *res, *data;
 
@@ -531,9 +550,9 @@ local void set_timers()
 	if (dirty)
 		ml->SetTimer(write_dirty_values, 700, dirty, NULL, NULL);
 
-	ml->ClearTimer(check_modified_files, NULL);
+	ml->ClearTimer(maybe_reload_files, NULL);
 	if (files)
-		ml->SetTimer(check_modified_files, 1500, files, NULL, NULL);
+		ml->SetTimer(maybe_reload_files, 1500, files, NULL, NULL);
 }
 
 
@@ -559,7 +578,7 @@ local Iconfig _int =
 	GetStr, GetInt, SetStr, SetInt,
 	OpenConfigFile, CloseConfigFile, ReloadConfigFile,
 	AddRef,
-	FlushDirtyValues, CheckModifiedFiles
+	FlushDirtyValues, CheckModifiedFiles, ForceReload
 };
 
 
@@ -607,6 +626,7 @@ EXPORT int MM_config(int action, Imodman *mm_, Arena *arena)
 			return MM_FAIL;
 
 		ml->ClearTimer(write_dirty_values, NULL);
+		ml->ClearTimer(maybe_reload_files, NULL);
 		mm->ReleaseInterface(ml);
 
 		/* one last time... */

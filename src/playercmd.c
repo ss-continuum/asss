@@ -1522,14 +1522,29 @@ local void Cflagreset(const char *tc, const char *params, Player *p, const Targe
 
 local helptext_t reloadconf_help =
 "Targets: none\n"
-"Args: none\n"
-"Causes the server to check all config files for modifications since\n"
-"they were last loaded, and reload any modified files.\n";
+"Args: [-f] [path]\n"
+"With no args, causes the server to reload any config files that have\n"
+"been modifed since they were loaded. With {-f}, forces a reload of all\n"
+"open files. With a string, forces a reload of all files whose pathnames\n"
+"contain that string.\n";
 
 local void Creloadconf(const char *tc, const char *params, Player *p, const Target *target)
 {
-	cfg->CheckModifiedFiles();
-	chat->SendMessage(p, "Reloading all modified config files");
+	if (strcmp(params, "-f") == 0)
+	{
+		chat->SendMessage(p, "Reloading all config files:");
+		cfg->ForceReload(NULL, send_msg_cb, p);
+	}
+	else if (*params)
+	{
+		chat->SendMessage(p, "Reloading config files containing '%s':", params);
+		cfg->ForceReload(params, send_msg_cb, p);
+	}
+	else
+	{
+		chat->SendMessage(p, "Reloading all modified config files.");
+		cfg->CheckModifiedFiles();
+	}
 }
 
 
@@ -2005,7 +2020,7 @@ local helptext_t disablecmdgroup_help =
 "Disables all the commands in the specified command group and released the\n"
 "modules that they require. This can be used to release interfaces so that\n"
 "modules can be unloaded or upgraded without unloading playercmd (which would\n"
-"be irreversable).\n";
+"be irreversible).\n";
 
 local void Cdisablecmdgroup(const char *tc, const char *params, Player *p, const Target *target)
 {

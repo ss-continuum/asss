@@ -190,6 +190,14 @@ typedef struct Iconfig
 	 */
 	void (*CheckModifiedFiles)(void);
 	/* pyint: void -> void */
+
+	/** Forces a reload of one or more config files.
+	 * Pass in NULL to force a reload of all open files. Pass in a
+	 * string to limit reloading to files containing that string.
+	 */
+	void (*ForceReload)(const char *pathname,
+			void (*callback)(const char *pathname, void *clos), void *clos);
+	/* pyint: string, (string, clos -> void), clos -> void */
 } Iconfig;
 
 
