@@ -28,7 +28,7 @@ local pthread_mutex_t plock;
 #define WULOCK() pthread_mutex_unlock(&plock)
 #endif
 
-#define pd (&myint)
+#define pd (&pdint)
 
 local Player **pidmap;
 local int pidmapsize;
@@ -36,7 +36,7 @@ local int perplayerspace;
 local pthread_mutexattr_t recmtxattr;
 
 /* forward declaration */
-local Iplayerdata myint;
+local Iplayerdata pdint;
 
 
 local void LockPlayer(Player *p)
@@ -302,7 +302,7 @@ local void FreePlayerData(int key)
 
 
 /* interface */
-local Iplayerdata myint =
+local Iplayerdata pdint =
 {
 	INTERFACE_HEAD_INIT(I_PLAYERDATA, "playerdata")
 	NewPlayer, FreePlayer, KickPlayer,
@@ -351,13 +351,13 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 		mtxkey = AllocatePlayerData(sizeof(pthread_mutex_t));
 
 		/* register interface */
-		mm->RegInterface(&myint, ALLARENAS);
+		mm->RegInterface(&pdint, ALLARENAS);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(&myint, ALLARENAS))
+		if (mm->UnregInterface(&pdint, ALLARENAS))
 			return MM_FAIL;
 
 		pthread_mutexattr_destroy(&recmtxattr);
