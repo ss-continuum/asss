@@ -9,8 +9,8 @@
 /* extra includes */
 #include "packets/flags.h"
 
+#define KEY_TURF_OWNERS 19
 
-/* defines */
 #define LOCK_STATUS(arena) \
 	pthread_mutex_lock(flagmtx + arena)
 #define UNLOCK_STATUS(arena) \
@@ -28,6 +28,7 @@ struct MyArenaData
 	int resetdelay, spawnx, spawny;
 	int spawnr, dropr, neutr;
 	int friendlytransfer, dropowned, neutowned;
+	int persistturf;
 };
 
 /* prototypes */
@@ -64,11 +65,13 @@ local Iplayerdata *pd;
 local Iarenaman *aman;
 local Imainloop *ml;
 local Imapdata *mapdata;
+local Ipersist *persist;
 
 /* the big flagdata array */
 local struct ArenaFlagData flagdata[MAXARENA];
 local struct MyArenaData pflagdata[MAXARENA];
 local pthread_mutex_t flagmtx[MAXARENA];
+local PersistentData persist_turf_owners;
 
 local Iflags _myint =
 {
@@ -91,6 +94,7 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
+		persist = mm->GetInterface(I_PERSIST, ALLARENAS);
 
 		mm->RegCallback(CB_ARENAACTION, AAFlag, ALLARENAS);
 		mm->RegCallback(CB_PLAYERACTION, PAFlag, ALLARENAS);
@@ -122,6 +126,9 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 		ml->SetTimer(BasicFlagTimer, 500, 500, NULL, -1);
 		ml->SetTimer(TurfFlagTimer, 1500, 1500, NULL, -1);
 
+		if (persist)
+			persist->RegArenaPD(&persist_turf_owners);
+
 		mm->RegInterface(&_myint, ALLARENAS);
 
 		return MM_OK;
@@ -130,6 +137,8 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 	{
 		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
+		if (persist)
+			persist->UnregArenaPD(&persist_turf_owners);
 		mm->UnregCallback(CB_ARENAACTION, AAFlag, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, PAFlag, ALLARENAS);
 		mm->UnregCallback(CB_SHIPCHANGE, ShipChange, ALLARENAS);
@@ -146,6 +155,7 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(ml);
 		mm->ReleaseInterface(mapdata);
+		mm->ReleaseInterface(persist);
 		return MM_OK;
 	}
 	return MM_FAIL;
@@ -396,6 +406,8 @@ local void LoadFlagSettings(int arena, int init)
 	{
 		int i;
 		struct FlagData *f;
+
+		d->persistturf = cfg->GetInt(c, "Flag", "PersistentTurfOwners", 1);
 
 		d->minflags = d->maxflags = flagdata[arena].flagcount =
 			mapdata->GetFlagCount(arena);
@@ -838,4 +850,70 @@ int TurfFlagTimer(void *dummy)
 	return 1;
 }
 
+
+local int get_turf_owners(int arena, void *data, int len)
+{
+	short *d = data, i;
+	int fc;
+
+	LOCK_STATUS(arena);
+
+	if (pflagdata[arena].gametype != FLAGGAME_TURF ||
+	    !pflagdata[arena].persistturf ||
+	    !flagdata[arena].flags)
+	{
+		UNLOCK_STATUS(arena);
+		return 0;
+	}
+
+	fc = flagdata[arena].flagcount;
+	for (i = 0; i < fc; i++)
+		d[i] = flagdata[arena].flags[i].freq;
+
+	UNLOCK_STATUS(arena);
+
+	return fc * sizeof(short);
+}
+
+local void set_turf_owners(int arena, void *data, int len)
+{
+	short *d = data, i;
+	int fc;
+
+	LOCK_STATUS(arena);
+
+	if (pflagdata[arena].gametype != FLAGGAME_TURF ||
+	    !pflagdata[arena].persistturf ||
+	    !flagdata[arena].flags)
+	{
+		UNLOCK_STATUS(arena);
+		return;
+	}
+
+	fc = flagdata[arena].flagcount;
+
+	if (len != fc * sizeof(short))
+	{
+		UNLOCK_STATUS(arena);
+		return;
+	}
+
+	for (i = 0; i < fc; i++)
+		flagdata[arena].flags[i].freq = d[i];
+
+	UNLOCK_STATUS(arena);
+}
+
+local void clear_turf_owners(int arena)
+{
+	/* no-op: the arena create action does this already */
+}
+
+local PersistentData persist_turf_owners =
+{
+	/* ideally, this would only get registered for arenas with a turf
+	 * game going, but this is ok. */
+	KEY_TURF_OWNERS, PERSIST_ALLARENAS, INTERVAL_GAME,
+	get_turf_owners, set_turf_owners, clear_turf_owners
+};
 

@@ -4,6 +4,7 @@
 #include "asss.h"
 
 #define MAX_PING 10000
+#define PLOSS_MIN_PACKETS 20
 
 local pthread_mutex_t mtx;
 #define LOCK() pthread_mutex_lock(&mtx)
@@ -43,9 +44,9 @@ local pthread_mutex_t mtx;
 
 struct PingData
 {
-	unsigned int buckets[MAX_BUCKET];
+	int buckets[MAX_BUCKET];
 	/* these are all in milliseconds */
-	unsigned int current, avg, max, min;
+	int current, avg, max, min;
 };
 
 typedef struct
@@ -98,7 +99,7 @@ local void add_ping(struct PingData *pd, int ping)
 }
 
 
-local void Position(int pid, unsigned int ping, unsigned int wpnsent)
+local void Position(int pid, int ping, unsigned int wpnsent)
 {
 	PEDANTIC_LOCK();
 	if (data[pid])
@@ -110,7 +111,7 @@ local void Position(int pid, unsigned int ping, unsigned int wpnsent)
 }
 
 
-local void RelDelay(int pid, unsigned int ping)
+local void RelDelay(int pid, int ping)
 {
 	PEDANTIC_LOCK();
 	if (data[pid])
@@ -214,15 +215,15 @@ local void QueryPLoss(int pid, struct PLossSummary *d)
 		int s, r;
 		s = data[pid]->ploss.s_pktsent;
 		r = data[pid]->ploss.c_pktrcvd;
-		d->s2c = s ? (double)(s - r) / (double)s : 0;
+		d->s2c = s > PLOSS_MIN_PACKETS ? (double)(s - r) / (double)s : 0.0;
 
 		s = data[pid]->ploss.c_pktsent;
 		r = data[pid]->ploss.s_pktrcvd;
-		d->c2s = s ? (double)(s - r) / (double)s : 0;
+		d->c2s = s > PLOSS_MIN_PACKETS ? (double)(s - r) / (double)s : 0.0;
 
 		s = data[pid]->wpnsent;
 		r = data[pid]->wpnrcvd;
-		d->s2cwpn = s ? (double)(s - r) / (double)s : 0;
+		d->s2cwpn = s > PLOSS_MIN_PACKETS ? (double)(s - r) / (double)s : 0.0;
 	}
 	else
 		memset(d, 0, sizeof(*d));

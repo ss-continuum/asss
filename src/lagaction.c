@@ -243,6 +243,15 @@ EXPORT int MM_lagaction(int action, Imodman *mm, int arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
+		int i;
+
+		/* don't leave stuff like this lying around */
+		for (i = 0; i < MAXPLAYERS; i++)
+		{
+			UNSET_NO_FLAGS_BALLS(i);
+			pd->players[i].ignoreweapons = 0;
+		}
+
 		mm->UnregCallback(CB_MAINLOOP, mainloop, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, arenaaction, ALLARENAS);
 		mm->ReleaseInterface(pd);

@@ -28,6 +28,7 @@ typedef struct ModuleData
 	char name[MAXNAME];
 	ModuleHandle hand;
 	ModMain mm;
+	const char *info;
 	int myself;
 } ModuleData;
 
@@ -228,6 +229,10 @@ int LoadMod(const char *_spec)
 		goto die;
 	}
 
+	/* load info if it exists */
+	snprintf(buf, PATH_MAX, "info_%s", modname);
+	mod->info = dlsym(mod->hand, buf);
+
 	astrncpy(mod->name, modname, MAXNAME);
 
 	ret = mod->mm(MM_LOAD, &mmint, ALLARENAS);
@@ -337,7 +342,7 @@ void EnumModules(void (*func)(const char *, const char *, void *), void *clos)
 	for (l = LLGetHead(mods); l; l = l->next)
 	{
 		mod = (ModuleData*) l->data;
-		func(mod->name, NULL, clos);
+		func(mod->name, mod->info, clos);
 	}
 	pthread_mutex_unlock(&modmtx);
 }

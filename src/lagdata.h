@@ -7,12 +7,12 @@
 
 struct PingSummary
 {
-	unsigned int cur, avg, min, max;
+	int cur, avg, min, max;
 	/* only used for QueryCPing: */
-	unsigned int s2cslowtotal;
-	unsigned int s2cfasttotal;
-	unsigned short s2cslowcurrent;
-	unsigned short s2cfastcurrent;
+	int s2cslowtotal;
+	int s2cfasttotal;
+	short s2cslowcurrent;
+	short s2cfastcurrent;
 };
 
 struct PLossSummary
@@ -68,10 +68,10 @@ struct ClientLatencyData
 	unsigned short s2cslowcurrent;
 	unsigned short s2cfastcurrent;
 	unsigned short unknown1;
-	unsigned short lastping;
-	unsigned short averageping;
-	unsigned short lowestping;
-	unsigned short highestping;
+	short lastping;
+	short averageping;
+	short lowestping;
+	short highestping;
 };
 
 struct ClientPLossData
@@ -89,8 +89,8 @@ typedef struct Ilagcollect
 {
 	INTERFACE_HEAD_DECL
 
-	void (*Position)(int pid, unsigned int ms, unsigned int wpnsent);
-	void (*RelDelay)(int pid, unsigned int ms);
+	void (*Position)(int pid, int ms, unsigned int wpnsent);
+	void (*RelDelay)(int pid, int ms);
 	void (*ClientLatency)(int pid, struct ClientLatencyData *data);
 	void (*ClientPLoss)(int pid, struct ClientPLossData *data);
 	void (*RelStats)(int pid, struct ReliableLagData *data);

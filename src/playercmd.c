@@ -357,13 +357,18 @@ local void Cversion(const char *params, int pid, const Target *target)
 }
 
 
-local void SendModInfo(const char *name, const char *info, void *p)
+#define MAXDATA 4090
+
+local void add_mod(const char *name, const char *info, void *buf)
 {
-	int pid = *(int*)p;
+	char *start = buf, *p;
+	int l = strlen(buf);
+	p = start + l;
+
 	if (info)
-		chat->SendMessage(pid, "  %s (%s)", name, info);
+		snprintf(p, MAXDATA - l, "%s: %s\x01", name, info);
 	else
-		chat->SendMessage(pid, "  %s", name, info);
+		snprintf(p, MAXDATA - l, "%s\x01", name);
 }
 
 local helptext_t lsmod_help =
@@ -373,8 +378,45 @@ local helptext_t lsmod_help =
 
 local void Clsmod(const char *params, int pid, const Target *target)
 {
-	int p = pid;
-	mm->EnumModules(SendModInfo, (void*)&p);
+	char data[MAXDATA+6], *p = data;
+	char line[84];
+
+	memset(data, 0, sizeof(data));
+
+	mm->EnumModules(add_mod, (void*)data);
+
+	strcpy(line, "  ");
+	while (*p)
+	{
+		int n;
+		char *t = strchr(p, '\x01');
+		if (!t) t = p + strlen(p);
+		*t = 0;
+
+		/* force wrap */
+		if (strlen(p) > 70)
+			p[70] = 0;
+
+		/* find eventual width */
+		n = strlen(line) + strlen(p) + 2;
+		if (n > 80)
+		{
+			chat->SendMessage(pid, line);
+			strcpy(line, "  ");
+		}
+
+		strcat(line, p);
+		strcat(line, ", ");
+
+		p = t + 1;
+	}
+
+	if (strlen(line) > 2)
+	{
+		char *t = strrchr(line, ',');
+		if (t) *t = 0;
+		chat->SendMessage(pid, line);
+	}
 }
 
 

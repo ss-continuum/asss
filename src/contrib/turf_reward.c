@@ -220,6 +220,8 @@ local helptext_t turfresetflags_help, forceding_help;
 local void flagTimerReset(int arena);
 */
 
+EXPORT const char info_turf_reward[] = "v2.0 by GiGaKiLLeR <gigamon@hotmail.com>";
+
 // the actual entrypoint into this module
 EXPORT int MM_turf_reward(int action, Imodman *mm, int arena)
 {

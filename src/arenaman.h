@@ -35,21 +35,17 @@ enum
 
 	ARENA_DO_INIT,
 /* someone wants to enter the arena. first, the config file must be
- * loaded and the persistant data loaded  */
+ * loaded, callbacks called, and the persistant data loaded  */
 
 	ARENA_WAIT_SYNC1,
 /* waiting on the database */
-
-	ARENA_DO_CREATE_CALLBACKS,
-/* and the arena creation callbacks called */
 
 	ARENA_RUNNING,
 /* now the arena is fully created. core can now send the arena responses
  * to players waiting to enter this arena */
 
-	ARENA_DO_DESTROY_CALLBACKS,
-/* the arena is being reaped, first call destroy callbacks and put info
- * in database*/
+	ARENA_DO_WRITE_DATA,
+/* the arena is being reaped, first put info in database */
 
 	ARENA_WAIT_SYNC2,
 /* waiting on the database to finish before we can unregister modules */

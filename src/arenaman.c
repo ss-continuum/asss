@@ -203,7 +203,7 @@ local void syncdone1(int arena)
 {
 	LOCK_STATUS();
 	if (arenas[arena].status == ARENA_WAIT_SYNC1)
-		arenas[arena].status = ARENA_DO_CREATE_CALLBACKS;
+		arenas[arena].status = ARENA_RUNNING;
 	else
 		lm->LogA(L_WARN, "arenaman", arena, "syncdone1 called from wrong state");
 	UNLOCK_STATUS();
@@ -244,28 +244,23 @@ void ProcessArenaQueue(void)
 		switch (nextstatus)
 		{
 			case ARENA_DO_INIT:
+				/* config file */
 				a->cfg = cfg->OpenConfigFile(a->name, NULL, arena_conf_changed, a);
+				/* attach modules */
 				DoAttach(i, MM_ATTACH);
+				/* now callbacks */
+				DO_CBS(CB_ARENAACTION, i, ArenaActionFunc, (i, AA_CREATE));
+				/* finally, persistant stuff */
 				if (persist)
 				{
 					persist->GetArena(i, syncdone1);
 					nextstatus = ARENA_WAIT_SYNC1;
 				}
 				else
-					nextstatus = ARENA_DO_CREATE_CALLBACKS;
+					nextstatus = ARENA_RUNNING;
 				break;
 
-			case ARENA_DO_CREATE_CALLBACKS:
-				/* do callbacks */
-				DO_CBS(CB_ARENAACTION, i, ArenaActionFunc, (i, AA_CREATE));
-
-				/* don't muck with player status now, let it be done in
-				 * the arena processing function */
-
-				nextstatus = ARENA_RUNNING;
-				break;
-
-			case ARENA_DO_DESTROY_CALLBACKS:
+			case ARENA_DO_WRITE_DATA:
 				/* make sure there is nobody in here */
 				oops = 0;
 				for (j = 0; j < MAXPLAYERS; j++)
@@ -274,7 +269,6 @@ void ProcessArenaQueue(void)
 							oops = 1;
 				if (!oops)
 				{
-					DO_CBS(CB_ARENAACTION, i, ArenaActionFunc, (i, AA_DESTROY));
 					if (persist)
 					{
 						persist->PutArena(i, syncdone2);
@@ -291,6 +285,8 @@ void ProcessArenaQueue(void)
 				break;
 
 			case ARENA_DO_DEINIT:
+				/* reverse order: callbacks, detach, close config file */
+				DO_CBS(CB_ARENAACTION, i, ArenaActionFunc, (i, AA_DESTROY));
 				DoAttach(i, MM_DETACH);
 				cfg->CloseConfigFile(a->cfg);
 				a->cfg = NULL;
@@ -609,7 +605,7 @@ int ReapArenas(void *q)
 					arenas[i].name, i);
 			/* set its status so that the arena processor will do
 			 * appropriate things */
-			arenas[i].status = ARENA_DO_DESTROY_CALLBACKS;
+			arenas[i].status = ARENA_DO_WRITE_DATA;
 skip: ;
 		}
 	/* unlock all status info */
