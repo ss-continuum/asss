@@ -153,7 +153,7 @@ endif
 
 ALL_STUFF = $(BINARIES) $(DLS) backtrace
 
-UTIL_OBJS = util.o pathutil.o protutil.o region.o rwlock.o app.o md5.o $(W32COMPAT)
+UTIL_OBJS = util.o pathutil.o protutil.o rwlock.o app.o md5.o $(W32COMPAT)
 
 INTERNAL_MODULES = config.o prng.o md5.o player.o core.o logman.o \
 	mainloop.o net.o enc_null.o enc_vie.o arenaman.o mapdata.o \
@@ -193,7 +193,8 @@ pymod.$(SO): LIBS=$(PYTHON_LDFLAGS)
 
 include */*.mk
 
-funky.$(SO): autowarp.o bricklayer.o autoturret.o record.o $(EXTRA_FUNKY_OBJS)
+# autowarp.o temporarily removed due to region code reworking
+funky.$(SO): bricklayer.o autoturret.o record.o $(EXTRA_FUNKY_OBJS)
 funky.$(SO): LIBS=$(ZLIB_LIB) -lm
 
 

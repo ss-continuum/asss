@@ -11,13 +11,8 @@
 /* extra includes */
 #include "sparse.inc"
 
-/* region stuff, to be consistent with regiongen */
-#include "region.h"
-
 /* brick mode constants */
 #include "settings/game.h"
-
-#define MAXREGIONNAME 32
 
 /* structs for packet types and data */
 struct TileData
@@ -28,18 +23,10 @@ struct TileData
 };
 
 
-struct Region
-{
-	int isbase;
-	rectlist_t rects;
-};
-
-
 struct MapData
 {
 	sparse_arr arr;
 	int flags, errors;
-	HashTable *regions;
 	pthread_mutex_t mtx;
 };
 
@@ -47,14 +34,11 @@ struct MapData
 /* prototypes */
 local void ArenaAction(Arena *arena, int action);
 local int read_lvl(char *name, struct MapData *md);
-local HashTable * LoadRegions(char *fname);
 
 /* interface funcs */
 local int GetMapFilename(Arena *arena, char *buf, int buflen, const char *mapname);
 local int GetFlagCount(Arena *arena);
-local int GetTile(Arena *arena, int x, int y);
-local const char *GetRegion(Arena *arena, int x, int y);
-local int InRegion(Arena *arena, const char *region, int x, int y);
+local enum map_tile_t GetTile(Arena *arena, int x, int y);
 local void FindEmptyTileNear(Arena *arena, int *x, int *y);
 local int FindBrickEndpoints(
 		Arena *arena,
@@ -85,7 +69,6 @@ local Imapdata _int =
 	INTERFACE_HEAD_INIT(I_MAPDATA, "mapdata")
 	GetMapFilename,
 	GetFlagCount, GetTile,
-	GetRegion, InRegion,
 	FindEmptyTileNear, FindBrickEndpoints,
 	GetChecksum, DoBrick
 };
@@ -189,13 +172,6 @@ int read_lvl(char *name, struct MapData *md)
 }
 
 
-local void FreeRegion(const char *k, void *v, void *d)
-{
-	struct Region *r = (struct Region *)v;
-	delete_rectlist(r->rects);
-	afree(r);
-}
-
 #include "pathutil.h"
 
 local int GetMapFilename(Arena *arena, char *buf, int buflen, const char *mapname)
@@ -249,13 +225,6 @@ void ArenaAction(Arena *arena, int action)
 			delete_sparse(md->arr);
 			md->arr = NULL;
 		}
-
-		if (md->regions)
-		{
-			HashEnum(md->regions, FreeRegion, NULL);
-			HashFree(md->regions);
-			md->regions = NULL;
-		}
 	}
 
 	/* now, if we're creating, do it */
@@ -263,41 +232,27 @@ void ArenaAction(Arena *arena, int action)
 	{
 		char mapname[256];
 		pthread_mutex_lock(&md->mtx);
-		if (GetMapFilename(arena, mapname, sizeof(mapname), NULL))
+		if (GetMapFilename(arena, mapname, sizeof(mapname), NULL) &&
+		    read_lvl(mapname, md) == 0)
 		{
-			char *t;
-
-			if (read_lvl(mapname, md))
-				lm->LogA(L_ERROR, "mapdata", arena, "error processing map file '%s'",
-						mapname);
-			else
-				lm->LogA(L_INFO, "mapdata", arena, "successfully processed map file '%s'",
-						mapname);
-			/* if extension == .lvl */
-			t = strrchr(mapname, '.');
-			if (t && strcmp(t, ".lvl") == 0)
-			{
-				/* change extension to rgn */
-				t[1] = 'r'; t[2] = 'g'; t[3] = 'n';
-				md->regions = LoadRegions(mapname);
-			}
+			lm->LogA(L_INFO, "mapdata", arena, "successfully processed map file '%s'",
+					mapname);
 		}
 		else
 		{
 			/* fall back to emergency. this matches the compressed map
 			 * in mapnewsdl.c. */
-			lm->LogA(L_WARN, "mapdata", arena, "can't find level file");
+			lm->LogA(L_WARN, "mapdata", arena, "error finding or reading level file");
 			md->arr = init_sparse();
 			insert_sparse(md->arr, 0, 0, 1);
 			md->flags = md->errors = 0;
-			md->regions = NULL;
 		}
 		pthread_mutex_unlock(&md->mtx);
 	}
 }
 
 
-int GetTile(Arena *a, int x, int y)
+enum map_tile_t GetTile(Arena *a, int x, int y)
 {
 	int ret;
 	struct MapData *md = P_ARENA_DATA(a, mdkey);
@@ -733,88 +688,4 @@ failed_3:
 	pthread_mutex_unlock(&md->mtx);
 	return key;
 }
-
-
-/* region stuff below here */
-
-HashTable * LoadRegions(char *fname)
-{
-	char buf[256];
-	FILE *f = fopen(fname, "r");
-	HashTable *hash = HashAlloc();
-	struct Region *reg = NULL;
-
-	if (f)
-	{
-		fgets(buf, 256, f);
-		RemoveCRLF(buf);
-		if (strcmp(buf, HEADER))
-		{
-			HashFree(hash);
-			return NULL;
-		}
-
-		while (fgets(buf, 256, f))
-		{
-			RemoveCRLF(buf);
-			if (buf[0] == ';' || buf[0] == 0)
-				continue;
-			else if (buf[0] == '|')
-			{
-				/* data coming */
-				rect_t r;
-				if (!reg) continue;
-				r = decode_rectangle(buf+2);
-				add_rect(&reg->rects, r);
-			}
-			else if (!strncasecmp(buf, "name", 4))
-			{
-				/* new region */
-				char *t = buf + 4;
-				while (*t == ':' || *t == ' ' || *t == '\t') t++;
-
-				/* get new */
-				reg = amalloc(sizeof(struct Region));
-				reg->isbase = 0;
-				reg->rects = init_rectlist();
-				HashAdd(hash, t, reg);
-			}
-			else if (!strncasecmp(buf, "isbase", 6))
-			{
-				if (!reg) continue;
-				reg->isbase = 1;
-			}
-		}
-		fclose(f);
-	}
-	return hash;
-}
-
-
-const char *GetRegion(Arena *arena, int x, int y)
-{
-	return NULL;
-}
-
-int InRegion(Arena *arena, const char *region, int x, int y)
-{
-	struct Region *reg;
-	struct MapData *md = P_ARENA_DATA(arena, mdkey);
-
-	if (md->regions)
-		if ((reg = HashGetOne(md->regions, region)))
-		{
-			int i;
-			rect_t *r;
-			for (i = 0, r = reg->rects.data; i < reg->rects.count; i++, r++)
-				if (x >= r->x &&
-				    (x - r->x) < r->w &&
-				    y >= r->y &&
-				    (y - r->y) < r->h)
-					return 1;
-		}
-
-	return 0;
-}
-
 
