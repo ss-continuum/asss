@@ -23,29 +23,77 @@ local const struct
 }
 items[] =
 {
+	/* cfghelp: Cost:XRadar, arena, int, def: 0
+	 * Points cost for XRadar. 0 to disallow purchase. */
 	{ "x",        "XRadar",     6 },
+	/* cfghelp: Cost:Recharge, arena, int, def: 0
+	 * Points cost for Recharge Upgrade. 0 to disallow purchase. */
 	{ "recharge", "Recharge",   1 },
+	/* cfghelp: Cost:Energy, arena, int, def: 0
+	 * Points cost for Energy Upgrade. 0 to disallow purchase. */
 	{ "energy",   "Energy",     2 },
+	/* cfghelp: Cost:Rotation, arena, int, def: 0
+	 * Points cost for Rotation Upgrade. 0 to disallow purchase. */
 	{ "rot",      "Rotation",   3 },
+	/* cfghelp: Cost:Stealth, arena, int, def: 0
+	 * Points cost for Stealth Ability. 0 to disallow purchase. */
 	{ "stealth",  "Stealth",    4 },
+	/* cfghelp: Cost:Cloak, arena, int, def: 0
+	 * Points cost for Cloak Ability. 0 to disallow purchase. */
 	{ "cloak",    "Cloak",      5 },
+	/* cfghelp: Cost:Gun, arena, int, def: 0
+	 * Points cost for Gun Upgrade. 0 to disallow purchase. */
 	{ "gun",      "Gun",        8 },
+	/* cfghelp: Cost:Bomb, arena, int, def: 0
+	 * Points cost for Bomb Upgrade. 0 to disallow purchase. */
 	{ "bomb",     "Bomb",       9 },
+	/* cfghelp: Cost:Bounce, arena, int, def: 0
+	 * Points cost for Bouncing Bullets. 0 to disallow purchase. */
 	{ "bounce",   "Bounce",    10 },
+	/* cfghelp: Cost:Thrust, arena, int, def: 0
+	 * Points cost for Thrust Upgrade. 0 to disallow purchase. */
 	{ "thrust",   "Thrust",    11 },
+	/* cfghelp: Cost:Speed, arena, int, def: 0
+	 * Points cost for Top Speed. 0 to disallow purchase. */
 	{ "speed",    "Speed",     12 },
+	/* cfghelp: Cost:MultiFire, arena, int, def: 0
+	 * Points cost for MultiFire. 0 to disallow purchase. */
 	{ "multi",    "MultiFire", 15 },
+	/* cfghelp: Cost:Prox, arena, int, def: 0
+	 * Points cost for Proximity Bombs. 0 to disallow purchase. */
 	{ "prox",     "Prox",      16 },
+	/* cfghelp: Cost:Super, arena, int, def: 0
+	 * Points cost for Super. 0 to disallow purchase. */
 	{ "super",    "Super",     17 },
+	/* cfghelp: Cost:Shield, arena, int, def: 0
+	 * Points cost for Shields. 0 to disallow purchase. */
 	{ "shield",   "Shield",    18 },
+	/* cfghelp: Cost:Shrap, arena, int, def: 0
+	 * Points cost for Shrapnel Upgrade. 0 to disallow purchase. */
 	{ "shrap",    "Shrap",     19 },
+	/* cfghelp: Cost:AntiWarp, arena, int, def: 0
+	 * Points cost for AntiWarp Ability. 0 to disallow purchase. */
 	{ "anti",     "AntiWarp",  20 },
+	/* cfghelp: Cost:Repel, arena, int, def: 0
+	 * Points cost for Repel. 0 to disallow purchase. */
 	{ "rep",      "Repel",     21 },
+	/* cfghelp: Cost:Burst, arena, int, def: 0
+	 * Points cost for Burst. 0 to disallow purchase. */
 	{ "burst",    "Burst",     22 },
+	/* cfghelp: Cost:Decoy, arena, int, def: 0
+	 * Points cost for Decoy. 0 to disallow purchase. */
 	{ "decoy",    "Decoy",     23 },
+	/* cfghelp: Cost:Thor, arena, int, def: 0
+	 * Points cost for Thor. 0 to disallow purchase. */
 	{ "thor",     "Thor",      24 },
+	/* cfghelp: Cost:Brick, arena, int, def: 0
+	 * Points cost for Brick. 0 to disallow purchase. */
 	{ "brick",    "Brick",     26 },
+	/* cfghelp: Cost:Rocket, arena, int, def: 0
+	 * Points cost for Rocket. 0 to disallow purchase. */
 	{ "rocket",   "Rocket",    27 },
+	/* cfghelp: Cost:Portal, arena, int, def: 0
+	 * Points cost for Portal. 0 to disallow purchase. */
 	{ "port",     "Portal",    28 },
 };
 
