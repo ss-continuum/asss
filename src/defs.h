@@ -90,36 +90,34 @@
 /* player is finished logging in but is not in an arena yet 
  * status returns here after leaving an arena, also */
 
-#define S_ASSIGN_FREQ                 9
-/* player has requested entering an arena, needs to be assigned a freq */
+#define S_DO_FREQ_AND_ARENA_SYNC      9
+/* player has requested entering an arena, needs to be assigned a freq
+ * and have arena data syched */
 
-#define S_NEED_ARENA_SYNC             10
-/* assigned freq, needs to sync persistant arena data (scores) */
-
-#define S_WAIT_ARENA_SYNC             11
+#define S_WAIT_ARENA_SYNC             10
 /* waiting for scores sync */
 
-#define S_DO_ARENA_CALLBACKS          12
+#define S_DO_ARENA_CALLBACKS          11
 /* scores sync complete, will call arena entering callbacks */
 
-#define S_SEND_ARENA_RESPONSE         13
+#define S_SEND_ARENA_RESPONSE         12
 /* all done with initalizing, needs to send arena response */
 
-#define S_PLAYING                     14
+#define S_PLAYING                     13
 /* player is playing in an arena. typically the longest stage */
 
-#define S_LEAVING_ARENA               15
+#define S_LEAVING_ARENA               14
 /* player has left arena, callbacks need to be called
  * will return to S_LOGGEDIN after this */
 
-#define S_LEAVING_ZONE                16
+#define S_LEAVING_ZONE                15
 /* player is leaving zone, call disconnecting callbacks, go to TIMEWAIT
  * after this */
 
-#define S_TIMEWAIT                    17
+#define S_TIMEWAIT                    16
 /* time-wait state for network to flush outgoing packets from the buffer */
 
-#define S_TIMEWAIT2                   18
+#define S_TIMEWAIT2                   17
 /* second part of time-wait state. goes to S_FREE after this */
 
 

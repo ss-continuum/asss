@@ -151,16 +151,25 @@ void ProcessLoginQueue()
 			case S_NEED_GLOBAL_SYNC:    ns = S_WAIT_GLOBAL_SYNC;    break;
 			case S_DO_GLOBAL_CALLBACKS: ns = S_SEND_LOGIN_RESPONSE; break;
 			case S_SEND_LOGIN_RESPONSE: ns = S_LOGGEDIN;            break;
-			case S_ASSIGN_FREQ:         ns = S_NEED_ARENA_SYNC;     break;
-			case S_NEED_ARENA_SYNC:     ns = S_WAIT_ARENA_SYNC;     break;
+			case S_DO_FREQ_AND_ARENA_SYNC: ns = S_WAIT_ARENA_SYNC;  break;
 			case S_DO_ARENA_CALLBACKS:  ns = S_SEND_ARENA_RESPONSE; break;
 			case S_SEND_ARENA_RESPONSE: ns = S_PLAYING;             break;
 			case S_LEAVING_ARENA:       ns = S_LOGGEDIN;            break;
 			case S_LEAVING_ZONE:        ns = S_TIMEWAIT;            break;
 
 			case S_LOGGEDIN:
+				/* check whenloggedin. this is used to move players to
+				 * the leaving_zone status once various things are
+				 * completed */
 				if (player->whenloggedin)
 					player->status = player->whenloggedin;
+
+				/* check if the player's arena is ready.
+				 * LOCK: we don't grab the arena status lock because it
+				 * doesn't matter if we miss it this time around */
+				if (aman->data[player->arena].status == ARENA_RUNNING)
+					player->status = S_DO_FREQ_AND_ARENA_SYNC;
+
 				continue;
 
 			default:
@@ -197,14 +206,13 @@ void ProcessLoginQueue()
 				log->Log(LOG_INFO, "Player logged on (%s)", player->name);
 				break;
 
-			case S_ASSIGN_FREQ:
+			case S_DO_FREQ_AND_ARENA_SYNC:
+				/* first get a freq */
 				/* yes, player->shiptype will be set here because it's
 				 * done in PArena */
 				player->freq = afreq->AssignFreq(pid, BADFREQ,
 						player->shiptype);
-				break;
-
-			case S_NEED_ARENA_SYNC:
+				/* then, sync scores */
 				/* FIXME: scoreman->SyncFromFileAsync(pid, 0, ASyncDone); */
 				ASyncDone(pid);
 				break;
@@ -219,10 +227,12 @@ void ProcessLoginQueue()
 
 			case S_LEAVING_ARENA:
 				CallPA(pid, PA_LEAVEARENA);
+				/* FIXME: scoreman->SyncToFile(pid, 0); */
 				break;
 
 			case S_LEAVING_ZONE:
 				CallPA(pid, PA_DISCONNECT);
+				/* FIXME: scoreman->SyncToFile(pid, 1); */
 				break;
 		}
 

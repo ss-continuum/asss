@@ -182,15 +182,8 @@ void ProcessArenaQueue()
 				/* do callbacks */
 				CallAA(i, AA_CREATE);
 
-				/* send responses to people */
-				pd->LockStatus();
-				for (j = 0; j < MAXPLAYERS; j++)
-					/* this player is waiting for this arena to be
-					 * created. increment status so that his entering
-					 * request can be processed. */
-					if (players[i].status == S_LOGGEDIN && players[i].arena == i)
-						players[i].status = S_ASSIGN_FREQ;
-				pd->UnlockStatus();
+				/* don't muck with player status now, let it be done in
+				 * the arena processing function */
 
 				nextstatus = ARENA_RUNNING;
 				break;
@@ -439,28 +432,16 @@ void PArena(int pid, byte *p, int l)
 				return;
 			}
 		}
-		players[pid].arena = arena;
-		players[pid].shiptype = go->shiptype;
-		players[pid].xres = go->xres;
-		players[pid].yres = go->yres;
-		/* don't mess with player status yet, let him stay in S_LOGGEDIN.
-		 * it will be incremented when the arena is ready. */
-	}
-	else
-	{
-		players[pid].arena = arena;
-		players[pid].shiptype = go->shiptype;
-		players[pid].xres = go->xres;
-		players[pid].yres = go->yres;
-
-		if (arenas[arena].status == ARENA_RUNNING)
-		{
-			pd->LockStatus();
-			players[pid].status = S_ASSIGN_FREQ;
-			pd->UnlockStatus();
-		}
 	}
 
+	/* set up player info */
+	players[pid].arena = arena;
+	players[pid].shiptype = go->shiptype;
+	players[pid].xres = go->xres;
+	players[pid].yres = go->yres;
+
+	/* don't mess with player status yet, let him stay in S_LOGGEDIN.
+	 * it will be incremented when the arena is ready. */
 	UNLOCK_STATUS();
 }
 
