@@ -4,6 +4,9 @@
 #include "asss.h"
 
 
+/* the delay (in ticks) between a ?freqkick and its effect */
+#define KICKDELAY 300
+
 /* commands */
 local void Cgiveowner(const char *, Player *, const Target *);
 local void Cfreqkick(const char *, Player *, const Target *);
@@ -18,6 +21,7 @@ local void MyShipCh(Player *p, int newship, int newfreq);
 local int ofkey;
 #define OWNSFREQ(p) (*(char*)PPDATA(p, ofkey))
 
+local Imainloop *ml;
 local Iplayerdata *pd;
 local Iarenaman *aman;
 local Igame *game;
@@ -32,13 +36,14 @@ EXPORT int MM_freqowners(int action, Imodman *mm_, Arena *arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
+		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		game = mm->GetInterface(I_GAME, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
-		if (!pd || !aman || !game || !cmd || !cfg) return MM_FAIL;
+		if (!ml || !pd || !aman || !game || !cmd || !cfg) return MM_FAIL;
 
 		ofkey = pd->AllocatePlayerData(sizeof(char));
 		if (ofkey == -1) return MM_FAIL;
@@ -60,6 +65,7 @@ EXPORT int MM_freqowners(int action, Imodman *mm_, Arena *arena)
 		mm->UnregCallback(CB_FREQCHANGE, MyFreqCh, ALLARENAS);
 		mm->UnregCallback(CB_SHIPCHANGE, MyShipCh, ALLARENAS);
 		pd->FreePlayerData(ofkey);
+		mm->ReleaseInterface(ml);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(game);
@@ -72,19 +78,34 @@ EXPORT int MM_freqowners(int action, Imodman *mm_, Arena *arena)
 }
 
 
-local int CountFreq(Arena *arena, int freq, Player *excl)
+local void count_freq(Arena *arena, int freq, Player *excl, int *total, int *hasowner)
 {
 	int t = 0;
 	Player *i;
 	Link *link;
+
+	*hasowner = FALSE;
 	pd->Lock();
 	FOR_EACH_PLAYER(i)
 		if (i->arena == arena &&
 		    i->p_freq == freq &&
 		    i != excl)
+		{
 			t++;
+			if (OWNSFREQ(i))
+				*hasowner = TRUE;
+		}
 	pd->Unlock();
-	return t;
+	*total = t;
+}
+
+
+local int kick_timer(void *param)
+{
+	Player *t = param;
+	chat->SendMessage(t, "You have been kicked off your freq.");
+	game->SetShip(t, SPEC);
+	return FALSE;
 }
 
 
@@ -100,7 +121,7 @@ void Cgiveowner(const char *params, Player *p, const Target *target)
 {
 	if (target->type != T_PLAYER)
 		return;
-	
+
 	if (OWNSFREQ(p) &&
 	    p->arena == target->u.p->arena &&
 	    p->p_freq == target->u.p->p_freq)
@@ -126,17 +147,14 @@ void Cfreqkick(const char *params, Player *p, const Target *target)
 	if (OWNSFREQ(p) && !OWNSFREQ(t) &&
 	    p->arena == t->arena &&
 	    p->p_freq == t->p_freq)
-	{
-		game->SetShip(t, SPEC);
-		chat->SendMessage(t, "You have been kicked off the freq by %s",
-				p->name);
-	}
+		ml->SetTimer(kick_timer, KICKDELAY, 0, t, t);
 }
 
 
 void MyPA(Player *p, int action, Arena *arena)
 {
 	OWNSFREQ(p) = 0;
+	ml->ClearTimer(kick_timer, p);
 }
 
 
@@ -145,21 +163,30 @@ void MyFreqCh(Player *p, int newfreq)
 	Arena *arena = p->arena;
 	ConfigHandle ch = arena->cfg;
 
+	OWNSFREQ(p) = 0;
+	ml->ClearTimer(kick_timer, p);
+
 	/* cfghelp: Team:AllowFreqOwners, arena, bool, def: 1
 	 * Whether to enable the freq ownership feature in this arena. */
-	if (CountFreq(arena, newfreq, p) == 0 &&
-	    cfg->GetInt(ch, "Team", "AllowFreqOwners", 1) &&
+	if (cfg->GetInt(ch, "Team", "AllowFreqOwners", 1) &&
 	    newfreq >= cfg->GetInt(ch, "Team", "PrivFreqStart", 100) &&
 	    newfreq != arena->specfreq)
 	{
-		OWNSFREQ(p) = 1;
-		chat->SendMessage(p, "You are the now the owner of freq %d. "
-				"You can kick people off your freq by sending them "
-				"the private message \"?freqkick\", and you can share "
-				"your ownership by sending people \"?giveowner\".", newfreq);
+		int total, hasowner;
+		count_freq(arena, newfreq, p, &total, &hasowner);
+
+		if (total == 0)
+		{
+			OWNSFREQ(p) = 1;
+			chat->SendMessage(p, "You are the now the owner of freq %d. "
+					"You can kick people off your freq by sending them "
+					"the private message \"?freqkick\", and you can share "
+					"your ownership by sending people \"?giveowner\".", newfreq);
+		}
+		else if (hasowner)
+			chat->SendMessage(p, "This freq has an owner. You should be aware "
+					"that you can be kicked off any time.");
 	}
-	else
-		OWNSFREQ(p) = 0;
 }
 
 
