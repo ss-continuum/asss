@@ -8,11 +8,11 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <string.h>
+#include <execinfo.h>
 
 #include "asss.h"
 #include "log_file.h"
 #include "persist.h"
-
 
 local Imodman *mm;
 
@@ -79,12 +79,20 @@ local void handle_sigusr2(void)
 
 local void handle_sigsegv(int sig)
 {
+#if CFG_HANDLE_SEGV == 1
+	void *bt[100];
+	int n = backtrace(bt, 100);
+	fcloseall();
+	write(2, "Seg fault, backtrace:\n", 22);
+	backtrace_symbols_fd(bt, n, 2);
+#elif CFG_HANDLE_SEGV == 2
 	char cmd[128];
 	fcloseall();
 	memset(cmd, 0, sizeof(cmd));
 	snprintf(cmd, sizeof(cmd), "bin/backtrace bin/asss %d", getpid());
 	system(cmd);
 	write(2, "Segmentation fault (backtrace dumped)\n", 38);
+#endif
 	_exit(1);
 }
 

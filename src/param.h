@@ -110,8 +110,9 @@
 
 
 /* whether the unixsignal module should trap segfaults and attempt to
- * generate a backtrace. */
-#define CFG_HANDLE_SEGV
+ * generate a backtrace. set this to 1 to use glibc's internal backtrace
+ * functionality, to 2 to invoke gdb. */
+#define CFG_HANDLE_SEGV 1
 
 
 /* whether per-player space is allocated dynamically. */
