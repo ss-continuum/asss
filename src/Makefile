@@ -12,7 +12,7 @@ INTMODS = config.o core.o logman.o mainloop.o net.o encrypt1.o
 
 EXTMODS = loggers.so game.so command.so billing.so
 
-UTIL = util.o
+UTIL = util.o -lpthread
 
 
 

@@ -90,6 +90,18 @@ void HashRemove(HashTable *, const char *, void *);
 LinkedList *HashGet(HashTable *, const char *);
 
 
+#ifndef NOMPQUEUE
+
+/* mpqueue stuff */
+
+typedef struct MPQueue MPQueue;
+
+MPQueue * MPAlloc();
+void MPFree(MPQueue *);
+void MPAdd(MPQueue *, void *); /* will not block  */
+void * MPRemove(MPQueue *); /* WILL BLOCK */
+
+#endif
 
 #endif
 

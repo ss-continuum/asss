@@ -7,9 +7,11 @@
 #include <stdio.h>
 #include <ctype.h>
 
+#ifndef NOMPQUEUE
+#include <pthread.h>
+#endif
 
 #include "util.h"
-
 #include "defs.h"
 
 
@@ -37,7 +39,16 @@ struct HashTable
 	HashEntry *lists[0];
 };
 
+#ifndef NOMPQUEUE
 
+struct MPQueue
+{
+	LinkedList list;
+	pthread_mutex_t mtx;
+	pthread_cond_t cond;
+};
+
+#endif
 
 
 static Link *freelinks = NULL;
@@ -102,20 +113,26 @@ char *astrncpy(char *dest, const char *source, size_t n)
 
 /* LinkedList data type */
 
+local void LLInit(LinkedList *lst)
+{
+	lst->start = lst->end = NULL;
+}
+
 LinkedList * LLAlloc()
 {
+	LinkedList *ret;
 	/* HUGE HACK!!!
 	 * depends on LinkedList and Link being the same size!
 	 */
 	if (freelinks)
 	{
-		LinkedList *ret = (LinkedList*) freelinks;
+		ret = (LinkedList*) freelinks;
 		freelinks = freelinks->next;
-		ret->start = ret->end = NULL;
-		return ret;
 	}
 	else
-		return amalloc(sizeof(LinkedList));
+		ret = amalloc(sizeof(LinkedList));
+	LLInit(ret);
+	return ret;
 }
 
 local void LLEmpty(LinkedList *l)
@@ -337,5 +354,58 @@ LinkedList * HashGet(HashTable *h, const char *s)
 /*  + *s; return( i % m ); */
 
 
+#ifndef NOMPQUEUE
+
+local void MPInit(MPQueue *q)
+{
+	LLInit(&q->list);
+	pthread_mutex_init(&q->mtx, NULL);
+	pthread_cond_init(&q->cond, NULL);
+}
+
+MPQueue * MPAlloc()
+{
+	MPQueue *ret = amalloc(sizeof(MPQueue));
+	MPInit(ret);
+	return ret;
+}
+
+local void MPDestroy(MPQueue *q)
+{
+	LLEmpty(&q->list);
+	pthread_mutex_destroy(&q->mtx);
+	pthread_cond_destroy(&q->cond);
+}
+
+void MPFree(MPQueue *q)
+{
+	MPDestroy(q);
+	free(q);
+}
+
+	
+void MPAdd(MPQueue *q, void *data)
+{
+	pthread_mutex_lock(&q->mtx);
+	LLAdd(&q->list, data);
+	pthread_mutex_unlock(&q->mtx);
+}
+
+	
+void * MPRemove(MPQueue *q)
+{
+	void *data;
+	Link *l;
+
+	pthread_mutex_lock(&q->mtx);
+	while ( !(l = LLGetHead(&q->list)) )
+		pthread_cond_wait(&q->cond, &q->mtx);
+	data = l->data;
+	LLRemove(&q->list, data);
+	pthread_mutex_unlock(&q->mtx);
+	return data;
+}
+
+#endif /* MPQUEUE */
 
 
