@@ -1,0 +1,302 @@
+
+There should be a way to create out-of-process extensions to asss.
+
+This is desirable because certain extensions might interfere with the
+functioning of the main process, even if they are in a separate thread.
+For example, adding extension languages that require garbage collection,
+or interfere with memory allocation in some other way.
+
+Note: This out-of-process extension mechanism is not intended to be
+available to the public for general consumption. It is intended to
+enable things like scheme or python interpreters. Extensions to the
+server should then be written in scheme or python or whatever.
+
+----------
+
+Possible choices for the IPC between asss and these extensions are:
+ * shared memory
+   not great, because the whole reason we want them to be out-of-process
+   is because of memory
+ * unix named pipes
+ * unix sockets
+ * tcp sockets
+
+To minimize unix-dependance, tcp sockets sound best.
+
+There needs to be a protocol for communication over these sockets.
+
+Requirements for the protocol:
+ * bidirectional
+   asss must send data for processing to the extension server, and the
+   server must send commands back to asss to be processed.
+ * simple
+   there's no reason to spend a lot of time on this
+ * extensible
+   this should work for more than just scheme
+ * indifferent
+   using s-expressions would be nice, but places too many requirements
+   on both sides.
+
+Proposal 1:
+
+Data will be sent across the socket in both directions.
+
+The data will look like:
+struct Data
+{
+    unsigned int size;
+    unsigned int type;
+    byte data[size];
+}
+
+The format of the 'data' member, of course, is dependant on the type.
+
+Types of communication are #defined with names following the format:
+
+A2E_TYPE1 - for messages from asss to the extension
+E2A_TYPE2 - for messages from the extension to asss
+
+----------
+
+Example layout of scheme interpreter extension:
+
+
+Examples of use:
+
+Player types "?scmraw (+ 1 1)"
+Server responds "Scheme: 2"
+
+Player types:
+?scm (lambda (pid arena)
+       (foreach (lambda (pid)
+                        (send-message pid
+                                      (string-append "Hello, "
+                                                     (player-name pid))))
+                (get-arena-players arena))
+Server responds: "Scheme: #<void>"
+and server also sends "Hello, <player>" to everyone in the arena that
+player is in.
+
+
+Observations on above examples:
+
+The extension server will have to make requests of the server for
+several things. First of all, send-message will have to send a
+(out-of-process protocol) message to asss to accomplish its function. It
+can do this and return immediately, since it will probably return
+#<void>. However, player-name and get-all-players cannot return
+immediately. They must send a message to asss and wait for a response.
+This suggests the following models:
+
+* threaded model:
+The scheme server will be multi-threaded.
+Evaluations will be associated with sessions.
+Sessions may block.
+Each session will run in a separate thread, so that they don't interrupt
+one another.
+Messages to the server for requests for information will carry an
+identifier, so the network layer of the scheme server can send them to
+the right thread.
+
+problems: how to make threads sleep, wake up at right times, and how to
+idenfify them.
+
+* sequential model:
+Evaluations will be strictly sequential.
+The server will maintain a queue of expressions to evaluate, as well as
+queues for all messsage types.
+When the extension executes a function that requires a response from
+asss, it will call a C function that will run the recv loop, and return
+the next message of the correct type to its caller. It will queue all
+other messages in the global type queues. (If there are messages of the
+requested type in a queue, it will return the first of those.)
+
+problems: can't execute in parallel. out of order problems?
+
+* continuation model:
+Scheme functions that require responses from the server will be defined
+in a manner similar to this:
+(define (player-name pid)
+  (call/cc
+    (lambda (cont)
+      (register-player-name-waiter cont pid)
+      (kill-this-evaluation))))
+That is, they will register their continuation with the network layer so
+that it can be called when a message of the correct type comes in, and
+then they will somehow stop the evaluation of their caller, to wait
+until that message does come.
+
+problems: how the hell do you (kill-this-evaluation)? plus, this deals
+with continuations, which are quite confusing.
+
+
+Conclusions:
+
+The sequential model seems like the best way to go for now. As long as
+the server doesn't send request-response messages when it's not supposed
+to, things should work fine. To make sure of that condition, maybe we
+really should have only one message type queued, the strings to eval,
+because that's the only one we expect without a specific request.
+
+
+
+Message types:
+
+A2E_EVALSTRING - tells the extension to evaluate a string and apply it
+  to the calling pid and arena - no response (technically not, but the
+  scheme daemon will generate an E2A_SENDMESSAGE)
+struct EvalStringData /* variable length */
+{
+    int callingpid;
+    int callingarena;
+    int doraw;
+    char string[];
+}
+
+E2A_SENDMESSAGE - sends an arena message to a player - no response
+struct SendMessageData /* variable length */
+{
+    int pid;
+    char message[];
+}
+
+E2A_GETPLAYERDATA - retrieves the player name - wants response
+struct GetPlayerNameData
+{
+    int pid;
+}
+
+A2E_PLAYERDATA - response to GETPLAYERNAME - no response
+struct PlayerDataData
+{
+    int pid;
+    PlayerData pd;
+}
+
+E2A_GETPLAYERLIST - get lists of pids - wants response
+struct GetPlayerListData
+{
+    int arena; /* -1 = all arenas, else = specific arena */
+    int freq; /* -1 = all freqs, else = specific freq */
+    int shiptype; /* -1 = all shiptypes, else = specific ones */
+}
+
+A2E_PLAYERLIST - returns lists of pids - no response
+struct PlayerListData /* variable length */
+{
+    int pid[]; /* terminated by a -1 */
+}
+
+E2A_SETSETTING - changes a dynamic setting - no response
+struct SetSettingData
+{
+    int arena; /* -1 = global, else = specific arena */
+    char section[MAXSECTIONLEN];
+    char key[MAXKEYLEN];
+    char data[MAXDATALEN];
+}
+
+E2A_GETSETTING - gets the value of a setting - wants response
+struct GetSettingData
+{
+    int arena; /* -1 = global, else = specific arena */
+}
+
+
+A2E_SETTING - the value of a setting - no response
+struct SettingData /* variable length */
+{
+    char data[];
+}
+
+E2A_INSTALLPERIODIC - install a periodic callback - no response
+struct InstallPeriodicData /* variable length */
+{
+    int seconds;
+    char string[];
+}
+
+E2A_SETSHIP - set someones ship - no response
+struct SetShipData
+{
+    int pid;
+    int shiptype;
+    int lock; /* boolean - lock them there? */
+}
+
+
+
+
+How to handle some circumstances:
+
+dynamic settings:
+
+we want to run a certain snippet every 5 minutes.
+
+(define (dyn-freq-maxplayers pid-unused arena)
+  (set-setting arena
+               "Freq"
+               "MaxPlayers"
+               (let ((cnt (length (get-arena-nonspec-players arena))))
+                 (if (< cnt 10) 4
+                 (if (< cnt 20) 7
+                 (if (< cnt 30) 10
+                                15)))
+               ))
+
+solution: have an ArenaAction handler install a timer function. the
+timer function calls scheme->EvalString() on the code.
+
+better solution: let each arena have a scheme file associated with it.
+the scheme file is loaded and evaluated from the scheme asss module in
+an ArenaAction handler. it may call certain functions that will install
+handlers for certain things.
+
+example:
+
+(define (dyn-freq-maxplayers pid-unused arena)
+  ...)
+
+;; dyn-freq-maxplayers will be evaluated and applied to a pid and arena
+;; every 5 minutes
+(install-periodic (* 5 60) "dyn-freq-maxplayers")
+
+note that the thing to call is specified as a string. that is necessary
+because it will be sent back to the extension server through an
+EvalString message (not raw).
+
+when the arena is reaped, the ArenaAction for the scheme module will
+remove all of the callbacks associated with that arena. they will remain
+in the scheme global environment, though. they will be redefined the
+next time the arena is loaded, so this approach shouldn't leak memory,
+though it will never release it.
+
+
+a simple elimbot:
+
+FIXME: write elimbot in scheme
+
+
+----------
+
+interface to players:
+
+first, evaluating expressions will be limited to staff. it might be
+possible to allow everyone to use a limited interpreter, one without any
+of the things that will call back to the server.
+
+the following commands should be available:
+?scm - evaluates an expression and applies it to the pid and arena
+?scmraw - evaluates and expression and calls SendMessage on the result
+          to send it back to the player
+?scmstart - from that command, everything the player types in pub
+            chat will be concatenated into a string and sent to the
+            interpreter, until the player types a single period on a
+            line.
+
+using ?scmstart and intelligent use of callbacks, it should be possible
+to program a bot from within the client.
+
+
+
+
