@@ -23,9 +23,13 @@
 #define S_ISDIR(a) ((a) & _S_IFDIR)
 #define mkdir(a,b) _mkdir(a)
 #define mktemp(a) _mktemp(a)
+#define open(a) _open(a)
 
 typedef int socklen_t;
 
 #define BROKEN_VSNPRINTF
-#define NEED_STRCASESTR
+
+/* a few things that windows is missing */
+extern const char * strcasestr(const char* haystack, const char* needle);
+extern int mkstemp(char *template);
 

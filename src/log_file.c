@@ -81,10 +81,10 @@ void LogFile(const char *s)
 		if (logfile)
 		{
 			time_t t1;
-			char t3[CFG_TIMEFORMATLEN];
+			char t3[128];
 
 			time(&t1);
-			strftime(t3, CFG_TIMEFORMATLEN, CFG_TIMEFORMAT, localtime(&t1));
+			strftime(t3, sizeof(t3), CFG_TIMEFORMAT, localtime(&t1));
 			fputs(t3, logfile);
 			putc(' ', logfile);
 			fputs(s, logfile);
@@ -120,8 +120,7 @@ void ReopenLog(void)
 	/* cfghelp: Log:LogFile, global, string, def: asss.log
 	 * The name of the log file. */
 	ln = cfg->GetStr(GLOBAL, "Log", "LogFile");
-	if (!ln)
-		ln = "asss.log";
+	if (!ln) ln = "asss.log";
 
 	/* if it has a /, treat it as an absolute path. otherwise, prepend
 	 * 'log/' */

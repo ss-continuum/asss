@@ -1,5 +1,6 @@
 
-/* dist: public */
+/* this file holds various compile-time parameters to control the
+ * server's behavior. */
 
 
 /* the search path for config files */
@@ -29,10 +30,9 @@
 #define CFG_PERSISTENT_CHAT_MASKS
 
 
-/* the format for printing time in log files, and the maximum number of
- * characters that the time could possibly take. */
+/* the format for printing time in log files, in strftime format. this
+ * one looks like "Mar 26 13:33:16". */
 #define CFG_TIMEFORMAT "%b %d %H:%M:%S"
-#define CFG_TIMEFORMATLEN 20
 
 
 /* whether to include uname info in the ?version output */
@@ -61,16 +61,15 @@
 
 
 /* maximum length of a line in a config file */
-#define CFG_MAX_LINE 1024
+#define CFG_MAX_LINE 4096
 
 
-/* maximum size of a "big packet". this limits the sizes of files
- * transferred. */
-#define CFG_MAX_BIG_PACKET 524288
+/* maximum size of a "big packet" */
+#define CFG_MAX_BIG_PACKET 65536
 
 
 /* maximum length of module-defined persistent data */
-#define CFG_MAX_PERSIST_LENGTH 1024
+#define CFG_MAX_PERSIST_LENGTH 4096
 
 
 /* number of lines to hold in memory for ?lastlog, and the number of
@@ -119,6 +118,5 @@
 /* #define CFG_PEDANTIC_LOCKING */
 
 
-/* how many pending requests to allow to the billing server at once */
-#define CFG_MAX_PENDING_REQUESTS 10
+/* dist: public */
 

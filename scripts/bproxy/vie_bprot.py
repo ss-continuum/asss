@@ -58,11 +58,11 @@ class Pkt:
 
 def raw_send(d):
 	global sock, encdata
-	enc = enc.encrypt(encdata, d)
-	r = sock.send(enc)
-	if r < len(enc):
+	encd = enc.encrypt(encdata, d)
+	r = sock.send(encd)
+	if r < len(encd):
 		log('send failed to send whole packet (%d < %d bytes)'
-				% (r, len(enc)))
+				% (r, len(encd)))
 
 
 def try_read():

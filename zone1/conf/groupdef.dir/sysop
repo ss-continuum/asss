@@ -19,6 +19,7 @@ cmd_geta
 
 cmd_getfile
 cmd_putfile
+cmd_putzip
 
 cmd_disablecmdgroup
 cmd_enablecmdgroup

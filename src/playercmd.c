@@ -12,9 +12,7 @@
 #endif
 
 #include "asss.h"
-#include "filetrans.h"
 #include "jackpot.h"
-#include "log_file.h"
 
 #ifdef CFG_EXTRA_VERSION_INFO
 #ifndef WIN32
@@ -53,10 +51,8 @@ local Imainloop *ml;
 local Iarenaman *aman;
 local Igame *game;
 local Ijackpot *jackpot;
-local Ilog_file *logfile;
 local Iflags *flags;
 local Iballs *balls;
-local Ifiletrans *filetrans;
 local Ilagquery *lagq;
 local Imodman *mm;
 
@@ -220,25 +216,6 @@ local void Cshutdown(const char *params, Player *p, const Target *target)
 		code = EXIT_RECYCLE;
 
 	ml->Quit(code);
-}
-
-
-local helptext_t admlogfile_help =
-"Targets: none\n"
-"Args: {flush} or {reopen}\n"
-"Administers the log file that the server keeps. There are two possible\n"
-"subcommands: {flush} flushes the log file to disk (in preparation for\n"
-"copying it, for example), and {reopen} tells the server to close and\n"
-"re-open the log file (to rotate the log while the server is running).\n";
-
-local void Cadmlogfile(const char *params, Player *p, const Target *target)
-{
-	REQUIRE_MOD(logfile)
-
-	if (!strcasecmp(params, "flush"))
-		logfile->FlushLog();
-	else if (!strcasecmp(params, "reopen"))
-		logfile->ReopenLog();
 }
 
 
@@ -1267,34 +1244,6 @@ local void Creloadconf(const char *params, Player *p, const Target *target)
 
 
 
-local helptext_t getfile_help = NULL;
-
-local void Cgetfile(const char *params, Player *p, const Target *target)
-{
-	const char *t1 = strrchr(params, '/');
-	const char *t2 = strrchr(params, '\\');
-	if (t2 > t1) t1 = t2;
-	t1 = t1 ? t1 + 1 : params;
-
-	if (params[0] == '/' || strstr(params, ".."))
-		lm->LogP(L_MALICIOUS, "playercmd", p, "Attempted ?getfile with bad path: '%s'", params);
-	else
-		filetrans->SendFile(p, params, t1, 0);
-}
-
-
-local helptext_t putfile_help = NULL;
-
-local void Cputfile(const char *params, Player *p, const Target *target)
-{
-	const char *t1 = strrchr(params, '/');
-	const char *t2 = strrchr(params, '\\');
-	if (t2 > t1) t1 = t2;
-	t1 = t1 ? t1 + 1 : params;
-	filetrans->RequestFile(p, params, t1);
-}
-
-
 local helptext_t jackpot_help =
 "Targets: none\n"
 "Args: none\n"
@@ -1635,19 +1584,6 @@ local const struct cmd_info ball_commands[] =
 };
 
 
-local const struct interface_info admin_requires[] =
-{
-	REQUIRE(filetrans, I_FILETRANS)
-	END()
-};
-local const struct cmd_info admin_commands[] =
-{
-	CMD(getfile)
-	CMD(putfile)
-	END()
-};
-
-
 local const struct interface_info lag_requires[] =
 {
 	REQUIRE(lagq, I_LAGQUERY)
@@ -1668,7 +1604,6 @@ local const struct interface_info misc_requires[] =
 	REQUIRE(groupman, I_GROUPMAN)
 	REQUIRE(aman, I_ARENAMAN)
 	REQUIRE(lm, I_LOGMAN)
-	REQUIRE(logfile, I_LOG_FILE)
 	REQUIRE(cfg, I_CONFIG)
 	END()
 };
@@ -1681,7 +1616,6 @@ local const struct cmd_info misc_commands[] =
 	CMD(setcm)
 	CMD(getcm)
 	CMD(sheep)
-	CMD(admlogfile)
 	END()
 };
 
@@ -1694,7 +1628,6 @@ local struct cmd_group all_cmd_groups[] =
 	CMD_GROUP(config)
 	CMD_GROUP(flag)
 	CMD_GROUP(ball)
-	CMD_GROUP(admin)
 	CMD_GROUP(lag)
 	CMD_GROUP(misc)
 	END()

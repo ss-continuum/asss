@@ -5,10 +5,6 @@
 #define __FILETRANS_H
 
 
-#define CB_UPLOADEDFILE ("uploadedfile")
-typedef void (*UploadedFileFunc)(Player *p, const char *filename);
-
-
 #define I_FILETRANS "filetrans-1"
 
 typedef struct Ifiletrans
@@ -16,7 +12,12 @@ typedef struct Ifiletrans
 	INTERFACE_HEAD_DECL
 
 	int (*SendFile)(Player *p, const char *path, const char *fname, int delafter);
-	void (*RequestFile)(Player *p, const char *path, const char *fname);
+	/* uploaded will get called when the file is done being uploaded.
+	 * filename will be the name of the uploaded file. if filename == NULL,
+	 * there was an error and you should clean up any allocated memory
+	 * in clos. */
+	void (*RequestFile)(Player *p, const char *path,
+			void (*uploaded)(const char *filename, void *clos), void *clos);
 } Ifiletrans;
 
 

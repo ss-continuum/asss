@@ -722,8 +722,6 @@ local void remote_connect(const char *ipaddr, int port)
 	lm->Log(L_INFO, "<billing> trying to connect to billing server at %s:%d",
 			ipaddr, port);
 
-	lastretry = time(NULL);
-
 	memset(&sin, 0, sizeof(sin));
 	sin.sin_family = AF_INET;
 	sin.sin_port = htons(port);
@@ -770,6 +768,8 @@ local void get_socket(void)
 	/* cfghelp: Billing:Port, global, int, def: 1850
 	 * The port to connect to on the billing server. */
 	int port = cfg->GetInt(GLOBAL, "Billing", "Port", 1850);
+
+	lastretry = time(NULL);
 
 	if (proxy)
 		setup_proxy(proxy, ipaddr, port);

@@ -56,7 +56,8 @@ game.so: game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
 	banners.o objects.o messages.o koth.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -lm
 
-command.so: cmdman.o playercmd.o watchdamage.o buy.o help.o cfghelp.o
+command.so: cmdman.o playercmd.o admincmd.o watchdamage.o buy.o help.o \
+	cfghelp.o
 
 external.so: directory.o billing.o
 

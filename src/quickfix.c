@@ -24,28 +24,6 @@ local Ifiletrans *filetrans;
 local Inet *net;
 
 
-#ifdef NEED_STRCASESTR
-/* taken from
- * http://www2.ics.hawaii.edu/~esb/2001fall.ics451/strcasestr.html */
-local const char * strcasestr(const char* haystack, const char* needle)
-{
-	int i;
-	int nlength = strlen (needle);
-	int hlength = strlen (haystack);
-
-	if (nlength > hlength) return NULL;
-	if (hlength <= 0) return NULL;
-	if (nlength <= 0) return haystack;
-	/* hlength and nlength > 0, nlength <= hlength */
-	for (i = 0; i <= (hlength - nlength); i++)
-		if (strncasecmp (haystack + i, needle, nlength) == 0)
-			return haystack + i;
-	/* substring not found */
-	return NULL;
-}
-#endif
-
-
 local void try_section(const char *limit, const struct section_help *sh,
 		ConfigHandle ch, FILE *f, const char *secname)
 {
@@ -95,7 +73,6 @@ local void do_quickfix(Player *p, const char *limit)
 	if (!arena) return;
 	ch = arena->cfg;
 
-#ifndef WIN32
 	fd = mkstemp(name);
 
 	if (fd == -1)
@@ -106,16 +83,6 @@ local void do_quickfix(Player *p, const char *limit)
 	}
 
 	f = fdopen(fd, "wb");
-#else
-	if (!mktemp(name))
-	{
-		lm->Log(L_WARN, "<quickfix> Can't create temp file. Make sure tmp/ exists.");
-		chat->SendMessage(p, "Error: can't create temporary file.");
-		return;
-	}
-
-	f = fopen(name, "wb");
-#endif
 
 	/* construct server.set */
 	for (i = 0; i < cfghelp->section_count; i++)

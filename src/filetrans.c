@@ -29,6 +29,8 @@ struct upload_data
 {
 	FILE *fp;
 	char *fname;
+	void (*uploaded)(const char *filename, void *clos);
+	void *clos;
 };
 
 struct download_data
@@ -51,32 +53,28 @@ local int udkey;
 
 local void p_inc_file(Player *p, byte *data, int len)
 {
+	struct upload_data *ud = PPDATA(p, udkey);
+	char fname[] = "tmp/uploaded-XXXXXX";
+	int fd;
 	FILE *fp;
-	char fname[32];
 
 	if (capman && !capman->HasCapability(p, CAP_UPLOADFILE))
 		return;
 
-	astrncpy(fname, "tmp/", sizeof(fname));
-	strncat(fname, data+1, 16);
-
-	if (strstr(fname, ".."))
+	fd = mkstemp(fname);
+	if (fd < 0)
 	{
-		lm->LogP(L_MALICIOUS, "filetrans", p, "Sent a file with '..' in the filename");
+		lm->LogP(L_WARN, "filetrans", p, "can't create temp file for upload");
 		return;
 	}
 
-	fp = fopen(fname, "wb");
-	if (!fp)
-	{
-		lm->LogP(L_WARN, "filetrans", p, "Can't open '%s' for writing", fname);
-		return;
-	}
-
+	fp = fdopen(fd, "wb");
+	if (!fp) return;
 	fwrite(data+17, len-17, 1, fp);
 	fclose(fp);
 
-	DO_CBS(CB_UPLOADEDFILE, ALLARENAS, UploadedFileFunc, (p, fname));
+	if (ud->uploaded)
+		ud->uploaded(fname, ud->clos);
 }
 
 
@@ -92,16 +90,24 @@ local void cleanup_ud(Player *p, int success)
 
 	if (success)
 	{
-		DO_CBS(CB_UPLOADEDFILE, ALLARENAS, UploadedFileFunc, (p, ud->fname));
+		if (ud->uploaded)
+			ud->uploaded(ud->fname, ud->clos);
+		else if (ud->fname)
+			remove(ud->fname);
 	}
 	else
 	{
-		if (remove(ud->fname) == -1)
-			lm->Log(L_WARN, "<filetrans> Can't unlink '%s': %s",
-					ud->fname, strerror(errno));
+		if (ud->uploaded)
+			ud->uploaded(NULL, ud->clos);
+
+		if (ud->fname)
+			remove(ud->fname);
 	}
 
 	afree(ud->fname);
+	ud->fname = NULL;
+	ud->uploaded = NULL;
+	ud->clos = NULL;
 }
 
 
@@ -118,27 +124,25 @@ local void sized_p_inc_file(Player *p, byte *data, int len, int offset, int tota
 	{
 		if (!capman || capman->HasCapability(p, CAP_UPLOADFILE))
 		{
-			char fname[32];
-			astrncpy(fname, "tmp/", sizeof(fname));
-			strncat(fname, data+1, 16);
+			int fd;
+			char fname[] = "tmp/uploaded-XXXXXX";
 
-			if (strstr(fname, ".."))
+			fd = mkstemp(fname);
+			if (fd < 0)
 			{
-				lm->LogP(L_MALICIOUS, "filetrans", p, "Sent a file with '..' in the filename");
+				lm->LogP(L_WARN, "filetrans", p, "can't create temp file for upload");
 				return;
 			}
 
-			lm->LogP(L_INFO, "filetrans", p, "Accepted '%s' for upload", fname+4);
+			lm->LogP(L_INFO, "filetrans", p, "accepted file for upload (to '%s')", fname);
 
 			ud->fname = astrdup(fname);
-			ud->fp = fopen(fname, "wb");
+			ud->fp = fdopen(fd, "wb");
 			if (ud->fp)
 				fwrite(data+17, len-17, 1, ud->fp);
-			else
-				lm->Log(L_WARN, "<filetrans> Can't open '%s' for writing", fname);
 		}
 		else
-			lm->LogP(L_INFO, "filetrans", p, "Denied file upload");
+			lm->LogP(L_INFO, "filetrans", p, "denied file upload");
 	}
 	else if (offset > 0 && ud->fp)
 	{
@@ -146,7 +150,7 @@ local void sized_p_inc_file(Player *p, byte *data, int len, int offset, int tota
 			fwrite(data, len, 1, ud->fp);
 		else
 		{
-			lm->LogP(L_INFO, "filetrans", p, "Completed upload of '%s'", ud->fname);
+			lm->LogP(L_INFO, "filetrans", p, "completed upload");
 			cleanup_ud(p, 1);
 		}
 	}
@@ -223,8 +227,10 @@ local int SendFile(Player *p, const char *path, const char *fname, int delafter)
 	return MM_OK;
 }
 
-local void RequestFile(Player *p, const char *path, const char *fname)
+local void RequestFile(Player *p, const char *path,
+		void (*uploaded)(const char *filename, void *clos), void *clos)
 {
+	struct upload_data *ud = PPDATA(p, udkey);
 	struct S2CRequestFile
 	{
 		u8 type;
@@ -232,17 +238,32 @@ local void RequestFile(Player *p, const char *path, const char *fname)
 		char fname[16];
 	} pkt;
 
+	if (ud->fp || ud->fname)
+		return;
+
+	ud->fp = NULL;
+	ud->fname = NULL;
+	ud->uploaded = uploaded;
+	ud->clos = clos;
+
 	memset(&pkt, 0, sizeof(pkt));
 
 	pkt.type = S2C_REQUESTFORFILE;
 	astrncpy(pkt.path, path, 256);
-	astrncpy(pkt.fname, fname, 16);
+	astrncpy(pkt.fname, "unused-field", 16);
 
 	net->SendToOne(p, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
-	lm->LogP(L_INFO, "filetrans", p, "Requesting file '%s' (as '%s')",
-			path, fname);
-	if (strstr(fname, ".."))
-		lm->LogP(L_WARN, "filetrans", p, "Sent file request with '..'");
+
+	lm->LogP(L_INFO, "filetrans", p, "requesting file '%s'", path);
+	if (strstr(path, ".."))
+		lm->LogP(L_WARN, "filetrans", p, "sent file request with '..'");
+}
+
+
+local void paction(Player *p, int action)
+{
+	if (action == PA_DISCONNECT)
+		cleanup_ud(p, 0);
 }
 
 
@@ -272,6 +293,8 @@ EXPORT int MM_filetrans(int action, Imodman *mm_, Arena *arena)
 		net->AddPacket(C2S_UPLOADFILE, p_inc_file);
 		net->AddSizedPacket(C2S_UPLOADFILE, sized_p_inc_file);
 
+		mm->RegCallback(CB_PLAYERACTION, paction, ALLARENAS);
+
 		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
@@ -279,6 +302,8 @@ EXPORT int MM_filetrans(int action, Imodman *mm_, Arena *arena)
 	{
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
+
+		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
 
 		net->RemovePacket(C2S_UPLOADFILE, p_inc_file);
 		net->RemoveSizedPacket(C2S_UPLOADFILE, sized_p_inc_file);
