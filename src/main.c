@@ -16,11 +16,17 @@
 
 #include "asss.h"
 #include "app.h"
+#include "persist.h"
 
 
 local Imodman *mm;
 local int dodaemonize, dochroot;
-local volatile int syncflag;
+local struct
+{
+	pthread_mutex_t mtx;
+	pthread_cond_t cond;
+	int done;
+} wait = { PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0 };
 
 
 local void ProcessArgs(int argc, char *argv[])
@@ -219,7 +225,8 @@ local int do_chroot(void)
 
 local void syncdone(Player *dummy)
 {
-	syncflag = 1;
+	wait.done = 1;
+	pthread_cond_signal(&wait.cond);
 }
 
 
@@ -285,10 +292,11 @@ int main(int argc, char *argv[])
 		Ipersist *persist = mm->GetInterface(I_PERSIST, ALLARENAS);
 		if (persist)
 		{
-			syncflag = 0;
+			pthread_mutex_lock(&wait.mtx);
 			persist->StabilizeScores(0, 1, syncdone);
-			/* hacky condition variable replacement */
-			do sleep(1); while (!syncflag);
+			while (!wait.done)
+				pthread_cond_wait(&wait.cond, &wait.mtx);
+			pthread_mutex_unlock(&wait.mtx);
 			mm->ReleaseInterface(persist);
 		}
 	}

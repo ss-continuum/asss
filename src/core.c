@@ -17,6 +17,7 @@
 #include "zlib.h"
 
 #include "asss.h"
+#include "persist.h"
 
 
 /* STRUCTS */
@@ -287,7 +288,7 @@ void ProcessLoginQueue(void)
 
 			case S_NEED_GLOBAL_SYNC:
 				if (persist)
-					persist->GetPlayer(player, PERSIST_GLOBAL, GSyncDone);
+					persist->GetPlayer(player, NULL, GSyncDone);
 				else
 					GSyncDone(player);
 				break;
@@ -368,7 +369,7 @@ void ProcessLoginQueue(void)
 				       PlayerActionFunc,
 					   (player, PA_DISCONNECT, NULL));
 				if (persist)
-					persist->PutPlayer(player, PERSIST_GLOBAL, NULL);
+					persist->PutPlayer(player, NULL, NULL);
 				break;
 		}
 

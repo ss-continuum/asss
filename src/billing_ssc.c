@@ -21,6 +21,7 @@
 #include "billing.h"
 #include "net-client.h"
 #include "banners.h"
+#include "persist.h"
 #include "protutil.h"
 #include "packets/billing.h"
 #include "packets/banners.h"
@@ -105,8 +106,8 @@ local void drop_connection(int newstate)
 		 * get sent after the DropConnection. */
 		netcli->SendPacket(cc, &disconn, sizeof(disconn), NET_PRI_P5);
 		netcli->DropConnection(cc);
+		cc = NULL;
 	}
-	cc = NULL;
 	state = newstate;
 }
 
@@ -247,8 +248,8 @@ local void paction(Player *p, int action, Arena *arena)
 			data->setpublicscore = FALSE;
 			stats->SetStat(p, STAT_KILL_POINTS, INTERVAL_RESET, data->saved_score.Score);
 			stats->SetStat(p, STAT_FLAG_POINTS, INTERVAL_RESET, data->saved_score.FlagScore);
-			stats->SetStat(p, STAT_KILLS,		INTERVAL_RESET, data->saved_score.Kills);
-			stats->SetStat(p, STAT_DEATHS,		INTERVAL_RESET, data->saved_score.Deaths);
+			stats->SetStat(p, STAT_KILLS,       INTERVAL_RESET, data->saved_score.Kills);
+			stats->SetStat(p, STAT_DEATHS,      INTERVAL_RESET, data->saved_score.Deaths);
 			stats->SetStat(p, STAT_FLAG_PICKUPS,INTERVAL_RESET, data->saved_score.Flags);
 			stats->SendUpdates();
 		}
@@ -295,7 +296,7 @@ local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, c
 		netcli->SendPacket(cc, (byte*)&pkt, strchr(pkt.Text,0) + 1 - (char*)&pkt, NET_RELIABLE);
 		pthread_mutex_unlock(&mtx);
 	}
-	else if (type == MSG_INTERARENAPRIV && target == NULL)
+	else if (type == MSG_REMOTEPRIV && target == NULL)
 	{
 		/* only grab these if the server didn't handle them internally */
 		struct S2B_UserPrivateChat pkt;
@@ -626,11 +627,11 @@ local void process_rmt(const char *data,int len)
 		return;
 	}
 
-	if (*pkt->Text==':')		//private message
+	if (*pkt->Text==':')  /* private message */
 	{
 		Player *p;
 		char recipient[32];
-		const char *text = delimcpy(recipient, pkt->Text, sizeof(recipient), ':');
+		const char *text = delimcpy(recipient, pkt->Text+1, sizeof(recipient), ':');
 		if (!text) return;
 
 		p = pd->FindPlayer(recipient);
@@ -638,10 +639,17 @@ local void process_rmt(const char *data,int len)
 		{
 			Link link = { NULL, p };
 			LinkedList list = { &link, &link };
-			chat->SendAnyMessage(&list, MSG_INTERARENAPRIV, pkt->Sound, "%s", text);
+			chat->SendAnyMessage(&list, MSG_REMOTEPRIV, pkt->Sound, "%s", text);
+			/* this is sort of wrong, but i think it makes more sense to
+			 * use the module name chat here for ease of filtering. */
+			lm->Log(L_DRIVEL, "<chat> [%s] incoming remote priv: [%s] %s",
+					p->name, text);
 		}
+		else
+			lm->Log(L_DRIVEL, "<billing_ssc> unknown destination for incoming remote priv: %s",
+					recipient);
 	}
-	else				//broadcast message
+	else  /* broadcast message */
 	{
 		chat->SendArenaSoundMessage(ALLARENAS, pkt->Sound, "%s", pkt->Text);
 	}
@@ -686,7 +694,7 @@ local void process_chanchat(const char *data,int len)
 		LinkedList list = { &link, &link };
 
 		chat->SendAnyMessage(&list, MSG_CHAT, 0, "%d:%s",
-										pkt->ChannelNr+'0', pkt->Text);
+										pkt->ChannelNr, pkt->Text);
 	}
 }
 
@@ -712,7 +720,7 @@ local void process_mchanchat(const char *data,int len)
 			Link link = { NULL, p };
 			LinkedList list = { &link, &link };
 			chat->SendAnyMessage(&list, MSG_CHAT, 0, "%d:%s",
-					pkt->Recipient[i].ChanNr+'0', txt);
+					pkt->Recipient[i].ChanNr, txt);
 		}
 	}
 }
@@ -777,10 +785,10 @@ local void process_scorereset(const char *data,int len)
 	}
 
 	{
-		/* this will cause a reset in all running arenas */
+		/* reset scores in public arenas */
 		Ipersist *persist = mm->GetInterface(I_PERSIST, ALLARENAS);
 		if (persist)
-			persist->EndInterval(PERSIST_ALLARENAS, INTERVAL_RESET);
+			persist->EndInterval(AG_PUBLIC, INTERVAL_RESET);
 		mm->ReleaseInterface(persist);
 	}
 }
@@ -885,7 +893,8 @@ local void got_connection(void)
 local void got_disconnection(void)
 {
 	cc = NULL;
-	lm->Log(L_INFO, "<billing_ssc> lost connection to user database server");
+	lm->Log(L_INFO, "<billing_ssc> lost connection to user database server "
+			"(auto-retry in %d seconds)", cfg_retryseconds);
 	drop_connection(s_retry);
 }
 

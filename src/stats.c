@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "asss.h"
+#include "persist.h"
 
 
 #define KEY_STATS 1

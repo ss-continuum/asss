@@ -185,7 +185,7 @@ class Text:
 
 		# get window size
 		h, w = scr.getmaxyx()
-		
+
 		rlines = []
 		# only work on the last h lines
 		for l in me.lines[-(h+scrollback):]:

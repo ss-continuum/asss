@@ -3,25 +3,32 @@ ASSSHOME = ..
 SCRIPTS = $(ASSSHOME)/scripts
 
 # change this to the directory of your bdb 4.x install
-DBHOME = /opt/db-4.0.14
-DBINC = -I$(DBHOME)/include
-DBLIB = $(DBHOME)/lib
+DB_HOME = /opt/db-4.0.14
+DB_INC = $(DB_HOME)/include
+DB_LIB = $(DB_HOME)/lib
+DB_CFLAGS = -I$(DB_INC)
+DB_LDFLAGS = -L$(DB_LIB) -Wl,-rpath,$(DB_LIB) -ldb-4
 
 # change this to the directory of your mysql install
-MYSQLHOME = /opt/mysql
-MYSQLINC = -I$(MYSQLHOME)/include
-MYSQLLIB = $(MYSQLHOME)/lib
+MYSQL_HOME = /opt/mysql
+MYSQL_INC = $(MYSQL_HOME)/include
+MYSQL_LIB = $(MYSQL_HOME)/lib
+MYSQL_CFLAGS = -I$(MYSQL_INC)
+MYSQL_LDFLAGS = -L$(MYSQL_LIB) -Wl,-rpath,$(MYSQL_LIB) -lmysqlclient_r
 
 LDFLAGS = -fPIC $(PROF_FLAGS)
 #PROF_FLAGS = -pg
 
 OPT_CFLAGS = -O2 -fomit-frame-pointer -Wall -fpedantic
 DEBUG_CFLAGS = -g -Wall -fpedantic
-ALL_CFLAGS = -D_REENTRANT -D_GNU_SOURCE -fPIC $(DBINC) $(MYSQLINC)
+ALL_CFLAGS = -D_REENTRANT -D_GNU_SOURCE -fPIC $(DB_CFLAGS) $(MYSQL_CFLAGS)
 
 CFLAGS = $(ALL_CFLAGS) $(DEBUG_CFLAGS) $(PROF_FLAGS) $(OPT_CFLAGS)
 
+CC = gcc -pipe
+
 ALL_STUFF = asss         \
+            dbtool       \
             core.so      \
             loggers.so   \
             game.so      \
@@ -43,6 +50,9 @@ opt: clean
 asss: main.o app.o module.o util.o pathutil.o protutil.o region.o
 	$(CC) $(LDFLAGS) -rdynamic -o $@ $^ -ldl -lpthread
 
+dbtool: dbtool.o statcodes.o util.c
+	$(CC) $(LDFLAGS) -DNOMPQUEUE -o $@ $^ $(DB_LDFLAGS)
+
 core.so: config.o player.o core.o logman.o mainloop.o net.o \
 	nullenc.o encrypt1.o arenaman.o mapdata.o mapnewsdl.o clientset.o \
 	capman.o lagdata.o lagaction.o
@@ -57,18 +67,18 @@ game.so: game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
 command.so: cmdman.o playercmd.o admincmd.o watchdamage.o buy.o help.o \
 	cfghelp.o
 
-external.so: directory.o billing.o
+external.so: directory.o billing.o billing_ssc.o
 
 scoring.so: persist.o stats.o statcodes.o points_kill.o points_flag.o \
 	points_goal.o jackpot.o periodic.o points_periodic.o basicstats.o
-	$(CC) $(LDFLAGS) -shared -o $@ $^ $(DBLIB)/libdb.a
+	$(CC) $(LDFLAGS) -shared -o $@ $^ $(DB_LIB)/libdb.a
 	# uncomment this one to link dynamically
-	#$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(DBLIB) -Wl,-rpath,$(DBLIB) -ldb-4
+	#$(CC) $(LDFLAGS) -shared -o $@ $^ $(DB_LDFLAGS)
 
 admin.so: filetrans.o quickfix.o
 
 database.so: mysql.o aliasdb.o
-	$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(MYSQLLIB) -lmysqlclient_r -lz
+	$(CC) $(LDFLAGS) -shared -o $@ $^ $(MYSQL_LDFLAGS) -lz
 
 funky.so: bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
 	chatnet.o md5.o auth_file.o ap_multipub.o sendfile.o fake.o \
@@ -107,7 +117,7 @@ install: $(ALL_STUFF)
 	cp -f $(ALL_STUFF) $(ASSSHOME)/bin
 
 clean:
-	-rm -f asss *.o *.so core Makefile.deps
+	-rm -f asss dbtool *.o *.so core Makefile.deps
 
 
 .PHONY: clean install all

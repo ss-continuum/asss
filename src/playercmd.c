@@ -707,7 +707,7 @@ local void Csetcm(const char *params, Player *p, const Target *target)
 		if (all || !strncasecmp(c, "nmefreq", 7))
 			newmask |= 1 << MSG_NMEFREQ;
 		if (all || !strncasecmp(c, "priv", 4))
-			newmask |= (1 << MSG_PRIV) | (1 << MSG_INTERARENAPRIV);
+			newmask |= (1 << MSG_PRIV) | (1 << MSG_REMOTEPRIV);
 		if (all || !strncasecmp(c, "chat", 4))
 			newmask |= 1 << MSG_CHAT;
 		if (all || !strncasecmp(c, "mod", 7))

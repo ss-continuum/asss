@@ -3,6 +3,7 @@
 
 #include "asss.h"
 #include "jackpot.h"
+#include "persist.h"
 
 #define KEY_JACKPOT 12
 

@@ -26,12 +26,12 @@ typedef void (*TurfTagFunc)(Arena *arena, Player *p, int fid);
 // called when a flag is 'recovered' (note: CB_TURFTAG will still be called)
 // possible use would be to have a module that manipulates lvz objects telling player that the flag tagged was recovered
 #define CB_TURFRECOVER ("turfrecover")
-typedef void (*TurfRecoverFunc)(Arena *arena, int fid, int pid, int freq, int dings, int weight);
+typedef void (*TurfRecoverFunc)(Arena *arena, int fid, int pid, int freq, int dings, int weight, int recovered);
 
 // called when a flag is 'lost' (note: CB_TURFTAG will still be called)
 // possible use would be to have a module that manipulates lvz objects telling players that a flag was lost
 #define CB_TURFLOST ("turflost")
-typedef void (*TurfLostFunc)(Arena *arena, int fid, int pid, int freq, int dings, int weight);
+typedef void (*TurfLostFunc)(Arena *arena, int fid, int pid, int freq, int dings, int weight, int recovered);
 
 
 // this is a special callback - turf_arena is LOCKED when this is called
@@ -56,6 +56,9 @@ struct OldNode
 	int dings;       // previous # of dings
 	int weight;      // previous weight of flag
 	int taggerPID;   // pid of player that owned the flag last
+	int recovered;   // number of times was recovered
+	ticks_t tagTC;   // time flag was originally tagged in ticks
+	ticks_t lostTC;  // time flag was lost in ticks
 };
 
 // to hold extra flag data for turf flags
@@ -65,8 +68,10 @@ struct TurfFlag
 	int dings;       // number of dings the flag has been owned for
 	int weight;      // weight of the flag (how much it's worth)
 	int taggerPID;   // id of player that tagged the flag
-                         // note: player may have been on another team when tag occured or may have even left the game
-	ticks_t tagTC;   // time flag was last tagged in ticks
+	                 // note: player may have been on another team when tag occured or may have even left the game
+	int recovered;   // number of times flag was recovered
+	ticks_t tagTC;   // time flag was originally tagged in ticks
+	ticks_t lastTC;  // time flag was last tagged in ticks
 
 	LinkedList old;  // linked list of OldNodes storing data of flag's previous owners who have a chance to 'recover' it
 };
@@ -105,10 +110,17 @@ struct TurfArena
 	double min_percent_weights;     // min % of weights needed to be owned by freq in order to recieve reward pts
 	double min_percent;             // min percentage of jackpot needed to recieve an award
 	int jackpot_modifier;           // modifies the jackpot based on how many points per player playing
+	int max_points;                 // maximum # of points to award a single person
+
+	int recovery_cutoff;            // recovery cutoff style to be used
 	int recover_dings;
+	int recover_time;
+	int recover_max;
+
 	int weight_calc;
 	int set_weights;                // number of weights that were set from cfg
 	int *weights;                   // array of weights from cfg
+
 	// int min_kills_arena;         // todo: minimum # of kills needed for anyone to recieve rewards
 	// int min_kills_freq;          // todo: minimum # of kills needed by a freq for that freq to recieve rewards
 	// int min_tags_arena;          // todo: minimum # of tags needed in arena for anyone to recieve rewards

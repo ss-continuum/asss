@@ -11,6 +11,7 @@
 #endif
 
 #include "asss.h"
+#include "persist.h"
 
 
 #define CAP_MODCHAT "seemodchat"
@@ -81,7 +82,7 @@ local void check_flood(Player *p)
 	if (pm->msgs >= cfg_floodlimit && cfg_floodlimit > 0)
 	{
 		pm->msgs >>= 1;
-		pm->mask |= MSG_PUBMACRO | MSG_PUB | MSG_FREQ | MSG_NMEFREQ | MSG_PRIV | MSG_INTERARENAPRIV | MSG_CHAT | MSG_MODCHAT | MSG_BCOMMAND;
+		pm->mask |= MSG_PUBMACRO | MSG_PUB | MSG_FREQ | MSG_NMEFREQ | MSG_PRIV | MSG_REMOTEPRIV | MSG_CHAT | MSG_MODCHAT | MSG_BCOMMAND;
 		if (pm->expires)
 			/* already has a mask, add time */
 			pm->expires += cfg_floodshutup;
@@ -103,6 +104,7 @@ local const char *get_chat_type(int type)
 		case MSG_SYSOPWARNING: return "SYSOP";
 		case MSG_CHAT: return "CHAT";
 		case MSG_MODCHAT: return "MOD";
+		case MSG_REMOTEPRIV: return "REMOTEPRIV";
 		default: return NULL;
 	}
 }
@@ -437,7 +439,7 @@ local void handle_remote_priv(Player *p, const char *msg, int sound)
 	t = delimcpy(dest, msg+1, 21, ':');
 	if (msg[0] != ':' || !t)
 		lm->LogP(L_MALICIOUS, "chat", p, "malformed remote private message");
-	else if (OK(MSG_INTERARENAPRIV))
+	else if (OK(MSG_REMOTEPRIV))
 	{
 		Player *d = pd->FindPlayer(dest);
 		if (d)
@@ -445,21 +447,24 @@ local void handle_remote_priv(Player *p, const char *msg, int sound)
 			if (IS_STANDARD(d))
 			{
 				to->pktype = S2C_CHAT;
-				to->type = MSG_INTERARENAPRIV;
+				to->type = MSG_REMOTEPRIV;
 				to->sound = sound;
 				to->pid = -1;
-				snprintf(to->text, strlen(msg)+30, "(%s)>%s", p->name, msg);
+				snprintf(to->text, strlen(msg)+30, "(%s)>%s", p->name, t);
 			}
 			else if (IS_CHAT(d))
 				chatnet->SendToOne(d, "MSG:REMOTEPRIV:%s:%s",
-						p->name, msg);
+						p->name, t);
 		}
 
-		/* the billing module will catch these if dest is NULL */
-		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_INTERARENAPRIV, sound, d, -1, msg));
+		/* the billing module will catch these if dest is null. also: we
+		 * overload the meaning of the text field: if dest is non-null,
+		 * text is the text of the message. if it is null, text is
+		 * ":target:msg". */
+		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_REMOTEPRIV, sound, d, -1, d ? t : msg));
 
 #ifdef CFG_LOG_PRIVATE
-		lm->LogP(L_DRIVEL, "chat", p, "to [%s] remote priv msg: %s", dest, msg);
+		lm->LogP(L_DRIVEL, "chat", p, "to [%s] remote priv: %s", dest, t);
 #endif
 	}
 }
@@ -526,7 +531,7 @@ local void PChat(Player *p, byte *pkt, int len)
 				handle_priv(p, targ, from->text, sound);
 			break;
 
-		case MSG_INTERARENAPRIV:
+		case MSG_REMOTEPRIV:
 			handle_remote_priv(p, from->text, sound);
 			break;
 
@@ -565,6 +570,12 @@ local void MChat(Player *p, const char *line)
 		i = pd->FindPlayer(data);
 		if (i)
 			handle_priv(p, i, t, 0);
+		else
+			/* this is a little hacky: we want to pass in the colon
+			 * right after PRIV because that's what handle_remote_priv
+			 * expects. we know it's at a fixed offset from line, so use
+			 * that. */
+			handle_remote_priv(p, line + 4, 0);
 	}
 	else if (!strcasecmp(subtype, "FREQ"))
 	{

@@ -6,6 +6,7 @@
 #include <math.h>
 
 #include "asss.h"
+#include "persist.h"
 
 /* extra includes */
 #include "packets/balls.h"
@@ -332,6 +333,13 @@ void EndGame(Arena *arena)
 		abd->balls[i].time = TICK_MAKE(now + newgame);
 
 	UNLOCK_STATUS(arena);
+
+	{
+		Ipersist *persist = mm->GetInterface(I_PERSIST, ALLARENAS);
+		if (persist)
+			persist->EndInterval(arena->name, INTERVAL_GAME);
+		mm->ReleaseInterface(persist);
+	}
 }
 
 

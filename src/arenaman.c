@@ -12,6 +12,7 @@
 
 #include "asss.h"
 #include "clientset.h"
+#include "persist.h"
 
 #include "packets/goarena.h"
 

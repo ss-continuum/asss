@@ -8,26 +8,25 @@
 
 
 /* types of chat messages */
-#define MSG_ARENA 0
-#define MSG_PUBMACRO 1
-#define MSG_PUB 2
-#define MSG_FREQ 3
-#define MSG_TEAM 3
-#define MSG_NMEFREQ 4
-#define MSG_PRIV 5
-#define MSG_INTERARENAPRIV 7
+#define MSG_ARENA        0
+#define MSG_PUBMACRO     1
+#define MSG_PUB          2
+#define MSG_FREQ         3
+#define MSG_TEAM         3
+#define MSG_NMEFREQ      4
+#define MSG_PRIV         5
+#define MSG_REMOTEPRIV   7
 #define MSG_SYSOPWARNING 8
-#define MSG_CHAT 9
-
+#define MSG_CHAT         9
 /* the following are for internal use only. they never appear in packets
  * sent over the network. */
-#define MSG_MODCHAT 10
-#define MSG_COMMAND 11
-#define MSG_BCOMMAND 12
+#define MSG_MODCHAT      10
+#define MSG_COMMAND      11
+#define MSG_BCOMMAND     12
 
 
 /* called for most types of chat msg. type is one of the above codes.
- * target is only valid for MSG_PRIV and MSG_INTERARENAPRIV; freq is
+ * target is only valid for MSG_PRIV and MSG_REMOTEPRIV; freq is
  * only valid for MSG_FREQ and MSG_NMEFREQ. */
 #define CB_CHATMSG "chatmsg"
 typedef void (*ChatMsgFunc)(Player *p, int type, int sound, Player *target,

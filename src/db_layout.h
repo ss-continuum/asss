@@ -5,16 +5,15 @@
 #define __DB_LAYOUT_H
 
 /* these names describe where to find the database. */
-#define DB_HOME "data"
-#define DB_FILENAME "data.db"
+#define ASSS_DB_HOME "data"
+#define ASSS_DB_FILENAME "data.db"
 
 /* these are alternate values of the 'arena' field in the keys below. */
-#define SG_PUBLIC "<public>"
-#define SG_GLOBAL "<global>"
+#define AG_PUBLIC "<public>"
+#define AG_GLOBAL "<global>"
 
-
-/* bring in interval information */
-#include "persist.h"
+/* the length of an arena or arena group name. don't change this. */
+#define MAXAGLEN 16
 
 
 /* there are 3 types of records in the database:
@@ -37,15 +36,15 @@
 struct player_record_key
 {
 	char name[24];
-	char arenagrp[16];
+	char arenagrp[MAXAGLEN];
 	short interval;
 	unsigned int serialno;
 	int key;
 };
 
-/* the arenagrp field requires a bit of explanation: for shared
- * intervals, it will be equal to a arenagrp id: "<something>". For
- * nonshared intervals, it will be equal to a literal arena name. */
+/* the arenagrp field requires a bit of explanation: it will be either
+ * "<public>" for public arenas, "<global>" for global data, or a
+ * literal arena name. */
 
 /* the value associated with one of these record keys is merely binary
  * data whose format is determined by the module storing it. */
@@ -54,7 +53,7 @@ struct player_record_key
 /* this is the key for arenagrp data. */
 struct arena_record_key
 {
-	char arena[16];
+	char arena[MAXAGLEN];
 	short interval;
 	unsigned int serialno;
 	int key;
@@ -67,11 +66,11 @@ struct arena_record_key
  * intervals per arena. */
 struct current_serial_record_key
 {
-	char arenagrp[16];
+	char arenagrp[MAXAGLEN];
 	short interval;
 };
 
-/* the value for one of these is simply a 4 byte unsigned integer. */
+/* the value for one of these is a 4 byte unsigned integer. */
 
 #endif
 

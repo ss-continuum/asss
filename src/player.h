@@ -153,6 +153,8 @@ struct Player
 		unsigned sent_ppk : 1;
 		/* if the player is a bot who wants all position packets */
 		unsigned see_all_posn : 1;
+		unsigned padding1 : 24;
+		/* fill this up to 32 bits */
 	} flags;
 	byte playerextradata[0];
 };

@@ -4,7 +4,7 @@
 /* important defines and typedefs */
 #include "defs.h"
 
-/* various interfaces that might be used */
+/* various common interfaces that might be used */
 #include "module.h"
 #include "player.h"
 #include "config.h"
@@ -17,7 +17,6 @@
 #include "arenaman.h"
 #include "capman.h"
 #include "mapnewsdl.h"
-#include "persist.h"
 #include "game.h"
 #include "periodic.h"
 #include "stats.h"

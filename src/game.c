@@ -204,6 +204,7 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(chatnet);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(flags);
 		mm->ReleaseInterface(capman);

@@ -28,13 +28,13 @@
 #endif
 
 #include "asss.h"
-
-#include "db_layout.h"
+#include "persist.h"
 
 
 /* defines */
 
-#define MAXSGLEN 16
+#define MAXPERSISTLENGTH CFG_MAX_PERSIST_LENGTH
+
 
 typedef enum db_command
 {
@@ -45,7 +45,7 @@ typedef enum db_command
 	DBCMD_PUT_ARENA,   /* data1 = arena */
 	DBCMD_SYNCWAIT,    /* data1 = seconds */
 	DBCMD_PUTALL,      /* no params */
-	DBCMD_ENDINTERVAL  /* data1 = arena, data2 = interval */
+	DBCMD_ENDINTERVAL  /* agorname = ag (for shared) or name (nonshared), data2 = interval */
 } db_command;
 
 /* structs */
@@ -55,6 +55,7 @@ typedef struct DBMessage
 	db_command command;
 	Player *p;
 	Arena *arena;
+	char agorname[MAXAGLEN];
 	int data;
 	void (*playercb)(Player *p);
 	void (*arenacb)(Arena *a);
@@ -78,8 +79,8 @@ local LinkedList playerpd;
 local LinkedList arenapd;
 struct adata
 {
-	char score_group[MAXSGLEN]; /* for shared intervals */
-	char name[MAXSGLEN]; /* for non-shared intervals */
+	char arenagrp[MAXAGLEN]; /* for shared intervals */
+	char name[MAXAGLEN]; /* for non-shared intervals */
 };
 local int adkey;
 
@@ -90,26 +91,15 @@ local int cfg_syncseconds;
 
 
 
-local inline int good_arena(Arena *scope, Arena *arena)
-{
-	if (scope == PERSIST_ALLARENAS && arena)
-		return TRUE;
-	else if (scope == arena)
-		return TRUE;
-	else
-		return FALSE;
-}
-
-
-local void fill_in_ag(char buf[MAXSGLEN], Arena *arena, int interval)
+local void fill_in_ag(char buf[MAXAGLEN], Arena *arena, int interval)
 {
 	struct adata *adata = P_ARENA_DATA(arena, adkey);
-	if (arena == PERSIST_GLOBAL)
-		strncpy(buf, SG_GLOBAL, MAXSGLEN);
+	if (arena == NULL)
+		strncpy(buf, AG_GLOBAL, MAXAGLEN);
 	else if (INTERVAL_IS_SHARED(interval))
-		strncpy(buf, adata->score_group, MAXSGLEN);
+		strncpy(buf, adata->arenagrp, MAXAGLEN);
 	else
-		strncpy(buf, adata->name, MAXSGLEN);
+		strncpy(buf, adata->name, MAXAGLEN);
 }
 
 
@@ -241,7 +231,8 @@ local void put_one_player(PlayerPersistentData *data, Player *p, Arena *arena, i
 	DBT key, val;
 
 	memset(&keydata, 0, sizeof(keydata));
-	strncpy(keydata.name, p->name, sizeof(keydata.name));
+	astrncpy(keydata.name, p->name, sizeof(keydata.name));
+	ToLowerStr(keydata.name);
 
 	/* get data */
 	size = data->GetData(p, buf, sizeof(buf));
@@ -340,7 +331,8 @@ local void get_one_player(PlayerPersistentData *data, Player *p, Arena *arena, i
 
 	/* prepare key */
 	memset(&keydata, 0, sizeof(keydata));
-	strncpy(keydata.name, p->name, sizeof(keydata.name));
+	astrncpy(keydata.name, p->name, sizeof(keydata.name));
+	ToLowerStr(keydata.name);
 	keydata.interval = data->interval;
 	fill_in_ag(keydata.arenagrp, arena, data->interval);
 	if (serialno == -1)
@@ -374,11 +366,7 @@ local void do_put_arena(Arena *arena)
 {
 	Link *l;
 	for (l = LLGetHead(&arenapd); l; l = l->next)
-	{
-		ArenaPersistentData *data = (ArenaPersistentData*)l->data;
-		if (good_arena(data->scope, arena))
-			put_one_arena(l->data, arena, -1);
-	}
+		put_one_arena(l->data, arena, -1);
 }
 
 
@@ -387,61 +375,34 @@ local void do_put_player(Player *p, Arena *arena)
 	Link *l;
 
 	pd->LockPlayer(p);
-
 	for (l = LLGetHead(&playerpd); l; l = l->next)
-	{
-		PlayerPersistentData *data = (PlayerPersistentData*)l->data;
-		if (good_arena(data->scope, arena))
-			put_one_player(l->data, p, arena, -1);
-	}
-
+		put_one_player(l->data, p, arena, -1);
 	pd->UnlockPlayer(p);
 }
 
 
-local void do_get_arena(Arena *arena)
+local int arena_match(Arena *arena, const char *ag, int interval)
 {
-	Link *l;
-	for (l = LLGetHead(&arenapd); l; l = l->next)
-	{
-		ArenaPersistentData *data = (ArenaPersistentData*)l->data;
-		if (good_arena(data->scope, arena))
-			get_one_arena(data, arena, -1);
-	}
+	struct adata *adata = P_ARENA_DATA(arena, adkey);
+	return arena && !strcmp(INTERVAL_IS_SHARED(interval) ? adata->arenagrp : adata->name, ag);
 }
 
 
-local void do_get_player(Player *p, Arena *arena)
+local void do_end_interval(const char *ag, int interval)
 {
-	Link *l;
-
-	pd->LockPlayer(p);
-
-	for (l = LLGetHead(&playerpd); l; l = l->next)
-	{
-		PlayerPersistentData *data = (PlayerPersistentData*)l->data;
-		if (good_arena(data->scope, arena))
-			get_one_player(data, p, arena, -1);
-	}
-
-	pd->UnlockPlayer(p);
-}
-
-
-local void do_end_interval(Arena *arena, int interval)
-{
-	char ag[MAXSGLEN];
+	/* ag is an ag or a name, depending on whether interval is shared */
 	Link *link, *l;
 	Player *p;
+	Arena *arena;
 	int statmin, statmax;
+	int global = (strcmp(ag, AG_GLOBAL) == 0);
 	unsigned int serialno;
 
 	/* get serial number */
-	fill_in_ag(ag, arena, interval);
 	serialno = get_serialno(ag, interval);
 
 	/* figure out when to mess with data */
-	if (arena == PERSIST_GLOBAL)
+	if (global)
 	{
 		/* global data is loaded during S_WAIT_GLOBAL_SYNC, so we want to
 		 * perform the getting/clearing if the player is after that. */
@@ -452,52 +413,54 @@ local void do_end_interval(Arena *arena, int interval)
 	}
 	else
 	{
-		/* similar to above */
+		/* similar to above, but for arena data */
 		statmin = S_WAIT_ARENA_SYNC;
 		statmax = S_LEAVING_ARENA;
 	}
 
-	/* now get/clear all data for players in this arena/interval */
+	/* first get/clear all data for players in these arenas */
 	pd->Lock();
 	FOR_EACH_PLAYER(p)
 	{
 		pd->LockPlayer(p);
 		if (p->status > statmin &&
 		    p->status < statmax &&
-		    (arena == PERSIST_GLOBAL || p->arena == arena))
-			for (l = LLGetHead(&playerpd); l; l = l->next)
-			{
-				PlayerPersistentData *data = l->data;
-				if (good_arena(data->scope, arena) &&
-				    data->interval == interval)
+		    (global || arena_match(p->arena, ag, interval)))
+				for (l = LLGetHead(&playerpd); l; l = l->next)
 				{
-					/* first, grab the latest data and dump it under the
-					 * old serialno. */
-					put_one_player(data, p, arena, serialno);
-					/* then clear data that will be associated with the
-					 * new serialno. */
-					data->ClearData(p);
+					PlayerPersistentData *data = l->data;
+					if (data->interval == interval)
+					{
+						/* first, grab the latest data and dump it under the
+						 * old serialno. */
+						put_one_player(data, p, p->arena, serialno);
+						/* then clear data that will be associated with the
+						 * new serialno. */
+						data->ClearData(p);
+					}
 				}
-			}
 		pd->UnlockPlayer(p);
 	}
 	pd->Unlock();
 
-	/* now get/clear all data for this arena/interval itself */
-	for (l = LLGetHead(&arenapd); l; l = l->next)
-	{
-		ArenaPersistentData *data = l->data;
-		if (good_arena(data->scope, arena) &&
-		    data->interval == interval)
-		{
-			/* grab latest arena data */
-			put_one_arena(data, arena, serialno);
-			/* then clear it */
-			data->ClearData(arena);
-		}
-	}
+	/* then get/clear all data for these arenas themselves */
+	aman->Lock();
+	FOR_EACH_ARENA(arena)
+		if (arena_match(arena, ag, interval))
+			for (l = LLGetHead(&arenapd); l; l = l->next)
+			{
+				ArenaPersistentData *data = l->data;
+				if (data->interval == interval)
+				{
+					/* grab latest arena data */
+					put_one_arena(data, arena, serialno);
+					/* then clear it */
+					data->ClearData(arena);
+				}
+			}
+	aman->Unlock();
 
-	/* increment the serial number for this interval */
+	/* finally increment the serial number for this ag/interval */
 	serialno++;
 	put_serialno(ag, interval, serialno);
 }
@@ -506,7 +469,7 @@ local void do_end_interval(Arena *arena, int interval)
 local void *DBThread(void *dummy)
 {
 	DBMessage *msg;
-	Link *link;
+	Link *l, *link;
 	Arena *arena;
 	Player *i;
 
@@ -528,7 +491,10 @@ local void *DBThread(void *dummy)
 				break;
 
 			case DBCMD_GET_PLAYER:
-				do_get_player(msg->p, msg->arena);
+				pd->LockPlayer(msg->p);
+				for (l = LLGetHead(&playerpd); l; l = l->next)
+					get_one_player(l->data, msg->p, msg->arena, -1);
+				pd->UnlockPlayer(msg->p);
 				break;
 
 			case DBCMD_PUT_PLAYER:
@@ -536,7 +502,8 @@ local void *DBThread(void *dummy)
 				break;
 
 			case DBCMD_GET_ARENA:
-				do_get_arena(msg->arena);
+				for (l = LLGetHead(&arenapd); l; l = l->next)
+					get_one_arena(l->data, msg->arena, -1);
 				break;
 
 			case DBCMD_PUT_ARENA:
@@ -554,7 +521,7 @@ local void *DBThread(void *dummy)
 					arena = i->arena;
 					if (status == S_PLAYING)
 					{
-						do_put_player(i, PERSIST_GLOBAL);
+						do_put_player(i, NULL);
 						if (arena)
 							do_put_player(i, arena);
 					}
@@ -588,22 +555,7 @@ local void *DBThread(void *dummy)
 				break;
 
 			case DBCMD_ENDINTERVAL:
-				if (msg->arena == PERSIST_ALLARENAS)
-				{
-					Arena *arena;
-					aman->Lock();
-					FOR_EACH_ARENA(arena)
-					{
-						if (arena->status == ARENA_RUNNING)
-							do_end_interval(arena, msg->data);
-						pthread_mutex_unlock(&dbmtx);
-						sched_yield();
-						pthread_mutex_lock(&dbmtx);
-					}
-					aman->Unlock();
-				}
-				else
-					do_end_interval(msg->arena, msg->data);
+				do_end_interval(msg->agorname, msg->data);
 				break;
 		}
 
@@ -708,12 +660,12 @@ local void GetArena(Arena *arena, void (*callback)(Arena *a))
 	MPAdd(&dbq, msg);
 }
 
-local void EndInterval(Arena *arena, int interval)
+local void EndInterval(const char *agorname, int interval)
 {
 	DBMessage *msg = amalloc(sizeof(*msg));
 
 	msg->command = DBCMD_ENDINTERVAL;
-	msg->arena = arena;
+	astrncpy(msg->agorname, agorname, sizeof(msg->agorname));
 	msg->data = interval;
 
 	MPAdd(&dbq, msg);
@@ -765,20 +717,20 @@ local void aaction(Arena *arena, int action)
 
 	if (action == AA_CREATE || action == AA_DESTROY)
 	{
-		memset(adata->score_group, 0, MAXSGLEN);
-		memset(adata->name, 0, MAXSGLEN);
+		memset(adata->arenagrp, 0, MAXAGLEN);
+		memset(adata->name, 0, MAXAGLEN);
 	}
 
 	if (action == AA_CREATE)
 	{
-		/* score_group is used for shared intervals */
+		/* arenagrp is used for shared intervals */
 		if (arena->ispublic)
-			astrncpy(adata->score_group, SG_PUBLIC, MAXSGLEN);
+			astrncpy(adata->arenagrp, AG_PUBLIC, MAXAGLEN);
 		else
-			astrncpy(adata->score_group, arena->basename, MAXSGLEN);
+			astrncpy(adata->arenagrp, arena->basename, MAXAGLEN);
 
 		/* name is used for non-shared intervals */
-		astrncpy(adata->name, arena->name, MAXSGLEN);
+		astrncpy(adata->name, arena->name, MAXAGLEN);
 	}
 
 	pthread_mutex_unlock(&dbmtx);
@@ -788,7 +740,7 @@ local void aaction(Arena *arena, int action)
 local int init_db(void)
 {
 	int err;
-	mkdir(DB_HOME, 0755);
+	mkdir(ASSS_DB_HOME, 0755);
 	if ((err = db_env_create(&dbenv, 0)))
 	{
 		fprintf(stderr, "db_env_create: %s\n", db_strerror(err));
@@ -796,7 +748,7 @@ local int init_db(void)
 	}
 	if ((err = dbenv->open(
 				dbenv,
-				DB_HOME,
+				ASSS_DB_HOME,
 				DB_INIT_CDB | DB_INIT_MPOOL | DB_CREATE,
 				0644)))
 	{
@@ -815,7 +767,7 @@ local int init_db(void)
 				 * call in 4.1.0. */
 				NULL,
 #endif
-				DB_FILENAME,
+				ASSS_DB_FILENAME,
 				NULL,
 				DB_BTREE,
 				DB_CREATE,

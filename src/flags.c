@@ -6,8 +6,8 @@
 #include <math.h>
 
 #include "asss.h"
+#include "persist.h"
 
-/* extra includes */
 #include "packets/flags.h"
 
 #define KEY_TURF_OWNERS 19
@@ -300,6 +300,9 @@ void FlagVictory(Arena *arena, int freq, int points)
 	UNLOCK_STATUS(arena);
 
 	net->SendToArena(arena, NULL, (byte*)&fv, sizeof(fv), NET_RELIABLE);
+
+	if (persist)
+		persist->EndInterval(arena->name, INTERVAL_GAME);
 }
 
 

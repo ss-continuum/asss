@@ -15,7 +15,7 @@ privcmd_watchdamage
 
 cmd_quickfix
 
-cmd_billingadm
+cmd_userdbadm
 
 privcmd_send
 

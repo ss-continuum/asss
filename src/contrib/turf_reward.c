@@ -64,23 +64,6 @@
 #include "turf_reward.h"
 #include "settings/turfreward.h"        // bring in the settings for reward types
 
-// default values for cfg settings
-#define MIN_PLAYERS_ON_FREQ     3       // min # of players needed on a freq for that freq to recieve reward pts
-#define MIN_PLAYERS_IN_ARENA    6       // min # of players needed in the arena for anyone to recieve reward pts
-#define MIN_TEAMS               2       // min # of teams needed for anyone to recieve reward pts
-#define MIN_FLAGS               1       // min # of flags needed to be owned in order to recieve reward pts
-#define MIN_PERCENT_FLAGS       0       // min % of flags needed to be owned by freq in order to recieve reward pts
-#define MIN_WEIGHTS             1       // min # of weights needed for a team to recieve reward pts
-#define MIN_PERCENT_WEIGHTS     0       // min % of weights needed to be owned by freq in order to recieve reward pts
-#define MIN_PERCENT             0       // min % of points needed to recieve an award
-#define JACKPOT_MODIFIER        200     // modifies the jackpot based on how many points per player playing
-                                        // jackpot = # players playing * pointModifier (subject to change)
-#define TIMER_INITIAL           6000    // starting timer
-#define TIMER_INTERVAL          6000    // subsequent timer intervals
-#define RECOVER_DINGS           0       // number of dings a flag will be "recoverable"
-//#define MAX_POINTS            5000    // maximum # of points a player can be awarded
-//#define WIN_PERCENT           100     // percent of weights needed for a flag game victory
-//#define WIN_RESET             0       // reset flags on flag game victory?
 
 // easy calls for mutex
 #define LOCK_STATUS(arena) \
@@ -128,9 +111,9 @@ local void loadSettings(Arena *arena);             // reads the settings for an 
 local void clearArenaData(Arena *arena);           // clears out an arena's data (not including freq, flag, or numFlags)
 local void clearFreqData(Arena *arena);            // clears out the freq data for a particular arena
 local void clearFlagData(Arena *arena, int init);  // clears out the flag data for a particular arena
-local int calcWeight(Arena *arena, struct TurfFlag *tf);  // figure out how much a flag is worth
+local int calcWeight(Arena *arena, struct TurfFlag *tf); // figure out how much a flag is worth
 local void preCalc(Arena *arena, struct TurfArena *ta);  // does a few calculations that will make writing external calculation modules a lot easier
-local void awardPts(Arena *arena);                 // award pts to each player based on previously done calculations
+local void awardPts(Arena *arena, struct TurfArena *ta); // award pts to each player based on previously done calculations
 local void updateFlags(Arena *arena);              // increment the numDings for all owned flags and recalculate their weights
 local struct FreqInfo * getFreqPtr(Arena *arena, int freq); // get a pointer to a freq
                                                             // (if it doesn't exist, creates the freq, and returns a pointer to it
@@ -159,7 +142,7 @@ local Iturfreward _myint =
 };
 
 
-EXPORT const char info_turf_reward[] = "v0.3.7 by GiGaKiLLeR <gigamon@hotmail.com>";
+EXPORT const char info_turf_reward[] = "v0.4.0 by GiGaKiLLeR <gigamon@hotmail.com>";
 
 
 /* the actual entrypoint into this module */
@@ -392,7 +375,8 @@ local void loadSettings(Arena *arena)
 	 * periodic scoring but with the stats, $REWARD_FIXED_PTS: each
 	 * team gets a fixed # of points based on 1st, 2nd, 3rd,... place
 	 * $REWARD_STD_MULTI: standard weighted scoring + this arena is
-	 * scored along with other arenas simulanteously */
+	 * scored along with other arenas simulanteously.  Note: currently 
+	 * only $REWARD_STD and $REWARD_PERIODIC are implemented. */
 	tr->reward_style = config->GetInt(c, "TurfReward", "RewardStyle", REWARD_STD);
 #if 0
 	/* cfghelp: TurfReward:MultiArenaID, arena, int, def: 0
@@ -400,71 +384,93 @@ local void loadSettings(Arena *arena)
 	 * set of arenas the arena is associated with (parallels the
 	 * idea of multicast addresses in networking).  If this arena is
 	 * not using a multi-arena scoring method, set to 0
-	 * (or simply remove this setting from the conf). */
+	 * (or simply remove this setting from the conf). 
+	 * Note: MultiArena scoring is not currently implemented */
 	tr->multi_arena_id = (void*)config->GetInt(c, "TurfReward", "MultiArenaID", 0);
 #endif
 	/* cfghelp: TurfReward:MinPlayersFreq, arena, int, def: 3
-	 * The minimum number of players needed on a freq for that team
-	 * to be eligable to recieve points. */
-	tr->min_players_on_freq = config->GetInt(c, "TurfReward", "MinPlayersFreq", MIN_PLAYERS_ON_FREQ);
+	 * The minimum number of players needed on a freq for that 
+	 * team to be eligable to recieve points. */
+	tr->min_players_on_freq = config->GetInt(c, "TurfReward", "MinPlayersFreq", 3);
 
 	/* cfghelp: TurfReward:MinPlayersArena, arena, int, def: 6
-	 * The minimum number of players needed in the arena for anyone
+	 * The minimum number of players needed in the arena for anyone 
 	 * to be eligable to recieve points. */
-	tr->min_players_in_arena = config->GetInt(c, "TurfReward", "MinPlayersArena", MIN_PLAYERS_IN_ARENA);
+	tr->min_players_in_arena = config->GetInt(c, "TurfReward", "MinPlayersArena", 6);
 
-	/* cfghelp: TurfReward:MinTeams, arena, int, def: 6
-	 * The minimum number of teams needed in the arena for anyone
+	/* cfghelp: TurfReward:MinTeams, arena, int, def: 2
+	 * The minimum number of teams needed in the arena for anyone 
 	 * to be eligable to recieve points. */
-	tr->min_teams = config->GetInt(c, "TurfReward", "MinTeams", MIN_TEAMS);
+	tr->min_teams = config->GetInt(c, "TurfReward", "MinTeams", 2);
 
 	/* cfghelp: TurfReward:MinFlags, arena, int, def: 1
-	 * The minimum number of flags needed to be owned by a freq for
+	 * The minimum number of flags needed to be owned by a freq for 
 	 * that team to be eligable to recieve points. */
-	tr->min_flags = config->GetInt(c, "TurfReward", "MinFlags", MIN_FLAGS);
+	tr->min_flags = config->GetInt(c, "TurfReward", "MinFlags", 1);
 
 	/* cfghelp: TurfReward:MinFlagsPercent, arena, int, def: 0
 	 * The minimum percent of flags needed to be owned by a freq for
 	 * that team to be eligable to recieve points.
 	 * (ex. 18532 means 18.532%) */
-	tr->min_percent_flags = (double)config->GetInt(c, "TurfReward", "MinFlagsPercent", MIN_PERCENT_FLAGS) / 1000.0;
+	tr->min_percent_flags = (double)config->GetInt(c, "TurfReward", "MinFlagsPercent", 0) / 1000.0;
 
 	/* cfghelp: TurfReward:MinWeights, arena, int, def: 1
-	 * The minimum percent of weights needed to be owned by a freq for
+	 * The minimum number of weights needed to be owned by a freq for
 	 * that team to be eligable to recieve points. */
-	tr->min_weights = config->GetInt(c, "TurfReward", "MinWeights", MIN_WEIGHTS);
+	tr->min_weights = config->GetInt(c, "TurfReward", "MinWeights", 1);
 
 	/* cfghelp: TurfReward:MinWeightsPercent, arena, int, def: 0
 	 * The minimum percent of weights needed to be owned by a freq for
 	 * that team to be eligable to recieve points.
 	 * (ex. 18532 means 18.532%) */
-	tr->min_percent_weights  = (double)config->GetInt(c, "TurfReward", "MinWeightsPercent", MIN_PERCENT_WEIGHTS) / 1000.0;
+	tr->min_percent_weights  = (double)config->GetInt(c, "TurfReward", "MinWeightsPercent", 0) / 1000.0;
 
 	/* cfghelp: TurfReward:MinPercent, arena, int, def: 0
 	 * The minimum percent of points needed to be owned by a freq for
 	 * that team to be eligable to recieve points.
 	 * (ex. 18532 means 18.532%) */
-	tr->min_percent          = (double)config->GetInt(c, "TurfReward", "MinPercent", MIN_PERCENT) / 1000.0;
+	tr->min_percent = (double)config->GetInt(c, "TurfReward", "MinPercent", 0) / 1000.0;
 
 	/* cfghelp: TurfReward:JackpotModifier, arena, int, def: 200
 	 * Modifies the number of points to award.  Meaning varies based on reward
 	 * algorithm being used. For $REWARD_STD: jackpot = JackpotModifier * # players */
-	tr->jackpot_modifier = config->GetInt(c, "TurfReward", "JackpotModifier", JACKPOT_MODIFIER);
+	tr->jackpot_modifier = config->GetInt(c, "TurfReward", "JackpotModifier", 200);
+
+	/* cfghelf: TurfReward:MaxPoints, arena, int, def: 10000
+	 * The maximum number of points allowed to be award to a single player per ding. 
+	 * If a player's points is calculated to be ablove the max, only this amount will
+	 * be awarded. */
+	tr->max_points = config->GetInt(c, "TurfReward", "MaxPoints", 10000);
 
 	/* cfghelp: TurfReward:TimerInitial, arena, int, def: 6000
-	 * Inital timer period. */
-	tr->timer_initial = config->GetInt(c, "TurfReward", "TimerInitial", TIMER_INITIAL);
+	 * Inital ding timer period. */
+	tr->timer_initial = config->GetInt(c, "TurfReward", "TimerInitial", 6000);
 
 	/* cfghelp: TurfReward:TimerInterval, arena, int, def: 6000
-	 * Subsequent timer period. */
-	tr->timer_interval = config->GetInt(c, "TurfReward", "TimerInterval", TIMER_INTERVAL);
+	 * Subsequent ding timer period. */
+	tr->timer_interval = config->GetInt(c, "TurfReward", "TimerInterval", 6000);
 
-	/* cfghelp: TurfReward:RecoverDings, arena, int, def: 0
-	 * Number of dings allowed to pass before a freq loses the chance to recover a flag. 
+	/* cfghelp: TurfReward:RecoveryCutoff, arena, enum, def: $TR_RECOVERY_DINGS
+	 * Style of recovery cutoff to be used. 
+	 * $TR_RECOVERY_DINGS - recovery cutoff based on RecoverDings.
+	 * $TR_RECOVERY_TIME - recovery cutoff based on RecoverTime.
+	 * $TR_RECOVERY_DINGS_AND_TIME - recovery cutoff based on both RecoverDings and RecoverTime. */
+	tr->recovery_cutoff = config->GetInt(c, "TurfReward", "RecoveryCutoff", TR_RECOVERY_DINGS);
+
+	/* cfghelp: TurfReward:RecoverDings, arena, int, def: 1
+	 * After losing a flag, the number of dings allowed to pass before a freq loses the chance to recover. 
 	 * 0 means you have no chance of recovery after it dings (to recover, you must recover
-	 * before any ding occurs).  1 means it is allowed to ding once and you still have a
-	 * chance to recover (any ding after that you lost chance of full recovery) */
-	tr->recover_dings = config->GetInt(c, "TurfReward", "RecoverDings", RECOVER_DINGS);
+	 * before any ding occurs),  1 means it is allowed to ding once and you still have a
+	 * chance to recover (any ding after that you lost chance of full recovery), ... */
+	tr->recover_dings = config->GetInt(c, "TurfReward", "RecoverDings", 1);
+
+	/* cfghelp: TurfReward:RecoverTime, arena, int, def: 300
+	 * After losing a flag, the time (seconds) allowed to pass before a freq loses the chance to recover. */
+	tr->recover_time = config->GetInt(c, "TurfReward", "RecoverTime", 300);
+
+	/* cfghelp: TurfReward:RecoverMax, arena, int, def: -1
+	 * Maximum number of times a flag may be recovered. (-1 means no max) */
+	tr->recover_max = config->GetInt(c, "TurfReward", "RecoverMax", -1);
 
 	/* cfghelp: TurfReward:WeightCalc, arena, enum, def: $TR_WEIGHT_DINGS
 	 * The method weights are calculated.  $TR_WEIGHT_TIME means each weight
@@ -472,11 +478,11 @@ local void loadSettings(Arena *arena)
 	 * 4 minutes.  $TR_WEIGHT_DINGS means each weight stands for one ding of
 	 * ownership (ex: Weight004 is the weight for a flag that was owned during
 	 * 4 dings */
-	tr->weight_calc = config->GetInt(c, "TurfReward", "WeightCalc", 1);
+	tr->weight_calc = config->GetInt(c, "TurfReward", "WeightCalc", TR_WEIGHT_DINGS);
 
 	/* cfghelp: TurfReward:SetWeights, arena, int, def: 0
-	 * how many weights to set from cfg (16 means you want to specify Weight000 to Weight015)
-	 * If set to 0, then by default one weight is set with a value of 1 */
+	 * How many weights to set from cfg (16 means you want to specify Weight0 to Weight15). 
+	 * If set to 0, then by default one weight is set with a value of 1. */
 	// if there is existing weights data, discard
 	if (tr->weights)
 	{
@@ -583,8 +589,8 @@ local void flagTag(Arena *arena, Player *p, int fid, int oldfreq)
 {
 	struct TurfArena *tr, **p_tr = P_ARENA_DATA(arena, trkey);
 	int freq=-1;
-	int r_freq=-1, r_dings, r_weight, r_pid, // flag recover data
-	    l_freq=-1, l_dings, l_weight, l_pid; // flag lost data
+	int r_freq=-1, r_dings, r_weight, r_pid, r_rec, r_tc, // flag recover data
+	    l_freq=-1, l_dings, l_weight, l_pid, l_rec, l_tc; // flag lost data
 	struct TurfFlag *pTF   = NULL;  // pointer to turf flag
 	struct OldNode  *oPtr  = NULL;  // pointer to node of linked list holding previous owners
 	struct FreqInfo *pFreq = NULL;  // pointer to freq that tagged flag
@@ -630,11 +636,15 @@ local void flagTag(Arena *arena, Player *p, int fid, int oldfreq)
 		oPtr->dings     = l_dings  = pTF->dings;
 		oPtr->weight    = l_weight = pTF->weight;
 		oPtr->taggerPID = l_pid    = pTF->taggerPID;
+		oPtr->recovered = l_rec    = pTF->recovered;
+		oPtr->tagTC     = l_tc     = pTF->tagTC;
+		oPtr->lostTC    = current_ticks();  // time flag was lost
 
 		// flag was lost, that freq now gets a chance for recovery (add into linked list)
 		// since this team owned the flag, there is no way it can already be listed in linked list
 		// so simply add it in
-		LLAddFirst(&pTF->old, oPtr);
+		if(tr->recover_max == -1 || l_rec < tr->recover_max)
+			LLAddFirst(&pTF->old, oPtr);
 
 		// increment number of flag losses
 		pFreqOld = getFreqPtr(arena, l_freq);
@@ -649,14 +659,30 @@ local void flagTag(Arena *arena, Player *p, int fid, int oldfreq)
 
 		if(oPtr->freq == freq)
 		{
+			// lastOwned for each entry is incremented and checked during each ding
+			// meaning all nodes are already assured to be valid for recovery toward dings
+			// however, we must still check for times
+			if(tr->recovery_cutoff==TR_RECOVERY_TIME || tr->recovery_cutoff==TR_RECOVERY_DINGS_AND_TIME)
+			{
+				if ( (TICK_DIFF(current_ticks(), oPtr->lostTC) / 100) > tr->recover_time)
+				{
+					LLRemove(&pTF->old, oPtr);
+					afree(oPtr);
+					break; // break out of the for loop
+				}
+			}
+
 			// found entry that matches freq, meaning flag was recovered
 			r_freq   = pTF->freq      = freq;
 			r_dings  = pTF->dings     = oPtr->dings;
 			r_weight = pTF->weight    = oPtr->weight;
 			r_pid    = pTF->taggerPID = p->pid;  // pid of player who recovered flag now gets taggerPID
+			r_rec    = pTF->recovered = oPtr->recovered + 1; // increment # of times flag was recovered
+			r_tc     = pTF->tagTC     = oPtr->tagTC; // restore old time
 
 			// remove node from linked list
 			LLRemove(&pTF->old, oPtr);
+			afree(oPtr);
 
 			// increment number of flag recoveries
 			pFreq->numRecovers++;
@@ -673,8 +699,10 @@ local void flagTag(Arena *arena, Player *p, int fid, int oldfreq)
 		pTF->dings     = 0;
 		pTF->weight    = calcWeight(arena, pTF);
 		pTF->taggerPID = p->pid;
+		pTF->recovered = 0;
+		pTF->tagTC     = current_ticks();
 	}
-	pTF->tagTC = current_ticks();
+	pTF->lastTC = current_ticks();
 
 	UNLOCK_STATUS(arena);
 
@@ -683,9 +711,9 @@ local void flagTag(Arena *arena, Player *p, int fid, int oldfreq)
 	// finally do whatever callbacks are necessary
 	DO_CBS(CB_TURFTAG, arena, TurfTagFunc, (arena, p, fid));
 	if(r_freq!=-1)
-		DO_CBS(CB_TURFRECOVER, arena, TurfRecoverFunc, (arena, fid, r_pid, r_freq, r_dings, r_weight));
+		DO_CBS(CB_TURFRECOVER, arena, TurfRecoverFunc, (arena, fid, r_pid, r_freq, r_dings, r_weight, r_rec));
 	if(l_freq!=-1)
-		DO_CBS(CB_TURFLOST, arena, TurfLostFunc, (arena, fid, l_pid, l_freq, l_dings, l_weight));
+		DO_CBS(CB_TURFLOST, arena, TurfLostFunc, (arena, fid, l_pid, l_freq, l_dings, l_weight, l_rec));
 }
 
 
@@ -765,7 +793,7 @@ local void doReward(Arena *arena)
 	// check if we are to award points
 	if (action==TR_AWARD_UPDATE || action==TR_AWARD_ONLY)
 	{
-		awardPts(arena);
+		awardPts(arena, tr);
 		stats->SendUpdates();
 	}
 
@@ -832,7 +860,7 @@ local void preCalc(Arena *arena, struct TurfArena *tr)
 }
 
 
-local void awardPts(Arena *arena)
+local void awardPts(Arena *arena, struct TurfArena *tr)
 {
 	Link *link;
 	Player *x;
@@ -854,6 +882,9 @@ local void awardPts(Arena *arena)
 			else if ( (points = (getFreqPtr(arena, x->p_freq))->numPoints) )
 			{
 				// player is on a freq that recieved points
+				if(points > tr->max_points)  // only award up to MaxPoints
+					points = tr->max_points;
+
 				stats->IncrementStat(x, STAT_FLAG_POINTS, points);            // award player
 				chat->SendSoundMessage(x, SOUND_DING, "Reward: %i", points);  // notify player
 			}
@@ -882,27 +913,49 @@ local void updateFlags(Arena *arena)
 	{
 		struct TurfFlag *flagPtr = &flags[x];
 		struct OldNode *oPtr;
-		Link *l, *next;
+		Link *l;
 
-		if (flagPtr->freq!=-1)
+		if (flagPtr->freq != -1)
 		{
 			// flag is owned, increment # dings and update weight accordingly
 			flagPtr->dings++;
 			flagPtr->weight=calcWeight(arena, flagPtr);
 		}
 
-		// increment lastOwned for every node
-		for(l = LLGetHead(&flagPtr->old) ; l ; l = next)
+		// increment lastOwned for every node (previous owners that can recover)
+		for(l = LLGetHead(&flagPtr->old) ; l; l = l->next)
 		{
-			next = l->next;
 			oPtr = l->data;
+			oPtr->lastOwned++;
+		}
 
-			// increment lastOwned before check
-			if(++oPtr->lastOwned > tr->recover_dings)
+		if(tr->recovery_cutoff==TR_RECOVERY_DINGS || tr->recovery_cutoff==TR_RECOVERY_DINGS_AND_TIME)
+		{
+			for(l = LLGetHead(&flagPtr->old) ; l; l = l->next)
 			{
-				// entry for team that lost chance to recover flag
-				LLRemove(&flagPtr->old, oPtr);
-				afree(oPtr);
+				oPtr = l->data;
+				// check if lastOwned is within limits
+				if(oPtr->lastOwned > tr->recover_dings)
+				{
+					// entry for team that lost chance to recover flag
+					LLRemove(&flagPtr->old, oPtr);
+					afree(oPtr);
+					continue;
+				}
+			}
+		}
+		if(tr->recovery_cutoff==TR_RECOVERY_TIME || tr->recovery_cutoff==TR_RECOVERY_DINGS_AND_TIME)
+		{
+			for(l = LLGetHead(&flagPtr->old) ; l; l = l->next)
+			{
+				oPtr = l->data;
+				// check if lostTC is still within limits
+				if ( (TICK_DIFF(current_ticks(), oPtr->lostTC) / 100) > tr->recover_time)
+				{
+					LLRemove(&flagPtr->old, oPtr);
+					afree(oPtr);
+					continue;
+				}
 			}
 		}
 	}

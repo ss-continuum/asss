@@ -13,8 +13,8 @@
  * it works like this: other modules register Player/ArenaPersistentData
  * descriptors with persist. key is a unique number that will identify
  * the type of data. length is the number of bytes you want to store, up
- * to MAXPERSISTLENGTH. scope describes where this data is valid, and
- * interval describes how many copies of it there are.
+ * to CFG_MAX_PERSIST_LENGTH. scope describes where this data is valid,
+ * and interval describes how many copies of it there are.
  *
  * when a player connects to the server, GetPlayer will be called which
  * will read that player's persistent information from the file and call
@@ -40,22 +40,24 @@
 
 
 #include "statcodes.h"
+#include "db_layout.h"
 
 
-#define MAXPERSISTLENGTH CFG_MAX_PERSIST_LENGTH
+typedef enum persist_scope_t
+{
+	PERSIST_ALLARENAS,
+	/* using this for scope means per-player data in every arena */
 
+	PERSIST_GLOBAL
+	/* using this for scope means per-player data shared among all arenas */
+} persist_scope_t;
 
-#define PERSIST_ALLARENAS ((Arena*)(-1))
-/* using this for scope means per-player data in every arena */
-
-#define PERSIST_GLOBAL ((Arena*)(-2))
-/* using this for scope means per-player data shared among all arenas */
 
 
 typedef struct PlayerPersistentData
 {
 	int key, interval;
-	Arena *scope;
+	persist_scope_t scope;
 	int (*GetData)(Player *p, void *data, int len);
 	void (*SetData)(Player *p, void *data, int len);
 	void (*ClearData)(Player *p);
@@ -64,7 +66,7 @@ typedef struct PlayerPersistentData
 typedef struct ArenaPersistentData
 {
 	int key, interval;
-	Arena *scope;
+	persist_scope_t scope;
 	int (*GetData)(Arena *a, void *data, int len);
 	void (*SetData)(Arena *a, void *data, int len);
 	void (*ClearData)(Arena *a);
@@ -81,7 +83,7 @@ typedef struct ArenaPersistentData
  */
 
 
-#define I_PERSIST "persist-3"
+#define I_PERSIST "persist-4"
 
 typedef struct Ipersist
 {
@@ -95,11 +97,12 @@ typedef struct Ipersist
 
 	void (*PutPlayer)(Player *p, Arena *a, void (*callback)(Player *p));
 	void (*GetPlayer)(Player *p, Arena *a, void (*callback)(Player *p));
+	/* a == NULL means global data */
 
 	void (*PutArena)(Arena *a, void (*callback)(Arena *a));
 	void (*GetArena)(Arena *a, void (*callback)(Arena *a));
 
-	void (*EndInterval)(Arena *a, int interval);
+	void (*EndInterval)(const char *arenagrp_or_arena_name, int interval);
 
 	void (*StabilizeScores)(int seconds, int query, void (*callback)(Player *dummy));
 } Ipersist;

@@ -218,7 +218,7 @@ local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, c
 		snprintf(buf, sizeof(buf), "CHAT:%d:%s:%d:%s", p->pid, chan, sound, text);
 		send_line(buf);
 	}
-	else if (type == MSG_INTERARENAPRIV && target == NULL)
+	else if (type == MSG_REMOTEPRIV && target == NULL)
 	{
 		/* only grab these if the server didn't handle them internally */
 		const char *t;
@@ -540,7 +540,7 @@ local void process_rmt(const char *line)
 		Link link = { NULL, p };
 		LinkedList list = { &link, &link };
 
-		chat->SendAnyMessage(&list, MSG_INTERARENAPRIV, atoi(soundstr),
+		chat->SendAnyMessage(&list, MSG_REMOTEPRIV, atoi(soundstr),
 				"%s> %s", sender, text);
 	}
 }
@@ -568,7 +568,7 @@ local void process_rmtsqd(const char *line)
 			LLAdd(&list, p);
 	pd->Unlock();
 
-	chat->SendAnyMessage(&list, MSG_INTERARENAPRIV, atoi(soundstr),
+	chat->SendAnyMessage(&list, MSG_REMOTEPRIV, atoi(soundstr),
 			"S (%s)> %s", sender, t);
 }
 

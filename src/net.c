@@ -38,6 +38,10 @@
 /* ip/udp overhead, in bytes per physical packet */
 #define IP_UDP_OVERHEAD 28
 
+/* if we haven't sent a reliable packet after this many tries, drop the
+ * connection. */
+#define MAXRETRIES 5
+
 /* packets to queue up for sending files */
 #define QUEUE_PACKETS 15
 /* threshold to start queuing up more packets */
@@ -112,6 +116,7 @@ typedef struct
 	unsigned int bytesent, byterecvd;
 	/* duplicate reliable packets and reliable retries */
 	unsigned int reldups, retries;
+	int hitmaxretries;
 	/* averaged round-trip time and deviation */
 	int avgrtt, rttdev;
 	/* encryption type */
@@ -137,7 +142,7 @@ typedef struct
 	DQNode outlist;
 	pthread_mutex_t olmtx;
 	pthread_mutex_t bigmtx;
-} ConnData; /* 168 bytes? */
+} ConnData; /* 172 bytes? */
 
 
 
@@ -254,7 +259,7 @@ local LinkedList listening = LL_INITIALIZER;
 local int clientsock;
 
 local LinkedList clientconns = LL_INITIALIZER;
-local pthread_mutex_t ccmtx;
+local pthread_mutex_t ccmtx = PTHREAD_MUTEX_INITIALIZER;
 
 local DQNode freelist, rellist;
 local pthread_mutex_t freemtx, relmtx;
@@ -411,11 +416,50 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 
 		return MM_OK;
 	}
-	else if (action == MM_UNLOAD)
+	else if (action == MM_PREUNLOAD)
 	{
 		Link *link;
 		Player *p;
 		ConnData *conn;
+
+		/* disconnect all clients nicely */
+		pd->Lock();
+		FOR_EACH_PLAYER_P(p, conn, connkey)
+			if (IS_OURS(p))
+			{
+				byte discon[2] = { 0x00, 0x07 };
+				SendRaw(conn, discon, 2);
+				if (conn->enc)
+				{
+					conn->enc->Void(p);
+					mm->ReleaseInterface(conn->enc);
+					conn->enc = NULL;
+				}
+			}
+		pd->Unlock();
+
+		/* and disconnect our client connections */
+		pthread_mutex_lock(&ccmtx);
+		for (link = LLGetHead(&clientconns); link; link = link->next)
+		{
+			ClientConnection *cc = link->data;
+			byte pkt[] = { 0x00, 0x07 };
+			SendRaw(&cc->c, pkt, sizeof(pkt));
+			cc->i->Disconnected();
+			if (cc->enc)
+			{
+				cc->enc->Void(cc->ced);
+				mm->ReleaseInterface(cc->enc);
+				cc->enc = NULL;
+			}
+			afree(cc);
+		}
+		LLEmpty(&clientconns);
+		pthread_mutex_unlock(&ccmtx);
+	}
+	else if (action == MM_UNLOAD)
+	{
+		Link *link;
 
 		/* uninstall ourself */
 		if (mm->UnregInterface(&netint, ALLARENAS))
@@ -425,17 +469,6 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 			return MM_FAIL;
 
 		ml->ClearTimer(QueueMoreData, NULL);
-
-		/* disconnect all clients nicely */
-		pd->Lock();
-		FOR_EACH_PLAYER_P(p, conn, connkey)
-			if (IS_OURS(p))
-			{
-				byte discon[2] = { 0x00, 0x07 };
-				conn->enc = NULL;
-				SendRaw(conn, discon, 2);
-			}
-		pd->Unlock();
 
 		/* clean up */
 		for (i = 0; i < MAXTYPES; i++)
@@ -952,6 +985,7 @@ local void handle_client_packet(void)
 	dump_pk(buf->d.raw, len);
 #endif
 
+	pthread_mutex_lock(&ccmtx);
 	for (l = LLGetHead(&clientconns); l; l = l->next)
 	{
 		ClientConnection *cc = l->data;
@@ -960,6 +994,9 @@ local void handle_client_packet(void)
 		    sin.sin_addr.s_addr == conn->sin.sin_addr.s_addr)
 		{
 			Iclientencrypt *enc = cc->enc;
+
+			pthread_mutex_unlock(&ccmtx);
+
 			if (enc)
 				len = enc->Decrypt(cc->ced, buf->d.raw, len);
 			if (len > 0)
@@ -977,21 +1014,19 @@ local void handle_client_packet(void)
 			}
 			else
 			{
+				FreeBuffer(buf);
 				lm->Log(L_MALICIOUS, "<net> (client connection) "
 						"failure decrypting packet");
-				FreeBuffer(buf);
 			}
-			break;
+			return;
 		}
 	}
+	pthread_mutex_unlock(&ccmtx);
 
-	if (!l)
-	{
-		FreeBuffer(buf);
-		lm->Log(L_WARN, "<net> got data on client port "
-				"not from any known connection: %s:%d",
-				inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
-	}
+	FreeBuffer(buf);
+	lm->Log(L_WARN, "<net> got data on client port "
+			"not from any known connection: %s:%d",
+			inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
 }
 
 
@@ -1223,7 +1258,13 @@ local void send_outgoing(ConnData *conn)
 				continue;
 			}
 
-			if (buf->retries != 0)
+			if (buf->retries >= MAXRETRIES)
+			{
+				/* we've already tried enough, just give up */
+				conn->hitmaxretries = 1;
+				return;
+			}
+			else if (buf->retries > 0)
 			{
 				/* this is a retry, not an initial send. record it
 				 * for lag stats and also halve bw limit (with
@@ -1302,11 +1343,12 @@ local void process_lagouts(Player *p, unsigned int gtc)
 
 	/* process lagouts */
 	if (p->whenloggedin == 0 && /* acts as flag to prevent dups */
-	    conn->lastpkt != 0 && /* prevent race */
-	    diff > config.droptimeout)
+	    (diff > config.droptimeout || conn->hitmaxretries))
 	{
-		lm->Log(L_DRIVEL,
-				"<net> [%s] [pid=%d] Player kicked for no data (lagged off)",
+		lm->Log(L_INFO,
+				conn->hitmaxretries ?
+					"<net> [%s] [pid=%d] player kicked for too many reliable retries" :
+					"<net> [%s] [pid=%d] player kicked for no data (lagged off)",
 				p->name, p->pid);
 		/* FIXME: send "you have been disconnected..." msg */
 		/* can't hold lock here for deadlock-related reasons */
@@ -1329,6 +1371,7 @@ local void process_lagouts(Player *p, unsigned int gtc)
 		if (conn->enc)
 		{
 			conn->enc->Void(p);
+			mm->ReleaseInterface(conn->enc);
 			conn->enc = NULL;
 		}
 
@@ -1368,18 +1411,18 @@ local void process_lagouts(Player *p, unsigned int gtc)
 
 void * SendThread(void *dummy)
 {
-	ticks_t gtc;
-
 	while (!killallthreads)
 	{
+		ticks_t gtc;
 		ConnData *conn;
 		Player *p;
 		Link *link;
+		ClientConnection *dropme;
 
 		sched_yield();
 		usleep(10000); /* 1/100 second */
 
-		/* first send outgoing packets */
+		/* first send outgoing packets (players) */
 		FOR_EACH_PLAYER_P(p, conn, connkey)
 			if (p->status < S_TIMEWAIT &&
 			    IS_OURS(p) &&
@@ -1400,6 +1443,8 @@ void * SendThread(void *dummy)
 				process_lagouts(p, gtc);
 		pd->Unlock();
 
+		/* outgoing packets and lagouts for client connections */
+		dropme = NULL;
 		pthread_mutex_lock(&ccmtx);
 		for (link = LLGetHead(&clientconns); link; link = link->next)
 		{
@@ -1407,8 +1452,24 @@ void * SendThread(void *dummy)
 			pthread_mutex_lock(&cc->c.olmtx);
 			send_outgoing(&cc->c);
 			pthread_mutex_unlock(&cc->c.olmtx);
+			/* we can't drop it in the loop because we're holding ccmtx.
+			 * keep track of it and drop it later. FIXME: there are
+			 * still all sorts of race conditions relating to ccs. as
+			 * long as nobody uses DropClientConnection from outside of
+			 * net, we're safe for now, but they should be cleaned up. */
+			if (cc->c.hitmaxretries ||
+			    /* use a special limit of 65 seconds here, unless we
+			     * haven't gotten _any_ packets, then use 5. */
+			    TICK_DIFF(gtc, cc->c.lastpkt) > (cc->c.pktrecvd ? 6500 : 500))
+				dropme = cc;
 		}
 		pthread_mutex_unlock(&ccmtx);
+
+		if (dropme)
+		{
+			dropme->i->Disconnected();
+			DropClientConnection(dropme);
+		}
 	}
 
 	return NULL;
@@ -1566,6 +1627,7 @@ Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v
 			 * this effect. */
 			lm->Log(L_ERROR, "<net> [pid=%d] NewConnection called for an established address",
 					p->pid);
+			mm->ReleaseInterface(enc);
 			return NULL;
 		}
 	}
@@ -2316,13 +2378,32 @@ ClientConnection *MakeClientConnection(const char *addr, int port,
 	return cc;
 
 fail:
+	mm->ReleaseInterface(ice);
 	afree(cc);
 	return NULL;
 }
 
 void SendPacket(ClientConnection *cc, byte *pkt, int len, int flags)
 {
-	BufferPacket(&cc->c, pkt, len, flags, NULL, NULL);
+	if (len > MAXPACKET)
+	{
+		/* use 00 08/9 packets */
+		byte buf[482], *dp = pkt;
+
+		buf[0] = 0x00; buf[1] = 0x08;
+		while (len > 480)
+		{
+			memcpy(buf+2, dp, 480);
+			BufferPacket(&cc->c, buf, 482, flags | NET_RELIABLE, NULL, NULL);
+			dp += 480;
+			len -= 480;
+		}
+		buf[1] = 0x09;
+		memcpy(buf+2, dp, len);
+		BufferPacket(&cc->c, buf, len + 2, flags | NET_RELIABLE, NULL, NULL);
+	}
+	else
+		BufferPacket(&cc->c, pkt, len, flags, NULL, NULL);
 }
 
 void DropClientConnection(ClientConnection *cc)
@@ -2331,11 +2412,16 @@ void DropClientConnection(ClientConnection *cc)
 	SendRaw(&cc->c, pkt, sizeof(pkt));
 
 	if (cc->enc)
+	{
 		cc->enc->Void(cc->ced);
+		mm->ReleaseInterface(cc->enc);
+		cc->enc = NULL;
+	}
 
 	pthread_mutex_lock(&ccmtx);
 	LLRemove(&clientconns, cc);
 	pthread_mutex_unlock(&ccmtx);
 	afree(cc);
+	lm->Log(L_INFO, "<net> (client connection) dropping client connection");
 }
 

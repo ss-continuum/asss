@@ -14,8 +14,8 @@ const char *get_stat_name(int st)
 		case STAT_ASSISTS: return "assists";
 		case STAT_TEAM_KILLS: return "team kills";
 		case STAT_TEAM_DEATHS: return "team deaths";
-		case STAT_ARENA_TOTAL_TIME: return "total time (in this arena)";
-		case STAT_ARENA_SPEC_TIME: return "spec time (in this arena)";
+		case STAT_ARENA_TOTAL_TIME: return "total time (this arena)";
+		case STAT_ARENA_SPEC_TIME: return "spec time (this arena)";
 		case STAT_DAMAGE_TAKEN: return "damage taken";
 		case STAT_DAMAGE_DEALT: return "damage dealt";
 		case STAT_FLAG_PICKUPS: return "flag pickups";

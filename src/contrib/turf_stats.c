@@ -83,7 +83,7 @@ local void ADisplay(Arena *arena, int histNum);
 local void PDisplay(Arena *arena, Player *pid, int histNum);
 //local struct FreqInfo* findFreqPtr(Arena *arena, int histNum, int freq);
 
-EXPORT const char info_turf_stats[] = "v0.2.0 by GiGaKiLLeR <gigamon@hotmail.com>";
+EXPORT const char info_turf_stats[] = "v0.2.1 by GiGaKiLLeR <gigamon@hotmail.com>";
 
 EXPORT int MM_turf_stats(int action, Imodman *_mm, Arena *arena)
 {
@@ -150,7 +150,6 @@ EXPORT int MM_turf_stats(int action, Imodman *_mm, Arena *arena)
 local void arenaAction(Arena *arena, int action)
 {
 	struct TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
-	ts = *p_ts;
 
 	if (action == AA_CREATE)
 	{
@@ -160,8 +159,12 @@ local void arenaAction(Arena *arena, int action)
 		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 		pthread_mutex_init((pthread_mutex_t*)P_ARENA_DATA(arena, mtxkey), &attr);
 		pthread_mutexattr_destroy(&attr);
+		
+		ts = amalloc(sizeof(struct TurfStats));
+		*p_ts = ts;
 	}
-
+	
+	ts = *p_ts;
 	LOCK_STATUS(arena);
 
 	if (action == AA_CREATE)
@@ -212,6 +215,7 @@ local void arenaAction(Arena *arena, int action)
 
 	if (action == AA_DESTROY)
 	{
+		afree(ts);
 		pthread_mutex_destroy((pthread_mutex_t*)P_ARENA_DATA(arena, mtxkey));
 	}
 }
@@ -450,27 +454,6 @@ local void PDisplay(Arena *arena, Player *pid, int histNum)
 	}
 }
 
-/*
-local struct FreqInfo* findFreqPtr(Arena *arena, int histNum, int freq)
-{
-	struct FreqInfo *fiPtr;
-	Link *l;
-	
-	LOCK_STATUS(arena);
-	for(l = LLGetHead(&history[arena][histNum]->freqs) ; l ; l = l->next)
-	{
-		fiPtr = l->data;
-		if(fiPtr->freq == freq)
-		{
-			UNLOCK_STATUS(arena);
-			return fiPtr;   // found the freq
-		}
-	}
-	UNLOCK_STATUS(arena);
-	
-	return NULL;  // freq didn't exist
-}
-*/
 
 local helptext_t turfstats_help =
 "Module: turf_stats\n"

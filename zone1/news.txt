@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 0.9.15.
+Welcome to asss (a small subspace server) 0.9.16.
 
 This news.txt will be used for updates about new features and other
 important information. If you have any suggestions of any kind, please
@@ -7,6 +7,8 @@ let me know.
 
 
 Recent updates:
+    * bug fixes in scores and billing stuff.
+
     * new and improved billing server support.
 
     * autoturrets are back: type ?dropturret
