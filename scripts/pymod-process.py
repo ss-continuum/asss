@@ -555,6 +555,7 @@ local %(retdecl)s %(cbfuncname)s(%(allargs)s)
 		return %(defretval)s;
 	}
 	out = PyObject_Call(closobj, args, NULL);
+	Py_DECREF(args);
 %(decref)s
 	if (!out)
 	{
@@ -1000,6 +1001,7 @@ local %(retdecl)s %(funcname)s(%(allargs)s)
 		return %(defretval)s;
 	}
 	out = call_gen_py_interface(PYINTPREFIX %(iid)s, %(funcidx)d, args, %(arenaval)s);
+	Py_DECREF(args);
 	if (!out)
 	{
 		log_py_exception(L_ERROR, "python error calling "
