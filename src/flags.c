@@ -92,11 +92,11 @@ int MM_flags(int action, Imodman *_mm, int arena)
 		mm->RegInterest(I_MAINLOOP, &ml);
 		mm->RegInterest(I_MAPDATA, &mapdata);
 
-		mm->RegCallback(CALLBACK_ARENAACTION, AAFlag, ALLARENAS);
-		mm->RegCallback(CALLBACK_PLAYERACTION, PAFlag, ALLARENAS);
-		mm->RegCallback(CALLBACK_SHIPCHANGE, ShipChange, ALLARENAS);
-		mm->RegCallback(CALLBACK_FREQCHANGE, FreqChange, ALLARENAS);
-		mm->RegCallback(CALLBACK_KILL, FlagKill, ALLARENAS);
+		mm->RegCallback(CB_ARENAACTION, AAFlag, ALLARENAS);
+		mm->RegCallback(CB_PLAYERACTION, PAFlag, ALLARENAS);
+		mm->RegCallback(CB_SHIPCHANGE, ShipChange, ALLARENAS);
+		mm->RegCallback(CB_FREQCHANGE, FreqChange, ALLARENAS);
+		mm->RegCallback(CB_KILL, FlagKill, ALLARENAS);
 
 		net->AddPacket(C2S_PICKUPFLAG, PPickupFlag);
 		net->AddPacket(C2S_DROPFLAGS, PDropFlag);
@@ -131,11 +131,11 @@ int MM_flags(int action, Imodman *_mm, int arena)
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregInterface(I_FLAGS, &_myint);
-		mm->UnregCallback(CALLBACK_ARENAACTION, AAFlag, ALLARENAS);
-		mm->UnregCallback(CALLBACK_PLAYERACTION, PAFlag, ALLARENAS);
-		mm->UnregCallback(CALLBACK_SHIPCHANGE, ShipChange, ALLARENAS);
-		mm->UnregCallback(CALLBACK_FREQCHANGE, FreqChange, ALLARENAS);
-		mm->UnregCallback(CALLBACK_KILL, FlagKill, ALLARENAS);
+		mm->UnregCallback(CB_ARENAACTION, AAFlag, ALLARENAS);
+		mm->UnregCallback(CB_PLAYERACTION, PAFlag, ALLARENAS);
+		mm->UnregCallback(CB_SHIPCHANGE, ShipChange, ALLARENAS);
+		mm->UnregCallback(CB_FREQCHANGE, FreqChange, ALLARENAS);
+		mm->UnregCallback(CB_KILL, FlagKill, ALLARENAS);
 		net->RemovePacket(C2S_PICKUPFLAG, PPickupFlag);
 		net->RemovePacket(C2S_DROPFLAGS, PDropFlag);
 		ml->ClearTimer(BasicFlagTimer);
@@ -252,7 +252,7 @@ void MoveFlag(int arena, int fid, int x, int y, int freq)
 	flagdata[arena].flags[fid].carrier = -1;
 	UNLOCK_STATUS(arena);
 	net->SendToArena(arena, -1, (byte*)&fl, sizeof(fl), NET_RELIABLE);
-	DO_CBS(CALLBACK_FLAGPOS, arena, FlagPosFunc,
+	DO_CBS(CB_FLAGPOS, arena, FlagPosFunc,
 			(arena, fid, x, y, freq));
 	logm->Log(L_DRIVEL, "<flags> {%s} Flag %d is at (%d, %d) owned by %d",
 			aman->arenas[arena].name, fid, x, y, freq);
@@ -448,7 +448,7 @@ local void CheckWin(int arena)
 	{
 		/* signal a win by calling callbacks. they should at least call
 		 * flags->FlagVictory to reset the game. */
-		DO_CBS(CALLBACK_FLAGWIN, arena, FlagWinFunc,
+		DO_CBS(CB_FLAGWIN, arena, FlagWinFunc,
 				(arena, freq));
 
 		logm->Log(L_INFO, "<flags> {%s} Flag victory: freq %d won",
@@ -640,7 +640,7 @@ void PPickupFlag(int pid, byte *p, int len)
 	net->SendToArena(arena, -1, (byte*)&sfp, sizeof(sfp), NET_RELIABLE);
 
 	/* now call callbacks */
-	DO_CBS(CALLBACK_FLAGPICKUP, arena, FlagPickupFunc,
+	DO_CBS(CB_FLAGPICKUP, arena, FlagPickupFunc,
 			(arena, pid, cfp->fid, oldfreq));
 
 	logm->Log(L_DRIVEL, "<flags> {%s} [%s] Player picked up flag %d",
@@ -703,7 +703,7 @@ void PDropFlag(int pid, byte *p, int len)
 	UNLOCK_STATUS(arena);
 
 	/* finally call callbacks */
-	DO_CBS(CALLBACK_FLAGDROP, arena, FlagDropFunc, (arena, pid));
+	DO_CBS(CB_FLAGDROP, arena, FlagDropFunc, (arena, pid));
 
 	logm->Log(L_DRIVEL, "<flags> {%s} [%s] Player dropped flags",
 			aman->arenas[arena].name,

@@ -22,20 +22,20 @@ typedef enum
 
 /* called when a player picks up a flag (in turf games, this means he
  * claimed the flag) */
-#define CALLBACK_FLAGPICKUP ("flagpickup")
+#define CB_FLAGPICKUP ("flagpickup")
 typedef void (*FlagPickupFunc)(int arena, int pid, int fid, int oldfreq);
 
 /* called when a player drops his flags (regular games only) */
-#define CALLBACK_FLAGDROP ("flagdrop")
+#define CB_FLAGDROP ("flagdrop")
 typedef void (*FlagDropFunc)(int arena, int pid);
 
 /* called when a flag is positioned on the map */
-#define CALLBACK_FLAGPOS ("flagpos")
+#define CB_FLAGPOS ("flagpos")
 typedef void (*FlagPosFunc)(int arena, int fid, int x, int y, int freq);
 
 /* called when a freq owns all the flags in an arena (in regular games
  * only) */
-#define CALLBACK_FLAGWIN ("flagwin")
+#define CB_FLAGWIN ("flagwin")
 typedef void (*FlagWinFunc)(int arena, int freq);
 
 

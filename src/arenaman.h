@@ -6,7 +6,7 @@
 
 /* ArenaAction funcs are called when arenas are created or destroyed */
 
-#define CALLBACK_ARENAACTION "arenaaction"
+#define CB_ARENAACTION "arenaaction"
 
 #define AA_CREATE   1
 #define AA_DESTROY  2

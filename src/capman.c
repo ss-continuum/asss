@@ -40,8 +40,8 @@ int MM_capman(int action, Imodman *_mm, int arena)
 
 		if (!cfg) return MM_FAIL;
 
-		mm->RegCallback(CALLBACK_PLAYERACTION, PlayerAction, ALLARENAS);
-		mm->RegCallback(CALLBACK_ARENAACTION, ArenaAction, ALLARENAS);
+		mm->RegCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
+		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
 		groupdef = cfg->OpenConfigFile(NULL, "groupdef.conf");
 		gstaff = cfg->OpenConfigFile(NULL, "staff.conf");
@@ -54,8 +54,8 @@ int MM_capman(int action, Imodman *_mm, int arena)
 		mm->UnregInterface(I_CAPMAN, &_myint);
 		cfg->CloseConfigFile(groupdef);
 		cfg->CloseConfigFile(gstaff);
-		mm->UnregCallback(CALLBACK_ARENAACTION, ArenaAction, ALLARENAS);
-		mm->UnregCallback(CALLBACK_PLAYERACTION, PlayerAction, ALLARENAS);
+		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
+		mm->UnregCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_ARENAMAN, &aman);

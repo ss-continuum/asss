@@ -32,7 +32,7 @@ int MM_log_file(int action, Imodman *mm, int arenas)
 		logfile = NULL;
 		ReopenLog();
 
-		mm->RegCallback(CALLBACK_LOGFUNC, LogFile, ALLARENAS);
+		mm->RegCallback(CB_LOGFUNC, LogFile, ALLARENAS);
 
 		mm->RegInterface(I_LOG_FILE, &_lfint);
 
@@ -42,7 +42,7 @@ int MM_log_file(int action, Imodman *mm, int arenas)
 	{
 		if (logfile) fclose(logfile);
 		mm->UnregInterface(I_LOG_FILE, &_lfint);
-		mm->UnregCallback(CALLBACK_LOGFUNC, LogFile, ALLARENAS);
+		mm->UnregCallback(CB_LOGFUNC, LogFile, ALLARENAS);
 		mm->UnregInterest(I_CONFIG, &cfg);
 		return MM_OK;
 	}

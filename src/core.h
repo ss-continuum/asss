@@ -17,7 +17,7 @@ typedef struct AuthData
 
 /* playeraction stuff */
 
-#define CALLBACK_PLAYERACTION ("playeraction")
+#define CB_PLAYERACTION ("playeraction")
 
 #define PA_CONNECT        1
 #define PA_DISCONNECT     2

@@ -87,7 +87,7 @@ int MM_mapdata(int action, Imodman *_mm, int arenas)
 		mm->RegInterest(I_ARENAMAN, &aman);
 		mm->RegInterest(I_LOGMAN, &log);
 
-		mm->RegCallback(CALLBACK_ARENAACTION, ArenaAction, ALLARENAS);
+		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
 		mm->RegInterface(I_MAPDATA, &_int);
 		return MM_OK;
@@ -96,7 +96,7 @@ int MM_mapdata(int action, Imodman *_mm, int arenas)
 	{
 		mm->UnregInterface(I_MAPDATA, &_int);
 
-		mm->UnregCallback(CALLBACK_ARENAACTION, ArenaAction, ALLARENAS);
+		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_ARENAMAN, &aman);

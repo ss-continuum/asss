@@ -66,7 +66,7 @@ void RunLoop(void)
 	while (!privatequit)
 	{
 		/* call all funcs */
-		DO_CBS(CALLBACK_MAINLOOP, ALLARENAS, MainLoopFunc, ());
+		DO_CBS(CB_MAINLOOP, ALLARENAS, MainLoopFunc, ());
 
 		gtc = GTC();
 

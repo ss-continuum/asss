@@ -84,7 +84,7 @@ int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		/* set up callbacks */
 		net->AddPacket(C2S_MAPREQUEST, PMapRequest);
 		net->AddPacket(C2S_NEWSREQUEST, PMapRequest);
-		mm->RegCallback(CALLBACK_ARENAACTION, ArenaAction, ALLARENAS);
+		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
 		/* reread news every 5 min */
 		ml->SetTimer(RefreshNewsTxt, 50, 
@@ -104,7 +104,7 @@ int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		mm->UnregInterface(I_MAPNEWSDL, &_int);
 		net->RemovePacket(C2S_MAPREQUEST, PMapRequest);
 		net->RemovePacket(C2S_NEWSREQUEST, PMapRequest);
-		mm->UnregCallback(CALLBACK_ARENAACTION, ArenaAction, ALLARENAS);
+		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
 		afree(cmpnews);
 		ml->ClearTimer(RefreshNewsTxt);

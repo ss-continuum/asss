@@ -21,5 +21,13 @@ struct C2SPickupBall
 	u32 time;
 };
 
+struct C2SGoal
+{
+	u8 type; /* 0x21 */
+	u8 ballid;
+	i16 x;
+	i16 y;
+};
+
 #endif
 

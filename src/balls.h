@@ -11,21 +11,22 @@ typedef enum
 {
 	BALL_NONE,    /* the ball doesn't exist */
 	BALL_ONMAP,   /* the ball is on the map or has been fired */
-	BALL_CARRIED  /* the ball is being carried */
+	BALL_CARRIED, /* the ball is being carried */
+	BALL_WAITING  /* the ball is waiting to be spawned again */
 } ballstate_t;
 
 
 /* called when a player picks up a ball */
-#define CALLBACK_BALLPICKUP ("ballpickup")
+#define CB_BALLPICKUP ("ballpickup")
 typedef void (*BallPickupFunc)(int arena, int pid, int bid);
 
 /* called when a player fires a ball */
-#define CALLBACK_BALLFIRE ("ballfire")
+#define CB_BALLFIRE ("ballfire")
 typedef void (*BallFireFunc)(int arena, int pid, int bid);
 
 /* called when a player scores a goal */
-#define CALLBACK_GOAL ("goal")
-typedef void (*GoalFunc)(int arena, int pid, int bid);
+#define CB_GOAL ("goal")
+typedef void (*GoalFunc)(int arena, int pid, int bid, int x, int y);
 
 
 struct BallData
@@ -33,8 +34,9 @@ struct BallData
 	ballstate_t state; /* the state of this ball */
 	int x, y, xspeed, yspeed; /* the coordinates of the ball */
 	int carrier; /* the pid that is carrying or last touched the ball */
-	u32 time; /* the time that the ball was last fired (will be 0
-	             for balls being held) */
+	u32 time; /* the time that the ball was last fired (will be 0 for
+	             balls being held). for BALL_WAITING, this time is the
+	             time when the ball will be re-spawned. */
 };
 
 struct ArenaBallData

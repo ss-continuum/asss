@@ -60,7 +60,7 @@ void * LoggingThread(void *dummy)
 		if (ll == NULL)
 			return NULL;
 
-		DO_CBS(CALLBACK_LOGFUNC, ALLARENAS, LogFunc,
+		DO_CBS(CB_LOGFUNC, ALLARENAS, LogFunc,
 				(ll->level, ll->line));
 		afree(ll);
 	}

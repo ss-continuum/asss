@@ -62,7 +62,7 @@ command.so: cmdman.o playercmd.o
 
 billing.so: billcore.o
 
-scoring.so: persist.o stats.o points_kill.o points_flag.o
+scoring.so: persist.o stats.o points_kill.o points_flag.o points_goal.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -ldb1
 
 scheme.so: scheme.o ooputils.o

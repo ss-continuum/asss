@@ -33,12 +33,12 @@ int MM_points_kill(int action, Imodman *mm_, int arena)
 	}
 	else if (action == MM_ATTACH)
 	{
-		mm->RegCallback(CALLBACK_KILL, MyKillFunc, arena);
+		mm->RegCallback(CB_KILL, MyKillFunc, arena);
 		return MM_OK;
 	}
 	else if (action == MM_DETACH)
 	{
-		mm->UnregCallback(CALLBACK_KILL, MyKillFunc, arena);
+		mm->UnregCallback(CB_KILL, MyKillFunc, arena);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)

@@ -12,6 +12,7 @@
 /* prototypes */
 
 local void SendMessage(int, char *, ...);
+local void SendSetMessage(int *, char *, ...);
 local void PChat(int, byte *, int);
 
 
@@ -32,7 +33,7 @@ local ArenaData *arenas;
 local int cfg_msgrel;
 
 
-local Ichat _int = { SendMessage };
+local Ichat _int = { SendMessage, SendSetMessage };
 
 
 int MM_chat(int action, Imodman *mm_, int arena)
@@ -218,6 +219,24 @@ void SendMessage(int pid, char *str, ...)
 	cp->type = MSG_ARENA;
 	cp->sound = 0;
 	net->SendToOne(pid, (byte*)cp, size, NET_RELIABLE);
+}
+
+
+void SendSetMessage(int *set, char *str, ...)
+{
+	int size;
+	char _buf[256];
+	struct ChatPacket *cp = (struct ChatPacket*)_buf;
+	va_list args;
+
+	va_start(args, str);
+	size = vsnprintf(cp->text, 250, str, args) + 6;
+	va_end(args);
+
+	cp->pktype = S2C_CHAT;
+	cp->type = MSG_ARENA;
+	cp->sound = 0;
+	net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
 }
 
 

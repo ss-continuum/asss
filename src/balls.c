@@ -26,6 +26,8 @@ struct MyBallData
 	 * of 100 centiseconds, though, so that's the best resolution you're
 	 * going to get. */
 	int spawnx, spawny, spawnr;
+	int goaldelay;
+	/* this is the delay between a goal and the ball respawning. */
 };
 
 /* prototypes */
@@ -88,11 +90,11 @@ int MM_balls(int action, Imodman *_mm, int arena)
 		mm->RegInterest(I_MAINLOOP, &ml);
 		mm->RegInterest(I_MAPDATA, &mapdata);
 
-		mm->RegCallback(CALLBACK_ARENAACTION, AABall, ALLARENAS);
-		mm->RegCallback(CALLBACK_PLAYERACTION, PABall, ALLARENAS);
-		mm->RegCallback(CALLBACK_SHIPCHANGE, ShipChange, ALLARENAS);
-		mm->RegCallback(CALLBACK_FREQCHANGE, FreqChange, ALLARENAS);
-		mm->RegCallback(CALLBACK_KILL, BallKill, ALLARENAS);
+		mm->RegCallback(CB_ARENAACTION, AABall, ALLARENAS);
+		mm->RegCallback(CB_PLAYERACTION, PABall, ALLARENAS);
+		mm->RegCallback(CB_SHIPCHANGE, ShipChange, ALLARENAS);
+		mm->RegCallback(CB_FREQCHANGE, FreqChange, ALLARENAS);
+		mm->RegCallback(CB_KILL, BallKill, ALLARENAS);
 
 		net->AddPacket(C2S_PICKUPBALL, PPickupBall);
 		net->AddPacket(C2S_SHOOTBALL, PFireBall);
@@ -131,11 +133,11 @@ int MM_balls(int action, Imodman *_mm, int arena)
 		net->RemovePacket(C2S_GOAL, PGoal);
 		net->RemovePacket(C2S_SHOOTBALL, PFireBall);
 		net->RemovePacket(C2S_PICKUPBALL, PPickupBall);
-		mm->UnregCallback(CALLBACK_KILL, BallKill, ALLARENAS);
-		mm->UnregCallback(CALLBACK_FREQCHANGE, FreqChange, ALLARENAS);
-		mm->UnregCallback(CALLBACK_SHIPCHANGE, ShipChange, ALLARENAS);
-		mm->UnregCallback(CALLBACK_PLAYERACTION, PABall, ALLARENAS);
-		mm->UnregCallback(CALLBACK_ARENAACTION, AABall, ALLARENAS);
+		mm->UnregCallback(CB_KILL, BallKill, ALLARENAS);
+		mm->UnregCallback(CB_FREQCHANGE, FreqChange, ALLARENAS);
+		mm->UnregCallback(CB_SHIPCHANGE, ShipChange, ALLARENAS);
+		mm->UnregCallback(CB_PLAYERACTION, PABall, ALLARENAS);
+		mm->UnregCallback(CB_ARENAACTION, AABall, ALLARENAS);
 		mm->UnregInterest(I_MAPDATA, &mapdata);
 		mm->UnregInterest(I_MAINLOOP, &ml);
 		mm->UnregInterest(I_ARENAMAN, &aman);
@@ -180,7 +182,7 @@ local void SendBallPacket(int arena, int bid, int rel)
 }
 
 
-local void PhaseBall(int arena, int bid)
+local void PhaseBall(int arena, int bid, int relflags)
 {
 	struct BallData *bd = balldata[arena].balls + bid;
 
@@ -190,9 +192,7 @@ local void PhaseBall(int arena, int bid)
 	bd->xspeed = bd->yspeed = 0;
 	bd->time = 0xFFFFFFFF; /* this is the key for making it phased */
 	bd->carrier = -1;
-	/* send it reliably, because clients are never going to see this
-	 * ball ever again. */
-	SendBallPacket(arena, bid, NET_RELIABLE);
+	SendBallPacket(arena, bid, relflags);
 	UNLOCK_STATUS(arena);
 }
 
@@ -255,8 +255,10 @@ void SetBallCount(int arena, int ballcount)
 		 * currently-connected clients. then we forget about the ball
 		 * entirely so that updates are never sent again. to new
 		 * players, it will look like the ball doesn't exist. */
+		/* send it reliably, because clients are never going to see this
+		 * ball ever again. */
 		for (i = ballcount; i < oldc; i++)
-			PhaseBall(arena, i);
+			PhaseBall(arena, i, NET_RELIABLE);
 	}
 
 	/* do the realloc here so that if we have to phase, we do it before
@@ -326,6 +328,7 @@ local void LoadBallSettings(int arena)
 		d->spawny = cfg->GetInt(c, "Soccer", "SpawnY", 512);
 		d->spawnr = cfg->GetInt(c, "Soccer", "SpawnRadius", 20);
 		d->sendtime = cfg->GetInt(c, "Soccer", "SendTime", 1000);
+		d->goaldelay = cfg->GetInt(c, "Soccer", "GoalDelay", 0);
 		d->lastsent = GTC();
 		balldata[arena].ballcount = bc;
 
@@ -470,7 +473,7 @@ void PPickupBall(int pid, byte *p, int len)
 	UNLOCK_STATUS(arena);
 
 	/* now call callbacks */
-	DO_CBS(CALLBACK_BALLPICKUP, arena, BallPickupFunc,
+	DO_CBS(CB_BALLPICKUP, arena, BallPickupFunc,
 			(arena, pid, bp->ballid));
 
 	logm->Log(L_DRIVEL, "<balls> {%s} [%s] Player picked up ball %d",
@@ -536,7 +539,7 @@ void PFireBall(int pid, byte *p, int len)
 	UNLOCK_STATUS(arena);
 
 	/* finally call callbacks */
-	DO_CBS(CALLBACK_BALLFIRE, arena, BallFireFunc, (arena, pid, bid));
+	DO_CBS(CB_BALLFIRE, arena, BallFireFunc, (arena, pid, bid));
 
 	logm->Log(L_DRIVEL, "<balls> {%s} [%s] Player fired ball %d",
 			aman->arenas[arena].name,
@@ -547,6 +550,81 @@ void PFireBall(int pid, byte *p, int len)
 
 void PGoal(int pid, byte *p, int len)
 {
+	struct C2SGoal *g = (struct C2SGoal*)p;
+	int arena = pd->players[pid].arena, bid;
+	struct BallData *bd;
+
+	printf("DEBUG: packet from %s\n", pd->players[pid].name);
+
+	if (len != sizeof(struct C2SGoal))
+	{
+		logm->Log(L_MALICIOUS, "<balls> [%s] Bad size for goal packet", pd->players[pid].name);
+		return;
+	}
+
+	if (arena < 0 || arena >= MAXARENA || pd->players[pid].status != S_PLAYING)
+	{
+		logm->Log(L_WARN, "<balls> [%s] Goal packet from bad arena or status", pd->players[pid].name);
+		return;
+	}
+
+	if (pd->players[pid].shiptype >= SPEC)
+	{
+		logm->Log(L_MALICIOUS, "<balls> [%s] Goal packet from spec", pd->players[pid].name);
+		return;
+	}
+
+	LOCK_STATUS(arena);
+
+	bid = g->ballid;
+
+	if (bid < 0 || bid >= balldata[arena].ballcount)
+	{
+		logm->Log(L_MALICIOUS, "<balls> [%s] Sent a goal for a nonexistent ball", pd->players[pid].name);
+		UNLOCK_STATUS(arena);
+		return;
+	}
+
+	bd = balldata[arena].balls + bid;
+
+	/* we use this as a flag to check for dupilicated goals */
+	if (bd->carrier == -1)
+	{
+		UNLOCK_STATUS(arena);
+		return;
+	}
+
+	if (bd->state != BALL_ONMAP || bd->carrier != pid)
+	{
+		logm->Log(L_MALICIOUS, "<balls> [%s] Player sent goal for ball he didn't fire or that's being carried", pd->players[pid].name);
+		UNLOCK_STATUS(arena);
+		return;
+	}
+
+	/* do callbacks before spawning */
+	DO_CBS(CB_GOAL, arena, GoalFunc, (arena, pid, g->ballid, g->x, g->y));
+
+	/* send ball update */
+	if (pballdata[arena].goaldelay == 0)
+	{
+		/* we don't want a delay */
+		SpawnBall(arena, bid);
+	}
+	else
+	{
+		/* phase it, then set it to waiting */
+		PhaseBall(arena, bid, NET_UNRELIABLE);
+		bd->state = BALL_WAITING;
+		bd->carrier = -1;
+		bd->time = GTC() + pballdata[arena].goaldelay;
+	}
+
+	UNLOCK_STATUS(arena);
+
+	logm->Log(L_DRIVEL, "<balls> {%s} [%s] Goal with ball %d",
+			aman->arenas[arena].name,
+			pd->players[pid].name,
+			g->ballid);
 }
 
 
@@ -585,6 +663,11 @@ int BasicBallTimer(void *dummy)
 						b->x = pos->x;
 						b->y = pos->y;
 						SendBallPacket(arena, bid, NET_UNRELIABLE);
+					}
+					else if (b->state == BALL_WAITING)
+					{
+						if (gtc >= b->time)
+							SpawnBall(arena, bid);
 					}
 				pballdata[arena].lastsent = gtc;
 			}

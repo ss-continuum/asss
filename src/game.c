@@ -95,8 +95,8 @@ int MM_game(int action, Imodman *mm_, int arena)
 
 		if (!net || !cfg || !log || !aman) return MM_FAIL;
 
-		mm->RegCallback(CALLBACK_PLAYERACTION, PlayerAction, ALLARENAS);
-		mm->RegCallback(CALLBACK_ARENAACTION, ArenaAction, ALLARENAS);
+		mm->RegCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
+		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
 		players = pd->players;
 		arenas = aman->arenas;
@@ -140,8 +140,8 @@ int MM_game(int action, Imodman *mm_, int arena)
 		net->RemovePacket(C2S_ATTACHTO, PAttach);
 		net->RemovePacket(C2S_TURRETKICKOFF, PKickoff);
 		net->RemovePacket(C2S_BRICK, PBrick);
-		mm->UnregCallback(CALLBACK_PLAYERACTION, PlayerAction, ALLARENAS);
-		mm->UnregCallback(CALLBACK_ARENAACTION, ArenaAction, ALLARENAS);
+		mm->UnregCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
+		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_LOGMAN, &log);
@@ -409,7 +409,7 @@ void PSetShip(int pid, byte *p, int n)
 		players[pid].freq = to.freq;
 		net->SendToArena(arena, -1, (byte*)&to, 6, NET_RELIABLE);
 
-		DO_CBS(CALLBACK_SHIPCHANGE, arena, ShipChangeFunc,
+		DO_CBS(CB_SHIPCHANGE, arena, ShipChangeFunc,
 				(pid, ship, to.freq));
 
 		log->Log(L_DRIVEL, "<game> {%s} [%s] Changed ship to %d",
@@ -438,7 +438,7 @@ void PSetFreq(int pid, byte *p, int n)
 		players[pid].freq = newfreq;
 		net->SendToArena(arena, -1, (byte*)&to, 6, NET_RELIABLE);
 
-		DO_CBS(CALLBACK_FREQCHANGE, arena, FreqChangeFunc, (pid, newfreq));
+		DO_CBS(CB_FREQCHANGE, arena, FreqChangeFunc, (pid, newfreq));
 
 		log->Log(L_DRIVEL, "<game> {%s} [%s] Changed freq to %d",
 				arenas[arena].name,
@@ -483,7 +483,7 @@ void PDie(int pid, byte *p, int n)
 			flagcount);
 
 	/* call callbacks */
-	DO_CBS(CALLBACK_KILL, arena, KillFunc,
+	DO_CBS(CB_KILL, arena, KillFunc,
 			(arena, killer, pid, bty, flagcount));
 }
 

@@ -11,12 +11,12 @@ int MM_log_console(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
-		mm->RegCallback(CALLBACK_LOGFUNC, LogConsole, ALLARENAS);
+		mm->RegCallback(CB_LOGFUNC, LogConsole, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregCallback(CALLBACK_LOGFUNC, LogConsole, ALLARENAS);
+		mm->UnregCallback(CB_LOGFUNC, LogConsole, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)

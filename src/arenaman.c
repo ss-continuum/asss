@@ -87,7 +87,7 @@ int MM_arenaman(int action, Imodman *mm_, int arena)
 		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 		pthread_mutex_init(&arenastatusmtx, &attr);
 
-		mm->RegCallback(CALLBACK_MAINLOOP, ProcessArenaQueue, ALLARENAS);
+		mm->RegCallback(CB_MAINLOOP, ProcessArenaQueue, ALLARENAS);
 
 		net->AddPacket(C2S_GOTOARENA, PArena);
 		net->AddPacket(C2S_LEAVING, PLeaving);
@@ -102,7 +102,7 @@ int MM_arenaman(int action, Imodman *mm_, int arena)
 		mm->UnregInterface(I_ARENAMAN, &_int);
 		net->RemovePacket(C2S_GOTOARENA, PArena);
 		net->RemovePacket(C2S_LEAVING, PLeaving);
-		mm->UnregCallback(CALLBACK_MAINLOOP, ProcessArenaQueue, ALLARENAS);
+		mm->UnregCallback(CB_MAINLOOP, ProcessArenaQueue, ALLARENAS);
 		ml->ClearTimer(ReapArenas);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_NET, &net);
@@ -189,7 +189,7 @@ void ProcessArenaQueue(void)
 
 			case ARENA_DO_CREATE_CALLBACKS:
 				/* do callbacks */
-				DO_CBS(CALLBACK_ARENAACTION, i, ArenaActionFunc, (i, AA_CREATE));
+				DO_CBS(CB_ARENAACTION, i, ArenaActionFunc, (i, AA_CREATE));
 
 				/* don't muck with player status now, let it be done in
 				 * the arena processing function */
@@ -202,7 +202,7 @@ void ProcessArenaQueue(void)
 				for (j = 0; j < MAXPLAYERS; j++)
 					if (players[j].status != S_FREE)
 						assert(players[j].arena != i);
-				DO_CBS(CALLBACK_ARENAACTION, i, ArenaActionFunc, (i, AA_DESTROY));
+				DO_CBS(CB_ARENAACTION, i, ArenaActionFunc, (i, AA_DESTROY));
 				nextstatus = ARENA_DO_UNLOAD_CONFIG;
 				break;
 

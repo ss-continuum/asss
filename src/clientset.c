@@ -55,7 +55,7 @@ int MM_clientset(int action, Imodman *mm_, int arena)
 
 		arenas = aman->arenas;
 
-		mm->RegCallback(CALLBACK_ARENAACTION, ActionFunc, ALLARENAS);
+		mm->RegCallback(CB_ARENAACTION, ActionFunc, ALLARENAS);
 
 		mm->RegInterface(I_CLIENTSET, &_myint);
 
@@ -78,7 +78,7 @@ int MM_clientset(int action, Imodman *mm_, int arena)
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregInterface(I_CLIENTSET, &_myint);
-		mm->UnregCallback(CALLBACK_ARENAACTION, ActionFunc, ALLARENAS);
+		mm->UnregCallback(CB_ARENAACTION, ActionFunc, ALLARENAS);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_CONFIG, &cfg);

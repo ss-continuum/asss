@@ -35,7 +35,7 @@ typedef struct Ilogman
 } Ilogman;
 
 
-#define CALLBACK_LOGFUNC ("imalogger")
+#define CB_LOGFUNC ("log")
 
 
 #endif

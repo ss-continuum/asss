@@ -40,12 +40,12 @@ int MM_points_flag(int action, Imodman *mm_, int arena)
 	}
 	else if (action == MM_ATTACH)
 	{
-		mm->RegCallback(CALLBACK_FLAGWIN, MyFlagWin, arena);
+		mm->RegCallback(CB_FLAGWIN, MyFlagWin, arena);
 		return MM_OK;
 	}
 	else if (action == MM_DETACH)
 	{
-		mm->UnregCallback(CALLBACK_FLAGWIN, MyFlagWin, arena);
+		mm->UnregCallback(CB_FLAGWIN, MyFlagWin, arena);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)

@@ -88,7 +88,7 @@ int MM_core(int action, Imodman *mm_, int arena)
 
 		/* set up callbacks */
 		net->AddPacket(C2S_LOGIN, PLogin);
-		mm->RegCallback(CALLBACK_MAINLOOP, ProcessLoginQueue, ALLARENAS);
+		mm->RegCallback(CB_MAINLOOP, ProcessLoginQueue, ALLARENAS);
 
 		/* register default interfaces which may be replaced later */
 		mm->RegInterface(I_AUTH, &_iauth);
@@ -103,7 +103,7 @@ int MM_core(int action, Imodman *mm_, int arena)
 	{
 		mm->UnregInterface(I_ASSIGNFREQ, &_iaf);
 		mm->UnregInterface(I_AUTH, &_iauth);
-		mm->UnregCallback(CALLBACK_MAINLOOP, ProcessLoginQueue, ALLARENAS);
+		mm->UnregCallback(CB_MAINLOOP, ProcessLoginQueue, ALLARENAS);
 		net->RemovePacket(C2S_LOGIN, PLogin);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_NET, &net);
@@ -203,7 +203,7 @@ void ProcessLoginQueue(void)
 				break;
 
 			case S_DO_GLOBAL_CALLBACKS:
-				DO_CBS(CALLBACK_PLAYERACTION,
+				DO_CBS(CB_PLAYERACTION,
 				       ALLARENAS,
 				       PlayerActionFunc,
 					   (pid, PA_CONNECT, -1));
@@ -216,7 +216,7 @@ void ProcessLoginQueue(void)
 
 			case S_DO_FREQ_AND_ARENA_SYNC:
 				/* first, do pre-callbacks */
-				DO_CBS(CALLBACK_PLAYERACTION,
+				DO_CBS(CB_PLAYERACTION,
 				       player->arena,
 				       PlayerActionFunc,
 				       (pid, PA_PREENTERARENA, player->arena));
@@ -235,14 +235,14 @@ void ProcessLoginQueue(void)
 				break;
 
 			case S_DO_ARENA_CALLBACKS:
-				DO_CBS(CALLBACK_PLAYERACTION,
+				DO_CBS(CB_PLAYERACTION,
 				       player->arena,
 				       PlayerActionFunc,
 				       (pid, PA_ENTERARENA, player->arena));
 				break;
 
 			case S_LEAVING_ARENA:
-				DO_CBS(CALLBACK_PLAYERACTION,
+				DO_CBS(CB_PLAYERACTION,
 				       player->arena,
 				       PlayerActionFunc,
 				       (pid, PA_LEAVEARENA, player->oldarena));
@@ -251,7 +251,7 @@ void ProcessLoginQueue(void)
 				break;
 
 			case S_LEAVING_ZONE:
-				DO_CBS(CALLBACK_PLAYERACTION,
+				DO_CBS(CB_PLAYERACTION,
 				       ALLARENAS,
 				       PlayerActionFunc,
 					   (pid, PA_DISCONNECT, -1));

@@ -100,7 +100,7 @@ int MM_persist(int action, Imodman *_mm, int arena)
 
 		arenas = aman->arenas;
 
-		mm->RegCallback(CALLBACK_ARENAACTION, PersistAA, ALLARENAS);
+		mm->RegCallback(CB_ARENAACTION, PersistAA, ALLARENAS);
 
 		LLInit(&ddlist);
 		MPInit(&dbq);
@@ -122,7 +122,7 @@ int MM_persist(int action, Imodman *_mm, int arena)
 	{
 		ml->ClearTimer(SyncTimer);
 		mm->UnregInterface(I_PERSIST, &_myint);
-		mm->UnregCallback(CALLBACK_ARENAACTION, PersistAA, ALLARENAS);
+		mm->UnregCallback(CB_ARENAACTION, PersistAA, ALLARENAS);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_CONFIG, &cfg);
