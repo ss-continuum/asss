@@ -12,14 +12,14 @@ const char *get_stat_name(int st)
 		case STAT_ASSISTS: return "assists";
 		case STAT_TEAM_KILLS: return "team kills";
 		case STAT_TEAM_DEATHS: return "team deaths";
-		case STAT_ARENA_TIME: return "arena time";
+		case STAT_TOTAL_TIME: return "total time";
 		case STAT_SPEC_TIME: return "spec time";
 		case STAT_DAMAGE_TAKEN: return "damage taken";
 		case STAT_DAMAGE_DEALT: return "damage dealt";
 		case STAT_THORS_FIRED: return "thors fired";
 		case STAT_BRICKS_DROPPED: return "bricks dropped";
 		case STAT_FLAG_PICKUPS: return "flag pickups";
-		case STAT_FLAG_TIME: return "flag time";
+		case STAT_FLAG_CARRY_TIME: return "flag time";
 		case STAT_FLAG_GOOD_DROPS: return "good drops";
 		case STAT_FLAG_FAST_DROPS: return "fast drops";
 		case STAT_FLAG_NEUT_DROPS: return "neut drops";
@@ -28,7 +28,7 @@ const char *get_stat_name(int st)
 		case STAT_FLAG_GAMES_WON: return "flag games won";
 		case STAT_FLAG_GAMES_LOST: return "flag games lost";
 		case STAT_BALL_CARRIES: return "ball carries";
-		case STAT_BALL_TIME: return "ball time";
+		case STAT_BALL_CARRY_TIME: return "ball time";
 		case STAT_BALL_GOALS: return "goals";
 		case STAT_BALL_ASSISTS: return "assists";
 		case STAT_BALL_STEALS: return "steals";

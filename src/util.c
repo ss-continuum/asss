@@ -20,52 +20,23 @@
 #include "defs.h"
 
 
-/* NOTE about util and memory allocation
- *
- * Since I want this file to be used in both the main server and the
- * scheme server, which uses garbage collection, it has to be a bit
- * flexible with regard to memory management. To use it normally just
- * compile it normally. It will use the system malloc. To use it with a
- * garbage collector, #define USE_GC, and #define MALLOC to whatever you
- * want to use to allocate pointerful memory.
- */
-
-
-#ifdef MALLOC
-/* prototype it */
-void *MALLOC(size_t);
-#else
-/* default */
-#define MALLOC(s) malloc(s)
-#endif
-
-
 #define DEFTABLESIZE 29
 
 
 
 typedef struct HashEntry
 {
-	void *p;
 	struct HashEntry *next;
-	char *key; /* points into the table's stringchunk */
+	void *p;
+	char key[1];
 } HashEntry;
 
 struct HashTable
 {
 	int size;
-	StringChunk *sc;
 	HashEntry *lists[0];
 };
 
-
-
-#ifndef USE_GC
-
-static Link *freelinks = NULL;
-static HashEntry *freehashentries = NULL;
-
-#endif
 
 
 unsigned int GTC(void)
@@ -100,12 +71,10 @@ char *ToLowerStr(char *str)
 void *amalloc(size_t s)
 {
 	void *ptr;
-	ptr = MALLOC(s);
+	ptr = malloc(s);
 	if (!ptr)
 		Error(EXIT_MEMORY,"malloc error: requested %i bytes\n",s);
-#ifndef USE_GC
 	memset(ptr, 0, s);
-#endif
 	return ptr;
 }
 
@@ -122,9 +91,7 @@ char *astrdup(const char *s)
 
 void afree(void *ptr)
 {
-#ifndef USE_GC
 	free(ptr);
-#endif
 }
 
 void Error(int level, char *format, ...)
@@ -194,6 +161,8 @@ int strsplit(const char *big, const char *delims, char *buf, int buflen, const c
 /* LinkedList data type */
 
 #define LINKSATONCE 510 /* enough to almost fill a page */
+
+static Link *freelinks = NULL;
 
 #ifdef _REENTRANT
 
@@ -420,6 +389,16 @@ void LLEnum(LinkedList *lst, void (*func)(void *ptr))
 
 /* HashTable data type */
 
+
+local inline HashEntry *GetAnEntry(const char *key)
+{
+	HashEntry *ret = amalloc(sizeof(HashEntry) + strlen(key));
+	ret->next = ret->p = NULL;
+	strcpy(ret->key, key);
+	return ret;
+}
+
+
 /* note: this is a case-insensitive hash! */
 inline unsigned Hash(const char *s, int modulus)
 {
@@ -433,31 +412,25 @@ HashTable * HashAlloc(int req)
 {
 	int size = req ? req : DEFTABLESIZE;
 	HashTable *h = amalloc(sizeof(HashTable) + size * sizeof(HashEntry*));
-	h->sc = SCAlloc();
 	h->size = size;
 	return h;
 }
 
 void HashFree(HashTable *h)
 {
-#ifndef USE_GC
-	HashEntry *e, *old;
+	HashEntry *e, *n;
 	int i;
 	for (i = 0; i < h->size; i++)
 	{
 		e = h->lists[i];
-		if (e)
+		while (e)
 		{
-			old = freehashentries;
-			freehashentries = e;
-			while (e->next)
-				e = e->next;
-			e->next = old;
+			n = e->next;
+			afree(e);
+			e = n;
 		}
 	}
-	SCFree(h->sc);
 	afree(h);
-#endif
 }
 
 void HashEnum(HashTable *h, void (*func)(char *key, void *val, void *data), void *data)
@@ -480,46 +453,21 @@ void HashAdd(HashTable *h, const char *s, void *p)
 	int slot;
 	HashEntry *e, *l;
 
-#ifndef USE_GC
-	if (freehashentries)
-	{
-		e = freehashentries;
-		freehashentries = e->next;
-	}
-	else
-#endif
-		e = amalloc(sizeof(HashEntry));
-
 	slot = Hash(s, h->size);
 
-	/* look through the bucket for matching keys to see if we can steal
-	 * their stored key. */
-	l = h->lists[slot];
-	e->key = NULL;
-	while (l)
-	{
-		if (!strcasecmp(l->key, s))
-		{
-			e->key = l->key;
-			break;
-		}
-		l = l->next;
-	}
-
-	/* if we couldn't find one, make new key */
-	if (e->key == NULL)
-		e->key = SCAdd(h->sc, s);
-
+	e = GetAnEntry(s);
 	e->p = p;
 	e->next = NULL;
 
 	l = h->lists[slot];
 	if (!l)
-	{	/* this is first hash entry for this key */
+	{
+		/* this is first hash entry for this key */
 		h->lists[slot] = e;
 	}
 	else
-	{	/* find end of list and insert it */
+	{
+		/* find end of list and insert it */
 		while (l->next) l = l->next;
 		l->next = e;
 	}
@@ -528,65 +476,30 @@ void HashAdd(HashTable *h, const char *s, void *p)
 void HashReplace(HashTable *h, const char *s, void *p)
 {
 	int slot;
-	HashEntry *e, *l;
+	HashEntry *l;
 
 	slot = Hash(s, h->size);
 	l = h->lists[slot];
 
 	if (!l)
-	{	/* this is first hash entry for this key */
-
-		/* allocate entry */
-#ifndef USE_GC
-		if (freehashentries)
-		{
-			e = freehashentries;
-			freehashentries = e->next;
-		}
-		else
-#endif
-			e = amalloc(sizeof(HashEntry));
-
-		/* init entry */
-		e->key = SCAdd(h->sc, s);
-		e->p = p;
-		e->next = NULL;
-
-		/* install entry */
-		h->lists[slot] = e;
-	}
+		HashAdd(h, s, p);
 	else
-	{	/* try to find it */
+	{
+		/* try to find it */
 		HashEntry *last;
 		do {
 			if (!strcasecmp(s, l->key))
-			{	/* found it, replace data and return */
+			{
+				/* found it, replace data and return */
 				l->p = p;
 				return;
 			}
 			last = l;
 			l = l->next;
 		} while (l);
-		/* it's not in the table, last should point to last entry */
-		
-		/* allocate entry */
-#ifndef USE_GC
-		if (freehashentries)
-		{
-			e = freehashentries;
-			freehashentries = e->next;
-		}
-		else
-#endif
-			e = amalloc(sizeof(HashEntry));
 
-		/* init entry */
-		e->key = SCAdd(h->sc, s);
-		e->p = p;
-		e->next = NULL;
-
-		/* install entry */
-		last->next = e;
+		/* it's not in the table, add normally */
+		HashAdd(h, s, p);
 	}
 }
 
@@ -606,12 +519,7 @@ void HashRemove(HashTable *h, const char *s, void *p)
 				prev->next = l->next;
 			else /* removing first item */
 				h->lists[slot] = l->next;
-#ifdef USE_GC
-			l = NULL;
-#else
-			l->next = freehashentries;
-			freehashentries = l;
-#endif
+			afree(l);
 			return;
 		}
 		prev = l;
@@ -756,25 +664,39 @@ void TrPut(TreapHead **root, TreapHead *node)
 	}
 }
 
-void TrDelKey(TreapHead **root, int key)
+TreapHead *TrRemove(TreapHead **root, int key)
 {
-	TreapHead **node;
+	TreapHead **node, *tmp;
 
 	node = tr_find(root, key);
 	if (node == NULL)
-		return;
+		return NULL;
 
 	while ((*node)->left || (*node)->right)
 		if ((*node)->left == NULL)
+		{
 			TR_ROT_LEFT(node);
+			node = &(*node)->left;
+		}
 		else if ((*node)->right == NULL)
+		{
 			TR_ROT_RIGHT(node);
+			node = &(*node)->right;
+		}
 		else if ((*node)->right->pri < (*node)->left->pri)
+		{
 			TR_ROT_LEFT(node);
+			node = &(*node)->left;
+		}
 		else
+		{
 			TR_ROT_RIGHT(node);
+			node = &(*node)->right;
+		}
 
+	tmp = *node;
 	*node = NULL;
+	return tmp;
 }
 
 void TrEnum(TreapHead *root, void *clos, void (*func)(TreapHead *node, void *clos))

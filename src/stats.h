@@ -22,6 +22,12 @@ typedef struct Istats
 	/* arpc: void(int, int, int) */
 	/* increments a particular statistic in _all_ intervals */
 
+	void (*StartTimer)(int pid, int stat);
+	void (*StopTimer)(int pid, int stat);
+	/* "timer" stats can be managed just like other stats, using
+	 * IncrementStat, or you can use these functions, which take care of
+	 * tracking the start time and updating the database periodically. */
+
 	void (*SetStat)(int pid, int stat, int interval, int value);
 	/* arpc: void(int, int, int, int) */
 	/* sets a statistic to a given value */

@@ -14,6 +14,7 @@ typedef struct stat_info
 {
 	TreapHead head;
 	int value;
+	unsigned int started; /* for timers only */
 	byte dirty;
 } stat_info;
 
@@ -50,18 +51,16 @@ local stat_info *new_stat(int stat)
 {
 	stat_info *si = amalloc(sizeof(*si));
 	si->head.key = stat;
-	si->value = 0;
-	si->dirty = 0;
 	return si;
 }
 
 
 local void IncrementStat(int pid, int stat, int amount)
 {
+	stat_info *si;
+
 	if (PID_OK(pid))
 	{
-		stat_info *si;
-
 		pd->LockPlayer(pid);
 
 #define INC(iv) \
@@ -83,26 +82,112 @@ local void IncrementStat(int pid, int stat, int amount)
 }
 
 
+local inline void update_timer(stat_info *si, unsigned gtc)
+{
+	if (si->started)
+	{
+		si->value += (gtc - si->started + 50) / 100;
+		si->started = gtc;
+		si->dirty = 1;
+	}
+}
+
+local inline void start_timer(stat_info *si, unsigned gtc)
+{
+	if (si->started)
+		update_timer(si, gtc);
+	else
+		si->started = gtc;
+}
+
+local inline void stop_timer(stat_info *si, unsigned gtc)
+{
+	update_timer(si, gtc);
+	si->started = 0;
+}
+
+
+local void StartTimer(int pid, int stat)
+{
+	stat_info *si;
+	unsigned gtc = GTC();
+
+	if (PID_OK(pid))
+	{
+		pd->LockPlayer(pid);
+
+#define INC(iv) \
+		if ((si = (stat_info*)TrGet((TreapHead*)iv[pid], stat)) == NULL) \
+		{ \
+			si = new_stat(stat); \
+			TrPut((TreapHead**)(iv + pid), (TreapHead*)si); \
+		} \
+		start_timer(si, gtc);
+
+		INC(forever_stats)
+		INC(reset_stats)
+		INC(game_stats)
+#undef INC
+
+		pd->UnlockPlayer(pid);
+	}
+}
+
+
+local void StopTimer(int pid, int stat)
+{
+	stat_info *si;
+	unsigned gtc = GTC();
+
+	if (PID_OK(pid))
+	{
+		pd->LockPlayer(pid);
+
+#define INC(iv) \
+		if ((si = (stat_info*)TrGet((TreapHead*)iv[pid], stat)) == NULL) \
+		{ \
+			si = new_stat(stat); \
+			TrPut((TreapHead**)(iv + pid), (TreapHead*)si); \
+		} \
+		stop_timer(si, gtc);
+
+		INC(forever_stats)
+		INC(reset_stats)
+		INC(game_stats)
+#undef INC
+
+		pd->UnlockPlayer(pid);
+	}
+}
+
+
+/* call with player locked */
+local inline void set_stat(int pid, int stat, stat_info **arr, int val)
+{
+	stat_info *si = (stat_info*)TrGet((TreapHead*)arr[pid], stat);
+	if (!si)
+	{
+		si = new_stat(stat);
+		TrPut((TreapHead**)(arr + pid), (TreapHead*)si);
+	}
+	si->value = val;
+	si->started = 0; /* setting a stat stops any timers that were running */
+	si->dirty = 1;
+}
+
 local void SetStat(int pid, int stat, int interval, int amount)
 {
 	stat_info **arr = get_array(interval);
 	if (PID_OK(pid) && arr)
 	{
-		stat_info *si;
-
 		pd->LockPlayer(pid);
-		si = (stat_info*)TrGet((TreapHead*)arr[pid], stat);
-		if (!si)
-		{
-			si = new_stat(stat);
-			TrPut((TreapHead**)(arr + pid), (TreapHead*)si);
-		}
-		si->value = amount;
-		si->dirty = 1;
+		set_stat(pid, stat, arr, amount);
 		pd->UnlockPlayer(pid);
 	}
 }
 
+
+/* call with player locked */
 local inline int get_stat(int pid, int stat, stat_info **arr)
 {
 	stat_info *si = (stat_info*)TrGet((TreapHead*)arr[pid], stat);
@@ -127,19 +212,35 @@ local int GetStat(int pid, int stat, int iv)
 }
 
 
+/* utility functions for doing stuff to stat treaps */
+
+#ifdef this_wont_be_necessary_until_new_protocol
+local void update_timers_work(TreapHead *node, void *clos)
+{
+	update_timer((stat_info*)node, *(unsigned*)clos);
+}
+
+local void update_timers(stat_info *si, unsigned gtc)
+{
+	TrEnum((TreapHead*)si, (void*)&gtc, update_timers_work);
+}
+#endif
+
+
 local void dirty_count_work(TreapHead *node, void *clos)
 {
 	if (((stat_info*)node)->dirty) (*(int*)clos)++;
 }
 
-local int dirty_count(int pid, stat_info **arr)
+local int dirty_count(stat_info *si)
 {
 	int c = 0;
-	TrEnum((TreapHead*)arr[pid], &c, dirty_count_work);
+	TrEnum((TreapHead*)si, &c, dirty_count_work);
 	return c;
 }
 
 
+/* stuff dealing with stat protocol */
 
 #include "packets/scoreupd.h"
 
@@ -155,7 +256,7 @@ void SendUpdates(void)
 		if (pd->players[pid].status == S_PLAYING)
 		{
 			pd->LockPlayer(pid);
-			if (dirty_count(pid, reset_stats))
+			if (dirty_count(reset_stats[pid]))
 			{
 				p = pd->players + pid;
 
@@ -181,6 +282,8 @@ void SendUpdates(void)
 }
 
 
+/* stuff dealing with persistant storage */
+
 struct stored_stat
 {
 	unsigned short stat;
@@ -191,15 +294,18 @@ struct get_stats_clos
 {
 	struct stored_stat *ss;
 	int left;
+	unsigned gtc;
 };
 
 local void get_stats_enum(TreapHead *node, void *clos_)
 {
 	struct get_stats_clos *clos = (struct get_stats_clos*)clos_;
+	struct stat_info *si = (stat_info*)node;
 	if (clos->left > 0)
 	{
+		update_timer(si, clos->gtc);
 		clos->ss->stat = node->key;
-		clos->ss->value = ((stat_info*)node)->value;
+		clos->ss->value = si->value;
 		clos->ss++;
 		clos->left--;
 	}
@@ -208,15 +314,18 @@ local void get_stats_enum(TreapHead *node, void *clos_)
 local void clear_stats_enum(TreapHead *node, void *clos)
 {
 	stat_info *si = (stat_info*)node;
+	if (si->value)
+		si->dirty = 1;
+	si->started = 0;
 	si->value = 0;
-	si->dirty = 1;
 }
 
 #define DO_PERSISTENT_DATA(ival, code)                                         \
                                                                                \
 local int get_##ival##_data(int pid, void *data, int len)                      \
 {                                                                              \
-    struct get_stats_clos clos = { data, len / sizeof(struct stored_stat) };   \
+    struct get_stats_clos clos = { data, len / sizeof(struct stored_stat),     \
+        GTC() };                                                               \
     TrEnum((TreapHead*)ival##_stats[pid], &clos, get_stats_enum);              \
     return (byte*)clos.ss - (byte*)data;                                       \
 }                                                                              \
@@ -226,11 +335,7 @@ local void set_##ival##_data(int pid, void *data, int len)                     \
     struct stored_stat *ss = (struct stored_stat*)data;                        \
     for ( ; len >= sizeof(struct stored_stat);                                 \
             ss++, len -= sizeof(struct stored_stat))                           \
-    {                                                                          \
-        struct stat_info *si = new_stat((int)ss->stat);                        \
-        si->value = ss->value;                                                 \
-        TrPut((TreapHead**)(ival##_stats + pid), (TreapHead*)si);              \
-    }                                                                          \
+        set_stat(pid, ss->stat, ival##_stats, ss->value);                      \
 }                                                                              \
                                                                                \
 local void clear_##ival##_data(int pid)                                        \
@@ -298,7 +403,8 @@ local void Cstats(const char *params, int pid, const Target *target)
 local Istats _myint =
 {
 	INTERFACE_HEAD_INIT(I_STATS, "stats")
-	IncrementStat, SetStat, GetStat, SendUpdates
+	IncrementStat, StartTimer, StopTimer,
+	SetStat, GetStat, SendUpdates
 };
 
 

@@ -153,69 +153,73 @@ local unsigned int get_serialno(const char *sg, int interval)
 }
 
 
-local void fill_in_record(struct player_record_key *key, int arena, int interval)
+/* call with player locked */
+/* the serialno param is just for optimization if we happen to know it
+ * already. set to -1 if you don't know it. */
+local void put_one_datum(PersistentData *data, int pid, int arena, int serialno)
 {
-	key->interval = interval;
-	fill_in_ag(key->arenagrp, arena, interval);
-	key->serialno = get_serialno(key->arenagrp, interval);
+	byte buf[MAXPERSISTLENGTH];
+	struct player_record_key keydata;
+	int size, err;
+	DBT key, val;
+
+	memset(&keydata, 0, sizeof(keydata));
+	strncpy(keydata.name, pd->players[pid].name, sizeof(keydata.name));
+
+	/* get data */
+	size = data->GetData(pid, buf, sizeof(buf));
+
+	if (size > 0)
+	{
+		/* prepare key */
+		keydata.interval = data->interval;
+		fill_in_ag(keydata.arenagrp, arena, data->interval);
+		if (serialno == -1)
+			keydata.serialno = get_serialno(keydata.arenagrp, data->interval);
+		else
+			keydata.serialno = serialno;
+		keydata.key = data->key;
+
+		/* prepare dbt's */
+		memset(&key, 0, sizeof(key));
+		key.data = &keydata;
+		key.size = sizeof(keydata);
+
+		memset(&val, 0, sizeof(val));
+		val.data = buf;
+		val.size = size;
+
+		/* put in db */
+		err = db->put(db, NULL, &key, &val, 0);
+
+		if (err)
+			lm->Log(L_WARN, "<persist> db->put error (2): %s",
+					db_strerror(err));
+	}
+	else
+	{
+		memset(&key, 0, sizeof(key));
+		key.data = &keydata;
+		key.size = sizeof(keydata);
+		err = db->del(db, NULL, &key, 0);
+		if (err != 0 && err != DB_NOTFOUND)
+			lm->Log(L_WARN, "<persist> db->del error (1): %s",
+					db_strerror(err));
+	}
 }
 
 
 local void DoPut(int pid, int arena)
 {
-	struct player_record_key keydata;
-	int size = 0, err;
-	byte buf[MAXPERSISTLENGTH];
 	Link *l;
-	DBT key, val;
 
 	pd->LockPlayer(pid);
-
-	memset(&keydata, 0, sizeof(keydata));
-	strncpy(keydata.name, pd->players[pid].name, sizeof(keydata.name));
 
 	for (l = LLGetHead(&ddlist); l; l = l->next)
 	{
 		PersistentData *data = (PersistentData*)l->data;
 		if (good_arena(data->scope, arena))
-		{
-			/* get data */
-			size = data->GetData(pid, buf, sizeof(buf));
-
-
-			if (size > 0)
-			{
-				/* prepare key */
-				fill_in_record(&keydata, arena, data->interval);
-				keydata.key = data->key;
-
-				/* prepare dbt's */
-				memset(&key, 0, sizeof(key));
-				key.data = &keydata;
-				key.size = sizeof(keydata);
-
-				memset(&val, 0, sizeof(val));
-				val.data = buf;
-				val.size = size;
-
-				/* put in db */
-				err = db->put(db, NULL, &key, &val, 0);
-
-				if (err)
-					lm->Log(L_WARN, "<persist> db->put error (2): %s",
-							db_strerror(err));
-			}
-			else
-			{
-				memset(&key, 0, sizeof(key));
-				key.data = &keydata;
-				key.size = sizeof(keydata);
-				err = db->del(db, NULL, &key, 0);
-				if (err != 0 && err != DB_NOTFOUND)
-					lm->Log(L_WARN, "<persist> db->del error (1): %s",
-							db_strerror(err));
-			}
-		}
+			put_one_datum(l->data, pid, arena, -1);
 	}
 
 	pd->UnlockPlayer(pid);
@@ -246,7 +250,9 @@ local void DoGet(int pid, int arena)
 			data->ClearData(pid);
 
 			/* prepare key */
-			fill_in_record(&keydata, arena, data->interval);
+			keydata.interval = data->interval;
+			fill_in_ag(keydata.arenagrp, arena, data->interval);
+			keydata.serialno = get_serialno(keydata.arenagrp, data->interval);
 			keydata.key = data->key;
 
 			/* prepare dbt's */
@@ -278,25 +284,23 @@ local void DoGet(int pid, int arena)
 
 local void DoEnd(int arena, int interval)
 {
-	unsigned int serialno;
-	char ag[16];
+	char ag[MAXSGLEN];
 	Link *l;
-	int statmin, statmax;
+	int statmin, statmax, pid;
+	unsigned int serialno;
 
-	/* increment the serial number for this interval */
+	/* get serial number */
 	fill_in_ag(ag, arena, interval);
 	serialno = get_serialno(ag, interval);
-	serialno++;
-	put_serialno(ag, interval, serialno);
 
-	/* figure out when to clear data */
+	/* figure out when to mess with data */
 	if (arena == PERSIST_GLOBAL)
 	{
 		/* global data is loaded during S_WAIT_GLOBAL_SYNC, so we want to
-		 * perform the clearing if the player is after that. */
+		 * perform the getting/clearing if the player is after that. */
 		statmin = S_WAIT_GLOBAL_SYNC;
-		/* it's saved during S_LEAVING_ZONE, so perform the clear if the
-		 * player is before that. */
+		/* it's saved during S_LEAVING_ZONE, so perform the get/clear if
+		 * the player is before that. */
 		statmax = S_LEAVING_ZONE;
 	}
 	else
@@ -307,23 +311,32 @@ local void DoEnd(int arena, int interval)
 	}
 
 	/* now clear all data for this arena/interval */
-	for (l = LLGetHead(&ddlist); l; l = l->next)
+	for (pid = 0; pid < MAXPLAYERS; pid++)
 	{
-		PersistentData *data = (PersistentData*)l->data;
-		if (good_arena(data->scope, arena))
-		{
-			int pid;
-			for (pid = 0; pid < MAXPLAYERS; pid++)
+		pd->LockPlayer(pid);
+		if (pd->players[pid].status > statmin &&
+		    pd->players[pid].status < statmax &&
+		    (arena == PERSIST_GLOBAL || pd->players[arena].arena == arena))
+			for (l = LLGetHead(&ddlist); l; l = l->next)
 			{
-				pd->LockPlayer(pid);
-				if (pd->players[pid].status > statmin &&
-				    pd->players[pid].status < statmax &&
-				    (arena == PERSIST_GLOBAL || pd->players[arena].arena == arena))
+				PersistentData *data = (PersistentData*)l->data;
+				if (good_arena(data->scope, arena) &&
+				    data->interval == interval)
+				{
+					/* first, grab the latest data and dump it under the
+					 * old serialno. */
+					put_one_datum(data, pid, arena, serialno);
+					/* then clear data that will be associated with the
+					 * new serialno. */
 					data->ClearData(pid);
-				pd->UnlockPlayer(pid);
+				}
 			}
-		}
+		pd->UnlockPlayer(pid);
 	}
+
+	/* increment the serial number for this interval */
+	serialno++;
+	put_serialno(ag, interval, serialno);
 }
 
 
