@@ -48,6 +48,7 @@ def fix_latex(line):
 
 def print_latex_1(docs, what):
 	for sec, keys in docs:
+		sec = fix_latex(sec)
 		for key, (attrs, text) in keys:
 			ok = 0
 			if what:
