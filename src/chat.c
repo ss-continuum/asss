@@ -301,87 +301,15 @@ void AAction(int arena, int action)
 }
 
 
-void SendMessage_(int pid, const char *str, ...)
+/* message sending funcs */
+
+local void v_send_msg(int *set, char type, char sound, const char *str, va_list ap)
 {
 	int size;
 	char _buf[256];
 	struct ChatPacket *cp = (struct ChatPacket*)_buf;
-	va_list args;
 
-	va_start(args, str);
-	size = vsnprintf(cp->text, 250, str, args) + 6;
-	va_end(args);
-
-	cp->pktype = S2C_CHAT;
-	cp->type = MSG_ARENA;
-	cp->sound = 0;
-	net->SendToOne(pid, (byte*)cp, size, NET_RELIABLE);
-}
-
-
-void SendSetMessage(int *set, const char *str, ...)
-{
-	int size;
-	char _buf[256];
-	struct ChatPacket *cp = (struct ChatPacket*)_buf;
-	va_list args;
-
-	va_start(args, str);
-	size = vsnprintf(cp->text, 250, str, args) + 6;
-	va_end(args);
-
-	cp->pktype = S2C_CHAT;
-	cp->type = MSG_ARENA;
-	cp->sound = 0;
-	net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
-}
-
-
-void SendSoundMessage(int pid, char sound, const char *str, ...)
-{
-	int size;
-	char _buf[256];
-	struct ChatPacket *cp = (struct ChatPacket*)_buf;
-	va_list args;
-
-	va_start(args, str);
-	size = vsnprintf(cp->text, 250, str, args) + 6;
-	va_end(args);
-
-	cp->pktype = S2C_CHAT;
-	cp->type = MSG_ARENA;
-	cp->sound = sound;
-	net->SendToOne(pid, (byte*)cp, size, NET_RELIABLE);
-}
-
-
-void SendSetSoundMessage(int *set, char sound, const char *str, ...)
-{
-	int size;
-	char _buf[256];
-	struct ChatPacket *cp = (struct ChatPacket*)_buf;
-	va_list args;
-
-	va_start(args, str);
-	size = vsnprintf(cp->text, 250, str, args) + 6;
-	va_end(args);
-
-	cp->pktype = S2C_CHAT;
-	cp->type = MSG_ARENA;
-	cp->sound = sound;
-	net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
-}
-
-void SendAnyMessage(int *set, char type, char sound, const char *str, ...)
-{
-	int size;
-	char _buf[256];
-	struct ChatPacket *cp = (struct ChatPacket*)_buf;
-	va_list args;
-
-	va_start(args, str);
-	size = vsnprintf(cp->text, 250, str, args) + 6;
-	va_end(args);
+	size = vsnprintf(cp->text, 250, str, ap) + 6;
 
 	cp->pktype = S2C_CHAT;
 	cp->type = type;
@@ -389,56 +317,85 @@ void SendAnyMessage(int *set, char type, char sound, const char *str, ...)
 	net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
 }
 
-void SendArenaMessage(int arena, const char *str, ...)
+void SendMessage_(int pid, const char *str, ...)
 {
-	int size, set[MAXPLAYERS], setc = 0, i;
-	char _buf[256];
-	struct ChatPacket *cp = (struct ChatPacket*)_buf;
+	int set[] = { pid, -1 };
 	va_list args;
-
 	va_start(args, str);
-	size = vsnprintf(cp->text, 250, str, args) + 6;
+	v_send_msg(set, MSG_ARENA, 0, str, args);
 	va_end(args);
+}
 
-	cp->pktype = S2C_CHAT;
-	cp->type = MSG_ARENA;
-	cp->sound = 0;
+void SendSetMessage(int *set, const char *str, ...)
+{
+	va_list args;
+	va_start(args, str);
+	v_send_msg(set, MSG_ARENA, 0, str, args);
+	va_end(args);
+}
 
+void SendSoundMessage(int pid, char sound, const char *str, ...)
+{
+	int set[] = { pid, -1 };
+	va_list args;
+	va_start(args, str);
+	v_send_msg(set, MSG_ARENA, sound, str, args);
+	va_end(args);
+}
+
+void SendSetSoundMessage(int *set, char sound, const char *str, ...)
+{
+	va_list args;
+	va_start(args, str);
+	v_send_msg(set, MSG_ARENA, sound, str, args);
+	va_end(args);
+}
+
+local void get_arena_set(int *set, int arena)
+{
+	int setc = 0, i;
 	pd->LockStatus();
 	for (i = 0; i < MAXPLAYERS; i++)
 		if (players[i].status == S_PLAYING && players[i].arena == arena)
 			set[setc++] = i;
 	pd->UnlockStatus();
 	set[setc] = -1;
+}
 
-	net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
+void SendArenaMessage(int arena, const char *str, ...)
+{
+	int set[MAXPLAYERS];
+	va_list args;
+
+	get_arena_set(set, arena);
+
+	va_start(args, str);
+	v_send_msg(set, MSG_ARENA, 0, str, args);
+	va_end(args);
 }
 
 void SendArenaSoundMessage(int arena, char sound, const char *str, ...)
 {
-	int size, set[MAXPLAYERS], setc = 0, i;
-	char _buf[256];
-	struct ChatPacket *cp = (struct ChatPacket*)_buf;
+	int set[MAXPLAYERS];
 	va_list args;
 
+	get_arena_set(set, arena);
+
 	va_start(args, str);
-	size = vsnprintf(cp->text, 250, str, args) + 6;
+	v_send_msg(set, MSG_ARENA, sound, str, args);
 	va_end(args);
-
-	cp->pktype = S2C_CHAT;
-	cp->type = MSG_ARENA;
-	cp->sound = sound;
-
-	pd->LockStatus();
-	for (i = 0; i < MAXPLAYERS; i++)
-		if (players[i].status == S_PLAYING && players[i].arena == arena)
-			set[setc++] = i;
-	pd->UnlockStatus();
-	set[setc] = -1;
-
-	net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
 }
 
+void SendAnyMessage(int *set, char type, char sound, const char *str, ...)
+{
+	va_list args;
+	va_start(args, str);
+	v_send_msg(set, type, sound, str, args);
+	va_end(args);
+}
+
+
+/* chat mask stuff */
 
 chat_mask_t GetArenaChatMask(int arena)
 {

@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 0.5.2
+Welcome to asss (a small subspace server) 0.6.0
 
 This news.txt will be used for updates about new features and other important
 information. I have my own internal to-do list apart from this file. If you
@@ -7,23 +7,12 @@ have any suggestions of any kind, please let me know.
 
 
 Recent updates:
-    * multiple commands on the same line (separate with |'s)
+    * oops, I've been forgetting to update this. there's lots of new
+      stuff recently. you can read the cvs logs (sorta) here:
 
-    * autoturrets - drop one with ?dropturret. this is based on a helper
-      module that will make other "fake player" based stuff easier.
-
-    * client->server weapons checksums - these are actually checked now :)
-
-    * per-arena interfaces - this is purely internal stuff that should
-      simplify a bunch of code
-
-    * named and properly refcounted interfaces - more internal stuff
-      that will enable nicer delegation between modules
-
-    * progress on a stub generator and supporting code that will enable
-      modules to run in another process or on another machine, with no
-      changes to their source.
+http://asss.yi.org:2400/asss/timeline
 
 
 Contact: grelminar@yahoo.com
 
+ vim: et ff=dos

@@ -20,9 +20,9 @@ local MPQueue queue;
 local Thread thd;
 
 local Imodman *mm;
-local Iconfig *cfg;
 
 /* don't load these during initialization, it would make a cycle */
+local Iconfig *cfg;
 local Iplayerdata *pd;
 local Iarenaman *aman;
 
@@ -38,7 +38,7 @@ EXPORT int MM_logman(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		cfg = NULL;
 		pd = NULL;
 		aman = NULL;
 		MPInit(&queue);
@@ -172,6 +172,9 @@ int FilterLog(const char *line, const char *modname)
 {
 	const char *res;
 	char origin[32], level;
+
+	/* try getting the config manager */
+	if (!cfg) cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 
 	/* if there's no config manager, disable filtering */
 	if (!cfg || !line || !modname)

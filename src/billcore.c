@@ -80,7 +80,7 @@ local Ibillcore _ibillcore =
 
 
 
-int MM_billcore(int action, Imodman *_mm, int arena)
+EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
 {
 	if (action == MM_LOAD)
 	{

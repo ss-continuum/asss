@@ -62,12 +62,13 @@ EXPORT int MM_autowarp(int action, Imodman *mm_, int arena)
 }
 
 
-local void DoChecksum(struct S2CWeapons *pkt, int n)
+local void DoChecksum(struct S2CWeapons *pkt)
 {
 	int i;
-	u8 ck = 0, *p = (u8*)pkt;
-	for (i = 0; i < n; i++, p++)
-		ck ^= *p;
+	u8 ck = 0;
+	pkt->checksum = 0;
+	for (i = 0; i < 21; i++)
+		ck ^= ((unsigned char*)pkt)[i];
 	pkt->checksum = ck;
 }
 
@@ -99,7 +100,7 @@ void Pppk(int pid, byte *p2, int n)
 		};
 		wpn.weapon = p->weapon;
 
-		DoChecksum(&wpn, sizeof(struct S2CWeapons));
+		DoChecksum(&wpn);
 		net->SendToOne(pid, (byte*)&wpn, sizeof(wpn), NET_RELIABLE | NET_PRI_P4);
 	}
 }

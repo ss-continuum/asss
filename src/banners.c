@@ -34,7 +34,7 @@ local void BannerToArena(int pid)
 {
 	struct S2CBanner send;
 
-	if (banner_status[MAXPLAYERS] != 2 || ARENA_BAD(pd->players[pid].arena))
+	if (banner_status[pid] != 2 || ARENA_BAD(pd->players[pid].arena))
 		return;
 	send.type = S2C_BANNER;
 	send.pid = pid;
@@ -72,6 +72,8 @@ local void PBanner(int pid, byte *p, int len)
 	if (CheckBanner(pid))
 	{
 		banner_status[pid] = 2;
+		pd->UnlockStatus();
+
 		/* send to everyone */
 		BannerToArena(pid);
 		/* send to biller */
@@ -88,9 +90,9 @@ local void PBanner(int pid, byte *p, int len)
 	}
 	else
 	{
+		pd->UnlockStatus();
 		if (lm) lm->LogP(L_INFO, "banners", pid, "denied permission to use a banner");
 	}
-	pd->UnlockStatus();
 }
 
 
@@ -123,7 +125,7 @@ local void PA(int pid, int action, int arena)
 		banner_status[pid] = 0;
 	else if (action == PA_ENTERARENA)
 	{
-		int i, arena;
+		int i;
 
 		pd->LockStatus();
 
@@ -135,15 +137,13 @@ local void PA(int pid, int action, int arena)
 			BannerToArena(pid);
 		}
 
-		/* then send everyone else's banner to him */
-		arena = pd->players[pid].arena;
+		/* then send everyone's banner to him */
 		for (i = 0; i < MAXPLAYERS; i++)
 			if (pd->players[i].status == S_PLAYING &&
 			    pd->players[i].arena == arena &&
-			    banner_status[i] == 2 &&
-			    i != pid)
+			    banner_status[i] == 2)
 			{
-				struct S2CBanner send = { S2C_BANNER, pid };
+				struct S2CBanner send = { S2C_BANNER, i };
 				send.banner = banners[i];
 				net->SendToOne(pid, (byte*)&send, sizeof(send), NET_RELIABLE | NET_PRI_N1);
 			}

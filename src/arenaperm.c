@@ -46,7 +46,7 @@ EXPORT int MM_arenaperm(int action, Imodman *_mm, int arena)
 }
 
 
-static int HasPermission(int pid, int arena)
+local int HasPermission(int pid, int arena)
 {
 	if (ARENA_OK(arena) && aman->arenas[arena].status == ARENA_RUNNING)
 	{

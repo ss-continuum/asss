@@ -13,6 +13,7 @@
 #endif
 
 #include "asss.h"
+#include "app.h"
 
 
 local Imodman *mm;
@@ -24,7 +25,7 @@ local void ProcessArgs(int argc, char *argv[])
 	int i;
 	for (i = 1; i < argc; i++)
 	{
-		if (!strcmp(argv[i], "--daemonize"))
+		if (!strcmp(argv[i], "--daemonize") || !strcmp(argv[i], "-d"))
 			dodaemonize = 1;
 	}
 }
@@ -71,30 +72,36 @@ no_bin:
 }
 
 
+local int finder(char *dest, int destlen, const char *ar, const char *name)
+{
+	astrncpy(dest, name, destlen);
+	return 0;
+}
+
+local void error(const char *err)
+{
+	Error(ERROR_MODLOAD, "Error in modules.conf: %s", err);
+}
+
 local void LoadModuleFile(char *fname)
 {
 	char line[256];
 	int ret;
-	FILE *f;
+	APPContext *ctx;
 
-	f = fopen(fname,"r");
+	ctx = InitContext(finder, error, NULL);
+	AddFile(ctx, fname);
 
-	if (!f)
-		Error(ERROR_MODCONF, "Couldn't open '%s'", fname);
-
-	while (fgets(line, 256, f))
+	while (GetLine(ctx, line, 256))
 	{
-		RemoveCRLF(line);
-		if (line[0] && line[0] != ';' && line[0] != '#' && line[0] != '/')
-		{
-			ret = mm->LoadModule(line);
-			if (ret == MM_FAIL)
-				Error(ERROR_MODLOAD, "Error in loading module '%s'", line);
-		}
+		ret = mm->LoadModule(line);
+		if (ret == MM_FAIL)
+			Error(ERROR_MODLOAD, "Error in loading module '%s'", line);
 	}
 
-	fclose(f);
+	FreeContext(ctx);
 }
+
 
 #ifndef WIN32
 local int daemonize(int noclose)

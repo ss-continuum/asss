@@ -201,17 +201,6 @@ void Pppk(int pid, byte *p2, int n)
 	{
 		int see = SEE_NONE;
 
-		if (speccing[pid] >= 0)
-			/* if he's speccing someone, set his position to be that player */
-			memcpy(pos + pid, pos + speccing[pid], sizeof(pos[0]));
-		else
-			/* if not, he has his own position, so set it */
-			memcpy(pos + pid, p2, sizeof(pos[0]));
-		memset(&position, 0, sizeof(position));
-		position.x = pos[pid].x;
-		position.y = pos[pid].y;
-		players[pid].position = position;
-
 		/* handle epd thing */
 		if (ar_epd[arena].spec) see = ar_epd[arena].spec;
 		if (pl_epd[pid].cap) see = SEE_SPEC;
@@ -219,7 +208,7 @@ void Pppk(int pid, byte *p2, int n)
 		pl_epd[pid].see = see;
 
 		/* and don't send out packets */
-		return;
+		goto skipsend;
 	}
 	else
 	{
@@ -268,6 +257,7 @@ void Pppk(int pid, byte *p2, int n)
 				int *set = regset;
 				long dist = lhypot(x1 - pos[i].x, y1 - pos[i].y);
 
+				/* figure out epd thing */
 				if (pl_epd[i].see == SEE_ALL ||
 				    ( pl_epd[i].see == SEE_TEAM &&
 				      players[pid].freq == players[i].freq) ||
@@ -275,8 +265,12 @@ void Pppk(int pid, byte *p2, int n)
 				      speccing[i] == pid ))
 					set = epdset;
 
-				/* figure out epd thing */
 				if ( dist <= range ||
+				     /* send it always to specers */
+				     ( players[i].shiptype == SPEC &&
+				       speccing[i] == pid ) ||
+				     /* send it always to turreters */
+				     players[i].attachedto == pid ||
 				     /* send mines to everyone too */
 				     ( ( p->weapon.type == W_BOMB ||
 				         p->weapon.type == W_PROXBOMB) &&
@@ -303,7 +297,7 @@ void Pppk(int pid, byte *p2, int n)
 	}
 	else
 	{
-		struct S2CPosition sendpos = { 
+		struct S2CPosition sendpos = {
 			S2C_POSITION, p->rotation, p->time & 0xFFFF, p->x, 0,
 			p->bounty, pid, p->status, p->yspeed, p->y, p->xspeed
 		};
@@ -324,12 +318,16 @@ void Pppk(int pid, byte *p2, int n)
 				      speccing[i] == pid ))
 					set = epdset;
 
-				if (dist < res)
+				if ( dist < res ||
+				     /* send it always to specers */
+				     ( players[i].shiptype == SPEC &&
+				       speccing[i] == pid ) ||
+				     /* send it always to turreters */
+				       players[i].attachedto == pid ||
+				     /* and send some radar packets */
+				     ( dist <= cfg_pospix &&
+				       (rand() > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0)))))
 					set[set[0]++] = i;
-				else if (
-				    dist <= cfg_pospix
-				 && (rand() > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0))))
-						set[set[0]++] = i;
 			}
 		regset[regset[0]] = -1;
 		epdset[epdset[0]] = -1;
@@ -343,6 +341,7 @@ void Pppk(int pid, byte *p2, int n)
 		               NET_UNRELIABLE);
 	}
 
+skipsend:
 	/* copy the whole thing. this will copy the epd, or, if the client
 	 * didn't send any epd, it will copy zeros because the buffer was
 	 * zeroed before data was recvd into it. */

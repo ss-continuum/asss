@@ -13,5 +13,3 @@
 #define R_OK 4
 #define S_ISDIR(a) ((a) & _S_IFDIR)
 
-#define BUILDDATE "(build date not available for windows builds)"
-

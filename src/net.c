@@ -467,7 +467,7 @@ void InitSockets(void)
 #ifdef WIN32
 	WSADATA wsad;
 	if (WSAStartup(MAKEWORD(1,1),&wsad))
-		Error(ERROR_GENERAL,"net: WSAStartup");
+		Error(ERROR_GENERAL, "net: WSAStartup");
 #endif
 
 	localsin.sin_family = AF_INET;
@@ -475,16 +475,16 @@ void InitSockets(void)
 	localsin.sin_addr.s_addr = htonl(INADDR_ANY);
 	localsin.sin_port = htons(config.port);
 
-	if ((mysock = socket(PF_INET,SOCK_DGRAM,0)) == -1)
-		Error(ERROR_GENERAL,"net: socket");
+	if ((mysock = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
+		Error(ERROR_GENERAL, "net: socket");
 	if (bind(mysock, (struct sockaddr *) &localsin, sizeof(localsin)) == -1)
-		Error(ERROR_BIND,"net: bind");
+		Error(ERROR_BIND, "net: bind");
 
 	localsin.sin_port = htons(config.port+1);
-	if ((myothersock = socket(PF_INET,SOCK_DGRAM,0)) == -1)
-		Error(ERROR_GENERAL,"net: socket");
+	if ((myothersock = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
+		Error(ERROR_GENERAL, "net: socket");
 	if (bind(myothersock, (struct sockaddr *) &localsin, sizeof(localsin)) == -1)
-		Error(ERROR_BIND,"net: bind");
+		Error(ERROR_BIND, "net: bind");
 
 	if (config.usebilling)
 	{
@@ -493,9 +493,6 @@ void InitSockets(void)
 			Error(ERROR_GENERAL, "could not allocate billing socket");
 
 		/* set up billing client struct */
-		memset(players + PID_BILLER, 0, sizeof(PlayerData));
-		memset(clients + PID_BILLER, 0, sizeof(ClientData));
-		players[PID_BILLER].status = S_CONNECTED;
 		strcpy(players[PID_BILLER].name, "<<Billing Server>>");
 		clients[PID_BILLER].c2sn = -1;
 		clients[PID_BILLER].sin.sin_family = AF_INET;
@@ -503,6 +500,13 @@ void InitSockets(void)
 			inet_addr(cfg->GetStr(GLOBAL, "Billing", "IP"));
 		clients[PID_BILLER].sin.sin_port =
 			htons(cfg->GetInt(GLOBAL, "Billing", "Port", 1850));
+		clients[PID_BILLER].limit = 
+			cfg->GetInt(GLOBAL, "Billing", "Limit", 15000);
+		clients[PID_BILLER].enc = NULL;
+
+		localsin.sin_port = htons(0);
+		if (bind(mybillingsock, (struct sockaddr *) &localsin, sizeof(localsin)) == -1)
+			Error(ERROR_BIND, "could not bind billing socket");
 	}
 }
 
@@ -701,12 +705,14 @@ donehere:
 			sinsize = sizeof(sin);
 			n = recvfrom(mybillingsock, buf->d.raw, MAXPACKET, 0,
 					(struct sockaddr*)&sin, &sinsize);
-			if (memcmp(&sin, &clients[PID_BILLER].sin, sinsize))
+			if (memcmp(&sin, &clients[PID_BILLER].sin, sizeof(sin) - sizeof(sin.sin_zero)))
 				lm->Log(L_MALICIOUS,
 						"<net> Data recieved on billing server socket from incorrect origin: %s:%i",
 						inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
 			else if (n > 0)
 			{
+				buf->pid = PID_BILLER;
+				buf->len = n;
 				clients[PID_BILLER].lastpkt = GTC();
 				ProcessBuffer(buf);
 			}
@@ -727,8 +733,9 @@ void * SendThread(void *dummy)
 
 		/* first send outgoing packets */
 		for (i = 0; i < (MAXPLAYERS + EXTRA_PID_COUNT); i++)
-			if (players[i].status > S_FREE && players[i].status < S_TIMEWAIT &&
-			    (players[i].flags & NET_FAKE) == 0)
+			if ( (players[i].status > S_FREE && players[i].status < S_TIMEWAIT &&
+			      (players[i].flags & NET_FAKE) == 0) ||
+			     i >= MAXPLAYERS /* billing needs to send before connected */)
 			{
 				int pcount = 0, bytessince, pri;
 				Buffer *buf, *nbuf;

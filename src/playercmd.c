@@ -494,6 +494,23 @@ local void Cshipreset(const char *params, int pid, int target)
 		net->SendToOne(pid, &pkt, 1, NET_RELIABLE);
 }
 
+local void Csheep(const char *params, int pid, int target)
+{
+	int arena = players[pid].arena;
+	const char *sheepmsg;
+
+	if (target != TARGET_ARENA)
+		return;
+
+	if (ARENA_OK(arena))
+		sheepmsg = cfg->GetStr(arenas[arena].cfg, "Misc", "SheepMessage");
+
+	if (sheepmsg)
+		chat->SendSoundMessage(pid, 24, sheepmsg);
+	else
+		chat->SendSoundMessage(pid, 24, "Sheep successfully cloned -- hello Dolly");
+}
+
 
 
 local struct
@@ -525,6 +542,7 @@ const all_commands[] =
 	CMD(a),
 	CMD(warpto),
 	CMD(shipreset),
+	CMD(sheep),
 	{ NULL }
 #undef CMD
 };

@@ -1,14 +1,12 @@
 
 #PROF_FLAGS = -pg
 
-DEFDATE := -DBUILDDATE='"$(shell date +%Y.%m.%d.%H.%M)"'
-
 LDFLAGS = -fPIC $(PROF_FLAGS)
 
 OPT_CFLAGS = -O2 -fomit-frame-pointer -Wall -fpedantic
 DEBUG_CFLAGS = -g -Wall -fpedantic
 
-CFLAGS = $(DEFDATE) -D_REENTRANT -D_GNU_SOURCE -fPIC $(DEBUG_CFLAGS) $(PROF_FLAGS)
+CFLAGS = -D_REENTRANT -D_GNU_SOURCE -fPIC $(DEBUG_CFLAGS) $(PROF_FLAGS)
 
 ASSSLIBS = -ldl -lz -lpthread
 
@@ -17,30 +15,30 @@ SCRIPTS = ../scripts
 ALL_STUFF = asss $(EXTMODS)
 
 
-INTMODS = config.o    \
-          player.o    \
-          core.o      \
-          logman.o    \
-          mainloop.o  \
-          net.o       \
-          nullenc.o   \
-          encrypt1.o  \
-          arenaman.o  \
-          mapdata.o   \
-          mapnewsdl.o \
-          clientset.o \
+INTMODS = config.o app.o   \
+          player.o         \
+          core.o           \
+          logman.o         \
+          mainloop.o       \
+          net.o            \
+          nullenc.o        \
+          encrypt1.o       \
+          arenaman.o       \
+          mapdata.o        \
+          mapnewsdl.o      \
+          clientset.o      \
           capman.o
 
-EXTRAOBJS = module.o  \
-            util.o    \
-            pathutil.o\
+EXTRAOBJS = module.o       \
+            util.o         \
+            pathutil.o     \
             region.o
 
-EXTMODS = loggers.so  \
-          game.so     \
-          command.so  \
-          external.so \
-          scoring.so  \
+EXTMODS = loggers.so       \
+          game.so          \
+          command.so       \
+          external.so      \
+          scoring.so       \
           funky.so
 
 

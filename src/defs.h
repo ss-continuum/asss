@@ -7,6 +7,7 @@
 
 #define ASSSVERSION "0.6.0"
 #define ASSSVERSION_NUM 0x00000600
+#define BUILDDATE __DATE__ " " __TIME__
 
 
 /* do it upfront so we don't have to worry :) */

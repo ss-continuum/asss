@@ -59,6 +59,10 @@ local HashTable *arenaints, *globalints, *intsbyname;
 
 local LinkedList *mods;
 
+local pthread_mutex_t modmtx = PTHREAD_MUTEX_INITIALIZER;
+local pthread_mutex_t intmtx = PTHREAD_MUTEX_INITIALIZER;
+local pthread_mutex_t cbmtx = PTHREAD_MUTEX_INITIALIZER;
+
 
 local Imodman mmint =
 {
@@ -188,7 +192,10 @@ int LoadMod(const char *filename)
 		goto die2;
 	}
 
+	pthread_mutex_lock(&modmtx);
 	LLAdd(mods, mod);
+	pthread_mutex_unlock(&modmtx);
+
 	return MM_OK;
 
 die:
@@ -203,6 +210,9 @@ local int UnloadModuleByPtr(ModuleData *mod)
 {
 	if (mod)
 	{
+		pthread_mutex_lock(&modmtx);
+		LLRemove(mods, mod);
+		pthread_mutex_unlock(&modmtx);
 		if (mod->mm) (mod->mm)(MM_UNLOAD, &mmint, ALLARENAS);
 		if (mod->hand && !mod->myself) dlclose(mod->hand);
 		afree(mod);
@@ -215,12 +225,18 @@ local ModuleData *GetModuleByName(const char *name)
 {
 	ModuleData *mod;
 	Link *l;
+
+	pthread_mutex_lock(&modmtx);
 	for (l = LLGetHead(mods); l; l = l->next)
 	{
 		mod = (ModuleData*) l->data;
 		if (!strcasecmp(mod->name,name))
+		{
+			pthread_mutex_unlock(&modmtx);
 			return mod;
+		}
 	}
+	pthread_mutex_unlock(&modmtx);
 	return NULL;
 }
 
@@ -252,11 +268,13 @@ void EnumModules(void (*func)(const char *, const char *, void *), void *clos)
 {
 	ModuleData *mod;
 	Link *l;
+	pthread_mutex_lock(&modmtx);
 	for (l = LLGetHead(mods); l; l = l->next)
 	{
 		mod = (ModuleData*) l->data;
 		func(mod->name, NULL, clos);
 	}
+	pthread_mutex_unlock(&modmtx);
 }
 
 
@@ -287,8 +305,9 @@ void RegInterface(void *iface, int arena)
 
 	id = head->iid;
 
-	HashAdd(intsbyname, head->name, iface);
+	pthread_mutex_lock(&intmtx);
 
+	HashAdd(intsbyname, head->name, iface);
 	if (arena == ALLARENAS)
 		HashAdd(globalints, id, iface);
 	else
@@ -298,6 +317,8 @@ void RegInterface(void *iface, int arena)
 		astrncpy(key + 1, id, 63);
 		HashAdd(arenaints, key, iface);
 	}
+
+	pthread_mutex_unlock(&intmtx);
 
 	head->refcount = 0;
 }
@@ -314,8 +335,9 @@ int UnregInterface(void *iface, int arena)
 	if (head->refcount > 0)
 		return head->refcount;
 
-	HashRemove(intsbyname, head->name, iface);
+	pthread_mutex_lock(&intmtx);
 
+	HashRemove(intsbyname, head->name, iface);
 	if (arena == ALLARENAS)
 		HashRemove(globalints, id, iface);
 	else
@@ -325,10 +347,14 @@ int UnregInterface(void *iface, int arena)
 		astrncpy(key + 1, id, 63);
 		HashRemove(arenaints, key, iface);
 	}
+
+	pthread_mutex_unlock(&intmtx);
+
 	return 0;
 }
 
 
+/* must call holding intmtx */
 local inline InterfaceHead *get_int(HashTable *hash, const char *id)
 {
 	InterfaceHead *head;
@@ -358,6 +384,7 @@ void * GetInterface(const char *id, int arena)
 {
 	InterfaceHead *head;
 
+	pthread_mutex_lock(&intmtx);
 	if (arena == ALLARENAS)
 		head = get_int(globalints, id);
 	else
@@ -370,6 +397,7 @@ void * GetInterface(const char *id, int arena)
 		if (!head)
 			head = get_int(globalints, id);
 	}
+	pthread_mutex_unlock(&intmtx);
 	if (head)
 		head->refcount++;
 	return head;
@@ -379,7 +407,9 @@ void * GetInterface(const char *id, int arena)
 void * GetInterfaceByName(const char *name)
 {
 	InterfaceHead *head;
+	pthread_mutex_lock(&intmtx);
 	head = HashGetOne(intsbyname, name);
+	pthread_mutex_unlock(&intmtx);
 	if (head)
 		head->refcount++;
 	return head;
@@ -399,6 +429,7 @@ void ReleaseInterface(void *iface)
 
 void RegCallback(const char *id, void *f, int arena)
 {
+	pthread_mutex_lock(&cbmtx);
 	if (arena == ALLARENAS)
 	{
 		HashAdd(globalcallbacks, id, f);
@@ -410,10 +441,12 @@ void RegCallback(const char *id, void *f, int arena)
 		astrncpy(key + 1, id, 63);
 		HashAdd(arenacallbacks, key, f);
 	}
+	pthread_mutex_unlock(&cbmtx);
 }
 
 void UnregCallback(const char *id, void *f, int arena)
 {
+	pthread_mutex_lock(&cbmtx);
 	if (arena == ALLARENAS)
 	{
 		HashRemove(globalcallbacks, id, f);
@@ -425,26 +458,30 @@ void UnregCallback(const char *id, void *f, int arena)
 		astrncpy(key + 1, id, 63);
 		HashRemove(arenacallbacks, key, f);
 	}
+	pthread_mutex_unlock(&cbmtx);
 }
 
 LinkedList * LookupCallback(const char *id, int arena)
 {
+	LinkedList *ll;
+
+	pthread_mutex_lock(&cbmtx);
 	if (arena == ALLARENAS)
 	{
-		return HashGet(globalcallbacks, id);
+		ll = HashGet(globalcallbacks, id);
 	}
 	else
 	{
 		char key[64];
-		LinkedList *l;
 		/* first get global ones */
-		l = HashGet(globalcallbacks, id);
+		ll= HashGet(globalcallbacks, id);
 		/* then append local ones */
 		key[0] = arena + ' ';
 		astrncpy(key + 1, id, 63);
-		HashGetAppend(arenacallbacks, key, l);
-		return l;
+		HashGetAppend(arenacallbacks, key, ll);
 	}
+	pthread_mutex_unlock(&cbmtx);
+	return ll;
 }
 
 void FreeLookupResult(LinkedList *lst)
