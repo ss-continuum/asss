@@ -1,0 +1,38 @@
+
+modify everything to support new player stage system
+
+starting with net (little changes needed) <DONE>
+
+and core <DONE, i think>
+
+then write arenaman to use the arena stage system and pass things to
+core (maybe expose a function from core to manipulate stages, or maybe
+combine then again (arrgh!))
+
+fix needed changes in other modules to support new status codes
+
+compile, test, checkin
+
+use new search paths for modules (and scores?)
+
+write scoreman
+
+...
+
+
+how do we make sure that all players entering an arena get each others'
+playerdata?
+
+when players send an arena entering pkt, arenaman will set their status
+to waiting for arena. then when the arena is ready, their statuses will
+be incremented. then, when their statuses get to the sendarenaresponse
+stage, they will be sent playerdata for all players currently in ???
+stage.
+
+what should ??? be to ensure what we want? it should be the playing
+stage (the one after sendarenaresponse)
+
+<DONE: now no arena entering msg is send unless the other is sent as
+well. this had better ensure that everyone knows about everyone else>
+question: does it ensure that all will be sent only once?
+
