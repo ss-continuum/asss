@@ -47,7 +47,7 @@ local void PGoal(int, byte *, int);
 /* interface funcs */
 local void SetBallCount(int arena, int ballcount);
 local void PlaceBall(int arena, int bid, struct BallData *newpos);
-local void BallVictory(int arena, int freq, int points);
+local void EndGame(int arena);
 local void LockBallStatus(int arena);
 local void UnlockBallStatus(int arena);
 
@@ -70,7 +70,7 @@ local pthread_mutex_t ballmtx[MAXARENA];
 local Iballs _myint =
 {
 	INTERFACE_HEAD_INIT(I_BALLS, "ball-core")
-	SetBallCount, PlaceBall, BallVictory,
+	SetBallCount, PlaceBall, EndGame,
 	LockBallStatus, UnlockBallStatus, balldata
 };
 
@@ -293,8 +293,28 @@ void PlaceBall(int arena, int bid, struct BallData *newpos)
 }
 
 
-void BallVictory(int arena, int freq, int points)
+void EndGame(int arena)
 {
+	int i, gtc = GTC(), newgame;
+	ConfigHandle c = aman->arenas[arena].cfg;
+
+	LOCK_STATUS(arena);
+
+	for (i = 0; i < balldata[arena].ballcount; i++)
+	{
+		PhaseBall(arena, i, NET_RELIABLE);
+		balldata[arena].balls[i].state = BALL_WAITING;
+		balldata[arena].balls[i].carrier = -1;
+	}
+
+	newgame = cfg->GetInt(c, "Soccer", "NewGameDelay", -3000);
+	if (newgame < 0)
+		newgame = rand()%(newgame*-1);
+
+	for (i = 0; i < balldata[arena].ballcount; i++)
+		balldata[arena].balls[i].time = gtc + newgame;
+
+	UNLOCK_STATUS(arena);
 }
 
 
@@ -414,7 +434,7 @@ void BallKill(int arena, int killer, int killed, int bounty, int flags)
 
 void PPickupBall(int pid, byte *p, int len)
 {
-	int arena;
+	int arena, i;
 	struct BallData *bd;
 	struct C2SPickupBall *bp = (struct C2SPickupBall*)p;
 
@@ -458,6 +478,14 @@ void PPickupBall(int pid, byte *p, int len)
 		UNLOCK_STATUS(arena);
 		return;
 	}
+
+	/* make sure player doesnt carry more than one ball */
+	for (i=0; i < balldata[arena].ballcount; i++)
+		if (balldata[arena].balls[i].carrier == pid && balldata[arena].balls[i].state == BALL_CARRIED)
+		{
+			UNLOCK_STATUS(arena);
+			return;
+		}
 
 	bd->state = BALL_CARRIED;
 	bd->x = pd->players[pid].position.x;
@@ -603,7 +631,11 @@ void PGoal(int pid, byte *p, int len)
 	DO_CBS(CB_GOAL, arena, GoalFunc, (arena, bd->carrier, g->ballid, g->x, g->y));
 
 	/* send ball update */
-	if (pballdata[arena].goaldelay == 0)
+	if (bd->state != BALL_ONMAP)
+	{
+		/* don't respawn ball */
+	}
+	else if (pballdata[arena].goaldelay == 0)
 	{
 		/* we don't want a delay */
 		SpawnBall(arena, bid);

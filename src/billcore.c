@@ -108,7 +108,7 @@ EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
 		AddPacket(0, SendLogin); /* sent from net when it's time to contact biller */
 		AddPacket(B2S_PLAYERDATA, BAuthResponse);
 		AddPacket(B2S_CHATMSG, BChatMsg);
-		AddPacket(B2S_MESSAGE, BMessage);
+		AddPacket(B2S_ZONEMESSAGE, BMessage);
 		AddPacket(B2S_SINGLEMESSAGE, BSingleMessage);
 
 		/* packets from clients */
@@ -318,14 +318,14 @@ void BChatMsg(int pid, byte *p, int len)
 	to->pktype = S2C_CHAT;
 	to->type = MSG_CHAT;
 	sprintf(to->text, "%i:%s", from->channel, from->text);
-	net->SendToOne(from->pid, (byte*)to, len+6, NET_RELIABLE);
+	net->SendToOne(from->uid, (byte*)to, len+6, NET_RELIABLE);
 }
 
 
 /* this does remote privs as well as ** and *szone messages */
 void BMessage(int pid, byte *p, int len)
 {
-	struct B2SRemotePriv *from = (struct B2SRemotePriv*)p;
+	struct B2SZoneMessage *from = (struct B2SZoneMessage*)p;
 	struct ChatPacket *to = alloca(len);
 	char *msg = from->text, *t;
 	int targ;

@@ -52,7 +52,7 @@ loggers.so: log_file.o log_console.o log_sysop.o
 game.so: game.o chat.o flags.o balls.o fm_normal.o banners.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -lm
 
-command.so: cmdman.o playercmd.o
+command.so: cmdman.o playercmd.o # watchdamage.o
 
 external.so: billcore.o directory.o
 

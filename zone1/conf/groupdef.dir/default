@@ -5,6 +5,7 @@ cmd_stats
 cmd_score
 cmd_myscore
 cmd_chat
+cmd_time
 
 cmd_version
 cmd_listmods

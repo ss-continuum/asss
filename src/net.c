@@ -21,6 +21,7 @@
 /* DEFINES */
 
 /* #define DUMP_RAW_PACKETS */
+#define DUMP_UNKNOWN_PACKETS
 
 #define MAXTYPES 128
 
@@ -1031,14 +1032,34 @@ void ProcessPacket(int pid, byte *d, int len)
 	{
 		LinkedList *lst = handlers+d[0];
 		Link *l;
+#ifdef DUMP_UNKNOWN_PACKETS
+		int count = 0;
+#endif
 
 		if (pid == PID_BILLER)
 			lst = handlers+(d[0] + PKT_BILLBASE);
 
 		pd->LockPlayer(pid);
+#ifndef DUMP_UNKNOWN_PACKETS
 		for (l = LLGetHead(lst); l; l = l->next)
+#else
+		for (l = LLGetHead(lst); l; l = l->next, count++)
+#endif
 			((PacketFunc)l->data)(pid, d, len);
 		pd->UnlockPlayer(pid);
+
+#ifdef DUMP_UNKNOWN_PACKETS
+		if (!count)
+		{
+			char str[256];
+			int c, i;
+
+			for (c = 0, i = 0; c < len && i < 250; c++, i += 3)
+				sprintf(&str[i], "%02X ", d[c]);
+
+			if (lm) lm->Log(L_DRIVEL, "<net> [pid=%d] Unknown packet (len %d): %s", pid, len, str);
+		}
+#endif
 	}
 }
 
@@ -1406,13 +1427,12 @@ void ProcessCancel(Buffer *req)
 	 * but only ones we haven't sent yet. we then have to reset the next
 	 * sequence number to the smallest sequence number of the packets we
 	 * just removed. */
+
+#if 0
 	int pid = req->pid;
 	Buffer *buf, *nbuf;
 	DQNode *outlist;
 
-	FreeBuffer(req);
-
-#if 0
 	/* the code will look mostly like this, when it's working */
 	LockMutex(outlistmtx + pid);
 
@@ -1434,6 +1454,8 @@ void ProcessCancel(Buffer *req)
 	/* FIXME: set sequence number */
 	UnlockMutex(outlistmtx + pid);
 #endif
+
+	FreeBuffer(req);
 }
 
 

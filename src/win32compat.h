@@ -1,6 +1,10 @@
 
 #define EXPORT __declspec(dllexport)
+#ifndef NDEBUG
 #define inline
+#else
+#define inline __inline
+#endif
 #define strcasecmp(a,b) stricmp((a),(b))
 #define strncasecmp(a,b,c) strnicmp((a),(b),(c))
 #define M_PI 3.14159265358979323846

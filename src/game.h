@@ -17,6 +17,8 @@ typedef void (*FreqChangeFunc)(int pid, int newfreq);
 #define CB_SHIPCHANGE ("shipchange")
 typedef void (*ShipChangeFunc)(int pid, int newship, int newfreq);
 
+#define CB_TIMESUP ("timesup")
+typedef void (*GameTimerFunc)(int arena);
 
 #define I_GAME "game-1"
 

@@ -158,7 +158,11 @@ int LoadMod(const char *filename)
 	{
 		char cwd[256];
 		getcwd(cwd, 256);
+#ifndef WIN32
 		if (snprintf(name, 256, "%s/bin/%s.so", cwd, filename) > 256)
+#else
+		if (snprintf(name, 256, "%s/bin/%s.dll", cwd, filename) > 256)
+#endif
 			goto die;
 	}
 

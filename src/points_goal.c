@@ -39,6 +39,7 @@ typedef struct GoalAreas
 struct ArenaScores
 {
 	int mode;                       // stores type of soccer game, 0-6 by default
+	int stealpts;                   // 0 = absolute scoring, else = start value for each team
 	int score[MAXFREQ];             // score each freq has
 	GoalAreas goals[MAXGOALS];      // array of goal-defined areas for >2 goal arenas
 };
@@ -47,10 +48,8 @@ struct ArenaScores
 /* prototypes */
 local void MyGoal(int, int, int, int, int);
 local void MyAA(int, int);
-local int  IdGoalScored(int, int, int);
-local void HandleModes3and5(int, int, int, int);
-local int  HandleModes4and6(int, int, int, int);
-local void CheckGameOver(int);
+//local int  IdGoalScored(int, int, int);
+local void CheckGameOver(int, int);
 local void ScoreMsg(int, int);
 local void Csetscore(const char *,int, int);
 local void Cscore(const char *,int, int);
@@ -117,38 +116,59 @@ void MyAA(int arena, int action)
 {
 	if (action == AA_CREATE)
 	{
-		int i, mfreq, goalc = 0, cx, cy, w, h, gf;
-		const char *g;
-		char goalstr[8];
+		int i, cpts;
 
 		scores[arena].mode = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "Mode",0);
-		mfreq = cfg->GetInt(aman->arenas[arena].cfg, "Team", "MaxFrequency",0);
+		cpts = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "CapturePoints",1);
 
-		for (i = 0; i < MAXFREQ; i++)
-			scores[arena].score[i] = 0;
-
-		for(i =0; i < MAXGOALS; i++)
+		if (cpts < 0)
 		{
-			scores[arena].goals[i].upperleft_x = -1;
-			scores[arena].goals[i].upperleft_y = -1;
-			scores[arena].goals[i].width = -1;
-			scores[arena].goals[i].height = -1;
-			scores[arena].goals[i].goalfreq = -1;
+			scores[arena].stealpts = 0;
+			for(i = 0; i < MAXFREQ; i++)
+				scores[arena].score[i] = 0;
 		}
-		g = goalstr;
-		for(i=0;(i < MAXGOALS) && g;i++) {
-			sprintf(goalstr,"Goal%d",goalc);
-			g = cfg->GetStr(aman->arenas[arena].cfg, "Soccer", goalstr);
-			if (g && sscanf(g, "%d,%d,%d,%d,%d", &cx, &cy, &w, &h, &gf) == 5)
+		else
+		{
+			scores[arena].stealpts = cpts;
+			for(i = 0; i < MAXFREQ; i++)
+				scores[arena].score[i] = cpts;
+		}
+
+#if 0
+		/* setup for custom mode in future */
+		{
+			int goalc = 0, gf, cx, cy, w, h, gf;
+			const char *g;
+			char goalstr[8];
+
+			for (i = 0; i < MAXGOALS; i++)
 			{
-				scores[arena].goals[i].upperleft_x = cx;
-				scores[arena].goals[i].upperleft_y = cy;
-				scores[arena].goals[i].width = w;
-				scores[arena].goals[i].height = h;
-				scores[arena].goals[i].goalfreq = gf;
+				scores[arena].goals[i].upperleft_x = -1;
+				scores[arena].goals[i].upperleft_y = -1;
+				scores[arena].goals[i].width = -1;
+				scores[arena].goals[i].height = -1;
+				scores[arena].goals[i].goalfreq = -1;
 			}
-			goalc++;
+
+			if (scores[arena].mode == 7)
+			{
+				g = goalstr;
+				for(i=0;(i < MAXGOALS) && g;i++) {
+					sprintf(goalstr,"Goal%d",goalc);
+					g = cfg->GetStr(aman->arenas[arena].cfg, "Soccer", goalstr);
+					if (g && sscanf(g, "%d,%d,%d,%d,%d", &cx, &cy, &w, &h, &gf) == 5)
+					{
+						scores[arena].goals[i].upperleft_x = cx;
+						scores[arena].goals[i].upperleft_y = cy;
+						scores[arena].goals[i].width = w;
+						scores[arena].goals[i].height = h;
+						scores[arena].goals[i].goalfreq = gf;
+					}
+					goalc++;
+				}
+			}
 		}
+#endif
 	}
 }
 
@@ -168,27 +188,55 @@ void MyGoal(int arena, int pid, int bid, int x, int y)
 		case GOAL_LEFTRIGHT:
 			freq = x < 512 ? 1 : 0;
 			scores[arena].score[freq]++;
+			if (scores[arena].stealpts) scores[arena].score[(~freq)+2]--;
 			break;
 
 		case GOAL_TOPBOTTOM:
 			freq = y < 512 ? 1 : 0;
 			scores[arena].score[freq]++;
+			if (scores[arena].stealpts) scores[arena].score[(~freq)+2]--;
 			break;
 
 		case GOAL_CORNERS_3_1:
-			HandleModes3and5(arena,bid,x,y);
+			freq = balls->balldata[arena].balls[bid].freq;
+			if (x < 512)
+				i = y < 512 ? 0 : 2;
+			else
+				i = y < 512 ? 1 : 3;
+
+			if (!scores[arena].stealpts) scores[arena].score[freq]++;
+			else if (scores[arena].score[i])
+			{
+				scores[arena].score[freq]++;
+				scores[arena].score[i]--;
+			}
+			else nullgoal = 1;
 			break;
 
-		case GOAL_CORNERS_1_3:
-			nullgoal = HandleModes4and6(arena,bid,x,y);
+		case GOAL_CORNERS_1_3: /* only use absolute scoring, as stealpts game is pointless */
+			freq = balls->balldata[arena].balls[bid].freq;
+			scores[arena].score[freq]++;
 			break;
 
 		case GOAL_SIDES_3_1:
-			HandleModes3and5(arena,bid,x,y);
+			freq = balls->balldata[arena].balls[bid].freq;
+			if (x < y)
+				i = x < (1024-y) ? 0 : 1;
+			else
+				i = x < (1024-y) ? 2 : 3;
+
+			if (!scores[arena].stealpts) scores[arena].score[freq]++;
+			else if (scores[arena].score[i])
+			{
+				scores[arena].score[freq]++;
+				scores[arena].score[i]--;
+			}
+			else nullgoal = 1;
 			break;
 
 		case GOAL_SIDES_1_3:
-			nullgoal = HandleModes4and6(arena,bid,x,y);
+			freq = balls->balldata[arena].balls[bid].freq;
+			scores[arena].score[freq]++;
 			break;
 	}
 
@@ -212,87 +260,26 @@ void MyGoal(int arena, int pid, int bid, int x, int y)
 	if (scores[arena].mode)
 	{
 		ScoreMsg(arena, 0);
-		CheckGameOver(arena);
+		CheckGameOver(arena, bid);
 	}
 
 	balls->balldata[arena].balls[bid].freq = -1;
 }
 
-void HandleModes3and5(int arena, int bid, int x, int y)
-{
-	int i;
 
-	i = IdGoalScored(arena, x, y);
-	
-	if (i != -1 && scores[arena].score[i])
-	{
-		scores[arena].score[i]--;
-		scores[arena].score[balls->balldata[arena].balls[bid].freq]++;
-	}
-	else if (i != -1)
-		chat->SendArenaMessage(arena,"Enemy goal had no points to give.");
-}
-
-int HandleModes4and6(int arena, int bid, int x, int y)
-{
-	int i;
-
-	i = IdGoalScored(arena, x, y);
-	
-	switch (i)
-	{
-	case 0:
-		if (scores[arena].score[3])
-		{
-			scores[arena].score[0]++;
-			scores[arena].score[3]--;
-		}
-		else i = -2;
-		break;
-
-	case 1:
-		if (scores[arena].score[2])
-		{
-			scores[arena].score[1]++;
-			scores[arena].score[2]--;
-		}
-		else i = -2;
-		break;
-	case 2:
-		if (scores[arena].score[1])
-		{
-			scores[arena].score[2]++;
-			scores[arena].score[1]--;
-		}
-		else i = -2;
-		break;
-	case 3:
-		if (scores[arena].score[0])
-		{
-			scores[arena].score[3]++;
-			scores[arena].score[0]--;
-		}
-		else i = -2;
-		break;
-	}
-	
-	if (i == -2)
-		return 1;
-	return 0;
-}
-
+#if 0
 int IdGoalScored (int arena, int x, int y)
 {
 	int i = 0, xmin, xmax, ymin, ymax;
 
 	for(i=0; (i < MAXGOALS) && (scores[arena].goals[i].upperleft_x != -1); i++)
 	{
-/*		chat->SendArenaMessage(arena,"goal %d: %d,%d,%d,%d,%d",i,
+		chat->SendArenaMessage(arena,"goal %d: %d,%d,%d,%d,%d",i,
 			scores[arena].goals[i].upperleft_x,
 			scores[arena].goals[i].upperleft_y,
 			scores[arena].goals[i].width,
 			scores[arena].goals[i].height,
-			scores[arena].goals[i].goalfreq);*/
+			scores[arena].goals[i].goalfreq);
 
 
 		xmin = scores[arena].goals[i].upperleft_x;
@@ -305,27 +292,47 @@ int IdGoalScored (int arena, int x, int y)
 			return scores[arena].goals[i].goalfreq;
 		}
 	}
-	
+
 	return -1;
 }
+#endif
 
-void CheckGameOver(int arena)
+
+void CheckGameOver(int arena, int bid)
 {
-	int i, j = 0, freq = -1;
-	
+	int i, j = 0, freq = 0;/* points = cfg->GetInt(aman->arenas[arena].cfg, "Soccer","Reward",0);*/
+
+	if (cfg->GetInt(aman->arenas[arena].cfg, "Misc", "TimedGame",0))
+		return;
+
 	for(i = 0; i < MAXFREQ; i++)
 		if (scores[arena].score[i] > scores[arena].score[freq]) freq = i;
 
-// check if game is over
-	if (scores[arena].mode > 2 &&
-		  scores[arena].score[freq] == 4)
+	// check if game is over
+	if (scores[arena].mode <= 2 && scores[arena].stealpts)
 	{
-		chat->SendArenaSoundMessage(arena, SOUND_DING, "Soccer game over.");
-		for(i=0;i < MAXFREQ;i++)
-			scores[arena].score[i] = 1;
+		if (!scores[arena].score[(~freq)+2]) // check opposite freq (either 0 or 1)
+		{
+			chat->SendArenaSoundMessage(arena, SOUND_DING, "Soccer game over.");
+			balls->EndGame(arena);
+			for(i=0;i < MAXFREQ;i++)
+				scores[arena].score[i] = scores[arena].stealpts;
+		}
 	}
-	
-	else if (scores[arena].mode <= 2)
+	else if (scores[arena].mode > 2 && scores[arena].stealpts)
+	{
+		for (i = 0, j = 0; i < 4; i++) // check that other 3 freqs have no points
+			if (!scores[arena].score[i]) j++;
+
+		if (j == 3)
+		{
+			chat->SendArenaSoundMessage(arena, SOUND_DING, "Soccer game over.");
+			balls->EndGame(arena);
+			for(i=0;i < MAXFREQ;i++)
+				scores[arena].score[i] = scores[arena].stealpts;
+		}
+	}
+	else // is mode 1-6 with absolute scoring
 	{
 		int win = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "CapturePoints",0);
 		int by  = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "WinBy",0);
@@ -333,12 +340,14 @@ void CheckGameOver(int arena)
 		if (scores[arena].score[freq] >= win*-1)
 			for(i = 0; i < MAXFREQ; i++)
 				if ((scores[arena].score[i]+by) <= scores[arena].score[freq]) j++;
-		
+
 		if (j == MAXFREQ-1)
 		{
 			chat->SendArenaSoundMessage(arena, SOUND_DING, "Soccer game over.");
+			balls->EndGame(arena);
 			for(i=0;i < MAXFREQ;i++)
 				scores[arena].score[i] = 0;
+
 		}
 	}
 
@@ -363,7 +372,7 @@ void ScoreMsg(int arena, int pid)  // pid = -1 means arena-wide, otherwise priva
 void Csetscore(const char *params, int pid, int target)
 {
 	int i, newscores[MAXFREQ], arena = pd->players[pid].arena;
-	
+
 	/* crude for now */
 	for(i = 0; i < MAXFREQ; i++)
 		newscores[i] = -1;
@@ -371,15 +380,16 @@ void Csetscore(const char *params, int pid, int target)
 	if (sscanf(params,"%d %d %d %d %d %d %d %d", &newscores[0], &newscores[1], &newscores[2],
 		&newscores[3], &newscores[4], &newscores[5],&newscores[6], &newscores[7]) > 0)
 	{
+		// only allowed to setscore in modes 1-6 and if game is absolute scoring
 		if (!scores[arena].mode) return;
-		if (scores[arena].mode > 2) return;
-		
+		if (scores[arena].stealpts) return;
+
 		for(i = 0; i < MAXFREQ && newscores[i] != -1; i ++)
 			scores[arena].score[i] = newscores[i];
-	
+
 		if (scores[arena].mode) {
 			ScoreMsg(arena, -1);
-			CheckGameOver(arena);
+			CheckGameOver(arena, -1);
 		}
 	}
 	else
@@ -401,7 +411,8 @@ void Cresetgame(const char *params, int pid, int target)
 	{
 		chat->SendArenaMessage(arena, "Resetting game. -%s", pd->players[pid].name);
 		chat->SendArenaSoundMessage(arena, SOUND_DING, "Soccer game over.");
-		if (scores[arena].mode > 2) j++;
+		balls->EndGame(arena);
+		if (scores[arena].stealpts) j = scores[arena].stealpts;
 		for(i = 0; i < MAXFREQ; i++)
 			scores[arena].score[i] = j;
 	}

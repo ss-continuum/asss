@@ -67,7 +67,7 @@ local void DoChecksum(struct S2CWeapons *pkt)
 	int i;
 	u8 ck = 0;
 	pkt->checksum = 0;
-	for (i = 0; i < 21; i++)
+	for (i = 0; i < sizeof(struct S2CWeapons) - sizeof(struct ExtraPosData); i++)
 		ck ^= ((unsigned char*)pkt)[i];
 	pkt->checksum = ck;
 }

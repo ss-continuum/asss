@@ -166,7 +166,6 @@ local void Cballcount(const char *params, int pid, int target)
 
 local void Csetfreq(const char *params, int pid, int target)
 {
-
 	if (!*params)
 		return;
 
@@ -464,7 +463,7 @@ local void Ca(const char *params, int pid, int target)
 	int arena = players[pid].arena;
 
 	if (target == TARGET_ARENA)
-		chat->SendArenaMessage(arena,"%s -%s",params,players[pid].name);
+		chat->SendArenaMessage(arena,"%s  -%s",params,players[pid].name);
 	else if (PID_OK(target))
 		chat->SendMessage(target, "%s  -%s", params, players[pid].name);
 }
@@ -497,7 +496,7 @@ local void Cshipreset(const char *params, int pid, int target)
 local void Csheep(const char *params, int pid, int target)
 {
 	int arena = players[pid].arena;
-	const char *sheepmsg;
+	const char *sheepmsg = NULL;
 
 	if (target != TARGET_ARENA)
 		return;

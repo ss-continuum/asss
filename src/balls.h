@@ -50,7 +50,7 @@ struct ArenaBallData
 };
 
 
-#define I_BALLS "balls-2"
+#define I_BALLS "balls-3"
 
 typedef struct Iballs
 {
@@ -67,9 +67,9 @@ typedef struct Iballs
 	/* sets the parameters of the ball to those in the given BallData
 	 * struct */
 
-	void (*BallVictory)(int arena, int freq, int points);
-	/* arpc: void(int, int, int) */
-	/* ends the ball game (freq=-1 to reset balls with no winner) */
+	void (*EndGame)(int arena);
+	/* arpc: void(int) */
+	/* ends the ball game */
 
 	void (*LockBallStatus)(int arena);
 	/* arpc: void(int) noop */

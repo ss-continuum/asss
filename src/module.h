@@ -69,7 +69,7 @@ struct Imodman
 
 	int (*LoadModule)(const char *specifier);
 	/* load a module. the specifier is of the form 'file:modname'. file
-	 * is the filename (without the .so) or 'int' for internal modules.
+	 * is the filename (without the .so/.dll) or 'int' for internal modules.
 	 * eventually, 'file:modname@remotehost:port' will be supported for
 	 * remote modules.  */
 
