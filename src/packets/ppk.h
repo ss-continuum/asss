@@ -10,7 +10,7 @@ struct Weapons
 {   /* this is a bit field. the whole thing should fit into 16 bits */
 	unsigned int type : 5;
 	unsigned int level : 2;
-	unsigned int unknown : 1;
+	unsigned int bouncing : 1;
 	unsigned int shraplevel : 2;
 	unsigned int shrap : 5;
 	unsigned int multimine : 1;
@@ -19,10 +19,10 @@ struct Weapons
 struct ExtraPosData
 {
 	unsigned energy : 16;
-	unsigned kothtimer : 16; /* unverified */
-	unsigned flagtimer : 16;
-	unsigned super : 1;
+	unsigned s2cping : 16;
+	unsigned timer : 16;
 	unsigned shields : 1;
+	unsigned super : 1;
 	unsigned bursts : 4;
 	unsigned repels : 4;
 	unsigned thors : 4;
@@ -44,7 +44,7 @@ struct S2CWeapons
 	i16 xspeed;
 	u8 checksum;
 	u8 status;
-	u8 unknown1;
+	u8 ping;
 	i16 y;
 	u16 bounty;
 	struct Weapons weapon;
@@ -57,7 +57,7 @@ struct S2CPosition
 	i8 rotation;
 	u16 time;
 	i16 x;
-	u8 unknown1;
+	u8 ping;
 	u8 bounty;
 	u8 playerid;
 	i8 status;
