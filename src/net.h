@@ -85,7 +85,6 @@ struct net_client_stats
 typedef struct Inet
 {
 	INTERFACE_HEAD_DECL
-
 	/* pyint: use */
 
 	void (*SendToOne)(Player *p, byte *data, int length, int flags);

@@ -13,8 +13,6 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <unistd.h>
-#else
-#define close(s) closesocket(s)
 #endif
 
 #include <string.h>
@@ -252,7 +250,7 @@ EXPORT int MM_directory(int action, Imodman *mm_, Arena *arena)
 	{
 		ml->ClearTimer(SendUpdates, NULL);
 		deinit_all();
-		close(sock);
+		closesocket(sock);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(ml);
 		mm->ReleaseInterface(pd);

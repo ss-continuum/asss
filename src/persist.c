@@ -407,6 +407,9 @@ local void do_end_interval(const char *ag, int interval)
 	int global = (strcmp(ag, AG_GLOBAL) == 0);
 	unsigned int serialno;
 
+	if (interval == INTERVAL_FOREVER || interval == INTERVAL_FOREVER_NONSHARED)
+		return;
+
 	/* get serial number */
 	serialno = get_serialno(ag, interval);
 

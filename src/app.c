@@ -21,13 +21,10 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
+#include "defs.h"
 #include "util.h"
 
 #include "app.h"
-
-#ifdef WIN32
-#include "win32compat.h"
-#endif
 
 
 #define DIRECTIVECHAR '#'

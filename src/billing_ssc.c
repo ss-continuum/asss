@@ -317,6 +317,8 @@ local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, c
 	}
 }
 
+/* and commands that go to the biller */
+
 local int findchat(const char *chat, const char *list)
 {
 	const char *tmp = NULL;
@@ -328,13 +330,64 @@ local int findchat(const char *chat, const char *list)
 	return FALSE;
 }
 
-/* and commands that go to the biller */
+local void rewrite_chat_command(Player *p, const char *line, struct S2B_UserCommand *pkt)
+{
+	/* process local and staff chats */
+
+	/* cfghelp: Billing:StaffChats, global, string
+	 * Comma separated staff chat list. */
+	const char *staffchats = cfg->GetStr(GLOBAL, "Billing", "StaffChats");
+	/* cfghelp: Billing:StaffChatPrefix, global, string
+	 * Secret prefix to prepend to staff chats */
+	const char *staffprefix = cfg->GetStr(GLOBAL, "Billing", "StaffChatPrefix");
+	/* cfghelp: Billing:StaffChats, global, string
+	 * Comma separated staff zone local list. */
+	const char *localchats = cfg->GetStr(GLOBAL, "Billing", "LocalChats");
+	/* cfghelp: Billing:LocalChatPrefix, global, string
+	 * Secret prefix to prepend to local chats */
+	const char *localprefix = cfg->GetStr(GLOBAL, "Billing", "LocalChatPrefix");
+
+	char *d = pkt->Text + 6;
+	line += 5; /* skip chat= */
+
+	strcpy(pkt->Text, "?chat=");
+	while (line && d < (char *)pkt->Text+sizeof(pkt->Text)-64)
+	{
+		char chatname[32],origchatname[32];
+		char *e;
+
+		line = delimcpy(chatname, line, sizeof(chatname), ',');
+		strcpy(origchatname, chatname);
+
+		e = strrchr(chatname, '/');
+		if (e)
+			*e=0;
+		e = strchr(chatname, 0);
+		while (e > chatname && e[-1] == ' ')
+			*(--e) = 0;
+		if (!chatname[0])
+			continue;
+
+		if (localchats && findchat(chatname, localchats))
+			d += snprintf(d, 32, "$l$%s|", localprefix ? localprefix : "");
+
+		if (staffchats && capman &&
+			capman->HasCapability(p, CAP_SENDMODCHAT) &&
+			findchat(chatname, staffchats))
+			d += snprintf(d, 32, "$s$%s|", staffprefix ? staffprefix : "");
+
+		strcpy(d, origchatname);
+		d = strchr(d, 0);
+		if (line)
+			*d++=',';
+	}
+	*d = 0;
+}
 
 local void Cdefault(const char *line, Player *p, const Target *target)
 {
 	pdata *data = PPDATA(p, pdkey);
-	struct S2B_UserCommand pkt;
-	int cmdcopyed = FALSE;
+	struct S2B_UserCommand pkt = { S2B_USER_COMMAND, p->pid };
 
 	if (!data->knowntobiller)
 		return;
@@ -345,73 +398,14 @@ local void Cdefault(const char *line, Player *p, const Target *target)
 		return;
 	}
 
-	if (!strncasecmp(line, "chat", 4) && (line[4]==' ' || line[4]=='='))
+	if (!strncasecmp(line, "chat", 4) && (line[4] == ' ' || line[4] == '='))
+		rewrite_chat_command(p, line, &pkt);
+	else
 	{
-		/* process local and staff chats */
-
-		/* cfghelp: Billing:StaffChats, global, string
-		 * Comma separated staff chat list. */
-		const char *staffchats = cfg->GetStr(GLOBAL, "Billing", "StaffChats");
-
-		/* cfghelp: Billing:StaffChatPrefix, global, string
-		 * Secret prefix to prepend to staff chats */
-		const char *staffprefix = cfg->GetStr(GLOBAL, "Billing", "StaffChatPrefix");
-
-		/* cfghelp: Billing:StaffChats, global, string
-		 * Comma separated staff zone local list. */
-		const char *localchats = cfg->GetStr(GLOBAL, "Billing", "LocalChats");
-
-		/* cfghelp: Billing:LocalChatPrefix, global, string
-		 * Secret prefix to prepend to local chats */
-		const char *localprefix = cfg->GetStr(GLOBAL, "Billing", "LocalChatPrefix");
-
-		if(localchats || staffchats)
-		{
-			char *d=pkt.Text+6;
-			line += 5; // skip chat=
-
-			strcpy(pkt.Text, "?chat=");
-			while (line && d < (char *)pkt.Text+sizeof(pkt.Text)-64)
-			{
-				char chatname[32],origchatname[32];
-				char *e;
-
-				line = delimcpy(chatname, line, sizeof(chatname), ',');
-				strcpy(origchatname, chatname);
-
-				e = strrchr(chatname,'/');
-				if(e)
-					*e=0;
-				e = strchr(chatname, 0);
-				while (e > chatname && e[-1]==' ')
-					*(--e)=0;
-				if (!chatname[0])
-					continue;
-
-				if (localchats && findchat(chatname, localchats))
-					d += snprintf(d, 32, "$l$%s|",localprefix?localprefix:"");
-
-				if (staffchats && capman &&
-				    capman->HasCapability(p, CAP_SENDMODCHAT) &&
-				    findchat(chatname, staffchats))
-					d += snprintf(d, 32, "$s$%s|",staffprefix?staffprefix:"");
-				strcpy(d, origchatname);
-				d = strchr(d ,0);
-				if(line)
-					*d++=',';
-			}
-			*d=0;
-			cmdcopyed = TRUE;
-		}
-	}
-
-	pkt.Type = S2B_USER_COMMAND;
-	pkt.ConnectionID = p->pid;
-	if (!cmdcopyed)
-	{
-		pkt.Text[0]='?';
+		pkt.Text[0] = '?';
 		astrncpy(pkt.Text+1, line, sizeof(pkt.Text)-1);
 	}
+
 	pthread_mutex_lock(&mtx);
 	netcli->SendPacket(cc, (byte*)&pkt, strchr(pkt.Text,0) + 1 - (char*)&pkt, NET_RELIABLE);
 	pthread_mutex_unlock(&mtx);

@@ -1,6 +1,7 @@
 
 #include <unistd.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <signal.h>
 
 #include "asss.h"
@@ -76,13 +77,12 @@ local void check_signals(void)
 {
 	switch (gotsig)
 	{
-		case SIGHUP:  handle_sighup();  break;
-		case SIGINT:  handle_sigint();  break;
-		case SIGTERM: handle_sigterm(); break;
-		case SIGUSR1: handle_sigusr1(); break;
-		case SIGUSR2: handle_sigusr2(); break;
+		case SIGHUP:  gotsig = 0; handle_sighup();  break;
+		case SIGINT:  gotsig = 0; handle_sigint();  break;
+		case SIGTERM: gotsig = 0; handle_sigterm(); break;
+		case SIGUSR1: gotsig = 0; handle_sigusr1(); break;
+		case SIGUSR2: gotsig = 0; handle_sigusr2(); break;
 	}
-	gotsig = 0;
 }
 
 
@@ -99,8 +99,8 @@ local void init_signals(void)
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = SA_RESTART;
 
-	sigaction(SIGHUP, &sa, NULL);
-	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGHUP,  &sa, NULL);
+	sigaction(SIGINT,  &sa, NULL);
 	sigaction(SIGTERM, &sa, NULL);
 	sigaction(SIGUSR1, &sa, NULL);
 	sigaction(SIGUSR2, &sa, NULL);
@@ -114,8 +114,8 @@ local void deinit_signals(void)
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
 
-	sigaction(SIGHUP, &sa, NULL);
-	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGHUP,  &sa, NULL);
+	sigaction(SIGINT,  &sa, NULL);
 	sigaction(SIGTERM, &sa, NULL);
 	sigaction(SIGUSR1, &sa, NULL);
 	sigaction(SIGUSR2, &sa, NULL);
@@ -128,14 +128,38 @@ local void write_pid(const char *fn)
 	fclose(f);
 }
 
+local int check_pid_file(const char *fn)
+{
+	FILE *f = fopen(fn, "r");
+	if (f)
+	{
+		char buf[128];
+		if (fgets(buf, sizeof(buf), f) &&
+		    atoi(buf) > 1 &&
+		    kill(atoi(buf), 0) == 0)
+				return TRUE;
+		fclose(f);
+	}
+	return FALSE;
+}
+
 
 EXPORT int MM_unixsignal(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
+		if (CFG_PID_FILE && check_pid_file(CFG_PID_FILE))
+		{
+			fprintf(stderr, "E <unixsignal> found previous asss still running\n");
+			return MM_FAIL;
+		}
 		mm->RegCallback(CB_MAINLOOP, check_signals, ALLARENAS);
 		init_signals();
+		return MM_OK;
+	}
+	else if (action == MM_POSTLOAD)
+	{
 		if (CFG_PID_FILE)
 			write_pid(CFG_PID_FILE);
 		return MM_OK;

@@ -4,12 +4,12 @@
 
 
 /* the search path for config files */
-#define CFG_CONFIG_SEARCH_PATH "arenas/%b/%n:arenas/(default)/%n:conf/%n:%n"
+#define CFG_CONFIG_SEARCH_PATH "arenas/%b/%n:conf/%n:%n:arenas/(default)/%n"
 
 
 /* the search path for map files */
-#define CFG_LVL_SEARCH_PATH "arenas/%b/%m:maps/%b.lvl:arenas/%b.lvl:arenas/(default)/%m:maps/%m:%m"
-#define CFG_LVZ_SEARCH_PATH "arenas/%b/%m:arenas/(default)/%m:maps/%m:%m"
+#define CFG_LVL_SEARCH_PATH "arenas/%b/%m:maps/%m:%m:arenas/%b/%b.lvl:maps/%b.lvl:arenas/(default)/%m"
+#define CFG_LVZ_SEARCH_PATH "arenas/%b/%m:maps/%m:%m:arenas/(default)/%m"
 
 
 /* whether to log private and chat messages */
@@ -22,13 +22,6 @@
 
 /* whether to disallow module loading after the server has been initalized */
 /* #define CFG_NO_RUNTIME_LOAD */
-
-
-/* whether to enable persistent chat masks. this is normally a good
- * idea. the only downside is that it introduces a dependence of chat on
- * persist (i.e. you can't enable chatting without also loading the
- * database module). */
-#define CFG_PERSISTENT_CHAT_MASKS
 
 
 /* the format for printing time in log files, in strftime format. this
@@ -111,7 +104,7 @@
 #define CFG_DEF_SPEC_FREQ 8025
 
 
-/* the file to write asss' pid to when it starts up. set to "NULL" to
+/* the file to write asss' pid to when it starts up. set to NULL to
  * disable. */
 #define CFG_PID_FILE "asss.pid"
 

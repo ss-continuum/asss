@@ -89,7 +89,7 @@ typedef struct ArenaPersistentData
  * preceeded by a lot of ClearData calls. */
 #define CB_INTERVAL_ENDED "endinterval"
 typedef void (*EndIntervalFunc)(void);
-/* pyint: void */
+/* pycb: void */
 
 
 #define I_PERSIST "persist-6"

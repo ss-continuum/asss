@@ -11,8 +11,6 @@
 
 #ifndef WIN32
 #include <unistd.h>
-#else
-#include <io.h>
 #endif
 
 
@@ -421,7 +419,8 @@ local int GetInt(ConfigHandle ch, const char *sec, const char *key, int def)
 }
 
 
-local void SetStr(ConfigHandle ch, const char *sec, const char *key, const char *val, const char *info)
+local void SetStr(ConfigHandle ch, const char *sec, const char *key,
+		const char *val, const char *info, int perm)
 {
 	struct Entry *e;
 	char keystring[MAXSECTIONLEN+MAXKEYLEN+2], *data;
@@ -438,24 +437,31 @@ local void SetStr(ConfigHandle ch, const char *sec, const char *key, const char 
 	else
 		return;
 
-	/* make a dirty list entry for it */
-	e = amalloc(sizeof(*e));
-	e->keystr = astrdup(keystring);
-	e->info = astrdup(info);
+	if (perm)
+	{
+		/* make a dirty list entry for it */
+		e = amalloc(sizeof(*e));
+		e->keystr = astrdup(keystring);
+		e->info = astrdup(info);
+	}
 
 	pthread_mutex_lock(&ch->mutex);
 	data = SCAdd(ch->thestrings, val);
 	HashReplace(ch->thetable, keystring, data);
-	e->val = data;
-	LLAdd(&ch->dirty, e);
+	if (perm)
+	{
+		e->val = data;
+		LLAdd(&ch->dirty, e);
+	}
 	pthread_mutex_unlock(&ch->mutex);
 }
 
-local void SetInt(ConfigHandle ch, const char *sec, const char *key, int value, const char *info)
+local void SetInt(ConfigHandle ch, const char *sec, const char *key,
+		int value, const char *info, int perm)
 {
 	char num[16];
 	snprintf(num, 16, "%d", value);
-	SetStr(ch, sec, key, num, info);
+	SetStr(ch, sec, key, num, info, perm);
 }
 
 

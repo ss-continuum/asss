@@ -136,12 +136,12 @@ local void mt_iterate()
 	}
 
 	/* secure hash the result */
-	for (ii = 0; ii < sizeof(mt_state) / 16; ii += 4)
+	for (ii = 0; ii < sizeof(mt_state); ii += 16)
 	{
 		struct MD5Context ctx;
 		MD5Init(&ctx);
-		MD5Update(&ctx, (unsigned char const *)(mt_state + ii), 16);
-		MD5Final((unsigned char *)(mt_output + ii), &ctx);
+		MD5Update(&ctx, ((unsigned char const *)mt_state) + ii, 16);
+		MD5Final(((unsigned char *)mt_output) + ii, &ctx);
 	}
 
 	/*

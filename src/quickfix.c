@@ -4,9 +4,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#ifdef WIN32
-#include <io.h> /* mktemp */
-#endif
 
 #include "asss.h"
 #include "cfghelp.h"
@@ -22,6 +19,7 @@ local Ilogman *lm;
 local Icfghelp *cfghelp;
 local Ifiletrans *filetrans;
 local Inet *net;
+local Icapman *capman;
 
 
 local void try_section(const char *limit, const struct section_help *sh,
@@ -122,7 +120,11 @@ local helptext_t quickfix_help =
 
 local void Cquickfix(const char *params, Player *p, const Target *target)
 {
-	do_quickfix(p, params[0] ? params : NULL);
+	if (capman->HasCapability(p, CAP_CHANGESETTINGS))
+		do_quickfix(p, params[0] ? params : NULL);
+	else
+		chat->SendMessage(p,
+				"You are not authorized to view or change settings in this arena");
 }
 
 
@@ -137,6 +139,13 @@ local void p_settingchange(Player *p, byte *pkt, int len)
 	arena = p->arena;
 	if (!arena) return;
 	ch = arena->cfg;
+
+	if (!capman->HasCapability(p, CAP_CHANGESETTINGS))
+	{
+		chat->SendMessage(p,
+				"You are not authorized to view or change settings in this arena");
+		return;
+	}
 
 #define CHECK(n) \
 	if (!n) { \
@@ -157,7 +166,7 @@ local void p_settingchange(Player *p, byte *pkt, int len)
 		CHECK(pos)
 		lm->LogP(L_INFO, "quickfix", p, "setting %s:%s = %s",
 				sec, key, pos);
-		cfg->SetStr(ch, sec, key, pos, info);
+		cfg->SetStr(ch, sec, key, pos, info, TRUE);
 		pos = pos + strlen(pos) + 1;
 		if (pos[0] == '\0') break;
 	}
@@ -177,12 +186,14 @@ EXPORT int MM_quickfix(int action, Imodman *mm, Arena *arena)
 		cfghelp = mm->GetInterface(I_CFGHELP, ALLARENAS);
 		filetrans = mm->GetInterface(I_FILETRANS, ALLARENAS);
 		net = mm->GetInterface(I_NET, ALLARENAS);
+		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 		if (!pd || !aman || !cfg || !chat || !cmd || !lm ||
-				!cfghelp || !filetrans || !net)
+				!cfghelp || !filetrans || !net || !capman)
 			return MM_FAIL;
 
 		net->AddPacket(C2S_SETTINGCHANGE, p_settingchange);
 		cmd->AddCommand("quickfix", Cquickfix, quickfix_help);
+		cmd->AddCommand("getsettings", Cquickfix, quickfix_help);
 
 		return MM_OK;
 	}
@@ -190,6 +201,7 @@ EXPORT int MM_quickfix(int action, Imodman *mm, Arena *arena)
 	{
 		net->RemovePacket(C2S_SETTINGCHANGE, p_settingchange);
 		cmd->RemoveCommand("quickfix", Cquickfix);
+		cmd->RemoveCommand("getsettings", Cquickfix);
 
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);
@@ -200,6 +212,7 @@ EXPORT int MM_quickfix(int action, Imodman *mm, Arena *arena)
 		mm->ReleaseInterface(cfghelp);
 		mm->ReleaseInterface(filetrans);
 		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(capman);
 		return MM_OK;
 	}
 	return MM_FAIL;

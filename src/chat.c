@@ -27,9 +27,7 @@ local Icmdman *cmd;
 local Imodman *mm;
 local Iarenaman *aman;
 local Icapman *capman;
-#ifdef CFG_PERSISTENT_CHAT_MASKS
 local Ipersist *persist;
-#endif
 
 struct player_mask_t
 {
@@ -255,7 +253,7 @@ local void SendRemotePrivMessage(LinkedList *set, int sound,
 
 	if (squad)
 	{
-		size = snprintf(cp->text, 250, "(%s)(%s)>%s", squad, sender, msg) + 6;
+		size = snprintf(cp->text, 250, "(#%s)(%s)>%s", squad, sender, msg) + 6;
 		if (net) net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
 		if (chatnet)
 			chatnet->SendToSet(set, "MSG:SQUAD:%s:%s:%s", squad, sender, msg);
@@ -309,7 +307,7 @@ local void handle_pub(Player *p, const char *msg, int ismacro, int sound)
 	struct player_mask_t *pm = PPDATA(p, pmkey);
 	struct ChatPacket *to = alloca(strlen(msg) + 40);
 
-	if (msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2)
+	if ((msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2) && msg[1] != '\0')
 	{
 		if (OK(MSG_COMMAND))
 		{
@@ -383,7 +381,7 @@ local void handle_freq(Player *p, int freq, const char *msg, int sound)
 	struct player_mask_t *pm = PPDATA(p, pmkey);
 	struct ChatPacket *to = alloca(strlen(msg) + 40);
 
-	if (msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2)
+	if ((msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2) && msg[1] != '\0')
 	{
 		if (OK(MSG_COMMAND))
 		{
@@ -430,7 +428,7 @@ local void handle_priv(Player *p, Player *dst, const char *msg, int sound)
 	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
 	struct player_mask_t *pm = PPDATA(p, pmkey);
 
-	if (msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2)
+	if ((msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2) && msg[1] != '\0')
 	{
 		if (OK(MSG_COMMAND))
 		{
@@ -533,11 +531,8 @@ local void PChat(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	if (pkt[len-1] != '\0')
-	{
-		lm->LogP(L_MALICIOUS, "chat", p, "non-null terminated chat message");
-		return;
-	}
+	/* clients such as continuum may send unterminated strings */
+	pkt[len-1] = 0;
 
 	if (!arena) return;
 
@@ -722,8 +717,6 @@ local void aaction(Arena *arena, int action)
 }
 
 
-#ifdef CFG_PERSISTENT_CHAT_MASKS
-
 local void clear_data(Player *p, void *v)
 {
 	struct player_mask_t *pm = PPDATA(p, pmkey);
@@ -756,8 +749,6 @@ local void set_data(Player *p, void *data, int len, void *v)
 	pd->LockPlayer(p);
 	if (len == sizeof(*pm))
 		memcpy(pm, data, sizeof(*pm));
-	pm->msgs = 0;
-	pm->lastcheck = current_ticks();
 	pd->UnlockPlayer(p);
 }
 
@@ -767,16 +758,16 @@ local PlayerPersistentData pdata =
 	get_data, set_data, clear_data
 };
 
-#else
 
 local void paction(Player *p, int action, Arena *arena)
 {
 	struct player_mask_t *pm = PPDATA(p, pmkey);
-	pm->mask = pm->expires = pm->msgs = 0;
-	pm->lastcheck = current_ticks();
+	if (action == PA_PREENTERARENA)
+	{
+		pm->mask = pm->expires = pm->msgs = 0;
+		pm->lastcheck = current_ticks();
+	}
 }
-
-#endif
 
 
 
@@ -806,22 +797,18 @@ EXPORT int MM_chat(int action, Imodman *mm_, Arena *arena)
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
-		if (!cfg || !aman || !pd || !lm) return MM_FAIL;
-
-#ifdef CFG_PERSISTENT_CHAT_MASKS
 		persist = mm->GetInterface(I_PERSIST, ALLARENAS);
-		if (!persist) return MM_FAIL;
-		persist->RegPlayerPD(&pdata);
-#endif
+		if (!cfg || !aman || !pd || !lm) return MM_FAIL;
 
 		cmkey = aman->AllocateArenaData(sizeof(chat_mask_t));
 		pmkey = pd->AllocatePlayerData(sizeof(struct player_mask_t));
 		if (cmkey == -1 || pmkey == -1) return MM_FAIL;
 
-#ifndef CFG_PERSISTENT_CHAT_MASKS
-		mm->RegCallback(CB_PLAYERACTION, paction, ALLARENAS);
-#endif
+		if (persist)
+			persist->RegPlayerPD(&pdata);
+
 		mm->RegCallback(CB_ARENAACTION, aaction, ALLARENAS);
+		mm->RegCallback(CB_PLAYERACTION, paction, ALLARENAS);
 
 		/* cfghelp: Chat:MessageReliable, global, bool, def: 1
 		 * Whether to send chat messages reliably. */
@@ -853,12 +840,9 @@ EXPORT int MM_chat(int action, Imodman *mm_, Arena *arena)
 		if (chatnet)
 			chatnet->RemoveHandler("SEND", MChat);
 		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
-#ifdef CFG_PERSISTENT_CHAT_MASKS
-		persist->UnregPlayerPD(&pdata);
-		mm->ReleaseInterface(persist);
-#else
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
-#endif
+		if (persist)
+			persist->UnregPlayerPD(&pdata);
 		aman->FreeArenaData(cmkey);
 		pd->FreePlayerData(pmkey);
 		mm->ReleaseInterface(pd);
@@ -869,6 +853,7 @@ EXPORT int MM_chat(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(capman);
+		mm->ReleaseInterface(persist);
 		return MM_OK;
 	}
 	return MM_FAIL;

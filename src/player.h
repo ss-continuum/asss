@@ -175,6 +175,8 @@ struct Player
 		u32 sent_wpn : 1;
 		/* if the player is a bot who wants all position packets */
 		u32 see_all_posn : 1;
+		/* if the player is a bot who wants his own position packets */
+		u32 see_own_posn : 1;
 		/* fill this up to 32 bits */
 		u32 padding : 24;
 	} flags;

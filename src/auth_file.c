@@ -131,7 +131,7 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 
 				hash_password(name, pass, hex);
 
-				cfg->SetStr(pwdfile, "users", name, hex, NULL);
+				cfg->SetStr(pwdfile, "users", name, hex, NULL, TRUE);
 				ad.authenticated = TRUE;
 			}
 		}
@@ -161,7 +161,7 @@ local void Cpasswd(const char *params, Player *p, const Target *target)
 
 	hash_password(p->name, params, hex);
 
-	cfg->SetStr(pwdfile, "users", p->name, hex, NULL);
+	cfg->SetStr(pwdfile, "users", p->name, hex, NULL, TRUE);
 
 	chat = mm->GetInterface(I_CHAT, ALLARENAS);
 	if (chat) chat->SendMessage(p, "Password set");
@@ -198,7 +198,7 @@ local void Caddallowed(const char *params, Player *p, const Target *target)
 		ctime_r(&tm, buf + strlen(buf));
 		RemoveCRLF(buf);
 
-		cfg->SetStr(pwdfile, "users", p->name, "any", buf);
+		cfg->SetStr(pwdfile, "users", p->name, "any", buf, TRUE);
 		chat->SendMessage(p, "Added %s to the allowed player list.", params);
 	}
 

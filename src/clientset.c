@@ -42,6 +42,7 @@ local pthread_mutex_t setmtx = PTHREAD_MUTEX_INITIALIZER;
 local Iplayerdata *pd;
 local Iconfig *cfg;
 local Inet *net;
+local Iprng *prng;
 local Ilogman *lm;
 local Imodman *mm;
 local Iarenaman *aman;
@@ -67,8 +68,9 @@ EXPORT int MM_clientset(int action, Imodman *mm_, Arena *arena)
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		prng = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 
-		if (!net || !cfg || !lm || !aman) return MM_FAIL;
+		if (!net || !cfg || !lm || !aman || !prng) return MM_FAIL;
 
 		adkey = aman->AllocateArenaData(sizeof(adata));
 		if (adkey == -1) return MM_FAIL;
@@ -101,6 +103,7 @@ EXPORT int MM_clientset(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(prng);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(aman);
 		return MM_OK;
@@ -272,7 +275,7 @@ int GetRandomPrize(Arena *arena)
 	if (max == 0)
 		return 0;
 
-	r = rand() % max;
+	r = prng->Number(0, max+1);
 
 	/* binary search */
 	while (r >= ad->pwps[i])

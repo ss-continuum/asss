@@ -14,8 +14,6 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#else
-#define close(a) closesocket(a)
 #endif
 
 #include "asss.h"
@@ -80,6 +78,8 @@
  )                                              \
 )
 
+#define CALC_LIMIT(limit, bts, pri) \
+		((bts) + ((limit) * ((bts) > (limit) ? 3 : 2) / 2 - (bts)) * pri_limits[pri] / 100)
 
 /* internal flags */
 #define NET_ACK 0x0100
@@ -267,6 +267,7 @@ local Ilogman *lm;
 local Imainloop *ml;
 local Iconfig *cfg;
 local Ilagcollect *lagc;
+local Iprng *prng;
 
 local LinkedList handlers[MAXTYPES];
 local LinkedList sizedhandlers[MAXTYPES];
@@ -293,8 +294,8 @@ local int pri_limits[OUTLISTS] =
 	60,  /* low pri unrel */
 	80,  /* reg pri unrel */
 	100, /* high pri unrel  */
-	40,  /* rel */
-	10   /* ack */
+	50,  /* rel */
+	200  /* ack */
 };
 
 local struct
@@ -391,7 +392,8 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		lagc = mm->GetInterface(I_LAGCOLLECT, ALLARENAS);
-		if (!pd || !cfg || !lm || !ml) return MM_FAIL;
+		prng = mm->GetInterface(I_PRNG, ALLARENAS);
+		if (!pd || !cfg || !lm || !ml || !prng) return MM_FAIL;
 
 		connkey = pd->AllocatePlayerData(sizeof(ConnData));
 		if (connkey == -1) return MM_FAIL;
@@ -410,7 +412,7 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		config.queue_threshold = cfg->GetInt(GLOBAL, "Net", "PresizedQueueThreshold", 5);
 		config.queue_packets = cfg->GetInt(GLOBAL, "Net", "PresizedQueuePackets", 25);
 		config.client_can_buffer = cfg->GetInt(GLOBAL, "Net", "SendAtOnce", 30);
-		config.limit_low = cfg->GetInt(GLOBAL, "Net", "LimitMinimum", 1024);
+		config.limit_low = cfg->GetInt(GLOBAL, "Net", "LimitMinimum", 2500);
 		config.limit_high = cfg->GetInt(GLOBAL, "Net", "LimitMaximum", 102400);
 		relthdcount = cfg->GetInt(GLOBAL, "Net", "ReliableThreads", 1);
 		config.overhead = cfg->GetInt(GLOBAL, "Net", "PerPacketOveread", 28);
@@ -525,12 +527,12 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		for (link = LLGetHead(&listening); link; link = link->next)
 		{
 			ListenData *ld = link->data;
-			close(ld->gamesock);
-			close(ld->pingsock);
+			closesocket(ld->gamesock);
+			closesocket(ld->pingsock);
 		}
 		LLEnum(&listening, afree);
 		LLEmpty(&listening);
-		close(clientsock);
+		closesocket(clientsock);
 
 		pd->FreePlayerData(connkey);
 
@@ -540,6 +542,7 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(ml);
 		mm->ReleaseInterface(lagc);
+		mm->ReleaseInterface(prng);
 
 		return MM_OK;
 	}
@@ -670,13 +673,13 @@ local void InitConnData(ConnData *conn, Iencrypt *enc)
 	pthread_mutex_init(&conn->olmtx, NULL);
 	pthread_mutex_init(&conn->relmtx, NULL);
 	pthread_mutex_init(&conn->bigmtx, NULL);
-	conn->limit = config.limit_low * 3; /* start slow */
+	conn->limit = config.limit_low; /* start slow */
 #ifdef CFG_USE_HITLIMIT
 	conn->hitlimit = 0;
 #endif
 	conn->enc = enc;
-	conn->avgrtt = 100; /* an initial guess */
-	conn->rttdev = 100;
+	conn->avgrtt = 300; /* an initial guess */
+	conn->rttdev = 150;
 	conn->bytessince = 0;
 	conn->sincetime = current_millis();
 	conn->lastpkt = current_ticks();
@@ -809,7 +812,7 @@ int InitSockets(void)
 		{
 			lm->Log(L_ERROR, "<net> can't bind socket to %s:%d for Listen%d",
 					inet_ntoa(sin.sin_addr), port, i);
-			close(ld->gamesock);
+			closesocket(ld->gamesock);
 			afree(ld);
 			continue;
 		}
@@ -820,7 +823,7 @@ int InitSockets(void)
 		if (ld->pingsock == -1)
 		{
 			lm->Log(L_ERROR, "<net> can't create socket for Listen%d", i);
-			close(ld->gamesock);
+			closesocket(ld->gamesock);
 			afree(ld);
 			continue;
 		}
@@ -832,8 +835,8 @@ int InitSockets(void)
 		{
 			lm->Log(L_ERROR, "<net> can't bind socket to %s:%d for Listen%d",
 					inet_ntoa(sin.sin_addr), port+1, i);
-			close(ld->gamesock);
-			close(ld->pingsock);
+			closesocket(ld->gamesock);
+			closesocket(ld->pingsock);
 			afree(ld);
 			continue;
 		}
@@ -1351,12 +1354,14 @@ int queue_more_data(void *dummy)
 #define REQUESTATONCE (config.queue_packets*480)
 	static int nextplayer = 0;
 
-	byte buffer[REQUESTATONCE], *dp;
+	byte *buffer, *dp;
 	struct ReliablePacket packet;
 	int needed;
 	Link *l;
 	Player *p;
 	ConnData *conn;
+
+	buffer = alloca(REQUESTATONCE);
 
 	p = get_next_player(&nextplayer);
 	conn = PPDATA(p, connkey);
@@ -1435,14 +1440,16 @@ local void send_outgoing(ConnData *conn)
 	 * to resend a packet */
 	unsigned long timeout = conn->avgrtt + 4*conn->rttdev;
 
-	CLIP(timeout, 10, 2000);
+	CLIP(timeout, 50, 2000);
 
 	/* adjust the current idea of how many bytes have been sent in the
 	 * last second */
-	while (TICK_DIFF(now, conn->sincetime) > (1000/7))
+	while (TICK_DIFF(now, conn->sincetime) > (1000/8))
 	{
-		conn->bytessince = conn->bytessince * 7 / 8;
-		conn->sincetime = TICK_MAKE(conn->sincetime + (1000/7));
+		conn->bytessince -= conn->limit/8;
+		if (conn->bytessince < 0)
+			conn->bytessince = 0;
+		conn->sincetime = TICK_MAKE(conn->sincetime + (1000/8));
 	}
 
 	/* we keep a local copy of bytessince to account for the
@@ -1459,7 +1466,7 @@ local void send_outgoing(ConnData *conn)
 	/* process highest priority first */
 	for (pri = OUTLISTS-1; pri >= 0; pri--)
 	{
-		int limit = bytessince + (conn->limit - bytessince) * pri_limits[pri] / 100;
+		int limit = CALC_LIMIT(conn->limit, bytessince, pri);
 
 		outlist = conn->outlist + pri;
 		for (buf = (Buffer*)outlist->next; (DQNode*)buf != outlist; buf = nbuf)
@@ -1673,7 +1680,7 @@ void * SendThread(void *dummy)
 			    IS_OURS(p) &&
 			    pthread_mutex_trylock(&conn->olmtx) == 0)
 			{
-				send_outgoing(conn);
+				send_outgoing(conn); // sometimes conn is zeroed here
 				submit_rel_stats(p);
 				pthread_mutex_unlock(&conn->olmtx);
 			}
@@ -1969,7 +1976,7 @@ void ProcessReliable(Buffer *buf)
 
 	pthread_mutex_lock(&conn->relmtx);
 
-	if ((sn - conn->c2sn) >= CFG_INCOMING_BUFFER)
+	if ((sn - conn->c2sn) >= CFG_INCOMING_BUFFER || sn < 0)
 	{
 		pthread_mutex_unlock(&conn->relmtx);
 
@@ -2450,7 +2457,7 @@ Buffer * BufferPacket(ConnData *conn, byte *data, int len, int flags,
 	/* try the fast path */
 	if ((flags & (NET_URGENT|NET_RELIABLE)) == NET_URGENT)
 	{
-		int limit = conn->bytessince + (conn->limit - conn->bytessince) * pri_limits[pri] / 100;
+		int limit = CALC_LIMIT(conn->limit, conn->bytessince, pri);
 		if (conn->bytessince + len + config.overhead <= limit)
 		{
 			SendRaw(conn, data, len);
@@ -2498,7 +2505,7 @@ Buffer * BufferPacket(ConnData *conn, byte *data, int len, int flags,
 	/* if it's urgent, do one retry now */
 	if (flags & NET_URGENT)
 	{
-		int limit = conn->bytessince + (conn->limit - conn->bytessince) * pri_limits[pri] / 100;
+		int limit = CALC_LIMIT(conn->limit, conn->bytessince, pri);
 		if ((conn->bytessince + buf->len + config.overhead) <= limit)
 		{
 			buf->lastretry = current_millis();
@@ -2720,7 +2727,7 @@ ClientConnection *MakeClientConnection(const char *addr, int port,
 	pkt.t2 = 0x07;
 	SendRaw(&cc->c, (byte*)&pkt, 2);
 #endif
-	pkt.key = rand() | 0x80000000UL;
+	pkt.key = prng->Get32() | 0x80000000UL;
 	pkt.t2 = 0x01;
 	pkt.type = 0x0001;
 	SendRaw(&cc->c, (byte*)&pkt, sizeof(pkt));

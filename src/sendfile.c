@@ -51,8 +51,9 @@ local int is_recving(Player *p)
 	return 0;
 }
 
-local void cancel_files(Player *p)
+local int cancel_files(Player *p)
 {
+	int cancelled = FALSE;
 	Link *l, *n;
 	LOCK();
 	for (l = LLGetHead(&offers); l; l = n)
@@ -63,9 +64,12 @@ local void cancel_files(Player *p)
 		{
 			afree(td);
 			LLRemove(&offers, td);
+			cancelled = TRUE;
 		}
 	}
 	UNLOCK();
+	
+	return cancelled;
 }
 
 
@@ -112,6 +116,24 @@ local void Csendfile(const char *params, Player *p, const Target *target)
 
 	if (!*params) return;
 
+	if (!IS_STANDARD(p))
+	{
+		chat->SendMessage(p, "You must be in a game client to offer files");
+		return;
+	}
+
+	if (!IS_STANDARD(t))
+	{
+		chat->SendMessage(p, "You can only offer files to players in game clients");
+		return;
+	}
+
+	if (t == p)
+	{
+		chat->SendMessage(p, "You cannot send files to yourself");
+		return;
+	}
+
 	if (is_sending(p))
 	{
 		chat->SendMessage(p, "You are currently sending a file");
@@ -156,8 +178,8 @@ local helptext_t cancelfile_help =
 
 local void Ccancelfile(const char *params, Player *p, const Target *target)
 {
-	cancel_files(p);
-	chat->SendMessage(p, "Your file offers have been cancelled");
+	if (cancel_files(p))
+		chat->SendMessage(p, "Your file offers have been cancelled");
 }
 
 local helptext_t acceptfile_help =
@@ -176,6 +198,8 @@ local void Cacceptfile(const char *params, Player *p, const Target *t)
 		struct transfer_data *td = l->data;
 		if (td->to == p)
 		{
+			chat->SendMessage(td->from, "%s is accepting your file",
+				td->to->name);
 			ft->RequestFile(td->from, td->clientpath, uploaded, td);
 			LLRemove(&offers, td);
 			goto done;

@@ -13,6 +13,7 @@
 typedef struct Iprng
 {
 	INTERFACE_HEAD_DECL
+	/* pyint: use */
 
 	/* "good" functions */
 
@@ -27,15 +28,18 @@ typedef struct Iprng
 
 	/* returns a random number between two inclusive bounds. */
 	int (*Number)(int start, int end);
+	/* pyint: int, int -> int */
 
 	/* returns a random 32-bit number. */
 	u32 (*Get32)(void);
 
 	/* returns a number from 0 to RAND_MAX. */
 	int (*Rand)(void);
+	/* pyint: void -> int */
 
 	/* returns a double uniformly distributed from 0 to 1. */
 	double (*Uniform)(void);
+	/* pyint: void -> double */
 } Iprng;
 
 #endif

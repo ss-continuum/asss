@@ -7,7 +7,7 @@
 /* these callbacks will be called whenever a kill occurs */
 #define CB_KILL "kill"
 typedef void (*KillFunc)(Arena *arena, Player *killer, Player *killed, int bounty, int flags, int *pts);
-/* FIXMEpycb: arena, player, player, int, int */
+/* FIXMEpycb: arena, player, player, int, int, int inout */
 
 
 /* this will be called when a player changes his freq (but stays in the
@@ -55,8 +55,8 @@ typedef struct Igame
 	void (*GivePrize)(const Target *target, int type, int count);
 	/* pyint: target, int, int -> void */
 
-	void (*Lock)(const Target *t, int notify, int spec);
-	/* pyint: target, int, int -> void */
+	void (*Lock)(const Target *t, int notify, int spec, int timeout);
+	/* pyint: target, int, int, int -> void */
 	void (*Unlock)(const Target *t, int notify);
 	/* pyint: target, int -> void */
 	void (*LockArena)(Arena *a, int notify, int onlyarenastate, int initial, int spec);

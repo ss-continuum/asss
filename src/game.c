@@ -7,7 +7,10 @@
 
 #include "asss.h"
 #include "clientset.h"
+#include "persist.h"
 
+
+#define KEY_SHIPLOCK 46
 
 #define WEAPONCOUNT 32
 
@@ -34,6 +37,7 @@ typedef struct
 	struct { int seenrg, seenrgspec, seeepd; } pl_epd;
 	/*           enum    enum        bool              */
 	int lockship;
+	time_t expires; /* when the lock expires, or 0 for session-long lock */
 	int deathwofiring;
 } pdata;
 
@@ -63,6 +67,7 @@ local Ilagcollect *lagc;
 local Ichat *chat;
 local Iprng *prng;
 local Icmdman *cmd;
+local Ipersist *persist;
 
 /* big arrays */
 local int adkey, pdkey;
@@ -231,7 +236,7 @@ local void Pppk(Player *p, byte *pkt, int len)
 				if (i->status == S_PLAYING &&
 				    IS_STANDARD(i) &&
 				    i->arena == arena &&
-				    i != p)
+				    (i != p || p->flags.see_own_posn))
 				{
 					long dist = lhypot(x1 - idata->pos.x, y1 - idata->pos.y);
 
@@ -306,7 +311,7 @@ local void Pppk(Player *p, byte *pkt, int len)
 				if (i->status == S_PLAYING &&
 				    IS_STANDARD(i) &&
 				    i->arena == arena &&
-				    i != p)
+				    (i != p || p->flags.see_own_posn))
 				{
 					long dist = lhypot(x1 - idata->pos.x, y1 - data->pos.y);
 					int res = i->xres + i->yres;
@@ -442,7 +447,7 @@ local void PSpecRequest(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	if (p->status != S_PLAYING || p->p_ship == SPEC)
+	if (p->status != S_PLAYING || p->p_ship != SPEC)
 		return;
 
 	pthread_mutex_lock(&specmtx);
@@ -515,6 +520,21 @@ local void Cspec(const char *params, Player *p, const Target *target)
 }
 
 
+local void expire_lock(Player *p)
+{
+	pdata *data = PPDATA(p, pdkey);
+	pd->LockPlayer(p);
+	if (data->expires > 0)
+		if (time(NULL) > data->expires)
+		{
+			data->lockship = FALSE;
+			data->expires = 0;
+			lm->LogP(L_DRIVEL, "game", p, "lock expired");
+		}
+	pd->UnlockPlayer(p);
+}
+
+
 local void reset_during_change(Player *p, int success, void *dummy)
 {
 	pd->LockPlayer(p);
@@ -529,6 +549,15 @@ local void SetFreqAndShip(Player *p, int ship, int freq)
 	struct ShipChangePacket to = { S2C_SHIPCHANGE, ship, p->pid, freq };
 	Arena *arena = p->arena;
 	adata *ad = P_ARENA_DATA(arena, adkey);
+
+	if (p->type == T_CHAT && ship != SPEC)
+	{
+		lm->LogP(L_WARN, "game", p, "someone tried to forced chat client into playing ship");
+		return;
+	}
+
+	if (freq < 0 || freq > 9999)
+		return;
 
 	pd->LockPlayer(p);
 
@@ -548,7 +577,7 @@ local void SetFreqAndShip(Player *p, int ship, int freq)
 	clear_speccing(data);
 	pthread_mutex_unlock(&specmtx);
 
-	/* reset this counter on each ship change */
+	/* reset this counter on each ship or freq change */
 	data->deathwofiring = ad->deathwofiring;
 
 	pd->UnlockPlayer(p);
@@ -627,8 +656,11 @@ local void PSetShip(Player *p, byte *pkt, int len)
 	}
 	data->changes.changes++;
 
-	/* checked lock state */
-	if (data->lockship && !(capman && capman->HasCapability(p, "bypasslock")))
+	/* checked lock state (but always allow switching to spec) */
+	expire_lock(p);
+	if (data->lockship &&
+	    ship != SPEC &&
+	    !(capman && capman->HasCapability(p, "bypasslock")))
 	{
 		if (chat)
 			chat->SendMessage(p, "You have been locked in %s.",
@@ -651,6 +683,9 @@ local void SetFreq(Player *p, int freq)
 {
 	struct SimplePacket to = { S2C_FREQCHANGE, p->pid, freq, -1};
 	Arena *arena = p->arena;
+
+	if (freq < 0 || freq > 9999)
+		return;
 
 	pd->LockPlayer(p);
 
@@ -680,21 +715,13 @@ local void SetFreq(Player *p, int freq)
 	lm->LogP(L_DRIVEL, "game", p, "changed freq to %d", freq);
 }
 
-local void PSetFreq(Player *p, byte *pkt, int len)
+
+local void freq_change_request(Player *p, int freq)
 {
-	int freq, ship;
-	Arena *arena;
+	pdata *data = PPDATA(p, pdkey);
+	Arena *arena = p->arena;
+	int ship = p->p_ship;
 	Ifreqman *fm;
-
-	arena = p->arena;
-	freq = ((struct SimplePacket*)pkt)->d1;
-	ship = p->p_ship;
-
-	if (len != 3)
-	{
-		lm->LogP(L_MALICIOUS, "game", p, "bad freq req packet len=%i", len);
-		return;
-	}
 
 	if (p->status != S_PLAYING || !arena)
 	{
@@ -702,15 +729,14 @@ local void PSetFreq(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	if (p->flags.during_change)
+	/* checked lock state */
+	expire_lock(p);
+	if (data->lockship &&
+	    !(capman && capman->HasCapability(p, "bypasslock")))
 	{
-		lm->LogP(L_MALICIOUS, "game", p, "freq change before ack from previous change");
-		return;
-	}
-
-	if (p->p_freq == freq)
-	{
-		lm->LogP(L_WARN, "game", p, "already in requested frequency");
+		if (chat)
+			chat->SendMessage(p, "You have been locked in %s.",
+					(p->p_ship == SPEC) ? "spectator mode" : "your ship");
 		return;
 	}
 
@@ -728,43 +754,27 @@ local void PSetFreq(Player *p, byte *pkt, int len)
 }
 
 
+local void PSetFreq(Player *p, byte *pkt, int len)
+{
+	if (len != 3)
+		lm->LogP(L_MALICIOUS, "game", p, "bad freq req packet len=%i", len);
+	else if (p->flags.during_change)
+		lm->LogP(L_MALICIOUS, "game", p, "freq change before ack from previous change");
+	else
+		freq_change_request(p, ((struct SimplePacket*)pkt)->d1);
+}
+
+
 local void MChangeFreq(Player *p, const char *line)
 {
-	int freq, ship;
-	Arena *arena;
-	Ifreqman *fm;
-
-	arena = p->arena;
-	freq = strtol(line, NULL, 0);
-	ship = p->p_ship;
-
-	if (!arena)
-	{
-		lm->LogP(L_MALICIOUS, "game", p, "freq change from bad arena");
-		return;
-	}
-
-	if (ship != SPEC)
-		return;
-
-	fm = mm->GetInterface(I_FREQMAN, arena);
-	if (fm)
-	{
-		fm->FreqChange(p, &ship, &freq);
-		mm->ReleaseInterface(fm);
-	}
-
-	if (ship == p->p_ship)
-		SetFreq(p, freq);
-	else
-		lm->LogP(L_WARN, "game", p, "freqman forced chat client into playing ship");
+	freq_change_request(p, strtol(line, NULL, 0));
 }
 
 
 local void notify_kill(Player *killer, Player *killed, int bty, int flags, int green, int rel)
 {
 	struct KillPacket kp = { S2C_KILL, green, killer->pid, killed->pid, bty, flags };
-	net->SendToArena(killer->arena, NULL, (byte*)&kp, sizeof(kp), rel);
+	net->SendToArena(killer->arena, NULL, (byte*)&kp, sizeof(kp), rel ? NET_RELIABLE : NET_UNRELIABLE);
 	if (chatnet)
 		chatnet->SendToArena(killer->arena, NULL, "KILL:%s:%s:%d:%d",
 				killer->name, killed->name, bty, flags);
@@ -945,6 +955,7 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 			p->p_ship = SPEC;
 			p->p_freq = arena->specfreq;
 		}
+		p->p_attached = -1;
 	}
 	else if (action == PA_ENTERARENA)
 	{
@@ -1042,7 +1053,7 @@ local void ArenaAction(Arena *arena, int action)
 
 /* locking/unlocking players/arena */
 
-local void lock_work(const Target *target, int nval, int notify, int spec)
+local void lock_work(const Target *target, int nval, int notify, int spec, int timeout)
 {
 	LinkedList set = LL_INITIALIZER;
 	Link *l;
@@ -1064,20 +1075,21 @@ local void lock_work(const Target *target, int nval, int notify, int spec)
 					"Your ship has been unlocked.");
 
 		pdata->lockship = nval;
+		pdata->expires = (nval == FALSE || timeout == 0) ? 0 : time(NULL) + timeout;
 	}
 	LLEmpty(&set);
 }
 
 
-local void Lock(const Target *t, int notify, int spec)
+local void Lock(const Target *t, int notify, int spec, int timeout)
 {
-	lock_work(t, TRUE, notify, spec);
+	lock_work(t, TRUE, notify, spec, timeout);
 }
 
 
 local void Unlock(const Target *t, int notify)
 {
-	lock_work(t, FALSE, notify, FALSE);
+	lock_work(t, FALSE, notify, FALSE, 0);
 }
 
 
@@ -1092,7 +1104,7 @@ local void LockArena(Arena *a, int notify, int onlyarenastate, int initial, int 
 	{
 		Target t = { T_ARENA };
 		t.u.arena = a;
-		lock_work(&t, TRUE, notify, spec);
+		lock_work(&t, TRUE, notify, spec, 0);
 	}
 }
 
@@ -1107,9 +1119,58 @@ local void UnlockArena(Arena *a, int notify, int onlyarenastate)
 	{
 		Target t = { T_ARENA };
 		t.u.arena = a;
-		lock_work(&t, FALSE, notify, FALSE);
+		lock_work(&t, FALSE, notify, FALSE, 0);
 	}
 }
+
+
+local void clear_data(Player *p, void *v)
+{
+	/* this was taken care of in PA_PREENTERARENA */
+}
+
+local int get_data(Player *p, void *data, int len, void *v)
+{
+	pdata *pdata = PPDATA(p, pdkey);
+	int ret = 0;
+
+	pd->LockPlayer(p);
+	expire_lock(p);
+	if (pdata->expires)
+	{
+		memcpy(data, &pdata->expires, sizeof(pdata->expires));
+		ret = sizeof(pdata->expires);
+	}
+	pd->UnlockPlayer(p);
+	return ret;
+}
+
+local void set_data(Player *p, void *data, int len, void *v)
+{
+	pdata *pdata = PPDATA(p, pdkey);
+
+	pd->LockPlayer(p);
+	if (len == sizeof(pdata->expires))
+	{
+		memcpy(&pdata->expires, data, sizeof(pdata->expires));
+		pdata->lockship = TRUE;
+		/* try expiring once now, and... */
+		expire_lock(p);
+		/* if the lock is still active, force into spec */
+		if (pdata->lockship)
+		{
+			p->p_ship = SPEC;
+			p->p_freq = p->arena->specfreq;
+		}
+	}
+	pd->UnlockPlayer(p);
+}
+
+local PlayerPersistentData persdata =
+{
+	KEY_SHIPLOCK, INTERVAL_FOREVER_NONSHARED, PERSIST_ALLARENAS,
+	get_data, set_data, clear_data
+};
 
 
 
@@ -1142,12 +1203,16 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		prng = mm->GetInterface(I_PRNG, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
+		persist = mm->GetInterface(I_PERSIST, ALLARENAS);
 
 		if (!net || !cfg || !lm || !aman || !prng) return MM_FAIL;
 
 		adkey = aman->AllocateArenaData(sizeof(adata));
 		pdkey = pd->AllocatePlayerData(sizeof(pdata));
 		if (adkey == -1 || pdkey == -1) return MM_FAIL;
+
+		if (persist)
+			persist->RegPlayerPD(&persdata);
 
 		/* cfghelp: Net:BulletPixels, global, int, def: 1500
 		 * How far away to always send bullets (in pixels). */
@@ -1206,6 +1271,7 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 			chatnet->RemoveHandler("CHANGEFREQ", MChangeFreq);
 		if (cmd)
 			cmd->RemoveCommand("spec", Cspec);
+		net->RemovePacket(C2S_SPECREQUEST, PSpecRequest);
 		net->RemovePacket(C2S_POSITION, Pppk);
 		net->RemovePacket(C2S_SETSHIP, PSetShip);
 		net->RemovePacket(C2S_SETFREQ, PSetFreq);
@@ -1215,6 +1281,8 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		net->RemovePacket(C2S_TURRETKICKOFF, PKickoff);
 		mm->UnregCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
+		if (persist)
+			persist->UnregPlayerPD(&persdata);
 		aman->FreeArenaData(adkey);
 		pd->FreePlayerData(pdkey);
 		mm->ReleaseInterface(pd);
@@ -1230,6 +1298,7 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(prng);
 		mm->ReleaseInterface(cmd);
+		mm->ReleaseInterface(persist);
 		return MM_OK;
 	}
 	return MM_FAIL;

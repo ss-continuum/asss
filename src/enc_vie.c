@@ -138,25 +138,9 @@ local void do_init(EncData *ed, int k)
 
 	for (loop = 0; loop < 0x104; loop++)
 	{
-#ifdef __GNUC__
-		asm ( "imul %%ecx" : "=d" (t) : "a" (k), "c" (0x834E0B5F) );
-#else
-#ifdef __MSVC__
-		_asm
-		{
-			mov eax,k
-			mov ecx,0x834E0B5F
-			imul ecx
-			mov t,edx
-		};
-#else
-#error "I don't know how to do inline assembly for your compiler."
-#endif
-#endif
-		t = (t + k) >> 16;
+		t = ((i64)k * 0x834E0B5F) >> 48;
 		t += t >> 31;
-		t = ((((((t * 9) << 3) - t) * 5) << 1) - t) << 2;
-		k = (((k % 0x1F31D) * 0x41A7) - t) + 0x7B;
+		k = ((k % 127773) * 16807) - (t * 2836) + 123;
 		if (!k || (k & 0x80000000)) k += 0x7FFFFFFF;
 		mytable[loop] = (short)k;
 	}

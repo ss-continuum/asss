@@ -75,9 +75,11 @@ class type_gen:
 	def decl(me):
 		raise Exception()
 	def buf_decl(me):
-		return me.decl()
-	def buf_cast(me):
-		return ''
+		return me.decl('')
+	def buf_addr(me, s):
+		return '&' + s
+	def ptr_decl(me, s):
+		return '%s*%s' % (me.decl(''), s)
 	def conv_to_buf(me, buf, val):
 		return '\t*%s = %s;' % (buf, val)
 	def buf_init(me):
@@ -85,37 +87,64 @@ class type_gen:
 	def needs_free(me):
 		return 0
 
+class type_void(type_gen):
+	def decl(me, s):
+		return 'void ' + s
+
+class type_null(type_gen):
+	def format_char(me):
+		return ''
+	def decl(me, s):
+		return 'void *%s = NULL' % s
+
+class type_zero(type_gen):
+	def format_char(me):
+		return ''
+	def decl(me, s):
+		return 'int %s = 0' % s
+
 class type_int(type_gen):
 	def format_char(me):
 		return 'i'
-	def decl(me):
-		return 'int'
+	def decl(me, s):
+		return 'int ' + s
+
+class type_double(type_gen):
+	def format_char(me):
+		return 'd'
+	def decl(me, s):
+		return 'double ' + s
 
 class type_string(type_gen):
 	def format_char(me):
 		return 's'
-	def decl(me):
-		return 'const char *'
+	def decl(me, s):
+		return 'const char *' + s
 	def buf_decl(me):
 		return 'charbuf'
+	def ptr_decl(me, s):
+		return 'char *%s' % s
+	def buf_addr(me, s):
+		return s
 	def buf_init(me):
 		return '{0}'
-	def buf_cast(me):
-		return '(char *)'
 	def conv_to_buf(me, buf, val):
 		return '\tastrncpy(%s, %s, buflen);' % (buf, val)
 
-class type_formatted(type_gen):
+class type_formatted(type_string):
+	pass
+
+class type_zstring(type_gen):
 	def format_char(me):
-		return 's'
-	def decl(me):
-		return 'const char *'
+		return 'z'
+	def decl(me, s):
+		return 'const char *' + s
 
 class type_player(type_gen):
 	def format_char(me):
 		return 'O&'
-	def decl(me):
-		return 'Player *'
+	def decl(me, s):
+		return 'Player *' + s
 	def build_converter(me):
 		return 'cvt_c2p_player'
 	def parse_converter(me):
@@ -126,8 +155,8 @@ class type_player(type_gen):
 class type_arena(type_gen):
 	def format_char(me):
 		return 'O&'
-	def decl(me):
-		return 'Arena *'
+	def decl(me, s):
+		return 'Arena *' + s
 	def build_converter(me):
 		return 'cvt_c2p_arena'
 	def parse_converter(me):
@@ -135,11 +164,23 @@ class type_arena(type_gen):
 	def buf_decl(me):
 		return Exception()
 
+class type_config(type_gen):
+	def format_char(me):
+		return 'O&'
+	def decl(me, s):
+		return 'ConfigHandle ' + s
+	def build_converter(me):
+		return 'cvt_c2p_config'
+	def parse_converter(me):
+		return 'cvt_p2c_config'
+	def buf_decl(me):
+		return Exception()
+
 class type_banner(type_gen):
 	def format_char(me):
 		return 'O&'
-	def decl(me):
-		return 'Banner *'
+	def decl(me, s):
+		return 'Banner *' + s
 	def build_converter(me):
 		return 'cvt_c2p_banner'
 	def parse_converter(me):
@@ -150,8 +191,8 @@ class type_banner(type_gen):
 class type_balldata(type_gen):
 	def format_char(me):
 		return 'O&'
-	def decl(me):
-		return 'struct BallData *'
+	def decl(me, s):
+		return 'struct BallData *' + s
 	def build_converter(me):
 		return 'cvt_c2p_balldata'
 	def parse_converter(me):
@@ -166,8 +207,8 @@ class type_balldata(type_gen):
 class type_target(type_gen):
 	def format_char(me):
 		return 'O&'
-	def decl(me):
-		return 'const Target *'
+	def decl(me, s):
+		return 'const Target *' + s
 	def build_converter(me):
 		return 'cvt_c2p_target'
 	def parse_converter(me):
@@ -179,11 +220,316 @@ class type_target(type_gen):
 	def conv_to_buf(me, buf, val):
 		return 'FIXME'
 
+class type_func(type_gen):
+	def format_char(me):
+		return 'O&'
+	def decl(me, s):
+		args = map(lambda t: t.decl(''), me.argtypes)
+		args = ', '.join(args)
+		if not args:
+			args = 'void'
+		d = '(*%s)(%s)' % (s, args)
+		return me.rettype.decl(d)
+
+class type_cb_string_to_void(type_func):
+	rettype = type_void()
+	argtypes = [type_string()]
+	def build_converter(me):
+		return 'cvt_c2p_cb_string_to_void'
+	def parse_converter(me):
+		return 'cvt_p2c_cb_string_to_void'
+
 
 def get_type(tp):
 	cname = 'type_' + tp
 	cls = globals()[cname]
 	return cls()
+
+
+def create_c_to_py_func(name, args, out, code, description):
+
+	args = map(string.strip, args.split(','))
+	if 'void' in args:
+		args.remove('void')
+	out = string.strip(out)
+
+	informat = []
+	outformat = []
+	inargs = []
+	outargs = []
+	decls = []
+	extras1 = []
+	extras2 = []
+	extras3 = []
+	allargs = []
+
+	if out == 'void':
+		retorblank = ''
+		rettype = type_void()
+		defretval = ''
+	else:
+		typ = get_type(out)
+		argname = 'ret'
+		decls.append('\t%s;' % typ.decl(argname))
+		outformat.append(typ.format_char())
+		try:
+			outargs.append(typ.build_converter())
+		except:
+			pass
+		outargs.append('&%s' % argname)
+		retorblank = 'ret'
+		rettype = typ
+		defretval = '0'
+
+	idx = 0
+	for arg in args:
+		idx = idx + 1
+		argname = 'arg%d' % idx
+
+		opts = arg.split(' ')
+		tname = opts.pop(0)
+
+		typ = get_type(tname)
+
+		if 'in' in opts or not opts:
+			# this is an incoming arg
+			argname += '_in'
+			informat.append(typ.format_char())
+			try:
+				inargs.append(typ.build_converter())
+			except:
+				pass
+			inargs.append(argname)
+			allargs.append(typ.decl(argname))
+
+		elif 'out' in opts:
+			# this is an outgoing arg
+			argname += '_out'
+			decls.append('\t%s;' % typ.decl(argname+'v'))
+			outformat.append(typ.format_char())
+			try:
+				outargs.append(typ.parse_converter())
+			except:
+				pass
+			outargs.append('&%sv' % argname)
+			allargs.append(typ.ptr_decl(argname))
+			extras3.append(typ.conv_to_buf(argname, argname+'v'))
+
+		elif 'inout' in opts:
+			# this is both incoming and outgoing
+			argname += '_inout'
+			decls.append('\t%s;' % typ.decl(argname+'v'))
+			informat.append(typ.format_char())
+			outformat.append(typ.format_char())
+			try:
+				inargs.append(typ.parse_converter())
+			except:
+				pass
+			inargs.append('*%s' % argname)
+			try:
+				outargs.append(typ.build_converter())
+			except:
+				pass
+			outargs.append('&%sv' % argname)
+			allargs.append(typ.ptr_decl(argname))
+			extras3.append(typ.conv_to_buf('%s' % argname, '%sv' % argname))
+
+		elif 'buflen' in opts:
+			# this arg is a buffer length
+			allargs.append('int %s' % argname)
+			new = []
+			for e in extras3:
+				new.append(e.replace('buflen', argname))
+			extras3 = new
+
+	if inargs:
+		inargs = ', ' + ', '.join(inargs)
+	else:
+		inargs = ''
+	if outargs:
+		outargs = ', ' + ', '.join(outargs)
+	else:
+		outargs = ''
+	if allargs:
+		allargs = ', '.join(allargs)
+	else:
+		allargs = 'void'
+	informat = ''.join(informat)
+	outformat = ''.join(outformat)
+	decls = '\n'.join(decls)
+	extras1 = '\n'.join(extras1)
+	extras2 = '\n'.join(extras2)
+	extras3 = '\n'.join(extras3)
+	funcdecl = '%s(%s)' % (name, allargs)
+	funcdecl = rettype.decl(funcdecl)
+	func = """
+local %(funcdecl)s
+{
+	PyObject *args, *out = NULL;
+%(decls)s
+	args = Py_BuildValue("(%(informat)s)"%(inargs)s);
+	if (!args)
+	{
+		log_py_exception(L_ERROR, "python error building args for "
+			"%(description)s");
+		return %(defretval)s;
+	}
+%(extras1)s
+%(code)s
+	Py_DECREF(args);"""
+	if outargs:
+		func2 = """
+	if (!out)
+	{
+		log_py_exception(L_ERROR, "python error calling "
+			"%(description)s");
+		return %(defretval)s;
+	}
+%(extras2)s
+	if (!PyArg_ParseTuple(out, "%(outformat)s"%(outargs)s))
+	{
+		Py_XDECREF(out);
+		log_py_exception(L_ERROR, "python error unpacking results of "
+			"%(description)s");
+		return %(defretval)s;
+	}
+%(extras3)s
+	Py_XDECREF(out);
+	return %(retorblank)s;
+}
+"""
+	else:
+		func2 = """
+	Py_XDECREF(out);
+}
+"""
+
+	return (func + func2) % vars()
+
+
+def create_py_to_c_func(args, out):
+
+	args = map(string.strip, args.split(','))
+	if 'void' in args:
+		args.remove('void')
+	out = string.strip(out)
+
+	informat = []
+	outformat = []
+	inargs = []
+	outargs = []
+	decls = []
+	extras1 = []
+	extras2 = []
+	extras3 = []
+	allargs = []
+
+	if out == 'void':
+		asgntoret = ''
+	else:
+		typ = get_type(out)
+		argname = 'ret'
+		decls.append('\t%s;' % typ.decl(argname))
+		outformat.append(typ.format_char())
+		try:
+			outargs.append(typ.build_converter())
+		except:
+			pass
+		outargs.append(argname)
+		asgntoret = '%s = ' % argname
+
+	idx = 0
+	for arg in args:
+		idx = idx + 1
+		argname = 'arg%d' % idx
+
+		opts = arg.split(' ')
+		tname = opts.pop(0)
+
+		typ = get_type(tname)
+
+		if tname == 'formatted':
+			# these are a little weird
+			if idx != len(args):
+				raise Exception, "formatted arg isn't last!"
+			argname += '_infmt'
+			informat.append(typ.format_char())
+			decls.append('\t%s;' % typ.decl(argname))
+			inargs.append('&%s' % argname)
+			allargs.append('"%s"')
+			allargs.append('%s' % argname)
+
+		elif 'in' in opts or not opts:
+			# this is an incoming arg
+			argname += '_in'
+			informat.append(typ.format_char())
+			decls.append('\t%s;' % typ.decl(argname))
+			try:
+				inargs.append(typ.parse_converter())
+			except:
+				pass
+			if typ.needs_free():
+				extras2.append('\tafree(%s);' % argname)
+			if typ.format_char():
+				inargs.append('&' + argname)
+			allargs.append(argname)
+
+		elif 'out' in opts:
+			# this is an outgoing arg
+			argname += '_out'
+			outformat.append(typ.format_char())
+			decls.append('\t%s %s = %s;' % (typ.buf_decl(), argname, typ.buf_init()))
+			try:
+				outargs.append(typ.build_converter())
+			except:
+				pass
+			outargs.append('%s' % argname)
+			allargs.append(typ.buf_addr(argname))
+
+		elif 'inout' in opts:
+			# this is both incoming and outgoing
+			argname += '_inout'
+			informat.append(typ.format_char())
+			outformat.append(typ.format_char())
+			decls.append('\t%s %s = %s;' % (typ.buf_decl(), argname, typ.buf_init()))
+			try:
+				inargs.append(typ.parse_converter())
+			except:
+				pass
+			inargs.append('&%s' % argname)
+			try:
+				outargs.append(typ.build_converter())
+			except:
+				pass
+			if typ.needs_free():
+				extras3.append('\tafree(%s);' % argname)
+			outargs.append('%s' % argname)
+			allargs.append('&%s' % argname)
+
+		elif 'buflen' in opts:
+			# this arg is a buffer length
+			# it must be passed in, so it's sort of like an
+			# inarg, but it doesn't get parsed.
+			allargs.append('%s' % DEFBUFLEN)
+
+	decls = '\n'.join(decls)
+	if inargs:
+		inargs = ', ' + ', '.join(inargs)
+	else:
+		inargs = ''
+	if outargs:
+		outargs = ', ' + ', '.join(outargs)
+	else:
+		outargs = ''
+	informat = ''.join(informat)
+	outformat = ''.join(outformat)
+	allargs = ', '.join(allargs)
+	extras1 = '\n'.join(extras1)
+	extras2 = '\n'.join(extras2)
+	extras3 = '\n'.join(extras3)
+
+	return vars()
+
 
 
 # functions for asss<->python callback translation
@@ -193,81 +539,27 @@ pycb_cb_names = []
 def translate_pycb(name, ctype, line):
 	pycb_cb_names.append((name, ctype))
 
-	fields = map(string.strip, line.split(','))
-	format = []
-	inargs = []
-	outargs = []
-	idx = 0
-	for f in fields:
-		if not f:
-			continue
-		idx = idx + 1
-		typ = get_type(f)
-		format.append(typ.format_char())
-		inargs.append('%s arg%d' % (typ.decl(), idx))
-		try:
-			outargs.append(typ.build_converter())
-		except:
-			pass
-		outargs.append('arg%d' % idx)
-
-	if inargs:
-		inargs = ', '.join(inargs)
-	else:
-		inargs = 'void'
-	if outargs:
-		outargs = ',\n\t\t' + ', '.join(outargs)
-	else:
-		outargs = ''
-	format = ''.join(format)
-	func = """
-local void py_cb_%(name)s(%(inargs)s)
-{
-	PyObject *args;
-	args = Py_BuildValue("(%(format)s)"%(outargs)s);
-	if (args) {
-		call_gen_py_callbacks(PYCBPREFIX %(name)s, args);
-		Py_DECREF(args);
-	}
-}
-
-""" % vars()
+	funcname = 'py_cb_%s' % name
+	func = create_c_to_py_func(
+		funcname, line, 'void',
+		'\tcall_gen_py_callbacks(PYCBPREFIX %s, args);' % name,
+		'callback %s' % name)
 	callback_file.write(func)
 
-
-	decls = []
-	asgns = []
-	inargs = []
-	outargs = []
-	idx = 0
-	for f in fields:
-		if not f:
-			continue
-		idx = idx + 1
-		typ = get_type(f)
-		decls.append('\t%s arg%d;' % (typ.decl(), idx))
-		try:
-			inargs.append(typ.parse_converter())
-			inargs.append('(void*)&arg%d' % idx)
-		except:
-			inargs.append('&arg%d' % idx)
-		outargs.append('arg%d' % idx)
-	decls = '\n'.join(decls)
-	asgns = '\n'.join(asgns)
-	if inargs:
-		inargs = ', ' + ', '.join(inargs)
-	else:
-		inargs = ''
-	outargs = ', '.join(outargs)
+	dict = create_py_to_c_func(line, 'void')
+	dict.update(vars())
+	if dict['extras1'] or dict['extras2'] or dict['extras3'] or \
+	   dict['outformat'] or dict['outargs'] or dict['extras3']:
+		raise Exception, "uh oh"
 	func = """
 local void py_cb_call_%(name)s(Arena *arena, PyObject *args)
 {
 %(decls)s
-	if (!PyArg_ParseTuple(args, "%(format)s"%(inargs)s))
+	if (!PyArg_ParseTuple(args, "%(informat)s"%(inargs)s))
 		return;
-	DO_CBS(%(name)s, arena, %(ctype)s, (%(outargs)s));
+	DO_CBS(%(name)s, arena, %(ctype)s, (%(allargs)s));
 }
-""" % vars()
+""" % dict
 	callback_file.write(func)
 
 
@@ -338,125 +630,10 @@ def translate_pyint(iid, ifstruct, dirs):
 			elif len(argsout) == 2:
 				# this is a method
 				args, out = argsout
-				args = map(string.strip, args.split(','))
-				if 'void' in args:
-					args.remove('void')
-				out = string.strip(out)
-				informat = []
-				outformat = []
-				inargs = []
-				outargs = []
-				decls = []
-				extras1 = []
-				extras2 = []
-				extras3 = []
-				allargs = []
 
-				if out == 'void':
-					asgntoret = ''
-				else:
-					typ = get_type(out)
-					argname = 'ret'
-					decls.append('\t%s %s;' % (typ.decl(), argname))
-					outformat.append(typ.format_char())
-					try:
-						outargs.append(typ.build_converter())
-					except:
-						pass
-					outargs.append(argname)
-					asgntoret = '%s = ' % argname
-
-				idx = 0
-				for arg in args:
-					idx = idx + 1
-					argname = 'arg%d' % idx
-
-					opts = arg.split(' ')
-					tname = opts.pop(0)
-
-					typ = get_type(tname)
-
-					if tname == 'formatted':
-						# these are a little weird
-						if idx != len(args):
-							raise Exception, "formatted arg isn't last!"
-						argname += '_infmt'
-						informat.append(typ.format_char())
-						decls.append('\t%s %s;' % (typ.decl(), argname))
-						inargs.append('&%s' % argname)
-						allargs.append('"%s"')
-						allargs.append('%s' % argname)
-
-					elif 'in' in opts or not opts:
-						# this is an incoming arg
-						argname += '_in'
-						informat.append(typ.format_char())
-						decls.append('\t%s %s;' % (typ.decl(), argname))
-						try:
-							inargs.append(typ.parse_converter())
-						except:
-							pass
-						if typ.needs_free():
-							extras2.append('\tafree(%s);' % argname)
-						inargs.append('&%s' % argname)
-						allargs.append('%s' % argname)
-
-					elif 'out' in opts:
-						# this is an outgoing arg
-						argname += '_out'
-						outformat.append(typ.format_char())
-						decls.append('\t%s %s = %s;' % (typ.buf_decl(), argname, typ.buf_init()))
-						try:
-							outargs.append(typ.build_converter())
-						except:
-							pass
-						outargs.append('%s' % argname)
-						allargs.append('%s&%s' % (typ.buf_cast(), argname))
-
-					elif 'inout' in opts:
-						# this is both incoming and outgoing
-						argname += '_inout'
-						informat.append(typ.format_char())
-						outformat.append(typ.format_char())
-						decls.append('\t%s %s = %s;' % (typ.buf_decl(), argname, typ.buf_init()))
-						try:
-							inargs.append(typ.parse_converter())
-						except:
-							pass
-						inargs.append('&%s' % argname)
-						try:
-							outargs.append(typ.build_converter())
-						except:
-							pass
-						if typ.needs_free():
-							extras3.append('\tafree(%s);' % argname)
-						outargs.append('%s' % argname)
-						allargs.append('&%s' % argname)
-
-					elif 'buflen' in opts:
-						# this arg is a buffer length
-						# it must be passed in, so it's sort of like an
-						# inarg, but it doesn't get parsed.
-						allargs.append('%s' % DEFBUFLEN)
-
-
-				decls = '\n'.join(decls)
-				if inargs:
-					inargs = ', ' + ', '.join(inargs)
-				else:
-					inargs = ''
-				if outargs:
-					outargs = ', ' + ', '.join(outargs)
-				else:
-					outargs = ''
-				informat = ''.join(informat)
-				outformat = ''.join(outformat)
-				allargs = ', '.join(allargs)
-				extras1 = '\n'.join(extras1)
-				extras2 = '\n'.join(extras2)
-				extras3 = '\n'.join(extras3)
-
+				dict = create_py_to_c_func(args, out)
 				mthdname = 'pyint_method_%s_%s' % (iid, name)
+				dict.update(vars())
 				mthd = """
 local PyObject *
 %(mthdname)s(%(objstructname)s *me, PyObject *args)
@@ -472,7 +649,7 @@ local PyObject *
 %(extras3)s
 	return out;
 }
-""" % vars()
+""" % dict
 				methods.append(mthd)
 
 				decl = """\
@@ -583,152 +760,10 @@ local PyTypeObject %(typestructname)s = {
 			elif len(argsout) == 2:
 				# this is a method
 				args, out = argsout
-				args = map(string.strip, args.split(','))
-				if 'void' in args:
-					args.remove('void')
-				out = string.strip(out)
-				informat = []
-				outformat = []
-				inargs = []
-				outargs = []
-				decls = []
-				extras1 = []
-				extras2 = []
-				extras3 = []
-				allargs = []
-
-				if out == 'void':
-					retorblank = ''
-					rettype = 'void'
-					defretval = ''
-				else:
-					typ = get_type(out)
-					argname = 'ret'
-					decls.append('\t%s %s;' % (typ.decl(), argname))
-					outformat.append(typ.format_char())
-					try:
-						outargs.append(typ.build_converter())
-					except:
-						pass
-					outargs.append('&%s' % argname)
-					retorblank = 'ret'
-					rettype = typ.decl()
-					defretval = '0'
-
-				idx = 0
-				for arg in args:
-					idx = idx + 1
-					argname = 'arg%d' % idx
-
-					opts = arg.split(' ')
-					tname = opts.pop(0)
-
-					typ = get_type(tname)
-
-					if 'in' in opts or not opts:
-						# this is an incoming arg
-						argname += '_in'
-						informat.append(typ.format_char())
-						try:
-							inargs.append(typ.build_converter())
-						except:
-							pass
-						inargs.append('%s' % argname)
-						allargs.append('%s %s' % (typ.decl(), argname))
-
-					elif 'out' in opts:
-						# this is an outgoing arg
-						argname += '_out'
-						decls.append('\t%s %sv;' % (typ.decl(), argname))
-						outformat.append(typ.format_char())
-						try:
-							outargs.append(typ.parse_converter())
-						except:
-							pass
-						outargs.append('&%sv' % argname)
-						allargs.append('%s *%s' % (typ.buf_decl(), argname))
-						extras3.append(typ.conv_to_buf('%s%s' % (typ.buf_cast(), argname),
-							'%sv' % argname))
-
-					elif 'inout' in opts:
-						# this is both incoming and outgoing
-						argname += '_inout'
-						decls.append('\t%s %sv;' % (typ.decl(), argname))
-						informat.append(typ.format_char())
-						outformat.append(typ.format_char())
-						try:
-							inargs.append(typ.parse_converter())
-						except:
-							pass
-						inargs.append('*%s' % argname)
-						try:
-							outargs.append(typ.build_converter())
-						except:
-							pass
-						outargs.append('&%sv' % argname)
-						allargs.append('%s *%s' % (typ.buf_decl(), argname))
-						extras3.append(typ.conv_to_buf('%s' % argname, '%sv' % argname))
-
-					elif 'buflen' in opts:
-						# this arg is a buffer length
-						allargs.append('int %s' % argname)
-						new = []
-						for e in extras3:
-							new.append(e.replace('buflen', argname))
-						extras3 = new
-
-				decls = '\n'.join(decls)
-				if inargs:
-					inargs = ', ' + ', '.join(inargs)
-				else:
-					inargs = ''
-				if outargs:
-					outargs = ', ' + ', '.join(outargs)
-				else:
-					outargs = ''
-				informat = ''.join(informat)
-				outformat = ''.join(outformat)
-				allargs = ', '.join(allargs)
-				extras1 = '\n'.join(extras1)
-				extras2 = '\n'.join(extras2)
-				extras3 = '\n'.join(extras3)
-
 				funcname = 'pyint_func_%s_%s' % (iid, name)
-				func = """
-local %(rettype)s
-%(funcname)s(%(allargs)s)
-{
-	PyObject *args, *out;
-%(decls)s
-	args = Py_BuildValue("(%(informat)s)"%(inargs)s);
-	if (!args)
-	{
-		log_py_exception(L_ERROR, "python error building args for "
-			"function %(name)s in interface %(iid)s");
-		return %(defretval)s;
-	}
-%(extras1)s
-	out = call_gen_py_interface(PYINTPREFIX %(iid)s, %(funcidx)d, args);
-	Py_DECREF(args);
-	if (!out)
-	{
-		log_py_exception(L_ERROR, "python error calling "
-			"function %(name)s in interface %(iid)s");
-		return %(defretval)s;
-	}
-%(extras2)s
-	if (!PyArg_ParseTuple(out, "%(outformat)s"%(outargs)s))
-	{
-		Py_XDECREF(out);
-		log_py_exception(L_ERROR, "python error unpacking results of "
-			"function %(name)s in interface %(iid)s");
-		return %(defretval)s;
-	}
-%(extras3)s
-	Py_XDECREF(out);
-	return %(retorblank)s;
-}
-""" % vars()
+				func = create_c_to_py_func(funcname, args, out,
+					"\tout = call_gen_py_interface(PYINTPREFIX %(iid)s, %(funcidx)d, args);" % vars(),
+					'function %(name)s in interface %(iid)s' % vars())
 				funcs.append(func)
 				funcnames.append(funcname)
 

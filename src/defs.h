@@ -159,10 +159,15 @@ typedef unsigned char byte;
 
 /* platform-specific stuff */
 
+#if (defined(_WIN32) || defined(__WIN32__)) && !defined(WIN32)
+#define WIN32 /* for Borland or older compilers */
+#endif
+
 #ifndef WIN32
 #define EXPORT
 #define TRUE (1)
 #define FALSE (0)
+#define closesocket(a) close(a)
 #else
 #include "win32compat.h"
 #endif

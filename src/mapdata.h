@@ -71,7 +71,7 @@ typedef struct Imapdata
 	/* returns true if it could find a map and put the filename in buf.
 	 * false if it couldn't find a map or buf wasn't big enough. mapname
 	 * should be null unless you're looking for lvzs or something. */
-	/* pyint: arena, string out, int buflen, string -> int */
+	/* pyint: arena, string out, int buflen, zstring -> int */
 
 	int (*GetFlagCount)(Arena *arena);
 	/* gets the number of turf flags on the map */

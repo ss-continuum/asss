@@ -29,7 +29,6 @@
 typedef struct Icapman
 {
 	INTERFACE_HEAD_DECL
-
 	/* pyint: use, impl */
 
 	int (*HasCapability)(Player *p, const char *cap);
@@ -45,6 +44,7 @@ typedef struct Icapman
 	/* returns true if a is at a higher level of power than b, as
 	 * defined by this particular capability manager. this relation will
 	 * probably be transitive. */
+	/* pyint: player, player -> int */
 } Icapman;
 
 
@@ -55,17 +55,16 @@ typedef struct Icapman
 typedef struct Igroupman
 {
 	INTERFACE_HEAD_DECL
-
 	/* pyint: use */
 
 	const char *(*GetGroup)(Player *p);
 	/* pyint: player -> string */
 	void (*SetPermGroup)(Player *p, const char *group, int global, const char *info);
-	/* pyint: player, string, int, string -> void */
+	/* pyint: player, string, int, zstring -> void */
 	void (*SetTempGroup)(Player *p, const char *group);
 	/* pyint: player, string -> void */
 	void (*RemoveGroup)(Player *p, const char *info);
-	/* pyint: player, string -> void */
+	/* pyint: player, zstring -> void */
 
 	int (*CheckGroupPassword)(const char *group, const char *pwd);
 	/* true if the password is correct */
@@ -88,6 +87,7 @@ typedef struct Igroupman
 #define CAP_BROADCAST_ANY         "broadcastany"
 #define CAP_INVISIBLE_SPECTATOR   "invisiblespectator"
 #define CAP_CANSPAM               "unlimitedchat"
+#define CAP_CHANGESETTINGS        "changesettings"
 
 
 #endif

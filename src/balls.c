@@ -739,7 +739,7 @@ void PGoal(Player *p, byte *pkt, int len)
 	}
 
 	/* do callbacks before spawning */
-	DO_CBS(CB_GOAL, arena, GoalFunc, (arena, bd->carrier, g->ballid, g->x, g->y));
+	DO_CBS(CB_GOAL, arena, GoalFunc, (arena, p, g->ballid, g->x, g->y));
 
 	/* send ball update */
 	if (bd->state != BALL_ONMAP)

@@ -204,29 +204,30 @@ local int GetMapFilename(Arena *arena, char *buf, int buflen, const char *mapnam
 	const char *t;
 	struct replace_table repls[2] =
 	{
-		{'m', NULL},
 		{'b', arena->basename},
+		{'m', NULL},
 	};
 
 	if (!buf)
 		return FALSE;
 	if (!mapname)
 		mapname = cfg->GetStr(arena->cfg, "General", "Map");
-	if (!mapname)
-		return FALSE;
 
-	repls[0].with = mapname;
+	if (mapname)
+	{
+		repls[1].with = mapname;
 
-	t = strrchr(mapname, '.');
-	if (t && strcmp(t, ".lvl") == 0)
-		islvl = 1;
+		t = strrchr(mapname, '.');
+		if (t && strcmp(t, ".lvl") == 0)
+			islvl = 1;
+	}
 
 	return find_file_on_path(
 			buf,
 			buflen,
 			islvl ? CFG_LVL_SEARCH_PATH : CFG_LVZ_SEARCH_PATH,
 			repls,
-			2) == 0;
+			repls[1].with ? 2 : 1) == 0;
 }
 
 void ArenaAction(Arena *arena, int action)

@@ -20,7 +20,10 @@ cmd_moveflag
 cmd_watchdamage
 privcmd_watchdamage
 
+; the following three should always go together
 cmd_quickfix
+cmd_getsettings
+changesettings
 
 cmd_userdbadm
 

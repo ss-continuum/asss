@@ -51,14 +51,7 @@ local void update_group(Player *p, Arena *arena)
 		return;
 	}
 
-	if ((g = cfg->GetStr(staff_conf, AG_GLOBAL, p->name)))
-	{
-		/* only global groups available for now */
-		astrncpy(pdata->group, g, MAXGROUPLEN);
-		pdata->source = src_global;
-		lm->LogP(L_DRIVEL, "capman", p, "assigned to group '%s' (global)", pdata->group);
-	}
-	else if (arena && (g = cfg->GetStr(staff_conf, arena->basename, p->name)))
+	if (arena && (g = cfg->GetStr(staff_conf, arena->basename, p->name)))
 	{
 		astrncpy(pdata->group, g, MAXGROUPLEN);
 		pdata->source = src_arena;
@@ -72,6 +65,13 @@ local void update_group(Player *p, Arena *arena)
 		lm->LogP(L_DRIVEL, "capman", p, "assigned to group '%s' (arenaconf)", pdata->group);
 	}
 #endif
+	else if ((g = cfg->GetStr(staff_conf, AG_GLOBAL, p->name)))
+	{
+		/* only global groups available for now */
+		astrncpy(pdata->group, g, MAXGROUPLEN);
+		pdata->source = src_global;
+		lm->LogP(L_DRIVEL, "capman", p, "assigned to group '%s' (global)", pdata->group);
+	}
 	else
 	{
 		astrncpy(pdata->group, DEFAULT, MAXGROUPLEN);
@@ -119,12 +119,12 @@ local void SetPermGroup(Player *p, const char *group, int global, const char *in
 	/* now set it permanently */
 	if (global)
 	{
-		cfg->SetStr(staff_conf, AG_GLOBAL, p->name, group, info);
+		cfg->SetStr(staff_conf, AG_GLOBAL, p->name, group, info, TRUE);
 		pdata->source = src_global;
 	}
 	else if (p->arena)
 	{
-		cfg->SetStr(staff_conf, p->arena->basename, p->name, group, info);
+		cfg->SetStr(staff_conf, p->arena->basename, p->name, group, info, TRUE);
 		pdata->source = src_arena;
 	}
 }
@@ -147,11 +147,11 @@ local void RemoveGroup(Player *p, const char *info)
 			break;
 
 		case src_global:
-			cfg->SetStr(staff_conf, AG_GLOBAL, p->name, DEFAULT, info);
+			cfg->SetStr(staff_conf, AG_GLOBAL, p->name, DEFAULT, info, TRUE);
 			break;
 
 		case src_arena:
-			cfg->SetStr(staff_conf, p->arena->basename, p->name, DEFAULT, info);
+			cfg->SetStr(staff_conf, p->arena->basename, p->name, DEFAULT, info, TRUE);
 			break;
 
 #ifdef CFG_USE_ARENA_STAFF_LIST

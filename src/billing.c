@@ -15,8 +15,6 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <sched.h>
-#else
-#define close(a) closesocket(a)
 #endif
 
 #include "asss.h"
@@ -132,7 +130,7 @@ local void drop_connection(int newstate)
 
 	/* then close socket */
 	if (conn.socket > 0)
-		close(conn.socket);
+		closesocket(conn.socket);
 	conn.socket = -1;
 
 	state = newstate;
@@ -816,10 +814,10 @@ local void setup_proxy(const char *proxy, const char *ipaddr, int port)
 		char portstr[16];
 
 		/* set up fds, but leave stderr connected to stderr of the server */
-		close(sockets[1]);
+		closesocket(sockets[1]);
 		dup2(sockets[0], STDIN_FILENO);
 		dup2(sockets[0], STDOUT_FILENO);
-		close(sockets[0]);
+		closesocket(sockets[0]);
 
 		snprintf(portstr, sizeof(portstr), "%d", port);
 		execlp(proxy, proxy, ipaddr, portstr, NULL);
@@ -832,7 +830,7 @@ local void setup_proxy(const char *proxy, const char *ipaddr, int port)
 	else
 	{
 		/* in parent */
-		close(sockets[0]);
+		closesocket(sockets[0]);
 		set_nonblock(sockets[1]);
 		conn.socket = sockets[1];
 		/* skip right over s_connecting */

@@ -14,8 +14,6 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <sched.h>
-#else
-#define close(a) closesocket(a)
 #endif
 
 #include "asss.h"
@@ -108,7 +106,7 @@ local Player * try_accept(int s)
 	if (set_nonblock(a) == -1)
 	{
 		if (lm) lm->Log(L_WARN, "<chatnet> set_nonblock() failed");
-		close(a);
+		closesocket(a);
 		return NULL;
 	}
 
@@ -227,7 +225,7 @@ local int do_one_iter(void *dummy)
 			{
 				/* handle disconnects */
 				lm->LogP(L_INFO, "chatnet", p, "disconnected");
-				close(cli->socket);
+				closesocket(cli->socket);
 				cli->socket = -1;
 				/* we can't remove players while we're iterating through
 				 * the list, so add them and do them later. */
@@ -395,7 +393,7 @@ local void do_final_shutdown(void)
 			clear_bufs(p);
 			/* close all the connections also */
 			if (cli->socket > 2)
-				close(cli->socket);
+				closesocket(cli->socket);
 		}
 	pd->Unlock();
 	UNLOCK();
@@ -467,7 +465,7 @@ EXPORT int MM_chatnet(int action, Imodman *mm_, Arena *a)
 		do_final_shutdown();
 		HashFree(handlers);
 		pthread_mutex_destroy(&bigmtx);
-		close(mysock);
+		closesocket(mysock);
 		pd->FreePlayerData(cdkey);
 
 		/* release these */

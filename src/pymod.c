@@ -23,6 +23,7 @@
 #include "watchdamage.h"
 #include "objects.h"
 #include "reldb.h"
+#include "tcpstatus.h"
 
 #include "contrib/turf_reward.h"
 
@@ -292,6 +293,56 @@ local int cvt_p2c_target(PyObject *o, Target **tp)
 }
 
 
+local void close_config_file(void *v)
+{
+	cfg->CloseConfigFile(v);
+}
+
+local PyObject * cvt_c2p_config(ConfigHandle ch)
+{
+	cfg->AddRef(ch);
+	return PyCObject_FromVoidPtr(ch, close_config_file);
+}
+
+local int cvt_p2c_config(PyObject *o, ConfigHandle *chp)
+{
+	if (o == Py_None)
+	{
+		*chp = GLOBAL;
+		return TRUE;
+	}
+	else if (PyCObject_Check(o))
+	{
+		*chp = PyCObject_AsVoidPtr(o);
+		return TRUE;
+	}
+	else
+	{
+		PyErr_SetString(PyExc_TypeError, "arg isn't a config handle object");
+		return FALSE;
+	}
+}
+
+
+#if 0
+local PyObject * cvt_c2p_cb_string_to_void(void (*func)(const char *))
+{
+}
+
+local void helper_string_to_void(const char *s)
+{
+	/* convert s to a python string and put it in a tuple
+	 * get the function this is supposed to represent
+	 * from where?
+	 * thread-local storage
+	 * invoke the function on that tuple */
+}
+
+local int cvt_p2c_cb_string_to_void(PyObject *o, void (**func)(const char *))
+{
+}
+#endif
+
 /* defining the asss module */
 
 /* players */
@@ -505,18 +556,10 @@ local PyObject *Arena_get_basename(PyObject *obj, void *v)
 	return PyString_FromString(a->basename);
 }
 
-local void close_config_file(void *v)
-{
-	cfg->CloseConfigFile(v);
-}
-
 local PyObject *Arena_get_cfg(PyObject *obj, void *v)
 {
 	Arena *a = ((ArenaObject*)obj)->a;
-	/* all python references to this object equal one config-managed
-	 * reference. */
-	cfg->AddRef(a->cfg);
-	return PyCObject_FromVoidPtr(a->cfg, close_config_file);
+	return cvt_c2p_config(a->cfg);
 }
 
 

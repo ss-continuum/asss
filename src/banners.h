@@ -21,7 +21,7 @@ typedef struct Ibanners
 	void (*SetBanner)(Player *p, Banner *banner, int frombiller);
 	/* sets banner. NULL to remove. everyone except the biller modules
 	 * should have frombiller false. */
-	/* pyint: player, banner, int -> void */
+	/* pyint: player, banner, zero -> void */
 } Ibanners;
 
 #endif

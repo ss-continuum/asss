@@ -3,6 +3,7 @@
 
 #ifndef WIN32
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
@@ -10,6 +11,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
 
 #include "asss.h"
 #include "filetrans.h"
@@ -78,7 +80,7 @@ typedef struct upload_t
 local void uploaded(const char *fname, void *clos)
 {
 	upload_t *u = clos;
-	int r;
+	int r = 0;
 
 	if (fname && u->unzip)
 	{
@@ -117,8 +119,13 @@ local void uploaded(const char *fname, void *clos)
 	}
 	else if (fname)
 	{
-		/* just move it to the right place */
-		r = rename(fname, u->serverpath);
+		/* move it to the right place */
+#ifdef WIN32
+		r = unlink(u->serverpath);
+#endif
+		if (r >= 0)
+			r = rename(fname, u->serverpath);
+
 		if (r < 0)
 		{
 			lm->LogP(L_WARN, "admincmd", u->p, "couldn't rename file '%s' to '%s'",
@@ -206,11 +213,48 @@ local void Cputzip(const char *params, Player *p, const Target *target)
 }
 
 
+local helptext_t makearena_help =
+"Targets: none\n"
+"Args: <arena name>\n"
+"FIXME\n";
+
+local void Cmakearena(const char *params, Player *p, const Target *target)
+{
+	char buf[128];
+	FILE *f;
+
+	snprintf(buf, sizeof(buf), "arenas/%s", params);
+	if (mkdir(buf, 0755) < 0)
+	{
+		char err[128];
+		strerror_r(errno, err, sizeof(err));
+		chat->SendMessage(p, "Error creating directory '%s': %s", buf, err);
+		lm->Log(L_WARN, "<admincmd> error creating directory '%s': %s", buf, err);
+	}
+
+	snprintf(buf, sizeof(buf), "arenas/%s/arena.conf", params);
+	f = fopen(buf, "w");
+	if (!f)
+	{
+		char err[128];
+		strerror_r(errno, err, sizeof(err));
+		chat->SendMessage(p, "Error creating file '%s': %s", buf, err);
+		lm->Log(L_WARN, "<admincmd> error creating file '%s': %s", buf, err);
+	}
+
+	fputs("\n#include arenas/(default)/arena.conf\n", f);
+	fclose(f);
+
+	chat->SendMessage(p, "Successfully created %s.", params);
+}
+
+
 local helptext_t botfeature_help =
 "Targets: none\n"
-"Args: [+/-{seeallposn}]\n"
+"Args: [+/-{seeallposn}] [+/-{seeownposn}]\n"
 "Enables or disables bot-specific features. {seeallposn} controls whether\n"
-"the bot gets to see all position packets.\n";
+"the bot gets to see all position packets. {seeownposn} controls whether\n"
+"you get your own mirror position packets.\n";
 
 local void Cbotfeature(const char *params, Player *p, const Target *target)
 {
@@ -233,6 +277,8 @@ local void Cbotfeature(const char *params, Player *p, const Target *target)
 
 		if (!strcmp(buf+1, "seeallposn"))
 			p->flags.see_all_posn = on;
+		else if (!strcmp(buf+1, "seeownposn"))
+			p->flags.see_own_posn = on;
 		else
 			chat->SendMessage(p, "Unknown bot feature");
 	}
@@ -259,6 +305,7 @@ EXPORT int MM_admincmd(int action, Imodman *_mm, Arena *arena)
 		cmd->AddCommand("getfile", Cgetfile, getfile_help);
 		cmd->AddCommand("putfile", Cputfile, putfile_help);
 		cmd->AddCommand("putzip", Cputzip, putzip_help);
+		cmd->AddCommand("makearena", Cmakearena, makearena_help);
 		cmd->AddCommand("botfeature", Cbotfeature, botfeature_help);
 
 		return MM_OK;
@@ -269,6 +316,7 @@ EXPORT int MM_admincmd(int action, Imodman *_mm, Arena *arena)
 		cmd->RemoveCommand("getfile", Cgetfile);
 		cmd->RemoveCommand("putfile", Cputfile);
 		cmd->RemoveCommand("putzip", Cputzip);
+		cmd->RemoveCommand("makearena", Cmakearena);
 		cmd->RemoveCommand("botfeature", Cbotfeature);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(chat);

@@ -1,6 +1,8 @@
 
 /* dist: public */
 
+#include <string.h>
+
 #include "asss.h"
 #include "banners.h"
 #include "packets/banners.h"
@@ -61,12 +63,14 @@ local void check_and_send_banner(Player *p, int callothers)
 	if (bd->status == 2)
 	{
 		/* send to everyone */
-		struct S2CBanner send = { S2C_BANNER, p->pid, bd->banner };
+		struct S2CBanner pkt = { S2C_BANNER, p->pid };
+
+		memcpy(&pkt.banner, &bd->banner, sizeof(pkt.banner));
 
 		if (!p->arena)
 			return;
 
-		net->SendToArena(p->arena, NULL, (byte*)&send, sizeof(send),
+		net->SendToArena(p->arena, NULL, (byte*)&pkt, sizeof(pkt),
 				NET_RELIABLE | NET_PRI_N1);
 
 		/* notify other modules */
@@ -151,8 +155,9 @@ local void paction(Player *p, int action, Arena *arena)
 			    ibd->status == 2 &&
 			    i != p)
 			{
-				struct S2CBanner send = { S2C_BANNER, i->pid, ibd->banner };
-				net->SendToOne(p, (byte*)&send, sizeof(send), NET_RELIABLE | NET_PRI_N1);
+				struct S2CBanner pkt = { S2C_BANNER, i->pid };
+				memcpy(&pkt.banner, &ibd->banner, sizeof(pkt.banner));
+				net->SendToOne(p, (byte*)&pkt, sizeof(pkt), NET_RELIABLE | NET_PRI_N1);
 			}
 		pd->Unlock();
 		UNLOCK();

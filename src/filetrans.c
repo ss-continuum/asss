@@ -13,8 +13,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <unistd.h>
-#else
-#include <io.h>
 #endif
 
 

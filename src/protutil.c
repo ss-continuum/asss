@@ -14,8 +14,6 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <sched.h>
-#else
-#define close(a) closesocket(a)
 #endif
 
 
@@ -107,21 +105,21 @@ int init_listening_socket(int port, unsigned long int bindaddr)
 	if (bind(s, (struct sockaddr *)&sin, sizeof(sin)) == -1)
 	{
 		perror("bind");
-		close(s);
+		closesocket(s);
 		return -1;
 	}
 
 	if (set_nonblock(s) == -1)
 	{
 		perror("set_nonblock");
-		close(s);
+		closesocket(s);
 		return -1;
 	}
 
 	if (listen(s, 5) == -1)
 	{
 		perror("listen");
-		close(s);
+		closesocket(s);
 		return -1;
 	}
 
@@ -150,7 +148,7 @@ int init_client_socket(void)
 	if (set_nonblock(s) == -1)
 	{
 		perror("set_nonblock");
-		close(s);
+		closesocket(s);
 		return -1;
 	}
 

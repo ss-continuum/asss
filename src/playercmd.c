@@ -12,18 +12,12 @@
 #include <sys/utsname.h>
 #include <dirent.h>
 #include <unistd.h>
-#else
-#include <io.h>
 #endif
 
 
 #include "asss.h"
 #include "jackpot.h"
 #include "persist.h"
-
-
-#define REQUIRE_MOD(m) \
-	if (!m) { chat->SendMessage(p, "Module '" #m "' not loaded"); return; }
 
 
 /* global data */
@@ -119,7 +113,7 @@ local void Carena(const char *params, Player *p, const Target *target)
 			if (p->arena == a)
 				count = -count;
 			l = strlen(a->name) + 1;
-			strncpy(pos, a->name, l);
+			memcpy(pos, a->name, l);
 			pos += l;
 			*pos++ = (count >> 0) & 0xFF;
 			*pos++ = (count >> 8) & 0xFF;
@@ -196,28 +190,30 @@ local helptext_t flagreset_help =
 
 local void Cflagreset(const char *params, Player *p, const Target *target)
 {
-	REQUIRE_MOD(flags)
-
 	flags->FlagVictory(p->arena, -1, 0);
 }
 
 
 local helptext_t ballcount_help =
 "Targets: none\n"
-"Args: <number of balls to add or remove>\n"
-"Increases or decreases the number of balls in the arena. Takes an\n"
-"argument that is a positive or negative number, which is the number of\n"
-"balls to add (or, if negative, to remove). Continuum currently supports\n"
+"Args: [<new # of balls> | +<balls to add> | -<balls to remove>]\n"
+"Displays or changes the number of balls in the arena. A number without\n"
+"a plus or minus sign is taken as a new count. A plus signifies adding\n"
+"that many, and a minus removes that many. Continuum currently supports\n"
 "only eight balls.\n";
 
 local void Cballcount(const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
-	REQUIRE_MOD(balls)
 	if (arena)
 	{
 		ArenaBallData *abd = balls->GetBallData(arena);
-		balls->SetBallCount(arena, abd->ballcount + strtol(params, NULL, 0));
+		if (*params == '\0')
+			chat->SendMessage(p, "%d balls.", abd->ballcount);
+		else if (*params == '+' || *params == '-')
+			balls->SetBallCount(arena, abd->ballcount + strtol(params, NULL, 0));
+		else
+			balls->SetBallCount(arena, strtol(params, NULL, 0));
 		balls->ReleaseBallData(arena);
 	}
 }
@@ -420,8 +416,6 @@ local helptext_t getgroup_help =
 
 local void Cgetgroup(const char *params, Player *p, const Target *target)
 {
-	REQUIRE_MOD(groupman)
-
 	if (target->type == T_PLAYER)
 		chat->SendMessage(p, "%s is in group %s",
 				target->u.p->name,
@@ -454,9 +448,6 @@ local void Csetgroup(const char *params, Player *p, const Target *target)
 	int perm = 0, global = 1;
 	Player *t = target->u.p;
 	char cap[MAXGROUPLEN+16];
-
-	REQUIRE_MOD(capman)
-	REQUIRE_MOD(groupman)
 
 	if (!*params) return;
 	if (target->type != T_PLAYER) return;
@@ -532,9 +523,6 @@ local void Crmgroup(const char *params, Player *p, const Target *target)
 	const char *grp;
 	time_t tm = time(NULL);
 
-	REQUIRE_MOD(capman)
-	REQUIRE_MOD(groupman)
-
 	if (!*params) return;
 	if (target->type != T_PLAYER) return;
 
@@ -602,8 +590,7 @@ local void Clistmod(const char *params, Player *p, const Target *target)
 	const char *group;
 	Player *i;
 	Link *link;
-
-	if (!capman) return;
+	int seehid = capman->HasCapability(p, CAP_SEEPRIVARENA);
 
 	pd->Lock();
 	FOR_EACH_PLAYER(i)
@@ -611,7 +598,8 @@ local void Clistmod(const char *params, Player *p, const Target *target)
 		    strcmp(group = groupman->GetGroup(i), "default"))
 			chat->SendMessage(p, ": %20s %10s %10s",
 					i->name,
-					i->arena->name,
+					(i->arena->name[0] != '#' || seehid || p->arena == i->arena) ?
+						i->arena->name : "(private)",
 					group);
 	pd->Unlock();
 }
@@ -997,7 +985,7 @@ local void Csheep(const char *params, Player *p, const Target *target)
 		sheepmsg = cfg->GetStr(arena->cfg, "Misc", "SheepMessage");
 
 	if (sheepmsg)
-		chat->SendSoundMessage(p, 24, sheepmsg);
+		chat->SendSoundMessage(p, 24, "%s", sheepmsg);
 	else
 		chat->SendSoundMessage(p, 24, "Sheep successfully cloned -- hello Dolly");
 }
@@ -1041,19 +1029,28 @@ local void Cgetg(const char *params, Player *p, const Target *target)
 
 local helptext_t setg_help =
 "Targets: none\n"
-"Args: section:key=value\n"
+"Args: [{-t}] section:key=value\n"
 "Sets the value of a global setting. Make sure there are no\n"
-"spaces around either the colon or the equals sign.\n";
+"spaces around either the colon or the equals sign. A {-t} makes\n"
+"the setting temporary.\n";
 
 local void Csetg(const char *params, Player *p, const Target *target)
 {
 	time_t tm = time(NULL);
 	char info[128], key[MAXSECTIONLEN+MAXKEYLEN+2], *k = key;
 	const char *t = params;
+	int perm = TRUE;
 
 	snprintf(info, sizeof(info), "set by %s on ", p->name);
 	ctime_r(&tm, info + strlen(info));
 	RemoveCRLF(info);
+
+	if (strncmp(t, "-t", 2) == 0)
+	{
+		perm = FALSE;
+		t += 2;
+		while (*t && *t == ' ') t++;
+	}
 
 	while (*t && *t != '=' && (k-key) < (MAXSECTIONLEN+MAXKEYLEN))
 		*k++ = *t++;
@@ -1061,7 +1058,7 @@ local void Csetg(const char *params, Player *p, const Target *target)
 	*k = '\0'; /* terminate key */
 	t++; /* skip over = */
 
-	cfg->SetStr(GLOBAL, key, NULL, t, info);
+	cfg->SetStr(GLOBAL, key, NULL, t, info, perm);
 }
 
 local helptext_t geta_help =
@@ -1086,9 +1083,10 @@ local void Cgeta(const char *params, Player *p, const Target *target)
 
 local helptext_t seta_help =
 "Targets: none\n"
-"Args: section:key=value\n"
+"Args: [{-t}] section:key=value\n"
 "Sets the value of an arena setting. Make sure there are no\n"
-"spaces around either the colon or the equals sign.\n";
+"spaces around either the colon or the equals sign. A {-t} makes\n"
+"the setting temporary.\n";
 
 local void Cseta(const char *params, Player *p, const Target *target)
 {
@@ -1096,6 +1094,7 @@ local void Cseta(const char *params, Player *p, const Target *target)
 	time_t tm = time(NULL);
 	char info[128], key[MAXSECTIONLEN+MAXKEYLEN+2], *k = key;
 	const char *t = params;
+	int perm = TRUE;
 
 	if (!arena) return;
 
@@ -1103,13 +1102,20 @@ local void Cseta(const char *params, Player *p, const Target *target)
 	ctime_r(&tm, info + strlen(info));
 	RemoveCRLF(info);
 
+	if (strncmp(t, "-t", 2) == 0)
+	{
+		perm = FALSE;
+		t += 2;
+		while (*t && *t == ' ') t++;
+	}
+
 	while (*t && *t != '=' && (k-key) < (MAXSECTIONLEN+MAXKEYLEN))
 		*k++ = *t++;
 	if (*t != '=') return;
 	*k = '\0'; /* terminate key */
 	t++; /* skip over = */
 
-	cfg->SetStr(arena->cfg, key, NULL, t, info);
+	cfg->SetStr(arena->cfg, key, NULL, t, info, perm);
 }
 
 
@@ -1223,15 +1229,21 @@ local void Cprize(const char *params, Player *p, const Target *target)
 
 local helptext_t lock_help =
 "Targets: player, freq, or arena\n"
-"Args: [-n] [-s]\n"
+"Args: [-n] [-s] [-t <timeout>]\n"
 "Locks the specified targets so that they can't change ships. Use ?unlock\n"
 "to unlock them. By default, ?lock won't change anyone's ship. If {-s} is\n"
 "present, it will spec the targets before locking them. If {-n} is present,\n"
-"it will notify players of their change in status.\n";
+"it will notify players of their change in status. If {-t} is present, you\n"
+"can specify a timeout in seconds for the lock to be effective.\n";
 
 local void Clock(const char *params, Player *p, const Target *target)
 {
-	game->Lock(target, strstr(params, "-n") != NULL, strstr(params, "-s") != NULL);
+	const char *t = strstr(params, "-t");
+	game->Lock(
+			target,
+			strstr(params, "-n") != NULL,
+			strstr(params, "-s") != NULL,
+			t ? strtol(t+2, NULL, 0) : 0);
 }
 
 
@@ -1297,8 +1309,6 @@ local void Cflaginfo(const char *params, Player *p, const Target *target)
 	Arena *arena;
 	int i;
 
-	REQUIRE_MOD(flags)
-
 	if (!p->arena || target->type != T_ARENA)
 		return;
 
@@ -1356,8 +1366,6 @@ local void Cneutflag(const char *params, Player *p, const Target *target)
 	int flagid;
 	char *next;
 
-	REQUIRE_MOD(flags)
-
 	fd = flags->GetFlagData(arena);
 
 	flagid = strtol(params, &next, 0);
@@ -1392,8 +1400,6 @@ local void Cmoveflag(const char *params, Player *p, const Target *target)
 	ArenaFlagData *fd;
 	char *next, *next2;
 	int flagid, x, y, freq;
-
-	REQUIRE_MOD(flags)
 
 	if (!arena) return;
 

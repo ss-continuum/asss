@@ -55,31 +55,41 @@ typedef void (*ConfigChangedFunc)(void *clos);
 /* this callback is called when the global config file has been changed */
 #define CB_GLOBALCONFIGCHANGED "gconfchanged"
 typedef void (*GlobalConfigChangedFunc)(void);
-/* pycb: */
+/* pycb: void */
 
 
-#define I_CONFIG "config-2"
+#define I_CONFIG "config-3"
 
 typedef struct Iconfig
 {
 	INTERFACE_HEAD_DECL
+	/* pyint: use */
 
 	const char * (*GetStr)(ConfigHandle ch, const char *section, const char *key);
+	/* pyint: config, string, string -> string */
 	int (*GetInt)(ConfigHandle ch, const char *section, const char *key, int defvalue);
+	/* pyint: config, string, string, int -> int */
 
 	void (*SetStr)(ConfigHandle ch, const char *section, const char *key,
-			const char *value, const char *info);
+			const char *value, const char *info, int permanent);
+	/* pyint: config, string, string, string, zstring, int -> void */
 	void (*SetInt)(ConfigHandle ch, const char *section, const char *key,
-			int value, const char *info);
+			int value, const char *info, int permanent);
+	/* pyint: config, string, string, int, zstring, int -> void */
 
 	ConfigHandle (*OpenConfigFile)(const char *arena, const char *name,
 			ConfigChangedFunc func, void *clos);
+	/* FIXMEpyint: zstring, zstring, null, null -> config
+	 * (this will leak config files in the current implementation.) */
 	void (*CloseConfigFile)(ConfigHandle ch);
 	void (*ReloadConfigFile)(ConfigHandle ch);
+	/* pyint: config -> void */
 	void (*AddRef)(ConfigHandle ch);
 
 	void (*FlushDirtyValues)(void);
+	/* pyint: void -> void */
 	void (*CheckModifiedFiles)(void);
+	/* pyint: void -> void */
 } Iconfig;
 
 

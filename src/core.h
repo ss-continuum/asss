@@ -110,7 +110,6 @@ typedef struct Iauth
 
 	void (*Authenticate)(Player *p, struct LoginPacket *lp, int lplen,
 			void (*Done)(Player *p, AuthData *data));
-	/* aprc: null */
 } Iauth;
 
 

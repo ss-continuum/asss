@@ -8,11 +8,9 @@
 #ifndef WIN32
 #include <unistd.h>
 #include <limits.h>
-#else
-#include <io.h>
-#include "win32compat.h"
 #endif
 
+#include "defs.h"
 #include "pathutil.h"
 
 
