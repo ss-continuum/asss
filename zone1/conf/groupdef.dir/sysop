@@ -1,5 +1,7 @@
 ; conf/groups/sysop
 
+seesysoplogall
+
 cmd_shutdown
 cmd_scm
 

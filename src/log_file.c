@@ -17,6 +17,7 @@ local FILE *logfile;
 local pthread_mutex_t logmtx = PTHREAD_MUTEX_INITIALIZER;
 
 local Iconfig *cfg;
+local Ilogman *log;
 
 local Ilog_file _lfint = { FlushLog, ReopenLog };
 
@@ -26,8 +27,9 @@ EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
 	if (action == MM_LOAD)
 	{
 		mm->RegInterest(I_CONFIG, &cfg);
+		mm->RegInterest(I_LOGMAN, &log);
 
-		if (!cfg) return MM_FAIL;
+		if (!cfg || !log) return MM_FAIL;
 
 		logfile = NULL;
 		ReopenLog();
@@ -44,6 +46,7 @@ EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
 		mm->UnregInterface(I_LOG_FILE, &_lfint);
 		mm->UnregCallback(CB_LOGFUNC, LogFile, ALLARENAS);
 		mm->UnregInterest(I_CONFIG, &cfg);
+		mm->UnregInterest(I_LOGMAN, &cfg);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -54,19 +57,20 @@ EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
 
 void LogFile(char lev, char *s)
 {
-	pthread_mutex_lock(&logmtx);
-
-	if (logfile)
+	if (log->FilterLog(lev, s, "log_file"))
 	{
-		time_t t1;
-		char t3[TIMEFORMATLEN];
+		pthread_mutex_lock(&logmtx);
+		if (logfile)
+		{
+			time_t t1;
+			char t3[TIMEFORMATLEN];
 
-		time(&t1);
-		strftime(t3, TIMEFORMATLEN, TIMEFORMAT, localtime(&t1));
-		fprintf(logfile, "%s %c %s\n", t3, lev, s);
+			time(&t1);
+			strftime(t3, TIMEFORMATLEN, TIMEFORMAT, localtime(&t1));
+			fprintf(logfile, "%s %c %s\n", t3, lev, s);
+		}
+		pthread_mutex_unlock(&logmtx);
 	}
-
-	pthread_mutex_unlock(&logmtx);
 }
 
 void FlushLog(void)

@@ -6,17 +6,22 @@
 
 local void LogConsole(char, char *);
 
+local Ilogman *log;
+
 
 EXPORT int MM_log_console(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
+		mm->RegInterest(I_LOGMAN, &log);
+		if (!log) return MM_FAIL;
 		mm->RegCallback(CB_LOGFUNC, LogConsole, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregCallback(CB_LOGFUNC, LogConsole, ALLARENAS);
+		mm->UnregInterest(I_LOGMAN, &log);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -27,6 +32,7 @@ EXPORT int MM_log_console(int action, Imodman *mm, int arena)
 
 void LogConsole(char lev, char *s)
 {
-	puts(s);
+	if (log->FilterLog(lev, s, "log_console"))
+		puts(s);
 }
 

@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "asss.h"
 
@@ -14,6 +15,7 @@ typedef struct LogLine
 
 
 local void Log(char, char *, ...);
+local int FilterLog(char, const char *, const char *);
 local void * LoggingThread(void *);
 
 
@@ -21,7 +23,8 @@ local MPQueue queue;
 local Thread thd;
 
 local Imodman *mm;
-local Ilogman _int = { Log };
+local Iconfig *cfg;
+local Ilogman _int = { Log, FilterLog };
 
 
 EXPORT int MM_logman(int action, Imodman *mm_, int arena)
@@ -29,6 +32,7 @@ EXPORT int MM_logman(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
+		mm->RegInterest(I_CONFIG, &cfg);
 		MPInit(&queue);
 		thd = StartThread(LoggingThread, NULL);
 		mm->RegInterface(I_LOGMAN, &_int);
@@ -39,6 +43,7 @@ EXPORT int MM_logman(int action, Imodman *mm_, int arena)
 		MPAdd(&queue, NULL);
 		JoinThread(thd);
 		MPDestroy(&queue);
+		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterface(I_LOGMAN, &_int);
 		return MM_OK;
 	}
@@ -87,5 +92,45 @@ void Log(char level, char *format, ...)
 	}
 }
 
+
+int FilterLog(char level, const char *line, const char *modname)
+{
+	char *res, origin[32];
+
+	/* if there's no config manager, disable filtering */
+	if (!cfg || !line || !modname)
+		return TRUE;
+
+	if (line[0] == '<')
+	{
+		/* copy into origin until closing > */
+		char *d = origin;
+		const char *s = line+1;
+		while (*s && *s != '>' && (d-origin) < 30)
+			*d++ = *s++;
+		*d = 0;
+	}
+	else
+	{
+		/* unknown module */
+		astrncpy(origin, "unknown", 32);
+	}
+
+	res = cfg->GetStr(GLOBAL, modname, origin);
+	if (!res)
+	{
+		/* try 'all' */
+		res = cfg->GetStr(GLOBAL, modname, "all");
+	}
+	if (!res)
+	{
+		/* if no match for 'all', disable filtering */
+		return TRUE;
+	}
+	if (strchr(res, level))
+		return TRUE;
+	else
+		return FALSE;
+}
 
 

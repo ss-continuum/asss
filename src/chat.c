@@ -11,6 +11,7 @@
 
 
 #define CAP_MODCHAT "seemodchat"
+#define CAP_SENDMODCHAT "sendmodchat"
 
 
 /* prototypes */
@@ -19,6 +20,7 @@ local void SendMessage_(int, char *, ...);
 local void SendSetMessage(int *, char *, ...);
 local void SendSoundMessage(int, char, char *, ...);
 local void SendSetSoundMessage(int *, char, char *, ...);
+local void SendAnyMessage(int *set, char type, char sound, char *format, ...);
 local void PChat(int, byte *, int);
 
 
@@ -42,7 +44,8 @@ local int cfg_msgrel;
 local Ichat _int =
 {
 	SendMessage_, SendSetMessage,
-	SendSoundMessage, SendSetSoundMessage
+	SendSoundMessage, SendSetSoundMessage,
+	SendAnyMessage
 };
 
 
@@ -127,21 +130,30 @@ void PChat(int pid, byte *p, int len)
 			}
 			else if (from->text[0] == MOD_CHAT_CHAR)
 			{
-				log->Log(L_DRIVEL, "<chat> {%s} [%s] Mod chat: %s",
-					arenas[arena].name, players[pid].name, from->text+1);
 				if (capman)
 				{
-					to->type = MSG_SYSOPWARNING;
-					sprintf(to->text, "%s> %s", players[pid].name, from->text+1);
-					pd->LockStatus();
-					for (i = 0; i < MAXPLAYERS; i++)
-						if (    players[i].status == S_PLAYING
-							 && capman->HasCapability(i, CAP_MODCHAT)
-							 && i != pid)
-							set[setc++] = i;
-					pd->UnlockStatus();
-					set[setc] = -1;
-					net->SendToSet(set, (byte*)to, strlen(to->text)+6, NET_RELIABLE);
+					if (capman->HasCapability(pid, CAP_SENDMODCHAT))
+					{
+						to->type = MSG_SYSOPWARNING;
+						sprintf(to->text, "%s> %s", players[pid].name, from->text+1);
+						pd->LockStatus();
+						for (i = 0; i < MAXPLAYERS; i++)
+							if (players[i].status == S_PLAYING &&
+									capman->HasCapability(i, CAP_MODCHAT) &&
+									i != pid)
+								set[setc++] = i;
+						pd->UnlockStatus();
+						set[setc] = -1;
+						net->SendToSet(set, (byte*)to, strlen(to->text)+6, NET_RELIABLE);
+						log->Log(L_DRIVEL, "<chat> {%s} [%s] Mod chat: %s",
+								arenas[arena].name, players[pid].name, from->text+1);
+					}
+					else
+					{
+						log->Log(L_DRIVEL, "<chat> {%s} [%s] Attempted mod chat "
+								"(sender missing capability): %s",
+								arenas[arena].name, players[pid].name, from->text+1);
+					}
 				}
 				else
 					SendMessage_(pid, "Mod chat is currently disabled");
@@ -284,4 +296,20 @@ void SendSetSoundMessage(int *set, char sound, char *str, ...)
 	net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
 }
 
+void SendAnyMessage(int *set, char type, char sound, char *str, ...)
+{
+	int size;
+	char _buf[256];
+	struct ChatPacket *cp = (struct ChatPacket*)_buf;
+	va_list args;
+
+	va_start(args, str);
+	size = vsnprintf(cp->text, 250, str, args) + 6;
+	va_end(args);
+
+	cp->pktype = S2C_CHAT;
+	cp->type = type;
+	cp->sound = sound;
+	net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
+}
 

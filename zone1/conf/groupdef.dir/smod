@@ -1,5 +1,7 @@
 ; conf/groups/smod
 
+seesysoplogarena
+
 ; not implemented
 cmd_zone
 cmd_recycle

@@ -47,7 +47,7 @@ all: pre install
 
 pre: sparse.inc letters.inc buildnumber
 
-loggers.so: log_file.o log_console.o
+loggers.so: log_file.o log_console.o log_sysop.o
 
 game.so: game.o chat.o flags.o balls.o fm_normal.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -lm

@@ -1,6 +1,7 @@
 ; conf/groups/mod
 
 seemodchat
+sendmodchat
 seeprivfreq
 seeprivarena
 seeepd
