@@ -31,7 +31,6 @@
 local void PLogin(int, byte *, int);
 local void PArena(int, byte *, int);
 local void PLeaving(int, byte *, int);
-local void PMapRequest(int, byte *, int);
 
 local void SendLogonResponse(int, AuthData *);
 
@@ -51,9 +50,6 @@ local void FreeArena(int);
 /* default auth, can be replaced */
 local void DefaultAuth(int, struct LogonPacket *);
 
-/* newstxt management */
-local void RefreshNewsTxt();
-
 
 
 /* GLOBALS */
@@ -64,11 +60,6 @@ local Iconfig *cfg;
 local Inet *net;
 local Imodman *mm;
 local Ilogman *log;
-
-local char *cfg_newsfile;
-local i32 newschecksum, newsdatasize;
-local byte *newsdata;
-local time_t newstime;
 
 local PlayerData *players;
 local ArenaData *arenas[MAXARENA];
@@ -101,13 +92,6 @@ int MM_core(int action, Imodman *mm_)
 		net->AddPacket(C2S_LOGON, PLogin);
 		net->AddPacket(C2S_GOTOARENA, PArena);
 		net->AddPacket(C2S_LEAVING, PLeaving);
-		net->AddPacket(C2S_MAPREQUEST, PMapRequest);
-		net->AddPacket(C2S_NEWSREQUEST, PMapRequest);
-
-		/* cache some config data */
-		cfg_newsfile = cfg->GetStr(GLOBAL, "General", "NewsFile");
-		if (!cfg_newsfile) cfg_newsfile = "news.txt";
-		newstime = 0; newsdata = NULL;
 
 		/* register default interfaces which may be replaced later */
 		mm->RegisterInterface(I_AUTH, &_iauth);
@@ -128,14 +112,10 @@ int MM_core(int action, Imodman *mm_)
 		net->RemovePacket(C2S_LOGON, PLogin);
 		net->RemovePacket(C2S_GOTOARENA, PArena);
 		net->RemovePacket(C2S_LEAVING, PLeaving);
-		net->RemovePacket(C2S_MAPREQUEST, PMapRequest);
-		net->RemovePacket(C2S_NEWSREQUEST, PMapRequest);
-		free(newsdata); newsdata = NULL;
 	}
 	else if (action == MM_DESCRIBE)
 	{
-		mm->desc = "core - handles core game packets, including logons, arenas, "
-					"map/news downloads";
+		mm->desc = "core - handles core game packets, including logons, arenas";
 	}
 	return MM_OK;
 }
@@ -147,7 +127,8 @@ void PLogin(int pid, byte *p, int l)
 	if (l != sizeof(struct LogonPacket))
 		log->Log(LOG_BADDATA,"Bad packet length (%s)",players[pid].name);
 	else
-		((Iauth*)mm->GetInterface(I_AUTH))->Authenticate(pid, (struct LogonPacket *)p);
+		((Iauth*)mm->GetInterface(I_AUTH))->Authenticate
+			(pid, (struct LogonPacket *)p, SendLogonResponse);
 }
 
 
@@ -157,12 +138,9 @@ void SendLogonResponse(int pid, AuthData *auth)
 		{ S2C_LOGONRESPONSE, 0, 134, 0, EXECHECKSUM, {0, 0},
 			0, 0x281CC948, 0, {0, 0, 0, 0, 0, 0, 0, 0} };
 
-	/* get newest news */
-	RefreshNewsTxt();
-		
 	lr.code = auth->code;
 	lr.demodata = auth->demodata;
-	lr.newschecksum = newschecksum;
+	lr.newschecksum = newschecksum; /* FIXME NOW: get mapnewsdl interface and use GetNewsChecksum */
 
 	/* set up player struct */
 	memset(players + pid, 0, sizeof(PlayerData));
@@ -405,70 +383,5 @@ int FindArena(char *name)
 	return -1;
 }
 
-
-void RefreshNewsTxt()
-{
-	int fd, fsize;
-	time_t newtime;
-	uLong csize;
-	byte *map, *cmap;
-	struct stat st;
-
-	fd = open(cfg_newsfile, O_RDONLY);
-    if (fd == -1)
-    {
-        log->Log(LOG_ERROR,"News file '%s' not found in current directory", cfg_newsfile);
-		return;
-    }
-
-	/* find it's size */
-	fstat(fd, &st);
-	newtime = st.st_mtime + st.st_ctime;
-	if (newtime != newstime)
-	{
-		newstime = newtime;
-		fsize = st.st_size;
-		csize = 1.0011 * fsize + 35;
-
-		/* mmap it */
-		map = mmap(NULL, fsize, PROT_READ, MAP_SHARED, fd, 0);
-		if (map == (void*)-1)
-		{
-			log->Log(LOG_ERROR,"mmap failed in RefreshNewsTxt");
-			close(fd);
-			return;
-		}
-
-		/* calculate crc on mmap'd map */
-		newschecksum = crc32(crc32(0, Z_NULL, 0), map, fsize);
-
-		/* allocate space for compressed version */
-		cmap = amalloc(csize);
-
-		/* set up packet header */
-		cmap[0] = S2C_INCOMINGFILE;
-		/* 16 bytes of zero for the name */
-
-		/* compress the stuff! */
-		compress(cmap+17, &csize, map, fsize);
-
-		/* shrink the allocated memory */
-		cmap = realloc(cmap, csize+17);
-		if (!cmap)
-		{
-			log->Log(LOG_ERROR,"realloc failed in RefreshNewsTxt");
-			close(fd);
-			return;
-		}
-		newsdatasize = csize+17;
-
-		munmap(map, fsize);
-
-		if (newsdata) free(newsdata);
-		newsdata = cmap;
-		log->Log(LOG_USELESSINFO,"News file %s reread", cfg_newsfile);
-	}
-	close(fd);
-}
 
 

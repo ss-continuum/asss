@@ -115,7 +115,7 @@ int MM_billcore(int action, Imodman *mm)
 
 void SendToBiller(byte *data, int length, int flags)
 {
-	SendToBiller(data, length, flags);
+	net->SendToOne(PID_BILLER, data, length, flags);
 }
 
 void AddPacket(byte pktype, PacketFunc func)
