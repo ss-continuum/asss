@@ -228,10 +228,10 @@ local void log_command(Player *p, const Target *target, const char *cmd, const c
 		astrncpy(t, "(other)", 32);
 
 	if (*params)
-		lm->LogP(L_INFO, "cmdman", p, "command %s '%s' '%s'",
+		lm->LogP(L_INFO, "cmdman", p, "command %s: %s %s",
 				t, cmd, params);
 	else
-		lm->LogP(L_INFO, "cmdman", p, "command %s '%s'",
+		lm->LogP(L_INFO, "cmdman", p, "command %s: %s",
 				t, cmd);
 }
 

@@ -159,7 +159,7 @@ INTERNAL_MODULES = config.o prng.o md5.o player.o core.o logman.o \
 	mainloop.o net.o enc_null.o enc_vie.o arenaman.o mapdata.o \
 	mapnewsdl.o clientset.o capman.o lagdata.o lagaction.o unixsignal.o \
 	deadlock.o \
-	log_file.o log_console.o log_sysop.o \
+	log_file.o log_console.o log_sysop.o log_staff.o \
 	game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
 	banners.o bricks.o objects.o messages.o koth.o fm_lockspec.o \
 	cmdman.o playercmd.o admincmd.o watchdamage.o buy.o help.o \
