@@ -76,7 +76,7 @@ struct S2CPosition
 	u8 c2slatency;
 	u8 bounty;
 	u8 playerid;
-	i8 status;
+	u8 status;
 	i16 yspeed;
 	i16 y;
 	i16 xspeed;
@@ -91,8 +91,8 @@ struct C2SPosition
 	u32 time;
 	i16 xspeed;
 	i16 y;
-	i8 checksum;
-	i8 status;
+	u8 checksum;
+	u8 status;
 	i16 x;
 	i16 yspeed;
 	u16 bounty;
