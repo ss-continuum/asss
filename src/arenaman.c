@@ -1,5 +1,6 @@
 
 #include <string.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -339,7 +340,7 @@ int FindArena(char *name, int min, int max)
 	for (i = 0; i < MAXARENA; i++)
 		if (    arenas[i].status >= min
 		     && arenas[i].status <= max
-		     && !strcasecmp(arenas[i].name, name) )
+		     && !strcmp(arenas[i].name, name) )
 		{
 			UNLOCK_STATUS();
 			return i;
@@ -352,7 +353,7 @@ void PArena(int pid, byte *p, int l)
 {
 	/* status should be S_LOGGEDIN at this point */
 	struct GoArenaPacket *go;
-	char *name, digit[2];
+	char name[16];
 	int arena, type;
 
 	/* check for bad packets */
@@ -398,18 +399,25 @@ void PArena(int pid, byte *p, int l)
 
 	/* make a name from the request */
 	if (go->arenatype == -3)
-		name = go->arenaname;
+	{
+		char *t;
+		astrncpy(name, go->arenaname, 16);
+		/* set all illegal characters to underscores, and lowercase name */
+		for (t = name; *t; t++)
+			if (!isalnum(*t) && !strchr("-_#@", *t))
+				*t = '_';
+			else if (isupper(*t))
+				*t = tolower(*t);
+	}
 	else if (go->arenatype == -2 || go->arenatype == -1)
 	{
-		name = digit;
-		digit[0] = '0';
-		digit[1] = 0;
+		name[0] = '0';
+		name[1] = 0;
 	}
 	else if (go->arenatype >= 0 && go->arenatype <= 9)
 	{
-		name = digit;
-		digit[0] = go->arenatype + '0';
-		digit[1] = 0;
+		name[0] = go->arenatype + '0';
+		name[1] = 0;
 	}
 	else
 	{

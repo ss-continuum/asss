@@ -41,7 +41,7 @@ typedef struct Imapdata
 	/* returns true if the given point is in the given region. */
 
 
-	/* the following two functions are in this module because of
+	/* the following three functions are in this module because of
 	 * efficiency concerns. */
 
 	void (*FindFlagTile)(int arena, int *x, int *y);
@@ -53,6 +53,9 @@ typedef struct Imapdata
 	/* arpc: void(int, int, int, int, intptr, intptr, intptr, intptr) */
 	/* calculates the placement of a brick of a given length dropped at
 	 * a certain position. */
+
+	u32 (*GetChecksum)(int arena, u32 key);
+	/* arpc: null */
 } Imapdata;
 
 #endif

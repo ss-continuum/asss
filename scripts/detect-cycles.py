@@ -36,6 +36,8 @@ def containedin(a, b):
 		if i not in b: return 0
 	return 1
 
+print "possible load order:"
+
 loaded = []
 left = deps.keys()
 gotone = 1

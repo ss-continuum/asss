@@ -6,7 +6,10 @@ struct GreenPacket
 {
 	u8 type;
 	u32 time;
-	i16 x, y, green, pid;
+	i16 x;
+	i16 y;
+	i16 green;
+	i16 pid;
 };
 
 

@@ -43,25 +43,26 @@
 
 #define MAXPERSISTLENGTH 1024
 
-#define PERSIST_GLOBAL (-1)
+#define PERSIST_ALLARENAS (-1)
+#define PERSIST_GLOBAL (-2)
 
 
 typedef struct PersistantData
 {
-	int key, length, global;
-	void (*GetData)(int pid, void *data);
-	void (*SetData)(int pid, void *data);
+	int key, arena;
+	int (*GetData)(int pid, void *data, int len);
+	void (*SetData)(int pid, void *data, int len);
 	void (*ClearData)(int pid);
 } PersistantData;
 
 
-#define I_PERSIST "persist-1"
+#define I_PERSIST "persist-2"
 
 typedef struct Ipersist
 {
 	INTERFACE_HEAD_DECL
-	void (*RegPersistantData)(PersistantData const *pd);
-	void (*UnregPersistantData)(PersistantData const *pd);
+	void (*RegPersistantData)(const PersistantData *pd);
+	void (*UnregPersistantData)(const PersistantData *pd);
 	void (*SyncToFile)(int pid, int arena, void (*callback)(int pid));
 	void (*SyncFromFile)(int pid, int arena, void (*callback)(int pid));
 	void (*StabilizeScores)(int seconds);

@@ -101,7 +101,7 @@ void Pppk(int pid, byte *p2, int n)
 		wpn.weapon = p->weapon;
 
 		DoChecksum(&wpn);
-		net->SendToOne(pid, (byte*)&wpn, sizeof(wpn), NET_RELIABLE | NET_PRI_P4);
+		net->SendToOne(pid, (byte*)&wpn, sizeof(wpn), NET_PRI_P4);
 	}
 }
 

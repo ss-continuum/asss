@@ -13,6 +13,8 @@ cmd_moveflag
 cmd_watchdamage
 privcmd_watchdamage
 
+; bypass checksums
+bypass_security
 
 ; prefix chars
 prefix_>

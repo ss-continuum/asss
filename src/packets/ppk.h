@@ -9,7 +9,7 @@ struct Weapons
 	/* this is a bit field. the whole thing should fit into 16 bits */
 	unsigned short type : 5;
 	unsigned short level : 2;
-	unsigned short bouncing : 1;
+	unsigned short shrapbouncing : 1;
 	unsigned short shraplevel : 2;
 	unsigned short shrap : 5;
 	unsigned short alternate : 1;

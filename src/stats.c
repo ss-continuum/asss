@@ -24,12 +24,12 @@ struct ArenaStats /* 64 bytes */
 local void IncrementStat(int, int, int);
 local void SendUpdates(void);
 
-local void GetA(int, void *);
-local void SetA(int, void *);
+local int GetA(int, void *, int);
+local void SetA(int, void *, int);
 local void ClearA(int);
 
-local void GetG(int, void *);
-local void SetG(int, void *);
+local int GetG(int, void *, int);
+local void SetG(int, void *, int);
 local void ClearG(int);
 
 local void PChat(int, byte *, int);
@@ -49,10 +49,10 @@ local Ipersist *persist;
 local Ichat *chat;
 
 local const PersistantData gdatadesc =
-{ 0x15222, sizeof(struct GlobalStats), 1, GetG, SetG, ClearG };
+{ 0x15222, PERSIST_GLOBAL, GetG, SetG, ClearG };
 
 local const PersistantData adatadesc =
-{ 0x7EE41, sizeof(struct ArenaStats), 0, GetA, SetA, ClearA };
+{ 0x7EE41, PERSIST_ALLARENAS, GetA, SetA, ClearA };
 
 /* the big arrays for stats */
 local struct GlobalStats gdata[MAXPLAYERS];
@@ -186,14 +186,21 @@ void PAFunc(int pid, int action, int arena)
 }
 
 
-void GetG(int pid, void *space)
+int GetG(int pid, void *space, int len)
 {
-	memcpy(space, gdata + pid, sizeof(struct GlobalStats));
+	if (sizeof(struct GlobalStats) <= len)
+	{
+		memcpy(space, gdata + pid, sizeof(struct GlobalStats));
+		return sizeof(struct GlobalStats);
+	}
+	else
+		return 0;
 }
 
-void SetG(int pid, void *space)
+void SetG(int pid, void *space, int len)
 {
-	memcpy(gdata + pid, space, sizeof(struct GlobalStats));
+	if (len == sizeof(struct GlobalStats))
+		memcpy(gdata + pid, space, sizeof(struct GlobalStats));
 }
 
 void ClearG(int pid)
@@ -201,24 +208,34 @@ void ClearG(int pid)
 	memset(gdata + pid, 0, sizeof(struct GlobalStats));
 }
 
-void GetA(int pid, void *space)
+int GetA(int pid, void *space, int len)
 {
-	memcpy(space, adata + pid, sizeof(struct ArenaStats));
+	if (sizeof(struct ArenaStats) <= len)
+	{
+		memcpy(space, adata + pid, sizeof(struct ArenaStats));
+		return sizeof(struct ArenaStats);
+	}
+	else
+		return 0;
 }
 
-void SetA(int pid, void *space)
+void SetA(int pid, void *space, int len)
 {
-	struct ArenaStats *d = space;
-	struct PlayerData *p = pd->players + pid;
+	if (len == sizeof(struct ArenaStats))
+	{
+		struct ArenaStats *d = space;
+		struct PlayerData *p = pd->players + pid;
 
-	/* we have to set this in two places: the master */
-	memcpy(adata + pid, space, sizeof(struct ArenaStats));
 
-	/* and the player data */
-	p->killpoints = d->stats[STAT_KILL_POINTS];
-	p->flagpoints = d->stats[STAT_FLAG_POINTS];
-	p->wins = d->stats[STAT_KILLS];
-	p->losses = d->stats[STAT_DEATHS];
+		/* we have to set this in two places: the master */
+		memcpy(adata + pid, space, sizeof(struct ArenaStats));
+
+		/* and the player data */
+		p->killpoints = d->stats[STAT_KILL_POINTS];
+		p->flagpoints = d->stats[STAT_FLAG_POINTS];
+		p->wins = d->stats[STAT_KILLS];
+		p->losses = d->stats[STAT_DEATHS];
+	}
 }
 
 void ClearA(int pid)

@@ -4,7 +4,7 @@
 
 struct TurretData
 {
-	int pid, endtime, interval, tosend;
+	int pid, endtime, interval, tofire, tosend, weapon;
 	struct C2SPosition pos;
 };
 
@@ -28,6 +28,7 @@ local struct TurretData * new_turret(int pid, int timeout, int interval, int pid
 	td->endtime = GTC() + timeout;
 	td->interval = interval;
 	td->tosend = 0;
+	td->tofire = 0;
 
 	pos = &td->pos;
 	pos->type = C2S_POSITION;
@@ -40,7 +41,8 @@ local struct TurretData * new_turret(int pid, int timeout, int interval, int pid
 	pos->energy = 1000;
 
 	/* a default weapon. caller can fix this up. */
-	pos->weapon.type = W_PROXBOMB;
+	td->weapon = W_PROXBOMB;
+	pos->weapon.type = 0;
 	pos->weapon.level = 0;
 	pos->weapon.shraplevel = 0;
 	pos->weapon.shrap = 0;
@@ -104,11 +106,22 @@ local void mlfunc()
 			fake->EndFaked(td->pid);
 			afree(td);
 		}
-		else if (now > td->tosend)
+		else if (now > td->tofire)
 		{
-			td->tosend = now + td->interval;
+			td->tofire = now + td->interval;
+			td->tosend = now + 15;
 			td->pos.bounty = (td->endtime - now) / 100;
 			td->pos.time = now;
+			td->pos.weapon.type = td->weapon;
+			checksum(&td->pos, 22);
+			fake->ProcessPacket(td->pid, (byte*)&td->pos, 22);
+		}
+		else if (now > td->tosend)
+		{
+			td->tosend = now + 15;
+			td->pos.bounty = (td->endtime - now) / 100;
+			td->pos.time = now;
+			td->pos.weapon.type = 0;
 			checksum(&td->pos, 22);
 			fake->ProcessPacket(td->pid, (byte*)&td->pos, 22);
 		}

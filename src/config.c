@@ -399,8 +399,14 @@ local const char *GetStr(ConfigHandle ch, const char *sec, const char *key)
 
 local int GetInt(ConfigHandle ch, const char *sec, const char *key, int def)
 {
-	const char *res = GetStr(ch, sec, key);
-	return res ? strtol(res, NULL, 0) : def;
+	char *next;
+	const char *str;
+	int ret;
+
+	str = GetStr(ch, sec, key);
+	if (!str) return def;
+	ret = strtol(str, &next, 0);
+	return str != next ? ret : str[0] == 'y' || str[0] == 'Y';
 }
 
 

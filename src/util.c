@@ -90,13 +90,11 @@ char *RemoveCRLF(char *p)
 
 char *ToLowerStr(char *str)
 {
-	char *orig = str;
-	while (*str)
-	{
-		*str = tolower(*str);
-		str++;
-	}
-	return orig;
+	char *s = str;
+	for (s = str; *s; s++)
+		if (isupper(*s))
+			*s = tolower(*s);
+	return str;
 }
 
 void *amalloc(size_t s)

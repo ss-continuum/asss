@@ -34,13 +34,6 @@ local void PAttach(int, byte *, int);
 local void PKickoff(int, byte *, int);
 local void PBrick(int, byte *, int);
 
-local void Creport(const char *params, int pid, const Target *target);
-local void Ctimer(const char *params, int pid, const Target *target);
-local void Ctime(const char *params, int pid, const Target *target);
-local void Ctimereset(const char *params, int pid, const Target *target);
-local void Cpausetimer(const char *params, int pid, const Target *target);
-local helptext_t timer_help, time_help, timereset_help, pausetimer_help;
-
 local inline void DoChecksum(struct S2CWeapons *);
 local inline long lhypot (register long dx, register long dy);
 
@@ -51,8 +44,6 @@ local void SetFreqAndShip(int pid, int ship, int freq);
 local void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2);
 local void WarpTo(const Target *target, int x, int y);
 local void GivePrize(const Target *target, int type, int count);
-
-local int TimerMaster(void *);
 
 local Igame _myint =
 {
@@ -69,9 +60,6 @@ local Inet *net;
 local Ilogman *lm;
 local Imodman *mm;
 local Iarenaman *aman;
-local Icmdman *cmd;
-local Ichat *chat;
-local Imainloop *ml;
 local Iflags *flags;
 local Icapman *capman;
 local Imapdata *mapdata;
@@ -85,8 +73,6 @@ local int speccing[MAXPLAYERS];
 /* epd/energy stuff */
 local struct { char see, cap, capnrg, pad__; } pl_epd[MAXPLAYERS];
 local struct { char spec, nrg; } ar_epd[MAXARENA];
-/* timer struct */
-local struct { int enabled; long timeout; } ar_tmr[MAXARENA];
 
 local int cfg_bulletpix, cfg_wpnpix, cfg_wpnbufsize, cfg_pospix;
 local int cfg_sendanti;
@@ -105,8 +91,6 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
-		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
-		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		flags = mm->GetInterface(I_FLAGS, ALLARENAS);
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
@@ -126,8 +110,6 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 
 		for (i = 0; i < WEAPONCOUNT; i++)
 			wpnrange[i] = cfg_wpnpix;
-		for (i = 0; i < MAXARENA; i++)
-			ar_tmr[i].enabled = 0;
 		for (i = 0; i < MAXPLAYERS; i++)
 			speccing[i] = -1;
 
@@ -140,9 +122,6 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 
 		mm->RegCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
 		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
-		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
-
-		ml->SetTimer(TimerMaster, 100, 100, NULL);
 
 		net->AddPacket(C2S_POSITION, Pppk);
 		net->AddPacket(C2S_SPECREQUEST, PSpecRequest);
@@ -154,12 +133,6 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		net->AddPacket(C2S_TURRETKICKOFF, PKickoff);
 		net->AddPacket(C2S_BRICK, PBrick);
 
-		cmd->AddCommand("report", Creport, NULL);
-		cmd->AddCommand("timer", Ctimer, timer_help);
-		cmd->AddCommand("time", Ctime, time_help);
-		cmd->AddCommand("timereset", Ctimereset, timereset_help);
-		cmd->AddCommand("pausetimer", Cpausetimer, pausetimer_help);
-
 		mm->RegInterface(&_myint, ALLARENAS);
 
 		return MM_OK;
@@ -168,11 +141,6 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 	{
 		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
-		cmd->RemoveCommand("report", Creport);
-		cmd->RemoveCommand("timer", Ctimer);
-		cmd->RemoveCommand("time", Ctime);
-		cmd->RemoveCommand("timereset", Ctimereset);
-		cmd->RemoveCommand("pausetimer", Cpausetimer);
 		net->RemovePacket(C2S_POSITION, Pppk);
 		net->RemovePacket(C2S_SETSHIP, PSetShip);
 		net->RemovePacket(C2S_SETFREQ, PSetFreq);
@@ -183,18 +151,14 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		net->RemovePacket(C2S_BRICK, PBrick);
 		mm->UnregCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
-		ml->ClearTimer(TimerMaster);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(aman);
-		mm->ReleaseInterface(cmd);
-		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(flags);
 		mm->ReleaseInterface(capman);
 		mm->ReleaseInterface(mapdata);
-		mm->ReleaseInterface(ml);
 		return MM_OK;
 	}
 	return MM_FAIL;
@@ -259,13 +223,13 @@ void Pppk(int pid, byte *p2, int n)
 
 		/* send mines to everyone */
 		if ( ( p->weapon.type == W_BOMB ||
-					p->weapon.type == W_PROXBOMB) &&
-				p->weapon.alternate)
+		       p->weapon.type == W_PROXBOMB) &&
+		     p->weapon.alternate)
 			sendtoall = 1;
 		/* send some percent of antiwarp positions to everyone */
 		if ( p->weapon.type == 0 &&
-				(p->status & 0x08) && /* FIXME: replace with symbolic constant or bitfield */
-				rand() < cfg_sendanti)
+		     (p->status & 0x08) && /* FIXME: replace with symbolic constant or bitfield */
+		     rand() < cfg_sendanti)
 			sendtoall = 1;
 
 		if (sendwpn)
@@ -282,8 +246,9 @@ void Pppk(int pid, byte *p2, int n)
 
 			for (i = 0; i < MAXPLAYERS; i++)
 				if (players[i].status == S_PLAYING &&
-						players[i].arena == arena &&
-						i != pid)
+				    players[i].type != T_FAKE &&
+				    players[i].arena == arena &&
+				    i != pid)
 				{
 					struct pidset *set = &regset;
 					long dist = lhypot(x1 - pos[i].x, y1 - pos[i].y);
@@ -295,6 +260,11 @@ void Pppk(int pid, byte *p2, int n)
 							( pl_epd[i].see == SEE_SPEC &&
 							  speccing[i] == pid ))
 						set = &epdset;
+
+					/* FIXME: the server needs to keep cont up to date
+					 * on who's watching energy before it can send epd. */
+					if (players[i].type == T_CONT)
+						set = &regset;
 
 					if (
 							dist <= range ||
@@ -337,8 +307,9 @@ void Pppk(int pid, byte *p2, int n)
 
 			for (i = 0; i < MAXPLAYERS; i++)
 				if (players[i].status == S_PLAYING &&
-						players[i].arena == arena &&
-						i != pid)
+				    players[i].type != T_FAKE &&
+				    players[i].arena == arena &&
+				    i != pid)
 				{
 					struct pidset *set = &regset;
 					long dist = lhypot(x1 - pos[i].x, y1 - pos[i].y);
@@ -350,6 +321,10 @@ void Pppk(int pid, byte *p2, int n)
 							( pl_epd[i].see == SEE_SPEC &&
 							  speccing[i] == pid ))
 						set = &epdset;
+
+					/* FIXME: see above */
+					if (players[i].type == T_CONT)
+						set = &regset;
 
 					if (
 							dist < res ||
@@ -677,29 +652,6 @@ void GivePrize(const Target *target, int type, int count)
 }
 
 
-int TimerMaster(void *nothing)
-{
-	long tickcount = GTC(), gamelen;
-	int i;
-
-	for(i = 0; i < MAXARENA; i++)
-		if (ar_tmr[i].enabled && tickcount > ar_tmr[i].timeout)
-		{
-			DO_CBS(CB_TIMESUP, i, GameTimerFunc, (i));
-			chat->SendArenaMessage(i, "Time has expired.");
-			gamelen = cfg->GetInt(arenas[i].cfg, "Misc", "TimedGame", 0);
-			if (gamelen)
-				ar_tmr[i].timeout = tickcount+gamelen;
-			else
-			{
-				ar_tmr[i].enabled = 0;
-				ar_tmr[i].timeout = 0;
-			}
-		}
-	return 1;
-}
-
-
 void PlayerAction(int pid, int action, int arena)
 {
 	if (action == PA_ENTERARENA)
@@ -714,139 +666,15 @@ void PlayerAction(int pid, int action, int arena)
 
 void ArenaAction(int arena, int action)
 {
-	int gamelen;
-
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
 	{
 		ar_epd[arena].spec =
 			cfg->GetInt(arenas[arena].cfg, "Misc", "SpecSeeEnergy", 0);
 		ar_epd[arena].nrg =
 			cfg->GetInt(arenas[arena].cfg, "Misc", "SeeEnergy", 0);
-
-		gamelen = cfg->GetInt(arenas[arena].cfg, "Misc", "TimedGame", 0);
-		if (action == AA_CREATE && gamelen)
-		{
-			ar_tmr[arena].enabled = 1;
-			ar_tmr[arena].timeout = GTC()+gamelen;
-		}
 	}
 }
 
-
-void Creport(const char *params, int pid, const Target *target)
-{
-	int t = target->u.pid;
-	if (target->type != T_PID)
-		return;
-
-	if (chat)
-	{
-		struct C2SPosition *p = pos + t;
-		chat->SendMessage(pid, "%s is at (%d, %d) with %d bounty and %d energy",
-				players[t].name,
-				p->x >> 4, p->y >> 4,
-				p->bounty,
-				p->energy);
-	}
-}
-
-
-local helptext_t timer_help =
-"Targets: none\n"
-"Args: <minutes>[:<seconds>]\n"
-"Set arena timer to minutes:seconds, only in arenas with TimedGame setting\n"
-"off. Note, that the seconds part is optional, but minutes must always\n"
-"be defined (even if zero). If successful, server replies with ?time response.\n";
-
-void Ctimer(const char *params, int pid, const Target *target)
-{
-	int arena = pd->players[pid].arena, mins = 0, secs = 0;
-	
-	if (!(cfg->GetInt(arenas[arena].cfg, "Misc", "TimedGame", 0)))
-	{
-		if (sscanf(params,"%4d:%2d", &mins, &secs) > 0)
-		{
-			ar_tmr[arena].enabled = 1;
-			ar_tmr[arena].timeout = GTC()+(60*100*mins)+(100*secs);
-			Ctime(params, pid, target);
-		}
-		else chat->SendMessage(pid, "timer format is: \"*timer mins:secs\"");
-	}
-	else chat->SendMessage(pid, "Timer is fixed to Misc:TimedGame setting.");
-}
-
-
-local helptext_t time_help =
-"Targets: none\n"
-"Args: none\n"
-"Returns amount of time left in current game.\n";
-
-void Ctime(const char *params, int pid, const Target *target)
-{
-	int arena = pd->players[pid].arena, mins, secs;
-	long tout;
-	
-	if (ar_tmr[arena].enabled)
-	{
-		tout = ar_tmr[arena].timeout - GTC();
-		mins = tout/60/100;
-		secs = (tout/100)%60;
-		chat->SendMessage(pid, "Time left: %d minutes %d seconds", mins, secs);
-	}
-	else if (ar_tmr[arena].timeout)
-	{
-		 mins = ar_tmr[arena].timeout/60/100;
-		 secs = (ar_tmr[arena].timeout/100)%60;
-		 chat->SendMessage(pid, "Timer paused at:  %d minutes %d seconds", mins, secs);
-	}
-	else
-		chat->SendMessage(pid, "Time left: 0 minutes 0 seconds");
-}
-
-
-local helptext_t timereset_help =
-"Targets: none\n"
-"Args: none\n"
-"Reset a timed game, but only in arenas with Misc:TimedGame in use.\n";
-
-void Ctimereset(const char *params, int pid, const Target *target)
-{
-	int arena = pd->players[pid].arena;
-	long gamelen = cfg->GetInt(arenas[arena].cfg, "Misc", "TimedGame", 0);
-
-	if (gamelen)
-	{
-		ar_tmr[arena].timeout = GTC() + gamelen;
-		Ctime(params, pid, target);
-	}
-}
-
-local helptext_t pausetimer_help =
-"Targets: none\n"
-"Args: none\n"
-"Pauses the timer. The timer must have been created with ?timer.\n";
-
-void Cpausetimer(const char *params, int pid, const Target *target)
-{
-	int arena = pd->players[pid].arena;
-
-	if (cfg->GetInt(arenas[arena].cfg, "Misc", "TimedGame", 0)) return;
-
-	if (ar_tmr[arena].enabled)
-	{
-		ar_tmr[arena].enabled = 0;
-		ar_tmr[arena].timeout -= GTC();
-		chat->SendMessage(pid,"Timer paused at:  %d minutes %d seconds",
-							ar_tmr[arena].timeout/60/100, (ar_tmr[arena].timeout/100)%60);
-	}
-	else if (ar_tmr[arena].timeout)
-	{
-		chat->SendMessage(pid,"Timer resumed at: %d minutes %d seconds",
-							ar_tmr[arena].timeout/60/100, (ar_tmr[arena].timeout/100)%60);
-		ar_tmr[arena].enabled = 1;
-		ar_tmr[arena].timeout += GTC();
-	}
-}
 
 void DoChecksum(struct S2CWeapons *pkt)
 {
@@ -868,15 +696,12 @@ long lhypot (register long dx, register long dy)
 	if (dx < 0) dx = -dx;
 	if (dy < 0) dy = -dy;
 
-	/* initial hypotenuse guess
-	 * (from Gems) */
+	/* initial hypotenuse guess (from Gems) */
 	r = (dx > dy) ? (dx+(dy>>1)) : (dy+(dx>>1));
 
 	if (r == 0) return (long)r;
 
-	/* converge
-	 * 3 times
-	 * */
+	/* converge 3 times */
 	r = (dd/r+r)>>1;
 	r = (dd/r+r)>>1;
 	r = (dd/r+r)>>1;
@@ -896,6 +721,7 @@ static struct
 	pthread_mutex_t mtx;
 } brickdata[MAXARENA];
 
+
 void InitBrickSystem()
 {
 	int i;
@@ -906,6 +732,7 @@ void InitBrickSystem()
 		pthread_mutex_init(&brickdata[i].mtx, NULL);
 	}
 }
+
 
 void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2)
 {

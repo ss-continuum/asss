@@ -55,6 +55,7 @@ local const char *GetRegion(int arena, int x, int y);
 local int InRegion(int arena, const char *region, int x, int y);
 local void FindFlagTile(int arena, int *x, int *y);
 local void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2);
+local u32 GetChecksum(int arena, u32 key);
 
 /* global data */
 
@@ -73,7 +74,8 @@ local Imapdata _int =
 	INTERFACE_HEAD_INIT(I_MAPDATA, "mapdata")
 	GetFlagCount, GetTile,
 	GetRegion, InRegion,
-	FindFlagTile, FindBrickEndpoints
+	FindFlagTile, FindBrickEndpoints,
+	GetChecksum
 };
 
 
@@ -426,6 +428,25 @@ void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, in
 
 	/* enter second coordinate */
 	*x2 = destx; *y2 = desty;
+}
+
+
+u32 GetChecksum(int arena, u32 key)
+{
+	int x, y, savekey = (int)key;
+	sparse_arr arr = mapdata[arena].arr;
+
+	if (!arr) return 0;
+
+	for (y = savekey % 32; y < 1024; y += 32)
+		for (x = savekey % 31; x < 1024; x += 31)
+		{
+			byte tile = lookup_sparse(arr, x, y);
+			if ((tile > 0x00 && tile < 0xa1) || tile == 0xab)
+				key += savekey ^ tile;
+		}
+
+	return key;
 }
 
 

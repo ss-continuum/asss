@@ -69,7 +69,7 @@
  * turning off) */
 #define S2C_TOGGLEOBJ 0x35
 /* that ugly struct in mapobj.h that doesn't work yet */
-#define S2C_RECVOBJECT 0x36 
+#define S2C_RECVOBJECT 0x36
 /* two bytes, if byte two is true, client should send damage info */
 #define S2C_TOGGLEDAMAGE 0x37
 /* complex, the info used from a *watchdamage */

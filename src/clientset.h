@@ -21,6 +21,9 @@ typedef struct Iclientset
 
 	void (*Reconfigure)(int arena);
 	/* arpc: void(int) */
+
+	u32 (*GetChecksum)(int arena, u32 key);
+	/* arpc: null */
 } Iclientset;
 
 #endif

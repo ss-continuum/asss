@@ -26,8 +26,6 @@ typedef enum db_command
 	DB_PUTALL
 } db_command;
 
-#define GLOBALTEST(arena,global) ((((arena)==PERSIST_GLOBAL) && (global)) || (((arena)!=PERSIST_GLOBAL) && (!(global))))
-
 /* structs */
 
 typedef struct DBMessage
@@ -41,8 +39,8 @@ typedef struct DBMessage
 /* prototypes */
 
 /* interface funcs */
-local void RegPersistantData(PersistantData const *pd);
-local void UnregPersistantData(PersistantData const *pd);
+local void RegPersistantData(const PersistantData *pd);
+local void UnregPersistantData(const PersistantData *pd);
 local void SyncToFile(int pid, int arena, void (*callback)(int pid));
 local void SyncFromFile(int pid, int arena, void (*callback)(int pid));
 local void StabilizeScores(int seconds);
@@ -149,119 +147,114 @@ EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 }
 
 
+
+local inline int good_arena(int data_arena, int arena)
+{
+	if (data_arena == PERSIST_GLOBAL && arena == PERSIST_GLOBAL)
+		return 1;
+	else if (data_arena == PERSIST_ALLARENAS && ARENA_OK(arena))
+		return 1;
+	else if (data_arena == arena)
+		return 1;
+	else
+		return 0;
+}
+
+
 local void DoPut(int pid, int arena)
 {
-	char namebuf[24];
-	int size = 0;
-	byte *value, *cp;
+	struct
+	{
+		char namebuf[24];
+		int key;
+	} keydata;
+	int size = 0, err;
+	byte buf[MAXPERSISTLENGTH];
 	Link *l;
-	PersistantData *data;
 	DB *db;
 	DBT key, val;
 
-	/* LOCK: we don't lock player status here because arena shouldn't be
-	 * changing while we're doing score stuff */
 	db = (arena == PERSIST_GLOBAL) ? globaldb : databases[arena];
 
 	if (!db)
 		/* no scores for this arena */
 		return;
 
-	strncpy(namebuf, pd->players[pid].name, 24);
+	strncpy(keydata.namebuf, pd->players[pid].name, 24);
 
 	for (l = LLGetHead(&ddlist); l; l = l->next)
 	{
-		data = (PersistantData*)l->data;
-		if (GLOBALTEST(arena, data->global))
-			size += data->length + 2 * sizeof(int); /* for length and id fields */
-	}
-
-	cp = value = alloca(size);
-
-	pd->LockPlayer(pid);
-
-	for (l = LLGetHead(&ddlist); l; l = l->next)
-	{
-		data = (PersistantData*)l->data;
-		if (GLOBALTEST(arena, data->global))
+		PersistantData *data = (PersistantData*)l->data;
+		if (good_arena(data->arena, arena))
 		{
-			int len = data->length, k = data->key;
-			memcpy(cp, &len, sizeof(int));
-			cp += sizeof(int);
-			memcpy(cp, &k, sizeof(int));
-			cp += sizeof(int);
-			data->GetData(pid, cp);
-			cp += len;
+			/* get data */
+			pd->LockPlayer(pid);
+			size = data->GetData(pid, buf, sizeof(buf));
+			pd->UnlockPlayer(pid);
+
+			if (size > 0)
+			{
+				/* put in db */
+				keydata.key = data->key;
+				key.data = &keydata;
+				key.size = sizeof(keydata);
+				val.data = buf;
+				val.size = size;
+				err = db->put(db, &key, &val, 0);
+				if (err == -1)
+					lm->Log(L_WARN, "<persist> {%s} Error %d entering key in database",
+							(arena == PERSIST_GLOBAL) ? "<global>" : arenas[arena].name);
+			}
 		}
 	}
-
-	pd->UnlockPlayer(pid);
-
-	assert((cp - value) == size);
-
-	key.data = namebuf;
-	key.size = 24;
-	val.data = value;
-	val.size = size;
-
-	/* do it! */
-	if (db->put(db, &key, &val, 0) == -1)
-		lm->Log(L_WARN, "<persist> {%s} Error entering key in database",
-				(arena == PERSIST_GLOBAL) ? "<global>" : arenas[arena].name);
 }
 
 
 local void DoGet(int pid, int arena)
 {
-	char namebuf[24];
-	int size = 0;
-	byte *value, *cp;
-	PersistantData *data;
+	struct
+	{
+		char namebuf[24];
+		int key;
+	} keydata;
 	Link *l;
 	DB *db;
-	DBT key, val;
 
 	pd->LockPlayer(pid);
 
 	/* first clear data */
 	for (l = LLGetHead(&ddlist); l; l = l->next)
 	{
-		data = (PersistantData*)l->data;
-		if (GLOBALTEST(arena, data->global))
+		PersistantData *data = (PersistantData*)l->data;
+		if (good_arena(data->arena, arena))
 			data->ClearData(pid);
 	}
 
-	/* LOCK: see above */
 	db = (arena == PERSIST_GLOBAL) ? globaldb : databases[arena];
 
 	if (!db) return;
 
 	/* now try to retrieve it */
-	strncpy(namebuf, pd->players[pid].name, 24);
+	strncpy(keydata.namebuf, pd->players[pid].name, 24);
 
-	key.data = namebuf;
-	key.size = 24;
-
-	if (db->get(db, &key, &val, 0) == -1)
-		return; /* new player */
-
-	cp = value = val.data;
-	size = val.size;
-
-	while ((cp - value) < size)
+	for (l = LLGetHead(&ddlist); l; l = l->next)
 	{
-		int len, k;
-		memcpy(&len, cp, sizeof(int));
-		cp += 4;
-		memcpy(&k, cp, sizeof(int));
-		cp += 4;
-		for (l = LLGetHead(&ddlist); l; l = l->next)
+		PersistantData *data = (PersistantData*)l->data;
+
+		if (good_arena(data->arena, arena))
 		{
-			data = (PersistantData*)l->data;
-			if (data->key == k && data->length == len && GLOBALTEST(arena, data->global))
-				data->SetData(pid, cp);
+			int err;
+			DBT key, val;
+
+			/* try to get data */
+			keydata.key = data->key;
+			key.data = &keydata;
+			key.size = sizeof(keydata);
+
+			err = db->get(db, &key, &val, 0);
+			if (err == 0)
+				data->SetData(pid, val.data, val.size);
 		}
-		if (len > 0) cp += len;
 	}
 
 	pd->UnlockPlayer(pid);
@@ -345,7 +338,7 @@ void *DBThread(void *dummy)
 
 DB *OpenDB(char *name)
 {
-	DB *db = dbopen(name, O_CREAT|O_RDWR, 0644, DB_HASH, NULL);
+	DB *db = dbopen(name, O_CREAT|O_RDWR, 0644, DB_BTREE, NULL);
 	/* sync once to avoid being left with zero-length files */
 	if (db) db->sync(db, 0);
 	return db;
@@ -408,16 +401,15 @@ void PersistAA(int arena, int action)
 }
 
 
-void RegPersistantData(PersistantData const *pd)
+void RegPersistantData(const PersistantData *pd)
 {
 	pthread_mutex_lock(&dbmtx);
-	if (pd->length > 0 && pd->length <= MAXPERSISTLENGTH)
-		LLAdd(&ddlist, (void*)pd);
+	LLAdd(&ddlist, (void*)pd);
 	pthread_mutex_unlock(&dbmtx);
 }
 
 
-void UnregPersistantData(PersistantData const *pd)
+void UnregPersistantData(const PersistantData *pd)
 {
 	pthread_mutex_lock(&dbmtx);
 	LLRemove(&ddlist, (void*)pd);
@@ -476,7 +468,7 @@ int SyncTimer(void *dummy)
 	msg->callback = NULL;
 	MPAdd(&dbq, msg);
 
-	lm->Log(L_INFO, "<persist> Collecting all persistant data and syncing to disk");
+	lm->Log(L_DRIVEL, "<persist> Collecting all persistant data and syncing to disk");
 
 	return 1;
 }

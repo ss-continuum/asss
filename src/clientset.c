@@ -16,6 +16,7 @@
 local void ActionFunc(int arena, int action);
 local void SendClientSettings(int pid);
 local void Reconfigure(int arena);
+local u32 GetChecksum(int arena, u32 key);
 
 /* global data */
 
@@ -40,7 +41,7 @@ local ArenaData *arenas;
 local Iclientset _myint =
 {
 	INTERFACE_HEAD_INIT(I_CLIENTSET, "clientset")
-	SendClientSettings, Reconfigure
+	SendClientSettings, Reconfigure, GetChecksum
 };
 
 /* the client settings definition */
@@ -204,6 +205,19 @@ void Reconfigure(int arena)
 	LoadSettings(arena);
 	net->SendToArena(arena, -1, data, sizeof(struct ClientSettings), NET_RELIABLE);
 	UNLOCK();
+}
+
+
+u32 GetChecksum(int arena, u32 key)
+{
+	u32 *data = (u32*)(settings + arena), csum = 0, i;
+
+	LOCK();
+	for (i = 0; i < 357; i++, data++)
+		csum += (*data ^ key);
+	UNLOCK();
+
+	return csum;
 }
 
 

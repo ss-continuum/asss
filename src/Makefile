@@ -15,6 +15,8 @@ SCRIPTS = ../scripts
 ALL_STUFF = asss $(EXTMODS)
 
 
+# the idea here is to have all the modules necessary for core
+# functionality and player logins to be in the main executable.
 INTMODS = config.o app.o   \
           player.o         \
           core.o           \
@@ -27,13 +29,16 @@ INTMODS = config.o app.o   \
           mapdata.o        \
           mapnewsdl.o      \
           clientset.o      \
-          capman.o
+          capman.o         \
+          security.o
 
+# these are things that the main executable needs to function.
 EXTRAOBJS = module.o       \
             util.o         \
             pathutil.o     \
             region.o
 
+# these are the other modules. their contents are below.
 EXTMODS = loggers.so       \
           game.so          \
           command.so       \
@@ -49,7 +54,7 @@ pre: sparse.inc letters.inc
 
 loggers.so: log_file.o log_console.o log_sysop.o
 
-game.so: game.o chat.o flags.o balls.o fm_normal.o banners.o
+game.so: game.o game_timer.o chat.o flags.o balls.o fm_normal.o banners.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -lm
 
 command.so: cmdman.o playercmd.o watchdamage.o
@@ -58,7 +63,6 @@ external.so: billcore.o directory.o
 
 scoring.so: persist.o stats.o points_kill.o points_flag.o points_goal.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -ldb1
-
 
 funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
 	fake.o autoturret.o objects.o

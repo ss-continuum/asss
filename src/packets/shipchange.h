@@ -5,8 +5,10 @@
 
 struct ShipChangePacket
 {
-	u8 type, shiptype;
-	i16 pnum, freq;
+	u8 type;
+	i8 shiptype;
+	i16 pnum;
+	i16 freq;
 };
 
 #endif
