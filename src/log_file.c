@@ -1,5 +1,6 @@
 
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 
 #include "asss.h"
@@ -8,12 +9,14 @@
 local void LogFile(const char *);
 local void FlushLog(void);
 local void ReopenLog(void);
+local int flush_timer(void *dummy);
 
 local FILE *logfile;
 local pthread_mutex_t logmtx = PTHREAD_MUTEX_INITIALIZER;
 
 local Iconfig *cfg;
 local Ilogman *lm;
+local Imainloop *ml;
 
 local Ilog_file _lfint =
 {
@@ -26,15 +29,24 @@ EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
 {
 	if (action == MM_LOAD)
 	{
+		int fp;
+
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 
-		if (!cfg || !lm) return MM_FAIL;
+		if (!cfg || !lm || !ml) return MM_FAIL;
 
 		logfile = NULL;
 		ReopenLog();
 
 		mm->RegCallback(CB_LOGFUNC, LogFile, ALLARENAS);
+
+		/* in minutes */
+		fp = cfg->GetInt(GLOBAL, "Log", "FileFlushPeriod", 10);
+
+		if (fp)
+			ml->SetTimer(flush_timer, fp * 60 * 100, fp * 60 * 100, NULL);
 
 		mm->RegInterface(&_lfint, ALLARENAS);
 
@@ -42,12 +54,15 @@ EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (logfile) fclose(logfile);
 		if (mm->UnregInterface(&_lfint, ALLARENAS))
 			return MM_FAIL;
+		if (logfile)
+			fclose(logfile);
+		ml->ClearTimer(flush_timer);
 		mm->UnregCallback(CB_LOGFUNC, LogFile, ALLARENAS);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(lm);
+		mm->ReleaseInterface(ml);
 		return MM_OK;
 	}
 	return MM_FAIL;
@@ -82,6 +97,12 @@ void FlushLog(void)
 	pthread_mutex_unlock(&logmtx);
 }
 
+int flush_timer(void *dummy)
+{
+	FlushLog();
+	return TRUE;
+}
+
 void ReopenLog(void)
 {
 	const char *ln;
@@ -92,10 +113,17 @@ void ReopenLog(void)
 	if (logfile)
 		fclose(logfile);
 
-	ln = cfg->GetStr(GLOBAL,"Log","LogFile");
-	if (!ln) ln = "asss.log";
+	ln = cfg->GetStr(GLOBAL, "Log", "LogFile");
+	if (!ln)
+		ln = "asss.log";
 
-	sprintf(fname, "log/%s", ln);
+	/* if it has a /, treat it as an absolute path. otherwise, prepend
+	 * 'log/' */
+	if (strchr(ln, '/'))
+		astrncpy(fname, ln, sizeof(fname));
+	else
+		snprintf(fname, sizeof(fname), "log/%s", ln);
+
 	logfile = fopen(fname, "a");
 
 	pthread_mutex_unlock(&logmtx);

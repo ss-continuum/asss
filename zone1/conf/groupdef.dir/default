@@ -8,6 +8,7 @@ cmd_myscore
 cmd_chat
 cmd_time
 cmd_jackpot
+cmd_buy
 
 cmd_version
 cmd_listmods
