@@ -2,12 +2,9 @@
 #ifndef __CORE_H
 #define __CORE_H
 
-/* see below for interface documentation */
-
 
 #include "packets/login.h"
 
-#include "packets/mapfname.h"
 
 /* FIXME: move these somewhere else, probably */
 
@@ -17,10 +14,19 @@ typedef struct AuthData
 	byte code;
 	char name[24];
 	char squad[24];
-	int killpoints, flagpoints;
-	int wins, losses, gameswon;
 } AuthData;
 
+
+/* playeraction stuff */
+
+#define CALLBACK_PLAYERACTION ("playeraction")
+
+#define PA_CONNECT     1
+#define PA_DISCONNECT  2
+#define PA_ENTERARENA  3
+#define PA_LEAVEARENA  4
+
+typedef void (*PlayerActionFunc)(int pid, int action);
 
 
 /* INTERFACES */
@@ -43,16 +49,16 @@ typedef struct Iassignfreq
 
 /*
  * the core module will call the authenticating module with the login
- * packet that was sent. the authenticator can do whatever it wants with
- * it, but it should probably call SendLoginResponse to send a response
- * back to the client.
+ * packet that was sent. the authenticator must call Done with the pid
+ * it was given and a pointer to an AuthData structure (may be located
+ * on the stack)
  *
  */
 
 typedef struct Iauth
 {
-	int (*Authenticate)(int pid, struct LoginPacket *lp,
-			void (*SendLoginResponse)(int pid, AuthData *data));
+	void (*Authenticate)(int pid, struct LoginPacket *lp,
+			void (*Done)(int pid, AuthData *data));
 } Iauth;
 
 

@@ -55,7 +55,6 @@ typedef struct ClientData
 
 /* retries, lastretry: only valid for buffers in outlist
  * pid, len: valid for all buffers
- * flags: ???
  */
 
 typedef struct Buffer
@@ -759,6 +758,9 @@ int NewConnection(struct sockaddr_in *sin)
 	players[i].type = S2C_PLAYERENTERING; /* restore type */
 	players[i].status = S_CONNECTED;
 	players[i].arena = -1;
+	players[i].pid = i;
+	players[i].shiptype = SPEC;
+	players[i].attachedto = -1;
 	return i;
 }
 

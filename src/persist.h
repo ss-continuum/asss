@@ -53,6 +53,7 @@ typedef struct Iscoreman
 	void (*RegPersistantData)(PersistantData *pd);
 	void (*UnregPersistantData)(PersistantData *pd);
 	int (*SyncToFile)(int pid, int global);
+	int (*SyncFromFileAsync)(int pid, int global, void (*callback)(int pid));
 	int (*SyncFromFile)(int pid, int global);
 } Iscoreman;
 

@@ -27,7 +27,7 @@ local Iarenaman *aman;
 local PlayerData *players;
 local ArenaData *arenas;
 
-local ConfigHandle *configops;
+local ConfigHandle configops;
 
 
 

@@ -18,7 +18,7 @@ local void RemovePacket(byte, PacketFunc);
 local int GetStatus();
 
 /* local: */
-local int BillingAuth(int, struct LoginPacket *, void (*)(int, AuthData*));
+local void BillingAuth(int, struct LoginPacket *, void (*)(int, AuthData*));
 
 local int SendPing(void *);
 local void SendLogin(int, byte *, int);
@@ -42,7 +42,7 @@ local Iconfig *cfg;
 local Icmdman *cmd;
 
 local int (*FindPlayer)(char *);
-local void (*CachedSendLoginResponse)(int, AuthData*);
+local void (*CachedAuthDone)(int, AuthData*);
 local PlayerData *players;
 
 local Iauth _iauth = { BillingAuth };
@@ -193,7 +193,7 @@ void DefaultCmd(const char *cmd, int pid, int target)
 }
 
 
-int BillingAuth(int pid, struct LoginPacket *lp, void (*SendLoginResponse)(int, AuthData*))
+void BillingAuth(int pid, struct LoginPacket *lp, void (*Done)(int, AuthData*))
 {
 	struct S2BPlayerEntering to =
 	{
@@ -211,7 +211,7 @@ int BillingAuth(int pid, struct LoginPacket *lp, void (*SendLoginResponse)(int, 
 		astrncpy(to.name, lp->name, 32);
 		astrncpy(to.pw, lp->password, 32);
 		SendToBiller((byte*)&to, sizeof(to), NET_RELIABLE);
-		CachedSendLoginResponse = SendLoginResponse;
+		CachedAuthDone = Done;
 	}
 	else
 	{	/* DEFAULT TO OLD AUTHENTICATION if billing server not available */
@@ -219,9 +219,8 @@ int BillingAuth(int pid, struct LoginPacket *lp, void (*SendLoginResponse)(int, 
 		memset(&auth, 0, sizeof(auth));
 		auth.code = AUTH_NOSCORES; /* tell client no scores kept */
 		astrncpy(auth.name, lp->name, 24);
-		SendLoginResponse(pid, &auth);
+		Done(pid, &auth);
 	}
-	return 0;
 }
 
 
@@ -236,6 +235,7 @@ void BAuthResponse(int bpid, byte *p, int n)
 	ad.code = r->loginflag;
 	astrncpy(ad.name, r->name, 24);
 	astrncpy(ad.squad, r->squad, 24);
+	/* all scores are local!
 	if (n >= sizeof(struct B2SPlayerResponse))
 	{
 		players[pid].wins = ad.wins = r->wins;
@@ -243,7 +243,8 @@ void BAuthResponse(int bpid, byte *p, int n)
 		players[pid].flagpoints = ad.flagpoints = r->flagpoints;
 		players[pid].killpoints = ad.killpoints = r->killpoints;
 	}
-	CachedSendLoginResponse(pid, &ad);
+	*/
+	CachedAuthDone(pid, &ad);
 	/* FIXME: do something about userid and usage information */
 	/* FIXME: handle banner data in banner module */
 }

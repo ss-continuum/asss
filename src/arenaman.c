@@ -7,6 +7,8 @@
 
 #include "packets/goarena.h"
 
+#include "packets/mapfname.h"
+
 /* PROTOTYPES */
 
 /* timers */
@@ -109,7 +111,7 @@ local void CallAA(int action, int arena)
 local void DoLoadArena(int arena)
 {
 	char fname[64];
-	ConfigHandle *config;
+	ConfigHandle config;
 
 	arenas[arena].status = ARENA_LOADING;
 
