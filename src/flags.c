@@ -114,6 +114,9 @@ int MM_flags(int action, Imodman *_mm, int arena)
 		ml->SetTimer(TurfFlagTimer, 1500, 1500, NULL);
 
 		mm->RegInterface(I_FLAGS, &_myint);
+
+		/* seed random number generator */
+		srand(GTC());
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
@@ -145,40 +148,45 @@ int MM_flags(int action, Imodman *_mm, int arena)
 
 void LoadFlagSettings(int arena)
 {
-	char *count, *c2;
 	struct MyArenaData d;
 	ConfigHandle c = aman->arenas[arena].cfg;
 
 	d.gametype = cfg->GetInt(c, "Flag", "GameType", FLAGGAME_NONE);
-	d.resetdelay = cfg->GetInt(c, "Flag", "ResetDelay", 0);
-	d.spawnx = cfg->GetInt(c, "Flag", "SpawnX", 512);
-	d.spawny = cfg->GetInt(c, "Flag", "SpawnY", 512);
-	d.spawnr = cfg->GetInt(c, "Flag", "SpawnRadius", 1024);
-	d.dropr = cfg->GetInt(c, "Flag", "DropRadius", 2);
-	d.neutr = cfg->GetInt(c, "Flag", "NeutRadius", 2);
-	d.friendlytransfer = cfg->GetInt(c, "Flag", "FriendlyTransfer", 1);
-	d.dropowned = cfg->GetInt(c, "Flag", "DropOwned", 1);
-	d.neutowned = cfg->GetInt(c, "Flag", "NeutOwned", 0);
 
-	count = cfg->GetStr(c, "Flag", "FlagCount");
-	if (count)
+	if (d.gametype == FLAGGAME_BASIC)
 	{
-		d.minflags = strtol(count, NULL, 0);
-		if (d.minflags < 0) d.minflags = 0;
-		c2 = strchr(count, '-');
-		if (c2)
+		char *count, *c2;
+		d.resetdelay = cfg->GetInt(c, "Flag", "ResetDelay", 0);
+		d.spawnx = cfg->GetInt(c, "Flag", "SpawnX", 512);
+		d.spawny = cfg->GetInt(c, "Flag", "SpawnY", 512);
+		d.spawnr = cfg->GetInt(c, "Flag", "SpawnRadius", 1024);
+		d.dropr = cfg->GetInt(c, "Flag", "DropRadius", 2);
+		d.neutr = cfg->GetInt(c, "Flag", "NeutRadius", 2);
+		d.friendlytransfer = cfg->GetInt(c, "Flag", "FriendlyTransfer", 1);
+		d.dropowned = cfg->GetInt(c, "Flag", "DropOwned", 1);
+		d.neutowned = cfg->GetInt(c, "Flag", "NeutOwned", 0);
+		count = cfg->GetStr(c, "Flag", "FlagCount");
+		if (count)
 		{
-			d.maxflags = strtol(c2+1, NULL, 0);
-			if (d.maxflags < d.minflags)
+			d.minflags = strtol(count, NULL, 0);
+			if (d.minflags < 0) d.minflags = 0;
+			c2 = strchr(count, '-');
+			if (c2)
+			{
+				d.maxflags = strtol(c2+1, NULL, 0);
+				if (d.maxflags < d.minflags)
+					d.maxflags = d.minflags;
+			}
+			else
 				d.maxflags = d.minflags;
 		}
 		else
-			d.maxflags = d.minflags;
+			d.maxflags = d.minflags = 0;
+		d.currentflags = 0;
 	}
-	else
-		d.maxflags = d.minflags = 0;
-
-	d.currentflags = 0;
+	else if (d.gametype == FLAGGAME_TURF)
+	{
+	}
 
 	LOCK_STATUS(arena);
 	pflagdata[arena] = d;
@@ -467,6 +475,16 @@ void PPickupFlag(int pid, byte *p, int len)
 	/* copy the fd struct so we can modify it */
 	fd = flagdata[arena].flags[cfp->fid];
 	oldfreq = fd.freq;
+
+	/* make sure someone else didn't get it first */
+	if (fd.state != FLAG_ONMAP)
+	{
+		logm->Log(L_MALICIOUS, "<flags> {%s} [%s] Tried to pick up a carried flag",
+				aman->arenas[arena].name,
+				pd->players[pid].name);
+		UNLOCK_STATUS(arena);
+		return;
+	}
 
 	switch (pflagdata[arena].gametype)
 	{
