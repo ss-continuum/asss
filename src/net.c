@@ -537,9 +537,7 @@ void * RecvThread(void *dummy)
 			tv.tv_usec = 0;
 
 			/* perform select */
-			printf("selecting...\n");
 		} while (select(maxfd+1, &fds, NULL, NULL, &tv) < 1 && !killallthreads);
-			printf("got data\n");
 
 		/* first handle the main socket */
 		if (FD_ISSET(mysock, &fds))

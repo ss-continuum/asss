@@ -49,7 +49,6 @@ local HashTable *opened;
 local int files = 0;
 
 local Imodman *mm;
-local Ilogman *lm;
 
 
 /* functions */
@@ -59,7 +58,6 @@ EXPORT int MM_config(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		files = 0;
 		opened = HashAlloc(23);
 		global = LoadConfigFile(NULL, NULL);
@@ -73,7 +71,6 @@ EXPORT int MM_config(int action, Imodman *mm_, int arena)
 			return MM_FAIL;
 		FreeConfigFile(global);
 		HashFree(opened);
-		mm->ReleaseInterface(lm);
 		return MM_OK;
 	}
 	return MM_FAIL;
@@ -82,8 +79,14 @@ EXPORT int MM_config(int action, Imodman *mm_, int arena)
 
 local void ReportError(const char *error)
 {
+	Ilogman *lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 	if (lm)
+	{
 		lm->Log(L_WARN, "<config> %s", error);
+		mm->ReleaseInterface(lm);
+	}
+	else
+		fprintf(stderr, "<config> %s\n", error);
 }
 
 local int LocateConfigFile(char *dest, int destlen, const char *arena, const char *name)

@@ -21,10 +21,12 @@ local Thread thd;
 
 local Imodman *mm;
 
-/* don't load these during initialization, it would make a cycle */
-local Iconfig *cfg;
-local Iplayerdata *pd;
-local Iarenaman *aman;
+/* don't load these during initialization, it would make a cycle. the
+ * noinit is a hint to detect-cycles.py that these interfaces aren't
+ * requested during initialization. */
+local /* noinit */ Iconfig *cfg;
+local /* noinit */ Iplayerdata *pd;
+local /* noinit */ Iarenaman *aman;
 
 local Ilogman _int =
 {

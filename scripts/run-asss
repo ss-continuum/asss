@@ -38,9 +38,9 @@ while $CONTINUE; do
   $ASSS
   EXIT=$?
 
-  if [ -f core ]; then
-    mv -f core core-`date +%m%d%H%M`
-  fi
+  for c in core*; do
+    mv $c $c-`date +%m%d%H%M`
+  done
 
   SLEEP=3
 

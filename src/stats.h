@@ -30,6 +30,7 @@ typedef struct Istats
 	/* arpc: void(int, int, int) */
 	/* increments a particular statistic */
 
+#if 0
 	void (*SetStat)(int pid, int stat, int value);
 	/* arpc: void(int, int, int) */
 	/* sets a statistic to a given value */
@@ -41,6 +42,7 @@ typedef struct Istats
 	void (*ResetAllStats)(int pid);
 	/* arpc: void(int, int, int) */
 	/* resets all stats to zero */
+#endif
 
 	void (*SendUpdates)(void);
 	/* arpc: void(void) */
