@@ -3,24 +3,20 @@
 short term
 ----------
 
-think hard about threading
+add states for saving _to_ file
 
-implement some threading
+scoreman!
 
-separate core into:
-  arenaman - uses new threading
-  logon
-  mapnewsdl
+more game stuff
+
+persistant arena names for ?arena
 
 
 
 long term
 ---------
 
-add a tiny bit more threading: a separate thread for unreliable packets
-  might make sense. keep security in mind: don't let arbitrary packets
-  be processed in the other thread without sufficient locking. possibly
-  restrict to certain packet types.
+python module support
 
 make an array for "connection titles" in Inet and have core set them
   so net doesn't require core and can be used unchanged for billcore
@@ -31,36 +27,5 @@ make banner plugin (wait until billing server stuff working, because
 make module that contains map data for arenas
 
 make brick module that uses map data module
-
-work on net so that it's easy to simulate players. preferably be able
-  to simulate them without sending artificial login packet
-
-fix map compression!
-
-get module loading/unloading during run working
-
-module dependencies?
-
-dynamic extension!
-
-
-
-done
-----
-
-some nice way to make client-side settings packet: #include
-  it's not perfect, but it's the best I can think of for now
-
-get rid of crashes from using arenas[-1] (i hope)
-
-deciphered client settings packet! woo!
-
-restructured big chunks of the internals so it's even more modular and
-  extendable than before, if such a thing is possible
-
-begun work on billing server protocol. it looks easier than I thought,
-  so minimal billing server support might be in here sooner than I
-  expected.
-
 
 
