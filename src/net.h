@@ -72,7 +72,6 @@ typedef struct Inet
 	void (*AddPacket)(byte pktype, PacketFunc func);
 	void (*RemovePacket)(byte pktype, PacketFunc func);
 	int (*NewConnection)(struct sockaddr_in *sin);
-	int (*GetStatus)(int pid);
 	i32 (*GetIP)(int pid);
 } Inet;
 
