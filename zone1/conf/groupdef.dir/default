@@ -19,6 +19,8 @@ cmd_uptime
 cmd_lag
 privcmd_lag
 
+cmd_last
+
 ; this isn't as dangerous as it looks.
 ; you need more capabilities to set other people's groups.
 privcmd_setgroup

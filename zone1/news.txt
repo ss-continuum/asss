@@ -10,6 +10,8 @@ see it eventually (it all gets logged).
 
 
 Recent updates:
+    * ?last - shows you last 10 people to log in
+
     * password security - type ?passwd=foobar to set one
 
     * alias database with mysql support
