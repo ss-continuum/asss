@@ -1101,7 +1101,7 @@ MMapData * MapFile(const char *filename, int writable)
 
 	mmd->data = MapViewOfFile(
 			pmmd->hMapping,
-			writable ? FILE_MAP_READ : FILE_MAP_ALL_ACCESS,
+			writable ? FILE_MAP_ALL_ACCESS : FILE_MAP_READ,
 			0, 0, 0);
 	if (!mmd->data)
 		goto fail3;
@@ -1146,7 +1146,7 @@ int UnmapFile(MMapData *mmd)
 	PrivMMD *pmmd = (PrivMMD*)(mmd+1);
 	UnmapViewOfFile(mmd->data);
 	CloseHandle(pmmd->hMapping);
-	CloseHandle(ppmd->hFile);
+	CloseHandle(pmmd->hFile);
 #else
 	munmap(mmd->data, mmd->len);
 #endif
