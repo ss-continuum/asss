@@ -322,12 +322,15 @@ local ConfigHandle OpenConfigFile(const char *arena, const char *name,
 		return NULL;
 
 	/* first try to get it out of the table */
+	pthread_mutex_lock(&cfgmtx);
 	thefile = HashGetOne(opened, fname);
 	if (thefile)
 	{
 		thefile->refcount++;
+		pthread_mutex_unlock(&cfgmtx);
 		return thefile;
 	}
+	pthread_mutex_unlock(&cfgmtx);
 
 	/* if not, make a new one */
 	thefile = new_file();
