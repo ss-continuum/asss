@@ -81,7 +81,7 @@ enum
 	/* auth done, will request global sync */
 
 	S_WAIT_GLOBAL_SYNC,
-	/* waiting for sync global persistant data to complete */
+	/* waiting for sync global persistent data to complete */
 
 	S_DO_GLOBAL_CALLBACKS,
 	/* global sync done, will call global player connecting callbacks */

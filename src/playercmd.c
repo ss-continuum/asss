@@ -602,7 +602,7 @@ local void Cinfo(const char *params, int pid, const Target *target)
 			struct chat_client_stats s;
 			chatnet->GetClientStats(t, &s);
 			chat->SendMessage(pid,
-					"%s: ip=%s  port=%d  encname=%s",
+					"%s: ip=%s  port=%d",
 					prefix, s.ipaddr, s.port);
 		}
 	}
@@ -614,13 +614,14 @@ local helptext_t setcm_help =
 "Args: see description\n"
 "Modifies the chat mask for the target player, or if no target, for the\n"
 "current arena. The arguments must all be of the form\n"
-"{(-|+)(pub|pubmacro|freq|nmefreq|priv|chat|modchat|all)}. A minus\n"
-"sign and then a word disables that type of chat, and a plus sign enables\n"
-"it. The special type {all} means to apply the plus or minus to\n"
-"all of the above types.\n"
+"{(-|+)(pub|pubmacro|freq|nmefreq|priv|chat|modchat|all)} or {-time <seconds>}.\n"
+"A minus sign and then a word disables that type of chat, and a plus sign\n"
+"enables it. The special type {all} means to apply the plus or minus to\n"
+"all of the above types. {-time} lets you specify a timeout in seconds.\n"
+"The mask will be effective for that time, even across logouts.\n"
 "\n"
 "Examples:\n"
-" * If someone is spamming public macros: {:player:?setcm -pubmacro}\n"
+" * If someone is spamming public macros: {:player:?setcm -pubmacro -time 600}\n"
 " * To disable all blue messages for this arena: {?setcm -pub -pubmacro}\n"
 " * An equivalent to *shutup: {:player:?setcm -all}\n"
 " * To restore chat to normal: {?setcm +all}\n"
@@ -632,6 +633,7 @@ local helptext_t setcm_help =
 local void Csetcm(const char *params, int pid, const Target *target)
 {
 	chat_mask_t mask;
+	int timeout = 0;
 	const char *c = params;
 
 	/* grab the original mask */
@@ -676,6 +678,9 @@ local void Csetcm(const char *params, int pid, const Target *target)
 		if (all || !strncasecmp(c, "modchat", 7))
 			newmask |= 1 << MSG_MODCHAT;
 
+		if (!strncasecmp(c, "time", 4))
+			timeout = strtol(c+4, NULL, 0);
+
 		/* change it */
 		if (c[-1] == '+')
 			mask &= ~newmask;
@@ -687,7 +692,7 @@ local void Csetcm(const char *params, int pid, const Target *target)
 	if (target->type == T_ARENA)
 		chat->SetArenaChatMask(target->u.arena, mask);
 	else
-		chat->SetPlayerChatMask(target->u.pid, mask);
+		chat->SetPlayerChatMask(target->u.pid, mask, timeout);
 }
 
 local helptext_t getcm_help =

@@ -20,6 +20,13 @@
 #define CFG_LOG_PRIVATE
 
 
+/* whether to enable persistent chat masks. this is normally a good
+ * idea. the only downside is that it introduces a dependence of chat on
+ * persist (i.e. you can't enable chatting without also loading the
+ * database module. */
+#define CFG_PERSISTENT_CHAT_MASKS
+
+
 /* the format for printing time in log files, and the maximum number of
  * characters that the time could possibly take. */
 #define CFG_TIMEFORMAT "%b %d %H:%M:%S"
@@ -57,7 +64,7 @@
 #define CFG_MAX_BIG_PACKET 524288
 
 
-/* maximum length of module-defined persistant data */
+/* maximum length of module-defined persistent data */
 #define CFG_MAX_PERSIST_LENGTH 1024
 
 

@@ -176,7 +176,7 @@ local void DoPut(int pid, int arena)
 
 	for (l = LLGetHead(&ddlist); l; l = l->next)
 	{
-		PersistantData *data = (PersistantData*)l->data;
+		PersistentData *data = (PersistentData*)l->data;
 		if (good_arena(data->scope, arena))
 		{
 			/* get data */
@@ -235,7 +235,7 @@ local void DoGet(int pid, int arena)
 
 	for (l = LLGetHead(&ddlist); l; l = l->next)
 	{
-		PersistantData *data = (PersistantData*)l->data;
+		PersistentData *data = (PersistentData*)l->data;
 
 		if (good_arena(data->scope, arena))
 		{
@@ -309,7 +309,7 @@ local void DoEnd(int arena, int interval)
 	/* now clear all data for this arena/interval */
 	for (l = LLGetHead(&ddlist); l; l = l->next)
 	{
-		PersistantData *data = (PersistantData*)l->data;
+		PersistentData *data = (PersistentData*)l->data;
 		if (good_arena(data->scope, arena))
 		{
 			int pid;
@@ -397,7 +397,7 @@ local void *DBThread(void *dummy)
 }
 
 
-local void RegPersistantData(const PersistantData *pd)
+local void RegPersistentData(const PersistentData *pd)
 {
 	pthread_mutex_lock(&dbmtx);
 	if (pd->interval >= 0 &&
@@ -409,7 +409,7 @@ local void RegPersistantData(const PersistantData *pd)
 }
 
 
-local void UnregPersistantData(const PersistantData *pd)
+local void UnregPersistentData(const PersistentData *pd)
 {
 	pthread_mutex_lock(&dbmtx);
 	LLRemove(&ddlist, (void*)pd);
@@ -481,7 +481,7 @@ local int SyncTimer(void *dummy)
 	msg->callback = NULL;
 	MPAdd(&dbq, msg);
 
-	lm->Log(L_DRIVEL, "<persist> Collecting all persistant data and syncing to disk");
+	lm->Log(L_DRIVEL, "<persist> Collecting all persistent data and syncing to disk");
 
 	return 1;
 }
@@ -566,7 +566,7 @@ local void close_db(void)
 local Ipersist _myint =
 {
 	INTERFACE_HEAD_INIT(I_PERSIST, "persist-bdb185")
-	RegPersistantData, UnregPersistantData,
+	RegPersistentData, UnregPersistentData,
 	SyncToFile, SyncFromFile,
 	EndInterval,
 	StabilizeScores

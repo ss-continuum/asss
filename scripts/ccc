@@ -2,7 +2,7 @@
 # ccc - a console chat client for asss
 # <grelminar@yahoo.com>
 
-import sys, time, signal, curses, socket, select
+import sys, time, signal, curses, socket, select, os
 
 
 class MyWindows:

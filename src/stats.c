@@ -212,7 +212,7 @@ local void clear_stats_enum(TreapHead *node, void *clos)
 	si->dirty = 1;
 }
 
-#define DO_PERSISTANT_DATA(ival, code)                                         \
+#define DO_PERSISTENT_DATA(ival, code)                                         \
                                                                                \
 local int get_##ival##_data(int pid, void *data, int len)                      \
 {                                                                              \
@@ -238,17 +238,17 @@ local void clear_##ival##_data(int pid)                                        \
     TrEnum((TreapHead*)ival##_stats[pid], NULL, clear_stats_enum);             \
 }                                                                              \
                                                                                \
-local PersistantData my_##ival##_data =                                        \
+local PersistentData my_##ival##_data =                                        \
 {                                                                              \
     KEY_STATS, ALLARENAS, code,                                                \
     get_##ival##_data, set_##ival##_data, clear_##ival##_data                  \
 };
 
-DO_PERSISTANT_DATA(forever, INTERVAL_FOREVER)
-DO_PERSISTANT_DATA(reset, INTERVAL_RESET)
-DO_PERSISTANT_DATA(game, INTERVAL_GAME)
+DO_PERSISTENT_DATA(forever, INTERVAL_FOREVER)
+DO_PERSISTENT_DATA(reset, INTERVAL_RESET)
+DO_PERSISTENT_DATA(game, INTERVAL_GAME)
 
-#undef DO_PERSISTANT_DATA
+#undef DO_PERSISTENT_DATA
 
 
 
@@ -317,9 +317,9 @@ EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 
 		cmd->AddCommand("stats", Cstats, stats_help);
 
-		persist->RegPersistantData(&my_forever_data);
-		persist->RegPersistantData(&my_reset_data);
-		persist->RegPersistantData(&my_game_data);
+		persist->RegPersistentData(&my_forever_data);
+		persist->RegPersistentData(&my_reset_data);
+		persist->RegPersistentData(&my_game_data);
 
 		mm->RegInterface(&_myint, ALLARENAS);
 		return MM_OK;
@@ -328,9 +328,9 @@ EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 	{
 		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
-		persist->UnregPersistantData(&my_forever_data);
-		persist->UnregPersistantData(&my_reset_data);
-		persist->UnregPersistantData(&my_game_data);
+		persist->UnregPersistentData(&my_forever_data);
+		persist->UnregPersistentData(&my_reset_data);
+		persist->UnregPersistentData(&my_game_data);
 
 		cmd->RemoveCommand("stats", Cstats);
 

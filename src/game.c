@@ -231,6 +231,10 @@ void Pppk(int pid, byte *p2, int n)
 		     (p->status & 0x08) && /* FIXME: replace with symbolic constant or bitfield */
 		     rand() < cfg_sendanti)
 			sendtoall = 1;
+		/* send safe zone enters to everyone */
+		if ((p->status && 0x20) &&
+		    !(players[pid].position.status & 0x20))
+			sendtoall = 2;
 
 		if (sendwpn)
 		{
@@ -243,6 +247,8 @@ void Pppk(int pid, byte *p2, int n)
 			wpn.extra = p->extra;
 
 			nflags = NET_UNRELIABLE | (p->weapon.type ? NET_PRI_P5 : NET_PRI_P3);
+			if (sendtoall == 2)
+				nflags |= NET_RELIABLE;
 
 			for (i = 0; i < MAXPLAYERS; i++)
 				if (players[i].status == S_PLAYING &&
@@ -304,6 +310,8 @@ void Pppk(int pid, byte *p2, int n)
 			};
 
 			nflags = NET_UNRELIABLE | NET_PRI_P3;
+			if (sendtoall == 2)
+				nflags |= NET_RELIABLE;
 
 			for (i = 0; i < MAXPLAYERS; i++)
 				if (players[i].status == S_PLAYING &&

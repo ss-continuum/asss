@@ -55,8 +55,9 @@ typedef struct Ichat
 	/* arpc: void(int, ushort) */
 	chat_mask_t (*GetPlayerChatMask)(int pid);
 	/* arpc: ushort(int) */
-	void (*SetPlayerChatMask)(int pid, chat_mask_t mask);
-	/* arpc: void(int, ushort) */
+	void (*SetPlayerChatMask)(int pid, chat_mask_t mask, int timeout);
+	/* arpc: void(int, ushort, int) */
+	/* (timeout is 0 to mean 'for a session mask, or a number of seconds) */
 } Ichat;
 
 
