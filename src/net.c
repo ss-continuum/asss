@@ -7,6 +7,7 @@
 #include <string.h>
 #include <limits.h>
 #include <assert.h>
+#include <math.h>
 
 #ifndef WIN32
 #include <sys/socket.h>
@@ -36,8 +37,13 @@
 /* debugging option to dump raw packets to the console */
 /* #define CFG_DUMP_RAW_PACKETS */
 
+/* log stupid stuff, like when we get packets from unknown sources */
+/* #define CFG_LOG_STUPID_STUFF */
+
 
 /* other internal constants */
+
+#define LIMITSCALE 512
 
 #define MAXTYPES 64
 
@@ -79,7 +85,7 @@
 )
 
 #define CALC_LIMIT(limit, bts, pri) \
-		((bts) + ((limit) * ((bts) > (limit) ? 3 : 2) / 2 - (bts)) * pri_limits[pri] / 100)
+		((bts) + ((limit) * ((bts) > (limit) ? 5 : 4) / 4 - (bts)) * pri_limits[pri] / 100)
 
 /* internal flags */
 #define NET_ACK 0x0100
@@ -294,7 +300,7 @@ local int pri_limits[OUTLISTS] =
 	60,  /* low pri unrel */
 	80,  /* reg pri unrel */
 	100, /* high pri unrel  */
-	50,  /* rel */
+	40,  /* rel */
 	200  /* ack */
 };
 
@@ -408,7 +414,7 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		 * before dropping him. */
 		config.maxoutlist = cfg->GetInt(GLOBAL, "Net", "MaxOutlistSize", 200);
 		/* (deliberately) undocumented settings */
-		config.maxretries = cfg->GetInt(GLOBAL, "Net", "MaxRetries", 10);
+		config.maxretries = cfg->GetInt(GLOBAL, "Net", "MaxRetries", 15);
 		config.queue_threshold = cfg->GetInt(GLOBAL, "Net", "PresizedQueueThreshold", 5);
 		config.queue_packets = cfg->GetInt(GLOBAL, "Net", "PresizedQueuePackets", 25);
 		config.client_can_buffer = cfg->GetInt(GLOBAL, "Net", "SendAtOnce", 30);
@@ -940,6 +946,7 @@ local void handle_game_packet(ListenData *ld)
 		if (IS_CONNINIT(buf))
 			DO_CBS(CB_CONNINIT, ALLARENAS, ConnectionInitFunc,
 					(&sin, buf->d.raw, len, ld));
+#ifdef CFG_LOG_STUPID_STUFF
 		else if (len > 1)
 			lm->Log(L_DRIVEL, "<net> recvd data (%02x %02x ; %d bytes) "
 					"before connection established",
@@ -948,6 +955,7 @@ local void handle_game_packet(ListenData *ld)
 			lm->Log(L_DRIVEL, "<net> recvd data (%02x ; %d byte) "
 					"before connection established",
 					buf->d.raw[0], len);
+#endif
 		goto freebuf;
 	}
 
@@ -1439,8 +1447,10 @@ local void send_outgoing(ConnData *conn)
 	/* use an estimate of the average round-trip time to figure out when
 	 * to resend a packet */
 	unsigned long timeout = conn->avgrtt + 4*conn->rttdev;
+	int cansend = conn->limit / 512;
 
-	CLIP(timeout, 50, 2000);
+	CLIP(timeout, 100, 2000);
+	CLIP(cansend, 1, config.client_can_buffer);
 
 	/* adjust the current idea of how many bytes have been sent in the
 	 * last second */
@@ -1475,14 +1485,14 @@ local void send_outgoing(ConnData *conn)
 
 			outlistlen++;
 
-			/* check if it's time to send this yet (increase timeout
-			 * exponentially). */
+			/* check if it's time to send this yet (use linearly
+			 * increasing timeouts) */
 			if (buf->retries != 0 &&
-			    (unsigned long)TICK_DIFF(now, buf->lastretry) <= (timeout << (buf->retries-1)))
+			    (unsigned long)TICK_DIFF(now, buf->lastretry) <= timeout * buf->retries)
 				continue;
 
 			/* only buffer fixed number of rel packets to client */
-			if (IS_REL(buf) && (buf->d.rel.seqnum - minseqnum) > config.client_can_buffer)
+			if (IS_REL(buf) && (buf->d.rel.seqnum - minseqnum) > cansend)
 				continue;
 
 			if ((bytessince + buf->len + config.overhead) > limit)
@@ -1509,10 +1519,10 @@ local void send_outgoing(ConnData *conn)
 			}
 			else if (buf->retries > 0)
 			{
-				/* this is a retry, not an initial send. record it
-				 * for lag stats and also halve bw limit (with
-				 * clipping) */
+				/* this is a retry, not an initial send. record it for
+				 * lag stats and also reduce bw limit (with clipping) */
 				retries++;
+				conn->limit += sqrt(conn->limit * conn->limit - 4 * LIMITSCALE * LIMITSCALE);
 				conn->limit /= 2;
 				CLIP(conn->limit, config.limit_low, config.limit_high);
 			}
@@ -1680,7 +1690,7 @@ void * SendThread(void *dummy)
 			    IS_OURS(p) &&
 			    pthread_mutex_trylock(&conn->olmtx) == 0)
 			{
-				send_outgoing(conn); // sometimes conn is zeroed here
+				send_outgoing(conn); // BUG FIXME: sometimes conn is zeroed here
 				submit_rel_stats(p);
 				pthread_mutex_unlock(&conn->olmtx);
 			}
@@ -2100,7 +2110,7 @@ void ProcessAck(Buffer *buf)
 			}
 			else
 #endif
-				conn->limit += 540*540/conn->limit;
+				conn->limit += LIMITSCALE*LIMITSCALE/conn->limit;
 
 			CLIP(conn->limit, config.limit_low, config.limit_high);
 
