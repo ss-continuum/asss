@@ -268,8 +268,6 @@ local void handle_pub(int pid, const char *msg, int ismacro)
 			chatnet->SendToArena(arena, pid, "MSG:PUB:%s:%s",
 				players[pid].name,
 				msg);
-
-		check_flood(pid);
 	}
 }
 
@@ -302,8 +300,6 @@ local void handle_modchat(int pid, const char *msg)
 			if (chatnet) chatnet->SendToSet(set, "MSG:MOD:%s:%s",
 					players[pid].name, msg);
 			lm->LogP(L_DRIVEL, "chat", pid, "Mod chat: %s", msg);
-
-			check_flood(pid);
 		}
 		else
 		{
@@ -356,8 +352,6 @@ local void handle_freq(int pid, int freq, const char *msg)
 				msg);
 
 		lm->LogP(L_DRIVEL, "chat", pid, "Freq msg (%d): %s", freq, msg);
-
-		check_flood(pid);
 	}
 }
 
@@ -393,8 +387,6 @@ local void handle_priv(int pid, int dst, const char *msg)
 		else if (IS_CHAT(dst))
 			chatnet->SendToOne(dst, "MSG:PRIV:%s:%s",
 					players[pid].name, msg);
-
-		check_flood(pid);
 	}
 }
 
@@ -404,7 +396,6 @@ local void handle_chat(int pid, const char *msg)
 #ifdef CFG_LOG_PRIVATE
 	lm->LogP(L_DRIVEL, "chat", pid, "Chat msg: %s", msg);
 #endif
-	check_flood(pid);
 }
 
 
@@ -465,6 +456,8 @@ local void PChat(int pid, byte *p, int len)
 			handle_chat(pid, from->text);
 			break;
 	}
+
+	check_flood(pid);
 }
 
 
@@ -502,6 +495,8 @@ local void MChat(int pid, const char *line)
 		handle_chat(pid, t);
 	else if (!strcasecmp(subtype, "MOD"))
 		handle_modchat(pid, t);
+
+	check_flood(pid);
 }
 
 
