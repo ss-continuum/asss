@@ -108,7 +108,7 @@ typedef int (*ModMain)(int action, Imodman *mm, int arena);
 /* all module entry points must be of this type */
 
 
-Imodman * InitModuleManager();
+Imodman * InitModuleManager(void);
 
 
 /* nice macros to set interface variables */

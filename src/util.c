@@ -63,7 +63,7 @@ static HashEntry *freehashentries = NULL;
 #endif
 
 
-unsigned int GTC()
+unsigned int GTC(void)
 {
 	struct timeval tv;
 	gettimeofday(&tv,NULL);
@@ -150,7 +150,7 @@ void LLInit(LinkedList *lst)
 	lst->start = lst->end = NULL;
 }
 
-LinkedList * LLAlloc()
+LinkedList * LLAlloc(void)
 {
 	LinkedList *ret;
 #ifdef USE_GC
@@ -601,7 +601,7 @@ struct StringChunk
 	char data[SCSIZE];
 };
 
-StringChunk *SCAlloc()
+StringChunk *SCAlloc(void)
 {
 	StringChunk *c;
 

@@ -50,7 +50,7 @@
 
 /* miscelaneous stuff */
 
-unsigned int GTC();
+unsigned int GTC(void);
 
 char *RemoveCRLF(char *str);
 
@@ -80,7 +80,7 @@ struct LinkedList
 
 typedef struct LinkedList LinkedList;
 
-LinkedList * LLAlloc();
+LinkedList * LLAlloc(void);
 void LLInit(LinkedList *lst);
 void LLEmpty(LinkedList *lst);
 void LLFree(LinkedList *lst);
@@ -97,7 +97,7 @@ Link *LLGetHead(LinkedList *lst);
 
 typedef struct HashTable HashTable;
 
-HashTable * HashAlloc();
+HashTable * HashAlloc(void);
 void HashFree(HashTable *ht);
 void HashEnum(HashTable *ht, void (*func)(void *));
 void HashAdd(HashTable *ht, const char *key, void *data);
@@ -128,7 +128,7 @@ void DQRemove(DQNode *node);
 
 typedef struct StringChunk StringChunk;
 
-StringChunk *SCAlloc();
+StringChunk *SCAlloc(void);
 char *SCAdd(StringChunk *chunk, char *str);
 void SCFree(StringChunk *chunk);
 

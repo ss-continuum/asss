@@ -31,7 +31,7 @@ local void PMapRequest(int, byte *, int);
 local void ArenaAction(int, int);
 
 local void SendMapFilename(int pid);
-local u32 GetNewsChecksum();
+local u32 GetNewsChecksum(void);
 
 
 /* GLOBALS */
@@ -124,7 +124,7 @@ int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 }
 
 
-u32 GetNewsChecksum()
+u32 GetNewsChecksum(void)
 {
 	if (!cmpnews)
 		RefreshNewsTxt(0);

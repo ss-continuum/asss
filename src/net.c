@@ -90,7 +90,7 @@ local void KillConnection(int pid);
 local void BufferPacket(int, byte *, int, int);
 local void ProcessBuffer(Buffer *);
 local void InitSockets(void);
-local Buffer * GetBuffer();
+local Buffer * GetBuffer(void);
 local void FreeBuffer(Buffer *);
 
 /* threads: */
@@ -294,7 +294,7 @@ i32 GetIP(int pid)
 }
 
 
-Buffer * GetBuffer()
+Buffer * GetBuffer(void)
 {
 	DQNode *dq;
 

@@ -17,7 +17,7 @@
 
 /* prototypes */
 
-local int ConnectToSchemeServer();
+local int ConnectToSchemeServer(void);
 local void * SchemeThread(void *);
 local int ProcessMessage(void *, int);
 
@@ -89,7 +89,7 @@ int MM_scheme(int action, Imodman *_mm, int arena)
 }
 
 
-int ConnectToSchemeServer()
+int ConnectToSchemeServer(void)
 {
 	struct sockaddr_in sin;
 	int sock;

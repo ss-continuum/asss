@@ -15,7 +15,7 @@
 local void SendToBiller(byte *, int, int);
 local void AddPacket(byte, PacketFunc);
 local void RemovePacket(byte, PacketFunc);
-local int GetStatus();
+local int GetStatus(void);
 
 /* local: */
 local void BillingAuth(int, struct LoginPacket *, void (*)(int, AuthData*));
@@ -138,7 +138,7 @@ void RemovePacket(byte pktype, PacketFunc func)
 	net->RemovePacket(pktype + PKT_BILLBASE, func);
 }
 
-int GetStatus()
+int GetStatus(void)
 {
 	return players[PID_BILLER].status;
 }

@@ -62,7 +62,7 @@ local Imodman mmint =
 
 /* return an entry point */
 
-Imodman * InitModuleManager()
+Imodman * InitModuleManager(void)
 {
 	int i;
 	mods = LLAlloc();
