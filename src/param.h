@@ -2,6 +2,7 @@
 /* this file holds various compile-time parameters to control the
  * server's behavior. */
 
+/* pyconst: config, "CFG_*" */
 
 /* the search path for config files */
 #define CFG_CONFIG_SEARCH_PATH "arenas/%b/%n:conf/%n:%n:arenas/(default)/%n"
@@ -119,5 +120,6 @@
 #define CFG_DYNAMIC_PPD
 
 
+/* pyconst: config end */
 /* dist: public */
 

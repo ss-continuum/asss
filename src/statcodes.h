@@ -9,6 +9,8 @@
 
 enum stat_t
 {
+	/* pyconst: enum, "STAT_*" */
+
 	/* these four correspond to the standard subspace statistics */
 	STAT_KILL_POINTS = 0,
 	STAT_FLAG_POINTS,
@@ -58,6 +60,8 @@ enum stat_t
 /* these are the possible intervals */
 enum interval_t
 {
+	/* pyconst: enum, "INTERVAL_*" */
+
 	/* these are shared between arenas with the same arenagrp */
 	INTERVAL_FOREVER = 0,
 	INTERVAL_RESET,

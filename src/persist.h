@@ -45,6 +45,8 @@
 
 typedef enum persist_scope_t
 {
+	/* pyconst: enum, "PERSIST_*" */
+
 	PERSIST_ALLARENAS,
 	/* using this for scope means per-player data in every arena */
 	/* using this for scope means per-arena data will be stored

@@ -42,6 +42,7 @@ struct Arena
 
 enum
 {
+	/* pyconst: enum, "AA_*" */
 	/** when arena is created */
 	AA_CREATE,
 	/** when config file changes */

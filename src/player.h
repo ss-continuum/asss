@@ -15,6 +15,8 @@
 /** client types */
 enum
 {
+	/* pyconst: enum, "T_*" */
+
 	T_UNKNOWN,
 	/* this probably won't be used */
 
@@ -45,6 +47,8 @@ enum
 /** player status codes */
 enum
 {
+	/* pyconst: enum, "S_*" */
+
 	/** player is connected (key exchange completed) but has not logged
 	 ** in yet */
 	S_CONNECTED,

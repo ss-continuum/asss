@@ -13,6 +13,7 @@
 
 
 /* authentication return codes */
+/* pyconst: define int, "AUTH_*" */
 #define AUTH_OK             0x00   /* success */
 #define AUTH_NEWNAME        0x01   /* fail */
 #define AUTH_BADPASSWORD    0x02   /* fail */
@@ -61,6 +62,7 @@ typedef struct AuthData
 /** playeraction event codes */
 enum
 {
+	/* pyconst: enum, "PA_*" */
 	/** the player is connecting to the server. not arena-specific. */
 	PA_CONNECT,
 	/** the player is disconnecting from the server. not arena-specific. */

@@ -119,6 +119,7 @@ typedef struct Igroupman
 
 /* some standard capability names */
 
+/* pyconst: define string, "CAP_*" */
 /** if a player can see mod chat messages */
 #define CAP_MODCHAT               "seemodchat"
 /** if a player can send mod chat messages */

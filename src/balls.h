@@ -11,6 +11,7 @@
 
 typedef enum
 {
+	/* pyconst: enum, "BALL_*" */
 	BALL_NONE,    /* the ball doesn't exist */
 	BALL_ONMAP,   /* the ball is on the map or has been fired */
 	BALL_CARRIED, /* the ball is being carried */

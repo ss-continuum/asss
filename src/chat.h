@@ -9,6 +9,7 @@
  */
 
 /* types of chat messages */
+/* pyconst: define int, "MSG_*" */
 #define MSG_ARENA        0   /**< arena messages (in green) */
 #define MSG_PUBMACRO     1   /**< macros as public arena chat */
 #define MSG_PUB          2   /**< public arena chat */

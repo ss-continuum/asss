@@ -26,6 +26,7 @@
 
 
 /* priority levels */
+/* pyconst: define int, "L_*" */
 #define L_DRIVEL     'D'  /**< really useless info */
 #define L_INFO       'I'  /**< informative info */
 #define L_MALICIOUS  'M'  /**< bad stuff from the client side */

@@ -1533,8 +1533,8 @@ local void init_asss_module(void)
 #define ONE(x) PyModule_AddIntConstant(m, #x, 1);
 #include "py_constants.inc"
 #undef STRING
-#undef CALLBACK
-#undef INTERFACE
+#undef PYCALLBACK
+#undef PYINTERFACE
 #undef INT
 #undef ONE
 }

@@ -6,6 +6,7 @@
 
 typedef enum
 {
+	/* pyconst: enum, "BILLING_*" */
 	BILLING_DISABLED = 0,
 	BILLING_DOWN = 1,
 	BILLING_UP = 2

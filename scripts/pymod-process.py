@@ -8,31 +8,7 @@ DEFBUFLEN = 1024
 # lots of precompiled regular expressions
 
 # constants
-re_int = re.compile(r'#define (I_[A-Z_0-9]*)')
-re_cb = re.compile(r'#define (CB_[A-Z_0-9]*)')
-re_msg = re.compile(r'#define (MSG_[A-Z_0-9]*)')
-re_caps = re.compile(r'#define (CAP_[A-Z_0-9]*)')
-re_log = re.compile(r'#define (L_[A-Z_0-9]*)')
-re_mm1 = re.compile(r'#define (MM_[A-Z_0-9]*)')
-re_cfg_str = re.compile(r'#define (CFG_[A-Z_0-9]*) "')
-re_cfg_int = re.compile(r'#define (CFG_[A-Z_0-9]*) [0-9]')
-re_cfg_one = re.compile(r'#define (CFG_[A-Z_0-9]*)$')
-
-re_actions = re.compile(r'\t([PA_0-9]A_[A-Z]*)')
-re_ball = re.compile(r'\t(BALL_[A-Z_0-9]*)')
-re_flag = re.compile(r'\t(FLAG_[A-Z_0-9]*)')
-re_billing = re.compile(r'\t(BILLING_[A-Z_0-9]*)')
-re_auth = re.compile(r'\t(AUTH_[A-Z_0-9]*)')
-re_ship = re.compile(r'\t(SHIP[A-Z_0-9]*)')
-re_sound = re.compile(r'\t(SOUND_[A-Z_0-9]*)')
-re_prize = re.compile(r'\t(PRIZE_[A-Z_0-9]*)')
-re_mm2 = re.compile(r'\t(MM_[A-Z_0-9]*)')
-re_persist = re.compile(r'\t(PERSIST_[A-Z_0-9]*)')
-re_type = re.compile(r'\t(T_[A-Z_0-9]*)')
-re_status = re.compile(r'\t(S_[A-Z_0-9]*)')
-re_stat = re.compile(r'\t(STAT_[A-Z_0-9]*)')
-re_iv = re.compile(r'\t(INTERVAL_[A-Z_0-9]*)')
-re_turf = re.compile(r'\t(TR_[A-Z_0-9]*)')
+re_pyconst_dir = re.compile(r'\s*/\* pyconst: (.*), "(.*)" \*/')
 
 # callbacks
 re_pycb_cbdef = re.compile(r'#define (CB_[A-Z_0-9]*)')
@@ -817,6 +793,37 @@ local void deinit_py_interfaces(void)
 """)
 
 
+def handle_pyconst_directive(tp, pat):
+	def clear(n):
+		def func(_):
+			del pyconst_pats[-n:]
+		return func
+
+	pat = pat.replace('*', '[A-Z_0-9]*')
+
+	if tp == 'enum':
+		# these are always ints, and last until a line with a close-brace
+		pat = r'\s*(%s)' % pat
+		newre = re.compile(pat)
+		pyconst_pats.append((newre, const_int))
+		pyconst_pats.append((re.compile(r'.*}.*;.*()'), clear(2)))
+	elif tp.startswith('define'):
+		# these can be ints or strings, and last until a blank line
+		pat = r'#define (%s)' % pat
+		newre = re.compile(pat)
+		subtp = tp.split()[1].strip()
+		func = { 'int': const_int, 'string': const_string, }[subtp]
+		pyconst_pats.append((newre, func))
+		pyconst_pats.append((re.compile(r'^$()'), clear(2)))
+	elif tp == 'config':
+		pat = r'#define (%s)' % pat
+		pyconst_pats.append((re.compile(pat + ' "'), const_string))
+		pyconst_pats.append((re.compile(pat + ' [0-9]'), const_int))
+		pyconst_pats.append((re.compile(pat + '$'), const_one))
+		pyconst_pats.append((re.compile(r'/\* pyconst: config end \*/()'),
+			clear(4)))
+
+
 # output files
 const_file = open('py_constants.inc', 'w')
 callback_file = open('py_callbacks.inc', 'w')
@@ -845,31 +852,25 @@ const_int('FALSE')
 
 init_pyint()
 
+pyconst_pats = [
+	(re.compile(r'#define (CB_[A-Z_0-9]*)'), const_callback),
+	(re.compile(r'#define (I_[A-Z_0-9]*)'), const_interface),
+]
+
 # now process file
 intdirs = []
 lastfunc = ''
 
 for l in lines:
 	# constants
-	for r in [re_caps, re_cfg_str]:
-		m = r.match(l)
+	m = re_pyconst_dir.match(l)
+	if m:
+		handle_pyconst_directive(m.group(1), m.group(2))
+
+	for myre, func in pyconst_pats:
+		m = myre.match(l)
 		if m:
-			const_string(m.group(1))
-	for r in [re_msg, re_actions, re_ball, re_flag, re_billing, re_auth,
-			re_sound, re_ship, re_prize, re_log, re_mm1, re_mm2, re_cfg_int,
-			re_persist, re_type, re_status, re_stat, re_iv, re_turf]:
-		m = r.match(l)
-		if m:
-			const_int(m.group(1))
-	m = re_cfg_one.match(l)
-	if m:
-		const_one(m.group(1))
-	m = re_cb.match(l)
-	if m:
-		const_callback(m.group(1))
-	m = re_int.match(l)
-	if m:
-		const_interface(m.group(1))
+			func(m.group(1))
 
 	# callbacks
 	m = re_pycb_cbdef.match(l)

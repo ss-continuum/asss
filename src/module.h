@@ -13,9 +13,11 @@ struct Imodman;
 
 /** module load/unload operations.
  * these codes are passed to module entry points to describe which
- * operation is being reuqested. */
+ * operation is being requested. */
 enum
 {
+	/* pyconst: enum, "MM_*" */
+
 	/** the module is being loaded.
 	 * do all global initialization here.
 	 */
@@ -51,6 +53,7 @@ enum
 
 
 /* return values for module functions, and also some other things. */
+/* pyconst: define int, "MM_*" */
 #define MM_OK     0  /**< success */
 #define MM_FAIL   1  /**< failure */
 

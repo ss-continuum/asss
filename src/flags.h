@@ -12,6 +12,7 @@
 
 typedef enum
 {
+	/* pyconst: enum, "FLAG_*" */
 	FLAG_NONE,    /* the flag doesn't exist */
 	FLAG_ONMAP,   /* the flag is dropped on the map */
 	FLAG_CARRIED, /* the flag is being carried */

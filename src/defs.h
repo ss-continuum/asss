@@ -57,6 +57,7 @@ enum
 /** ship names */
 enum
 {
+	/* pyconst: enum, "SHIP_*" */
 	SHIP_WARBIRD = 0,
 	SHIP_JAVELIN,
 	SHIP_SPIDER,
@@ -72,6 +73,7 @@ enum
 /** sound constants */
 enum
 {
+	/* pyconst: enum, "SOUND_*" */
 	SOUND_NONE = 0,
 	SOUND_BEEP1,
 	SOUND_BEEP2,
@@ -110,6 +112,7 @@ enum
 /** prize constants */
 enum
 {
+	/* pyconst: enum, "PRIZE_*" */
 	PRIZE_RECHARGE = 1,
 	PRIZE_ENERGY,
 	PRIZE_ROTATION,
