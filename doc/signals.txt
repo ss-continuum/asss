@@ -1,0 +1,20 @@
+
+asss should respond to the following signals:
+
+TERM
+	act as if a sysop typed ?shutdown and try to exit cleanly. be sure
+	to sync db's and flush logs.
+
+HUP
+	reread some config files. which ones?
+
+USR1
+	sync databases and stop writing to them for 15 seconds.
+
+USR2
+	read a line of text from the file 'MESSAGE' and send it as an arena
+	message to all connected players.
+
+
+these can all go in a 'unixsignal' modules.
+

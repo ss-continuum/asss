@@ -16,12 +16,25 @@ better pre-processor for config
 
 banners
 
+message limiting:
+	shutup
+	lock{private,public,team,chat}
+
+locking. lots of options here:
+	lock to freq
+	lock to ship
+	lock only certain people
+	finite "lives" also fits in here
+	must be able to be controlled by mod commands and other modules
+
 
 hard
 ----
 bandwith limiting and prioritization
 
 tinyscheme interface
+
+python interface?
 
 
 currently broken
