@@ -494,10 +494,8 @@ local void PMapRequest(int pid, byte *p, int len)
 		dl->len = data->cmplen;
 
 		net->SendSized(pid, dl, data->cmplen, get_data);
-		lm->Log(L_DRIVEL,"<mapnewsdl> {%s} [%s] Sending map/lvz %d",
-				arenas[arena].name,
-				players[pid].name,
-				lvznum);
+		lm->LogP(L_DRIVEL, "mapnewsdl", pid, "Sending map/lvz %d (%d bytes)",
+				lvznum, data->cmplen);
 	}
 	else if (p[0] == C2S_NEWSREQUEST)
 	{

@@ -460,7 +460,7 @@ local void set_timers()
 	int dirty, files;
 
 	dirty = GetInt(global, "Config", "FlushDirtyValuesInterval", 500);
-	files = GetInt(global, "Config", "CheckModifiedFilesInterval", 18000);
+	files = GetInt(global, "Config", "CheckModifiedFilesInterval", 1500);
 
 	ml->ClearTimer(write_dirty_values, -1);
 	if (dirty)
@@ -468,7 +468,7 @@ local void set_timers()
 
 	ml->ClearTimer(check_modified_files, -1);
 	if (files)
-		ml->SetTimer(check_modified_files, 10500, files, NULL, -1);
+		ml->SetTimer(check_modified_files, 1500, files, NULL, -1);
 }
 
 

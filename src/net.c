@@ -846,7 +846,7 @@ int QueueMoreData(void *dummy)
 	int pid, needed;
 	Link *l;
 
-	for (pid = 0; pid < MAXPACKET; pid++)
+	for (pid = 0; pid < MAXPLAYERS; pid++)
 		if (players[pid].status > S_FREE &&
 		    players[pid].status < S_TIMEWAIT &&
 		    IS_OURS(pid) &&
@@ -880,12 +880,16 @@ int QueueMoreData(void *dummy)
 				while (needed > 480)
 				{
 					memcpy(packet.data, dp, 480);
-					BufferPacket(pid, (byte*)&packet, 486, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
+					BufferPacket(pid, (byte*)&packet, 486, NET_PRI_N1 | NET_REALRELIABLE, NULL, NULL);
 					dp += 480;
 					needed -= 480;
 				}
-				memcpy(packet.data, dp, needed);
-				BufferPacket(pid, (byte*)&packet, needed + 6, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
+				if (needed > 0)
+				{
+					memcpy(packet.data, dp, needed);
+					BufferPacket(pid, (byte*)&packet, needed + 6, NET_PRI_N1 | NET_REALRELIABLE, NULL, NULL);
+
+				}
 
 				/* check if we need more */
 				if (sd->offset >= sd->totallen)
@@ -965,7 +969,7 @@ local void send_outgoing(int pid)
 						 * reliable packets waiting in rbuf. if there
 						 * are, we can wait until the next time around.
 						 */
-						if (1) /* (rcount == 0) */
+						if (rcount == 0)
 						{
 							/* now rebuffer it */
 							rebuf = BufferPacket(pid, buf->d.raw, buf->len,

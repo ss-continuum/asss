@@ -31,6 +31,12 @@ privcmd_shipreset
 
 privcmd_laginfo
 
+; turf commands
+cmd_turfresetflags
+cmd_turfresettimer
+cmd_forceding
+cmd_forcestats
+
 ; fun stuff
 cmd_brickwrite
 

@@ -3,6 +3,7 @@
 
 #include "asss.h"
 
+#define MAX_PING 10000
 
 local pthread_mutex_t mtx;
 #define LOCK() pthread_mutex_lock(&mtx)
@@ -83,6 +84,10 @@ local void free_lagdata(LagData *ld)
 
 local void add_ping(struct PingData *pd, int ping)
 {
+	/* prevent horribly incorrect pings from messing up stats */
+	if (ping > MAX_PING)
+		ping = MAX_PING;
+
 	pd->current = ping;
 	pd->buckets[MS_TO_BUCKET(ping)]++;
 	pd->avg = (pd->avg * 9 + ping) / 10;
