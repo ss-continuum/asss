@@ -30,6 +30,7 @@ typedef struct MyArenaData
 	int spawnr, dropr;
 	int friendlytransfer, carryflags;
 	int persistturf;
+	int windelay;
 	/* the four ways to drop a flag */
 	int dropowned, dropcenter;
 	int neutowned, neutcenter;
@@ -45,6 +46,7 @@ local void PAFlag(Player *p, int action, Arena *arena);
 local void ShipChange(Player *, int, int);
 local void FreqChange(Player *, int);
 local void FlagKill(Arena *, Player *, Player *, int, int, int *);
+local int check_win(void *v);
 
 /* timers */
 local int BasicFlagTimer(void *);
@@ -139,6 +141,7 @@ EXPORT int MM_flags(int action, Imodman *_mm, Arena *arena)
 		mm->UnregCallback(CB_KILL, FlagKill, ALLARENAS);
 		net->RemovePacket(C2S_PICKUPFLAG, PPickupFlag);
 		net->RemovePacket(C2S_DROPFLAGS, PDropFlag);
+		ml->ClearTimer(check_win, NULL);
 		ml->ClearTimer(BasicFlagTimer, NULL);
 		ml->ClearTimer(TurfFlagTimer, NULL);
 		aman->FreeArenaData(afdkey);
@@ -464,6 +467,10 @@ local void LoadFlagSettings(Arena *arena, int init)
 		 * as opposed to near the safe zone player. */
 		pfd->safecenter = cfg->GetInt(c, "Flag", "SafeCenter", 0);
 
+		/* cfghelp: Flag:WinDelay, arena, int, def: 200
+		 * The delay between dropping the last flag and winning (ticks). */
+		pfd->windelay = cfg->GetInt(c, "Flag", "WinDelay", 200);
+
 		if (init)
 		{
 			/* cfghelp: Flag:FlagCount, arena, rng, range: 0-256, def: 0
@@ -575,8 +582,9 @@ void AAFlag(Arena *arena, int action)
 }
 
 
-local void CheckWin(Arena *arena)
+local int check_win(void *v)
 {
+	Arena *arena = v;
 	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
 	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
 	struct FlagData *f;
@@ -607,9 +615,18 @@ local void CheckWin(Arena *arena)
 		 * flags->FlagVictory to reset the game. */
 		DO_CBS(CB_FLAGWIN, arena, FlagWinFunc, (arena, freq));
 
+		/* in case nobody did, force a reset anyway. note there is no
+		 * race condition here since we're only called from timer
+		 * events, and only another timer event can change
+		 * afd->flagcount. */
+		if (afd->flagcount != 0)
+			FlagVictory(arena, freq, 0);
+
 		logm->Log(L_INFO, "<flags> {%s} flag victory: freq %d won",
 				arena->name, freq);
 	}
+
+	return FALSE;
 }
 
 
@@ -914,10 +931,10 @@ void PDropFlag(Player *p, byte *pkt, int len)
 
 	logm->LogP(L_DRIVEL, "flags", p, "player dropped flags");
 
-	/* do this after the drop callbacks have been called because this
-	 * has the potential to call the win callbacks and we don't want the
-	 * drop ones called after the win ones. */
-	CheckWin(arena);
+	/* don't check the win yet, but in a little while. clear any
+	 * existing timers to force it to happen no sooner than windelay. */
+	ml->ClearTimer(check_win, arena);
+	ml->SetTimer(check_win, pfd->windelay, 0, arena, arena);
 }
 
 
@@ -954,11 +971,13 @@ int BasicFlagTimer(void *dummy)
 				if (flags[f].state == FLAG_NONE)
 					SpawnFlag(arena, f, FALSE, TRUE);
 				else if (flags[f].state == FLAG_NEUTED)
+				{
 					SpawnFlag(arena, f, pfd->neutowned, pfd->neutcenter);
-
-			/* also check wins in case it wasn't due to a drop. it is
-			 * possible, if you have NeutOwned on. */
-			CheckWin(arena);
+					/* also check wins in case it wasn't due to a drop.
+					 * it is possible, if you have NeutOwned on. */
+					if (pfd->neutowned)
+						ml->SetTimer(check_win, pfd->windelay, 0, arena, arena);
+				}
 		}
 		UNLOCK_STATUS(arena);
 	}
