@@ -523,11 +523,13 @@ class Colors:
 		me.arena = color_pair(10 % me.pairs) | A_BOLD
 		me.pub = color_pair(15 % me.pairs)
 		me.priv = color_pair(2)
+		me.squad = me.priv
 		me.rempriv = color_pair(10 % me.pairs)
 		me.freq = color_pair(11 % me.pairs) | A_BOLD
 		me.chat = color_pair(9 % me.pairs)
 		me.mod = color_pair(12 % me.pairs)
 		me.sysop = color_pair(9 % me.pairs) | A_BOLD
+		me.kill = color_pair(5 % me.pairs)
 
 		me.pl_txt = color_pair(11 % me.pairs) | A_BOLD
 		me.pl_player = color_pair(7 % me.pairs)
@@ -582,6 +584,7 @@ def reload_logfile():
 
 # log types
 L_INFO = 'I'
+L_KILL = 'K'
 L_CMD = 'D'
 L_PUB = 'P'
 L_ARENA = 'A'
@@ -591,7 +594,8 @@ L_FREQ = 'T' # team
 L_NMEFREQ = 'E' # team
 L_CHAT = 'C'
 L_SYSOP = 'W' # warn
-L_MOD = 'M' # warn
+L_MOD = 'M'
+L_SQUAD = 'Q'
 
 def log(type, text):
 	if not logfile:
@@ -826,6 +830,11 @@ def process_msg(line):
 		msg = rest
 		add_line(msg, colors.sysop)
 		log(L_SYSOP, msg)
+	elif type == 'SQUAD':
+		squad, sender, msg = rest.split(':', 2)
+		txt = '(#%s)(%s)> %s' % (squad, sender, msg)
+		add_line(txt, colors.squad)
+		log(L_SQUAD, txt)
 	else:
 		add_line("Bad message subtype from server: '%s'" % type, colors.info)
 
@@ -849,6 +858,20 @@ def process_sfc(line):
 		log(L_INFO, txt)
 
 
+def process_kill(line):
+	global colors
+
+	killer, killed, bty, flags = line.split(':')
+
+	if int(flags) > 0:
+		txt = '%s killed %s(%s:%s)' % (killer, killed, bty, flags)
+	else:
+		txt = '%s killed %s(%s)' % (killer, killed, bty)
+
+	add_line(txt, colors.kill)
+	log(L_KILL, txt)
+
+
 dispatch = \
 {
 	'LOGINOK': process_loginok,
@@ -858,7 +881,8 @@ dispatch = \
 	'ENTERING': process_entering,
 	'LEAVING': process_leaving,
 	'MSG': process_msg,
-	'SHIPFREQCHANGE': process_sfc
+	'SHIPFREQCHANGE': process_sfc,
+	'KILL': process_kill
 }
 
 def process_incoming(line):
@@ -965,7 +989,6 @@ def read_data():
 				process_incoming(l.strip())
 			else:
 				inbuf = l
-		del lines
 
 	except:
 		pass
