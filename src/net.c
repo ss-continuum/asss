@@ -1148,7 +1148,7 @@ void * SendThread(void *dummy)
 	while (!killallthreads)
 	{
 		sched_yield();
-		usleep(5000);
+		usleep(10000); /* 1/100 second */
 
 		/* first send outgoing packets */
 		for (i = 0; i < (MAXPLAYERS + EXTRA_PID_COUNT); i++)

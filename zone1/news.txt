@@ -1,15 +1,26 @@
 
-Welcome to asss (a small subspace server) 0.6.0
+Welcome to asss (a small subspace server) 0.7.2.
 
-This news.txt will be used for updates about new features and other important
-information. I have my own internal to-do list apart from this file. If you
-have any suggestions of any kind, please let me know.
+This news.txt will be used for updates about new features and other
+important information. If you have any suggestions of any kind, please
+let me know.
+
+If you have any comments or questions, just talk in pub chat and I'll
+see it eventually (it all gets logged).
 
 
 Recent updates:
-    * oops, I've been forgetting to update this. there's lots of new
-      stuff recently. you can read the cvs logs (sorta) here:
+    * alias database with mysql support
 
+    * some basic lag statistics gathering
+
+    * brand new database stuff. it will be cool.
+
+    * simple text-based chat protocol. read doc/simple-chat.txt, then
+      telnet to asss.sscx.net, port 5002.
+
+
+Lots more detail at:
 http://asss.yi.org:2400/asss/timeline
 
 

@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <string.h>
 
 #include "asss.h"
 
@@ -106,7 +107,7 @@ local void * work_thread(void *dummy)
 
 	/* try to connect */
 	if (lm)
-		lm->Log(L_INFO, "<mysql> connecting to mysql db on %s, user %s, db %s", host, user, pw);
+		lm->Log(L_INFO, "<mysql> connecting to mysql db on %s, user %s, db %s", host, user, dbname);
 	while (mysql_real_connect(mydb, host, user, pw, dbname, 0, NULL, 0) == NULL)
 	{
 		if (lm) lm->Log(L_WARN, "<mysql> connect failed: %s", mysql_error(mydb));
