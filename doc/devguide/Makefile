@@ -42,8 +42,7 @@ clean:
 	$(RM) -f $(ALLTARGETS) *.log *.aux *.blg *.bak *.hlog *-Z-* *~
 
 publish: pdf html
-	scp *.pdf *.html tb:web
-	scp *.pdf *.html ellie:userguide
+	scp *.pdf *.html asss:web
 
 
 ### Dependencies and commands
