@@ -284,7 +284,7 @@ DEFINE_FROM_STRING(tr_recovery_val, TR_RECOVERY_MAP)
 
 
 EXPORT const char info_turf_reward[]
-	= "v0.5.4 by GiGaKiLLeR <gigamon@hotmail.com>";
+	= "v0.5.6 by GiGaKiLLeR <gigamon@hotmail.com>";
 
 
 /* the actual entrypoint into this module */
@@ -1078,59 +1078,57 @@ local int doReward(Arena *arena)
 	/* do pre-calculations to prepare ta data for points module */
 	preCalc(arena, ta, currentTicks);
 
-	if( checkArenaRequirements(arena, ta) )
+	if( !checkArenaRequirements(arena, ta) )
 	{
-		UNLOCK_STATUS(arena);
-		return 0;
+		/* arena requirements were met */
+		/* calculate the points to award using interface for score calculations */
+		if( ta->trp )
+			ta->trp->CalcReward(arena,ta);
+		else
+		{
+			UNLOCK_STATUS(arena);
+			logman->LogA(L_DRIVEL, "turf_reward", arena,
+				"problem calling CalcReward interface (NULL)");
+			return 1;
+		}
+
+		/* check status returned by call to CalcReward */
+		if( ta->calcState.status==TR_CALC_FAIL )
+		{
+			UNLOCK_STATUS(arena);
+			logman->LogA(L_DRIVEL, "turf_reward", arena,
+				"CalcReward failed, halting any further rewards");
+			return 1;
+		}
+
+		/* check if we are to award points */
+		switch( ta->calcState.award )
+		{
+		case TR_AWARD_PLAYER:
+			awardPtsPlayer(arena, ta);
+			stats->SendUpdates();
+			break;
+		case TR_AWARD_TEAM:
+			awardPtsTeam(arena, ta);
+			stats->SendUpdates();
+			break;
+		case TR_AWARD_BOTH:
+			awardPtsPlayerTeam(arena, ta);
+			stats->SendUpdates();
+			break;
+		case TR_AWARD_NONE: default:
+			break;
+		}
+
+		/* do the callback for post-reward (WHILE LOCK IS IN PLACE)
+	 	* Note: this might become a problem if functions registered with the
+	 	*        callback require a large amount of processing time */
+		DO_CBS(CB_TURFPOSTREWARD, arena, TurfPostRewardFunc, (arena, ta));
+
+		/* check if we are to update flags */
+		if( ta->calcState.update )
+			updateFlags(arena, ta);
 	}
-
-	/* calculate the points to award using interface for score calculations */
-	if( ta->trp )
-		ta->trp->CalcReward(arena,ta);
-	else
-	{
-		UNLOCK_STATUS(arena);
-		logman->LogA(L_DRIVEL, "turf_reward", arena,
-			"problem calling CalcReward interface (NULL)");
-		return 1;
-	}
-
-	/* check status returned by call to CalcReward */
-	if( ta->calcState.status==TR_CALC_FAIL )
-	{
-		UNLOCK_STATUS(arena);
-		logman->LogA(L_DRIVEL, "turf_reward", arena,
-			"CalcReward failed, halting any further rewards");
-		return 1;
-	}
-
-	/* check if we are to award points */
-	switch( ta->calcState.award )
-	{
-	case TR_AWARD_PLAYER:
-		awardPtsPlayer(arena, ta);
-		stats->SendUpdates();
-		break;
-	case TR_AWARD_TEAM:
-		awardPtsTeam(arena, ta);
-		stats->SendUpdates();
-		break;
-	case TR_AWARD_BOTH:
-		awardPtsPlayerTeam(arena, ta);
-		stats->SendUpdates();
-		break;
-	case TR_AWARD_NONE: default:
-		break;
-	}
-
-	/* do the callback for post-reward (WHILE LOCK IS IN PLACE)
-	 * Note: this might become a problem if functions registered with the
-	 *        callback require a large amount of processing time */
-	DO_CBS(CB_TURFPOSTREWARD, arena, TurfPostRewardFunc, (arena, ta));
-
-	/* check if we are to update flags */
-	if( ta->calcState.update )
-		updateFlags(arena, ta);
 
 	/* initialize necessary data for next round */
 	postRewardCleanup(ta);
@@ -1149,6 +1147,7 @@ local void preCalc(Arena *arena, TurfArena *ta, ticks_t currentTicks)
 
 	/* make sure arena data is clear */
 	ta->numPlayers          = 0;
+	ta->numValidPlayers     = 0;
 	ta->numPoints           = 0;
 	ta->numTeams            = 0;
 	ta->numValidTeams       = 0;
@@ -2111,6 +2110,7 @@ local void postRewardCleanup(TurfArena *ta)
 
 	/* initialize arena for next around */
 	ta->numPlayers          = 0;
+	ta->numValidPlayers     = 0;
 	ta->numTeams            = 0;
 	ta->numValidTeams       = 0;
 	ta->numInvalidTeams     = 0;
