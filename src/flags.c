@@ -45,7 +45,7 @@ local void AAFlag(Arena *arena, int action);
 local void PAFlag(Player *p, int action, Arena *arena);
 local void ShipChange(Player *, int, int);
 local void FreqChange(Player *, int);
-local void FlagKill(Arena *, Player *, Player *, int, int, int *);
+local void FlagKill(Arena *, Player *, Player *, int, int, int *, int *);
 local int check_win(void *v);
 
 /* timers */
@@ -746,7 +746,8 @@ void FreqChange(Player *p, int newfreq)
 	CleanupAfter(p->arena, p);
 }
 
-void FlagKill(Arena *arena, Player *killer, Player *killed, int bounty, int flags, int *pts)
+void FlagKill(Arena *arena, Player *killer, Player *killed,
+		int bounty, int flags, int *pts, int *green)
 {
 	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
 	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);

@@ -6,7 +6,7 @@
 
 /* prototypes */
 
-local void MyKillFunc(Arena *, Player *, Player *, int, int, int*);
+local void MyKillFunc(Arena *, Player *, Player *, int, int, int *, int *);
 
 /* global data */
 
@@ -51,7 +51,7 @@ EXPORT int MM_points_kill(int action, Imodman *mm_, Arena *arena)
 
 
 void MyKillFunc(Arena *arena, Player *killer, Player *killed,
-		int bounty, int transflags, int *totalpts)
+		int bounty, int transflags, int *totalpts, int *green)
 {
 	int tk, fixedreward, pts;
 

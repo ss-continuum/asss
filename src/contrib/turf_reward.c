@@ -163,7 +163,8 @@ local void arenaAction(Arena *arena, int action);
 local void flagTag(Arena *arena, Player *p, int fid, int oldteam);
 local void freqChange(Player *p, int newfreq);
 local void shipChange(Player *p, int newship, int newfreq);
-local void killEvent(Arena *arena, Player *killer, Player *killed, int bounty, int flags);
+local void killEvent(Arena *arena, Player *killer, Player *killed,
+		int bounty, int flags, int *pts, int *green);
 local int turfRewardTimer(void *v);
 
 
@@ -2071,7 +2072,8 @@ local void shipChange(Player *p, int newship, int newfreq)
 }
 
 
-local void killEvent(Arena *arena, Player *killer, Player *killed, int bounty, int flags)
+local void killEvent(Arena *arena, Player *killer, Player *killed,
+		int bounty, int flags, int *pts, int *green)
 {
 	TurfTeam *pTeam = NULL;
 	TurfPlayer *pPlayer = NULL;
@@ -2119,11 +2121,11 @@ local void postRewardCleanup(TurfArena *ta)
 	ta->sumPerCapitaWeights = 0.0;
 	ta->numPoints           = 0;
 	ta->tags                = 0;
-    ta->steals              = 0;
-    ta->recoveries          = 0;
+	ta->steals              = 0;
+	ta->recoveries          = 0;
 	ta->lost                = 0;
 	ta->kills               = 0;
-    ta->bountyExchanged     = 0;
+	ta->bountyExchanged     = 0;
 
 	/* players list maintenance */
 	for(l=LLGetHead(&ta->players) ; l ; l=next)

@@ -249,7 +249,8 @@ local void shipchange(Player *p, int ship, int freq)
 }
 
 
-local void mykill(Arena *arena, Player *killer, Player *killed, int bounty, int flags, int *pts)
+local void mykill(Arena *arena, Player *killer, Player *killed,
+		int bounty, int flags, int *pts, int *green)
 {
 	struct koth_arena_data *adata = P_ARENA_DATA(arena, akey);
 	struct koth_player_data *erdata = PPDATA(killer, pkey);

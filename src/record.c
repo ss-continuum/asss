@@ -257,7 +257,8 @@ local void cb_freqchange(Player *p, int freq)
 }
 
 
-local void cb_kill(Arena *a, Player *killer, Player *killed, int bty, int flags, int *pts)
+local void cb_kill(Arena *a, Player *killer, Player *killed,
+		int bty, int flags, int *pts, int *green)
 {
 	rec_adata *ra = P_ARENA_DATA(a, adkey);
 	struct event_kill *ev = amalloc(sizeof(*ev));
