@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 0.3
+Welcome to asss (a small subspace server) 0.4
 
 This news.txt will be used for updates about new features and other important
 information. I have my own internal to-do list apart from this file. If you
@@ -7,15 +7,18 @@ have any suggestions of any kind, please let me know.
 
 
 Recent updates:
-    * tons and tons of bugfixes
+    * flags! (plus with correct flag-kill handling)
+      no victories yet, but they're coming soon.
 
-    * tons and tons more bugfixes
-	
-	* updates to logging system: better priorities, consistent format
+    * mapdata module mostly written
+      it uses a cool sparse array structure to save memory but retain
+      really fast access speed. an average .lvl file takes just 200k.
+
+    * updates to logging system: better priorities, consistent format
 
 
 High-level to-do list:
-    * flags and balls
+    * balls
 
     * better authority model (groups, capabilities)
 
@@ -23,7 +26,7 @@ High-level to-do list:
 
     * latency/ploss handling and security
 
-	* more commands
+    * more commands
 
 
 Stuff it does now:
@@ -53,6 +56,4 @@ Stuff it does now:
 
 random line to force redownloading:
 6281824014
-
- vim: set et
 

@@ -14,6 +14,8 @@ SCHEMEROOT = /home/david/scheme/plt/collects/mzscheme
 SCHEMEINC = $(SCHEMEROOT)/include
 SCHEMELIB = $(SCHEMEROOT)/lib/i386-linux
 
+SCRIPTS = ../scripts
+
 INCLUDE_ELDERD =
 #INCLUDE_ELDERD = elderd
 
@@ -30,6 +32,7 @@ INTMODS = config.o    \
           encrypt1.o  \
           arenaman.o  \
           player.o    \
+          mapdata.o   \
           mapnewsdl.o \
           clientset.o
 
@@ -72,6 +75,9 @@ elderd: elderd.c util-elderd.o ooputils.o
 util-elderd.o: util.c
 	$(CC) $(CFLAGS) -DNOTHREAD -DUSE_GC -DMALLOC=GC_malloc -c -o $@ $^
 
+sparse.inc: $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py
+	$(SCRIPTS)/gensparse.py sparse.inc $(SCRIPTS)/sparse_params.py
+
 
 Makefile.deps: *.c *.h
 	$(CC) -I $(SCHEMEINC) -MM *.c > $@
@@ -95,7 +101,7 @@ install: $(ALL_STUFF)
 	-cp -f $(ALL_STUFF) ../bin
 
 clean:
-	-rm -f asss *.o *.so elderd elderd.log core
+	-rm -f asss *.o *.so elderd elderd.log core sparse.inc
 
 tags:
 	flist -d *.c

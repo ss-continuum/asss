@@ -230,8 +230,6 @@ void FreeConfigFile(ConfigHandle ch)
 
 
 
-#define DEFAULTSEARCHPATH "arenas/%a/%n.conf:arenas/%a/%n:defaultarena/%n.conf:defaultarena/%n:%n"
-
 int LocateConfigFile(char *dest, int destlen, const char *arena, const char *name)
 {
 	char *path = NULL;
@@ -245,7 +243,7 @@ int LocateConfigFile(char *dest, int destlen, const char *arena, const char *nam
 		if (global)
 			path = GetStr(global, "General", "ConfigSearchPath");
 		if (!path)
-			path = DEFAULTSEARCHPATH;
+			path = DEFAULTCONFIGSEARCHPATH;
 		return find_file_on_path(dest, destlen, path, repls, 2);
 	}
 	else

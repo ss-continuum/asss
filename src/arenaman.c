@@ -8,8 +8,6 @@
 
 #include "packets/goarena.h"
 
-#include "packets/mapfname.h"
-
 /* MACROS */
 
 #define LOCK_STATUS() \
@@ -265,7 +263,6 @@ void SendArenaResponse(int pid)
 {
 	/* LOCK: maybe should lock more in here? */
 	struct SimplePacket whoami = { S2C_WHOAMI, 0 };
-	struct MapFilename mapfname;
 	int arena, i;
 	PlayerData *p;
 
@@ -304,16 +301,13 @@ void SendArenaResponse(int pid)
 	pd->UnlockStatus();
 
 	/* send mapfilename */
-	mapfname.type = S2C_MAPFILENAME;
-	astrncpy(mapfname.filename, map->GetMapFilename(arena), 16);
-	mapfname.checksum = map->GetMapChecksum(arena);
-	net->SendToOne(pid, (byte*)&mapfname, sizeof(struct MapFilename), NET_RELIABLE);
+	map->SendMapFilename(pid);
 
 	/* send brick clear and finisher */
-	mapfname.type = S2C_BRICK;
-	net->SendToOne(pid, (byte*)&mapfname, 1, NET_RELIABLE);
-	mapfname.type = S2C_ENTERINGARENA;
-	net->SendToOne(pid, (byte*)&mapfname, 1, NET_RELIABLE);
+	whoami.type = S2C_BRICK;
+	net->SendToOne(pid, (byte*)&whoami, 1, NET_RELIABLE);
+	whoami.type = S2C_ENTERINGARENA;
+	net->SendToOne(pid, (byte*)&whoami, 1, NET_RELIABLE);
 }
 
 

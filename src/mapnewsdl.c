@@ -8,59 +8,55 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <zlib.h>
 
 #include "asss.h"
 
 
-typedef struct MapData
+struct MapDownloadData
 {
 	u32 mapchecksum;
 	char mapfname[20];
 	byte *cmpmap;
 	int cmpmaplen;
-} MapData;
+};
 
 
 /* PROTOTYPES */
 
-/* packet funcs */
-local void PMapRequest(int, byte *, int);
-
-/* arenaaction funcs */
-local void ArenaAction(int, int);
-
 local int CompressMap(int);
-
-/* newstxt management */
 local int RefreshNewsTxt(void *);
 
-local u32 GetMapChecksum(int arena);
-local char * GetMapFilename(int arena);
+local void PMapRequest(int, byte *, int);
+local void ArenaAction(int, int);
+
+local void SendMapFilename(int pid);
 local u32 GetNewsChecksum();
 
 
 /* GLOBALS */
 
+local Imodman *mm;
 local Iplayerdata *pd;
 local Iconfig *cfg;
 local Inet *net;
-local Imodman *mm;
 local Ilogman *log;
 local Iarenaman *aman;
 local Imainloop *ml;
+local Imapdata *mapdata;
 
 local PlayerData *players;
 local ArenaData *arenas;
 
 /* big static array */
-local MapData mapdata[MAXARENA];
+local struct MapDownloadData mapdldata[MAXARENA];
 
 local char *cfg_newsfile;
 local u32 newschecksum, cmpnewssize;
 local byte *cmpnews;
 local time_t newstime;
 
-local Imapnewsdl _int = { GetMapChecksum, GetMapFilename, GetNewsChecksum };
+local Imapnewsdl _int = { SendMapFilename, GetNewsChecksum };
 
 
 /* FUNCTIONS */
@@ -77,6 +73,7 @@ int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		mm->RegInterest(I_CONFIG, &cfg);
 		mm->RegInterest(I_MAINLOOP, &ml);
 		mm->RegInterest(I_ARENAMAN, &aman);
+		mm->RegInterest(I_MAPDATA, &mapdata);
 
 		players = pd->players;
 
@@ -89,9 +86,9 @@ int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		net->AddPacket(C2S_NEWSREQUEST, PMapRequest);
 		mm->RegCallback(CALLBACK_ARENAACTION, ArenaAction, ALLARENAS);
 
-		/* reread news every 15 min */
+		/* reread news every 5 min */
 		ml->SetTimer(RefreshNewsTxt, 50, 
-				cfg->GetInt(GLOBAL, "General", "NewsRefreshMinutes", 15)
+				cfg->GetInt(GLOBAL, "General", "NewsRefreshMinutes", 5)
 				* 60 * 100, NULL);
 
 		/* cache some config data */
@@ -118,17 +115,12 @@ int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_MAINLOOP, &ml);
 		mm->UnregInterest(I_ARENAMAN, &aman);
+		mm->UnregInterest(I_MAPDATA, &mapdata);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
 		return BUILDNUMBER;
 	return MM_FAIL;
-}
-
-
-u32 GetMapChecksum(int arena)
-{
-	return mapdata[arena].mapchecksum;
 }
 
 
@@ -139,9 +131,18 @@ u32 GetNewsChecksum()
 	return newschecksum;
 }
 
-char * GetMapFilename(int arena)
+
+#include "packets/mapfname.h"
+
+void SendMapFilename(int pid)
 {
-	return mapdata[arena].mapfname;
+	struct MapFilename mf = { S2C_MAPFILENAME };
+	int arena;
+
+	arena = pd->players[pid].arena;
+	strncpy(mf.filename, mapdldata[arena].mapfname, 16);
+	mf.checksum = mapdldata[arena].mapchecksum;
+	net->SendToOne(pid, (byte*)&mf, sizeof(mf), NET_RELIABLE);
 }
 
 
@@ -149,17 +150,17 @@ void ArenaAction(int arena, int action)
 {
 	if (action == AA_CREATE)
 	{
-		if (mapdata[arena].cmpmap)
-			afree(mapdata[arena].cmpmap);
+		if (mapdldata[arena].cmpmap)
+			afree(mapdldata[arena].cmpmap);
 		CompressMap(arena);
 	}
 	else if (action == AA_DESTROY)
 	{
-		if (mapdata[arena].cmpmap)
+		if (mapdldata[arena].cmpmap)
 		{
-			afree(mapdata[arena].cmpmap);
-			mapdata[arena].cmpmap = NULL;
-			mapdata[arena].cmpmaplen = 0;
+			afree(mapdldata[arena].cmpmap);
+			mapdldata[arena].cmpmap = NULL;
+			mapdldata[arena].cmpmaplen = 0;
 		}
 	}
 }
@@ -171,21 +172,20 @@ int CompressMap(int arena)
 	int mapfd, fsize;
 	uLong csize;
 	struct stat st;
-	char fname[64], *mapname;
+	char fname[256], *mapname;
 
-	mapname = cfg->GetStr(arenas[arena].cfg, "General", "Map");
-	if (!mapname) return MM_FAIL;
+	if (mapdata->GetMapFilename(arena, fname, 256))
+		return MM_FAIL;
 
-	astrncpy(mapdata[arena].mapfname, mapname, 20);
+	/* get basename */
+	mapname = strchr(fname,'/');
+	if (!mapname)
+		mapname = fname;
+	astrncpy(mapdldata[arena].mapfname, mapname, 20);
 
-	/* get map filename and open it */
-	sprintf(fname,"map/%s",mapname);
 	mapfd = open(fname,O_RDONLY);
 	if (mapfd == -1)
-	{
-		log->Log(L_WARN,"<mapnewsdl> Map file '%s' not found in current directory", fname);
 		return MM_FAIL;
-	}
 
 	/* find it's size */
 	fstat(mapfd, &st);
@@ -201,7 +201,7 @@ int CompressMap(int arena)
 	}
 
 	/* calculate crc on mmap'd map */
-	mapdata[arena].mapchecksum = crc32(crc32(0, Z_NULL, 0), map, fsize);
+	mapdldata[arena].mapchecksum = crc32(crc32(0, Z_NULL, 0), map, fsize);
 
 	/* allocate space for compressed version */
 	cmap = amalloc(csize);
@@ -214,14 +214,14 @@ int CompressMap(int arena)
 	csize += 17;
 
 	/* shrink the allocated memory */
-	mapdata[arena].cmpmap = realloc(cmap, csize);
-	if (mapdata[arena].cmpmap == NULL)
+	mapdldata[arena].cmpmap = realloc(cmap, csize);
+	if (mapdldata[arena].cmpmap == NULL)
 	{
 		log->Log(L_ERROR,"<mapnewsdl> realloc failed in CompressMap");
 		free(cmap);
 		return MM_FAIL;
 	}
-	mapdata[arena].cmpmaplen = csize;
+	mapdldata[arena].cmpmaplen = csize;
 
 	munmap(map, fsize);
 	close(mapfd);
@@ -238,12 +238,12 @@ void PMapRequest(int pid, byte *p, int q)
 		if (arena < 0 || arena >= MAXARENA)
 			log->Log(L_MALICIOUS, "<mapnewsdl> [%s] Map request before entering arena",
 					players[pid].name);
-		else if (!mapdata[arena].cmpmap)
+		else if (!mapdldata[arena].cmpmap)
 			log->Log(L_WARN, "<mapnewsdl> {%s} Map request, but compressed map doesn't exist", arenas[arena].name);
 		else
 		{
-			net->SendToOne(pid, mapdata[arena].cmpmap,
-					mapdata[arena].cmpmaplen, NET_RELIABLE | NET_PRESIZE);
+			net->SendToOne(pid, mapdldata[arena].cmpmap,
+					mapdldata[arena].cmpmaplen, NET_RELIABLE | NET_PRESIZE);
 			log->Log(L_DRIVEL,"<mapnewsdl> {%s} [%s] Sending compressed map",
 					arenas[arena].name,
 					players[pid].name);

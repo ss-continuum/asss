@@ -44,6 +44,7 @@
 #define I_STATS         16
 #define I_LOG_FILE      17
 #define I_FLAGS         18
+#define I_MAPDATA       19
 #define I_ENCRYPTBASE   90
 /*#define I_BALL */
 /*#define I_DATABASE */
@@ -185,6 +186,11 @@
 /* symbolic constant for freq assignemnt
  * FIXME: this probably shouldn't exist */
 #define BADFREQ (-423)
+
+
+#define DEFAULTCONFIGSEARCHPATH "arenas/%a/%n.conf:arenas/%a/%n:defaultarena/%n.conf:defaultarena/%n:%n"
+
+#define DEFAULTMAPSEARCHPATH "arenas/%a/%m:defaultarena/%m:maps/%m"
 
 
 /* useful typedefs */

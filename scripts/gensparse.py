@@ -3,45 +3,71 @@
 # gensparse.py
 # generates C code for efficient sparse array manipulation
 
+import sys
 
-# PARAMETERS -----------------------------------------------------------
+# PARAMETERS (change these) --------------------------------------------
 
-# the type of the data to be represented
-sourcetype = 'byte'
+if len(sys.argv) > 2:
+	# try to read parameters from a parameter file
+	execfile(sys.argv[2])
+else:
+	# the type of the data to be represented
+	sourcetype = 'unsigned char'
 
-# the type of the sparse array to be created
-targettype = 'sparse_arr'
+	# the type of the sparse array to be created
+	targettype = 'sparse_arr'
 
-# the default (common) value
-default = '0'
+	# the numbers of bits at each level of indirection
+	# the numbers should be in order from largest to smallest chunk size
+	# that is, the last number is the size (in bits) of the chunks that hold
+	# the source types directly.
+	bits = [5,2,3]
 
-# the function to use for allocating memory
-malloc = 'amalloc'
+	# the default (common) value
+	default = '0'
 
-# the function to use to free memory
-free = 'afree'
+	# the function to use for allocating memory
+	malloc = 'MALLOC'
 
-# the numbers of bits at each level of indirection
-bits = [3, 3, 4]
+	# the function to use to free memory
+	free = 'FREE'
+
+	# whether to declare all functions as static
+	static = 'static'
+
+	# whether to inline lookup
+	inline_lookup = 'inline'
+
+	# whether to inline insert
+	inline_insert = 'inline'
 
 
 # CODE (don't touch below here) ----------------------------------------
 
-import sys
+# this array is easier to work with in reverse order
+bits.reverse()
 
 def maxcoord(idx):
 	return 2**bits[idx] - 1
+
+
+def lsum(l):
+	t = 0
+	for i in l:
+		t = t + i
+	return t
 
 
 def gen_name(idx):
 	if idx == 0:
 		return sourcetype
 	else:
-		return 'sparse_chunk_%d_' % idx
+		return 'sparse_chunk_%d_t' % idx
 
 
 def emit_types(o):
 	"typedefs"
+
 	def gen_array_typedef(dat, ptr, name, size):
 		if ptr:
 			return 'typedef %s *%s[%d][%d];\n' % (dat, name, size, size)
@@ -59,13 +85,14 @@ def emit_types(o):
 
 def emit_init(o):
 	"allocate memory/initialize"
+
 	o.write("""
-%(target)s init_sparse(void)
+%(static)s %(target)s init_sparse(void)
 {
 	int x, y;
 	%(target)s c;
 
-	c = %(malloc)s(sizeof(*%(target)s));
+	c = %(malloc)s(sizeof(%(type)s));
 	if (c == NULL)
 		return NULL;
 
@@ -77,13 +104,16 @@ def emit_init(o):
 """ %
 	{
 		'target': targettype,
+		'type': gen_name(len(bits)),
 		'malloc': malloc,
-		'max': maxcoord(-1)
+		'max': maxcoord(-1),
+		'static': static
 	})
 
 
 def emit_delete(o):
 	"release memory"
+
 	def gen_loop(body, idx):
 		dict = \
 		{
@@ -103,29 +133,142 @@ def emit_delete(o):
 			%(type)s *%(c0)s = (*%(c1)s)[x][y];
 			if (%(c0)s)
 			{
-				%(body)s
+%(body)s
 			}
-		}""" % dict
+		}"""
 
-		dofree = "\n\t%(free)s(%(c1)s);" % dict
+		dofree = "\n\t%(free)s(%(c1)s);"
 
 		if idx == 0:
-			return dofree
+			return dofree % dict
 		else:
-			return doloop + dofree
+			return (doloop + dofree) % dict
 
 	o.write("""
-void delete_sparse(%(target)s c)
+%(static)s void delete_sparse(%(target)s %(c1)s)
 {
-	%(type)s *%(c1)s = c;
-	%(body)s
+%(body)s
 }
 """ % \
 	{
 		'target': targettype,
-		'type': gen_name(len(bits)),
 		'c1': 'c_%d' % len(bits),
-		'body': reduce(gen_loop, range(len(bits)), '')
+		'body': reduce(gen_loop, range(len(bits)), ''),
+		'static': static
+	})
+
+
+def gen_val(idx):
+	return "(*%(n)s)[(x>>%(shift)d)&%(and)d][(y>>%(shift)d)&%(and)d]" % \
+	{
+		'n': 'c_%d' % (idx+1),
+		'shift': lsum(bits[:idx]),
+		'and': maxcoord(idx)
+	}
+
+
+def emit_lookup(o):
+	"lookup values"
+
+	def gen_loop(body, idx):
+		dict = \
+			{
+				'type': gen_name(idx),
+				'c0': 'c_%d' % idx,
+				'body': body,
+				'def': default,
+				'val': gen_val(idx)
+			}
+		if idx == 0:
+			return "\treturn %(val)s;" % dict
+		else:
+			return """\
+	%(type)s *%(c0)s = %(val)s;
+	if (%(c0)s)
+	{
+		%(body)s
+	}
+	else
+		return %(def)s;	
+""" % dict
+
+	o.write("""
+%(static)s %(inl)s %(source)s lookup_sparse(%(target)s %(c1)s, int x, int y)
+{
+%(body)s
+}
+""" % \
+	{
+		'source': sourcetype,
+		'target': targettype,
+		'c1': 'c_%d' % len(bits),
+		'body': reduce(gen_loop, range(len(bits)), ''),
+		'static': static,
+		'inl': inline_lookup
+	})
+
+
+def emit_insert(o):
+	"inserting values"
+
+	def gen_loop(body, idx):
+		dict = \
+			{
+				'type': gen_name(idx),
+				'c0': 'c_%d' % idx,
+				'max': maxcoord(idx-1),
+				'val': gen_val(idx),
+				'body': body,
+				'malloc': malloc
+			}
+
+		if idx == 0:
+			return "\t%s = datum;" % gen_val(0)
+		if idx == 1:
+			dict['default'] = default
+		else:
+			dict['default'] = 'NULL'
+
+		return """\
+	%(c0)s = %(val)s;
+	if (%(c0)s == NULL)
+	{
+		/* allocate and initialize */
+		int i, j;
+		%(c0)s = %(malloc)s(sizeof(%(type)s));
+		for (i = 0; i < %(max)d; i++)
+			for (j = 0; j < %(max)d; j++)
+				(*%(c0)s)[i][j] = %(default)s;
+
+		/* place back in higher level */
+		%(val)s = %(c0)s;
+	}
+
+	/* next level */
+%(body)s\
+""" % dict
+
+	decls = ''
+	for i in range(len(bits)-1):
+		decls = decls + ("\t%s *c_%d;\n" % (gen_name(i+1), i+1))
+
+	o.write("""\
+%(static)s %(inl)s void insert_sparse(%(target)s %(c1)s, int x, int y, %(source)s datum)
+{
+	/* variable declarations*/
+%(decls)s
+	/* body */
+%(body)s
+}
+""" % \
+	{
+		'decls': decls,
+		'source': sourcetype,
+		'target': targettype,
+		'c1': 'c_%d' % len(bits),
+		'body': reduce(gen_loop, range(len(bits)), ''),
+		'static': static,
+		'inl': inline_insert
 	})
 
 
@@ -135,84 +278,8 @@ def emit_all(o):
 		f(o)
 	o.write('\n/* done */\n')
 
-#emit_all(sys.stdout)
-emit_types(sys.stdout)
-emit_init(sys.stdout)
-emit_delete(sys.stdout)
-
-
-"""
-
-the C code that I wrote is here:
-
-
-/* bigchunksize is the log of the number of smaller chunks in the whole
- * map */
-#define BIGSIZE 4
-/* smallchunksize is the number of data_t's in each small chunk */
-#define SMALLSIZE 6
-
-#define MAXCOORD(x) ((1<<(x))-1)
-
-#define BIGBITS(x) \
-	(((x) >> SMALLBITS) & MAXCOORD(BIGSIZE))
-#define SMALLBITS(x) \
-	((x) & MAXCOORD(SMALLSIZE))
-
-
-typedef byte data_t;
-
-typedef data_t smallchunk[1<<SMALLSIZE][1<<SMALLSIZE];
-
-typedef chunk1 *bigchunk[1<<BIGSIZE][1<<BIGSIZE];
-
-
-inline data_t lookup_chunk(bigchunk *d, int x, int y, data_t def)
-{
-
-	smallchunk *c = d[BIGBITS(x)][BIGBITS(y)];
-	if (c)
-		return c[SMALLBITS(x)][SMALLBITS(y)];
-	else
-		return def;
-};
-
-bigchunk *init_chunk()
-{
-	int x, y;
-	bigchunk *c = malloc(sizeof(bigchunk));
-	for (x = 0; x < MAXCOORD(BIGSIZE); x++)
-		for (y = 0; y < MAXCOORD(BIGSIZE); y++)
-			c[x][y] = NULL;
-	return c;
-}
-
-void delete_chunk(bigchunk *d)
-{
-	int x, y;
-	for (x = 0; x < MAXCOORD(BIGSIZE); x++)
-		for (y = 0; y < MAXCOORD(BIGSIZE); y++)
-			if (d[x][y])
-				free(d[x][y]);
-	free(d);
-}
-
-inline void insert_chunk(bigchunk *d, int x, int y, data_t def, data_t dat)
-{
-	smallchunk *c = d[BIGBITS(x)][BIGBITS(y)];
-	if (!c)
-	{
-		int i, j;
-		c = malloc(sizeof(smallchunk));
-		for (i = 0; i < MAXCOORD(SMALLSIZE); i++)
-			for (j = 0; j < MAXCOORD(SMALLSIZE); j++)
-				c[i][j] = def;
-		d[BIGBITS(x)][BIGBITS(y)] = c;
-	}
-	c[SMALLBITS(x)][SMALLBITS(y)] = dat;
-}
-
-
-"""
-
+if len(sys.argv) > 1:
+	emit_all(open(sys.argv[1],'w'))
+else:
+	emit_all(sys.stdout)
 

@@ -2,11 +2,9 @@
 #ifndef __MAPNEWSDL_H
 #define __MAPNEWSDL_H
 
-
 typedef struct Imapnewsdl
 {
-	u32 (*GetMapChecksum)(int arena);
-	char *(*GetMapFilename)(int arena);
+	void (*SendMapFilename)(int pid);
 	u32 (*GetNewsChecksum)();
 } Imapnewsdl;
 
