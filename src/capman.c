@@ -67,7 +67,7 @@ local void update_group(Player *p, Arena *arena)
 #ifdef CFG_USE_ARENA_STAFF_LIST
 	else if (arena && arena->cfg && (g = cfg->GetStr(arena->cfg, "Staff", p->name)))
 	{
-		astrncpy(pdata->group, ag, MAXGROUPLEN);
+		astrncpy(pdata->group, g, MAXGROUPLEN);
 		pdata->source = src_arenalist;
 		lm->LogP(L_DRIVEL, "capman", p, "assigned to group '%s' (arenaconf)", pdata->group);
 	}

@@ -61,7 +61,7 @@ local void Cgetfile(const char *params, Player *p, const Target *target)
 	t1 = t1 ? t1 + 1 : params;
 
 	if (params[0] == '/' || strstr(params, ".."))
-		lm->LogP(L_MALICIOUS, "playercmd", p, "attempted ?getfile with bad path: '%s'", params);
+		lm->LogP(L_MALICIOUS, "admincmd", p, "attempted ?getfile with bad path: '%s'", params);
 	else
 		filetrans->SendFile(p, params, t1, 0);
 }
@@ -82,6 +82,7 @@ local void uploaded(const char *fname, void *clos)
 
 	if (fname && u->unzip)
 	{
+		chat->SendMessage(u->p, "Zip inflated to: %s", u->serverpath);
 		/* unzip it to the destination directory */
 #ifndef WIN32 /* should use popen, since more portable */
 		r = fork();
@@ -152,6 +153,10 @@ local void Cputfile(const char *params, Player *p, const Target *target)
 		chat->SendMessage(p, "You must specify a destination path on the server. "
 				"?help putfile for more information.");
 	}
+	else if (serverpath[0] == '/' || strstr(serverpath, ".."))
+	{
+		lm->LogP(L_MALICIOUS, "admincmd", p, "attempted ?putfile with bad path: '%s'", params);
+	}
 	else
 	{
 		upload_t *u = amalloc(sizeof(*u) + strlen(serverpath));
@@ -183,6 +188,10 @@ local void Cputzip(const char *params, Player *p, const Target *target)
 	{
 		chat->SendMessage(p, "You must specify a destination directory on the server. "
 				"?help putzip for more information.");
+	}
+	else if (serverpath[0] == '/' || strstr(serverpath, ".."))
+	{
+		lm->LogP(L_MALICIOUS, "admincmd", p, "attempted ?putzip with bad path: '%s'", params);
 	}
 	else
 	{

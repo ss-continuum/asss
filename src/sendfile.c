@@ -96,6 +96,12 @@ local void uploaded(const char *path, void *clos)
 	afree(td);
 }
 
+local helptext_t sendfile_help =
+"Module: sendfile\n"
+"Targets: player\n"
+"Args: none\n"
+"Offer someone a file from your client's directory.\n"
+"Only one file can be offered at once.\n";
 
 local void Csendfile(const char *params, Player *p, const Target *target)
 {
@@ -142,6 +148,11 @@ local void Csendfile(const char *params, Player *p, const Target *target)
 	UNLOCK();
 }
 
+local helptext_t cancelfile_help =
+"Module: sendfile\n"
+"Targets: none\n"
+"Args: none\n"
+"Withdraw your previously offered files.\n";
 
 local void Ccancelfile(const char *params, Player *p, const Target *target)
 {
@@ -149,6 +160,11 @@ local void Ccancelfile(const char *params, Player *p, const Target *target)
 	chat->SendMessage(p, "Your file offers have been cancelled");
 }
 
+local helptext_t acceptfile_help =
+"Module: sendfile\n"
+"Targets: none\n"
+"Args: none\n"
+"Accept a file that has been offered to you.\n";
 
 local void Cacceptfile(const char *params, Player *p, const Target *t)
 {
@@ -191,9 +207,9 @@ EXPORT int MM_sendfile(int action, Imodman *mm, Arena *arena)
 		if (!ft || !cmd || !chat || !pd || !lm)
 			return MM_FAIL;
 
-		cmd->AddCommand("sendfile", Csendfile, NULL);
-		cmd->AddCommand("acceptfile", Cacceptfile, NULL);
-		cmd->AddCommand("cancelfile", Ccancelfile, NULL);
+		cmd->AddCommand("sendfile", Csendfile, sendfile_help);
+		cmd->AddCommand("acceptfile", Cacceptfile, acceptfile_help);
+		cmd->AddCommand("cancelfile", Ccancelfile, cancelfile_help);
 
 		mm->RegCallback(CB_PLAYERACTION, paction, ALLARENAS);
 

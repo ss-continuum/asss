@@ -1049,7 +1049,6 @@ local void PDemographics(Player *p, byte *opkt, int l)
 	}
 	else if (data->knowntobiller)
 	{
-
 		pkt.Type = S2B_USER_DEMOGRAPHICS;
 		pkt.ConnectionID = p->pid;
 		memcpy(pkt.Data, opkt+1, l-1);
