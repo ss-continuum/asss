@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 0.7.2.
+Welcome to asss (a small subspace server) 0.7.3.
 
 This news.txt will be used for updates about new features and other
 important information. If you have any suggestions of any kind, please
@@ -10,6 +10,8 @@ see it eventually (it all gets logged).
 
 
 Recent updates:
+    * various security features (chat flood detection, login limiting)
+
     * ?last - shows you last 10 people to log in
 
     * password security - type ?passwd=foobar to set one
