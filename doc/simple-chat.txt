@@ -1,6 +1,6 @@
 
 simple chat protocol
-version 1.5
+version 1.6
 grelminar@yahoo.com
 --------------------
 
@@ -119,8 +119,21 @@ server sends:
 	MSG:SQUAD:squad:sender:msg
 
 
+miscellaneous:
+
+client or server can send at any time:
+	NOOP
+
+this can be used (by the client) to implement a keepalive ping to get
+around crappy nat routers, or (by the server) to help time out dead
+clients.
+
+
 
 document history:
+
+1.6:
+	added NOOP type.
 
 1.5:
 	added client name in the version field of LOGIN.
