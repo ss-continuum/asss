@@ -1393,10 +1393,10 @@ int queue_more_data(void *dummy)
 	buffer = alloca(REQUESTATONCE);
 
 	p = get_next_player(&nextplayer);
-	conn = PPDATA(p, connkey);
 
 	if (p &&
 	    p->status < S_TIMEWAIT &&
+	    (conn = PPDATA(p, connkey)) &&
 	    pthread_mutex_trylock(&conn->olmtx) == 0)
 	{
 		if ((l = LLGetHead(&conn->sizedsends)) &&
@@ -1524,6 +1524,7 @@ local void send_outgoing(ConnData *conn)
 					DQRemove((DQNode*)buf);
 					FreeBuffer(buf);
 					conn->pktdropped++;
+					outlistlen--;
 				}
 				/* but in either case, skip it */
 #ifdef CFG_USE_HITLIMIT
@@ -1565,6 +1566,7 @@ local void send_outgoing(ConnData *conn)
 				{
 					DQRemove((DQNode*)buf);
 					FreeBuffer(buf);
+					outlistlen--;
 				}
 			}
 			else
@@ -1578,6 +1580,7 @@ local void send_outgoing(ConnData *conn)
 					 * free it so we don't send it again. */
 					DQRemove((DQNode*)buf);
 					FreeBuffer(buf);
+					outlistlen--;
 				}
 			}
 		}
@@ -2434,6 +2437,7 @@ void SendRaw(ConnData *conn, byte *data, int len)
 	byte encbuf[MAXPACKET+4];
 	Player *p = conn->p;
 
+	assert(len < MAXPACKET);
 	memcpy(encbuf, data, len);
 
 #ifdef CFG_DUMP_RAW_PACKETS
@@ -2455,7 +2459,7 @@ void SendRaw(ConnData *conn, byte *data, int len)
 #endif
 
 	sendto(conn->whichsock, encbuf, len, 0,
-			(struct sockaddr*)&conn->sin,sizeof(struct sockaddr_in));
+			(struct sockaddr*)&conn->sin, sizeof(struct sockaddr_in));
 
 	conn->bytessince += len + config.overhead;
 	conn->bytesent += len;
@@ -2787,6 +2791,7 @@ fail:
 
 void SendPacket(ClientConnection *cc, byte *pkt, int len, int flags)
 {
+	pthread_mutex_lock(&cc->c.olmtx);
 	if (len > MAXPACKET)
 	{
 		/* use 00 08/9 packets */
@@ -2806,6 +2811,7 @@ void SendPacket(ClientConnection *cc, byte *pkt, int len, int flags)
 	}
 	else
 		BufferPacket(&cc->c, pkt, len, flags, NULL, NULL);
+	pthread_mutex_unlock(&cc->c.olmtx);
 }
 
 void DropClientConnection(ClientConnection *cc)
