@@ -156,43 +156,40 @@ int find_file_on_path(
 }
 
 
-#if 0
-
-/* mini test suite */
-
-#include <stdio.h>
-
-int main()
+int is_valid_path(const char *path)
 {
-	int ret;
-	char buf[256];
-	struct replace_table it[] = {
-		{ 'a', "asss" },
-		{ 'f', "foobar" },
-		{ '!', "exclamation" }
-	};
+	const char *s = path;
+	char ch, last = 0;
 
-	ret = macro_expand_string(buf, 256,
-			"this is %a test of %f%!",
-			it, sizeof(it)/sizeof(it[0]), '%');
+	if (!path)
+		return FALSE;
 
-	printf("ret = %d", ret);
-	if (ret != -1)
-		printf(": %s\n", buf);
-	else
-		printf("\n");
+	ch = *s;
 
-	ret = find_file_on_path(
-			buf, 256,
-			"/home/foo/bar:eeeek:../../%a/src:%!%!",
-			it, sizeof(it)/sizeof(it[0]));
-	printf("ret = %d", ret);
-	if (ret != -1)
-		printf(": %s\n", buf);
-	else
-		printf("\n");
+	/* bad first characters: /
+	 */
+	if (ch == '/')
+		return FALSE;
+
+	/* bad chars: nonprintables, :, \
+	 * bad sequences: .. //
+	 */
+	while (ch)
+	{
+		if ((ch < ' ' || ch > '~' || ch == ':' || ch == '\\') ||
+		    ((ch == '.' || ch == '/') && last == ch))
+			return FALSE;
+
+		last = ch;
+		ch = *++s;
+	}
+
+	/* bad last chars: /
+	 */
+	if (last == '/')
+		return FALSE;
+
+	return TRUE;
 }
-
-#endif
 
 

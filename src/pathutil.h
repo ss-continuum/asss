@@ -37,6 +37,9 @@ int find_file_on_path(
 		struct replace_table *repls,
 		int replslen);
 
+/* checks if the given path is valid and secure against trying to access
+ * files outside of the server root. */
+int is_valid_path(const char *path);
 
 #endif
 
