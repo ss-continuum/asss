@@ -29,13 +29,16 @@ local void PDie(int, byte *, int);
 local void PGreen(int, byte *, int);
 local void PAttach(int, byte *, int);
 local void PKickoff(int, byte *, int);
+local void PBrick(int, byte *, int);
 
 local void Creport(const char *params, int pid, int target);
 
 local inline void DoChecksum(struct S2CWeapons *, int);
 local inline long lhypot (register long dx, register long dy);
 
-/* helper for stuff */
+/* interface? */
+local void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2);
+
 local int MyAssignFreq(int, int, byte);
 
 
@@ -53,6 +56,7 @@ local Icmdman *cmd;
 local Ichat *chat;
 local Iflags *flags;
 local Icapman *capman;
+local Imapdata *mapdata;
 
 local PlayerData *players;
 local ArenaData *arenas;
@@ -87,6 +91,7 @@ int MM_game(int action, Imodman *mm_, int arena)
 		mm->RegInterest(I_CHAT, &chat);
 		mm->RegInterest(I_FLAGS, &flags);
 		mm->RegInterest(I_CAPMAN, &capman);
+		mm->RegInterest(I_MAPDATA, &mapdata);
 
 		if (!net || !cfg || !log || !aman) return MM_FAIL;
 
@@ -116,6 +121,7 @@ int MM_game(int action, Imodman *mm_, int arena)
 		net->AddPacket(C2S_GREEN, PGreen);
 		net->AddPacket(C2S_ATTACHTO, PAttach);
 		net->AddPacket(C2S_TURRETKICKOFF, PKickoff);
+		net->AddPacket(C2S_BRICK, PBrick);
 
 		cmd->AddCommand("report", Creport);
 
@@ -133,6 +139,7 @@ int MM_game(int action, Imodman *mm_, int arena)
 		net->RemovePacket(C2S_GREEN, PGreen);
 		net->RemovePacket(C2S_ATTACHTO, PAttach);
 		net->RemovePacket(C2S_TURRETKICKOFF, PKickoff);
+		net->RemovePacket(C2S_BRICK, PBrick);
 		mm->UnregCallback(CALLBACK_PLAYERACTION, PlayerAction, ALLARENAS);
 		mm->UnregCallback(CALLBACK_ARENAACTION, ArenaAction, ALLARENAS);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
@@ -145,6 +152,7 @@ int MM_game(int action, Imodman *mm_, int arena)
 		mm->UnregInterest(I_CHAT, &chat);
 		mm->UnregInterest(I_FLAGS, &flags);
 		mm->UnregInterest(I_CAPMAN, &capman);
+		mm->UnregInterest(I_MAPDATA, &mapdata);
 		/* do this last so we don't get prevented from unloading because
 		 * of ourself */
 		mm->UnregInterface(I_ASSIGNFREQ, &_myaf);
@@ -520,6 +528,61 @@ void PKickoff(int pid, byte *p, int len)
 		if (players[i].status == S_PLAYING &&
 		    players[i].attachedto == pid)
 			net->SendToOne(i, &pkt, 1, NET_RELIABLE);
+}
+
+
+#include "packets/brick.h"
+
+void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2)
+{
+	/* static data here */
+	static i16 brickids[MAXARENA] = { 0 };
+	static pthread_mutex_t brickmtx = PTHREAD_MUTEX_INITIALIZER;
+	/* end static data */
+
+	struct S2CBrickPacket pkt =
+		{ S2C_BRICK, x1, y1, x2, y2, freq };
+
+	/* re-order points if necessary */
+	if (pkt.x2 < pkt.x1)
+	{
+		i16 t = pkt.x2;
+		pkt.x2 = pkt.x1;
+		pkt.x1 = t;
+	}
+	if (pkt.y2 < pkt.y1)
+	{
+		i16 t = pkt.y2;
+		pkt.y2 = pkt.y1;
+		pkt.y1 = t;
+	}
+
+	pthread_mutex_lock(&brickmtx);
+	pkt.brickid = brickids[arena]++;
+	pthread_mutex_unlock(&brickmtx);
+	pkt.starttime = GTC();
+	net->SendToArena(arena, -1, (byte*)&pkt, sizeof(pkt), NET_RELIABLE | NET_IMMEDIATE);
+	log->Log(L_DRIVEL, "<game> {%s} Brick dropped (%d,%d)-(%d,%d) (freq=%d)",
+			arenas[arena].name,
+			x1, y1, x2, y2, freq);
+}
+
+
+void PBrick(int pid, byte *p, int len)
+{
+	int dx, dy, x1, y1, x2, y2;
+	int arena = players[pid].arena;
+	int l;
+
+	if (arena < 0 || arena >= MAXARENA) return;
+
+	l = cfg->GetInt(arenas[arena].cfg, "Brick", "BrickSpan", 10);
+
+	dx = ((struct C2SBrickPacket*)p)->x;
+	dy = ((struct C2SBrickPacket*)p)->y;
+
+	mapdata->FindBrickEndpoints(arena, dx, dy, l, &x1, &y1, &x2, &y2);
+	DropBrick(arena, players[pid].freq, x1, y1, x2, y2);
 }
 
 

@@ -265,25 +265,18 @@ int GetFlagCount(int arena)
 
 void FindFlagTile(int arena, int *x, int *y)
 {
+	/* init context. these values are funny because they are one
+	 * iteration before where we really want to start from. */
 	struct SpiralContext
 	{
 		enum { down, right, up, left } dir;
 		int upto, remaining;
 		int x, y;
-	} ctx;
-	int good;
+	} ctx = { left, 0, 1, *x + 1, *y };
+	int good = 0;
 	sparse_arr arr = mapdata[arena].arr;
 
 	if (!arr) return;
-
-	/* init context. these values are funny because they are one
-	 * iteration before where we really want to start from. */
-	ctx.dir = left;
-	ctx.upto = 0;
-	ctx.remaining = 1;
-	ctx.x = *x + 1;
-	ctx.y = *y;
-	good = 0;
 
 	/* do it */
 	do
@@ -329,8 +322,114 @@ void FindFlagTile(int arena, int *x, int *y)
 	}
 }
 
+
 void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2)
 {
+	sparse_arr arr = mapdata[arena].arr;
+	enum { down, right, up, left } dir;
+	int bestcount, bestdir, x, y, destx, desty;
+
+	if (lookup_sparse(arr, dropx, dropy))
+	{
+		/* we can't drop it on a wall! */
+		*x1 = *x2 = dropx;
+		*y1 = *y2 = dropy;
+		return;
+	}
+
+	/* find closest wall and the point next to it */
+	bestcount = 3000;
+	bestdir = -1;
+	for (dir = 0; dir < 4; dir++)
+	{
+		int count = 0, oldx = dropx, oldy = dropy;
+		x = dropx; y = dropy;
+
+		while (lookup_sparse(arr, x, y) == 0 &&
+		       x >= 0 && x < 1024 &&
+		       y >= 0 && y < 1024 &&
+		       count < length)
+		{
+			switch (dir)
+			{
+				case down:  oldy = y++; break;
+				case right: oldx = x++; break;
+				case up:    oldy = y--; break;
+				case left:  oldx = x--; break;
+			}
+			count++;
+		}
+
+		if (count < bestcount)
+		{
+			bestcount = count;
+			bestdir = dir;
+			destx = oldx; desty = oldy;
+		}
+	}
+
+	if (bestdir == -1)
+	{
+		/* shouldn't happen */
+		*x1 = *x2 = dropx;
+		*y1 = *y2 = dropy;
+		return;
+	}
+
+	if (bestcount == length)
+	{
+		/* no closest wall */
+		if (rand() & 0x800)
+		{
+			destx = dropx - length / 2;
+			desty = dropy;
+			bestdir = left;
+		}
+		else
+		{
+			destx = dropx;
+			desty = dropy - length / 2;
+			bestdir = up;
+		}
+	}
+
+	/* enter first coordinate */
+	dropx = x = *x1 = destx; dropy = y = *y1 = desty;
+
+	/* go from closest point */
+	switch (bestdir)
+	{
+		case down:
+			while (lookup_sparse(arr, x, y) == 0 &&
+			       (dropy - y) < length &&
+			       y >= 0)
+				desty = y--;
+			break;
+
+		case right:
+			while (lookup_sparse(arr, x, y) == 0 &&
+			       (dropx - x) < length &&
+			       x >= 0)
+				destx = x--;
+			break;
+
+		case up:
+			while (lookup_sparse(arr, x, y) == 0 &&
+			       (y - dropy) < length &&
+			       y < 1024)
+				desty = y++;
+			break;
+
+		case left:
+			while (lookup_sparse(arr, x, y) == 0 &&
+			       (x - dropx) < length &&
+			       x < 1024)
+				destx = x++;
+			break;
+	}
+
+	/* enter second coordinate */
+	*x2 = destx; *y2 = desty;
 }
 
 
@@ -395,9 +494,7 @@ char *GetRegion(int arena, int x, int y)
 
 int InRegion(int arena, char *region, int x, int y)
 {
-	struct Region *reg;
-
-	reg = HashGetOne(mapdata[arena].regions, region);
+	struct Region *reg = HashGetOne(mapdata[arena].regions, region);
 
 	if (!reg)
 		return 0;
@@ -414,4 +511,5 @@ int InRegion(int arena, char *region, int x, int y)
 		return 0;
 	}
 }
+
 
