@@ -1,11 +1,11 @@
 
 /* dist: public */
 
-#include <Python.h>
-#include <structmember.h>
-
 #include <signal.h>
 #include <pthread.h>
+
+#include "Python.h"
+#include "structmember.h"
 
 #include "asss.h"
 
@@ -1428,8 +1428,8 @@ local void init_asss_module(void)
 
 	/* handle constants */
 #define STRING(x) PyModule_AddStringConstant(m, #x, x);
-#define CALLBACK(x) PyModule_AddStringConstant(m, #x, PYCBPREFIX x);
-#define INTERFACE(x) PyModule_AddStringConstant(m, #x, PYINTPREFIX x);
+#define PYCALLBACK(x) PyModule_AddStringConstant(m, #x, PYCBPREFIX x);
+#define PYINTERFACE(x) PyModule_AddStringConstant(m, #x, PYINTPREFIX x);
 #define INT(x) PyModule_AddIntConstant(m, #x, x);
 #define ONE(x) PyModule_AddIntConstant(m, #x, 1);
 #include "py_constants.inc"

@@ -59,10 +59,10 @@ def const_one(n):
 	const_file.write('ONE(%s)\n' % n);
 
 def const_callback(n):
-	const_file.write('CALLBACK(%s)\n' % n);
+	const_file.write('PYCALLBACK(%s)\n' % n);
 
 def const_interface(n):
-	const_file.write('CALLBACK(%s)\n' % n);
+	const_file.write('PYINTERFACE(%s)\n' % n);
 
 
 class type_gen:
