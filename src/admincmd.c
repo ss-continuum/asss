@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 #include <errno.h>
 
 #include "asss.h"
@@ -385,7 +386,19 @@ local helptext_t makearena_help =
 local void Cmakearena(const char *params, Player *p, const Target *target)
 {
 	char buf[128];
+	const char *c;
 	FILE *f;
+
+	/* check for a legal arena name. this should match the logic in
+	 * arenaman.c */
+	for (c = params; *c; c++)
+		if (*c == '#' && c == params)
+			/* initial # ok */;
+		else if (!isalnum(*c) || isupper(*c) || *params == '\0')
+		{
+			chat->SendMessage(p, "Illegal arena name.");
+			return;
+		}
 
 	snprintf(buf, sizeof(buf), "arenas/%s", params);
 	if (mkdir(buf, 0755) < 0)
