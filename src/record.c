@@ -599,6 +599,10 @@ local void *playback_thread(void *v)
 	Player **pidmap;
 	int pidmaplen;
 
+	/* first lock everyone to spec so they don't interfere with the
+	 * playback */
+	lock_all_spec(a);
+
 	startingoffset = gztell(ra->gzf);
 	memset(ev.buf, 0, sizeof(ev));
 
@@ -895,8 +899,6 @@ local int start_playback(Arena *a, const char *file)
 				chat->SendArenaMessage(a, "Game recorded in arena %s by %s on %s",
 						header.arenaname, header.recorder, date);
 
-				lock_all_spec(a);
-
 				/* move to where the data is */
 				gzseek(ra->gzf, header.offset, SEEK_SET);
 
@@ -917,6 +919,7 @@ local int start_playback(Arena *a, const char *file)
 		}
 	}
 	UNLOCK(a);
+
 	return ok;
 }
 

@@ -132,7 +132,7 @@ local void PBanner(Player *p, byte *pkt, int len)
 }
 
 
-local void PA(Player *p, int action, Arena *arena)
+local void paction(Player *p, int action, Arena *arena)
 {
 	if (action == PA_ENTERARENA)
 	{
@@ -184,7 +184,7 @@ EXPORT int MM_banners(int action, Imodman *mm_, Arena *arena)
 		bdkey = pd->AllocatePlayerData(sizeof(bdata));
 		if (bdkey == -1) return MM_FAIL;
 
-		mm->RegCallback(CB_PLAYERACTION, PA, ALLARENAS);
+		mm->RegCallback(CB_PLAYERACTION, paction, ALLARENAS);
 		net->AddPacket(C2S_BANNER, PBanner);
 		mm->RegInterface(&myint, ALLARENAS);
 		return MM_OK;
@@ -194,7 +194,7 @@ EXPORT int MM_banners(int action, Imodman *mm_, Arena *arena)
 		if (mm->UnregInterface(&myint, ALLARENAS))
 			return MM_FAIL;
 		net->RemovePacket(C2S_BANNER, PBanner);
-		mm->UnregCallback(CB_PLAYERACTION, PA, ALLARENAS);
+		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
 		pd->FreePlayerData(bdkey);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(pd);
