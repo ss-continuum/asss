@@ -16,7 +16,7 @@ local Ifreqman fm_int =
 	fm, fm, fm
 };
 
-EXPORT int MM_fm_normal(int action, Imodman *_mm, Arena *arena)
+EXPORT int MM_fm_lockspec(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
