@@ -2,7 +2,7 @@
 # ccc - a console chat client for asss
 # <grelminar@yahoo.com>
 
-import sys, time, signal, curses, socket, select, os
+import sys, time, curses, socket, select, os
 
 
 class MyWindows:
@@ -315,15 +315,15 @@ def init_wins():
 
 	wins.stdscr.erase()
 
-	wins.iwin = wins.stdscr.subwin(editheight, w, h-editheight, 0)
+	wins.iwin = curses.newwin(editheight, w, h-editheight, 0)
 	wins.stdscr.hline(h-editheight-1, 0, '-', w)
 
 	if pwidth:
-		wins.twin = wins.stdscr.subwin(h-editheight-1, w-pwidth-1, 0, 0)
-		wins.pwin = wins.stdscr.subwin(h-editheight-1, pwidth, 0, w-pwidth)
+		wins.twin = curses.newwin(h-editheight-1, w-pwidth-1, 0, 0)
+		wins.pwin = curses.newwin(h-editheight-1, pwidth, 0, w-pwidth)
 		wins.stdscr.vline(0, w-pwidth-1, '|', h-editheight-1)
 	else:
-		wins.twin = wins.stdscr.subwin(h-editheight-1, w, 0, 0)
+		wins.twin = curses.newwin(h-editheight-1, w, 0, 0)
 
 	wins.stdscr.refresh()
 
@@ -526,7 +526,6 @@ def process_key():
 		pass
 	elif ch == curses.KEY_RESIZE:
 		init_wins()
-		curses.doupdate()
 	elif ch == 27:
 		# get all chars of an escape sequence
 		seq = []
