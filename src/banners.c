@@ -70,7 +70,7 @@ local void PBanner(Player *p, byte *pkt, int len)
 	struct C2SBanner *b = (struct C2SBanner*)pkt;
 #if 0
 	static unsigned lastbsend = 0;
-	unsigned gtc = GTC();
+	ticks_t gtc = current_ticks();
 #endif
 
 	if (len != sizeof(*b))
@@ -93,7 +93,7 @@ local void PBanner(Player *p, byte *pkt, int len)
 		/* send to biller */
 		/* only allow 1 banner every .2 seconds to get sent to biller.
 		 * any more get dropped */
-		if (bnet && (gtc - lastbsend) > 20)
+		if (bnet && TICK_DIFF(gtc, lastbsend) > 20)
 		{
 			struct S2BBanner bsend;
 			bsend.type = S2B_BANNER;

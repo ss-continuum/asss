@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
 	Imainloop *ml;
 
 	/* seed random number generators */
-	srand(GTC());
+	srand(current_ticks());
 
 	ProcessArgs(argc, argv);
 

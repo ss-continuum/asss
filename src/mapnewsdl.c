@@ -179,7 +179,7 @@ local void SendMapFilename(Player *p)
 	struct MapFilename *mf;
 	LinkedList *dls;
 	struct MapDownloadData *data;
-	int len, wantopt = WANT_ALL_LVZ(p);
+	int len;
 	Arena *arena;
 
 	arena = p->arena;
@@ -212,7 +212,7 @@ local void SendMapFilename(Player *p)
 		for (l = LLGetHead(dls); l; l = l->next)
 		{
 			data = l->data;
-			if (!data->optional || wantopt)
+			if (!data->optional || p->flags.want_all_lvz)
 			{
 				strncpy(mf->files[idx].filename, data->filename, 16);
 				mf->files[idx].checksum = data->checksum;
@@ -485,7 +485,7 @@ local void PMapRequest(Player *p, byte *pkt, int len)
 {
 	struct data_locator *dl;
 	Arena *arena = p->arena;
-	int wantopt = WANT_ALL_LVZ(p);
+	int wantopt = p->flags.want_all_lvz;
 
 	if (pkt[0] == C2S_MAPREQUEST)
 	{
@@ -534,6 +534,17 @@ local void PMapRequest(Player *p, byte *pkt, int len)
 }
 
 
+#include "filetrans.h"
+
+local void PUpdateRequest(Player *p, byte *pkt, int len)
+{
+	Ifiletrans *ft = mm->GetInterface(I_FILETRANS, ALLARENAS);
+	if (ft)
+		ft->SendFile(p, "clients/update.exe", "", FALSE);
+	mm->ReleaseInterface(ft);
+}
+
+
 
 /* interface */
 
@@ -563,6 +574,7 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, Arena *arena)
 		if (dlkey == -1) return MM_FAIL;
 
 		/* set up callbacks */
+		net->AddPacket(C2S_UPDATEREQUEST, PUpdateRequest);
 		net->AddPacket(C2S_MAPREQUEST, PMapRequest);
 		net->AddPacket(C2S_NEWSREQUEST, PMapRequest);
 		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
@@ -588,6 +600,7 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, Arena *arena)
 	{
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
+		net->RemovePacket(C2S_UPDATEREQUEST, PUpdateRequest);
 		net->RemovePacket(C2S_MAPREQUEST, PMapRequest);
 		net->RemovePacket(C2S_NEWSREQUEST, PMapRequest);
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);

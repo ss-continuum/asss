@@ -10,31 +10,27 @@
  * this manages all player scores (and other persistent data, if there
  * ever is any).
  *
- * usage works like this: other modules register PersistentData
+ * it works like this: other modules register Player/ArenaPersistentData
  * descriptors with persist. key is a unique number that will identify
  * the type of data. length is the number of bytes you want to store, up
- * to MAXPERSISTLENGTH. global is either 0, meaning each player gets one
- * copy of the data for the whole server, or 1, meaning the data is
- * maintained per arena. the two functions will be used to get the data
- * for storing, and to set it when retrieving.
+ * to MAXPERSISTLENGTH. scope describes where this data is valid, and
+ * interval describes how many copies of it there are.
  *
- * when a player connects to the server, SyncFromFile will be called
- * (hopefully in another thread) which will read that player's
- * persistent information from the file and call the SetData of all
- * registered PersistentData descriptors. the global flag is 1 when
- * syncing global data is desired, and 0 when arena data is desired.
- * SyncToFile will be called when a player is disconnecting, which will
+ * when a player connects to the server, GetPlayer will be called which
+ * will read that player's persistent information from the file and call
+ * the SetData of all registered PlayerPersistentData descriptors.
+ * PutPlayer will be called when a player is disconnecting, which will
  * call each data descriptor's GetData function to get the data to write
  * to the file. when switching arenas, the previous arena's data will be
  * synced to the file, and then the new arena's information synced from
  * it.
  *
- * a few things to keep in mind: the PersistentData structure should
+ * a few things to keep in mind: the *PersistentData structure should
  * never change while the program is running. furthermore, the key,
- * length, and global fields should never change at all, even across
- * runs, or any previously created files will become useless. the player
- * will be locked before any of the Get/Set/ClearData functions are
- * called.
+ * length, scope, and interval fields should never change at all, even
+ * across runs, or any previously created files will become useless. the
+ * player will be locked before any of the Get/Set/ClearData functions
+ * are called.
  *
  * StabilizeScores can be called with an integer argument to encure the
  * score files will be in a consistent state for that many seconds. This
@@ -46,7 +42,7 @@
 #include "statcodes.h"
 
 
-#define MAXPERSISTLENGTH 1024
+#define MAXPERSISTLENGTH CFG_MAX_PERSIST_LENGTH
 
 
 #define PERSIST_ALLARENAS ((Arena*)(-1))

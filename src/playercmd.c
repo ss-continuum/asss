@@ -608,12 +608,12 @@ local void Cinfo(const char *params, Player *p, const Target *target)
 		type = t->type < (sizeof(type_names)/sizeof(type_names[0])) ?
 			type_names[t->type] : "really_unknown";
 		prefix = params[0] ? params : "info";
-		tm = (int)(GTC() - t->connecttime);
+		tm = TICK_DIFF(current_ticks(), t->connecttime);
 
 		chat->SendMessage(p,
 				"%s: pid=%d  status=%d  name='%s'  squad='%s'  auth=%c",
 				prefix, t->pid, t->status, t->name, t->squad,
-				IS_AUTHENTICATED(t) ? 'y' : 'n');
+				t->flags.authenticated ? 'y' : 'n');
 		chat->SendMessage(p,
 				"%s: arena=%s  type=%s  res=%dx%d  seconds=%d",
 				prefix, t->arena ? t->arena->name : "(none)", type, t->xres,
@@ -1242,7 +1242,7 @@ local void Cjackpot(const char *params, Player *p, const Target *target)
 }
 
 
-static unsigned int startedat;
+static ticks_t startedat;
 
 local helptext_t uptime_help =
 "Targets: none\n"
@@ -1251,7 +1251,7 @@ local helptext_t uptime_help =
 
 local void Cuptime(const char *params, Player *p, const Target *target)
 {
-	unsigned int secs = (GTC() - startedat) / 100;
+	ticks_t secs = TICK_DIFF(current_ticks(), startedat) / 100;
 	int days, hours, mins;
 
 	days = secs / 86400;
@@ -1704,7 +1704,7 @@ EXPORT int MM_playercmd(int action, Imodman *_mm, Arena *arena)
 
 		if (!pd || !chat || !cmd) return MM_FAIL;
 
-		startedat = GTC();
+		startedat = current_ticks();
 
 		for (grp = all_cmd_groups; grp->groupname; grp++)
 			load_cmd_group(grp);

@@ -275,11 +275,11 @@ static char *short_names[] =
 	/* cfghelp: Latency:ClientSlowPacketSampleSize, arena, int
 	 * Number of packets to sample S2C before checking for kickout */
 	"Latency:ClientSlowPacketSampleSize",
-	"Unused:Unused1",
-	"Unused:Unused2",
-	"Unused:Unused3",
+	"Unused:Unused5",
 	"Unused:Unused4",
-	"Unused:Unused5"
+	"Unused:Unused3",
+	"Unused:Unused2",
+	"Unused:Unused1"
 };
 
 static char *byte_names[] =
@@ -362,13 +362,13 @@ static char *byte_names[] =
 	 * How many ticks to activate a fake antiwarp after attaching,
 	 * portaling, or warping. */
 	"Misc:AntiWarpSettleDelay",
-	"Unused:Unused2",
-	"Unused:Unused3",
-	"Unused:Unused4",
-	"Unused:Unused5",
-	"Unused:Unused6",
 	"Unused:Unused7",
-	"Unused:Unused8"
+	"Unused:Unused6",
+	"Unused:Unused5",
+	"Unused:Unused4",
+	"Unused:Unused3",
+	"Unused:Unused2",
+	"Unused:Unused1"
 };
 
 static char *prizeweight_names[] =
@@ -774,6 +774,12 @@ static char *ship_byte_names[] =
  * Whether to disable Continuum's screenshot feature (Cont .37+) */
 
 /* FIXME: need cfghelp for Misc:SlowFrameRate, Misc:MaxTimerDrift */
+
+/* cfghelp: Misc:DisableBallThroughWalls, arena, bool, def: 0
+ * Whether to disable ball-passing through walls (Cont .38+) */
+
+/* cfghelp: Misc:DisableBallKilling, arena, bool, def: 0
+ * Whether to disable ball killing in safe zones (Cont .38+) */
 
 /* cfghelp: Spawn:TeamN-X/Y/Radius, arena, int
  * Specify spawn location and radius per team. If only Team0 variables

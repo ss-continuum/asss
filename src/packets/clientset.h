@@ -28,7 +28,7 @@ struct MiscBitfield
 {
 	unsigned short SeeBombLevel   : 2;
 	unsigned short DisableFastShooting : 1;
-	unsigned short Padding1       : 5;
+	unsigned short _padding1      : 5;
 	unsigned short Radius         : 8;
 };
 
@@ -53,7 +53,9 @@ struct ClientSettings
 		unsigned int SlowFrameRate : 3;
 		unsigned int DisableScreenshot : 1;
 		unsigned int MaxTimerDrift : 3;
-		unsigned int Pad2 : 14;
+		unsigned int DisableBallThroughWalls : 1;
+		unsigned int DisableBallKilling : 1;
+		unsigned int _padding : 12;
 	} bit_set;
 	struct ShipSettings ships[8];
 	i32 long_set[20];

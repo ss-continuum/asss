@@ -12,7 +12,7 @@
 typedef struct TimerData
 {
 	TimerFunc func;
-	unsigned int interval, when;
+	ticks_t interval, when;
 	void *param;
 	void *key;
 } TimerData;
@@ -69,21 +69,21 @@ int RunLoop(void)
 	TimerData *td;
 	LinkedList freelist = LL_INITIALIZER;
 	Link *l;
-	unsigned int gtc;
+	ticks_t gtc;
 
 	while (!privatequit)
 	{
 		/* call all funcs */
 		DO_CBS(CB_MAINLOOP, ALLARENAS, MainLoopFunc, ());
 
-		gtc = GTC();
+		gtc = current_ticks();
 
 		/* do timers */
 		LOCK();
 		for (l = LLGetHead(&timers); l; l = l->next)
 		{
 			td = (TimerData*) l->data;
-			if (td->func && td->when <= gtc)
+			if (td->func && TICK_DIFF(gtc, td->when) >= 0)
 			{
 				UNLOCK();
 				if ( td->func(td->param) )
@@ -123,7 +123,7 @@ void StartTimer(TimerFunc f, int startint, int interval, void *param, void *key)
 
 	data->func = f;
 	data->interval = interval;
-	data->when = GTC() + startint;
+	data->when = TICK_MAKE(current_ticks() + startint);
 	data->param = param;
 	data->key = key;
 	LOCK();

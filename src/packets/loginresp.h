@@ -12,10 +12,12 @@ struct S2CLoginResponse
 	u8 type;
 	u8 code;
 	u32 serverversion;
-	u32 blah;
+	u8 isvip;
+	u8 blah[3];
 	u32 exechecksum;
-	u8 blah2[2];
-	u32 demodata, codechecksum;
+	u8 blah2[5];
+	u8 demodata;
+	u32 codechecksum;
 	u32 newschecksum;
 	u8 blah4[8];
 };

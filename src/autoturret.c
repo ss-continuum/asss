@@ -9,7 +9,7 @@ struct TurretData
 {
 	Player *p;
 	int interval, weapon;
-	unsigned long endtime, tofire, tosend;
+	ticks_t endtime, tofire, tosend;
 	struct C2SPosition pos;
 };
 
@@ -29,12 +29,13 @@ local struct TurretData * new_turret(Player *p, int timeout, int interval, Playe
 	struct C2SPosition *pos;
 	struct PlayerPosition *src = &p_for_position->position;
 	struct TurretData *td = amalloc(sizeof(*td));
+	ticks_t gtc = current_ticks();
 
 	td->p = p;
-	td->endtime = GTC() + timeout;
+	td->endtime = gtc + timeout;
 	td->interval = interval;
-	td->tosend = 0;
-	td->tofire = 0;
+	td->tosend = gtc;
+	td->tofire = gtc;
 
 	pos = &td->pos;
 	pos->type = C2S_POSITION;
@@ -83,7 +84,7 @@ local void Cdropturret(const char *params, Player *p, const Target *target)
 
 local void mlfunc()
 {
-	unsigned now;
+	ticks_t now;
 	struct TurretData *td;
 	Link *l, *next;
 
@@ -92,8 +93,8 @@ local void mlfunc()
 	{
 		td = l->data;
 		next = l->next; /* so we can remove during the loop */
-		now = GTC();
-		if (now > td->endtime)
+		now = current_ticks();
+		if (TICK_GT(now, td->endtime))
 		{
 			/* remove it from the list, kill the turret, and free the
 			 * memory */
@@ -101,19 +102,19 @@ local void mlfunc()
 			fake->EndFaked(td->p);
 			afree(td);
 		}
-		else if (now > td->tofire)
+		else if (TICK_GT(now, td->tofire))
 		{
 			td->tofire = now + td->interval;
 			td->tosend = now + 15;
-			td->pos.bounty = (td->endtime - now) / 100;
+			td->pos.bounty = TICK_DIFF(td->endtime, now) / 100;
 			td->pos.time = now;
 			td->pos.weapon.type = td->weapon;
 			game->FakePosition(td->p, &td->pos);
 		}
-		else if (now > td->tosend)
+		else if (TICK_GT(now, td->tosend))
 		{
 			td->tosend = now + 15;
-			td->pos.bounty = (td->endtime - now) / 100;
+			td->pos.bounty = TICK_DIFF(td->endtime, now) / 100;
 			td->pos.time = now;
 			td->pos.weapon.type = 0;
 			game->FakePosition(td->p, &td->pos);

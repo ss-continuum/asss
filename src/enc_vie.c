@@ -15,7 +15,7 @@ typedef struct EncData
 
 /* prototypes */
 
-local void ConnInit(struct sockaddr_in *sin, byte *pkt, int len);
+local void ConnInit(struct sockaddr_in *sin, byte *pkt, int len, void *v);
 
 local void Init(Player *p, int k);
 local int Encrypt(Player *p, byte *, int);
@@ -66,7 +66,7 @@ EXPORT int MM_encrypt1(int action, Imodman *mm, Arena *arena)
 }
 
 
-void ConnInit(struct sockaddr_in *sin, byte *pkt, int len)
+void ConnInit(struct sockaddr_in *sin, byte *pkt, int len, void *v)
 {
 	int key;
 	Player *p;
@@ -77,13 +77,13 @@ void ConnInit(struct sockaddr_in *sin, byte *pkt, int len)
 		return;
 
 	/* ok, it fits. get connection. */
-	p = net->NewConnection(T_VIE, sin, &_int);
+	p = net->NewConnection(T_VIE, sin, &_int, v);
 
 	if (!p)
 	{
 		/* no slots left? */
 		byte pkt[2] = { 0x00, 0x07 };
-		net->ReallyRawSend(sin, (byte*)&pkt, 2);
+		net->ReallyRawSend(sin, (byte*)&pkt, 2, v);
 		return;
 	}
 
@@ -98,7 +98,7 @@ void ConnInit(struct sockaddr_in *sin, byte *pkt, int len)
 			int key;
 		}
 		pkt = { 0x00, 0x02, key };
-		net->ReallyRawSend(sin, (byte*)&pkt, sizeof(pkt));
+		net->ReallyRawSend(sin, (byte*)&pkt, sizeof(pkt), v);
 	}
 
 	/* init encryption tables */

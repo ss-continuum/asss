@@ -714,13 +714,13 @@ void PPickupFlag(Player *p, byte *pkt, int len)
 	if (p->p_ship >= SPEC)
 		ERR("Flag pickup packet from spec")
 
-	if (IS_DURING_CHANGE(p))
+	if (p->flags.during_change)
 		ERR("Flag pickup before ship/freq change ack")
 
 #undef ERR
 
 	/* this player is too lagged to have a flag */
-	if (IS_NO_FLAGS_BALLS(p))
+	if (p->flags.no_flags_balls)
 	{
 		logm->LogP(L_INFO, "flags", p, "too lagged to pick up flag %d", cfp->fid);
 		return;

@@ -435,7 +435,7 @@ local void complete_go(Player *p, const char *reqname, int ship, int xres, int y
 	p->p_ship = ship;
 	p->xres = xres;
 	p->yres = yres;
-	gfx ? SET_ALL_LVZ(p) : UNSET_ALL_LVZ(p);
+	p->flags.want_all_lvz = gfx;
 	sp->x = spawnx;
 	sp->y = spawny;
 
@@ -511,7 +511,7 @@ local void SendToArena(Player *p, const char *aname, int spawnx, int spawny)
 	int ship = p->p_ship;
 	int xres = p->xres;
 	int yres = p->yres;
-	int gfx = WANT_ALL_LVZ(p);
+	int gfx = p->flags.want_all_lvz;
 
 	if (p->type == T_CONT)
 		complete_go(p, aname, ship, xres, yres, gfx, spawnx, spawny);

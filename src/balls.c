@@ -27,7 +27,8 @@ typedef struct MyBallData
 	/* these are in centiseconds. the timer event runs with a resolution
 	 * of 50 centiseconds, though, so that's the best resolution you're
 	 * going to get. */
-	unsigned sendtime, lastsent;
+	int sendtime;
+	ticks_t lastsent;
 	int spawnx, spawny, spawnr;
 	/* this is the delay between a goal and the ball respawning. */
 	int goaldelay;
@@ -185,7 +186,7 @@ local void phase_ball(Arena *arena, int bid, int relflags)
 	bd->state = BALL_ONMAP;
 	bd->x = bd->y = 30000;
 	bd->xspeed = bd->yspeed = 0;
-	bd->time = 0xFFFFFFFF; /* this is the key for making it phased */
+	bd->time = (ticks_t)(-1); /* this is the key for making it phased */
 	bd->carrier = NULL;
 	send_ball_packet(arena, bid, relflags);
 	UNLOCK_STATUS(arena);
@@ -202,7 +203,7 @@ void SpawnBall(Arena *arena, int bid)
 	d.state = BALL_ONMAP;
 	d.xspeed = d.yspeed = 0;
 	d.carrier = NULL;
-	d.time = GTC();
+	d.time = current_ticks();
 
 	cx = pbd->spawnx;
 	cy = pbd->spawny;
@@ -307,7 +308,7 @@ void EndGame(Arena *arena)
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
 
 	int i, newgame;
-	unsigned now = GTC();
+	ticks_t now = current_ticks();
 	ConfigHandle c = arena->cfg;
 
 	LOCK_STATUS(arena);
@@ -325,10 +326,10 @@ void EndGame(Arena *arena)
 	 * ticks. */
 	newgame = cfg->GetInt(c, "Soccer", "NewGameDelay", -3000);
 	if (newgame < 0)
-		newgame = rand()%(newgame*-1);
+		newgame = rand()%(-newgame);
 
 	for (i = 0; i < abd->ballcount; i++)
-		abd->balls[i].time = now + newgame;
+		abd->balls[i].time = TICK_MAKE(now + newgame);
 
 	UNLOCK_STATUS(arena);
 }
@@ -384,7 +385,7 @@ local void LoadBallSettings(Arena *arena, int spawnballs)
 
 		if (spawnballs)
 		{
-			pbd->lastsent = GTC();
+			pbd->lastsent = current_ticks();
 			abd->ballcount = bc;
 
 			/* allocate array for public ball data */
@@ -460,7 +461,7 @@ local void CleanupAfter(Arena *arena, Player *p, int neut)
 			b->y = p->position.y;
 			b->xspeed = b->yspeed = 0;
 			if (neut) b->carrier = NULL;
-			b->time = GTC();
+			b->time = current_ticks();
 			send_ball_packet(arena, i, NET_UNRELIABLE);
 			/* don't forget fire callbacks */
 			DO_CBS(CB_BALLFIRE, arena, BallFireFunc,
@@ -530,7 +531,7 @@ void PPickupBall(Player *p, byte *pkt, int len)
 	}
 
 	/* this player is too lagged to have a ball */
-	if (IS_NO_FLAGS_BALLS(p))
+	if (p->flags.no_flags_balls)
 	{
 		logm->LogP(L_INFO, "balls", p, "too lagged to pick up ball %d", bp->ballid);
 		return;
@@ -734,7 +735,7 @@ void PGoal(Player *p, byte *pkt, int len)
 		phase_ball(arena, bid, NET_UNRELIABLE);
 		bd->state = BALL_WAITING;
 		bd->carrier = NULL;
-		bd->time = GTC() + pbd->goaldelay;
+		bd->time = TICK_MAKE(current_ticks() + pbd->goaldelay);
 	}
 
 	UNLOCK_STATUS(arena);
@@ -761,9 +762,9 @@ int BasicBallTimer(void *dummy)
 		if (abd->ballcount > 0)
 		{
 			/* see if we are ready to send packets */
-			unsigned gtc = GTC();
+			ticks_t gtc = current_ticks();
 
-			if ( (int)(gtc - pbd->lastsent) > pbd->sendtime)
+			if ( TICK_DIFF(gtc, pbd->lastsent) > pbd->sendtime)
 			{
 				int bid, bc = abd->ballcount;
 				struct BallData *b = abd->balls;
@@ -786,7 +787,7 @@ int BasicBallTimer(void *dummy)
 					}
 					else if (b->state == BALL_WAITING)
 					{
-						if (gtc >= b->time)
+						if (TICK_GT(gtc, b->time))
 							SpawnBall(arena, bid);
 					}
 				pbd->lastsent = gtc;

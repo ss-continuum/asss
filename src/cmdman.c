@@ -12,6 +12,7 @@
 typedef struct CommandData
 {
 	CommandFunc func;
+	CommandFunc2 func2;
 	helptext_t helptext;
 } CommandData;
 
@@ -20,6 +21,8 @@ typedef struct CommandData
 
 local void AddCommand(const char *, CommandFunc, helptext_t helptext);
 local void RemoveCommand(const char *, CommandFunc);
+local void AddCommand2(const char *, CommandFunc2, helptext_t helptext);
+local void RemoveCommand2(const char *, CommandFunc2);
 local void Command(const char *, Player *, const Target *);
 local helptext_t GetHelpText(const char *);
 
@@ -32,12 +35,14 @@ local Imodman *mm;
 
 local pthread_mutex_t cmdmtx;
 local HashTable *cmds;
-local CommandFunc defaultfunc;
+local CommandFunc2 defaultfunc;
 
 local Icmdman _int =
 {
 	INTERFACE_HEAD_INIT(I_CMDMAN, "cmdman")
-	AddCommand, RemoveCommand, Command, GetHelpText
+	AddCommand, AddCommand2,
+	RemoveCommand, RemoveCommand2,
+	Command, GetHelpText
 };
 
 
@@ -83,12 +88,25 @@ EXPORT int MM_cmdman(int action, Imodman *mm_, Arena *arena)
 
 void AddCommand(const char *cmd, CommandFunc f, helptext_t helptext)
 {
+	CommandData *data = amalloc(sizeof(*data));
+	data->func = f;
+	data->func2 = NULL;
+	data->helptext = helptext;
+	pthread_mutex_lock(&cmdmtx);
+	HashAdd(cmds, cmd, data);
+	pthread_mutex_unlock(&cmdmtx);
+}
+
+
+void AddCommand2(const char *cmd, CommandFunc2 f2, helptext_t helptext)
+{
 	if (!cmd)
-		defaultfunc = f;
+		defaultfunc = f2;
 	else
 	{
 		CommandData *data = amalloc(sizeof(*data));
-		data->func = f;
+		data->func = NULL;
+		data->func2 = f2;
 		data->helptext = helptext;
 		pthread_mutex_lock(&cmdmtx);
 		HashAdd(cmds, cmd, data);
@@ -99,14 +117,37 @@ void AddCommand(const char *cmd, CommandFunc f, helptext_t helptext)
 
 void RemoveCommand(const char *cmd, CommandFunc f)
 {
+	LinkedList lst = LL_INITIALIZER;
+	Link *l;
+
+	pthread_mutex_lock(&cmdmtx);
+	HashGetAppend(cmds, cmd, &lst);
+	for (l = LLGetHead(&lst); l; l = l->next)
+	{
+		CommandData *data = l->data;
+		if (data->func == f)
+		{
+			HashRemove(cmds, cmd, data);
+			LLEmpty(&lst);
+			afree(data);
+			pthread_mutex_unlock(&cmdmtx);
+			return;
+		}
+	}
+	LLEmpty(&lst);
+	pthread_mutex_unlock(&cmdmtx);
+}
+
+
+void RemoveCommand2(const char *cmd, CommandFunc2 f2)
+{
 	if (!cmd)
 	{
-		if (defaultfunc == f)
+		if (defaultfunc == f2)
 			defaultfunc = NULL;
 	}
 	else
 	{
-		CommandData *data;
 		LinkedList lst = LL_INITIALIZER;
 		Link *l;
 
@@ -114,8 +155,8 @@ void RemoveCommand(const char *cmd, CommandFunc f)
 		HashGetAppend(cmds, cmd, &lst);
 		for (l = LLGetHead(&lst); l; l = l->next)
 		{
-			data = (CommandData*) l->data;
-			if (data->func == f)
+			CommandData *data = l->data;
+			if (data->func2 == f2)
 			{
 				HashRemove(cmds, cmd, data);
 				LLEmpty(&lst);
@@ -226,7 +267,6 @@ void Command(const char *line, Player *p, const Target *target)
 {
 	LinkedList lst = LL_INITIALIZER;
 	Link *l;
-	const char *saveline = line;
 	char cmd[40], *t, found = 0;
 	int check;
 
@@ -251,19 +291,25 @@ void Command(const char *line, Player *p, const Target *target)
 		HashGetAppend(cmds, cmd, &lst);
 		for (l = LLGetHead(&lst); l; l = l->next)
 		{
-			((CommandData*)l->data)->func(line, p, target);
+			CommandData *data = l->data;
+			if (data->func)
+				data->func(line, p, target);
+			else if (data->func2)
+				data->func2(cmd, line, p, target);
 			found = 1;
 		}
 		LLEmpty(&lst);
 		pthread_mutex_unlock(&cmdmtx);
 		log_command(p, target, cmd, line);
 	}
+#ifdef CFG_LOG_ALL_COMMAND_DENIALS
 	else
 		lm->Log(L_DRIVEL, "<cmdman> [%s] Permission denied for %s",
 				p->name, cmd);
+#endif
 
 	if (!found && defaultfunc)
-		defaultfunc(saveline, p, target); /* give whole thing, not just params */
+		defaultfunc(cmd, line, p, target);
 }
 
 

@@ -24,6 +24,7 @@ typedef void (*ShipChangeFunc)(Player *p, int newship, int newfreq);
 #define CB_TIMESUP ("timesup")
 typedef void (*GameTimerFunc)(Arena *arena);
 
+/* these should be mostly self-explanatory. */
 
 #define I_GAME "game-3"
 
@@ -34,7 +35,7 @@ typedef struct Igame
 	void (*SetFreq)(Player *p, int freq);
 	void (*SetShip)(Player *p, int ship);
 	void (*SetFreqAndShip)(Player *p, int ship, int freq);
-	void (*DropBrick)(Arena *arena, int freq, int x1, int y1, int x2, int y2, unsigned time);
+	void (*DropBrick)(Arena *arena, int freq, int x1, int y1, int x2, int y2);
 	void (*WarpTo)(const Target *target, int x, int y);
 	void (*GivePrize)(const Target *target, int type, int count);
 	void (*FakePosition)(Player *p, struct C2SPosition *pos);

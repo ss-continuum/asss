@@ -6,7 +6,7 @@
 
 /* prototypes */
 
-local void ConnInit(struct sockaddr_in *sin, byte *pkt, int len);
+local void ConnInit(struct sockaddr_in *sin, byte *pkt, int len, void *v);
 
 
 /* globals */
@@ -32,7 +32,7 @@ EXPORT int MM_nullenc(int action, Imodman *mm, Arena *arena)
 }
 
 
-void ConnInit(struct sockaddr_in *sin, byte *pkt, int len)
+void ConnInit(struct sockaddr_in *sin, byte *pkt, int len, void *v)
 {
 	int key, type;
 	Player *p;
@@ -51,13 +51,13 @@ void ConnInit(struct sockaddr_in *sin, byte *pkt, int len)
 		return;
 
 	/* get connection. NULL encryption means none. */
-	p = net->NewConnection(type, sin, NULL);
+	p = net->NewConnection(type, sin, NULL, v);
 
 	if (!p)
 	{
 		/* no slots left? */
 		byte pkt[2] = { 0x00, 0x07 };
-		net->ReallyRawSend(sin, (byte*)&pkt, 2);
+		net->ReallyRawSend(sin, (byte*)&pkt, 2, v);
 		return;
 	}
 
@@ -72,7 +72,7 @@ void ConnInit(struct sockaddr_in *sin, byte *pkt, int len)
 			int key;
 		}
 		pkt = { 0x00, 0x02, key };
-		net->ReallyRawSend(sin, (byte*)&pkt, sizeof(pkt));
+		net->ReallyRawSend(sin, (byte*)&pkt, sizeof(pkt), v);
 	}
 }
 

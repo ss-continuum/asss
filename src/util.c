@@ -41,26 +41,26 @@ struct HashTable
 
 
 
-unsigned int GTC(void)
+ticks_t current_ticks(void)
 {
 #ifndef WIN32
 	struct timeval tv;
 	gettimeofday(&tv,NULL);
-	return tv.tv_sec * 100 + tv.tv_usec / 10000;
+	return TICK_MAKE(tv.tv_sec * 100 + tv.tv_usec / 10000);
 #else
-	return GetTickCount() / 10;
+	return TICK_MAKE(GetTickCount() / 10);
 #endif
 }
 
 
-unsigned int current_millis(void)
+ticks_t current_millis(void)
 {
 #ifndef WIN32
 	struct timeval tv;
 	gettimeofday(&tv,NULL);
-	return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+	return TICK_MAKE(tv.tv_sec * 1000 + tv.tv_usec / 1000);
 #else
-	return GetTickCount();
+	return TICK_MAKE(GetTickCount());
 #endif
 }
 

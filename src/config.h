@@ -16,16 +16,21 @@
  * the main global configuration file is maintained internally to this
  * moudule and you don't have to open or close it. just use GLOBAL as
  * your ConfigHandle. arena configuration files are also maintained for
- * you as arena[arenaid]->config. so typically you will only need to
- * call GetStr and GetInt.
+ * you as arena->cfg. so typically you will only need to call GetStr and
+ * GetInt.
  *
  * there can also be secondary global or arena config files, specified
  * with the second parameter of OpenConfigFile. these will be used for
  * staff lists and other things.
  *
- * setting configuration values is a little complicated. it doesn't work
- * right now. it might work at some time in the future, or it might not.
+ * setting configuration values is relatively straightforward. the info
+ * parameter to SetStr and SetInt should describe who initiated the
+ * change and when. this information may be written back to the
+ * configuration files.
  *
+ * FlushDirtyValues and CheckModifiedFiles do what they say. there's no
+ * need to call them, the config module performs those actions
+ * internally based on timers also.
  */
 
 

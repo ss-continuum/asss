@@ -32,7 +32,7 @@ local void UpdateGroup(Player *p, Arena *arena)
 
 	char *group = ((pdata*)PPDATA(p, pdkey))->group;
 
-	if (! IS_AUTHENTICATED(p))
+	if (!p->flags.authenticated)
 	{
 		/* if the player hasn't been authenticated against either the
 		 * biller or password file, don't assign groups based on name. */

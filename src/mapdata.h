@@ -46,7 +46,8 @@ typedef struct Imapdata
 	/* finds the tile nearest to the given tile that is appropriate for
 	 * placing a flag (empty and accessible). */
 
-	void (*FindBrickEndpoints)(Arena *arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2);
+	void (*FindBrickEndpoints)(Arena *arena, int dropx, int dropy,
+			int length, int *x1, int *y1, int *x2, int *y2);
 	/* calculates the placement of a brick of a given length dropped at
 	 * a certain position. */
 

@@ -29,14 +29,23 @@ local void load_pubnames(void)
 
 local int Place(char *retname, int namelen, Player *pp)
 {
+	LinkedList *trylist = &pubnames;
 	Link *l;
 	char buf[20];
-	int pass = 1;
+	int pass;
+
+	/* if the player connected through an ip/port that specified a
+	 * connectas field, then try just that arena */
+	Link deflink = { NULL, (void*)pp->connectas };
+	LinkedList deflist = { &deflink, &deflink };
+
+	if (pp->connectas)
+		trylist = &deflist;
 
 	/* if we don't find anything in 9 passes (unlikely), just do the
 	 * default action */
 	for (pass = 1; pass < 10; pass++)
-		for (l = LLGetHead(&pubnames); l; l = l->next)
+		for (l = LLGetHead(trylist); l; l = l->next)
 		{
 			const char *name = l->data;
 			int total, playing, des;

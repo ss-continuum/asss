@@ -48,27 +48,39 @@ local pthread_mutex_t bigmtx;
 
 local int get_socket(void)
 {
-	int port;
-	const char *addr;
-	unsigned long int bindaddr;
+	char field1[32];
+	const char *spec, *n;
+	int add = 0, port;
+	struct in_addr bindaddr;
 
-	/* cfghelp: Net:ChatPort, global, int, def: Net:Port + 2, \
-	 * mod: chatnet
-	 * The port that the text-based chat protocol runs on. */
-	port = cfg->GetInt(GLOBAL, "Net", "ChatPort", -1);
-	if (port == -1)
-		port = cfg->GetInt(GLOBAL, "Net", "Port", 5000) + 2;
+	/* cfghelp: Net:ChatListen, global, string, mod: chatnet
+	 * Where to listen for chat protocol connections. Either 'port' or
+	 * 'ip:port'. Net:Listen will be used if this is missing, except the
+	 * port number specified there will be incremented by two. */
+	spec = cfg->GetStr(GLOBAL, "Net", "ChatListen");
+	if (spec == NULL)
+	{
+		spec = cfg->GetStr(GLOBAL, "Net", "Listen");
+		if (!spec)
+			return -1;
+		add = 2;
+	}
 
-	/* cfghelp: Net:ChatBindIP, global, string, def: Net:BindIP, \
-	 * mod: chatnet
-	 * If this is set, it must be a single IP address that the server
-	 * should bind to for the text-based chat protocol. If unset, it
-	 * will use the value of Net:BindIP. */
-	addr = cfg->GetStr(GLOBAL, "Net", "ChatBindIP");
-	if (!addr) addr = cfg->GetStr(GLOBAL, "Net", "BindIP");
-	bindaddr = addr ? inet_addr(addr) : INADDR_ANY;
+	n = delimcpy(field1, spec, sizeof(field1), ':');
+	if (!n)
+	{
+		/* just port */
+		port = strtol(field1, NULL, 0);
+		bindaddr.s_addr = INADDR_ANY;
+	}
+	else
+	{
+		/* got ip:port */
+		port = strtol(n, NULL, 0);
+		inet_aton(field1, &bindaddr);
+	}
 
-	return init_listening_socket(port, bindaddr);
+	return init_listening_socket(port + add, bindaddr.s_addr);
 }
 
 
@@ -106,7 +118,7 @@ local Player * try_accept(int s)
 	cli = PPDATA(p, cdkey);
 	cli->socket = a;
 	cli->sin = sin;
-	cli->lastmsgtime = 0;
+	cli->lastmsgtime = TICK_MAKE(current_ticks() - 1000U);
 	cli->inbuf = NULL;
 	LLInit(&cli->outbufs);
 
@@ -199,7 +211,7 @@ local int do_one_iter(void *dummy)
 	sp_conn *cli;
 	Link *link;
 	int max, ret;
-	unsigned gtc = GTC();
+	ticks_t gtc = current_ticks();
 	fd_set readset, writeset;
 	struct timeval tv = { 0, 0 };
 	LinkedList toremove = LL_INITIALIZER;
@@ -263,7 +275,7 @@ local int do_one_iter(void *dummy)
 				do_write(p);
 			/* or process? */
 			if (cli->inbuf &&
-			    (int)(gtc - cli->lastmsgtime) > cfg_msgdelay)
+			    TICK_DIFF(gtc, cli->lastmsgtime) > cfg_msgdelay)
 				try_process(p);
 		}
 	pd->Unlock();

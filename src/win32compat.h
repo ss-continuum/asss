@@ -47,3 +47,5 @@ DIR *opendir(const char *path);
 struct dirent *readdir(DIR *dir);
 void closedir(DIR *dir);
 
+int inet_aton(char *cp, struct in_addr *pin);
+

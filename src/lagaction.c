@@ -40,7 +40,7 @@ typedef struct
 
 local int cfg_checkinterval;
 local int limkey, lcheckkey;
-#define LASTCHECKED(p) (*(unsigned*)(PPDATA(p, lcheckkey)))
+#define LASTCHECKED(p) (*(ticks_t*)(PPDATA(p, lcheckkey)))
 
 local Iplayerdata *pd;
 local Iarenaman *aman;
@@ -83,7 +83,7 @@ local void check_lag(Player *p, laglimits_t *ll)
 	/* weight reliable ping twice the s2c and c2s */
 	avg = (pping.avg + cping.avg + 2*rping.avg) / 4;
 
-	UNSET_NO_SHIP(p);
+	p->flags.no_ship = 0;
 
 	/* try to spec people */
 	if (avg > ll->ping.tospec)
@@ -92,7 +92,7 @@ local void check_lag(Player *p, laglimits_t *ll)
 			chat->SendMessage(p,
 					"You have been specced for excessive ping (%d > %d)",
 					avg, ll->ping.tospec);
-		SET_NO_SHIP(p);
+		p->flags.no_ship = 1;
 	}
 	if (ploss.s2c > ll->s2closs.tospec)
 	{
@@ -100,7 +100,7 @@ local void check_lag(Player *p, laglimits_t *ll)
 			chat->SendMessage(p,
 					"You have been specced for excessive S2C packetloss (%.2f > %.2f)",
 					100.0 * ploss.s2c, 100.0 * ll->s2closs.tospec);
-		SET_NO_SHIP(p);
+		p->flags.no_ship = 1;
 	}
 	if (ploss.s2cwpn > ll->wpnloss.tospec)
 	{
@@ -108,7 +108,7 @@ local void check_lag(Player *p, laglimits_t *ll)
 			chat->SendMessage(p,
 					"You have been specced for excessive S2C weapon packetloss (%.2f > %.2f)",
 					100.0 * ploss.s2cwpn, 100.0 * ll->wpnloss.tospec);
-		SET_NO_SHIP(p);
+		p->flags.no_ship = 1;
 	}
 	if (ploss.c2s > ll->c2sloss.tospec)
 	{
@@ -116,17 +116,15 @@ local void check_lag(Player *p, laglimits_t *ll)
 			chat->SendMessage(p,
 					"You have been specced for excessive C2S packetloss (%.2f > %.2f)",
 					100.0 * ploss.c2s, 100.0 * ll->c2sloss.tospec);
-		SET_NO_SHIP(p);
+		p->flags.no_ship = 1;
 	}
 
 	/* handle ignoring flags/balls */
-	if (avg > ll->ping.noflags ||
-	    ploss.s2c > ll->s2closs.noflags ||
-	    ploss.s2cwpn > ll->wpnloss.noflags ||
-	    ploss.c2s > ll->c2sloss.noflags)
-		SET_NO_FLAGS_BALLS(p);
-	else
-		UNSET_NO_FLAGS_BALLS(p);
+	p->flags.no_flags_balls =
+		(avg > ll->ping.noflags ||
+		 ploss.s2c > ll->s2closs.noflags ||
+		 ploss.s2cwpn > ll->wpnloss.noflags ||
+		 ploss.c2s > ll->c2sloss.noflags);
 
 	/* calculate weapon ignore percent */
 	ign1 =
@@ -165,11 +163,12 @@ local void mainloop()
 	Player *p;
 	Link *link;
 	laglimits_t *ll;
-	unsigned now = GTC();
+	ticks_t now = current_ticks();
 
 	FOR_EACH_PLAYER(p)
 		if (p->status == S_PLAYING &&
-		    (int)(now - LASTCHECKED(p)) > cfg_checkinterval)
+		    (TICK_DIFF(now, LASTCHECKED(p)) > cfg_checkinterval ||
+		     LASTCHECKED(p) == 0))
 		{
 			LASTCHECKED(p) = now;
 
@@ -277,7 +276,7 @@ EXPORT int MM_lagaction(int action, Imodman *mm, Arena *arena)
 
 		limkey = aman->AllocateArenaData(sizeof(laglimits_t));
 		if (limkey == -1) return MM_FAIL;
-		lcheckkey = pd->AllocatePlayerData(sizeof(unsigned));
+		lcheckkey = pd->AllocatePlayerData(sizeof(ticks_t));
 		if (lcheckkey == -1) return MM_FAIL;
 
 		/* cfghelp: Lag:CheckInterval, global, int, def: 300
@@ -298,8 +297,8 @@ EXPORT int MM_lagaction(int action, Imodman *mm, Arena *arena)
 		/* don't leave stuff like this lying around */
 		FOR_EACH_PLAYER(p)
 		{
-			UNSET_NO_FLAGS_BALLS(p);
-			UNSET_NO_SHIP(p);
+			p->flags.no_flags_balls = 0;
+			p->flags.no_ship = 0;
 			p->ignoreweapons = 0;
 		}
 

@@ -9,8 +9,8 @@
  *
  * these are various utility functions that you can (and should) use.
  *
- * GTC gets the current time, in hundredths of a second. use this for
- * timing stuff.
+ * current_ticks gets the current time, in hundredths of a second. use
+ * this for timing stuff.
  *
  * RemoveCRLF strips CR's and LF's from strings. probably not too useful
  * except for file i/o (which you should let other modules handle).
@@ -49,11 +49,19 @@
 /* include for size_t */
 #include <stddef.h>
 
+/* ticks are 31 bits in size. the value is stored in the lower 31 bits
+ * of an unsigned int value */
+typedef unsigned int ticks_t;
+
+/* use only these macros on ticks_t values */
+#define TICK_DIFF(a,b) ((signed int)(((a)<<1)-((b)<<1))>>1)
+#define TICK_GT(a,b) (TICK_DIFF(a,b) > 0)
+#define TICK_MAKE(a) ((a) & 0x7fffffff)
 
 /* miscelaneous stuff */
 
-unsigned int GTC(void);
-unsigned int current_millis(void);
+ticks_t current_ticks(void);
+ticks_t current_millis(void);
 
 char *RemoveCRLF(char *str);
 char *ToLowerStr(char *str);

@@ -245,31 +245,21 @@ local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, c
 
 /* and command that go to the biller */
 
-local void Cdefault(const char *line, Player *p, const Target *target)
+local void Cdefault(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	pdata *data = PPDATA(p, pdkey);
 	char buf[MAXMSGSIZE];
-	char cmd[32], *c;
-	const char *t;
 
 	if (!data->knowntobiller)
 		return;
 
 	if (target->type != T_ARENA)
 	{
-		lm->LogP(L_DRIVEL, "billing", p, "unknown command with bad target: %s", line);
+		lm->LogP(L_DRIVEL, "billing", p, "unknown command with bad target: %s %s", cmd, params);
 		return;
 	}
 
-	c = cmd;
-	t = line;
-	while (*t && *t != ' ' && *t != '=' && (c-cmd+1) < sizeof(cmd))
-		*c++ = *t++;
-	*c = 0;
-	while (*t && (*t == ' ' || *t == '='))
-		t++;
-
-	snprintf(buf, sizeof(buf), "CMD:%d:%s:%s", p->pid, cmd, t);
+	snprintf(buf, sizeof(buf), "CMD:%d:%s:%s", p->pid, cmd, params);
 	send_line(buf);
 }
 
@@ -291,7 +281,7 @@ local void Cusage(const char *params, Player *p, const Target *target)
 
 	if (tdata->knowntobiller)
 	{
-		secs = (GTC() - t->connecttime) / 100;
+		secs = TICK_DIFF(current_ticks(), t->connecttime) / 100;
 		mins = secs / 60;
 
 		if (t != p) chat->SendMessage(p, "usage: %s:", t->name);
@@ -944,7 +934,7 @@ EXPORT int MM_billing(int action, Imodman *mm, Arena *arena)
 		cmd->AddCommand("usage", Cusage, usage_help);
 		cmd->AddCommand("billingid", Cbillingid, billingid_help);
 		cmd->AddCommand("billingadm", Cbillingadm, billingadm_help);
-		cmd->AddCommand(NULL, Cdefault, NULL);
+		cmd->AddCommand2(NULL, Cdefault, NULL);
 
 		mm->RegInterface(&myauth, ALLARENAS);
 
@@ -958,7 +948,7 @@ EXPORT int MM_billing(int action, Imodman *mm, Arena *arena)
 		cmd->RemoveCommand("usage", Cusage);
 		cmd->RemoveCommand("billingid", Cbillingid);
 		cmd->RemoveCommand("billingadm", Cbillingadm);
-		cmd->RemoveCommand(NULL, Cdefault);
+		cmd->RemoveCommand2(NULL, Cdefault);
 		mm->UnregCallback(CB_CHATMSG, onchatmsg, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
 		ml->ClearTimer(do_one_iter, NULL);

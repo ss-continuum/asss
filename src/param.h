@@ -76,10 +76,6 @@
 /* #define CFG_RELAX_LENGTH_CHECKS */
 
 
-/* the size of the ip address hash table. this _must_ be a power of two. */
-#define CFG_HASHSIZE 256
-
-
 /* maximum paramaters for the soccer game */
 #define CFG_SOCCER_MAXFREQ 8
 #define CFG_SOCCER_MAXGOALS 16

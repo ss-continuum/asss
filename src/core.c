@@ -343,7 +343,7 @@ void ProcessLoginQueue(void)
 					player->pkt.losses = stats->GetStat(player, STAT_DEATHS, INTERVAL_RESET);
 				}
 				aman->SendArenaResponse(player);
-				UNSET_SENT_PPK(player);
+				player->flags.sent_ppk = 0;
 				break;
 
 			case S_DO_ARENA_CALLBACKS:
@@ -502,10 +502,7 @@ void AuthDone(Player *p, AuthData *auth)
 	d->authdata = amalloc(sizeof(AuthData));
 	memcpy(d->authdata, auth, sizeof(AuthData));
 
-	if (auth->authenticated)
-		SET_AUTHENTICATED(p);
-	else
-		UNSET_AUTHENTICATED(p);
+	p->flags.authenticated = auth->authenticated;
 
 	if (AUTH_IS_OK(auth->code))
 	{
@@ -597,8 +594,8 @@ void SendLoginResponse(Player *p)
 	else if (IS_STANDARD(p))
 	{
 		struct S2CLoginResponse lr =
-			{ S2C_LOGINRESPONSE, 0, 134, 0, 0, {0, 0},
-				0, 0, 0, {0, 0, 0, 0, 0, 0, 0, 0} };
+			{ S2C_LOGINRESPONSE, 0, 134, 0, {0, 0, 0},
+				0, {0, 0, 0, 0, 0}, 0, 0, 0, {0, 0, 0, 0, 0, 0, 0, 0} };
 		lr.code = auth->code;
 		lr.demodata = auth->demodata;
 		lr.newschecksum = map->GetNewsChecksum();

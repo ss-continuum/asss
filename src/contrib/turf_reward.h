@@ -66,7 +66,7 @@ struct TurfFlag
 	int weight;      // weight of the flag (how much it's worth)
 	int taggerPID;   // id of player that tagged the flag
                          // note: player may have been on another team when tag occured or may have even left the game
-	unsigned tagTC;  // time flag was last tagged in ticks
+	ticks_t tagTC;   // time flag was last tagged in ticks
 
 	LinkedList old;  // linked list of OldNodes storing data of flag's previous owners who have a chance to 'recover' it
 };
@@ -115,7 +115,7 @@ struct TurfArena
 	// int min_tags_freq;           // todo: minimum # of tags needed by a freq for that freq to recieve rewards
 
 	// data for timer
-	unsigned int dingTime;          // time of last ding
+	ticks_t dingTime;               // time of last ding
 	int timer_initial;              // initial timer delay
 	int timer_interval;             // interval for timer to repeat
 	struct Iturfrewardpoints *trp;  // turf reward scoring interface

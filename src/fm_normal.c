@@ -23,6 +23,13 @@
  * once. Zero means no limit. */
 #define MAXPLAYING(ch) cfg->GetInt(ch, "General", "MaxPlaying", 100)
 
+/* cfghelp: Misc:MaxXres, arena, int, def: 0
+ * Maximum screen width allowed in the arena. Zero means no limit. */
+#define MAXXRES(ch) cfg->GetInt(ch, "Misc", "MaxXres", 0)
+
+/* cfghelp: Misc:MaxYres, arena, int, def: 0
+ * Maximum screen height allowed in the arena. Zero means no limit. */
+#define MAXYRES(ch) cfg->GetInt(ch, "Misc", "MaxYres", 0)
 
 local void Initial(Player *p, int *ship, int *freq);
 local void Ship(Player *p, int *ship, int *freq);
@@ -176,6 +183,20 @@ local int BalanceFreqs(Arena *arena, Player *excl, int inclspec)
 	}
 }
 
+local int screen_res_allowed(Player *p, ConfigHandle ch)
+{
+	int max_x=MAXXRES(ch);
+	int max_y=MAXYRES(ch);
+	if((!max_x || p->xres <= max_x) && (!max_y || p->yres <= max_y))
+		return 1;
+
+	if (chat)
+		chat->SendMessage(p,
+			"Maximum allowed screen resolution is %dx%d in this arena",
+			max_x,max_y);
+
+	return 0;
+}
 
 void Initial(Player *p, int *ship, int *freq)
 {
@@ -189,7 +210,9 @@ void Initial(Player *p, int *ship, int *freq)
 
 	ch = arena->cfg;
 
-	if (count_current_playing(arena) >= MAXPLAYING(ch) || IS_NO_SHIP(p))
+	if (count_current_playing(arena) >= MAXPLAYING(ch) ||
+	    p->flags.no_ship ||
+	    !screen_res_allowed(p, ch))
 		s = SPEC;
 
 	if (s == SPEC)
@@ -239,13 +262,18 @@ void Ship(Player *p, int *ship, int *freq)
 				chat->SendMessage(p,
 						"There are too many people playing in this arena.");
 		}
-		else if (IS_NO_SHIP(p))
+		else if (p->flags.no_ship)
 		{
 			s = p->p_ship;
 			f = p->p_freq;
 			if (chat)
 				chat->SendMessage(p,
 						"You have too much lag to play in this arena.");
+		}
+		else if (!screen_res_allowed(p, ch))
+		{
+			s = p->p_ship;
+			f = p->p_freq;
 		}
 		else
 		{

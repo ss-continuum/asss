@@ -190,6 +190,39 @@ local void Cputzip(const char *params, Player *p, const Target *target)
 }
 
 
+local helptext_t botfeature_help =
+"Targets: none\n"
+"Args: [+/-{seeallposn}]\n"
+"Enables or disables bot-specific features. {seeallposn} controls whether\n"
+"the bot gets to see all position packets.\n";
+
+local void Cbotfeature(const char *params, Player *p, const Target *target)
+{
+	char buf[64];
+	const char *tmp = NULL;
+
+	while (strsplit(params, " ,", buf, sizeof(buf), &tmp))
+	{
+		int on;
+
+		if (buf[0] == '+')
+			on = 1;
+		else if (buf[0] == '-')
+			on = 0;
+		else
+		{
+			chat->SendMessage(p, "Bad syntax");
+			continue;
+		}
+
+		if (!strcmp(buf+1, "seeallposn"))
+			p->flags.see_all_posn = on;
+		else
+			chat->SendMessage(p, "Unknown bot feature");
+	}
+}
+
+
 
 EXPORT int MM_admincmd(int action, Imodman *_mm, Arena *arena)
 {
@@ -210,6 +243,7 @@ EXPORT int MM_admincmd(int action, Imodman *_mm, Arena *arena)
 		cmd->AddCommand("getfile", Cgetfile, getfile_help);
 		cmd->AddCommand("putfile", Cputfile, putfile_help);
 		cmd->AddCommand("putzip", Cputzip, putzip_help);
+		cmd->AddCommand("botfeature", Cbotfeature, botfeature_help);
 
 		return MM_OK;
 	}
@@ -219,6 +253,7 @@ EXPORT int MM_admincmd(int action, Imodman *_mm, Arena *arena)
 		cmd->RemoveCommand("getfile", Cgetfile);
 		cmd->RemoveCommand("putfile", Cputfile);
 		cmd->RemoveCommand("putzip", Cputzip);
+		cmd->RemoveCommand("botfeature", Cbotfeature);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(lm);

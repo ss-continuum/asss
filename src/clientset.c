@@ -113,6 +113,8 @@ local void load_settings(struct ClientSettings *cs, ConfigHandle conf)
 	cs->bit_set.SlowFrameRate = cfg->GetInt(conf, "Misc", "SlowFrameRate", 0);
 	cs->bit_set.DisableScreenshot = cfg->GetInt(conf, "Misc", "DisableScreenshot", 0);
 	cs->bit_set.MaxTimerDrift = cfg->GetInt(conf, "Misc", "MaxTimerDrift", 0);
+	cs->bit_set.DisableBallThroughWalls = cfg->GetInt(conf, "Misc", "DisableBallThroughWalls", 0);
+	cs->bit_set.DisableBallKilling = cfg->GetInt(conf, "Misc", "DisableBallKilling", 0);
 
 	/* do ships */
 	for (i = 0; i < 8; i++)

@@ -18,19 +18,19 @@ typedef struct Iwatchdamage
 	INTERFACE_HEAD_DECL
 
 	int (*AddWatch)(Player *p, Player *target);
-	/* adds a watch from pid on target */
+	/* adds a watch from player on target */
 
 	void (*RemoveWatch)(Player *p, Player *target);
-	/* removes a watch from pid on target */
+	/* removes a watch from player on target */
 
 	void (*ClearWatch)(Player *p, int himtoo);
-	/* removes watches on pid, both to and from, including modules */
+	/* removes watches on player, both to and from, including modules */
 
 	void (*ModuleWatch)(Player *p, int on);
-	/* toggles if a module wants to watch pid */
+	/* toggles if a module wants to watch player */
 
 	int (*WatchCount)(Player *p);
-	/* tells how many are watching this pid, including modules */
+	/* tells how many are watching this player, including modules */
 } Iwatchdamage;
 
 #endif

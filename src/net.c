@@ -28,6 +28,9 @@
 /* debugging option to dump raw packets to the console */
 /* #define CFG_DUMP_RAW_PACKETS */
 
+/* the size of the ip address hash table. this _must_ be a power of two. */
+#define CFG_HASHSIZE 256
+
 
 #define MAXTYPES 64
 
@@ -90,12 +93,14 @@ typedef struct
 {
 	/* the address to send packets to */
 	struct sockaddr_in sin;
+	/* which of our sockets to use when sending */
+	int whichsock;
 	/* hash bucket */
 	Player *nextinbucket;
 	/* sequence numbers for reliable packets */
 	int s2cn, c2sn;
 	/* time of last packet recvd and of initial connection */
-	unsigned int lastpkt;
+	ticks_t lastpkt;
 	/* total amounts sent and recvd */
 	unsigned int pktsent, pktrecvd;
 	unsigned int bytesent, byterecvd;
@@ -120,7 +125,8 @@ typedef struct
 	/* stuff for sending sized packets, protected by outlist mtx */
 	LinkedList sizedsends;
 	/* bandwidth control. sincetime is in millis, not ticks */
-	unsigned int sincetime, bytessince, limit;
+	ticks_t sincetime;
+	unsigned int bytessince, limit;
 	/* the outlist */
 	DQNode outlist;
 	pthread_mutex_t olmtx;
@@ -135,7 +141,7 @@ typedef struct Buffer
 	/* pri, lastretry: valid for buffers in outlist */
 	Player *p;
 	short len, pri, retries, flags;
-	unsigned int lastretry; /* in millis, not ticks! */
+	ticks_t lastretry; /* in millis, not ticks! */
 	/* used for reliable buffers in the outlist only { */
 	RelCallback callback;
 	void *clos;
@@ -146,6 +152,13 @@ typedef struct Buffer
 		byte raw[MAXPACKET];
 	} d;
 } Buffer;
+
+
+typedef struct ListenData
+{
+	int gamesock, pingsock;
+	const char *connectas;
+} ListenData;
 
 
 /* prototypes */
@@ -160,12 +173,12 @@ local void SendWithCallback(Player *p, byte *data, int length,
 local void SendSized(Player *p, void *clos, int len,
 		void (*req)(void *clos, int offset, byte *buf, int needed));
 
-local void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len);
+local void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len, void *v);
 local void AddPacket(int, PacketFunc);
 local void RemovePacket(int, PacketFunc);
 local void AddSizedPacket(int, SizedPacketFunc);
 local void RemoveSizedPacket(int, SizedPacketFunc);
-local Player * NewConnection(int type, struct sockaddr_in *, Iencrypt *enc);
+local Player * NewConnection(int type, struct sockaddr_in *, Iencrypt *enc, void *v);
 local void GetStats(struct net_stats *stats);
 local void GetClientStats(Player *p, struct net_client_stats *stats);
 local int GetLastPacketTime(Player *p);
@@ -214,7 +227,7 @@ local Ilagcollect *lagc;
 local LinkedList handlers[MAXTYPES];
 local LinkedList sizedhandlers[MAXTYPES];
 
-local int serversock = -1, pingsock = -1;
+local LinkedList listening = LL_INITIALIZER;
 
 local DQNode freelist, rellist;
 local pthread_mutex_t freemtx, relmtx;
@@ -243,8 +256,6 @@ local struct
 {
 	int droptimeout;
 	int bufferdelta;
-	unsigned long int bindaddr /* network order */;
-	unsigned short int port /* host order */;
 } config;
 
 local volatile struct net_stats global_stats;
@@ -302,7 +313,6 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 {
 	int i;
 	pthread_t thd;
-	const char *addr;
 
 	if (action == MM_LOAD)
 	{
@@ -318,22 +328,13 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		if (clikey == -1) return MM_FAIL;
 
 		/* store configuration params */
-		/* cfghelp: Net:Port, global, int, def: 5000
-		 * The main port that the server runs on. */
-		config.port = (unsigned short)cfg->GetInt(GLOBAL, "Net", "Port", 5000);
 		/* cfghelp: Net:DropTimeout, global, int, def: 3000
-		 * How long to get no data from a cilent before disconnecting
+		 * How long to get no data from a client before disconnecting
 		 * him (in ticks). */
 		config.droptimeout = cfg->GetInt(GLOBAL, "Net", "DropTimeout", 3000);
 		/* cfghelp: Net:MaxBufferDelta, global, int, def: 30
 		 * The maximum number of reliable packets to buffer for a player. */
 		config.bufferdelta = cfg->GetInt(GLOBAL, "Net", "MaxBufferDelta", 30);
-		/* cfghelp: Net:BindIP, global, string
-		 * If this is set, it must be a single IP address that the
-		 * server should bind to. If unset, the server will bind to all
-		 * available addresses. */
-		addr = cfg->GetStr(GLOBAL, "Net", "BindIP");
-		config.bindaddr = addr ? inet_addr(addr) : INADDR_ANY;
 
 		/* get the sockets */
 		if (InitSockets())
@@ -403,12 +404,20 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		}
 
 		/* let threads die */
-		killallthreads = 1;
 		/* note: we don't join them because they could be blocked on
 		 * something, and who ever wants to unload net anyway? */
+		killallthreads = 1;
+		usleep(500000);
 
-		close(serversock);
-		close(pingsock);
+		/* close all our sockets */
+		for (link = LLGetHead(&listening); link; link = link->next)
+		{
+			ListenData *ld = link->data;
+			close(ld->gamesock);
+			close(ld->pingsock);
+		}
+		LLEnum(&listening, afree);
+		LLEmpty(&listening);
 
 		pd->FreePlayerData(clikey);
 
@@ -535,6 +544,7 @@ local void InitClient(ClientData *cli, Iencrypt *enc)
 	cli->rttdev = 100;
 	cli->bytessince = 0;
 	cli->sincetime = current_millis();
+	cli->lastpkt = current_ticks();
 	LLInit(&cli->sizedsends);
 	DQInit(&cli->outlist);
 }
@@ -579,7 +589,7 @@ void FreeBuffer(Buffer *dq)
 
 int InitSockets(void)
 {
-	struct sockaddr_in localsin;
+	int i;
 
 #ifdef WIN32
 	WSADATA wsad;
@@ -587,32 +597,104 @@ int InitSockets(void)
 		return -1;
 #endif
 
-	localsin.sin_family = AF_INET;
-	memset(localsin.sin_zero,0,sizeof(localsin.sin_zero));
-	localsin.sin_addr.s_addr = config.bindaddr;
-	localsin.sin_port = htons(config.port);
+	/* cfghelp: Net:Listen, global, string
+	 * A designation for a port and ip to listen on. Format is either
+	 * 'port', 'ip:port', or 'ip:port:connectas'. Listen1 through
+	 * Listen9 are also supported. The 'connectas' field can be used to
+	 * treat clients different depending on which port or ip they use to
+	 * connect to the server.
+	 */
+	for (i = 0; i < 10; i++)
+	{
+		struct sockaddr_in sin;
+		unsigned short port;
+		ListenData *ld;
+		char secname[] = "Listen#";
+		char field1[32], field2[32];
+		const char *line, *n;
 
-	if ((serversock = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
-	{
-		perror("socket");
-		return -1;
-	}
-	if (bind(serversock, (struct sockaddr *) &localsin, sizeof(localsin)) == -1)
-	{
-		perror("bind");
-		return -1;
-	}
+		secname[6] = i ? i+'0' : 0;
+		line = cfg->GetStr(GLOBAL, "Net", secname);
 
-	localsin.sin_port = htons(config.port+1);
-	if ((pingsock = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
-	{
-		perror("socket");
-		return -1;
-	}
-	if (bind(pingsock, (struct sockaddr *) &localsin, sizeof(localsin)) == -1)
-	{
-		perror("bind");
-		return -1;
+		if (!line) continue;
+
+		ld = amalloc(sizeof(*ld));
+
+		/* set up sin */
+		memset(&sin, 0, sizeof(sin));
+		sin.sin_family = AF_INET;
+
+		/* figure out what the user has specified */
+		n = delimcpy(field1, line, sizeof(field1), ':');
+		if (!n)
+		{
+			/* single field: port */
+			sin.sin_addr.s_addr = INADDR_ANY;
+			port = strtol(field1, NULL, 0);
+		}
+		else
+		{
+			n = delimcpy(field2, n, sizeof(field2), ':');
+			if (!n)
+			{
+				/* two fields: ip, port */
+				inet_aton(field1, &sin.sin_addr);
+				port = strtol(field2, NULL, 0);
+			}
+			else
+			{
+				/* three fields: ip, port, connectas */
+				inet_aton(field1, &sin.sin_addr);
+				port = strtol(field2, NULL, 0);
+				ld->connectas = astrdup(n);
+			}
+		}
+
+		/* now try to get and bind the sockets */
+		sin.sin_port = htons(port);
+
+		ld->gamesock = socket(PF_INET, SOCK_DGRAM, 0);
+		if (ld->gamesock == -1)
+		{
+			lm->Log(L_ERROR, "<net> can't create socket for Listen%d", i);
+			afree(ld);
+			continue;
+		}
+
+		if (bind(ld->gamesock, (struct sockaddr *) &sin, sizeof(sin)) == -1)
+		{
+			lm->Log(L_ERROR, "<net> can't bind socket to %s:%d for Listen%d",
+					inet_ntoa(sin.sin_addr), port, i);
+			close(ld->gamesock);
+			afree(ld);
+			continue;
+		}
+
+		sin.sin_port = htons(port + 1);
+
+		ld->pingsock = socket(PF_INET, SOCK_DGRAM, 0);
+		if (ld->pingsock == -1)
+		{
+			lm->Log(L_ERROR, "<net> can't create socket for Listen%d", i);
+			close(ld->gamesock);
+			afree(ld);
+			continue;
+		}
+
+		if (bind(ld->pingsock, (struct sockaddr *) &sin, sizeof(sin)) == -1)
+		{
+			lm->Log(L_ERROR, "<net> can't bind socket to %s:%d for Listen%d",
+					inet_ntoa(sin.sin_addr), port+1, i);
+			close(ld->gamesock);
+			close(ld->pingsock);
+			afree(ld);
+			continue;
+		}
+
+		LLAdd(&listening, ld);
+
+		lm->Log(L_DRIVEL, "<net> Listen%d: listening on %s:%d",
+				i, inet_ntoa(sin.sin_addr), port);
 	}
 
 	return 0;
@@ -635,167 +717,197 @@ local void dump_pk(byte *d, int len)
 #endif
 
 
-void * RecvThread(void *dummy)
+local void handle_game_packet(ListenData *ld)
 {
+	int len, sinsize, status;
 	struct sockaddr_in sin;
-	struct timeval tv;
-	fd_set fds;
-	int len, sinsize, maxfd = 5;
 	Player *p;
 	ClientData *cli;
 
+	Buffer *buf;
+
+	buf = GetBuffer();
+	sinsize = sizeof(sin);
+	len = recvfrom(ld->gamesock, buf->d.raw, MAXPACKET, 0,
+			(struct sockaddr*)&sin, &sinsize);
+
+	if (len < 1) goto freebuf;
+
+#ifdef CFG_DUMP_RAW_PACKETS
+	printf("RECV: %d bytes\n", len);
+	dump_pk(buf->d.raw, len);
+#endif
+
+	/* search for an existing connection */
+	p = LookupIP(sin);
+
+	if (p == NULL)
+	{
+		/* this might be a new connection. make sure it's really
+		 * a connection init packet */
+		if (IS_CONNINIT(buf))
+			DO_CBS(CB_CONNINIT, ALLARENAS, ConnectionInitFunc,
+					(&sin, buf->d.raw, len, ld));
+		else if (len > 1)
+			lm->Log(L_DRIVEL, "<net> Recvd data (%02x %02x ; %d bytes) "
+					"before connection established",
+					buf->d.raw[0], buf->d.raw[1], len);
+		else
+			lm->Log(L_DRIVEL, "<net> Recvd data (%02x ; %d byte) "
+					"before connection established",
+					buf->d.raw[0], len);
+		goto freebuf;
+	}
+
+	/* grab the status */
+	status = p->status;
+	cli = PPDATA(p, clikey);
+
+	if (IS_CONNINIT(buf))
+	{
+		/* here, we have a connection init, but it's from a
+		 * player we've seen before. there are a few scenarios: */
+		if (status == S_CONNECTED)
+		{
+			/* if the player is in S_CONNECTED, it means that
+			 * the connection init response got dropped on the
+			 * way to the client. we have to resend it. */
+			DO_CBS(CB_CONNINIT, ALLARENAS, ConnectionInitFunc,
+					(&sin, buf->d.raw, len, ld));
+		}
+		else
+		{
+			/* otherwise, he probably just lagged off or his
+			 * client crashed. ideally, we'd postpone this
+			 * packet, initiate a logout procedure, and then
+			 * process it. we can't do that right now, so drop
+			 * the packet, initiate the logout, and hope that
+			 * the client re-sends it soon. */
+			KillConnection(p);
+		}
+		goto freebuf;
+	}
+
+	/* we shouldn't get packets in this state, but it's harmless
+	 * if we do. */
+	if (status == S_TIMEWAIT)
+		goto freebuf;
+
+	if (status > S_TIMEWAIT)
+	{
+		lm->Log(L_WARN, "<net> [pid=%d] Packet recieved from bad state %d", p->pid, status);
+		goto freebuf;
+		/* don't set lastpkt time here */
+	}
+
+	buf->p = p;
+	cli->lastpkt = current_ticks();
+	cli->byterecvd += len + IP_UDP_OVERHEAD;
+	cli->pktrecvd++;
+	global_stats.pktrecvd++;
+
+	/* decrypt the packet */
+	{
+		Iencrypt *enc = cli->enc;
+		if (enc)
+			len = enc->Decrypt(p, buf->d.raw, len);
+	}
+
+	if (len != 0)
+		buf->len = len;
+	else /* bad crc, or something */
+	{
+		lm->Log(L_MALICIOUS, "<net> [pid=%d] "
+				"failure decrypting packet", p->pid);
+		goto freebuf;
+	}
+
+#ifdef CFG_DUMP_RAW_PACKETS
+	printf("RECV: about to process %d bytes:\n", len);
+	dump_pk(buf->d.raw, len);
+#endif
+
+	/* hand it off to appropriate place */
+	ProcessBuffer(buf);
+
+	return;
+
+freebuf:
+	FreeBuffer(buf);
+}
+
+
+local void handle_ping_packet(ListenData *ld)
+{
+	int len, sinsize, dalen = ld->connectas ? strlen(ld->connectas) : 0;
+	struct sockaddr_in sin;
+	unsigned int data[2];
+
+	sinsize = sizeof(sin);
+	len = recvfrom(ld->pingsock, (char*)data, 4, 0,
+			(struct sockaddr*)&sin, &sinsize);
+
+	if (len == 4)
+	{
+		Player *p;
+		Link *link;
+
+		data[1] = data[0];
+		data[0] = 0;
+		pd->Lock();
+		FOR_EACH_PLAYER(p)
+			if (p->status == S_PLAYING &&
+			    p->type != T_FAKE &&
+			    p->arena &&
+			    ( !ld->connectas ||
+			      strncmp(p->arena->name, ld->connectas, dalen) == 0))
+				data[0]++;
+		pd->Unlock();
+		sendto(ld->pingsock, (char*)data, 8, 0,
+				(struct sockaddr*)&sin, sinsize);
+
+		global_stats.pcountpings++;
+	}
+}
+
+void * RecvThread(void *dummy)
+{
+	struct timeval tv;
+	fd_set myfds, selfds;
+	int maxfd;
+	Link *l;
+
+	/* set up the fd set we'll be using */
+	FD_ZERO(&myfds);
+	for (l = LLGetHead(&listening); l; l = l->next)
+	{
+		ListenData *ld = l->data;
+		FD_SET(ld->pingsock, &myfds);
+		if (ld->pingsock > maxfd)
+			maxfd = ld->pingsock;
+		FD_SET(ld->gamesock, &myfds);
+		if (ld->gamesock > maxfd)
+			maxfd = ld->gamesock;
+	}
+
 	while (!killallthreads)
 	{
+		/* wait for a packet */
 		do {
-			/* set up fd set and tv */
-			FD_ZERO(&fds);
-			FD_SET(pingsock, &fds); if (pingsock > maxfd) maxfd = pingsock;
-			FD_SET(serversock, &fds); if (serversock > maxfd) maxfd = serversock;
-
+			selfds = myfds;
 			tv.tv_sec = 10;
 			tv.tv_usec = 0;
+		} while (select(maxfd+1, &selfds, NULL, NULL, &tv) < 1 && !killallthreads);
 
-			/* perform select */
-		} while (select(maxfd+1, &fds, NULL, NULL, &tv) < 1 && !killallthreads);
-
-		/* first handle the main socket */
-		if (FD_ISSET(serversock, &fds))
+		/* process whatever we got */
+		for (l = LLGetHead(&listening); l; l = l->next)
 		{
-			int status;
-			Buffer *buf;
+			ListenData *ld = l->data;
+			if (FD_ISSET(ld->gamesock, &selfds))
+				handle_game_packet(ld);
 
-			buf = GetBuffer();
-			sinsize = sizeof(sin);
-			len = recvfrom(serversock, buf->d.raw, MAXPACKET, 0,
-					(struct sockaddr*)&sin, &sinsize);
-
-			if (len < 1) goto freebuf;
-
-#ifdef CFG_DUMP_RAW_PACKETS
-			printf("RECV: %d bytes\n", len);
-			dump_pk(buf->d.raw, len);
-#endif
-
-			/* search for an existing connection */
-			p = LookupIP(sin);
-
-			if (p == NULL)
-			{
-				/* this might be a new connection. make sure it's really
-				 * a connection init packet */
-				if (IS_CONNINIT(buf))
-					DO_CBS(CB_CONNINIT, ALLARENAS, ConnectionInitFunc,
-							(&sin, buf->d.raw, len));
-				else if (len > 1)
-					lm->Log(L_DRIVEL, "<net> Recvd data (%02x %02x ; %d bytes) before connection established", buf->d.raw[0], buf->d.raw[1], len);
-				else
-					lm->Log(L_DRIVEL, "<net> Recvd data (%02x ; %d byte) before connection established", buf->d.raw[0], len);
-				goto freebuf;
-			}
-
-			/* grab the status */
-			status = p->status;
-			cli = PPDATA(p, clikey);
-
-			if (IS_CONNINIT(buf))
-			{
-				/* here, we have a connection init, but it's from a
-				 * player we've seen before. there are a few scenarios: */
-				if (status == S_CONNECTED)
-				{
-					/* if the player is in S_CONNECTED, it means that
-					 * the connection init response got dropped on the
-					 * way to the client. we have to resend it. */
-					DO_CBS(CB_CONNINIT, ALLARENAS, ConnectionInitFunc,
-							(&sin, buf->d.raw, len));
-				}
-				else
-				{
-					/* otherwise, he probably just lagged off or his
-					 * client crashed. ideally, we'd postpone this
-					 * packet, initiate a logout procedure, and then
-					 * process it. we can't do that right now, so drop
-					 * the packet, initiate the logout, and hope that
-					 * the client re-sends it soon. */
-					KillConnection(p);
-				}
-				goto freebuf;
-			}
-
-			/* we shouldn't get packets in this state, but it's harmless
-			 * if we do. */
-			if (status == S_TIMEWAIT)
-				goto freebuf;
-
-			if (status > S_TIMEWAIT)
-			{
-				lm->Log(L_WARN, "<net> [pid=%d] Packet recieved from bad state %d", p->pid, status);
-				goto freebuf;
-				/* don't set lastpkt time here */
-			}
-
-			buf->p = p;
-			cli->lastpkt = GTC();
-			cli->byterecvd += len + IP_UDP_OVERHEAD;
-			cli->pktrecvd++;
-			global_stats.pktrecvd++;
-
-			/* decrypt the packet */
-			{
-				Iencrypt *enc = cli->enc;
-				if (enc)
-					len = enc->Decrypt(p, buf->d.raw, len);
-			}
-
-			if (len != 0)
-				buf->len = len;
-			else /* bad crc, or something */
-			{
-				lm->Log(L_MALICIOUS, "<net> [pid=%d] "
-						"failure decrypting packet", p->pid);
-				goto freebuf;
-			}
-
-#ifdef CFG_DUMP_RAW_PACKETS
-			printf("RECV: about to process %d bytes:\n", len);
-			dump_pk(buf->d.raw, len);
-#endif
-
-			/* hand it off to appropriate place */
-			ProcessBuffer(buf);
-
-			goto donehere;
-freebuf:
-			FreeBuffer(buf);
-donehere:
-			;
-		}
-
-		if (FD_ISSET(pingsock, &fds))
-		{
-			/* data on port + 1 */
-			unsigned int data[2];
-
-			sinsize = sizeof(sin);
-			len = recvfrom(pingsock, (char*)data, 4, 0,
-					(struct sockaddr*)&sin, &sinsize);
-
-			if (len == 4)
-			{
-				Link *link;
-				data[1] = data[0];
-				data[0] = 0;
-				pd->Lock();
-				FOR_EACH_PLAYER(p)
-					if (p->status == S_PLAYING &&
-					    p->type != T_FAKE)
-						data[0]++;
-				pd->Unlock();
-				sendto(pingsock, (char*)data, 8, 0,
-						(struct sockaddr*)&sin, sinsize);
-
-				global_stats.pcountpings++;
-			}
+			if (FD_ISSET(ld->pingsock, &selfds))
+				handle_ping_packet(ld);
 		}
 	}
 	return NULL;
@@ -916,20 +1028,20 @@ local void send_outgoing(Player *p)
 	byte gbuf[MAXPACKET] = { 0x00, 0x0E };
 	byte *gptr = gbuf + 2;
 
-	unsigned int now = current_millis();
+	ticks_t now = current_millis();
 	int gcount = 0, bytessince, pri, retries = 0, minseqnum;
 	Buffer *buf, *nbuf;
 	DQNode *outlist;
 	/* use an estimate of the average round-trip time to figure out when
 	 * to resend a packet */
-	unsigned int timeout = cli->avgrtt + 4*cli->rttdev;
+	unsigned long timeout = cli->avgrtt + 4*cli->rttdev;
 
 	/* adjust the current idea of how many bytes have been sent in the
 	 * last second */
-	if ( (int)(now - cli->sincetime) >= (1000/7) )
+	if ( TICK_DIFF(now, cli->sincetime) > (1000/7) )
 	{
 		cli->bytessince = cli->bytessince * 7 / 8;
-		cli->sincetime += (1000/7);
+		cli->sincetime = TICK_MAKE(cli->sincetime + (1000/7));
 	}
 
 	/* we keep a local copy of bytessince to account for the
@@ -959,7 +1071,7 @@ local void send_outgoing(Player *p)
 
 			/* check if it's time to send this yet (increase timeout
 			 * linearly with the retry number) */
-			if ((int)(now - buf->lastretry) <= (timeout * buf->retries))
+			if (TICK_DIFF(now, buf->lastretry) <= (timeout * buf->retries))
 				continue;
 
 			/* only buffer fixed number of rel packets to client */
@@ -1053,7 +1165,7 @@ local void process_lagouts(Player *p, unsigned int gtc)
 {
 	ClientData *cli = PPDATA(p, clikey);
 	/* this is used for lagouts and also for timewait */
-	int diff = gtc - cli->lastpkt;
+	int diff = TICK_DIFF(gtc, cli->lastpkt);
 
 	/* process lagouts */
 	if (p->whenloggedin == 0 && /* acts as flag to prevent dups */
@@ -1123,7 +1235,7 @@ local void process_lagouts(Player *p, unsigned int gtc)
 
 void * SendThread(void *dummy)
 {
-	unsigned int gtc;
+	ticks_t gtc;
 
 	while (!killallthreads)
 	{
@@ -1149,7 +1261,7 @@ void * SendThread(void *dummy)
 		 * do this in another loop so that we only have to lock/unlock
 		 * player status once. */
 		pd->Lock();
-		gtc = GTC();
+		gtc = current_ticks();
 		FOR_EACH_PLAYER(p)
 			if (IS_OURS(p))
 				process_lagouts(p, gtc);
@@ -1274,11 +1386,12 @@ void ProcessBuffer(Buffer *buf)
 }
 
 
-Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc)
+Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v_ld)
 {
 	int bucket;
 	Player *p;
 	ClientData *cli;
+	ListenData *ld = v_ld;
 
 	/* try to find this sin in the hash table */
 	if (sin && (p = LookupIP(*sin)))
@@ -1301,6 +1414,10 @@ Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc)
 	cli = PPDATA(p, clikey);
 
 	InitClient(cli, enc);
+
+	/* copy info from ListenData */
+	cli->whichsock = ld->gamesock;
+	p->connectas = ld->connectas;
 
 	/* add him to his hash bucket */
 	pthread_mutex_lock(&hashmtx);
@@ -1451,7 +1568,7 @@ void ProcessAck(Buffer *buf)
 
 			if (b->retries == 1)
 			{
-				int rtt = current_millis() - b->lastretry;
+				int rtt = TICK_DIFF(current_millis(), b->lastretry);
 				int dev = cli->avgrtt - rtt;
 				if (dev < 0) dev = -dev;
 				cli->rttdev = (cli->rttdev * 3 + dev) / 4;
@@ -1478,7 +1595,7 @@ void ProcessSyncRequest(Buffer *buf)
 	struct TimeSyncC2S *cts = (struct TimeSyncC2S*)(buf->d.raw);
 	struct TimeSyncS2C ts = { 0x00, 0x06, cts->time };
 	pthread_mutex_lock(&cli->olmtx);
-	ts.servertime = GTC();
+	ts.servertime = current_ticks();
 	/* note: this bypasses bandwidth limits */
 	SendRaw(buf->p, (byte*)&ts, sizeof(ts));
 	pthread_mutex_unlock(&cli->olmtx);
@@ -1660,13 +1777,14 @@ void ProcessSpecial(Buffer *req)
 }
 
 
-void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len)
+void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len, void *v_ld)
 {
+	ListenData *ld = v_ld;
 #ifdef CFG_DUMP_RAW_PACKETS
 	printf("SENDRAW: %d bytes\n", len);
 	dump_pk(pkt, len);
 #endif
-	sendto(serversock, pkt, len, 0,
+	sendto(ld->gamesock, pkt, len, 0,
 			(struct sockaddr*)sin, sizeof(struct sockaddr_in));
 }
 
@@ -1698,7 +1816,7 @@ void SendRaw(Player *p, byte *data, int len)
 	dump_pk(encbuf, len);
 #endif
 
-	sendto(serversock, encbuf, len, 0,
+	sendto(cli->whichsock, encbuf, len, 0,
 			(struct sockaddr*)&cli->sin,sizeof(struct sockaddr_in));
 
 	cli->bytessince += len + IP_UDP_OVERHEAD;
@@ -1734,7 +1852,7 @@ Buffer * BufferPacket(Player *p, byte *data, int len, int flags,
 
 	buf = GetBuffer();
 	buf->p = p;
-	buf->lastretry = current_millis() - 10000;
+	buf->lastretry = TICK_MAKE(current_millis() - 10000U);
 	buf->retries = 0;
 	buf->pri = GET_PRI(flags);
 	buf->callback = callback;
@@ -1926,6 +2044,6 @@ void GetClientStats(Player *p, struct net_client_stats *stats)
 int GetLastPacketTime(Player *p)
 {
 	ClientData *cli = PPDATA(p, clikey);
-	return (int)(GTC() - cli->lastpkt);
+	return TICK_DIFF(current_ticks(), cli->lastpkt);
 }
 

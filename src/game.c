@@ -42,7 +42,7 @@ typedef struct
 typedef struct
 {
 	u16 cbrickid;
-	unsigned lasttime;
+	ticks_t lasttime;
 	LinkedList list;
 	pthread_mutex_t mtx;
 } brickdata;
@@ -74,7 +74,7 @@ local inline long lhypot (register long dx, register long dy);
 local void SetFreq(Player *p, int freq);
 local void SetShip(Player *p, int ship);
 local void SetFreqAndShip(Player *p, int ship, int freq);
-local void DropBrick(Arena *arena, int freq, int x1, int y1, int x2, int y2, unsigned tm);
+local void DropBrick(Arena *arena, int freq, int x1, int y1, int x2, int y2);
 local void WarpTo(const Target *target, int x, int y);
 local void GivePrize(const Target *target, int type, int count);
 local void FakePosition(Player *p, struct C2SPosition *pos);
@@ -226,8 +226,8 @@ void Pppk(Player *p, byte *p2, int n)
 	Player *i;
 	LinkedList regset = LL_INITIALIZER, epdset = LL_INITIALIZER;
 	Link *link;
-	unsigned gtc = GTC();
-	int latency = gtc - pos->time;
+	ticks_t gtc = current_ticks();
+	int latency = TICK_DIFF(gtc, pos->time);
 
 	if (latency < 0) latency = 0;
 	if (latency > 255) latency = 255;
@@ -345,7 +345,9 @@ void Pppk(Player *p, byte *p2, int n)
 							/* and send some radar packets */
 							( ( wpn.weapon.type == W_NULL &&
 								dist <= cfg_pospix &&
-								randnum > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0)))))
+								randnum > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0)))) ||
+							/* bots */
+							i->flags.see_all_posn)
 					{
 						LLAdd(set, i);
 						if (wpn.weapon.type)
@@ -408,7 +410,9 @@ void Pppk(Player *p, byte *p2, int n)
 							i->p_attached == p->pid ||
 							/* and send some radar packets */
 							( dist <= cfg_pospix &&
-							  (randnum > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0)))))
+							  (randnum > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0)))) ||
+							/* bots */
+							i->flags.see_all_posn)
 						LLAdd(set, i);
 				}
 			pd->Unlock();
@@ -438,7 +442,7 @@ void Pppk(Player *p, byte *p2, int n)
 	if (lagc)
 		lagc->Position(
 				p,
-				(gtc - pos->time) * 10,
+				TICK_DIFF(gtc, pos->time) * 10,
 				n >= 26 ? pos->extra.s2cping * 10 : -1,
 				data->wpnsent);
 
@@ -456,7 +460,7 @@ void Pppk(Player *p, byte *p2, int n)
 	p->position.bounty = pos->bounty;
 	p->position.status = pos->status;
 
-	SET_SENT_PPK(p);
+	p->flags.sent_ppk = 1;
 }
 
 
@@ -485,7 +489,7 @@ void PSpecRequest(Player *p, byte *pkt, int n)
 local void reset_during_change(Player *p, int success, void *dummy)
 {
 	pd->LockPlayer(p);
-	RESET_DURING_CHANGE(p);
+	p->flags.during_change = 0;
 	pd->UnlockPlayer(p);
 }
 
@@ -509,7 +513,7 @@ void SetFreqAndShip(Player *p, int ship, int freq)
 	}
 
 	if (IS_STANDARD(p))
-		SET_DURING_CHANGE(p);
+		p->flags.during_change = 1;
 	p->p_ship = ship;
 	data->speccing = NULL;
 	p->p_freq = freq;
@@ -557,14 +561,14 @@ void PSetShip(Player *p, byte *pkt, int n)
 		return;
 	}
 
-	if (IS_DURING_CHANGE(p))
+	if (p->flags.during_change)
 	{
 		lm->LogP(L_MALICIOUS, "game", p, "ship request before ack from previous change");
 		return;
 	}
 
 	/* exponential decay by 1/2 every 10 seconds */
-	d = (GTC() - data->changes.lastcheck) / 1000;
+	d = (current_ticks() - data->changes.lastcheck) / 1000;
 	data->changes.changes >>= d;
 	data->changes.lastcheck += d * 1000;
 	if (data->changes.changes > cfg_changelimit && cfg_changelimit > 0)
@@ -605,7 +609,7 @@ void SetFreq(Player *p, int freq)
 	}
 
 	if (IS_STANDARD(p))
-		SET_DURING_CHANGE(p);
+		p->flags.during_change = 1;
 	p->p_freq = freq;
 
 	pd->UnlockPlayer(p);
@@ -643,7 +647,7 @@ void PSetFreq(Player *p, byte *pkt, int n)
 		return;
 	}
 
-	if (IS_DURING_CHANGE(p))
+	if (p->flags.during_change)
 	{
 		lm->LogP(L_MALICIOUS, "game", p, "freq change before ack from previous change");
 		return;
@@ -887,7 +891,8 @@ void ArenaAction(Arena *arena, int action)
 
 		pthread_mutex_init(&bd->mtx, NULL);
 		LLInit(&bd->list);
-		bd->cbrickid = bd->lasttime = 0;
+		bd->cbrickid = 0;
+		bd->lasttime = current_ticks();
 	}
 }
 
@@ -930,19 +935,19 @@ long lhypot (register long dx, register long dy)
 /* call with mutex */
 local void expire_bricks(Arena *arena)
 {
-	unsigned gtc, timeout;
+	ticks_t gtc, timeout;
 	LinkedList *list = &((brickdata*)P_ARENA_DATA(arena, brickkey))->list;
 	Link *l, *next;
 
 	timeout = cfg->GetInt(arena->cfg, "Brick", "BrickTime", 0) + 10;
 
-	gtc = GTC();
+	gtc = current_ticks();
 	for (l = LLGetHead(list); l; l = next)
 	{
 		struct S2CBrickPacket *pkt = l->data;
 		next = l->next;
 
-		if ( (pkt->starttime + timeout) < gtc )
+		if (TICK_GT(gtc, pkt->starttime + timeout))
 		{
 			mapdata->DoBrick(arena, 0, pkt->x1, pkt->y1, pkt->x2, pkt->y2);
 			LLRemove(list, pkt);
@@ -953,7 +958,7 @@ local void expire_bricks(Arena *arena)
 
 
 /* call with mutex */
-local void drop_brick(Arena *arena, int freq, int x1, int y1, int x2, int y2, unsigned tm)
+local void drop_brick(Arena *arena, int freq, int x1, int y1, int x2, int y2)
 {
 	brickdata *bd = P_ARENA_DATA(arena, brickkey);
 	struct S2CBrickPacket *pkt = amalloc(sizeof(*pkt));
@@ -963,7 +968,7 @@ local void drop_brick(Arena *arena, int freq, int x1, int y1, int x2, int y2, un
 	pkt->type = S2C_BRICK;
 	pkt->freq = freq;
 	pkt->brickid = bd->cbrickid++;
-	pkt->starttime = (tm == 0) ? GTC(): tm;
+	pkt->starttime = current_ticks();
 	/* workaround for stupid priitk */
 	if (pkt->starttime <= bd->lasttime)
 		pkt->starttime = ++bd->lasttime;
@@ -981,12 +986,12 @@ local void drop_brick(Arena *arena, int freq, int x1, int y1, int x2, int y2, un
 }
 
 
-void DropBrick(Arena *arena, int freq, int x1, int y1, int x2, int y2, unsigned tm)
+void DropBrick(Arena *arena, int freq, int x1, int y1, int x2, int y2)
 {
 	brickdata *bd = P_ARENA_DATA(arena, brickkey);
 	pthread_mutex_lock(&bd->mtx);
 	expire_bricks(arena);
-	drop_brick(arena, freq, x1, y1, x2, y2, tm);
+	drop_brick(arena, freq, x1, y1, x2, y2);
 	pthread_mutex_unlock(&bd->mtx);
 }
 
@@ -1032,7 +1037,7 @@ void PBrick(Player *p, byte *pkt, int len)
 	pthread_mutex_lock(&bd->mtx);
 	expire_bricks(arena);
 	mapdata->FindBrickEndpoints(arena, dx, dy, l, &x1, &y1, &x2, &y2);
-	drop_brick(arena, p->p_freq, x1, y1, x2, y2, 0);
+	drop_brick(arena, p->p_freq, x1, y1, x2, y2);
 	pthread_mutex_unlock(&bd->mtx);
 }
 

@@ -235,7 +235,7 @@ int do_sp_process(sp_conn *conn, void (*process)(const char *line, const char *r
 		/* put the new one in place */
 		conn->inbuf = buf2;
 		/* reset message time */
-		conn->lastmsgtime = GTC();
+		conn->lastmsgtime = current_ticks();
 	}
 	else if (LEFT(buf) <= 0)
 	{

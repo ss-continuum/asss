@@ -69,8 +69,7 @@ void Cbrickwrite(const char *params, Player *p, const Target *target)
 						x + brk->x1,
 						y + brk->y1,
 						x + brk->x2,
-						y + brk->y2,
-						0);
+						y + brk->y2);
 			}
 			x += letterdata[c].width + 1;
 		}

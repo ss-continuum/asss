@@ -70,7 +70,7 @@ typedef void (*SizedPacketFunc)
 typedef void (*RelCallback)(Player *p, int success, void *clos);
 
 #define CB_CONNINIT ("conninit")
-typedef void (*ConnectionInitFunc)(struct sockaddr_in *sin, byte *pkt, int len);
+typedef void (*ConnectionInitFunc)(struct sockaddr_in *sin, byte *pkt, int len, void *v);
 
 
 struct net_stats
@@ -98,7 +98,7 @@ struct net_client_stats
 #include "encrypt.h"
 
 
-#define I_NET "net-5"
+#define I_NET "net-6"
 
 typedef struct Inet
 {
@@ -121,8 +121,8 @@ typedef struct Inet
 	void (*RemoveSizedPacket)(int pktype, SizedPacketFunc func);
 
 	/* only to be used by encryption modules! */
-	void (*ReallyRawSend)(struct sockaddr_in *sin, byte *pkt, int len);
-	Player * (*NewConnection)(int type, struct sockaddr_in *sin, Iencrypt *enc);
+	void (*ReallyRawSend)(struct sockaddr_in *sin, byte *pkt, int len, void *v);
+	Player * (*NewConnection)(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v);
 
 	void (*GetStats)(struct net_stats *stats);
 	void (*GetClientStats)(Player *p, struct net_client_stats *stats);

@@ -96,7 +96,8 @@ local Player * NewPlayer(int type)
 	p->pid = pid;
 	p->p_ship = SPEC;
 	p->p_attached = -1;
-	p->connecttime = GTC();
+	p->connecttime = current_ticks();
+	p->connectas = NULL;
 
 	return p;
 }

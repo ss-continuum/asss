@@ -25,8 +25,8 @@ typedef struct
 {
 	int gamelen;
 	int enabled;
-	unsigned timeout;
-	unsigned warnmsgs[MAXWARNMSGS];
+	ticks_t timeout;
+	ticks_t warnmsgs[MAXWARNMSGS];
 } timerdata;
 
 int tdkey;
@@ -34,7 +34,7 @@ int tdkey;
 
 local int TimerMaster(void *nothing)
 {
-	unsigned tickcount = GTC();
+	ticks_t now = current_ticks();
 	int j;
 	Link *link;
 	Arena *arena;
@@ -42,13 +42,13 @@ local int TimerMaster(void *nothing)
 
 	aman->Lock();
 	FOR_EACH_ARENA_P(arena, td, tdkey)
-		if (td->enabled && tickcount > td->timeout)
+		if (td->enabled && TICK_GT(now, td->timeout))
 		{
 			lm->LogA(L_DRIVEL, "game_timer", arena, "Timer expired");
 			DO_CBS(CB_TIMESUP, arena, GameTimerFunc, (arena));
 			chat->SendArenaMessage(arena, "Time has expired.");
 			if (td->gamelen)
-				td->timeout = tickcount+td->gamelen;
+				td->timeout = TICK_MAKE(now+td->gamelen);
 			else
 			{
 				td->enabled = 0;
@@ -57,14 +57,14 @@ local int TimerMaster(void *nothing)
 		}
 		else if (td->enabled)
 		{
-			tickcount = (td->timeout - GTC())/100;
+			now = TICK_DIFF(td->timeout, current_ticks())/100;
 			for (j = 0; j < MAXWARNMSGS; j++)
-				if (tickcount && td->warnmsgs[j] == tickcount)
+				if (now && td->warnmsgs[j] == now)
 				{
 					if (!(td->warnmsgs[j]%60))
-						chat->SendArenaMessage(arena, "NOTICE: %u minute%s remaining.", tickcount/60, tickcount == 60 ? "" : "s");
+						chat->SendArenaMessage(arena, "NOTICE: %u minute%s remaining.", now/60, now == 60 ? "" : "s");
 					else
-						chat->SendArenaMessage(arena, "NOTICE: %u seconds remaining.", tickcount);
+						chat->SendArenaMessage(arena, "NOTICE: %u seconds remaining.", now);
 				}
 		}
 	aman->Unlock();
@@ -99,13 +99,13 @@ local void ArenaAction(Arena *arena, int action)
 		if (action == AA_CREATE && td->gamelen)
 		{
 			td->enabled = 1;
-			td->timeout = GTC()+td->gamelen;
+			td->timeout = TICK_MAKE(current_ticks()+td->gamelen);
 		}
 		else if (action == AA_CONFCHANGED && !savedlen && td->gamelen)
 		{
 			/* switch to timedgame immediately */
 			td->enabled = 1;
-			td->timeout = GTC()+td->gamelen;
+			td->timeout = TICK_MAKE(current_ticks()+td->gamelen);
 		}
 	}
 	else if (action == AA_DESTROY)
@@ -126,12 +126,12 @@ local void Ctime(const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	int mins, secs;
-	unsigned tout;
+	int tout;
 	timerdata *td = P_ARENA_DATA(arena, tdkey);
 
 	if (td->enabled)
 	{
-		tout = td->timeout - GTC();
+		tout = TICK_DIFF(td->timeout, current_ticks());
 		mins = tout/60/100;
 		secs = (tout/100)%60;
 		chat->SendMessage(p, "Time left: %d minutes %d seconds", mins, secs);
@@ -169,7 +169,7 @@ local void Ctimer(const char *params, Player *p, const Target *target)
 			if ((end = strchr(end, ':')))
 				secs = strtol(end+1, NULL, 10);
 			td->enabled = 1;
-			td->timeout = GTC()+(60*100*mins)+(100*secs);
+			td->timeout = TICK_MAKE(current_ticks()+(60*100*mins)+(100*secs));
 			Ctime(params, p, target);
 		}
 		else chat->SendMessage(p, "timer format is: '?timer mins[:secs]'");
@@ -187,11 +187,11 @@ local void Ctimereset(const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	timerdata *td = P_ARENA_DATA(arena, tdkey);
-	unsigned gamelen = td->gamelen;
+	ticks_t gamelen = td->gamelen;
 
 	if (gamelen)
 	{
-		td->timeout = GTC() + gamelen;
+		td->timeout = TICK_MAKE(current_ticks() + gamelen);
 		Ctime(params, p, target);
 	}
 }
@@ -212,7 +212,7 @@ local void Cpausetimer(const char *params, Player *p, const Target *target)
 	if (td->enabled)
 	{
 		td->enabled = 0;
-		td->timeout -= GTC();
+		td->timeout -= current_ticks();
 		chat->SendMessage(p,"Timer paused at:  %d minutes %d seconds",
 							td->timeout/60/100, (td->timeout/100)%60);
 	}
@@ -221,7 +221,7 @@ local void Cpausetimer(const char *params, Player *p, const Target *target)
 		chat->SendMessage(p,"Timer resumed at: %d minutes %d seconds",
 							td->timeout/60/100, (td->timeout/100)%60);
 		td->enabled = 1;
-		td->timeout += GTC();
+		td->timeout += current_ticks();
 	}
 }
 

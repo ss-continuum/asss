@@ -25,7 +25,8 @@
  *
  * RunLoop is obviously used only once by main()
  *
- * Quit can be called by any module and will shutdown the server
+ * Quit can be called by any module and will shutdown the server. it
+ * takes an exit code to return to the os.
  *
  */
 

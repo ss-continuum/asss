@@ -4,8 +4,6 @@
 #ifndef __FAKE_H
 #define __FAKE_H
 
-#include "net.h" /* for PacketFunc */
-
 
 #define I_FAKE "fake-1"
 

@@ -72,3 +72,14 @@ void closedir(DIR *dir)
 }
 
 
+int inet_aton(char *cp, struct in_addr *pin)
+{
+	unsigned long rc;
+	rc = inet_addr(cp);
+	if (rc == (unsigned long)(-1) && strcmp(cp, "255.255.255.255"))
+		return 0;
+	pin->s_addr = rc;
+	return 1;
+}
+
+

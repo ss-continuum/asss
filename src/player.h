@@ -116,66 +116,45 @@ struct Player
 #define p_freq pkt.freq
 #define p_attached pkt.attachedto
 
-	int pid, status, type, pflags, whenloggedin;
+	int pid, status, type, whenloggedin;
 	Arena *arena, *oldarena;
 	char name[24], squad[24];
 	i16 xres, yres;
-	unsigned int connecttime;
+	ticks_t connecttime;
 	/* this is a number between 0 and RAND_MAX. for each incoming
 	 * weapon, if rand() is less than this, it's ignored. this really
 	 * shouldn't be here, i know. */
 	unsigned int ignoreweapons;
 	struct PlayerPosition position;
 	u32 macid, permid;
+	/* if the player has connected through a port that sets a default
+	 * arena, that will be stored here. */
+	const char *connectas;
+	struct
+	{
+		/* if the player has been authenticated by either a billing
+		 * server or a password file */
+		unsigned authenticated : 1;
+		/* set when the player has changed freqs or ships, but before he
+		 * has acknowleged it */
+		unsigned during_change : 1;
+		/* if player wants optional .lvz files */
+		unsigned want_all_lvz : 1;
+		/* if player is waiting for db query results */
+		unsigned during_query : 1;
+		/* if the player's lag is too high to let him be in a ship */
+		unsigned no_ship : 1;
+		/* if the player's lag is too high to let him have flags or
+		 * balls */
+		unsigned no_flags_balls : 1;
+		/* if the player has sent a position packet since entering the
+		 * arena */
+		unsigned sent_ppk : 1;
+		/* if the player is a bot who wants all position packets */
+		unsigned see_all_posn : 1;
+	} flags;
 	byte playerextradata[0];
 };
-
-
-/* flag bits for the pflags field */
-
-/* set when the player has changed freqs or ships, but before he has
- * acknowleged it */
-#define F_DURING_CHANGE (1<<0)
-#define SET_DURING_CHANGE(p) ((p)->pflags |= F_DURING_CHANGE)
-#define RESET_DURING_CHANGE(p) ((p)->pflags &= ~F_DURING_CHANGE)
-#define IS_DURING_CHANGE(p) ((p)->pflags & F_DURING_CHANGE)
-
-/* if player wants optional .lvz files */
-#define F_ALL_LVZ (1<<1)
-#define SET_ALL_LVZ(p) ((p)->pflags |= F_ALL_LVZ)
-#define UNSET_ALL_LVZ(p) ((p)->pflags &= ~F_ALL_LVZ)
-#define WANT_ALL_LVZ(p) ((p)->pflags & F_ALL_LVZ)
-
-/* if player is waiting for db query results */
-#define F_DURING_QUERY (1<<2)
-#define SET_DURING_QUERY(p) ((p)->pflags |= F_DURING_QUERY)
-#define UNSET_DURING_QUERY(p) ((p)->pflags &= ~F_DURING_QUERY)
-#define IS_DURING_QUERY(p) ((p)->pflags & F_DURING_QUERY)
-
-/* if the player's lag is too high to let him be in a ship */
-#define F_NO_SHIP (1<<3)
-#define SET_NO_SHIP(p) ((p)->pflags |= F_NO_SHIP)
-#define UNSET_NO_SHIP(p) ((p)->pflags &= ~F_NO_SHIP)
-#define IS_NO_SHIP(p) ((p)->pflags & F_NO_SHIP)
-
-/* if the player's lag is too high to let him have flags or balls */
-#define F_NO_FLAGS_BALLS (1<<4)
-#define SET_NO_FLAGS_BALLS(p) ((p)->pflags |= F_NO_FLAGS_BALLS)
-#define UNSET_NO_FLAGS_BALLS(p) ((p)->pflags &= ~F_NO_FLAGS_BALLS)
-#define IS_NO_FLAGS_BALLS(p) ((p)->pflags & F_NO_FLAGS_BALLS)
-
-/* if the player has sent a position packet since entering the arena */
-#define F_SENT_PPK (1<<5)
-#define SET_SENT_PPK(p) ((p)->pflags |= F_SENT_PPK)
-#define UNSET_SENT_PPK(p) ((p)->pflags &= ~F_SENT_PPK)
-#define HAS_SENT_PPK(p) ((p)->pflags & F_SENT_PPK)
-
-/* if the player has been authenticated by either a billing server or a
- * password file */
-#define F_AUTHENTICATED (1<<6)
-#define SET_AUTHENTICATED(p) ((p)->pflags |= F_AUTHENTICATED)
-#define UNSET_AUTHENTICATED(p) ((p)->pflags &= ~F_AUTHENTICATED)
-#define IS_AUTHENTICATED(p) ((p)->pflags & F_AUTHENTICATED)
 
 
 #define I_PLAYERDATA "playerdata-2"

@@ -13,6 +13,7 @@
  *
  * log messages should be in the form:
  * "<module> {arena} [player] did something"
+ * for easy filtering and searching through log files.
  * arena or player may be left out if not applicable.
  * if a player name is not available, "[pid=123]" should be used
  * instead.
@@ -28,6 +29,8 @@
 #define L_ERROR      'E'  /* something really really bad */
 
 
+/* called for each log line */
+#define CB_LOGFUNC ("log")
 typedef void (*LogFunc)(const char *line);
 
 
@@ -39,13 +42,9 @@ typedef struct Ilogman
 
 	void (*Log)(char level, const char *format, ...);
 
-
 	/* utilty functions for the above */
-
 	void (*LogA)(char level, const char *mod, Arena *a, const char *format, ...);
-
 	void (*LogP)(char level, const char *mod, Player *p, const char *format, ...);
-
 
 	/* log modules can optionally call this function for help filtering
 	 * their log messages. you should pass it the log line you recieved,
@@ -53,9 +52,6 @@ typedef struct Ilogman
 	 * based on this module name). */
 	int (*FilterLog)(const char *line, const char *modname);
 } Ilogman;
-
-
-#define CB_LOGFUNC ("log")
 
 
 #endif

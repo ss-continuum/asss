@@ -182,9 +182,6 @@ do {                                                   \
 } while (0)
 
 
-#define CNULL(thing) if ((thing) == NULL) return MM_FAIL
-#define GETINT(var, i) CNULL(var = mm->GetInterface(i, ALLARENAS))
-
 
 #endif
 

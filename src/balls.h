@@ -37,9 +37,9 @@ struct BallData
 	int x, y, xspeed, yspeed; /* the coordinates of the ball */
 	Player *carrier; /* the player that is carrying or last touched the ball */
 	int freq; /* freq of carrier */
-	unsigned time; /* the time that the ball was last fired (will be 0 for
-	                * balls being held). for BALL_WAITING, this time is the
-	                * time when the ball will be re-spawned. */
+	ticks_t time; /* the time that the ball was last fired (will be 0 for
+	               * balls being held). for BALL_WAITING, this time is the
+	               * time when the ball will be re-spawned. */
 };
 
 typedef struct ArenaBallData

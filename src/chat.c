@@ -45,7 +45,7 @@ struct player_mask_t
 	time_t expires;
 	/* a count of messages. this decays exponentially 50% per second */
 	int msgs;
-	unsigned lastcheck;
+	ticks_t lastcheck;
 };
 
 local int cfg_msgrel, cfg_floodlimit, cfg_floodshutup;
@@ -56,6 +56,7 @@ local void expire_mask(Player *p)
 {
 	struct player_mask_t *pm = PPDATA(p, pmkey);
 	int d;
+	ticks_t now = current_ticks();
 
 	/* handle expiring masks */
 	if (pm->expires > 0)
@@ -66,9 +67,9 @@ local void expire_mask(Player *p)
 		}
 
 	/* handle exponential decay of msg count */
-	d = (GTC() - pm->lastcheck) / 100;
+	d = TICK_DIFF(now, pm->lastcheck) / 100;
 	pm->msgs >>= d;
-	pm->lastcheck += d * 100;
+	pm->lastcheck = now;
 }
 
 local void check_flood(Player *p)
@@ -662,7 +663,7 @@ local void set_data(Player *p, void *data, int len)
 	if (len == sizeof(*pm))
 		memcpy(pm, data, sizeof(*pm));
 	pm->msgs = 0;
-	pm->lastcheck = 0;
+	pm->lastcheck = current_ticks();
 }
 
 local PlayerPersistentData pdata =
@@ -676,7 +677,8 @@ local PlayerPersistentData pdata =
 local void paction(Player *p, int action, Arena *arena)
 {
 	struct player_mask_t *pm = PPDATA(p, pmkey);
-	pm->mask = pm->expires = pm->msgs = pm->lastcheck = 0;
+	pm->mask = pm->expires = pm->msgs = 0;
+	pm->lastcheck = current_ticks();
 }
 
 #endif

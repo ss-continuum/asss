@@ -91,8 +91,7 @@
 #define C2S_LOGIN 0x09
 /* ugly packet in mapobj.h */
 #define C2S_OBJECTMOVER 0x0A
-/* 1 byte, client wants the server's update for client */
-#define C2S_EXEREQUEST 0x0B
+#define C2S_UPDATEREQUEST 0x0B
 #define C2S_MAPREQUEST 0x0C
 #define C2S_NEWSREQUEST 0x0D
 /* sending a .wav to another client */

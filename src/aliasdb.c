@@ -97,14 +97,14 @@ local void dbcb_nameipmac(int status, db_res *res, void *clos)
 	int results;
 	db_row *row;
 
-	if (!IS_DURING_QUERY(p))
+	if (!p->flags.during_query)
 	{
 		if (lm)
 			lm->LogP(L_WARN, "aliasdb", p, "recieved query result he didn't ask for");
 		return;
 	}
 
-	UNSET_DURING_QUERY(p);
+	p->flags.during_query = 0;
 
 	if (status != 0 || res == NULL)
 	{
@@ -165,7 +165,7 @@ local void Cqip(const char *params, Player *p, const Target *target)
 	if (target->type != T_ARENA)
 		return;
 
-	SET_DURING_QUERY(p);
+	p->flags.during_query = 1;
 
 	if (strchr(params, '/'))
 	{
@@ -224,7 +224,7 @@ local void Crawquery(const char *params, Player *p, const Target *target)
 	if (target->type != T_ARENA)
 		return;
 
-	SET_DURING_QUERY(p);
+	p->flags.during_query = 1;
 
 	snprintf(qbuf, sizeof(qbuf),
 			"select name, inet_ntoa(ip), macid, to_days(now()) - to_days(lastseen) as daysago "
@@ -243,14 +243,14 @@ local void dbcb_last(int status, db_res *res, void *clos)
 	int results;
 	db_row *row;
 
-	if (!IS_DURING_QUERY(p))
+	if (!p->flags.during_query)
 	{
 		if (lm)
 			lm->LogP(L_WARN, "aliasdb", p, "recieved query result he didn't ask for");
 		return;
 	}
 
-	UNSET_DURING_QUERY(p);
+	p->flags.during_query = 0;
 
 	if (status != 0 || res == NULL)
 	{
@@ -307,7 +307,7 @@ local void Clast(const char *params, Player *p, const Target *target)
 	if (target->type != T_ARENA)
 		return;
 
-	SET_DURING_QUERY(p);
+	p->flags.during_query = 1;
 
 	/* MYSQLISM: unix_timestamp */
 	db->Query(dbcb_last, p, 1,

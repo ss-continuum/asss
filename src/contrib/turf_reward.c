@@ -283,7 +283,7 @@ local void arenaAction(Arena *arena, int action)
 		tr->set_weights          = 0;
 		tr->weights              = NULL;
 
-		tr->dingTime       = 0;
+		tr->dingTime       = current_ticks();
 		tr->timer_initial  = 0;
 		tr->timer_interval = 0;
 		tr->trp            = NULL;
@@ -319,14 +319,14 @@ local void arenaAction(Arena *arena, int action)
 		{
 			// multi arena enabled, use the id as the key for the timer
 			tr->arena = arena;
-			tr->dingTime = GTC();
+			tr->dingTime = current_ticks();
 			mainloop->SetTimer(turfRewardTimer, tr->timer_initial, tr->timer_interval, &tr->arena, tr->multi_arena_id);
 		}
 		else
 #endif
 		{
 			// single arena only
-			tr->dingTime = GTC();
+			tr->dingTime = current_ticks();
 			mainloop->SetTimer(turfRewardTimer, tr->timer_initial, tr->timer_interval, arena, arena);
 		}
 	}
@@ -674,7 +674,7 @@ local void flagTag(Arena *arena, Player *p, int fid, int oldfreq)
 		pTF->weight    = calcWeight(arena, pTF);
 		pTF->taggerPID = p->pid;
 	}
-	pTF->tagTC = GTC();
+	pTF->tagTC = current_ticks();
 
 	UNLOCK_STATUS(arena);
 
@@ -699,7 +699,7 @@ local int calcWeight(Arena *arena, struct TurfFlag *tf)
 	{
 	case TR_WEIGHT_TIME:
 		// calculate by time owned (minutes)
-		weightNum = ((GTC() - tf->tagTC) / 100) / 60;
+		weightNum = (TICK_DIFF(current_ticks(), tf->tagTC) / 100) / 60;
 		break;
 	case TR_WEIGHT_DINGS:
 		// calculate by # of dings
@@ -730,7 +730,7 @@ local int turfRewardTimer(void *v)
 	doReward(arena);
 	logman->LogA(L_DRIVEL, "turf_reward", arena, "Timer Ding");
 
-	tr->dingTime = GTC();
+	tr->dingTime = current_ticks();
 	return TRUE;  // yes we want timer called again
 }
 
@@ -924,7 +924,7 @@ local void C_turfTime(const char *params, Player *p, const Target *target)
 	//TODO: change to 00:00:00 format
 
 	LOCK_STATUS(arena);
-	seconds = (tr->timer_interval - (GTC() - tr->dingTime)) / 100;
+	seconds = (tr->timer_interval - TICK_DIFF(current_ticks(), tr->dingTime)) / 100;
 	UNLOCK_STATUS(arena);
 
 	if (seconds!=0)
@@ -1060,7 +1060,7 @@ local void dingTimerReset(Arena *arena)
 		mainloop->ClearTimer(turfRewardTimer, arena);
 
 		// now create a new timer
-		tr->dingTime = GTC();
+		tr->dingTime = current_ticks();
 		mainloop->SetTimer(turfRewardTimer, tr->timer_initial, tr->timer_interval, arena, arena);
 
 		chat->SendArenaSoundMessage(arena, SOUND_BEEP1, "Notice: Reward timer reset. Initial:%i Interval:%i", tr->timer_initial, tr->timer_interval);
