@@ -329,7 +329,7 @@ void UnlockBallStatus(int arena)
 }
 
 
-local void LoadBallSettings(int arena)
+local void LoadBallSettings(int arena, int spawnballs)
 {
 	struct MyBallData *d = pballdata + arena;
 	ConfigHandle c = aman->arenas[arena].cfg;
@@ -347,20 +347,24 @@ local void LoadBallSettings(int arena)
 		d->spawnr = cfg->GetInt(c, "Soccer", "SpawnRadius", 20);
 		d->sendtime = cfg->GetInt(c, "Soccer", "SendTime", 1000);
 		d->goaldelay = cfg->GetInt(c, "Soccer", "GoalDelay", 0);
-		d->lastsent = GTC();
-		balldata[arena].ballcount = bc;
 
-		/* allocate array for public ball data */
-		balldata[arena].balls = amalloc(bc * sizeof(struct BallData));
+		if (spawnballs)
+		{
+			d->lastsent = GTC();
+			balldata[arena].ballcount = bc;
 
-		for (i = 0; i < bc; i++)
-			SpawnBall(arena, i);
+			/* allocate array for public ball data */
+			balldata[arena].balls = amalloc(bc * sizeof(struct BallData));
+
+			for (i = 0; i < bc; i++)
+				SpawnBall(arena, i);
+
+			logm->Log(L_INFO, "<balls> {%s} Arena has %d balls",
+					aman->arenas[arena].name,
+					bc);
+		}
 
 		UNLOCK_STATUS(arena);
-
-		logm->Log(L_INFO, "<balls> {%s} Arena has %d balls",
-				aman->arenas[arena].name,
-				bc);
 	}
 }
 
@@ -381,7 +385,12 @@ void AABall(int arena, int action)
 	if (action == AA_CREATE)
 	{
 		/* only if we're creating, load the data */
-		LoadBallSettings(arena);
+		LoadBallSettings(arena, 1);
+	}
+	else if (action == AA_CONFCHANGED)
+	{
+		/* reload only settings, don't reset balls */
+		LoadBallSettings(arena, 0);
 	}
 	UNLOCK_STATUS(arena);
 }

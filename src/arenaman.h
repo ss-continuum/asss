@@ -14,8 +14,15 @@
 
 #define CB_ARENAACTION "arenaaction"
 
-#define AA_CREATE   1
-#define AA_DESTROY  2
+enum
+{
+	/* called when arena is created */
+	AA_CREATE,
+	/* called when config file changes */
+	AA_CONFCHANGED,
+	/* called when the arena is destroyed */
+	AA_DESTROY
+};
 
 typedef void (*ArenaActionFunc)(int arena, int action);
 
@@ -45,7 +52,7 @@ typedef void (*ArenaActionFunc)(int arena, int action);
 
 typedef struct ArenaData
 {
-	int status;
+	int status, ispublic;
 	char name[20];
 	ConfigHandle cfg;
 } ArenaData;

@@ -36,7 +36,6 @@ typedef struct ModuleData
 
 local int LoadMod(const char *);
 local int UnloadModule(const char *);
-local void UnloadAllModules(void);
 local void EnumModules(void (*)(const char *, const char *, void *), void *);
 local void AttachModule(const char *, int);
 local void DetachModule(const char *, int);
@@ -52,6 +51,8 @@ local void UnregCallback(const char *, void *, int);
 local LinkedList * LookupCallback(const char *, int);
 local void FreeLookupResult(LinkedList *);
 
+local void DoStage(int);
+local void UnloadAllModules(void);
 
 
 local HashTable *arenacallbacks, *globalcallbacks;
@@ -63,16 +64,15 @@ local pthread_mutex_t modmtx = PTHREAD_MUTEX_INITIALIZER;
 local pthread_mutex_t intmtx = PTHREAD_MUTEX_INITIALIZER;
 local pthread_mutex_t cbmtx = PTHREAD_MUTEX_INITIALIZER;
 
-local volatile int during_shutdown;
-
 
 local Imodman mmint =
 {
 	INTERFACE_HEAD_INIT(NULL, "modman")
-	LoadMod, UnloadModule, UnloadAllModules, EnumModules,
+	LoadMod, UnloadModule, EnumModules,
 	AttachModule, DetachModule,
 	RegInterface, UnregInterface, GetInterface, GetInterfaceByName, ReleaseInterface,
-	RegCallback, UnregCallback, LookupCallback, FreeLookupResult
+	RegCallback, UnregCallback, LookupCallback, FreeLookupResult,
+	{ DoStage, UnloadAllModules }
 };
 
 
@@ -89,7 +89,6 @@ Imodman * InitModuleManager(void)
 	globalints = HashAlloc(53);
 	intsbyname = HashAlloc(23);
 	mmint.head.refcount = 1;
-	during_shutdown = 0;
 	return &mmint;
 }
 
@@ -112,40 +111,42 @@ void DeInitModuleManager(Imodman *mm)
 
 #define DELIM ':'
 
-int LoadMod(const char *filename)
+int LoadMod(const char *_spec)
 {
-	static char _buf[256];
-	ModuleData *mod;
-	char *name = _buf, *modname;
+	char buf[PATH_MAX], spec[PATH_MAX], *modname, *filename, *path;
 	int ret;
+	ModuleData *mod;
 	Ilogman *lm = GetInterface(I_LOGMAN, ALLARENAS);
 
-	if ((modname = strchr(filename,DELIM)))
+	/* make copy of specifier */
+	astrncpy(spec, _spec, PATH_MAX);
+
+	if ((modname = strchr(spec, DELIM)))
 	{
+		filename = spec;
 		*modname = 0;
 		modname++;
 	}
 	else
 	{
-		if (lm) lm->Log(L_ERROR,"<module> Bad module locator string");
-		return MM_FAIL;
+		modname = spec;
+		filename = "internal";
 	}
 
 	if (lm) lm->Log(L_DRIVEL,"<module> Loading module '%s' from '%s'", modname, filename);
 
-
 	mod = amalloc(sizeof(ModuleData));
 
-	if (!strcasecmp(filename,"internal") || !strcasecmp(filename,"int"))
+	if (!strcasecmp(filename, "internal") || !strcasecmp(filename, "int"))
 	{
 #ifndef WIN32
-		name = NULL;
+		path = NULL;
 #else
 		/* Windows LoadLibrary function will not return itself if null,
 		 * so need to set it to myself */
-		strcpy(name,&GetCommandLine()[1]);
+		strcpy(buf, &GetCommandLine()[1]);
 		{
-			char *quote = strchr(name,'"');
+			char *quote = strchr(buf, '"');
 			if (quote)
 				*quote=0;
 		}
@@ -155,30 +156,30 @@ int LoadMod(const char *filename)
 	else if (filename[0] == '/')
 	{
 		/* filename is an absolute path */
-		astrncpy(name, filename, 256);
+		path = filename;
 	}
 	else
 	{
-		char cwd[256];
-		getcwd(cwd, 256);
+		char cwd[PATH_MAX];
+		getcwd(cwd, PATH_MAX);
+		path = buf;
 #ifndef WIN32
-		if (snprintf(name, 256, "%s/bin/%s.so", cwd, filename) > 256)
+		if (snprintf(path, 256, "%s/bin/%s.so", cwd, filename) > 256)
 #else
-		if (snprintf(name, 256, "%s/bin/%s.dll", cwd, filename) > 256)
+		if (snprintf(path, 256, "%s/bin/%s.dll", cwd, filename) > 256)
 #endif
 			goto die;
 	}
 
-	mod->hand = dlopen(name, RTLD_NOW);
+	mod->hand = dlopen(path, RTLD_NOW);
 	if (!mod->hand)
 	{
 		if (lm) lm->Log(L_ERROR,"<module> LoadMod: error in dlopen: %s", dlerror());
 		goto die;
 	}
 
-	name = _buf;
-	sprintf(name, "MM_%s", modname);
-	mod->mm = dlsym(mod->hand, name);
+	snprintf(buf, PATH_MAX, "MM_%s", modname);
+	mod->mm = dlsym(mod->hand, buf);
 	if (!mod->mm)
 	{
 		if (lm) lm->Log(L_ERROR,"<module> LoadMod: error in dlsym: %s", dlerror());
@@ -187,7 +188,6 @@ int LoadMod(const char *filename)
 	}
 
 	astrncpy(mod->name, modname, MAXNAME);
-	modname--; *modname = DELIM; modname++;
 
 	ret = mod->mm(MM_LOAD, &mmint, ALLARENAS);
 
@@ -196,7 +196,7 @@ int LoadMod(const char *filename)
 		if (lm) lm->Log(L_ERROR,
 				"<module> Error loading module '%s'", modname);
 		if (!mod->myself) dlclose(mod->hand);
-		goto die2;
+		goto die;
 	}
 
 	pthread_mutex_lock(&modmtx);
@@ -206,9 +206,8 @@ int LoadMod(const char *filename)
 	return MM_OK;
 
 die:
-	modname--; *modname = DELIM;
-die2:
 	afree(mod);
+	if (lm) ReleaseInterface(lm);
 	return MM_FAIL;
 }
 
@@ -265,9 +264,19 @@ local void RecursiveUnload(Link *l)
 	}
 }
 
+
+void DoStage(int stage)
+{
+	Link *l;
+	pthread_mutex_lock(&modmtx);
+	for (l = LLGetHead(mods); l; l = l->next)
+		((ModuleData*)l->data)->mm(stage, &mmint, ALLARENAS);
+	pthread_mutex_unlock(&modmtx);
+}
+
+
 void UnloadAllModules(void)
 {
-	during_shutdown = 1;
 	RecursiveUnload(LLGetHead(mods));
 	LLFree(mods);
 	mods = NULL;
@@ -339,10 +348,6 @@ int UnregInterface(void *iface, int arena)
 	InterfaceHead *head = (InterfaceHead*)iface;
 
 	assert(head->magic == MODMAN_MAGIC);
-
-	/* this is an ugly hack to enable things to shut down as cleanly as
-	 * possible when there are cyclic references among modules. */
-	if (during_shutdown) return 0;
 
 	id = head->iid;
 

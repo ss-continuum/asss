@@ -13,6 +13,11 @@ cmd_setscore
 cmd_resetgame
 privcmd_warpto
 
+cmd_setg
+cmd_getg
+cmd_seta
+cmd_geta
+
 ; temporary
 cmd_makefake
 privcmd_killfake

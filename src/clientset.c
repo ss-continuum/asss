@@ -13,7 +13,6 @@
 
 
 /* prototypes */
-local void LoadSettings(int arena);
 local void ActionFunc(int arena, int action);
 local void SendClientSettings(int pid);
 local void Reconfigure(int arena);
@@ -22,6 +21,9 @@ local void Reconfigure(int arena);
 
 /* this array is pretty big. about 27k */
 local struct ClientSettings settings[MAXARENA];
+local pthread_mutex_t setmtx = PTHREAD_MUTEX_INITIALIZER;
+#define LOCK() pthread_mutex_lock(&setmtx)
+#define UNLOCK() pthread_mutex_unlock(&setmtx)
 
 /* cached interfaces */
 local Iplayerdata *pd;
@@ -96,7 +98,8 @@ EXPORT int MM_clientset(int action, Imodman *mm_, int arena)
 }
 
 
-void LoadSettings(int arena)
+/* call with lock held! */
+local void LoadSettings(int arena)
 {
 	struct ClientSettings *cs = settings + arena;
 	ConfigHandle conf;
@@ -158,24 +161,38 @@ void LoadSettings(int arena)
 
 void ActionFunc(int arena, int action)
 {
+	LOCK();
 	if (action == AA_CREATE)
 	{
 		LoadSettings(arena);
+	}
+	else if (action == AA_CONFCHANGED)
+	{
+		byte *data = (byte*)(settings + arena);
+		LoadSettings(arena);
+		net->SendToArena(arena, -1, data, sizeof(struct ClientSettings), NET_RELIABLE);
 	}
 	else if (action == AA_DESTROY)
 	{
 		/* mark settings as destroyed (for asserting later) */
 		settings[arena].type = 0;
 	}
+	UNLOCK();
 }
 
 
 void SendClientSettings(int pid)
 {
 	byte *data = (byte*)(settings + pd->players[pid].arena);
-	/* this has the side-effect of asserting little-endianness */
-	assert(data[0] == S2C_SETTINGS);
+
+	LOCK();
+	if (ARENA_BAD(pd->players[pid].arena) || data[0] != S2C_SETTINGS)
+	{
+		UNLOCK();
+		return;
+	}
 	net->SendToOne(pid, data, sizeof(struct ClientSettings), NET_RELIABLE);
+	UNLOCK();
 }
 
 
@@ -183,9 +200,10 @@ void Reconfigure(int arena)
 {
 	byte *data = (byte*)(settings + arena);
 
+	LOCK();
 	LoadSettings(arena);
-
 	net->SendToArena(arena, -1, data, sizeof(struct ClientSettings), NET_RELIABLE);
+	UNLOCK();
 }
 
 

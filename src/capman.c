@@ -4,19 +4,8 @@
 #include "asss.h"
 
 
-
-/* interface funcs */
-local int HasCapability(int pid, const char *cap);
-local int HasCapabilityByName(const char *name, const char *cap);
-local const char *GetGroup(int pid);
-local void SetGroup(int pid, const char *group);
-
-/* callbacks */
-local void ArenaAction(int arena, int action);
-local void PlayerAction(int pid, int action, int arena);
-
 /* data */
-local ConfigHandle groupdef, gstaff, astaff[MAXARENA];
+local ConfigHandle groupdef, gstaff;
 local char groups[MAXPLAYERS][MAXGROUPLEN];
 
 local Imodman *mm;
@@ -24,66 +13,6 @@ local Iplayerdata *pd;
 local Iarenaman *aman;
 local Ilogman *lm;
 local Iconfig *cfg;
-
-local Icapman _myint =
-{
-	INTERFACE_HEAD_INIT(I_CAPMAN, "capman-groups")
-	HasCapability, HasCapabilityByName, GetGroup, SetGroup
-};
-
-
-EXPORT int MM_capman(int action, Imodman *_mm, int arena)
-{
-	if (action == MM_LOAD)
-	{
-		mm = _mm;
-		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
-		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
-		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
-		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
-
-		if (!cfg) return MM_FAIL;
-
-		mm->RegCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
-		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
-
-		groupdef = cfg->OpenConfigFile(NULL, "groupdef.conf");
-		gstaff = cfg->OpenConfigFile(NULL, "staff.conf");
-
-		mm->RegInterface(&_myint, ALLARENAS);
-		return MM_OK;
-	}
-	else if (action == MM_UNLOAD)
-	{
-		if (mm->UnregInterface(&_myint, ALLARENAS))
-			return MM_FAIL;
-		cfg->CloseConfigFile(groupdef);
-		cfg->CloseConfigFile(gstaff);
-		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
-		mm->UnregCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
-		mm->ReleaseInterface(cfg);
-		mm->ReleaseInterface(lm);
-		mm->ReleaseInterface(aman);
-		mm->ReleaseInterface(pd);
-		return MM_OK;
-	}
-	return MM_FAIL;
-}
-
-
-
-void ArenaAction(int arena, int action)
-{
-	if (action == AA_CREATE || action == AA_DESTROY)
-	{
-		cfg->CloseConfigFile(astaff[arena]);
-		astaff[arena] = NULL;
-	}
-	if  (action == AA_CREATE)
-	{
-		astaff[arena] = cfg->OpenConfigFile(aman->arenas[arena].name, "staff.conf");
-	}
-}
 
 
 local void UpdateGroup(int pid, int arena)
@@ -112,7 +41,7 @@ local void UpdateGroup(int pid, int arena)
 	else
 	{
 		const char *gg = cfg->GetStr(gstaff, "Staff", pd->players[pid].name);
-		const char *ag = cfg->GetStr(astaff[arena], "Staff", pd->players[pid].name);
+		const char *ag = cfg->GetStr(aman->arenas[arena].cfg, "Staff", pd->players[pid].name);
 		char *aname = aman->arenas[arena].name;
 
 		if (gg)
@@ -127,8 +56,8 @@ local void UpdateGroup(int pid, int arena)
 				{
 					int pos = 0;
 					t++; /* skip ':' */
-					while (pos < MAXGROUPLEN && *t && *t != ' ')
-						groups[pid][pos] = *t++;
+					while (pos < MAXGROUPLEN && *t && *t != ' ' && *t != ',')
+						groups[pid][pos++] = *t++;
 					LOGIT("global staff list (arena)");
 				}
 				else
@@ -160,7 +89,7 @@ local void UpdateGroup(int pid, int arena)
 }
 
 
-void PlayerAction(int pid, int action, int arena)
+local void PlayerAction(int pid, int action, int arena)
 {
 	if (action == PA_PREENTERARENA)
 		UpdateGroup(pid, arena);
@@ -171,20 +100,37 @@ void PlayerAction(int pid, int action, int arena)
 }
 
 
-const char *GetGroup(int pid)
+local const char *GetGroup(int pid)
 {
 	return groups[pid];
 }
 
 
-void SetGroup(int pid, const char *group)
+local void SetTempGroup(int pid, const char *group)
 {
 	if (group)
 		astrncpy(groups[pid], group, MAXGROUPLEN);
 }
 
 
-int HasCapability(int pid, const char *cap)
+local void SetPermGroup(int pid, const char *group, int global, const char *info)
+{
+	ConfigHandle ch;
+	int arena = pd->players[pid].arena;
+
+	/* figure out where to set it */
+	ch = global ? gstaff : (ARENA_OK(arena) ? aman->arenas[arena].cfg : NULL);
+	if (!ch) return;
+
+	/* first set it for the current session */
+	SetTempGroup(pid, group);
+
+	/* now set it permanently */
+	cfg->SetStr(ch, "Staff", pd->players[pid].name, group, info);
+}
+
+
+local int HasCapability(int pid, const char *cap)
 {
 	if (cfg->GetStr(groupdef, groups[pid], cap))
 		return 1;
@@ -193,7 +139,7 @@ int HasCapability(int pid, const char *cap)
 }
 
 
-int HasCapabilityByName(const char *name, const char *cap)
+local int HasCapabilityByName(const char *name, const char *cap)
 {
 	/* figure out his group */
 	const char *group;
@@ -206,6 +152,53 @@ int HasCapabilityByName(const char *name, const char *cap)
 		return 1;
 	else
 		return 0;
+}
+
+
+/* interface */
+
+local Icapman _myint =
+{
+	INTERFACE_HEAD_INIT(I_CAPMAN, "capman-groups")
+	HasCapability, HasCapabilityByName,
+	GetGroup, SetPermGroup, SetTempGroup
+};
+
+
+EXPORT int MM_capman(int action, Imodman *_mm, int arena)
+{
+	if (action == MM_LOAD)
+	{
+		mm = _mm;
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+
+		if (!cfg) return MM_FAIL;
+
+		mm->RegCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
+
+		groupdef = cfg->OpenConfigFile(NULL, "groupdef.conf", NULL, NULL);
+		gstaff = cfg->OpenConfigFile(NULL, "staff.conf", NULL, NULL);
+
+		mm->RegInterface(&_myint, ALLARENAS);
+		return MM_OK;
+	}
+	else if (action == MM_UNLOAD)
+	{
+		if (mm->UnregInterface(&_myint, ALLARENAS))
+			return MM_FAIL;
+		cfg->CloseConfigFile(groupdef);
+		cfg->CloseConfigFile(gstaff);
+		mm->UnregCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(lm);
+		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(pd);
+		return MM_OK;
+	}
+	return MM_FAIL;
 }
 
 

@@ -79,7 +79,7 @@ arpc_stubs.c: $(SCRIPTS)/arpc.py *.h
 
 
 Makefile.deps: # *.c *.h
-	$(CC) -MM *.c > $@
+	-$(CC) -MM *.c > $@
 
 
 include Makefile.deps

@@ -321,7 +321,7 @@ int GetFreqFlags(int arena, int freq)
 }
 
 
-local void LoadFlagSettings(int arena)
+local void LoadFlagSettings(int arena, int spawn)
 {
 	struct MyArenaData d;
 	ConfigHandle c = aman->arenas[arena].cfg;
@@ -361,12 +361,16 @@ local void LoadFlagSettings(int arena)
 		}
 		else
 			d.maxflags = d.minflags = 0;
-		flagdata[arena].flagcount = 0;
-		/* the timer event will notice that flagcount < maxflags and
-		 * spawn the flags. */
 
-		/* allocate array for public flag data */
-		flagdata[arena].flags = amalloc(d.maxflags * sizeof(struct FlagData));
+		if (spawn)
+		{
+			/* the timer event will notice that flagcount < maxflags and
+			 * spawn the flags. */
+			flagdata[arena].flagcount = 0;
+
+			/* allocate array for public flag data */
+			flagdata[arena].flags = amalloc(d.maxflags * sizeof(struct FlagData));
+		}
 	}
 	else if (d.gametype == FLAGGAME_TURF)
 	{
@@ -376,15 +380,18 @@ local void LoadFlagSettings(int arena)
 		d.minflags = d.maxflags = flagdata[arena].flagcount =
 			mapdata->GetFlagCount(arena);
 
-		/* allocate array for public flag data */
-		flagdata[arena].flags = amalloc(d.maxflags * sizeof(struct FlagData));
-
-		for (i = 0, f = flagdata[arena].flags; i < d.maxflags; i++, f++)
+		if (spawn)
 		{
-			f->state = FLAG_ONMAP;
-			f->freq = -1;
-			f->x = -1;
-			f->y = -1;
+			/* allocate array for public flag data */
+			flagdata[arena].flags = amalloc(d.maxflags * sizeof(struct FlagData));
+
+			for (i = 0, f = flagdata[arena].flags; i < d.maxflags; i++, f++)
+			{
+				f->state = FLAG_ONMAP;
+				f->freq = -1;
+				f->x = -1;
+				f->y = -1;
+			}
 		}
 	}
 
@@ -416,7 +423,12 @@ void AAFlag(int arena, int action)
 	if (action == AA_CREATE)
 	{
 		/* only if we're creating, load the data */
-		LoadFlagSettings(arena);
+		LoadFlagSettings(arena, 1);
+	}
+	else if (action == AA_CONFCHANGED)
+	{
+		/* load settings, but don't spawn flags */
+		LoadFlagSettings(arena, 0);
 	}
 	UNLOCK_STATUS(arena);
 }

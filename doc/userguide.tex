@@ -314,10 +314,11 @@ arena he enters.
 Sometimes, however, a sysop will want to give certain players powers in
 only certain arenas. Each arena's config file can also contain a
 ``Staff'' section. Groups assigned through arena config files will only
-be valid in that one arena.
+be valid in that one arena. Additionally, the global \verb/staff.conf/
+can be used to give a player powers in only certain arenas by using a
+value like ``arena1:agroup arena2:othergroup.''
 
-The command \verb/?setgroup/ can be used to assign a player to a group
-for a single session.
+The command \verb/?setgroup/ can be used to control group assignment.
 
 \subsubsection{Emulating the old system}
 Using the default manager, it's relatively easy to set up \asss{} to
@@ -670,12 +671,19 @@ Prints out the group of the target player.
 
 \subsection{setgroup}
 \targets{Player}
-\args{group name}
+\args{\texttt{[-a]} \texttt{[-t]} group name}
 Assigns the group given as an argument to the target player. The player
 must be in group \verb/default/, or the server will refuse to change his
 group. Additionally, the player giving the command must have an
-appropriate capability: \verb/setgroup_foo/, where \verb/foo/ is, of
-course, the group that he's trying to set the target to.
+appropriate capability: \verb/setgroup_foo/, where \verb/foo/ is the
+group that he's trying to set the target to.
+
+The optional \verb/-t/ means to assign the group only for the current
+session. When the target player logs out or changes arenas, the group
+will be lost.
+
+The optional \verb/-a/ means to make the assignment local to the current
+arena, rather than being valid in the entire zone.
 
 \subsection{netstats}
 \targets{None}
@@ -755,7 +763,7 @@ Prints out some basic statistics about the target player, or if no
 target, yourself. The statistics include the number of logins (to this
 zone only), and counts of messages and commands sent. No arguments.
 
-\subsection{score}  % from stats.c
+\subsection{myscore}  % from stats.c
 \targets{Player or None}
 \args{None}
 Prints out the target player's current points, kills, and deaths, or
@@ -774,6 +782,18 @@ Displays the usage information (current hours and minutes logged in, and
 total hours and minutes logged in), as well as the first login time, of
 the target player, or you if no target.
 
+
+\subsection{getg, geta}
+\targets{None}
+\args{section\texttt{:}key}
+Displays the value of a global or arena setting. Make sure there are no
+spaces around the colon.
+
+\subsection{setg, seta}
+\targets{None}
+\args{section\texttt{:}key\texttt{=}value}
+Sets the value of a global or arena setting. Make sure there are no
+spaces around either the colon or the equals sign.
 
 
 \section{Temporary and Debugging Commands}

@@ -297,7 +297,7 @@ void PAction(int pid, int action, int arena)
 
 void AAction(int arena, int action)
 {
-	if (action == AA_CREATE)
+	if (action == AA_CREATE || action == AA_CONFCHANGED)
 	{
 		ConfigHandle ch = aman->arenas[arena].cfg;
 		arena_mask[arena] = cfg->GetInt(ch, "Chat", "RestrictChat", 0);

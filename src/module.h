@@ -19,21 +19,35 @@ typedef int (*ModMain)(int action, Imodman *mm, int arena);
 
 /* action codes for module main functions */
 
-#define MM_LOAD       1
-/* this means the module is being loaded. do all global initialization
- * here. */
+enum
+{
+	MM_LOAD,
+	/* this means the module is being loaded. do all global
+	 * initialization here. */
 
-#define MM_UNLOAD     2
-/* the module is being unloaded. try to clean up as best as possible. */
+	MM_POSTLOAD,
+	/* this is a second initialization phase that allows modules to
+	 * obtain references to interfaces exported by modules loaded after
+	 * them. interfaces obtained in postload should be released in
+	 * preload, so that module unloading can proceed cleanly. */
 
-#define MM_ATTACH     3
-/* the module is being attached to an arena. if you have any
- * arena-specific functionality, now would be a good time to turn it on
- * for this arena. */
+	MM_PREUNLOAD,
+	/* this stage is for cleaning up any activity done in the postload
+	 * stage. */
 
-#define MM_DETACH     4
-/* the reverse of the above. disable any special functionality for this
- * arena. */
+	MM_UNLOAD,
+	/* the module is being unloaded. try to clean up as best as
+	 * possible. */
+
+	MM_ATTACH,
+	/* the module is being attached to an arena. if you have any
+	 * arena-specific functionality, now would be a good time to turn it
+	 * on for this arena. */
+
+	MM_DETACH
+	/* the reverse of the above. disable any special functionality for
+	 * this arena. */
+};
 
 
 /* return values for ModMain functions */
@@ -75,10 +89,6 @@ struct Imodman
 
 	int (*UnloadModule)(const char *name);
 	/* unloads a module. only the name should be given (not the file). */
-
-	void (*UnloadAllModules)(void);
-	/* unloads all modules (in reverse order). this is only called by
-	 * main to clean up before shutting down. */
 
 	void (*EnumModules)(void (*func)(const char *name, const char *info,
 				void *clos), void *clos);
@@ -138,6 +148,13 @@ struct Imodman
 	 * specifically registered with ALLARENAS. (that is, it doesn't
 	 * return callbacks that are specific to an arena. if you think the
 	 * behaviour doesn't make sense, tell me.) */
+
+	/* these functions should be called only from main.c */
+	struct
+	{
+		void (*DoStage)(int stage);
+		void (*UnloadAllModules)(void);
+	} frommain;
 };
 
 

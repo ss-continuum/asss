@@ -363,17 +363,6 @@ void PersistAA(int arena, int action)
 	DB *db;
 	if (action == AA_CREATE)
 	{
-		char fname[PATH_MAX];
-		const char *template = NULL;
-
-		if (cfg)
-			template = cfg->GetStr(GLOBAL, "Scores", "ScoreFile");
-
-		if (template == NULL)
-			template = "arenas/%s/scores.db";
-
-		sprintf(fname, template, arenas[arena].name);
-
 		/* lock here */
 		pthread_mutex_lock(&dbmtx);
 
@@ -383,7 +372,14 @@ void PersistAA(int arena, int action)
 			CloseDB(databases[arena]);
 		}
 
-		db = OpenDB(fname);
+		if (arenas[arena].ispublic)
+			db = defarenadb;
+		else
+		{
+			char fname[PATH_MAX];
+			snprintf(fname, PATH_MAX, "arenas/%s/scores.db", arenas[arena].name);
+			db = OpenDB(fname);
+		}
 
 		if (!db)
 			lm->Log(L_INFO, "<persist> {%s} Can't open/create database; no scores will be saved", arenas[arena].name);

@@ -160,6 +160,13 @@ local void DoAttach(int arena, int action)
 }
 
 
+local void arena_conf_changed(void *aptr)
+{
+	int arena = ((ArenaData*)aptr) - arenas;
+	DO_CBS(CB_ARENAACTION, arena, ArenaActionFunc, (arena, AA_CONFCHANGED));
+}
+
+
 void ProcessArenaQueue(void)
 {
 	int i, j, nextstatus;
@@ -183,7 +190,7 @@ void ProcessArenaQueue(void)
 		switch (nextstatus)
 		{
 			case ARENA_DO_LOAD_CONFIG:
-				a->cfg = cfg->OpenConfigFile(a->name, NULL);
+				a->cfg = cfg->OpenConfigFile(a->name, NULL, arena_conf_changed, a);
 				DoAttach(i, MM_ATTACH);
 				nextstatus = ARENA_DO_CREATE_CALLBACKS;
 				break;
@@ -238,6 +245,10 @@ int CreateArena(char *name)
 
 	astrncpy(arenas[i].name, name, 20);
 	arenas[i].status = ARENA_DO_LOAD_CONFIG;
+	if (name[1] == '\0' && name[0] >= '0' && name[0] <= '9')
+		arenas[i].ispublic = 1;
+	else
+		arenas[i].ispublic = 0;
 	UNLOCK_STATUS();
 
 	return i;
@@ -342,8 +353,12 @@ void PArena(int pid, byte *p, int l)
 		return;
 	}
 
+#ifdef CFG_RELAX_LENGTH_CHECKS
+	if (l != LEN_GOARENAPACKET_VIE && l != LEN_GOARENAPACKET_CONT)
+#else
 	if ( (type == T_VIE && l != LEN_GOARENAPACKET_VIE) ||
 	          (type == T_CONT && l != LEN_GOARENAPACKET_CONT) )
+#endif
 	{
 		lm->Log(L_MALICIOUS,"<arenaman> [%s] Bad arena packet length (%d)",
 				players[pid].name, l);
@@ -419,7 +434,7 @@ void PArena(int pid, byte *p, int l)
 	players[pid].shiptype = go->shiptype;
 	players[pid].xres = go->xres;
 	players[pid].yres = go->yres;
-	if (type == T_CONT)
+	if (l >= LEN_GOARENAPACKET_CONT)
 		go->optionalgraphics ? SET_ALL_LVZ(pid) : UNSET_ALL_LVZ(pid);
 
 	/* don't mess with player status yet, let him stay in S_LOGGEDIN.

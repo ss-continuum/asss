@@ -40,8 +40,12 @@ typedef struct Icapman
 
 	const char *(*GetGroup)(int pid);
 	/* arpc: string(int) */
-	void (*SetGroup)(int pid, const char *group);
+
+	void (*SetPermGroup)(int pid, const char *group, int global, const char *info);
 	/* arpc: void(int, string) */
+	void (*SetTempGroup)(int pid, const char *group);
+	/* arpc: void(int, string) */
+
 	/* gets/sets the group of the player as specified. these functions
 	 * are dependant on one specific implementation of capabilities, and
 	 * should only be used from very few places. */

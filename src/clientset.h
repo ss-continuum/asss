@@ -18,6 +18,7 @@ typedef struct Iclientset
 
 	void (*SendClientSettings)(int pid);
 	/* arpc: void(int) */
+
 	void (*Reconfigure)(int arena);
 	/* arpc: void(int) */
 } Iclientset;

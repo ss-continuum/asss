@@ -10,7 +10,7 @@
  * GTC gets the current time, in hundredths of a second. use this for
  * timing stuff.
  *
- * RemoveCFLF strips CR's and LF's from strings. probably not too useful
+ * RemoveCRLF strips CR's and LF's from strings. probably not too useful
  * except for file i/o (which you should let other modules handle).
  *
  * amalloc is how you should allocate memory. it will never return NULL.

@@ -8,6 +8,7 @@
 /* command funcs */
 local void Cobjon(const char *params, int pid, int target);
 local void Cobjoff(const char *params, int pid, int target);
+local void Cobjset(const char *params, int pid, int target);
 
 /* interface funcs */
 local void ToggleArenaMultiObjects(int arena, short *objs, char *ons, int size);
@@ -45,6 +46,7 @@ EXPORT int MM_objects(int action, Imodman *_mm, int arena)
 
 		cmd->AddCommand("objon", Cobjon);
 		cmd->AddCommand("objoff", Cobjoff);
+		cmd->AddCommand("objset", Cobjset);
 
 		mm->RegInterface(&_myint, ALLARENAS);
 
@@ -56,6 +58,7 @@ EXPORT int MM_objects(int action, Imodman *_mm, int arena)
 			return MM_FAIL;
 		cmd->RemoveCommand("objon", Cobjon);
 		cmd->RemoveCommand("objoff", Cobjoff);
+		cmd->RemoveCommand("objset", Cobjset);
 
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(game);
@@ -88,6 +91,41 @@ void Cobjoff(const char *params, int pid, int target)
 	}
 	else
 		ToggleArenaObject(arena, (short)atoi(params), 1);
+}
+
+void Cobjset(const char *params, int pid, int target)
+{
+	int l = strlen(params) + 1, arena = pd->players[pid].arena;
+	const char *c = params;
+	short *objs = alloca(l * sizeof(short));
+	char *ons = alloca(l * sizeof(char));
+
+	l = 0;
+	for (;;)
+	{
+		/* move to next + or - */
+		while (*c != 0 && *c != '-' && *c != '+' && c[1] != '-' && c[1] != '+')
+			c++;
+		if (*c == 0)
+			break;
+
+		/* change it */
+		if (*c == '+')
+			ons[l] = 1;
+		else
+			ons[l] = 0;
+
+		c++;
+		objs[l++] = atoi(c);
+	}
+
+	if (c)
+	{
+		if (pid == TARGET_ARENA)
+			ToggleArenaMultiObjects(arena, objs, ons, l);
+		else
+			ToggleMultiObjects(pid, objs, ons, l);
+	}
 }
 
 void ToggleArenaMultiObjects(int arena, short *objs, char *ons, int size)

@@ -462,8 +462,10 @@ void PSetShip(int pid, byte *p, int n)
 
 	fm = mm->GetInterface(I_FREQMAN, arena);
 	if (fm)
+	{
 		fm->ShipChange(pid, &ship, &freq);
-	mm->ReleaseInterface(fm);
+		mm->ReleaseInterface(fm);
+	}
 
 	SetFreqAndShip(pid, ship, freq);
 }
@@ -518,8 +520,10 @@ void PSetFreq(int pid, byte *p, int n)
 
 	fm = mm->GetInterface(I_FREQMAN, arena);
 	if (fm)
+	{
 		fm->FreqChange(pid, &ship, &freq);
-	mm->ReleaseInterface(fm);
+		mm->ReleaseInterface(fm);
+	}
 
 	if (ship == players[pid].shiptype)
 		SetFreq(pid, freq);
@@ -663,7 +667,7 @@ void ArenaAction(int arena, int action)
 {
 	int gamelen;
 
-	if (action == AA_CREATE)
+	if (action == AA_CREATE || action == AA_CONFCHANGED)
 	{
 		ar_epd[arena].spec =
 			cfg->GetInt(arenas[arena].cfg, "Misc", "SpecSeeEnergy", 0);
@@ -671,7 +675,7 @@ void ArenaAction(int arena, int action)
 			cfg->GetInt(arenas[arena].cfg, "Misc", "SeeEnergy", 0);
 
 		gamelen = cfg->GetInt(arenas[arena].cfg, "Misc", "TimedGame", 0);
-		if (gamelen)
+		if (action == AA_CREATE && gamelen)
 		{
 			ar_tmr[arena].enabled = 1;
 			ar_tmr[arena].timeout = GTC()+gamelen;

@@ -205,12 +205,14 @@ void ProcessLoginQueue(void)
 			case S_NEED_AUTH:
 				{
 					Iauth *auth = mm->GetInterface(I_AUTH, ALLARENAS);
-					int len = LEN_LOGINPACKET_CONT;
+					int len = LEN_LOGINPACKET_VIE;
 
 					/* figuring out the length this way is guaranteed to
-					 * work because of the length check in PLogin */
-					if (player->type == T_VIE)
-						len = LEN_LOGINPACKET_VIE;
+					 * work because of the length check in PLogin. */
+#ifndef CFG_RELAX_LENGTH_CHECKS
+					if (player->type == T_CONT)
+						len = LEN_LOGINPACKET_CONT;
+#endif
 
 					if (auth)
 					{
@@ -312,8 +314,12 @@ void PLogin(int pid, byte *p, int l)
 	if (type != T_VIE && type != T_CONT)
 		lm->Log(L_MALICIOUS,"<core> [pid=%d] Login packet from wrong client type (%d)",
 				pid, type);
+#ifdef CFG_RELAX_LENGTH_CHECKS
+	else if (l != LEN_LOGINPACKET_VIE && l != LEN_LOGINPACKET_CONT)
+#else
 	else if ( (type == T_VIE && l != LEN_LOGINPACKET_VIE) ||
 	          (type == T_CONT && l != LEN_LOGINPACKET_CONT) )
+#endif
 		lm->Log(L_MALICIOUS,"<core> [pid=%d] Bad login packet length (%d)", pid, l);
 	else if (players[pid].status != S_CONNECTED)
 		lm->Log(L_MALICIOUS,"<core> [pid=%d] Login request from wrong stage: %d", pid, players[pid].status);

@@ -181,6 +181,7 @@ local void Cshutdown(const char *params, int pid, int target)
 {
 	byte drop[2] = {0x00, 0x07};
 	net->SendToAll(drop, 2, NET_PRI_P5);
+	net->SendToAll(drop, 2, NET_PRI_P5);
 	ml->Quit();
 }
 
@@ -344,30 +345,24 @@ local void Cgetgroup(const char *params, int pid, int target)
 }
 
 
-local void Clistmods(const char *params, int pid, int target)
-{
-	int i;
-	const char *group;
-
-	if (!capman) return;
-
-	for (i = 0; i < MAXPLAYERS; i++)
-		if (players[i].status == S_PLAYING &&
-		    strcmp(group = capman->GetGroup(i), "default"))
-			chat->SendMessage(pid, "listmods: %20s %10s %10s",
-					players[i].name,
-					arenas[players[i].arena].name,
-					group);
-}
-
-
 local void Csetgroup(const char *params, int pid, int target)
 {
+	int perm = 1, global = 1;
 	char cap[MAXGROUPLEN+10];
 
 	if (!*params) return;
 	if (PID_BAD(target)) return;
 	if (!capman) return;
+
+	while (*params && strchr(params, ' '))
+	{
+		if (!strncmp(params, "temp", 4) || !strncmp(params, "-t", 2))
+			perm = 0;
+		if (!strncmp(params, "arena", 5) || !strncmp(params, "-a", 2))
+			global = 0;
+		params = strchr(params, ' ') + 1;
+	}
+	if (!*params) return;
 
 	/* make sure the setter has permissions to set people to this group */
 	snprintf(cap, MAXGROUPLEN+10, "setgroup_%s", params);
@@ -388,11 +383,46 @@ local void Csetgroup(const char *params, int pid, int target)
 		return;
 	}
 
-	capman->SetGroup(target, params);
-	chat->SendMessage(pid, "%s is now in group %s",
-			players[target].name, params);
-	chat->SendMessage(target, "You have been assigned to group %s by %s",
-			params, players[pid].name);
+	if (perm)
+	{
+		time_t tm = time(NULL);
+		char info[128];
+
+		snprintf(info, 128, "set by %s on ", players[pid].name);
+		ctime_r(&tm, info + strlen(info));
+		RemoveCRLF(info);
+
+		capman->SetPermGroup(target, params, global, info);
+		chat->SendMessage(pid, "%s is now in group %s",
+				players[target].name, params);
+		chat->SendMessage(target, "You have been assigned to group %s by %s",
+				params, players[pid].name);
+	}
+	else
+	{
+		capman->SetTempGroup(target, params);
+		chat->SendMessage(pid, "%s is now temporarily in group %s",
+				players[target].name, params);
+		chat->SendMessage(target, "You have temporarily been assigned to group %s by %s",
+				params, players[pid].name);
+	}
+}
+
+
+local void Clistmods(const char *params, int pid, int target)
+{
+	int i;
+	const char *group;
+
+	if (!capman) return;
+
+	for (i = 0; i < MAXPLAYERS; i++)
+		if (players[i].status == S_PLAYING &&
+		    strcmp(group = capman->GetGroup(i), "default"))
+			chat->SendMessage(pid, "listmods: %20s %10s %10s",
+					players[i].name,
+					arenas[players[i].arena].name,
+					group);
 }
 
 
@@ -550,14 +580,14 @@ local void Cwarpto(const char *params, int pid, int target)
 {
 	int x,y;
 
-	if (sscanf(params,"%d,%d",&x,&y) == 2 &&
-		PID_OK(target) && players[target].shiptype != SPEC)
-			game->WarpTo(target,x,y);
-	else if (sscanf(params,"%d %d",&x,&y) == 2 &&
-		PID_OK(target) && players[target].shiptype != SPEC)
-			game->WarpTo(target,x,y);
-	else
-		chat->SendMessage(pid,"warpto format is either: \"*warpto x,y\" or \"*warpto x y\"");
+	if (PID_OK(target) && players[target].shiptype != SPEC)
+	{
+		if (sscanf(params,"%d,%d",&x,&y) == 2 ||
+			sscanf(params,"%d %d",&x,&y) == 2)
+				game->WarpTo(target,x,y);
+		else
+			chat->SendMessage(pid,"warpto format is either: \"*warpto x,y\" or \"*warpto x y\"");
+	}
 }
 
 local void Cshipreset(const char *params, int pid, int target)
@@ -604,6 +634,72 @@ local void Cspecall(const char *params, int pid, int target)
 	}
 }
 
+local void Cgetg(const char *params, int pid, int target)
+{
+	const char *res = cfg->GetStr(GLOBAL, params, NULL);
+	if (res)
+		chat->SendMessage(pid, "%s=%s", params, res);
+	else
+		chat->SendMessage(pid, "%s not found", params);
+}
+
+local void Csetg(const char *params, int pid, int target)
+{
+	time_t tm = time(NULL);
+	char info[128], key[MAXSECTIONLEN+MAXKEYLEN+2], *k = key;
+	const char *t = params;
+
+	snprintf(info, 128, "set by %s on ", players[pid].name);
+	ctime_r(&tm, info + strlen(info));
+	RemoveCRLF(info);
+
+	while (*t && *t != '=' && (k-key) < (MAXSECTIONLEN+MAXKEYLEN))
+		*k++ = *t++;
+	if (*t != '=') return;
+	*k = '\0'; /* terminate key */
+	t++; /* skip over = */
+
+	cfg->SetStr(GLOBAL, key, NULL, t, info);
+}
+
+local void Cgeta(const char *params, int pid, int target)
+{
+	int arena = players[pid].arena;
+	const char *res;
+
+	if (ARENA_BAD(arena)) return;
+
+	res = cfg->GetStr(arenas[arena].cfg, params, NULL);
+	if (res)
+		chat->SendMessage(pid, "%s=%s", params, res);
+	else
+		chat->SendMessage(pid, "%s not found", params);
+}
+
+local void Cseta(const char *params, int pid, int target)
+{
+	int arena = players[pid].arena;
+	time_t tm = time(NULL);
+	char info[128], key[MAXSECTIONLEN+MAXKEYLEN+2], *k = key;
+	const char *t = params;
+
+	if (ARENA_BAD(arena)) return;
+
+	snprintf(info, 128, "set by %s on ", players[pid].name);
+	ctime_r(&tm, info + strlen(info));
+	RemoveCRLF(info);
+
+	while (*t && *t != '=' && (k-key) < (MAXSECTIONLEN+MAXKEYLEN))
+		*k++ = *t++;
+	if (*t != '=') return;
+	*k = '\0'; /* terminate key */
+	t++; /* skip over = */
+
+	cfg->SetStr(arenas[arena].cfg, key, NULL, t, info);
+}
+
+
+
 local struct
 {
 	const char *cmdname;
@@ -617,24 +713,20 @@ const all_commands[] =
 	CMD(admlogfile),
 	CMD(flagreset),
 	CMD(ballcount),
-	CMD(setfreq),
-	CMD(setship),
+	CMD(setfreq), CMD(setship),
 	CMD(version),
-	CMD(lsmod),
-	CMD(insmod),
-	CMD(rmmod),
-	CMD(getgroup),
+	CMD(lsmod), CMD(insmod), CMD(rmmod),
+	CMD(getgroup), CMD(setgroup),
 	CMD(listmods),
-	CMD(setgroup),
 	CMD(netstats),
 	CMD(info),
-	CMD(setcm),
-	CMD(getcm),
+	CMD(setcm), CMD(getcm),
 	CMD(a),
 	CMD(warpto),
 	CMD(shipreset),
 	CMD(sheep),
 	CMD(specall),
+	CMD(setg), CMD(getg), CMD(seta), CMD(geta),
 	{ NULL }
 #undef CMD
 };

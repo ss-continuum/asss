@@ -115,6 +115,7 @@ EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
 
 void MyAA(int arena, int action)
 {
+	/* FIXME: add AA_CONFCHANGED support */
 	if (action == AA_CREATE)
 	{
 		int i, cpts;

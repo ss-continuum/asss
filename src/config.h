@@ -29,14 +29,25 @@
 
 /* some defines for maximums */
 
-#define MAXNAMELEN 32
+#define MAXSECTIONLEN 32
 #define MAXKEYLEN 32
 #define MAXVALUELEN 512
 
 
+/* other modules should manipulate config files through ConfigHandles */
 typedef struct ConfigFile *ConfigHandle;
 
+/* use this special ConfigHandle to refer to the global config file */
 #define GLOBAL ((ConfigHandle)(-3))
+
+/* pass functions of this type to LoadConfigFile to be notified when the
+ * given file is changed. */
+typedef void (*ConfigChangedFunc)(void *clos);
+
+
+/* this callback is called when the global config file has been changed */
+#define CB_GLOBALCONFIGCHANGED ("gconfchanged")
+typedef void (*GlobalConfigChangedFunc)(void);
 
 
 #define I_CONFIG "config-1"
@@ -50,13 +61,25 @@ typedef struct Iconfig
 	int (*GetInt)(ConfigHandle ch, const char *section, const char *key, int defvalue);
 	/* arpc: int(ConfigHandle, string, string, int) */
 
-/*	void (*SetConfigStr)(ConfigHandle, const char *, const char *, const char *); */
-/*	void (*SetConfigInt)(ConfigHandle, const char *, const char *, int); */
+	void (*SetStr)(ConfigHandle ch, const char *section, const char *key,
+			const char *value, const char *info);
+	/* arpc: void(ConfigHandle, string, string, string, string) */
+	void (*SetInt)(ConfigHandle ch, const char *section, const char *key,
+			int value, const char *info);
+	/* arpc: void(ConfigHandle, string, string, int, string) */
 
-	ConfigHandle (*OpenConfigFile)(const char *arena, const char *name);
-	/* arpc: ConfigHandle(string, string) */
+	ConfigHandle (*OpenConfigFile)(const char *arena, const char *name,
+			ConfigChangedFunc func, void *clos);
+	/* arpc: ConfigHandle(string, string, voidptr, voidptr) */
 	void (*CloseConfigFile)(ConfigHandle ch);
 	/* arpc: void(ConfigHandle) */
+	void (*ReloadConfigFile)(ConfigHandle ch);
+	/* arpc: void(ConfigHandle) */
+
+	void (*FlushDirtyValues)(void);
+	/* arpc: void() */
+	void (*CheckModifiedFiles)(void);
+	/* arpc: void() */
 } Iconfig;
 
 

@@ -71,6 +71,10 @@
 #define CFG_DUMP_UNKNOWN_PACKETS
 
 
+/* relax checks on certain packet lengths. only useful for debugging. */
+#define CFG_RELAX_LENGTH_CHECKS
+
+
 /* the size of the ip address hash table. this _must_ be a power of two. */
 #define CFG_HASHSIZE 256
 

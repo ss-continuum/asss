@@ -160,6 +160,8 @@ int main(int argc, char *argv[])
 
 	LoadModuleFile("conf/modules.conf");
 
+	mm->frommain.DoStage(MM_POSTLOAD);
+
 	lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 	ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 
@@ -175,7 +177,8 @@ int main(int argc, char *argv[])
 	mm->ReleaseInterface(lm);
 	mm->ReleaseInterface(ml);
 
-	mm->UnloadAllModules();
+	mm->frommain.DoStage(MM_PREUNLOAD);
+	mm->frommain.UnloadAllModules();
 
 	DeInitModuleManager(mm);
 
