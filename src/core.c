@@ -731,7 +731,7 @@ void SendLoginResponse(Player *p)
 			lr.codechecksum = 0x281CC948;
 		}
 
-		if (capman && capman->HasCapability(p, "seeprivfreq"))
+		if (capman && capman->HasCapability(p, CAP_SEEPRIVFREQ))
 		{
 			/* to make the client think it's a mod, set these checksums to -1 */
 			lr.exechecksum = -1;

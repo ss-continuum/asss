@@ -5,26 +5,29 @@
 #define __OBJECTS_H
 
 /* Iobjects
- * this module will handle all object related packets
+ * this module will handle all object-related packets
  */
 
-
-#define I_OBJECTS "objects-1"
+#define I_OBJECTS "objects-2"
 
 typedef struct Iobjects
 {
 	INTERFACE_HEAD_DECL
-	/* pyint: use */
 
-	void (*ToggleArenaMultiObjects)(Arena *arena, short *objs, char *ons, int size);
-	void (*TogglePidSetMultiObjects)(LinkedList *set, short *objs, char *ons, int size);
-	void (*ToggleMultiObjects)(Player *p, short *objs, char *ons, int size);
-	void (*ToggleArenaObject)(Arena *arena, short obj, char on);
-	/* pyint: arena, int, int -> void */
-	void (*ToggleObject)(Player *p, short obj, char on);
-	/* pyint: player, int, int -> void */
+	/* sends the current LVZ object state to a player */
+	void (*SendState)(Player *p);
+
+	/* if target is an arena, the defaults are changed */
+	void (*Toggle)(const Target *t, short id, char on);
+	void (*ToggleSet)(const Target *t, short *id, char *ons, int size);
+
+	/* use last two parameters for rel_x, rel_y when it's a screen object */
+	void (*Move)(const Target *t, short id, short x, short y, short rx, short ry);
+	void (*Image)(const Target *t, short id, int image);
+	void (*Layer)(const Target *t, short id, int layer);
+	void (*Timer)(const Target *t, short id, int time);
+	void (*Mode)(const Target *t, short id, int mode);
 } Iobjects;
-
 
 #endif
 

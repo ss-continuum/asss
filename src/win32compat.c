@@ -53,7 +53,7 @@ DIR *opendir(const char *reqpath)
 {
 	char path[PATH_MAX];
 	DIR *dir = amalloc(sizeof(*dir));
-	snprintf(path, sizeof(path), "%s/*", path);
+	snprintf(path, sizeof(path), "%s/*", reqpath);
 	dir->fh = _findfirst(path, &dir->fi);
 	dir->lastres = dir->fh;
 	return dir;

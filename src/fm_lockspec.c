@@ -5,7 +5,7 @@
 
 local void fm(Player *p, int *ship, int *freq)
 {
-	*ship = SPEC; *freq = CFG_DEF_SPEC_FREQ;
+	*ship = SHIP_SPEC; *freq = CFG_DEF_SPEC_FREQ;
 }
 
 local Ifreqman fm_int =

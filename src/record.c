@@ -601,7 +601,7 @@ local void get_watching_set(LinkedList *set, Arena *arena)
 local void freqman(Player *p, int *ship, int *freq)
 {
 	rec_adata *ra = P_ARENA_DATA(p->arena, adkey);
-	*ship = SPEC;
+	*ship = SHIP_SPEC;
 	*freq = ra->specfreq;
 }
 
@@ -622,7 +622,7 @@ local void lock_all_spec(Arena *a)
 
 	get_watching_set(&set, a);
 	for (l = LLGetHead(&set); l; l = l->next)
-		game->SetFreqAndShip(l->data, SPEC, ra->specfreq);
+		game->SetFreqAndShip(l->data, SHIP_SPEC, ra->specfreq);
 	LLEmpty(&set);
 }
 

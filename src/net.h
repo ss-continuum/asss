@@ -114,6 +114,8 @@ typedef struct Inet
 	int (*GetListenData)(unsigned index, int *port, char *connectasbuf, int buflen);
 	/* returns true if it returned stuff, false if bad index */
 	/* pyint: int, int out, string out, int buflen -> int */
+	int (*GetLDPopulation)(const char *connectas);
+	/* pyint: string -> int */
 } Inet;
 
 

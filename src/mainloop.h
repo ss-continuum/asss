@@ -5,61 +5,82 @@
 #define __MAINLOOP_H
 
 
-/*
- * Imainloop - main loop of program, timers
- *
- * Add/RemoveMainLoop are self-explanatory.
- *
- * SetTimer is used to set a timer that will get called periodically.
- * timer functions should return true if they want to be called again,
- * false if their work is done.
- *
- * you can specify both an initial delay to the first time the timer
- * will be called, and then a regular interval. of course, they can be
- * the same.
- *
- * ClearTimer should be used when your module is unloading to make sure
- * that your functions aren't called after they are unloaded from
- * memory. don't forget to call it for all your timers or things will
- * crash.
- *
- * RunLoop is obviously used only once by main()
- *
- * Quit can be called by any module and will shutdown the server. it
- * takes an exit code to return to the os.
- *
+/** @file
+ * this file contains Imainloop and related definitions. it deals with
+ * timers and server shutdown.
  */
 
-
+/** timer functions must be of this type.
+ * @param param is a closure argument
+ * @return true if the timer wants to continue running, false if it
+ * wants to be cancelled
+ */
 typedef int (*TimerFunc)(void *param);
+
+/** timer cleanup functions must be of this type.
+ * @param param the same closure argument that gets passed to the timer
+ * function
+ */
 typedef void (*CleanupFunc)(void *param);
 
+/** this callback is called once per iteration of the main loop.
+ * probably a few hundred times per second.
+ */
 #define CB_MAINLOOP "mainloop"
+/** the type of CB_MAINLOOP callbacks */
 typedef void (*MainLoopFunc)(void);
 /* no python in the main loop */
 
 
+/** the interface id for Imainloop */
 #define I_MAINLOOP "mainloop-2"
 
+/** the interface struct for Imainloop */
 typedef struct Imainloop
 {
 	INTERFACE_HEAD_DECL
 
+	/** Starts a timed event.
+	 * @param func the TimerFunc to call
+	 * @param initialdelay how long to wait from now until the first
+	 * call (in ticks)
+	 * @param interval how long to wait between calls (in ticks)
+	 * @param param a closure argument that will get passed to the timer
+	 * function
+	 * @param key a key that can be used to selectively cancel timers
+	 */
 	void (*SetTimer)(TimerFunc func, int initialdelay, int interval,
 			void *param, void *key);
-	/* key is a number that can be used to selectively clear timers.
-	 * setting key to an arena id makes a lot of sense. */
 
+	/** Clears timers.
+	 * This can either clear all timers running a specific function, or
+	 * a subset of them with a specific key.
+	 * You should always call this (or CleanupTimer) during module
+	 * unloading if you set any timers.
+	 * @param func the timer function you want to clear
+	 * @param key timers that match this key will be removed. using NULL
+	 * means to clear all timers with the given function, regardless of
+	 * key.
+	 */
 	void (*ClearTimer)(TimerFunc func, void *key);
-	/* clears all timers using the function with the given key. calling
-	 * this with a key of NULL means clear all timers using that function,
-	 * regardless of key */
 
+	/** Clears timers, with a cleanup handler.
+	 * Does the same as ClearTimer, but takes an optional cleanup
+	 * handler, which will get called with each timer's closure
+	 * argument.
+	 * @see Imainloop::ClearTimer
+	 * @param cleanup a CleanupFunc to call once for each timer being
+	 * cancelled
+	 */
 	void (*CleanupTimer)(TimerFunc func, void *key, CleanupFunc cleanup);
-	/* does the same as ClearTimer, but calls a cleanup function with
-	 * the timer's parameter after it removes it */
 
+	/** Runs the server main loop.
+	 * This is called exactly once, from main()
+	 */
 	int (*RunLoop)(void);
+	/** Signals the main loop to quit.
+	 * @param code the exit code to be returned to the OS
+	 */
 	void (*Quit)(int code);
 } Imainloop;
 

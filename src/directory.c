@@ -33,12 +33,15 @@ struct S2DInfo
 	char servername[32];
 	char password[48];
 	char description[386]; /* fill out to 480 bytes */
+	/* not part of sent data */
+	char connectas[32];
 };
 
 
 
 /* interface pointers */
 local Iconfig *cfg;
+local Inet *net;
 local Imainloop *ml;
 local Iplayerdata *pd;
 local Ilogman *lm;
@@ -67,7 +70,10 @@ local int SendUpdates(void *dummy)
 	for (k = LLGetHead(&packets); k; k = k->next)
 	{
 		struct S2DInfo *data = k->data;
-		data->players = count;
+		if (data->connectas[0])
+			data->players = net->GetLDPopulation(data->connectas);
+		else
+			data->players = count;
 		n = offsetof(struct S2DInfo, description) + strlen(data->description) + 1;
 
 		for (l = LLGetHead(&servers); l; l = l->next)
@@ -86,7 +92,6 @@ local int SendUpdates(void *dummy)
 
 local void init_data(void)
 {
-	Inet *net = mm->GetInterface(I_NET, ALLARENAS);
 	int i;
 	int port;
 	char connectas[32];
@@ -100,9 +105,6 @@ local void init_data(void)
 		pwd = "cane";
 
 	LLInit(&packets);
-
-	if (!net)
-		return;
 
 	for (i = 0; i < 10 && net->GetListenData(i, &port, connectas, sizeof(connectas)); i++)
 	{
@@ -150,6 +152,7 @@ local void init_data(void)
 			astrncpy(data->description, "<no description provided>", sizeof(data->description));
 
 		astrncpy(data->password, pwd, sizeof(data->password));
+		astrncpy(data->connectas, connectas, sizeof(data->connectas));
 
 		if (connectas[0])
 			lm->Log(L_INFO, "<directory> virtual server '%s' on port %d using name '%s'",
@@ -160,8 +163,6 @@ local void init_data(void)
 
 		LLAdd(&packets, data);
 	}
-
-	mm->ReleaseInterface(net);
 }
 
 
@@ -220,11 +221,12 @@ EXPORT int MM_directory(int action, Imodman *mm_, Arena *arena)
 	{
 		mm = mm_;
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		net = mm->GetInterface(I_NET, ALLARENAS);
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 
-		if (!cfg || !ml || !pd || !lm)
+		if (!cfg || !net || !ml || !pd || !lm)
 			return MM_FAIL;
 
 		sock = socket(PF_INET, SOCK_DGRAM, 0);
@@ -253,6 +255,7 @@ EXPORT int MM_directory(int action, Imodman *mm_, Arena *arena)
 		deinit_all();
 		closesocket(sock);
 		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(ml);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(lm);

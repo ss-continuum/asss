@@ -337,12 +337,12 @@ void LLFree(LinkedList *lst)
 	FreeALink((Link*)lst);
 }
 
-void LLAdd(LinkedList *l, void *p)
+void LLAdd(LinkedList *l, const void *p)
 {
 	Link *n = GetALink();
 
 	n->next = NULL;
-	n->data = p;
+	n->data = (void*)p;
 
 	if (l->end)
 	{
@@ -355,19 +355,19 @@ void LLAdd(LinkedList *l, void *p)
 	}
 }
 
-void LLAddFirst(LinkedList *lst, void *data)
+void LLAddFirst(LinkedList *lst, const void *data)
 {
 	Link *n = GetALink();
 
 	n->next = lst->start;
-	n->data = data;
+	n->data = (void*)data;
 
 	lst->start = n;
 	if (lst->end == NULL)
 		lst->end = n;
 }
 
-void LLInsertAfter(LinkedList *lst, Link *link, void *data)
+void LLInsertAfter(LinkedList *lst, Link *link, const void *data)
 {
 	Link *n;
 
@@ -375,7 +375,7 @@ void LLInsertAfter(LinkedList *lst, Link *link, void *data)
 	{
 		n = GetALink();
 		n->next = link->next;
-		n->data = data;
+		n->data = (void*)data;
 		link->next = n;
 		if (lst->end == link)
 			lst->end = n;
@@ -384,7 +384,7 @@ void LLInsertAfter(LinkedList *lst, Link *link, void *data)
 		LLAddFirst(lst, data);
 }
 
-int LLRemove(LinkedList *l, void *p)
+int LLRemove(LinkedList *l, const void *p)
 {
 	Link *n = l->start, *prev = NULL;
 	while (n)
@@ -410,7 +410,7 @@ int LLRemove(LinkedList *l, void *p)
 	return 0;
 }
 
-int LLRemoveAll(LinkedList *l, void *p)
+int LLRemoveAll(LinkedList *l, const void *p)
 {
 	Link *n = l->start, *prev = NULL, *next;
 	int removed = 0;
@@ -479,6 +479,15 @@ int LLCount(LinkedList *ll)
 	return c;
 }
 
+int LLMember(LinkedList *lst, const void *p)
+{
+	Link *l;
+	for (l = lst->start; l; l = l->next)
+		if (l->data == p)
+			return TRUE;
+	return FALSE;
+}
+
 void LLEnum(LinkedList *lst, void (*func)(const void *ptr))
 {
 	Link *l;
@@ -493,7 +502,7 @@ void LLEnum(LinkedList *lst, void (*func)(const void *ptr))
 static inline HashEntry *alloc_entry(const char *key)
 {
 	HashEntry *ret = amalloc(sizeof(HashEntry) + strlen(key));
-	ret->next = ret->p = NULL;
+	ret->p = ret->next = NULL;
 	strcpy(ret->key, key);
 	return ret;
 }
@@ -542,7 +551,9 @@ void HashFree(HashTable *h)
 	afree(h);
 }
 
-void HashEnum(HashTable *h, void (*func)(char *key, void *val, void *data), void *data)
+void HashEnum(HashTable *h,
+		void (*func)(const char *key, void *val, void *data),
+		void *data)
 {
 	HashEntry *e;
 	int i;
@@ -611,7 +622,7 @@ static void check_rehash(HashTable *h)
 	h->bucketsm1 = newbucketsm1;
 }
 
-void HashAdd(HashTable *h, const char *s, void *p)
+void HashAdd(HashTable *h, const char *s, const void *p)
 {
 	int slot;
 	HashEntry *e, *l;
@@ -619,7 +630,7 @@ void HashAdd(HashTable *h, const char *s, void *p)
 	slot = hash_string(s) & h->bucketsm1;
 
 	e = alloc_entry(s);
-	e->p = p;
+	e->p = (void*)p;
 	e->next = NULL;
 
 	l = h->lists[slot];
@@ -639,7 +650,7 @@ void HashAdd(HashTable *h, const char *s, void *p)
 	check_rehash(h);
 }
 
-void HashAddFront(HashTable *h, const char *s, void *p)
+void HashAddFront(HashTable *h, const char *s, const void *p)
 {
 	int slot;
 	HashEntry *e;
@@ -647,14 +658,14 @@ void HashAddFront(HashTable *h, const char *s, void *p)
 	slot = hash_string(s) & h->bucketsm1;
 
 	e = alloc_entry(s);
-	e->p = p;
+	e->p = (void*)p;
 	e->next = h->lists[slot];
 	h->lists[slot] = e;
 	h->ents++;
 	check_rehash(h);
 }
 
-void HashReplace(HashTable *h, const char *s, void *p)
+void HashReplace(HashTable *h, const char *s, const void *p)
 {
 	int slot;
 	HashEntry *l, *last;
@@ -668,7 +679,7 @@ void HashReplace(HashTable *h, const char *s, void *p)
 		if (!strcasecmp(s, l->key))
 		{
 			/* found it, replace data and return */
-			l->p = p;
+			l->p = (void*)p;
 			/* no need to modify h->ents */
 			return;
 		}
@@ -680,7 +691,7 @@ void HashReplace(HashTable *h, const char *s, void *p)
 	HashAdd(h, s, p);
 }
 
-void HashRemove(HashTable *h, const char *s, void *p)
+void HashRemove(HashTable *h, const char *s, const void *p)
 {
 	int slot;
 	HashEntry *l, *prev = NULL;
@@ -921,7 +932,7 @@ StringChunk *SCAlloc(void)
 	return c;
 }
 
-char *SCAdd(StringChunk *chunk, const char *str)
+const char *SCAdd(StringChunk *chunk, const char *str)
 {
 	int len;
 	StringChunk *prev = NULL;
@@ -953,7 +964,7 @@ char *SCAdd(StringChunk *chunk, const char *str)
 	{
 		if (chunk->room >= len)
 		{
-			char *spot;			
+			char *spot;
 			spot = chunk->data + (SCSIZE - chunk->room);
 			memcpy(spot, str, len);
 			chunk->room -= len;

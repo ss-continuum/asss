@@ -4,58 +4,112 @@
 #ifndef __CMDMAN_H
 #define __CMDMAN_H
 
-/*
- * Icmdman - manages commands
+/** @file
+ * the command manager; deals with registering and dispatching commands.
  *
- * modules register commands with this module by calling AddCommand with
- * the name of a command, and a function to be called with that command
- * is typed. the command functions take a char pointer to the params
- * (that is, everything following the command on the typed line), the
- * player who typed it, and a target structure describing how the
- * command was delivered.
+ * command handlers come in two flavors, which differ only in whether
+ * the handler gets to see the command name that was used. this can only
+ * make a difference if the same handler is used for multiple commands,
+ * of course. also, if you want to register per-arena commands, you need
+ * to use the second flavor. all handlers may assume p and p->arena are
+ * non-NULL.
  *
- * the alternate interface, AddCommand2, allows you to specify a
- * function that will also get the command name typed. this is useful
- * for the billing module, bots, and extension language modules. it also
- * lets you register arena-specific commands.
+ * Target structs are used to describe how a command was issued.
+ * commands typed as public chat messages get targets of type T_ARENA.
+ * commands typed as local private messages or remove private messages
+ * to another player on the same server get T_PLAYER targets, and
+ * commands sent as team messages (to your own team or an enemy team)
+ * get T_FREQ targets.
  *
- * commands can be removed in the same way by specifying the name and
- * function (the name must be specified again because they're stored in
- * a hash table)
+ * there is no difference between ? commands and * commands. all
+ * commands (except of course commands handled on the client) work
+ * equally whether a ? or a * was used.
  *
- * the Command function can be used to process a command. the chat
- * module uses that function to process all typed commands.
+ * help text should follow a standard format:
+ * @code
+ * local helptext_t help_foo =
+ * "Module: ...\n"
+ * "Targets: ...\n"
+ * "Args: ...\n"
+ * More text here...\n";
+ * @endcode
  *
- * if the first character of a line passed to Command is a backslash,
- * command handlers in asss will be skipped and the command will be
- * passed directly to the default handler (usually a billing server).
- *
- * a final note: there is no difference between ? commands and *
- * commands! any prior distinction was artificial and i don't like
- * artificial distinctions.
- *
+ * the server keeps track of a "default" command handler, which will get
+ * called if no commands know to the server match a typed command. to
+ * set or remove the default handler, pass NULL as cmdname to any of the
+ * Add/RemoveCommand/2 functions. this feature should only be used by
+ * billing server modules.
  */
 
 
+/** the type of the first flavor of command handler.
+ * @param params the stuff that the player typed after the command name
+ * @param p the player issuing the command
+ * @param target describes how the command was issued (public, private,
+ * etc.)
+ */
 typedef void (*CommandFunc)(const char *params, Player *p, const Target *target);
+/** the type of the second flavor of command handler.
+ * @param command the name of the command that was issued
+ * @param params the stuff that the player typed after the command name
+ * @param p the player issuing the command
+ * @param target describes how the command was issued (public, private,
+ * etc.)
+ */
 typedef void (*CommandFunc2)(const char *command, const char *params,
 		Player *p, const Target *target);
 
 
+/** a type representing the help text strings that get registered with
+ ** the command manager. */
 typedef const char *helptext_t;
 
+/** the interface id for Icmdman */
 #define I_CMDMAN "cmdman-6"
 
+/** the interface struct for Icmdman */
 typedef struct Icmdman
 {
 	INTERFACE_HEAD_DECL
 
+	/** Registers a command handler.
+	 * Be sure to use RemoveCommand to unregister this before unloading.
+	 * @param cmdname the name of the command being registered
+	 * @param func the handler function
+	 * @param ht some help text for this command, or NULL for none
+	 */
 	void (*AddCommand)(const char *cmdname, CommandFunc func, helptext_t ht);
+
+	/** Registers a command handler, of a slightly different flavor.
+	 * @param cmdname the name of the command being registered
+	 * @param func the handler function
+	 * @param arena the arena the command should have effect in, or
+	 * ALLARENAS
+	 * @param ht some help text for this command, or NULL for none
+	 */
 	void (*AddCommand2)(const char *cmdname, CommandFunc2 func,
 			Arena *arena, helptext_t ht);
+
+	/** Unregisters a command handler.
+	 * Use this to unregister handlers registered with AddCommand.
+	 */
 	void (*RemoveCommand)(const char *cmdname, CommandFunc func);
+	/** Unregisters a command handler.
+	 * Use this to unregister handlers registered with AddCommand2.
+	 */
 	void (*RemoveCommand2)(const char *cmdname, CommandFunc2 func,
 			Arena *arena);
+
+	/** Dispatches an incoming command.
+	 * This is generally only called by the chat module and billing
+	 * server modules.
+	 * If the first character of typedline is a backslash, command
+	 * handlers in the server will be bypassed and the command will be
+	 * passed directly to the default handler.
+	 * @param typedline the thing that the player typed
+	 * @param p the player who issued the command
+	 * @param target how the command was issued
+	 */
 	void (*Command)(const char *typedline, Player *p, const Target *target);
 	helptext_t (*GetHelpText)(const char *cmdname);
 } Icmdman;

@@ -189,7 +189,7 @@ int read_lvl(char *name, struct MapData *md)
 }
 
 
-local void FreeRegion(char *k, void *v, void *d)
+local void FreeRegion(const char *k, void *v, void *d)
 {
 	struct Region *r = (struct Region *)v;
 	delete_rectlist(r->rects);
@@ -774,6 +774,7 @@ HashTable * LoadRegions(char *fname)
 			}
 			else if (!strncasecmp(buf, "isbase", 6))
 			{
+				if (!reg) continue;
 				reg->isbase = 1;
 			}
 		}

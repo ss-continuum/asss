@@ -165,7 +165,7 @@ local void Pppk(Player *p, byte *pkt, int len)
 	}
 
 	/* speccers don't get their position sent to anyone */
-	if (p->p_ship != SPEC)
+	if (p->p_ship != SHIP_SPEC)
 	{
 		x1 = pos->x;
 		y1 = pos->y;
@@ -265,7 +265,7 @@ local void Pppk(Player *p, byte *pkt, int len)
 						if (wpn.weapon.type)
 							idata->wpnsent++;
 
-						if (i->p_ship == SPEC)
+						if (i->p_ship == SHIP_SPEC)
 						{
 							if (idata->pl_epd.seeepd && idata->speccing == p)
 							{
@@ -337,7 +337,7 @@ local void Pppk(Player *p, byte *pkt, int len)
 						const int nrglen = plainlen + 2;
 						const int epdlen = sizeof(struct S2CPosition);
 
-						if (i->p_ship == SPEC)
+						if (i->p_ship == SHIP_SPEC)
 						{
 							if (idata->pl_epd.seeepd && idata->speccing == p)
 							{
@@ -392,7 +392,14 @@ local void Pppk(Player *p, byte *pkt, int len)
 	p->position.bounty = pos->bounty;
 	p->position.status = pos->status;
 
-	p->flags.sent_ppk = 1;
+	if (p->flags.sent_ppk == 0)
+	{
+		p->flags.sent_ppk = 1;
+		DO_CBS(CB_PLAYERACTION,
+				p->arena,
+				PlayerActionFunc,
+				(p, PA_ENTERGAME, p->arena));
+	}
 }
 
 
@@ -450,7 +457,7 @@ local void PSpecRequest(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	if (p->status != S_PLAYING || p->p_ship != SPEC)
+	if (p->status != S_PLAYING || p->p_ship != SHIP_SPEC)
 		return;
 
 	pthread_mutex_lock(&specmtx);
@@ -460,7 +467,7 @@ local void PSpecRequest(Player *p, byte *pkt, int len)
 	if (tpid >= 0)
 	{
 		Player *t = pd->PidToPlayer(tpid);
-		if (t && t->status == S_PLAYING && t->p_ship != SPEC && t->arena == p->arena)
+		if (t && t->status == S_PLAYING && t->p_ship != SHIP_SPEC && t->arena == p->arena)
 			add_speccing(data, t);
 	}
 
@@ -553,7 +560,7 @@ local void SetFreqAndShip(Player *p, int ship, int freq)
 	struct ShipChangePacket to = { S2C_SHIPCHANGE, ship, p->pid, freq };
 	Arena *arena = p->arena;
 
-	if (p->type == T_CHAT && ship != SPEC)
+	if (p->type == T_CHAT && ship != SHIP_SPEC)
 	{
 		lm->LogP(L_WARN, "game", p, "someone tried to forced chat client into playing ship");
 		return;
@@ -623,7 +630,7 @@ local void PSetShip(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	if (ship < WARBIRD || ship > SPEC)
+	if (ship < SHIP_WARBIRD || ship > SHIP_SPEC)
 	{
 		lm->LogP(L_MALICIOUS, "game", p, "bad ship number: %d", ship);
 		return;
@@ -659,12 +666,12 @@ local void PSetShip(Player *p, byte *pkt, int len)
 	/* checked lock state (but always allow switching to spec) */
 	expire_lock(p);
 	if (data->lockship &&
-	    ship != SPEC &&
+	    ship != SHIP_SPEC &&
 	    !(capman && capman->HasCapability(p, "bypasslock")))
 	{
 		if (chat)
 			chat->SendMessage(p, "You have been locked in %s.",
-					(p->p_ship == SPEC) ? "spectator mode" : "your ship");
+					(p->p_ship == SHIP_SPEC) ? "spectator mode" : "your ship");
 		return;
 	}
 
@@ -736,7 +743,7 @@ local void freq_change_request(Player *p, int freq)
 	{
 		if (chat)
 			chat->SendMessage(p, "You have been locked in %s.",
-					(p->p_ship == SPEC) ? "spectator mode" : "your ship");
+					(p->p_ship == SHIP_SPEC) ? "spectator mode" : "your ship");
 		return;
 	}
 
@@ -771,10 +778,10 @@ local void MChangeFreq(Player *p, const char *line)
 }
 
 
-local void notify_kill(Player *killer, Player *killed, int bty, int flags, int green, int rel)
+local void notify_kill(Player *killer, Player *killed, int bty, int flags, int green)
 {
 	struct KillPacket kp = { S2C_KILL, green, killer->pid, killed->pid, bty, flags };
-	net->SendToArena(killer->arena, NULL, (byte*)&kp, sizeof(kp), rel ? NET_RELIABLE : NET_UNRELIABLE);
+	net->SendToArena(killer->arena, NULL, (byte*)&kp, sizeof(kp), NET_RELIABLE);
 	if (chatnet)
 		chatnet->SendToArena(killer->arena, NULL, "KILL:%s:%s:%d:%d",
 				killer->name, killed->name, bty, flags);
@@ -784,7 +791,7 @@ local void PDie(Player *p, byte *pkt, int len)
 {
 	struct SimplePacket *dead = (struct SimplePacket*)pkt;
 	int bty = dead->d2, pts = 0;
-	int flagcount, reldeaths, green;
+	int flagcount, green = -1;
 	Arena *arena = p->arena;
 	Player *killer;
 
@@ -807,24 +814,23 @@ local void PDie(Player *p, byte *pkt, int len)
 		return;
 	}
 
+	if (flags)
+		flagcount = flags->GetCarriedFlags(p);
+	else
+		flagcount = 0;
+
+	/* this will figure out how many points to send in the packet */
+	DO_CBS(CB_KILL, arena, KillFunc,
+			(arena, killer, p, bty, flagcount, &pts, &green));
+
+	if (green == -1)
 	{
 		Iclientset *cset = mm->GetInterface(I_CLIENTSET, arena);
 		green = cset ? cset->GetRandomPrize(arena) : 0;
 		mm->ReleaseInterface(cset);
 	}
 
-	if (flags)
-		flagcount = flags->GetCarriedFlags(p);
-	else
-		flagcount = 0;
-
-	reldeaths = cfg->GetInt(arena->cfg, "Misc", "ReliableKills", 1);
-
-	/* this will figure out how many points to send in the packet */
-	DO_CBS(CB_KILL, arena, KillFunc,
-			(arena, killer, p, bty, flagcount, &pts));
-
-	notify_kill(killer, p, pts, flagcount, green, reldeaths);
+	notify_kill(killer, p, pts, flagcount, green);
 
 	lm->Log(L_DRIVEL, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d,pts=%d)",
 			arena->name,
@@ -841,7 +847,7 @@ local void PDie(Player *p, byte *pkt, int len)
 		if (data->deathwofiring++ == ad->deathwofiring)
 		{
 			lm->LogP(L_DRIVEL, "game", p, "specced for too many deaths without firing");
-			SetFreqAndShip(p, SPEC, arena->specfreq);
+			SetFreqAndShip(p, SHIP_SPEC, arena->specfreq);
 		}
 	}
 
@@ -851,7 +857,7 @@ local void PDie(Player *p, byte *pkt, int len)
 
 local void FakeKill(Player *killer, Player *killed, int pts, int flags)
 {
-	notify_kill(killer, killed, pts, flags, 0, TRUE);
+	notify_kill(killer, killed, pts, flags, 0);
 }
 
 
@@ -871,14 +877,17 @@ local void PGreen(Player *p, byte *pkt, int len)
 		return;
 
 	/* don't forward non-shared prizes */
-	if (g->green == PRIZE_THOR  && (ad->personalgreen & (1<<personal_thor))) return;
-	if (g->green == PRIZE_BURST && (ad->personalgreen & (1<<personal_burst))) return;
-	if (g->green == PRIZE_BRICK && (ad->personalgreen & (1<<personal_brick))) return;
+	if (!(g->green == PRIZE_THOR  && (ad->personalgreen & (1<<personal_thor))) &&
+	    !(g->green == PRIZE_BURST && (ad->personalgreen & (1<<personal_burst))) &&
+	    !(g->green == PRIZE_BRICK && (ad->personalgreen & (1<<personal_brick))))
+	{
+		g->pid = p->pid;
+		g->type = S2C_GREEN; /* HACK :) */
+		net->SendToArena(arena, p, pkt, sizeof(struct GreenPacket), NET_UNRELIABLE);
+		g->type = C2S_GREEN;
+	}
 
-	g->pid = p->pid;
-	g->type = S2C_GREEN; /* HACK :) */
-	net->SendToArena(arena, p, pkt, sizeof(struct GreenPacket), NET_UNRELIABLE);
-	g->type = C2S_GREEN;
+	DO_CBS(CB_GREEN, arena, GreenFunc, (p, g->x, g->y, g->green));
 }
 
 
@@ -953,7 +962,7 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 		data->lockship = ad->initlockship;
 		if (ad->initspec)
 		{
-			p->p_ship = SPEC;
+			p->p_ship = SHIP_SPEC;
 			p->p_freq = arena->specfreq;
 		}
 		p->p_attached = -1;
@@ -1066,12 +1075,12 @@ local void lock_work(const Target *target, int nval, int notify, int spec, int t
 		Player *p = l->data;
 		pdata *pdata = PPDATA(p, pdkey);
 
-		if (spec && p->arena && p->p_ship != SPEC)
-			SetFreqAndShip(p, SPEC, p->arena->specfreq);
+		if (spec && p->arena && p->p_ship != SHIP_SPEC)
+			SetFreqAndShip(p, SHIP_SPEC, p->arena->specfreq);
 
 		if (notify && pdata->lockship != nval && chat)
 			chat->SendMessage(p, nval ?
-					(p->p_ship == SPEC ?
+					(p->p_ship == SHIP_SPEC ?
 					 "You have been locked to spectator mode." :
 					 "You have been locked to your ship.") :
 					"Your ship has been unlocked.");
@@ -1161,7 +1170,7 @@ local void set_data(Player *p, void *data, int len, void *v)
 		/* if the lock is still active, force into spec */
 		if (pdata->lockship)
 		{
-			p->p_ship = SPEC;
+			p->p_ship = SHIP_SPEC;
 			p->p_freq = p->arena->specfreq;
 		}
 	}

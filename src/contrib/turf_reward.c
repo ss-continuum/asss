@@ -1201,7 +1201,7 @@ local void preCalc(Arena *arena, TurfArena *ta, ticks_t currentTicks)
 
 		ta->numPlayers++;
 		if( (pdPtr->status!=S_PLAYING) ||
-			(ta->settings.spec_recieve_points==0 && pdPtr->p_ship==SPEC) ||
+			(ta->settings.spec_recieve_points==0 && pdPtr->p_ship==SHIP_SPEC) ||
 			(ta->settings.safe_recieve_points==0 && (pdPtr->position.status & STATUS_SAFEZONE)) )
 		{
 			/* pdPtr is pointing to a non-player */

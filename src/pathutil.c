@@ -176,8 +176,8 @@ int is_valid_path(const char *path)
 	 */
 	while (ch)
 	{
-		if ((ch < ' ' || ch > '~' || ch == ':' || ch == '\\') ||
-		    ((ch == '.' || ch == '/') && last == ch))
+		if ((ch < ' ' || ch > '~' || ch == ':') ||
+		    ((ch == '.' || ch == '/' || ch == '\\') && last == ch))
 			return FALSE;
 
 		last = ch;

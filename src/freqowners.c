@@ -104,7 +104,7 @@ local int kick_timer(void *param)
 {
 	Player *t = param;
 	chat->SendMessage(t, "You have been kicked off your freq.");
-	game->SetFreqAndShip(t, SPEC, t->arena->specfreq);
+	game->SetFreqAndShip(t, SHIP_SPEC, t->arena->specfreq);
 	return FALSE;
 }
 
@@ -153,8 +153,11 @@ void Cfreqkick(const char *params, Player *p, const Target *target)
 
 void MyPA(Player *p, int action, Arena *arena)
 {
-	OWNSFREQ(p) = 0;
-	ml->ClearTimer(kick_timer, p);
+	if (action == PA_ENTERARENA || action == PA_LEAVEARENA)
+	{
+		OWNSFREQ(p) = 0;
+		ml->ClearTimer(kick_timer, p);
+	}
 }
 
 

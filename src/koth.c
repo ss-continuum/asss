@@ -70,7 +70,7 @@ local void start_koth(Arena *arena)
 		if (p->status == S_PLAYING &&
 		    p->arena == arena)
 		{
-			if (p->p_ship != SPEC)
+			if (p->p_ship != SHIP_SPEC)
 			{
 				LLAdd(&set, p);
 				pdata->crown = 1;
@@ -112,7 +112,7 @@ local void check_koth(Arena *arena)
 	FOR_EACH_PLAYER_P(p, pdata, pkey)
 		if (p->status == S_PLAYING &&
 		    p->arena == arena &&
-		    p->p_ship != SPEC &&
+		    p->p_ship != SHIP_SPEC &&
 		    IS_STANDARD(p))
 		{
 			playing++;
@@ -163,7 +163,7 @@ local void check_koth(Arena *arena)
 	FOR_EACH_PLAYER_P(p, pdata, pkey)
 		if (p->status == S_PLAYING &&
 		    p->arena == arena &&
-		    p->p_ship != SPEC)
+		    p->p_ship != SHIP_SPEC)
 			pdata->hadcrown = pdata->crown;
 	pd->Unlock();
 }
@@ -229,17 +229,20 @@ local void load_settings(Arena *arena)
 
 local void paction(Player *p, int action, Arena *arena)
 {
-	struct koth_player_data *pdata = PPDATA(p, pkey);
-	LOCK();
-	pdata->crown = pdata->hadcrown = 0;
-	UNSET_HAS_CROWN(pid);
-	UNLOCK();
+	if (action == PA_ENTERARENA || action == PA_LEAVEARENA)
+	{
+		struct koth_player_data *pdata = PPDATA(p, pkey);
+		LOCK();
+		pdata->crown = pdata->hadcrown = 0;
+		UNSET_HAS_CROWN(pid);
+		UNLOCK();
+	}
 }
 
 
 local void shipchange(Player *p, int ship, int freq)
 {
-	if (ship == SPEC)
+	if (ship == SHIP_SPEC)
 		paction(p, 0, 0);
 }
 

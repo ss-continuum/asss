@@ -23,6 +23,7 @@ re_ball = re.compile(r'\t(BALL_[A-Z_0-9]*)')
 re_flag = re.compile(r'\t(FLAG_[A-Z_0-9]*)')
 re_billing = re.compile(r'\t(BILLING_[A-Z_0-9]*)')
 re_auth = re.compile(r'\t(AUTH_[A-Z_0-9]*)')
+re_ship = re.compile(r'\t(SHIP[A-Z_0-9]*)')
 re_sound = re.compile(r'\t(SOUND_[A-Z_0-9]*)')
 re_prize = re.compile(r'\t(PRIZE_[A-Z_0-9]*)')
 re_mm2 = re.compile(r'\t(MM_[A-Z_0-9]*)')
@@ -839,10 +840,6 @@ const_int('ASSSVERSION_NUM')
 const_int('TRUE')
 const_int('FALSE')
 
-for ship in ['WARBIRD', 'JAVELIN', 'SPIDER', 'LEVIATHAN', 'TERRIER',
-		'WEASEL', 'LANCASTER', 'SHARK', 'SPEC']:
-	const_int(ship)
-
 init_pyint()
 
 # now process file
@@ -856,7 +853,7 @@ for l in lines:
 		if m:
 			const_string(m.group(1))
 	for r in [re_msg, re_actions, re_ball, re_flag, re_billing, re_auth,
-			re_sound, re_prize, re_log, re_mm1, re_mm2, re_cfg_int,
+			re_sound, re_ship, re_prize, re_log, re_mm1, re_mm2, re_cfg_int,
 			re_persist, re_type, re_status, re_stat, re_iv, re_turf]:
 		m = r.match(l)
 		if m:

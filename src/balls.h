@@ -72,7 +72,7 @@ typedef struct Iballs
 	void (*PlaceBall)(Arena *arena, int bid, struct BallData *newpos);
 	/* sets the parameters of the ball to those in the given BallData
 	 * struct */
-	/* pyintNOTYET: arena, int, balldata -> void  */
+	/* FIXMEpyint: arena, int, balldata -> void  */
 
 	void (*EndGame)(Arena *arena);
 	/* ends the ball game */

@@ -549,7 +549,7 @@ void PPickupBall(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	if (p->p_ship >= SPEC)
+	if (p->p_ship >= SHIP_SPEC)
 	{
 		logm->LogP(L_MALICIOUS, "balls", p, "ball pickup packet from spec");
 		return;
@@ -641,7 +641,7 @@ void PFireBall(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	if (p->p_ship >= SPEC)
+	if (p->p_ship >= SHIP_SPEC)
 	{
 		logm->LogP(L_MALICIOUS, "balls", p, "ball fire packet from spec");
 		return;

@@ -96,7 +96,7 @@ local void Cbuy(const char *params, Player *p, const Target *target)
 			{
 				int pts, anywhere;
 
-				if (p->p_ship == SPEC)
+				if (p->p_ship == SHIP_SPEC)
 				{
 					chat->SendMessage(p, "Spectators cannot purchase items.");
 					return;

@@ -25,7 +25,7 @@
 
 struct Entry
 {
-	char *keystr, *val, *info;
+	const char *keystr, *val, *info;
 };
 
 struct ConfigFile
@@ -146,19 +146,19 @@ local void do_load(ConfigHandle ch, const char *arena, const char *name)
 	char line[LINESIZE], *buf, *t;
 	char key[MAXSECTIONLEN+MAXKEYLEN+3], *thespot = NULL;
 
-	ctx = InitContext(locate_config_file, report_error, arena);
+	ctx = APPInitContext(locate_config_file, report_error, arena);
 
 	/* set up some values */
-	AddDef(ctx, "VERSION", ASSSVERSION);
-	AddDef(ctx, "BUILDDATE", BUILDDATE);
+	APPAddDef(ctx, "VERSION", ASSSVERSION);
+	APPAddDef(ctx, "BUILDDATE", BUILDDATE);
 
 	/* always prepend this */
-	AddFile(ctx, "conf/defs.h");
+	APPAddFile(ctx, "conf/defs.h");
 
 	/* the actual file */
-	AddFile(ctx, name);
+	APPAddFile(ctx, name);
 
-	while (GetLine(ctx, line, LINESIZE))
+	while (APPGetLine(ctx, line, LINESIZE))
 	{
 		buf = line;
 		/* kill leading spaces */
@@ -186,7 +186,8 @@ local void do_load(ConfigHandle ch, const char *arena, const char *name)
 			t = strchr(buf, '=');
 			if (t)
 			{
-				char *t2 = t + 1, *data;
+				char *t2 = t + 1;
+				const char *data;
 
 				/* kill = sign and spaces before it */
 				while (*t == ' ' || *t == '=' || *t == '\t') *t-- = 0;
@@ -218,7 +219,7 @@ local void do_load(ConfigHandle ch, const char *arena, const char *name)
 		}
 	}
 
-	FreeContext(ctx);
+	APPFreeContext(ctx);
 }
 
 
@@ -426,8 +427,8 @@ local void SetStr(ConfigHandle ch, const char *sec, const char *key,
 		const char *val, const char *info, int perm)
 {
 	struct Entry *e;
-	char keystring[MAXSECTIONLEN+MAXKEYLEN+2], *data;
-	const char *res;
+	char keystring[MAXSECTIONLEN+MAXKEYLEN+2];
+	const char *res, *data;
 
 	if (!ch || !val) return;
 	if (ch == GLOBAL) ch = global;

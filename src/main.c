@@ -110,17 +110,17 @@ local void LoadModuleFile(char *fname)
 	int ret;
 	APPContext *ctx;
 
-	ctx = InitContext(finder, error, NULL);
-	AddFile(ctx, fname);
+	ctx = APPInitContext(finder, error, NULL);
+	APPAddFile(ctx, fname);
 
-	while (GetLine(ctx, line, 256))
+	while (APPGetLine(ctx, line, 256))
 	{
 		ret = mm->LoadModule(line);
 		if (ret == MM_FAIL)
 			Error(EXIT_MODLOAD, "Error in loading module '%s'", line);
 	}
 
-	FreeContext(ctx);
+	APPFreeContext(ctx);
 }
 
 

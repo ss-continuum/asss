@@ -401,10 +401,10 @@ local void PMapRequest(Player *p, byte *pkt, int len)
 		/* if we're getting these requests, it's too late to set their ship
 		 * and team directly, we need to go through the in-game procedures */
 		if (IS_STANDARD(p) &&
-			(p->p_ship != SPEC || p->p_freq != arena->specfreq))
+			(p->p_ship != SHIP_SPEC || p->p_freq != arena->specfreq))
 		{
 			struct Igame *game = mm->GetInterface(I_GAME, ALLARENAS);
-			if (game) game->SetFreqAndShip(p, SPEC, arena->specfreq);
+			if (game) game->SetFreqAndShip(p, SHIP_SPEC, arena->specfreq);
 			mm->ReleaseInterface(game);
 		}
 	}

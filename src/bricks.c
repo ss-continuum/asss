@@ -260,7 +260,7 @@ void PBrick(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	if (p->status != S_PLAYING || p->p_ship == SPEC || !arena)
+	if (p->status != S_PLAYING || p->p_ship == SHIP_SPEC || !arena)
 	{
 		lm->LogP(L_WARN, "bricks", p, "ignored request from bad state");
 		return;

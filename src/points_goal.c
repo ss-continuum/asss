@@ -365,6 +365,7 @@ int RewardPoints(Arena *arena, int winfreq)
 	LinkedList set = LL_INITIALIZER;
 	int players = 0, points;
 	int reward = scores->reward;
+	int j, freqcount = 0, freq[4] = { 0, 0, 0, 0 };
 	Link *link;
 	Player *i;
 
@@ -372,9 +373,10 @@ int RewardPoints(Arena *arena, int winfreq)
 	FOR_EACH_PLAYER(i)
 		if (i->status == S_PLAYING &&
 		    i->arena == arena &&
-		    i->p_ship != SPEC)
+		    i->p_ship != SHIP_SPEC)
 		{
 			players++;
+			freq[i->p_freq % 4]++;
 			if (i->p_freq == winfreq)
 			{
 				stats->IncrementStat(i, STAT_BALL_GAMES_WON, 1);
@@ -387,13 +389,31 @@ int RewardPoints(Arena *arena, int winfreq)
 		}
 	pd->Unlock();
 
-	if (reward < 0)
+	if (reward < 1)
 		points = reward * -1;
 	else
 		points = players * players * reward / 1000;
 
-	for (link = LLGetHead(&set); link; link = link->next)
-		stats->IncrementStat(link->data, STAT_FLAG_POINTS, points);
+	for (j = 0; j < 4; j++)
+		if (freq[j] > 0)
+			freqcount++;
+
+	/* cfghelp: Soccer:MinPlayers, arena, int, def: 0
+	 * The minimum number of players who must be playing for soccer
+	 * points to be awarded. */
+	/* cfghelp: Soccer:MinTeams, arena, int, def: 0
+	 * The minimum number of teams that must exist for soccer points to
+	 * be awarded. */
+	if (players < cfg->GetInt(arena->cfg, "Soccer", "MinPlayers", 0) ||
+	    freqcount < cfg->GetInt(arena->cfg, "Soccer", "MinTeams", 0))
+	{
+		points = 0;
+	}
+	else
+	{
+		for (link = LLGetHead(&set); link; link = link->next)
+			stats->IncrementStat(link->data, STAT_FLAG_POINTS, points);
+	}
 	LLEmpty(&set);
 
 	/* don't SendUpdates here, wait until after the balls->EndGame */

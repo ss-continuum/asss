@@ -101,7 +101,7 @@ local void Cdropturret(const char *params, Player *p, const Target *target)
 		turret = fake->CreateFakePlayer(
 				"<autoturret>",
 				p->arena,
-				WARBIRD,
+				SHIP_WARBIRD,
 				p->p_freq);
 		new_turret(turret, 1500, 150, p);
 	}

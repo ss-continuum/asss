@@ -198,10 +198,10 @@ local void load_settings(adata *ad, ConfigHandle conf)
 	}
 
 	/* the funky ones */
-	cs->long_set[0] *= 1000; /* BombDamageLevel */
+	cs->long_set[0] *= 1000; /* BulletDamageLevel */
 	cs->long_set[1] *= 1000; /* BombDamageLevel */
 	cs->long_set[10] *= 1000; /* BurstDamageLevel */
-	cs->long_set[11] *= 1000; /* BulletDamageLevel */
+	cs->long_set[11] *= 1000; /* BulletDamageUpgrade */
 	cs->long_set[16] *= 1000; /* InactiveShrapDamage */
 }
 

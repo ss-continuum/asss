@@ -85,7 +85,7 @@ local int EndFaked(Player *p)
 
 local void Cmakefake(const char *params, Player *p, const Target *target)
 {
-	CreateFakePlayer(params, p->arena, SPEC, 9999);
+	CreateFakePlayer(params, p->arena, SHIP_SPEC, 9999);
 }
 
 

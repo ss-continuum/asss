@@ -119,7 +119,7 @@ local void PBanner(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	if (p->p_ship != SPEC)
+	if (p->p_ship != SHIP_SPEC)
 	{
 		Ichat *chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		if (chat) chat->SendMessage(p, "You must be in spectator mode to set a banner.");

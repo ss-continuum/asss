@@ -486,7 +486,7 @@ local void count_players(Arena *a, int *totalp, int *playingp)
 		    p->type != T_FAKE)
 		{
 			total++;
-			if (p->p_ship != SPEC)
+			if (p->p_ship != SHIP_SPEC)
 				playing++;
 		}
 	pd->Unlock();
@@ -594,7 +594,7 @@ local void PArena(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	if (go->shiptype > SPEC)
+	if (go->shiptype > SHIP_SPEC)
 	{
 		lm->Log(L_MALICIOUS, "<arenaman> [%s] bad shiptype in arena request", p->name);
 		return;
@@ -638,7 +638,7 @@ local void PArena(Player *p, byte *pkt, int len)
 
 local void MArena(Player *p, const char *line)
 {
-	complete_go(p, line[0] ? line : "0", SPEC, 0, 0, 0, 0, 0, 0);
+	complete_go(p, line[0] ? line : "0", SHIP_SPEC, 0, 0, 0, 0, 0, 0);
 }
 
 
@@ -830,7 +830,7 @@ local void GetPopulationSummary(int *totalp, int *playingp)
 		{
 			total++;
 			p->arena->total++;
-			if (p->p_ship != SPEC)
+			if (p->p_ship != SHIP_SPEC)
 			{
 				playing++;
 				p->arena->playing++;

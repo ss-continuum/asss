@@ -4,61 +4,74 @@
 #ifndef __MODMAN_H
 #define __MODMAN_H
 
-
-/*
- * Imodman - the module and interface manager
+/** @file
+ * describes the module manager interface, which handles modules,
+ * interfaces, and callbacks.
  */
-
-#include "util.h"
 
 struct Imodman;
 
-/* module load/unload operations */
+/** module load/unload operations.
+ * these codes are passed to module entry points to describe which
+ * operation is being reuqested. */
 enum
 {
+	/** the module is being loaded.
+	 * do all global initialization here.
+	 */
 	MM_LOAD,
-	/* this means the module is being loaded. do all global
-	 * initialization here. */
 
+	/** a second initialization phase that allows modules to obtain
+	 ** references to interfaces exported by modules loaded after them.
+	 * interfaces obtained in MM_POSTLOAD should be released in
+	 * MM_PREUNLOAD, so that module unloading can proceed cleanly.
+	 */
 	MM_POSTLOAD,
-	/* this is a second initialization phase that allows modules to
-	 * obtain references to interfaces exported by modules loaded after
-	 * them. interfaces obtained in postload should be released in
-	 * preload, so that module unloading can proceed cleanly. */
 
+	/** this stage is for cleaning up any activity done in MM_POSTLOAD.
+	 */
 	MM_PREUNLOAD,
-	/* this stage is for cleaning up any activity done in the postload
-	 * stage. */
 
+	/** the module is being unloaded.
+	 * clean up everything you did in MM_LOAD.
+	 */
 	MM_UNLOAD,
-	/* the module is being unloaded. try to clean up as best as
-	 * possible. */
 
+	/** the module is being attached to an arena.
+	 * if you have any arena-specific functionality, now would be a good
+	 * time to turn it on for this arena.
+	 */
 	MM_ATTACH,
-	/* the module is being attached to an arena. if you have any
-	 * arena-specific functionality, now would be a good time to turn it
-	 * on for this arena. */
 
+	/* the reverse of MM_ATTACH.
+	 * disable any special functionality for this arena.
+	 */
 	MM_DETACH
-	/* the reverse of the above. disable any special functionality for
-	 * this arena. */
 };
 
 
-/* return values for module functions */
-#define MM_OK     0
-#define MM_FAIL   1
+/* return values for module functions, and also some other things. */
+#define MM_OK     0  /**< success */
+#define MM_FAIL   1  /**< failure */
 
 
-/* all interfaces declarations MUST start with this macro */
+/** all interfaces declarations MUST start with this macro */
 #define INTERFACE_HEAD_DECL struct InterfaceHead head;
 
-/* and all interface initializers must start with one of these macros */
+/** and all interface initializers must start with this or the next macro.
+ * @param iid the interface id of this interface
+ * @param name a unique name for the implementation of the interface */
 #define INTERFACE_HEAD_INIT(iid, name) { MODMAN_MAGIC, iid, name, -1, 0 },
+/** this is a fancier version of INTERFACE_HEAD_INIT that lets you set a
+ ** priority for the implementation.
+ * when multiple implementations are registered for one interface, the
+ * one with the highest priority is returned. */
 #define INTERFACE_HEAD_INIT_PRI(iid, name, pri) { MODMAN_MAGIC, iid, name, pri, 0 },
 
 
-/* stuff used for implementing the above */
+/** this struct appears at the head of each interface implementation declaration.
+ * you shouldn't ever use it directly, but it's necessary for the above
+ * macros (INTERFACE_HEAD_DECL, INTERFACE_HEAD_INIT). */
 typedef struct InterfaceHead
 {
 	unsigned long magic;
@@ -66,6 +79,7 @@ typedef struct InterfaceHead
 	int priority, refcount;
 } InterfaceHead;
 
+/** a magic value to distinguish interface pointers */
 #define MODMAN_MAGIC 0x46692017
 
 
@@ -76,8 +90,12 @@ typedef struct mod_args_t
 	void *privdata;
 } mod_args_t;
 
-typedef int (*ModuleLoaderFunc)(int action, mod_args_t *args, const char *line, Arena *arena);
-/* this will be called when loading a module. action is:
+/** the type of a module loader handler.
+ * different types of module loaders can exist in the server. the C
+ * module loader is required, and a Python module loader is also
+ * included. you can register a module loader with RegModuleLoader.
+ *
+ * this will be called when loading a module. action is:
  * MM_LOAD - requesting to load a module. line will be set. fill in
  * args. ignore arena. return MM_OK/FAIL
  * MM_UNLOAD - requesting to unload. ignore line. args will be set.
@@ -94,8 +112,15 @@ typedef int (*ModuleLoaderFunc)(int action, mod_args_t *args, const char *line, 
  * all of the stuff in args is for the module loader's use, although
  * name and info will be used by the module manager.
  */
+typedef int (*ModuleLoaderFunc)(int action, mod_args_t *args, const char *line, Arena *arena);
 
 
+/** Use this in some of the following functions to refer to make things
+ ** global instead of specific to an arena. */
+#define ALLARENAS NULL
+
+
+/** the module manager interface struct */
 typedef struct Imodman
 {
 	INTERFACE_HEAD_DECL
@@ -103,82 +128,137 @@ typedef struct Imodman
 
 	/* module stuff */
 
-	int (*LoadModule)(const char *specifier);
-	/* load a module. the specifier is of the form 'file:modname'. file
-	 * is the filename (without the .so/.dll) or 'int' for internal modules.
-	 * eventually, 'file:modname@remotehost:port' will be supported for
-	 * remote modules.  */
-	/* pyint: string -> int */
-
-	int (*UnloadModule)(const char *name);
-	/* unloads a module. only the name should be given (not the file). */
-	/* pyint: string -> int */
-
-	void (*EnumModules)(void (*func)(const char *name, const char *info,
-				void *clos), void *clos);
-	/* calls the given function for each loaded module, passing it the
-	 * module name any extra info, and a closure pointer for it to use.
+	/** Load a module.
+	 * The specifier is of the form "<loader>file:modname". loader
+	 * describes the module loader to use, and is optional. if omitted,
+	 * the C loader is used. file is the filename (without the
+	 * .so/.dll/.py), and is also optional. if omitted (omit the colon
+	 * too), the module is assumed to be linked into the asss binary.
 	 */
+	int (*LoadModule)(const char *specifier);
+	/* pyint: string -> int */
 
+	/** Unloads a module.
+	 * Only the name should be given (not the loader or filename).
+	 */
+	int (*UnloadModule)(const char *name);
+	/* pyint: string -> int */
+
+	/** Calls the supplied callback function for each loaded module,
+	 ** passing it the module name any extra info, and a closure pointer
+	 ** for it to use.
+	 * If attachedfilter is not NULL, only modules attached to the
+	 * specified arena are returned.
+	 */
+	void (*EnumModules)(void (*func)(const char *name, const char *info,
+				void *clos), void *clos, Arena *attachedfilter);
+
+	/** Attaches a module to an arena.
+	 * This is called by the arena manager at the proper stage of arena
+	 * loading, and occasionally while the arena is running also.
+	 */
 	void (*AttachModule)(const char *modname, Arena *arena);
+	/** Detaches a module from an arena.
+	 * This is called by the arena manager at the proper stage of arena
+	 * loading, and occasionally while the arena is running also.
+	 */
 	void (*DetachModule)(const char *modname, Arena *arena);
-	/* these are called by the arena manager to attach and detach
-	 * modules to arenas that are loaded and destroyed. */
 
 
 	/* interface stuff */
 
-	void (*RegInterface)(void *iface, Arena *arena);
-	int (*UnregInterface)(void *iface, Arena *arena);
-	/* these are the way of providing interfaces for other modules. they
-	 * should be called with an interface id and a pointer to the
-	 * interface. UnregInterface will refuse to unregister an interface
-	 * that is references by other modules. it will return the reference
-	 * count of the interface that's being unregistered, so a zero means
-	 * success. */
-
-	void * (*GetInterface)(const char *id, Arena *arena);
-	void * (*GetInterfaceByName)(const char *name);
-	/* these two retrieve interface pointers. GetInterface gets the
-	 * interface pointer of the highest-priority implementation for that
-	 * id. GetInterfaceByName gets one specific implementation by name.
+	/** Registers an implementation of an interface to expose to other
+	 ** modules.
+	 * @param iface a pointer to the interface structure to register.
+	 * because of the macros like INTERFACE_HEAD_INIT, the interface id
+	 * and other relevent information will be included in the interface
+	 * struct itself.
+	 * @param arena the arena to register the interface for, or
+	 * ALLARENAS to make it globally visible.
 	 */
+	void (*RegInterface)(void *iface, Arena *arena);
+	/** Unregisters an implementation of an interface.
+	 * This should be called once for each call to RegInterface, with
+	 * the same parameters. It will refuse to register an interface if
+	 * its reference count indicates that it's still being used by other
+	 * modules.
+	 * @param iface a pointer to the interface structure
+	 * @param arena the arena to unregister the interface for, or
+	 * ALLARENAS to unregister it globally. note that if arena was
+	 * specified to RegInterface, it must be specified to UnregInterface
+	 * too; using ALLARENAS doesn't unregister arena-specific
+	 * interfaces.
+	 * @return the reference count of the interface struct, so zero
+	 * means success.
+	 */
+	int (*UnregInterface)(void *iface, Arena *arena);
 
+	/** Retrieves an interface pointer.
+	 * @param id the interface id for the desired interface
+	 * @param arena the arena to use when looking for registered
+	 * implementations, or ALLARENAS to use only globally registered
+	 * implementations.
+	 */
+	void * (*GetInterface)(const char *id, Arena *arena);
+	/** Retrieves an interface pointer, by implementation name.
+	 * Rather than getting any implementation that's registered for some
+	 * interface id, sometimes you need to get a specific implementation
+	 * by name. the name is the second parameter to INTERFACE_HEAD_INIT.
+	 * @param name the name of the implementation of the interface
+	 * pointer to get
+	 */
+	void * (*GetInterfaceByName)(const char *name);
+
+	/** Release an interface pointer.
+	 * This decrements the reference count in the interface struct. You
+	 * need to do this once for each GetInterface/ByName you do.
+	 */
 	void (*ReleaseInterface)(void *iface);
-	/* this should be called on an interface pointer when you don't need
-	 * it anymore. */
 
 
-	/* callback stuff */
-
-	void (*RegCallback)(const char *id, void *func, Arena *arena);
-	void (*UnregCallback)(const char *id, void *func, Arena *arena);
-	/* these manage callback functions. putting this functionality in
+	/* callback stuff.
+	 * these manage callback functions. putting this functionality in
 	 * here keeps every other module that wants to call callbacks from
 	 * implementing it themselves. */
 
-	void (*LookupCallback)(const char *id, Arena *arena, LinkedList *res);
-	void (*FreeLookupResult)(LinkedList *res);
-	/* these are how callbacks are called. LookupCallback will return a
-	 * list of functions to call. when you're done calling them all,
-	 * call FreeLookupResult on the list. */
+	/** Registers a function as a callback handler.
+	 * Be careful with the type of the function. Because this is a
+	 * generic function, no type checking can be done.
+	 * @param id the callback id to register it for (CB_BLAH)
+	 * @param func the handler to register
+	 * @param arena the arena to register it for, or ALLARENAS to
+	 * register it globally
+	 */
+	void (*RegCallback)(const char *id, void *func, Arena *arena);
+	/** Unregisters a function as a callback handler.
+	 * You should call this with the same arguments as RegCallback when
+	 * your module is detaching or unloading.
+	 */
+	void (*UnregCallback)(const char *id, void *func, Arena *arena);
 
+	/** Returns a list of currently registered handlers for a type of
+	 ** callback and arena.
+	 * If arena is set, returns all callbacks registered for that arena,
+	 * and also all registered globally. If arena is ALLARENAS, returns
+	 * only callbacks registered globally.
+	 * Don't use this directly, use the DO_CBS macro.
+	 * @see DO_CBS
+	 */
+	void (*LookupCallback)(const char *id, Arena *arena, LinkedList *res);
+	/** Frees a callback list result from LookupCallback.
+	 * @see DO_CBS
+	 */
+	void (*FreeLookupResult)(LinkedList *res);
+
+	/* do what they say. you shouldn't need to use these. */
 	Arena * (*GetArenaOfCurrentCallback)(void);
 	Arena * (*GetArenaOfLastInterfaceRequest)(void);
-	/* does what they say. you shouldn't need to use these. */
-
-#define ALLARENAS NULL
-	/* if you want a callback to take effect globally, use ALLARENAS as
-	 * the 'arena' parameter to the above functions. callbacks
-	 * registered with ALLARENAS will be returned to _any_ call to
-	 * LookupCallback with that callback name. calling LookupCallback
-	 * with ALLARENAS will return _only_ the callbacks that were
-	 * specifically registered with ALLARENAS. (that is, it doesn't
-	 * return callbacks that are specific to an arena. if you think the
-	 * behaviour doesn't make sense, tell me.) */
 
 	/* module loaders */
+
+	/** Registers a new module loader. */
 	void (*RegModuleLoader)(const char *signature, ModuleLoaderFunc func);
+	/** Unregisters a module loader. */
 	void (*UnregModuleLoader)(const char *signature, ModuleLoaderFunc func);
 
 	/* these functions should be called only from main.c */
@@ -191,16 +271,33 @@ typedef struct Imodman
 } Imodman;
 
 
+/** The entry point to the module manager.
+ * Only main should call this. */
 Imodman * InitModuleManager(void);
-/* this is the entry point to the module manager. only main should call
- * this. */
 
+/** Deinitializes the module manager.
+ * Only main should call this. */
 void DeInitModuleManager(Imodman *mm);
-/* this deinitializes the module manager. only main should call this. */
 
 
 
-/* this might be a useful macro */
+/** Calls all registered handlers of some type.
+ * You should use this macro to invoke callback functions, instead of
+ * using LookupCallback yourself. Here's an example from flags.c:
+ * @code
+ *   DO_CBS(CB_FLAGWIN, arena, FlagWinFunc, (arena, freq));
+ * @endcode
+ * @param cb the callback id to call (CB_BLAH)
+ * @param arena the arena to lookup handlers in, or ALLARENAS to call
+ * only globally registered handlers. if arena is not ALLARENAS,
+ * handlers registered for that arena, and also ones registered
+ * globally, will be called. if arena is ALLARENAS, only handlers
+ * registered globally will be called.
+ * @param type the type representing the callback handler signature
+ * (BlahFunc)
+ * @param args the arguments to the callback handler, enclosed in an
+ * extra set of parenthesis
+ */
 #define DO_CBS(cb, arena, type, args)        \
 do {                                         \
 	LinkedList _a_lst;                       \

@@ -265,7 +265,7 @@ local void Csetship(const char *params, Player *p, const Target *target)
 		LinkedList set = LL_INITIALIZER;
 		Link *l;
 
-		if (ship < WARBIRD || ship > SPEC)
+		if (ship < SHIP_WARBIRD || ship > SHIP_SPEC)
 			return;
 
 		pd->TargetToSet(target, &set);
@@ -344,15 +344,24 @@ local void send_msg_cb(const char *line, void *clos)
 
 local helptext_t lsmod_help =
 "Targets: none\n"
-"Args: none\n"
-"Lists all the modules currently loaded into the server.\n";
+"Args: [{-a}]\n"
+"Lists all the modules currently loaded into the server. With {-a}, lists\n"
+"only modules attached to this arena.\n";
 
 local void Clsmod(const char *params, Player *p, const Target *target)
 {
 	char data[MAXDATA+6];
 	memset(data, 0, sizeof(data));
-	mm->EnumModules(add_mod, (void*)data);
-	chat->SendMessage(p, "Loaded modules:");
+	if (strstr(params, "-a"))
+	{
+		mm->EnumModules(add_mod, (void*)data, p->arena);
+		chat->SendMessage(p, "Modules attached to arena %s:", p->arena->name);
+	}
+	else
+	{
+		mm->EnumModules(add_mod, (void*)data, NULL);
+		chat->SendMessage(p, "Loaded modules:");
+	}
 	wrap_text(data+2, 80, ' ', send_msg_cb, p);
 }
 
@@ -1045,7 +1054,7 @@ local void Cspecall(const char *params, Player *p, const Target *target)
 
 	pd->TargetToSet(target, &set);
 	for (l = LLGetHead(&set); l; l = l->next)
-		game->SetFreqAndShip(l->data, SPEC, arena->specfreq);
+		game->SetFreqAndShip(l->data, SHIP_SPEC, arena->specfreq);
 	LLEmpty(&set);
 }
 
@@ -1348,7 +1357,7 @@ local void Cflaginfo(const char *params, Player *p, const Target *target)
 	Arena *arena;
 	int i;
 
-	if (!p->arena || target->type != T_ARENA)
+	if (target->type != T_ARENA)
 		return;
 
 	arena = p->arena;
@@ -1695,7 +1704,7 @@ local void Clistarena(const char *params, Player *p, const Target *target)
 		if (p2->status == S_PLAYING && p2->arena == a)
 		{
 			total++;
-			if (p2->p_ship != SPEC)
+			if (p2->p_ship != SHIP_SPEC)
 				playing++;
 			if ((pos - text) < (sizeof(text) - 10))
 			{

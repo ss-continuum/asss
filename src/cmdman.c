@@ -68,6 +68,7 @@ EXPORT int MM_cmdman(int action, Imodman *mm_, Arena *arena)
 		cmds = HashAlloc();
 
 		defaultfunc = NULL;
+		defaultfunc2 = NULL;
 
 		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
@@ -261,6 +262,10 @@ void Command(const char *line, Player *p, const Target *target)
 	char cmd[40], *t;
 	int private, skiplocal = FALSE;
 	const char *origline;
+
+	/* almost all commands assume p->arena is non-null */
+	if (p->arena == NULL)
+		return;
 
 	if (line[0] == '\\')
 	{

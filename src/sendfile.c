@@ -146,13 +146,13 @@ local void Csendfile(const char *params, Player *p, const Target *target)
 		return;
 	}
 
-	if (p->p_ship != SPEC)
+	if (p->p_ship != SHIP_SPEC)
 	{
 		chat->SendMessage(p, "You must be in spectator mode to offer files");
 		return;
 	}
 
-	if (t->p_ship != SPEC)
+	if (t->p_ship != SHIP_SPEC)
 	{
 		chat->SendMessage(p, "You must offer files to another player in spectator mode");
 		return;

@@ -9,6 +9,8 @@
 #include "asss.h"
 #include "persist.h"
 
+#include "packets/chat.h"
+
 
 #define KEY_CHAT 47
 

@@ -785,7 +785,7 @@ void PPickupFlag(Player *p, byte *pkt, int len)
 	if (len != sizeof(struct C2SFlagPickup))
 		ERR("bad size for flag pickup packet")
 
-	if (p->p_ship >= SPEC)
+	if (p->p_ship >= SHIP_SPEC)
 		ERR("flag pickup packet from spec")
 
 	if (p->flags.during_change)
@@ -881,7 +881,7 @@ void PDropFlag(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	if (p->p_ship >= SPEC)
+	if (p->p_ship >= SHIP_SPEC)
 	{
 		logm->Log(L_MALICIOUS, "<flags> [%s] flag drop packet from spec", p->name);
 		return;

@@ -21,7 +21,7 @@ typedef struct ModuleData
 
 local int LoadModule_(const char *);
 local int UnloadModule(const char *);
-local void EnumModules(void (*)(const char *, const char *, void *), void *);
+local void EnumModules(void (*)(const char *, const char *, void *), void *, Arena *);
 local void AttachModule(const char *, Arena *);
 local void DetachModule(const char *, Arena *);
 
@@ -274,15 +274,16 @@ void NoMoreModules(void)
 }
 
 
-void EnumModules(void (*func)(const char *, const char *, void *), void *clos)
+void EnumModules(void (*func)(const char *, const char *, void *),
+		void *clos, Arena *filter)
 {
-	ModuleData *mod;
 	Link *l;
 	pthread_mutex_lock(&modmtx);
 	for (l = LLGetHead(&mods); l; l = l->next)
 	{
-		mod = (ModuleData*) l->data;
-		func(mod->args.name, mod->args.info, clos);
+		ModuleData *mod = l->data;
+		if (filter == NULL || LLMember(&mod->attached, filter))
+			func(mod->args.name, mod->args.info, clos);
 	}
 	pthread_mutex_unlock(&modmtx);
 }

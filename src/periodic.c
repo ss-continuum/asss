@@ -116,9 +116,10 @@ local int timer(void *set_)
 		/* now reward points to all */
 		pd->Lock();
 		FOR_EACH_PLAYER(p)
-			if (p->status == S_PLAYING &&
+			if (IS_STANDARD(p) &&
+			    p->status == S_PLAYING &&
 			    p->arena == set->arena &&
-			    p->p_ship != SPEC &&
+			    p->p_ship != SHIP_SPEC &&
 			    !(p->position.status & STATUS_SAFEZONE))
 				if ((fd = (freq_data*)TrGet(fdata, p->p_freq)))
 					stats->IncrementStat(p, STAT_FLAG_POINTS, fd->points);
@@ -214,4 +215,5 @@ EXPORT int MM_periodic(int action, Imodman *mm_, Arena *arena)
 	}
 	return MM_FAIL;
 }
+
 

@@ -139,8 +139,6 @@ void PA(Player *p, int action, Arena *arena)
 		else
 			*seewhat = SEE_NONE;
 	}
-	else
-		*seewhat = SEE_NONE;
 }
 
 

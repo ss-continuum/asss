@@ -49,7 +49,7 @@ local int count_current_playing(Arena *arena)
 	FOR_EACH_PLAYER(p)
 		if (p->status == S_PLAYING &&
 		    p->arena == arena &&
-		    p->p_ship != SPEC)
+		    p->p_ship != SHIP_SPEC)
 			playing++;
 	pd->Unlock();
 	return playing;
@@ -66,7 +66,7 @@ local int count_freq(Arena *arena, int freq, Player *excl, int inclspec)
 		if (p->arena == arena &&
 		    p->p_freq == freq &&
 		    p != excl &&
-		    ( p->p_ship != SPEC || inclspec ) )
+		    ( p->p_ship != SHIP_SPEC || inclspec ) )
 			t++;
 	pd->Unlock();
 	return t;
@@ -84,8 +84,8 @@ local int FindLegalShip(Arena *arena, int freq, int ship)
 	if (clockwork)
 	{
 		/* we don't want to switch the ships of speccers, even in FST */
-		if (ship == SPEC || freq < 0 || freq > SHARK)
-			return SPEC;
+		if (ship == SHIP_SPEC || freq < 0 || freq > SHIP_SHARK)
+			return SHIP_SPEC;
 		else
 			return freq;
 	}
@@ -119,7 +119,7 @@ local int BalanceFreqs(Arena *arena, Player *excl, int inclspec)
 		if (i->arena == arena &&
 		    i->p_freq < desired &&
 		    i != excl &&
-		    ( i->p_ship != SPEC || inclspec ) )
+		    ( i->p_ship != SHIP_SPEC || inclspec ) )
 			counts[i->p_freq]++;
 	pd->Unlock();
 
@@ -173,9 +173,9 @@ local void Initial(Player *p, int *ship, int *freq)
 	    p->flags.no_ship ||
 	    !screen_res_allowed(p, ch) ||
 	    INITIALSPEC(ch))
-		s = SPEC;
+		s = SHIP_SPEC;
 
-	if (s == SPEC)
+	if (s == SHIP_SPEC)
 	{
 		f = arena->specfreq;
 	}
@@ -203,7 +203,7 @@ local void Ship(Player *p, int *ship, int *freq)
 	ch = arena->cfg;
 
 	/* always allow switching to spec */
-	if (s >= SPEC)
+	if (s >= SHIP_SPEC)
 	{
 		f = arena->specfreq;
 	}
@@ -222,7 +222,7 @@ local void Ship(Player *p, int *ship, int *freq)
 		goto deny;
 	}
 	/* check if changing from spec and too many playing */
-	else if (p->p_ship == SPEC && count_current_playing(arena) >= MAXPLAYING(ch))
+	else if (p->p_ship == SHIP_SPEC && count_current_playing(arena) >= MAXPLAYING(ch))
 	{
 		if (chat)
 			chat->SendMessage(p,
@@ -233,7 +233,7 @@ local void Ship(Player *p, int *ship, int *freq)
 	else
 	{
 		/* check if he's changing from spec */
-		if (p->p_ship == SPEC && p->p_freq == arena->specfreq)
+		if (p->p_ship == SHIP_SPEC && p->p_freq == arena->specfreq)
 		{
 			/* leaving spec, we have to assign him to a freq */
 			int inclspec = INCLSPEC(ch);
@@ -285,7 +285,7 @@ local void Freq(Player *p, int *ship, int *freq)
 		max = MAXTEAM(ch);
 
 	/* special case: speccer re-entering spec freq */
-	if (s == SPEC && f == arena->specfreq)
+	if (s == SHIP_SPEC && f == arena->specfreq)
 		return;
 
 	if (f < 0 || f > maxfreq)
@@ -322,8 +322,8 @@ local void Freq(Player *p, int *ship, int *freq)
 
 	/* check if this change brought him out of spec and there are too
 	 * many people playing. */
-	if (s != SPEC &&
-	    p->p_ship == SPEC &&
+	if (s != SHIP_SPEC &&
+	    p->p_ship == SHIP_SPEC &&
 	    count_current_playing(arena) >= MAXPLAYING(ch))
 	{
 		s = p->p_ship;

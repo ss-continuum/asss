@@ -104,7 +104,7 @@ local Player * NewPlayer(int type)
 	p->arena = NULL;
 	p->newarena = NULL;
 	p->pid = pid;
-	p->p_ship = SPEC;
+	p->p_ship = SHIP_SPEC;
 	p->p_attached = -1;
 	p->connecttime = current_ticks();
 	p->connectas = NULL;

@@ -567,7 +567,7 @@ local int arenas_get_names(DBT *key, DBT *val)
 	return FALSE;
 }
 
-local void arenas_print_names(char *key, void *val, void *data)
+local void arenas_print_names(const char *key, void *val, void *data)
 {
 	arenas_info *i = val;
 	printf("%-16.16s  %6d /%9d  %6d /%9d  %6d /%9d\n",
@@ -624,7 +624,7 @@ local int players_get_names(DBT *key, DBT *val)
 	return FALSE;
 }
 
-local void players_print_names(char *key, void *val, void *data)
+local void players_print_names(const char *key, void *val, void *data)
 {
 	players_info *i = val;
 	printf("%-20.20s  %6d /%9d\n",
@@ -675,7 +675,7 @@ local int serials_get_names(DBT *key, DBT *val)
 	return FALSE;
 }
 
-local void serials_print_nums(char *key, void *val, void *data)
+local void serials_print_nums(const char *key, void *val, void *data)
 {
 	puts(key);
 }

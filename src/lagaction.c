@@ -55,9 +55,9 @@ local Ilogman *lm;
 
 local int Spec(Player *p, laglimits_t *ll, const char *why)
 {
-	if (p->p_ship != SPEC)
+	if (p->p_ship != SHIP_SPEC)
 	{
-		game->SetFreqAndShip(p, SPEC, ll->specfreq);
+		game->SetFreqAndShip(p, SHIP_SPEC, ll->specfreq);
 		if (lm)
 			lm->LogP(L_INFO, "lagaction", p, "specced for: %s", why);
 		return 1;

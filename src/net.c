@@ -192,6 +192,8 @@ typedef struct ListenData
 	int port;
 	const char *connectas;
 	int allowvie, allowcont;
+	/* dynamic population data */
+	int total, playing;
 } ListenData;
 
 
@@ -226,6 +228,7 @@ local void GetStats(struct net_stats *stats);
 local void GetClientStats(Player *p, struct net_client_stats *stats);
 local int GetLastPacketTime(Player *p);
 local int GetListenData(unsigned index, int *port, char *connectasbuf, int buflen);
+local int GetLDPopulation(const char *connectas);
 
 /* net-client interface */
 local ClientConnection *MakeClientConnection(const char *addr, int port,
@@ -280,6 +283,7 @@ local LinkedList handlers[MAXTYPES];
 local LinkedList sizedhandlers[MAXTYPES];
 
 local LinkedList listening = LL_INITIALIZER;
+local HashTable *listenmap;
 local int clientsock;
 
 local LinkedList clientconns = LL_INITIALIZER;
@@ -368,7 +372,7 @@ local Inet netint =
 
 	ReallyRawSend, NewConnection,
 
-	GetStats, GetClientStats, GetLastPacketTime, GetListenData
+	GetStats, GetClientStats, GetLastPacketTime, GetListenData, GetLDPopulation
 };
 
 
@@ -539,6 +543,7 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		}
 		LLEnum(&listening, afree);
 		LLEmpty(&listening);
+		HashFree(listenmap);
 		closesocket(clientsock);
 
 		pd->FreePlayerData(connkey);
@@ -753,7 +758,7 @@ int InitSockets(void)
 	 * connect to the server. It serves as a virtual server identifier
 	 * for the rest of the server. */
 
-
+	listenmap = HashAlloc();
 	for (i = 0; i < 10; i++)
 	{
 		int port;
@@ -853,6 +858,8 @@ int InitSockets(void)
 		ld->connectas = connectas ? astrdup(connectas) : NULL;
 
 		LLAdd(&listening, ld);
+		if (connectas)
+			HashAdd(listenmap, connectas, ld);
 
 		lm->Log(L_DRIVEL, "<net> listening on %s:%d (%d)",
 				inet_ntoa(sin.sin_addr), port, i);
@@ -901,6 +908,12 @@ int GetListenData(unsigned index, int *port, char *connectasbuf, int buflen)
 		astrncpy(connectasbuf, ld->connectas ? ld->connectas : "", buflen);
 
 	return TRUE;
+}
+
+int GetLDPopulation(const char *connectas)
+{
+	ListenData *ld = HashGetOne(listenmap, connectas);
+	return ld ? ld->total : -1;
 }
 
 
@@ -1073,11 +1086,20 @@ local void handle_ping_packet(ListenData *ld)
 		byte *pos = sdata.aps;
 		Arena *a;
 		Link *link;
+		ListenData *xld;
 		int total, playing;
 		Iarenaman *aman = mm->GetInterface(I_ARENAMAN, NULL);
 
 		if (!aman) return;
 
+		/* clear population fields in listendata */
+		for (link = LLGetHead(&listening); link; link = link->next)
+		{
+			xld = link->data;
+			xld->total = xld->playing = 0;
+		}
+
+		/* fill in arena summary packet with info from aman */
 		aman->Lock();
 		aman->GetPopulationSummary(&total, &playing);
 		FOR_EACH_ARENA(a)
@@ -1092,6 +1114,13 @@ local void handle_ping_packet(ListenData *ld)
 				*pos++ = (a->total >> 8) & 0xFF;
 				*pos++ = (a->playing >> 0) & 0xFF;
 				*pos++ = (a->playing >> 8) & 0xFF;
+			}
+			/* also update two fields in each ListenData */
+			xld = HashGetOne(listenmap, a->basename);
+			if (xld)
+			{
+				xld->total += a->total;
+				xld->playing += a->playing;
 			}
 		}
 		aman->Unlock();
@@ -1116,22 +1145,8 @@ local void handle_ping_packet(ListenData *ld)
 	}
 	else if (len == 4)
 	{
-		int calen = strlen(ld->connectas);
-		Link *link;
-		Player *p;
-
 		data[1] = data[0];
-		data[0] = 0;
-		pd->Lock();
-		FOR_EACH_PLAYER(p)
-			if (p->status == S_PLAYING &&
-			    p->type != T_FAKE &&
-			    p->arena &&
-			    ( !ld->connectas ||
-			      strncmp(p->arena->name, ld->connectas, calen) == 0))
-				data[0]++;
-		pd->Unlock();
-
+		data[0] = ld->total;
 		sendto(ld->pingsock, (char*)data, 8, 0,
 				(struct sockaddr*)&sin, sinsize);
 	}

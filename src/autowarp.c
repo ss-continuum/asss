@@ -94,7 +94,7 @@ void Pppk(Player *p, byte *p2, int len)
 	if (!arena || !ad->on) return;
 
 	/* speccers don't get their position sent to anyone */
-	if (p->p_ship == SPEC)
+	if (p->p_ship == SHIP_SPEC)
 		return;
 
 	if (pos->yspeed < 0 &&

@@ -54,8 +54,8 @@ typedef struct IfBlock
 
 struct APPContext
 {
-	FileFinderFunc finder;
-	ReportErrFunc err;
+	APPFileFinderFunc finder;
+	APPReportErrFunc err;
 	char *arena;
 	FileEntry *file;
 	IfBlock *ifs;
@@ -94,7 +94,7 @@ static void do_error(APPContext *ctx, const char *fmt, ...)
 }
 
 
-APPContext *InitContext(FileFinderFunc finder, ReportErrFunc err, const char *arena)
+APPContext *APPInitContext(APPFileFinderFunc finder, APPReportErrFunc err, const char *arena)
 {
 	APPContext *ctx = amalloc(sizeof(*ctx));
 
@@ -111,12 +111,12 @@ APPContext *InitContext(FileFinderFunc finder, ReportErrFunc err, const char *ar
 }
 
 
-static void afree_hash(char *key, void *val, void *d)
+static void afree_hash(const char *key, void *val, void *d)
 {
 	afree(val);
 }
 
-void FreeContext(APPContext *ctx)
+void APPFreeContext(APPContext *ctx)
 {
 	FileEntry *f = ctx->file;
 	IfBlock *ifs = ctx->ifs;
@@ -147,14 +147,14 @@ void FreeContext(APPContext *ctx)
 }
 
 
-void AddDef(APPContext *ctx, const char *key, const char *val)
+void APPAddDef(APPContext *ctx, const char *key, const char *val)
 {
 	char *oval = HashGetOne(ctx->defs, key);
 	HashReplace(ctx->defs, key, astrdup(val));
 	if (oval) afree(oval);
 }
 
-void RemoveDef(APPContext *ctx, const char *key)
+void APPRemoveDef(APPContext *ctx, const char *key)
 {
 	char *val = HashGetOne(ctx->defs, key);
 	HashRemove(ctx->defs, key, val);
@@ -195,7 +195,7 @@ static FileEntry *get_file(APPContext *ctx, const char *name)
 }
 
 
-void AddFile(APPContext *ctx, const char *name)
+void APPAddFile(APPContext *ctx, const char *name)
 {
 	FileEntry *fe;
 
@@ -386,12 +386,12 @@ static void handle_directive(APPContext *ctx, char *buf)
 				*t = 0;
 				t++;
 				while (isspace(*t)) t++;
-				AddDef(ctx, key, t);
+				APPAddDef(ctx, key, t);
 			}
 			else
 			{
 				/* define with no value */
-				AddDef(ctx, key, "1");
+				APPAddDef(ctx, key, "1");
 			}
 		}
 		else if (!strncmp(buf, "undef", 5))
@@ -401,7 +401,7 @@ static void handle_directive(APPContext *ctx, char *buf)
 			/* leading space */
 			t = buf + 5;
 			while (isspace(*t)) t++;
-			RemoveDef(ctx, t);
+			APPRemoveDef(ctx, t);
 		}
 		else if (!strncmp(buf, "include", 7))
 		{
@@ -433,7 +433,7 @@ static void handle_directive(APPContext *ctx, char *buf)
 #endif
 
 /* returns false on eof */
-int GetLine(APPContext *ctx, char *buf, int buflen)
+int APPGetLine(APPContext *ctx, char *buf, int buflen)
 {
 	char mybuf[MAXLINE], *t;
 
