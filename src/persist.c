@@ -41,6 +41,9 @@ local void SyncToFile(int pid, int arena, void (*callback)(int pid));
 local void SyncFromFile(int pid, int arena, void (*callback)(int pid));
 local void StabilizeScores(int seconds);
 
+/* timer func */
+int SyncTimer(void *);
+
 /* private funcs */
 local void *DBThread(void *);
 local void ScoreAA(int arena, int action);
@@ -54,6 +57,7 @@ local Ilogman *log;
 local Iconfig *cfg;
 local Iarenaman *aman;
 local Iplayerdata *pd;
+local Imainloop *ml;
 
 local ArenaData *arenas;
 
@@ -67,6 +71,8 @@ local pthread_mutex_t dbmtx = PTHREAD_MUTEX_INITIALIZER;
 /* big array of DB's */
 local DB *databases[MAXARENA];
 local DB *globaldb;
+
+local int cfg_syncseconds;
 
 local Ipersist _myint =
 {
@@ -85,6 +91,7 @@ int MM_persist(int action, Imodman *_mm)
 		mm->RegInterest(I_LOGMAN, &log);
 		mm->RegInterest(I_CONFIG, &cfg);
 		mm->RegInterest(I_ARENAMAN, &aman);
+		mm->RegInterest(I_MAINLOOP, &ml);
 
 		arenas = aman->data;
 
@@ -97,9 +104,15 @@ int MM_persist(int action, Imodman *_mm)
 		globaldb = OpenDB("global.db");
 
 		mm->RegInterface(I_PERSIST, &_myint);
+
+		cfg_syncseconds = cfg ?
+				cfg->GetInt("Persist", "SyncSeconds", 60) : 60;
+
+		ml->SetTimer(SyncTimer, 12000, cfg_syncseconds * 100, NULL);
 	}
 	else if (action == MM_UNLOAD)
 	{
+		ml->ClearTimer(SyncTimer);
 		mm->UnregInterface(I_PERSIST, &_myint);
 		mm->UnregCallback(CALLBACK_ARENAACTION, ScoreAA);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
@@ -415,7 +428,15 @@ void StabilizeScores(int seconds)
 
 	msg->command = DB_SYNCWAIT;
 	msg->data = seconds;
+	msg->callback = NULL;
+
 	MPAdd(&dbq, msg);
 }
 
+
+int SyncTimer(void *dummy)
+{
+	StabilizeScores(0);
+	return 1;
+}
 
