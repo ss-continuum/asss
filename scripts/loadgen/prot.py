@@ -9,6 +9,7 @@ s_nothing = 0
 s_sentkey = 1
 s_connected = 2
 
+class Disconnected(Exception): pass
 
 class Pkt:
 	def __init__(me, data, seqnum = None):
@@ -80,7 +81,7 @@ class Connection:
 		if (now - me.lastrecv) > me.timeoutinterval:
 			log("no packets from server in %s seconds, assuming down" %
 				((now-me.lastrecv)/100))
-			util.exit(1)
+			raise Disconnected()
 
 		# only send stuff once we're connected
 		if me.stage != s_connected:
@@ -132,7 +133,7 @@ class Connection:
 				(key,) = struct.unpack('<i', p[2:6])
 				if key != 0:
 					log("remote server responded with bad key")
-					util.exit(0)
+					raise Disconnected()
 				else:
 					log("remote server responded correctly")
 
@@ -155,7 +156,8 @@ class Connection:
 				# close our sockets and die
 				log("got disconnect from server, exiting")
 				me.sock.close()
-				util.exit(0)
+				# the main loop catches this and removes us
+				raise Disconnected()
 			elif t2 == 8:
 				# chunk
 				me.curchunk = me.curchunk + p[2:]

@@ -1,58 +1,73 @@
+#!/usr/bin/env python
 
-
-import sys, select, signal
-
+import sys, os, select, signal, optparse
 import util, prot, ui, pilot
 
+conns = []
 
-def set_signal(conn):
+def set_signal():
 	def sigfunc(signum, frame):
 		util.log("caught signal, disconnecting")
-		conn.disconnect()
-		util.exit(0)
+		for conn, mypilot in conns:
+			conn.disconnect()
+		os._exit(0)
 	signal.signal(signal.SIGTERM, sigfunc)
 	signal.signal(signal.SIGINT, sigfunc)
 
 
-def main(argv):
+def main():
+	parser = optparse.OptionParser()
+	parser.add_option('-s', '--server', type='string', dest='server', default='127.0.0.1')
+	parser.add_option('-p', '--port', type='int', dest='port', default=5000)
+	parser.add_option('-n', type='int', dest='n', default=1)
 
-	# reasonable defaults
-	server = '127.0.0.1'
-	port = 5000
+	(opts, args) = parser.parse_args()
 
-	conn = prot.Connection()
-	conn.connect(server, port)
+	set_signal()
 
-	set_signal(conn)
-
-	mypilot = pilot.Pilot(conn)
+	for i in range(opts.n):
+		conn = prot.Connection()
+		conn.connect(opts.server, opts.port)
+		mypilot = pilot.Pilot(conn, name='loadgen-%02d-%03d' % (os.getpid() % 99, i))
+		conns.append((conn, mypilot))
 
 	myui = None
-	#myui = ui.UI(mypilot)
 
-	while 1:
+	while conns:
 
-		# do a select 10 times a second
+		socks = [0]
+		for conn, mypilot in conns:
+			socks.append(conn.sock)
+
 		try:
-			ready, _, _ = select.select([conn.sock, 0], [], [], 0.1)
+			ready, _, _ = select.select(socks, [], [], 0.01)
 		except:
 			ready = []
 
 		# read/process some data
-		if conn.sock in ready:
-			conn.try_read()
-		if myui and 0 in ready:
-			line = sys.stdin.readline().strip()
-			myui.process_line(line)
+		for conn, mypilot in conns:
+			if conn.sock in ready:
+				try:
+					conn.try_read()
+				except prot.Disconnected:
+					conns.remove((conn, mypilot))
+					continue
+			if myui and 0 in ready:
+				line = sys.stdin.readline().strip()
+				myui.process_line(line)
 
-		# try sending
-		conn.try_sending_outqueue()
+			# try sending
+			try:
+				conn.try_sending_outqueue()
+			except prot.Disconnected:
+				conns.remove((conn, mypilot))
+				continue
 
-		# move pilot
-		mypilot.iter()
-
+			# move pilot
+			mypilot.iter()
 
 
 if __name__ == '__main__':
-	main(sys.argv)
+	main()
+
 

@@ -28,8 +28,3 @@ def log(s):
 	if logfile:
 		logfile.write(l)
 
-def exit(s):
-	import os
-	os._exit(s)
-	log("aaaaaah! shouldn't get here!")
-

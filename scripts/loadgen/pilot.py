@@ -26,7 +26,7 @@ class Timer:
 	def __init__(me, iv, func):
 		me.interval = iv
 		me.func = func
-		me.last = 0
+		me.last = util.ticks() + iv * random.random()
 
 
 class Pilot:
@@ -44,7 +44,6 @@ class Pilot:
 		if name:
 			me.name = name
 		else:
-			random.seed(util.ticks() + os.getpid())
 			me.name = 'loadgen-%06d' % random.randint(0, 999999)
 		me.pwd = pwd
 
@@ -54,9 +53,8 @@ class Pilot:
 
 		me.timers = []
 
-		me.add_timer(400, me.print_stats)
+		me.add_timer(500, me.print_stats)
 
-	
 	def add_timer(me, iv, func):
 		me.timers.append(Timer(iv, func))
 
@@ -85,8 +83,8 @@ class Pilot:
 
 	def handle_inarena(me, pkt):
 		log("in arena, starting ppks")
-		me.add_timer(15, me.send_ppk)
-		me.add_timer(200, me.send_chat)
+		me.add_timer(10 + 10*random.random(), me.send_ppk)
+		me.add_timer(200 + 50*random.random(), me.send_chat)
 
 	def handle_weapon(me, pkt):
 		#log("got weapon")
@@ -123,8 +121,8 @@ class Pilot:
 		me.conn.send(pkt, 1)
 
 	def print_stats(me):
-		log("pos_sent=%d  pos_rcvd=%d  wpn_rcvd=%d  \
-chat_sent=%d  chat_rcvd=%d  inq_len=%d" % \
+		log("pos_sent=%2d  pos_rcvd=%4d  wpn_rcvd=%3d  \
+chat_sent=%2d  chat_rcvd=%3d  inq_len=%2d" % \
 			(me.pos_sent, me.pos_rcvd, me.wpn_rcvd,
 			me.chat_sent, me.chat_rcvd, me.conn.get_inq_len()))
 		me.reset_stats()
