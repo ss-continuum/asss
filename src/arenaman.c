@@ -318,6 +318,7 @@ void PArena(int pid, byte *p, int l)
 	if (go->shiptype < 0 || go->shiptype > SPEC)
 	{
 		log->Log(LOG_BADDATA, "Bad shiptype in request (%s)", players[pid].name);
+		return
 	}
 
 	/* make a name from the request */
@@ -341,6 +342,13 @@ void PArena(int pid, byte *p, int l)
 		return;
 	}
 
+	if (players[pid].arena >= 0)
+	{
+		/* he was in another arena previously, send arena leaving
+		 * message to others
+		 */
+		PLeaving(pid, NULL, 0);
+	}
 
 	/* try to locate an existing arena */
 	arena = FindArena(name, TRUE);

@@ -134,6 +134,10 @@ int main(int argc, char *argv[])
 {
 	int sock, newsock;
 
+	/* ignore these signals */
+	signal(SIGPIPE, SIG_IGN);
+	signal(SIGCHLD, SIG_IGN);
+
 	printf("Elder Daemon " VERSION "\n");
 	printf("Logging to " DEFAULT_LOG_FILE "\n");
 	printf("Forking... (use -n to prevent)\n");
