@@ -28,7 +28,7 @@
 /* packet funcs */
 local void PLogin(int, byte *, int);
 
-local void SendLoginResponse(int, AuthData *);
+local void PrivSendLoginResponse(int, AuthData *);
 
 local int SendKeepalive(void *);
 
@@ -109,11 +109,11 @@ void PLogin(int pid, byte *p, int l)
 		log->Log(LOG_BADDATA,"Bad login packet length (%s)",players[pid].name);
 	else
 		auth->Authenticate
-			(pid, (struct LoginPacket *)p, SendLoginResponse);
+			(pid, (struct LoginPacket *)p, PrivSendLoginResponse);
 }
 
 
-void SendLoginResponse(int pid, AuthData *auth)
+void PrivSendLoginResponse(int pid, AuthData *auth)
 {
 	struct LoginResponse lr =
 		{ S2C_LOGINRESPONSE, 0, 134, 0, EXECHECKSUM, {0, 0},
