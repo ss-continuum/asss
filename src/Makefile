@@ -191,7 +191,7 @@ pymod.$(SO): LIBS=$(PYTHON_LDFLAGS)
 include */*.mk
 
 funky.$(SO): autowarp.o bricklayer.o autoturret.o record.o $(EXTRA_FUNKY_OBJS)
-#funky.$(SO): LIBS=$(ZLIB_LIB) -lm
+funky.$(SO): LIBS=$(ZLIB_LIB) -lm
 
 
 sparse.inc: $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py
