@@ -11,6 +11,7 @@ from util import ticks, log
 # constants
 reliable_retry = 100 # ticks
 max_bigpkt = 512 * 1024
+pinginterval = 3000 # 30 seconds
 
 s_nothing = 0
 s_sentkey = 1
@@ -21,6 +22,7 @@ s_connected = 2
 c2sn = 0
 s2cn = 0
 sock = None
+lastping = ticks()
 
 stage = s_nothing
 
@@ -79,6 +81,13 @@ def try_sending_outqueue():
 	for p in outq:
 		if (ticks - p.lastretry) > reliable_retry:
 			raw_send(p.data)
+
+	# do pings here. slightly hackish.
+	now = ticks()
+	if (now - lastping) > pinginterval:
+		lastping = now
+		queue_pkt('\x01')
+
 
 
 def queue_pkt(data):

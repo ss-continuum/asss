@@ -14,6 +14,9 @@ tar cf - `grep -lr '[d]ist: public' src scripts` scripts/banner.font | \
 	(cd $d ; tar xf -)
 cp src/Makefile.dist $d/src/Makefile
 
+make -C $d/src foo || true # fail intentionally
+cp $d/src/*.inc $d/src
+
 make -C $d/src install
 make -C $d/src clean
 make -C ~/src/extra-asss/contenc all
