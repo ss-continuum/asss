@@ -492,10 +492,10 @@ class LastPrivList:
 			me.max = max
 
 	def add(me, name):
-		if name in me.list:
-			return
-		me.list.append(name)
-		me.list = me.list[-me.max:]
+		while name in me.list:
+			me.list.remove(name)
+		me.list[0:0] = [name]
+		me.list = me.list[:me.max]
 
 	def get(me, start = None):
 		if start is not None:

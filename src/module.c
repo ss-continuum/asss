@@ -19,7 +19,7 @@ typedef struct ModuleData
 } ModuleData;
 
 
-local int LoadModule(const char *);
+local int LoadModule_(const char *);
 local int UnloadModule(const char *);
 local void EnumModules(void (*)(const char *, const char *, void *), void *);
 local void AttachModule(const char *, Arena *);
@@ -60,7 +60,7 @@ local pthread_key_t lastcbarenakey, lastintarenakey;
 local Imodman mmint =
 {
 	INTERFACE_HEAD_INIT(NULL, "modman")
-	LoadModule, UnloadModule, EnumModules,
+	LoadModule_, UnloadModule, EnumModules,
 	AttachModule, DetachModule,
 	RegInterface, UnregInterface, GetInterface, GetInterfaceByName, ReleaseInterface,
 	RegCallback, UnregCallback, LookupCallback, FreeLookupResult,
@@ -133,7 +133,7 @@ local void UnregModuleLoader(const char *sig, ModuleLoaderFunc func)
 	pthread_mutex_unlock(&modmtx);
 }
 
-local int LoadModule(const char *spec)
+local int LoadModule_(const char *spec)
 {
 	int ret = MM_FAIL;
 	ModuleData *mod;

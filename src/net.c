@@ -1724,17 +1724,16 @@ void KillConnection(Player *p)
 	/* check to see if he has any ongoing file transfers */
 	end_sized(p, 0);
 
-	/* if we haven't processed the leaving arena packet yet (quite
-	 * likely), just generate one and process it. this will set status
-	 * to S_LEAVING_ARENA */
+	pd->WriteLock();
+
+	/* this will set status to at least S_LEAVING_ARENA, if the player
+	 * was in anything above S_LOGGEDIN. */
 	if (p->arena)
 	{
 		Iarenaman *aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		if (aman) aman->LeaveArena(p);
 		mm->ReleaseInterface(aman);
 	}
-
-	pd->WriteLock();
 
 	/* make sure that he's on his way out, in case he was kicked before
 	 * fully logging in. */

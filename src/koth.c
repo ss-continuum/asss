@@ -245,7 +245,7 @@ local void shipchange(Player *p, int ship, int freq)
 }
 
 
-local void kill(Arena *arena, Player *killer, Player *killed, int bounty, int flags)
+local void mykill(Arena *arena, Player *killer, Player *killed, int bounty, int flags)
 {
 	struct koth_arena_data *adata = P_ARENA_DATA(arena, akey);
 	struct koth_player_data *erdata = PPDATA(killer, pkey);
@@ -369,7 +369,7 @@ EXPORT int MM_koth(int action, Imodman *mm_, Arena *arena)
 		load_settings(arena);
 		mm->RegCallback(CB_PLAYERACTION, paction, arena);
 		mm->RegCallback(CB_SHIPCHANGE, shipchange, arena);
-		mm->RegCallback(CB_KILL, kill, arena);
+		mm->RegCallback(CB_KILL, mykill, arena);
 		ml->SetTimer(timer, 500, 500, (void*)arena, arena);
 		return MM_OK;
 	}
@@ -379,7 +379,7 @@ EXPORT int MM_koth(int action, Imodman *mm_, Arena *arena)
 		adata->expiretime = 0;
 		mm->UnregCallback(CB_PLAYERACTION, paction, arena);
 		mm->UnregCallback(CB_SHIPCHANGE, shipchange, arena);
-		mm->UnregCallback(CB_KILL, kill, arena);
+		mm->UnregCallback(CB_KILL, mykill, arena);
 		ml->ClearTimer(timer, arena);
 		return MM_OK;
 	}

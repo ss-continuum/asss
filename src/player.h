@@ -78,7 +78,10 @@ enum
 	/* player is playing in an arena. typically the longest stage */
 
 	S_LEAVING_ARENA,
-	/* player has left arena, callbacks need to be called. */
+	/* player has left arena, callbacks need to be called */
+
+	S_DO_ARENA_SYNC2,
+	/* need to sync in the other direction */
 
 	S_WAIT_ARENA_SYNC2,
 	/* waiting for scores sync, other direction */
@@ -129,7 +132,7 @@ struct Player
 #define p_attached pkt.attachedto
 
 	int pid, status, type, whenloggedin;
-	Arena *arena, *oldarena;
+	Arena *arena, *newarena;
 	char name[24], squad[24];
 	i16 xres, yres;
 	ticks_t connecttime;

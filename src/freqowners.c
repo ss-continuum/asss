@@ -89,7 +89,7 @@ local int CountFreq(Arena *arena, int freq, Player *excl)
 
 
 local helptext_t giveowner_help =
-"Module: freqownsers\n"
+"Module: freqowners\n"
 "Targets: player\n"
 "Args: none\n"
 "Allows you to share freq ownership with another player on your current\n"

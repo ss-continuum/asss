@@ -1,6 +1,6 @@
 #!/bin/sh
 
-ASSSHOME=~/src/asss
+ASSSHOME=..
 ZONE=${1:-zone1}
 
 ( cd $ASSSHOME/$ZONE/conf && ln -sf ../../src/settings/*.h . )

@@ -28,7 +28,7 @@ local Player * CreateFakePlayer(const char *name, Arena *arena, int ship, int fr
 	astrncpy(p->pkt.squad, "", 20);
 	p->p_ship = ship;
 	p->p_freq = freq;
-	p->arena = p->oldarena = arena;
+	p->arena = arena;
 	SET_SEND_DAMAGE(p);
 
 	/* enter arena */

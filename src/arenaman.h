@@ -9,7 +9,7 @@
 
 struct Arena
 {
-	int status, ispublic;
+	int status, ispublic, resurrect;
 	char name[20], basename[20];
 	ConfigHandle cfg;
 	/* this setting is so commonly used, it deserves to be here. */
@@ -49,6 +49,10 @@ enum
 	/* now the arena is fully created. core can now send the arena
 	 * responses to players waiting to enter this arena. */
 
+	ARENA_CLOSING,
+	/* the arena is running for a little while, but isn't accepting new
+	 * players. */
+
 	ARENA_DO_WRITE_DATA,
 	/* the arena is being reaped, first put info in database */
 
@@ -61,7 +65,7 @@ enum
 };
 
 
-#define I_ARENAMAN "arenaman-4"
+#define I_ARENAMAN "arenaman-5"
 
 typedef struct Iarenaman
 {
@@ -71,6 +75,8 @@ typedef struct Iarenaman
 
 	void (*SendArenaResponse)(Player *p);
 	void (*LeaveArena)(Player *p);
+
+	void (*RecycleArena)(Arena *a);
 
 	void (*SendToArena)(Player *p, const char *aname, int spawnx, int spawny);
 	/* works on cont clients only. set spawnx/y to 0 for default spawn. */

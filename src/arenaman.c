@@ -113,6 +113,7 @@ local int ProcessArenaStates(void *dummy)
 		switch (status)
 		{
 			case ARENA_RUNNING:
+			case ARENA_CLOSING:
 			case ARENA_WAIT_SYNC1:
 			case ARENA_WAIT_SYNC2:
 				continue;
@@ -171,9 +172,16 @@ local int ProcessArenaStates(void *dummy)
 				do_attach(a, MM_DETACH);
 				cfg->CloseConfigFile(a->cfg);
 
-				LLRemove(&myint.arenalist, a);
-
-				afree(a);
+				if (a->resurrect)
+				{
+					a->resurrect = FALSE;
+					a->status = ARENA_DO_INIT;
+				}
+				else
+				{
+					LLRemove(&myint.arenalist, a);
+					afree(a);
+				}
 
 				break;
 		}
@@ -203,6 +211,8 @@ local Arena * create_arena(const char *name)
 	a->cfg = NULL;
 
 	LLAdd(&myint.arenalist, a);
+
+	lm->Log(L_INFO, "<arenaman> {%s} created arena", name);
 
 	return a;
 }
@@ -298,31 +308,130 @@ local void SendArenaResponse(Player *p)
 }
 
 
+local int initiate_leave_arena(Player *p)
+{
+	int notify = FALSE;
+
+	/* this messy logic attempts to deal with players who haven't fully
+	 * entered an arena yet. it will try to insert them at the proper
+	 * stage of the arena leaving process so things that have been done
+	 * get undone, and things that haven't been done _don't_ get undone. */
+	switch (p->status)
+	{
+		case S_LOGGEDIN:
+		case S_DO_FREQ_AND_ARENA_SYNC:
+			/* for these 2, nothing much has been done. just go back to
+			 * loggedin. */
+			p->status = S_LOGGEDIN;
+			break;
+		case S_WAIT_ARENA_SYNC1:
+		case S_SEND_ARENA_RESPONSE:
+			/* in these, stuff has come out of the database. put it back
+			 * in. */
+			p->status = S_DO_ARENA_SYNC2;
+			break;
+		case S_DO_ARENA_CALLBACKS:
+			/* put stuff back in database and also notify other players
+			 * of the leaving player. */
+			p->status = S_DO_ARENA_SYNC2;
+			notify = TRUE;
+			break;
+		case S_PLAYING:
+			/* do all of the above, plus call leaving callbacks. */
+			p->status = S_LEAVING_ARENA;
+			notify = TRUE;
+			break;
+
+		case S_LEAVING_ARENA:
+		case S_DO_ARENA_SYNC2:
+		case S_WAIT_ARENA_SYNC2:
+			/* no problem, player is already on the way out */
+			break;
+
+		default:
+			/* something's wrong here */
+			lm->LogP(L_ERROR, "arenaman", p, "player has an arena, but in bad state (%d)", p->status);
+			notify = TRUE;
+			break;
+	}
+
+	return notify;
+}
+
+
 local void LeaveArena(Player *p)
 {
+	int notify;
 	Arena *a;
-	struct SimplePacket pk = { S2C_PLAYERLEAVING, p->pid };
 
-	pd->Lock();
+	pd->WriteLock();
+
 	a = p->arena;
-	if (p->status != S_PLAYING || a == NULL)
+	if (!a)
 	{
-		pd->Unlock();
+		pd->WriteUnlock();
 		return;
 	}
 
-	p->oldarena = a;
-	/* this needs to be done for some good reason. i think it has to do
-	 * with KillConnection in net. */
-	p->arena = NULL;
-	p->status = S_LEAVING_ARENA;
+	notify = initiate_leave_arena(p);
 
-	pd->Unlock();
+	pd->WriteUnlock();
 
-	if (net) net->SendToArena(a, p, (byte*)&pk, 3, NET_RELIABLE);
-	if (chatnet) chatnet->SendToArena(a, p, "LEAVING:%s", p->name);
-	lm->Log(L_INFO, "<arenaman> {%s} [%s] leaving arena",
-			a->name, p->name);
+	if (notify)
+	{
+		struct SimplePacket pk = { S2C_PLAYERLEAVING, p->pid };
+		if (net) net->SendToArena(a, p, (byte*)&pk, 3, NET_RELIABLE);
+		if (chatnet) chatnet->SendToArena(a, p, "LEAVING:%s", p->name);
+		lm->Log(L_INFO, "<arenaman> {%s} [%s] leaving arena", a->name, p->name);
+	}
+}
+
+
+local void RecycleArena(Arena *a)
+{
+	Link *link;
+	Player *p;
+
+	WRLOCK();
+
+	if (a->status != ARENA_RUNNING)
+	{
+		UNLOCK();
+		return;
+	}
+
+	pd->WriteLock();
+
+	/* first move playing players elsewhere */
+	FOR_EACH_PLAYER(p)
+		if (p->arena == a)
+		{
+			struct
+			{
+				u8 type;
+				i16 pid;
+			} pkt = { S2C_WHOAMI, p->pid };
+
+			/* send whoami packet so the clients leave the arena */
+			if (IS_STANDARD(p))
+				net->SendToOne(p, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
+			else if (IS_CHAT(p))
+				chatnet->SendToOne(p, "INARENA:%s:%d", a->name, p->p_freq);
+
+			/* actually initiate the client leaving arena on our side */
+			initiate_leave_arena(p);
+
+			/* and mark the same arena as his desired arena to enter */
+			p->newarena = a;
+		}
+
+	pd->WriteUnlock();
+
+	/* then tell it to die and then resurrect itself */
+	a->status = ARENA_CLOSING;
+	a->resurrect = TRUE;
+
+	UNLOCK();
 }
 
 
@@ -394,11 +503,10 @@ local void complete_go(Player *p, const char *reqname, int ship, int xres, int y
 
 	/* try to locate an existing arena */
 	WRLOCK();
-	a = do_find_arena(name, ARENA_DO_INIT, ARENA_RUNNING);
+	a = do_find_arena(name, ARENA_DO_INIT, ARENA_DO_DEINIT);
 
 	if (a == NULL)
 	{
-		lm->Log(L_INFO, "<arenaman> {%s} creating arena", name);
 		a = create_arena(name);
 		if (a == NULL)
 		{
@@ -414,16 +522,26 @@ local void complete_go(Player *p, const char *reqname, int ship, int xres, int y
 			a = l->data;
 		}
 	}
-	UNLOCK();
+	else if (a->status > ARENA_RUNNING)
+	{
+		/* if we caught an arena on the way out, no problem, just make
+		 * sure it cycles back into existence. */
+		a->resurrect = TRUE;
+	}
 
 	/* set up player info */
-	p->arena = a;
+	pd->WriteLock();
+	p->newarena = a;
+	pd->WriteUnlock();
+
 	p->p_ship = ship;
 	p->xres = xres;
 	p->yres = yres;
 	p->flags.want_all_lvz = gfx;
 	sp->x = spawnx;
 	sp->y = spawny;
+
+	UNLOCK();
 
 	/* don't mess with player status yet, let him stay in S_LOGGEDIN.
 	 * it will be incremented when the arena is ready. */
@@ -538,14 +656,25 @@ local int ReapArenas(void *q)
 			link = LLGetHead(&myint.arenalist);
 			link && ((a = link->data) || 1);
 			link = link->next)
-		if (a->status == ARENA_RUNNING)
+		if (a->status == ARENA_RUNNING || a->status == ARENA_CLOSING)
 		{
 			Link *link;
 			FOR_EACH_PLAYER(p)
-				if (p->arena == a)
+				/* if any player is currently using this arena, it can't
+				 * be reaped. also, if anyone is entering a running
+				 * arena, don't reap that. */
+				if (p->arena == a ||
+				    (p->newarena == a && a->status == ARENA_RUNNING))
 					goto skip;
+				/* we do allow reaping of a closing arena that someone
+				 * wants to re-enter, but we first make sure that it
+				 * will reappear. */
+				else if (p->newarena == a)
+					a->resurrect = TRUE;
 
-			lm->Log(L_DRIVEL, "<arenaman> {%s} arena being destroyed", a->name);
+			lm->Log(L_DRIVEL, "<arenaman> {%s} arena being %s", a->name,
+					a->status == ARENA_RUNNING ? "destroyed" : "recycled");
+
 			/* set its status so that the arena processor will do
 			 * appropriate things */
 			a->status = ARENA_DO_WRITE_DATA;
@@ -657,6 +786,7 @@ local Iarenaman myint =
 {
 	INTERFACE_HEAD_INIT(I_ARENAMAN, "arenaman")
 	SendArenaResponse, LeaveArena,
+	RecycleArena,
 	SendToArena, FindArena,
 	AllocateArenaData, FreeArenaData,
 	Lock, Unlock
@@ -697,7 +827,7 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 		}
 
 		ml->SetTimer(ProcessArenaStates, 10, 10, NULL, NULL);
-		ml->SetTimer(ReapArenas, 1000, 1500, NULL, NULL);
+		ml->SetTimer(ReapArenas, 170, 170, NULL, NULL);
 
 		mm->RegInterface(&myint, ALLARENAS);
 		return MM_OK;

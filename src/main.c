@@ -1,6 +1,7 @@
 
 /* dist: public */
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -214,7 +215,7 @@ local int do_chroot(void)
 		return -1;
 	}
 
-	printf("Changed root directory and set uid to %d\n", uid);
+	printf("Changed root directory and set uid to %d\n", (int)uid);
 	return 0;
 }
 #else

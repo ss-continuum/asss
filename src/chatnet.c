@@ -161,11 +161,11 @@ local void kill_connection(Player *p)
 
 	pd->LockPlayer(p);
 
+	pd->WriteLock();
+
 	/* will put in S_LEAVING_ARENA */
 	if (p->arena)
 		process_line("LEAVE", NULL, p);
-
-	pd->WriteLock();
 
 	/* make sure that he's on his way out, in case he was kicked before
 	 * fully logging in. */

@@ -1,6 +1,7 @@
 
 /* dist: public */
 
+#include <limits.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -556,13 +557,13 @@ local void Cgrplogin(const char *params, Player *p, const Target *target)
 }
 
 
-local helptext_t listmods_help =
+local helptext_t listmod_help =
 "Targets: none\n"
 "Args: none\n"
 "Lists all staff members logged on, which arena they are in, and\n"
 "which group they belong to.\n";
 
-local void Clistmods(const char *params, Player *p, const Target *target)
+local void Clistmod(const char *params, Player *p, const Target *target)
 {
 	const char *group;
 	Player *i;
@@ -574,7 +575,7 @@ local void Clistmods(const char *params, Player *p, const Target *target)
 	FOR_EACH_PLAYER(i)
 		if (i->status == S_PLAYING &&
 		    strcmp(group = groupman->GetGroup(i), "default"))
-			chat->SendMessage(p, "listmods: %20s %10s %10s",
+			chat->SendMessage(p, "listmod: %20s %10s %10s",
 					i->name,
 					i->arena->name,
 					group);
@@ -867,7 +868,7 @@ local void Ccheater(const char *params, Player *p, const Target *target)
 
 
 local helptext_t warn_help =
-"Targets: none\n"
+"Targets: player\n"
 "Args: <message>\n"
 "Send a warning message to a player.\n";
 
@@ -919,6 +920,17 @@ local void Csend(const char *params, Player *p, const Target *target)
 		aman->SendToArena(t, params, 0, 0);
 	else
 		chat->SendMessage(p, "You can only use ?send on players using Continuum");
+}
+
+
+local helptext_t recyclearena_help =
+"Targets: none\n"
+"Args: none\n"
+"Recycles the current arena without kicking players off.\n";
+
+local void Crecyclearena(const char *params, Player *p, const Target *target)
+{
+	aman->RecycleArena(p->arena);
 }
 
 
@@ -1811,6 +1823,7 @@ local const struct cmd_info core_commands[] =
 	CMD(warn)
 	CMD(netstats)
 	CMD(send)
+	CMD(recyclearena)
 	END()
 };
 
@@ -1940,7 +1953,7 @@ local const struct cmd_info misc_commands[] =
 	CMD(getgroup)
 	CMD(setgroup)
 	CMD(grplogin)
-	CMD(listmods)
+	CMD(listmod)
 	CMD(setcm)
 	CMD(getcm)
 	CMD(listarena)

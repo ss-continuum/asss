@@ -19,6 +19,7 @@ privcmd_warn
 cmd_timer
 cmd_timereset
 cmd_pausetimer
+cmd_recyclearena
 
 privcmd_scorereset
 cmd_endinterval

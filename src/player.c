@@ -102,7 +102,7 @@ local Player * NewPlayer(int type)
 	p->status = S_CONNECTED;
 	p->type = type;
 	p->arena = NULL;
-	p->oldarena = NULL;
+	p->newarena = NULL;
 	p->pid = pid;
 	p->p_ship = SPEC;
 	p->p_attached = -1;

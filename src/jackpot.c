@@ -89,7 +89,7 @@ local ArenaPersistentData persistdata =
 };
 
 
-local void kill(Arena *arena, int killer, int killed, int bounty, int flags)
+local void mykill(Arena *arena, int killer, int killed, int bounty, int flags)
 {
 	jpdata *jpd = P_ARENA_DATA(arena, jpkey);
 	LOCK();
@@ -133,7 +133,7 @@ EXPORT int MM_jackpot(int action, Imodman *mm_, Arena *arena)
 
 		pthread_mutex_init(&mtx, NULL);
 
-		mm->RegCallback(CB_KILL, kill, ALLARENAS);
+		mm->RegCallback(CB_KILL, mykill, ALLARENAS);
 		mm->RegCallback(CB_ARENAACTION, aaction, ALLARENAS);
 
 		persist->RegArenaPD(&persistdata);
@@ -146,7 +146,7 @@ EXPORT int MM_jackpot(int action, Imodman *mm_, Arena *arena)
 	{
 		if (mm->UnregInterface(&jpint, ALLARENAS))
 			return MM_FAIL;
-		mm->UnregCallback(CB_KILL, kill, ALLARENAS);
+		mm->UnregCallback(CB_KILL, mykill, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
 		persist->UnregArenaPD(&persistdata);
 		aman->FreeArenaData(jpkey);

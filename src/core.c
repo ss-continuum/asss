@@ -193,7 +193,7 @@ EXPORT int MM_core(int action, Imodman *mm_, Arena *arena)
 
 int process_player_states(void *v)
 {
-	int ns, oldstatus;
+	int ns, oldstatus, requested_ship;
 	Player *player;
 	Link *link;
 	pdata *d;
@@ -202,6 +202,7 @@ int process_player_states(void *v)
 	FOR_EACH_PLAYER_P(player, d, pdkey)
 	{
 		oldstatus = player->status;
+
 		switch (oldstatus)
 		{
 			/* for all of these states, there's nothing to do in this
@@ -210,41 +211,31 @@ int process_player_states(void *v)
 			case S_WAIT_AUTH:
 			case S_WAIT_GLOBAL_SYNC1:
 			case S_WAIT_GLOBAL_SYNC2:
-			/* case S_LOGGEDIN: */
 			case S_WAIT_ARENA_SYNC1:
 			case S_WAIT_ARENA_SYNC2:
 			case S_PLAYING:
 			case S_TIMEWAIT:
 				continue;
-		}
 
-		/* while still holding the status lock, set the new status.
-		 * we do this now so that if any of the actions taken by the
-		 * status responses modify the status, the change isn't lost.
-		 * yeah, it's all because of DefaultAuth. bah. */
-		switch (oldstatus)
-		{
-			case S_NEED_AUTH:           ns = S_WAIT_AUTH;           break;
-			case S_NEED_GLOBAL_SYNC:    ns = S_WAIT_GLOBAL_SYNC1;   break;
-			case S_DO_GLOBAL_CALLBACKS: ns = S_SEND_LOGIN_RESPONSE; break;
-			case S_SEND_LOGIN_RESPONSE: ns = S_LOGGEDIN;            break;
-			case S_DO_FREQ_AND_ARENA_SYNC: ns = S_WAIT_ARENA_SYNC1; break;
-			case S_SEND_ARENA_RESPONSE: ns = S_DO_ARENA_CALLBACKS;  break;
-			case S_DO_ARENA_CALLBACKS:  ns = S_PLAYING;             break;
-			case S_LEAVING_ARENA:       ns = S_WAIT_ARENA_SYNC2;    break;
-			case S_LEAVING_ZONE:        ns = S_WAIT_GLOBAL_SYNC2;   break;
-
+			/* this is an interesting state: this function is
+			 * responsible for some transitions away from loggedin */
 			case S_LOGGEDIN:
+				/* at this point, the player can't have an arena */
+				player->arena = NULL;
+
 				/* check if the player's arena is ready.
 				 * LOCK: we don't grab the arena status lock because it
 				 * doesn't matter if we miss it this time around */
-				if (player->arena)
-					if (player->arena->status == ARENA_RUNNING)
-						player->status = S_DO_FREQ_AND_ARENA_SYNC;
+				if (player->newarena && player->newarena->status == ARENA_RUNNING)
+				{
+					player->arena = player->newarena;
+					player->newarena = NULL;
+					player->status = S_DO_FREQ_AND_ARENA_SYNC;
+				}
 
 				/* check whenloggedin. this is used to move players to
 				 * the leaving_zone status once various things are
-				 * completed */
+				 * completed. */
 				if (player->whenloggedin)
 				{
 					player->status = player->whenloggedin;
@@ -253,6 +244,21 @@ int process_player_states(void *v)
 
 				continue;
 
+			/* these states automatically transition to another one. set
+			 * the new status first, then take the appropriate action
+			 * below. */
+			case S_NEED_AUTH:           ns = S_WAIT_AUTH;           break;
+			case S_NEED_GLOBAL_SYNC:    ns = S_WAIT_GLOBAL_SYNC1;   break;
+			case S_DO_GLOBAL_CALLBACKS: ns = S_SEND_LOGIN_RESPONSE; break;
+			case S_SEND_LOGIN_RESPONSE: ns = S_LOGGEDIN;            break;
+			case S_DO_FREQ_AND_ARENA_SYNC: ns = S_WAIT_ARENA_SYNC1; break;
+			case S_SEND_ARENA_RESPONSE: ns = S_DO_ARENA_CALLBACKS;  break;
+			case S_DO_ARENA_CALLBACKS:  ns = S_PLAYING;             break;
+			case S_LEAVING_ARENA:       ns = S_DO_ARENA_SYNC2;      break;
+			case S_DO_ARENA_SYNC2:      ns = S_WAIT_ARENA_SYNC2;    break;
+			case S_LEAVING_ZONE:        ns = S_WAIT_GLOBAL_SYNC2;   break;
+
+			/* catch any other state */
 			default:
 				lm->Log(L_ERROR,"<core> [pid=%d] internal error: unknown player status %d",
 						player->pid, oldstatus);
@@ -314,18 +320,21 @@ int process_player_states(void *v)
 
 			case S_DO_FREQ_AND_ARENA_SYNC:
 				/* the arena will be fully loaded here */
+				requested_ship = player->p_ship;
 				player->p_ship = player->p_freq = -1;
 				/* first, do pre-callbacks */
 				DO_CBS(CB_PLAYERACTION,
 				       player->arena,
 				       PlayerActionFunc,
 				       (player, PA_PREENTERARENA, player->arena));
-				/* then, get a freq (player->shiptype will be set here
-				 * because it's done in PArena) */
+				/* then, get a freq */
 				if (player->p_ship == -1 || player->p_freq == -1)
 				{
 					Ifreqman *fm = mm->GetInterface(I_FREQMAN, player->arena);
-					int freq = 0, ship = player->p_ship;
+					int freq, ship;
+
+					ship = player->p_ship = requested_ship;
+					freq = player->p_freq = 0;
 
 					/* if this arena has a manager, use it */
 					if (fm)
@@ -368,11 +377,14 @@ int process_player_states(void *v)
 
 			case S_LEAVING_ARENA:
 				DO_CBS(CB_PLAYERACTION,
-				       player->oldarena,
+				       player->arena,
 				       PlayerActionFunc,
-				       (player, PA_LEAVEARENA, player->oldarena));
+				       (player, PA_LEAVEARENA, player->arena));
+				break;
+
+			case S_DO_ARENA_SYNC2:
 				if (persist && d->hasdoneasync)
-					persist->PutPlayer(player, player->oldarena, player_sync_done);
+					persist->PutPlayer(player, player->arena, player_sync_done);
 				else
 					player_sync_done(player);
 				d->hasdoneasync = FALSE;

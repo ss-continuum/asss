@@ -15,7 +15,7 @@ cmd_cheater
 cmd_version
 cmd_uptime
 
-cmd_listmods
+cmd_listmod
 cmd_getgroup
 privcmd_getgroup
 cmd_grplogin
