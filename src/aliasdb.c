@@ -133,24 +133,94 @@ local void dbcb_nameipmac(int status, db_res *res, void *clos)
 	}
 }
 
+local void dbcb_alias(int status, db_res *res, void *clos)
+{
+	Player *p = (Player*)clos;
+	int results;
+	db_row *row;
 
-#ifdef notdone
-local helptext_t qalias_help = NULL;
+	if (!p->flags.during_query)
+	{
+		if (lm)
+			lm->LogP(L_WARN, "aliasdb", p, "recieved query result he didn't ask for");
+		return;
+	}
 
-local void Cqalias(const char *params, Player *p, const Target *target)
+	p->flags.during_query = 0;
+
+	if (status != 0 || res == NULL)
+	{
+		chat->SendMessage(p, "Unexpected database error.");
+		return;
+	}
+
+	results = db->GetRowCount(res);
+
+	if (results == 1)
+		chat->SendMessage(p, "There was 1 match to your query.");
+	else
+		chat->SendMessage(p, "There were %d matches to your query.", results);
+
+	if (results == 0) return;
+
+	chat->SendMessage(p, "%-7.7s %-20.20s %-15.15s %-4.4s","MATCH", "NAME", "IP/MACID", "DAYS");
+
+	while ((row = db->GetRow(res)))
+	{
+		chat->SendMessage(p, "%-7.7s %-20.20s %-15.15s %-4.4s",
+				db->GetField(row, 0),
+				db->GetField(row, 1),
+				db->GetField(row, 2),
+				db->GetField(row, 3));
+	}
+}
+
+
+local helptext_t alias_help =
+"Module: aliasdb\n"
+"Targets: player or none\n"
+"Args: [<name>]\n"
+"Queries the alias database for players matching from the name, ip, or\n"
+"macid of the target. Only works on MySQL 4 or later.\n";
+
+local void Calias(const char *params, Player *p, const Target *target)
 {
 	const char *name = NULL;
 
 	if (target->type == T_ARENA)
 		name = params;
-	else if (target->type == T_PID)
+	else if (target->type == T_PLAYER)
 		name = target->u.p->name;
 
 	if (!name || !*name)
+	{
+		chat->SendMessage(p, "Invalid syntax. See ?help alias.");
 		return;
+	}
 
+	p->flags.during_query = 1;
+	db->Query(dbcb_alias, p, 1,
+			"SELECT 'IPAddr' AS 'Match Type',Alias.name as Name, "
+			"INET_NTOA(Alias.ip) AS 'IP/Mac', "
+			"TO_DAYS(now()) - TO_DAYS(Alias.lastseen) as 'days ago' "
+			"FROM " TABLE_NAME " AS Source, " TABLE_NAME " AS Alias "
+			"WHERE "
+			"Source.name=? AND "
+			"Alias.name<>Source.name AND "
+			"Source.ip=Alias.ip LIMIT 100 "
+			"UNION "
+			"SELECT 'MacId' AS 'Match Type',Alias.name as Name, "
+			"Alias.macid AS 'IP/Mac', "
+			"TO_DAYS(now()) - TO_DAYS(Alias.lastseen) as 'days ago' "
+			"FROM " TABLE_NAME " AS Source, " TABLE_NAME " AS Alias "
+			"WHERE "
+			"Source.name=? AND "
+			"Alias.name<>Source.name AND "
+			"Source.macid > 400 AND "
+			"Source.macid <> 305419896 AND " /* exclude 0x12345678, used by subchat */
+			"Source.macid=Alias.macid LIMIT 50 ",
+			name, name);
 }
-#endif
 
 
 local helptext_t qip_help =
@@ -335,7 +405,7 @@ EXPORT int MM_aliasdb(int action, Imodman *mm_, Arena *arena)
 
 		/* make sure table exists */
 		init_db();
-
+		cmd->AddCommand("alias", Calias, alias_help);
 		cmd->AddCommand("qip", Cqip, qip_help);
 		cmd->AddCommand("rawquery", Crawquery, rawquery_help);
 		cmd->AddCommand("last", Clast, last_help);
@@ -347,6 +417,7 @@ EXPORT int MM_aliasdb(int action, Imodman *mm_, Arena *arena)
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregCallback(CB_PLAYERACTION, playera, ALLARENAS);
+		cmd->RemoveCommand("alias",Calias);
 		cmd->RemoveCommand("qip", Cqip);
 		cmd->RemoveCommand("rawquery", Crawquery);
 		cmd->RemoveCommand("last", Clast);
