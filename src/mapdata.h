@@ -24,7 +24,7 @@ enum map_tile_t
 	TILE_START          = 1,
 	/* map borders are not included in the .lvl files */
 	TILE_BORDER         = 20,
-	TILE_END            = 161,
+	TILE_END            = 160,
 	/* tiles up to this point are part of security checksum */
 
 	TILE_V_DOOR_START   = 162,
