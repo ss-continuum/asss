@@ -1,7 +1,8 @@
 
-
+========================================================================
 server-controlled ships that take damage by listening to damage packets
-from clients:
+from clients
+========================================================================
 
 the last byte of the player entering/player info packet is now a
 bitfield. bit 0 (mask 0x01) means the person has a koth crown. bit 1
@@ -35,7 +36,9 @@ struct C2SFakePlayerDamage /* 15 bytes */
 
 
 
-new stats stuff:
+========================================================================
+new stats stuff
+========================================================================
 
 /* file: packets/stats.h */
 
@@ -207,7 +210,9 @@ const char *get_interval_name(int iv);
 
 
 
-moving between zones without leaving the game:
+========================================================================
+moving between zones without leaving the game
+========================================================================
 
 this is more of a client-only feature. have a ?zones command that pops
 up an in-game list of zones in favorite.lst and let the user choose
@@ -215,17 +220,9 @@ among them, just like ?arena. probably esc + Z should also do it.
 
 
 
-forcing the client into another arena:
-
-the client should take the 0x01 packet as a signal to leave the game (as
-if it just sent an arena change request) and wait for the rest of the
-arena data. cont already supports this, but other clients should too.
-the server command *send (sent privately) will move a player to another
-arena this way.
-
-
-
-setting a spawn location:
+========================================================================
+setting a spawn location
+========================================================================
 
 you can mostly do this with cont by sending a warpto packet immediately
 after the entering arena packet. that's good enough for when entering
@@ -236,7 +233,9 @@ i have no other plans for this feature yet.
 
 
 
-controlling full charge prizes:
+========================================================================
+controlling full charge prizes
+========================================================================
 
 make it configurable whether getting a cloak prize when your ship isn't
 allowed to get cloak (or anything else) turns into an fc. I doubt anyone
@@ -245,7 +244,9 @@ code if you get something you're not allowed to.
 
 
 
-setting changes:
+========================================================================
+setting changes
+========================================================================
 
 the server should be able to send a delta of the changed settings,
 instead of the whole big settings packet. here's what it can look like:
@@ -258,7 +259,18 @@ struct S2CSettingsChange
 	struct
 	{
 		i16 offset;   /* from start of packet */
-		u32 newvaule; /* always overwrite 32 bits starting at offset */
+		u32 newvalue; /* always overwrite 32 bits starting at offset */
 	} changes[1]; /* can be any number of these */
 };
+
+
+
+========================================================================
+fix brick bug
+========================================================================
+
+cont should determine brick uniqueness by the brick id number, not by
+the timestamp.
+
+
 
