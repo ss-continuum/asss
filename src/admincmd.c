@@ -131,7 +131,7 @@ local void Cgetfile(const char *params, Player *p, const Target *target)
 		chat->SendMessage(p, "Invalid path.");
 	else
 	{
-		int res = filetrans->SendFile(p, params, get_basename(params), 0);
+		int res = filetrans->SendFile(p, path, get_basename(path), 0);
 		if (res == MM_FAIL)
 			chat->SendMessage(p, "Error sending '%s': %s", path, strerror(errno));
 	}
