@@ -34,9 +34,9 @@ txt: $(TXTTARGETS)
 
 all: dvi ps pdf html txt
 
-view: ps #dvi
-	#( for a in $(DVITARGETS) ; do $(XDVI) $$a & done ) > /dev/null
-	( for a in $(PSTARGETS) ; do gv $$a & done ) > /dev/null
+view: dvi # ps
+	( for a in $(DVITARGETS) ; do $(XDVI) $$a & done ) > /dev/null
+	#( for a in $(PSTARGETS) ; do gv $$a & done ) > /dev/null
 
 clean:
 	$(RM) -f $(ALLTARGETS) *.log *.aux *.blg *.bak *.hlog *-Z-* *~

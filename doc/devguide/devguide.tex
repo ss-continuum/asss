@@ -9,7 +9,7 @@
 \newcommand{\asss}{\texttt{asss}}
 \newcommand{\subgame}{\texttt{subgame}}
 
-\title{\asss{} Development Guide -- 1.3.0}
+\title{\asss{} Development Guide -- 1.3.2}
 %\author{Grelminar \texttt{<grelminar@yahoo.com>}}
 
 \begin{document}
@@ -52,20 +52,24 @@ of \verb/.so/ files containing the modules. Running \verb/make install/
 will copy those binaries to the \verb/bin/ directory one level up.
 
 If you're missing one or more of those libraries, you can still build
-the remaining parts of \asss{}: If you're missing Python, remove
-\verb/pymod.so/ from the list of stuff to build (the variable
-\verb/ALL_STUFF/). If you're missing mysql, remove \verb/database.so/.
-If you're missing Berkeley DB, remove \verb/persist.so/.
+the remaining parts of \asss{}: Edit the \verb/have_xxx = yes/ lines
+near the top of the Makefile to indicate which libraries you're missing.
+
+
+\subsection{Building on Windows}
+
+This is now relatively easy. You'll need to download the Dev-C++ IDE,
+and also the windows package of Python (2.3.4 is good). You'll have to
+copy a few files somewhere (the details are explained in one of the
+files supplied with the windows package), and then open up the Dev-C++
+project and everything should work well.
 
 
 \subsection{Building on FreeBSD}
 
-FIXME
-
-\subsection{Building on Windows}
-
-FIXME
-
+You'll have to change a few lines in the Makefile, but this is
+relatively straightforward. Ask me for a copy of \verb/security.so/
+compiled for FreeBSD.
 
 
 \section{Basic Architecture}
@@ -748,27 +752,28 @@ bulk of the data.
 
 \subsection{Internals}
 
-Per-player and per-arena data work by allocating a big chunk of space at
-the end of the player and arena structs, which is divided up between
-modules to store the data. As an example, let's say \verb/playerdata/
-allocates 4096 bytes of extra space along with each player struct (the
-exact amount is configurable). It might provide bytes 128-192 of that
-space to one module to use for its private data, and then bytes 192-204
-to another module. The offset of the range from the start of the extra
-data array is the key returned to client modules, and the macro simply
-adds that offset to the start of the array.
+Per-player and per-arena data work by allocating a big chunk of space
+for each player and arena, which is divided up among modules to store
+the data. This data can either sit right at the end of the struct, or be
+a separate block pointed to by the player or arena struct. Using a
+separate block means the server can adjust the size dynamically, but
+there's slightly more overhead when accessing the data. Using an
+in-struct block requires that the size of the block be set at server
+startup and not changed later. Currently, arenas always use an in-struct
+block, and players can be configured at compile time which method to
+use. The default is a separate block.
 
-This solution is simple and efficient. The only disadvantage is that the
-amount of extra data for players, and for arenas, is determined at
-server bootup, and can't be increased or decreased while the server is
-running. This may lead to situations where a module can't be loaded at
-runtime because there isn't enough room in the per-player space left. It
-might also waste a significant amount of space if 4k is allocated for
-each player but only 1.5k is used by the loaded of modules. An admin
-particularly concerned about memory might want to check the amount of
-per-player and per-arena space used by some desired set of modules, then
-set the allocated amounts to be slightly more than those (just to be on
-the safe side).
+As an example, let's say \verb/playerdata/ allocates 4096 bytes of extra
+space along with each player struct. It might provide bytes 128-192 of
+that space to one module to use for its private data, and then bytes
+192-204 to another module. The offset of the range from the start of the
+extra data array is the key returned to client modules, and the macro
+simply adds that offset to the start of the array.
+
+This solution is simple and efficient. One disadvantage is that using
+in-struct blocks may waste space, and can prevent modules from being
+loaded because there's not enough space left. Using separate dynamic
+blocks avoids that disadvantage, at the cost of a tiny bit of overhead.
 
 Another significant disadvantage is a lack of any semblance of
 type-safely. This can lead to hard-to-debug crashes caused by modules
@@ -932,7 +937,267 @@ correctness.
 
 \section{The Python interface}
 
-FIXME
+\asss{} supports modules written in Python. The Python support was
+designed to make writing modules very simple and natural, and to look
+similar to the C interface, so knowledge can be transferred easily.
+
+
+\subsection{Using Python modules}
+
+The support for Python modules is implemented as a loadable module
+itself, so in order to use any Python modules, you'll need to make sure
+it's loaded. It's called \verb/pymod/ and is located in \verb/pymod.so/
+(or \verb/.dll/), so you'll probably to put \verb/pymod:pymod/ in your
+modules.conf, near the end.
+
+Then, you can load Python modules using a module specifier like
+\verb/<py>foo/. This will attempt to load \verb/foo.py/ from the
+server's \verb/bin/ directory. You'll notice a \verb/foo.pyc/ that
+appears in that directory. That's the compiled bytecode for the module.
+It gets created automatically by the Python runtime to speed up future
+loads of the module.
+
+
+\subsection{Writing Python modules}
+
+\subsubsection{Example}
+
+I'm going to start with an example, because hopefully keeping it in mind
+will make the rest of the section more understandable. This is a stupid
+example, but it illustrates a few of the basic features of Python
+modules.
+
+\begin{verbatim}
+import asss
+
+chat = asss.get_interface(asss.I_CHAT)
+
+def myplayeraction(p, action, arena):
+    if action == asss.PA_CONNECT:
+        p.my_words = []
+
+paref = asss.reg_callback(asss.CB_PLAYER, myplayeraction)
+
+def c_testcmd(cmd, params, p, target):
+    """Test command documentation."""
+    p.my_words.extend(params.split())
+    p.my_words = p.my_words[-5]
+    chat.SendMessage(p, "The last 5 words you typed are: %s" %
+        ', '.join(p.my_words))
+
+testcmdref = asss.add_command('testcmd', c_testcmd)
+\end{verbatim}
+
+
+\subsubsection{Initialization and deinitialization}
+
+Unlike C modules, there's no specific entry point for a Python module.
+When it's loaded, all the code in the file is executed as part of the
+import operation. Most of the code will just be function definitions
+that won't actually \emph{do} anything, but there will also have to be
+some code to register callbacks, commands, or anything else your module
+needs to do its job.
+
+The example has three things at the top level that just make definitions
+(the import statement and the two functions), and three lines that
+actually do stuff when it gets imported (the setting of \verb/chat/, the
+callback registering, and the command adding.
+
+All modules will need to import the module named \verb/asss/ in order to
+talk to the rest of the server. That contains several core functions
+that you'll need to use, as well as all the constants that the server
+knows about, as well as useful type objects. It's you to you whether to
+\verb/import asss/ and prefix all your uses of things from the module
+with \verb/asss./, or to do \verb/from asss import */, to get all those
+names in your namespace.
+
+Since there's no specific entry point, we need some way of undoing the
+stuff that gets done at module load time. Python supports automatic
+memory management, so we don't have to worry about freeing memory, but
+we do have to worry about stuff that got registered with other parts of
+the server. If you were looking carefully, you may have noticed that we
+saved the return values of \verb/reg_callback/ and \verb/add_command/ in
+variables that are never referenced. Those values are actually special
+handles that let us take care of unregistering cleanly: When the handle
+object is freed, the thing it was keeping track of is unregistered. When
+the module is unloaded, all of its variables and data are freed, and
+that automatically takes care of unregistering stuff that was
+registered.
+
+This trick saves Python module writers from some extra work, but it has
+a few caveats: First, it's easy to just write
+\verb/asss.add_command('blah', c_blah)/ and forget to save the return
+value. This will run fine, but the command will be unregistered
+immediately after it's registered, and it won't work. Second, it's
+relatively easy to break this system and prevent things from being
+unregistered when they shouldn't be (e.g., by stashing a handle value in
+another module's dictionary). If you do things like this, you'll get
+unpredictable behavior, and it's your own fault.
+
+Attaching and detaching modules to arenas were also handled through the
+single entry point, and so are done differently in Python: To receive
+attach/detach notification, you should define functions in your module
+named \verb/mm_attach/ and \verb/mm_detach/. They will be called with
+one parameter, an arena.
+
+
+\subsubsection{Interfaces and callbacks}
+
+In C, interfaces and callbacks were managed with the functions in the
+\verb/Imodman/ interface. In Python, various considerations made it
+convenient to put the corresponding functions in the \verb/asss/ module.
+
+You can get a reference to an interface with \verb/asss.get_interface/.
+This takes two parameters, an interface id, and an arena, but the arena
+is optional (it defaults to globally registered interfaces). It returns
+an interface reference or raises an exception if it fails. It's
+analagous to \verb/mm->GetInterface/. To call functions in an interface,
+just use the dot operator and regular function call syntax.
+
+You can register a callback function with \verb/asss.reg_callback/. This
+takes three parameters, the callback id, a function, and an arena, and
+again the arena is optional (defaults to all arenas). It returns a
+handle to the registered callback that you have to hold on to until you
+want to unregister the callback. That usually means storing it in a
+global variable of your module. This function is analagous to
+\verb/mm->RegCallback/.
+
+You can register an interface implemented in python with
+\verb/asss.reg_interface/. Only a few interfaces currently support
+implementations in Python: \verb/Iarenaplace/, \verb/Ifreqman/,
+\verb/points_koth/, and \verb/periodicpoints/. \verb/reg_interface/
+takes three parameters: the interface id, a tuple of functions that
+implement the interface, and an optional arena. This returns a handle
+that you should keep as long as you want the interface registered.
+
+You can call a set of callbacks using \verb/asss.call_callback/. This
+also takes three parameters, the callback id, a tuple that is the
+arguments you want the callback to be called with, and an optional
+arena.
+
+
+\subsubsection{Type and argument conversion}
+
+For the most part, types are automatically translated between C and
+Python code without you having to do anything. If you find an instances
+where things aren't working as you expect, please let me know.
+
+One potentially confusing point is the treatment of the C type
+\verb/Target/. Rather than wrapping targets in a new Python object like
+players and arenas, targets are represented in the most convenient
+representation for the type of target. That is: targets with type
+\verb/T_PLAYER/ are simply player objects, \verb/T_ARENA/ targets are
+just arena objects, \verb/T_NONE/ targets are \verb/None/, \verb/T_FREQ/
+ones are a tuple of (arena, freq), and \verb/T_ZONE/ targets are the
+string \verb/"zone"/. \verb/T_LIST/ targets aren't currently supported.
+
+This makes it very easy to use functions that accept \verb/Target/s,
+like \verb/game->WarpTo/, because you can just pass a plain player
+object.
+
+Some C functions ``return'' values by modifying values through pointers
+passed in as arguments. We'll call those ``out arguments.'' Other C
+functions accept input through pointers, and also return output through
+them. Those are ``in/out arguments.'' Functions with either of these two
+types of arguments will have a different calling convention when being
+used from Python! Out arguments do not appear in the argument list when
+calling functions, but in/out arguments (and of course regular ``in''
+arguments do). Out and in/out arguments are treated as extra return
+values: The return value of a function is determined by taking all of
+its return values, starting with the real return value (unless the
+function returns void), followed by any out or in/out arguments, in
+left-to-right order, and puting them all in a tuple. If there is only
+one return value, it won't be wrapped in a tuple. One convenient special
+case of this rule is functions with no out or in/out arguments: the
+regular return value of the function is translated to Python and
+returned, with no wrapping. Another example, a function that returns an
+arena and has two integer out arguments (\verb/Iarenaplace->Place/),
+when called from Python, will return a tuple of three values: an arena
+followed by two integers.
+
+There are a few more complicated cases of argument conversion involving
+format strings and fixed-length buffers, which are not yet described
+here, but are easy enough to figure out with a peek at the source.
+FIXME: describe these better.
+
+
+\subsubsection{Memory management}
+
+Memory management in Python is mostly taken care of for you. Just
+remember not to stick references to things in places where they won't
+get cleaned up.
+
+Per-arena and per-player data is handled more intuitively than in C. The
+Python objects that represent players and arenas support having
+arbitrary attributes (fields) added to them. So if you'd like to
+associate a list with each player, you can do what the example does and
+just write \verb/p.my_words = []/. Just like in C, you'll probably want
+to initialize your per-player data in a \verb/CB_PLAYERACTION/ callback
+so that it will be there later when your module looks for it.
+
+One large caveat: the namespace of player object attributes is shared
+among all loaded modules. That is, if you load two different modules
+that both try to access \verb/p.foo/ of the same player, they'll get the
+same thing. In limited cases, this could be considered a feature, but in
+general you should try to avoid name collisions by prefixing the
+attributes that your module uses with the name of the module, or an
+abbreviation of it.
+
+
+\subsubsection{Timers}
+
+As with interface and callback functions, this is now in the \verb/asss/
+module, but it works similarly to \verb/mainloop->SetTimer/: call
+\verb/asss.set_timer/ with a function and a interval in ticks. If you
+specify the optional third parameter, that becomes the interval, and the
+second becomes the initial delay. \verb/set_timer/ will return a handle
+for the timer, that you should keep until you want to cancel the timer.
+
+The timer function will be called with no arguments (you can use nested
+scopes or default arguments to pass data to it), and as in C, it can
+return a true value to continue being called, or false to cancel itself.
+As a special case, if the function doesn't return anything (which in
+Python means it returns \verb/None/), it will be called again.
+
+
+\subsubsection{Commands}
+
+This is also in the \verb/asss/ module: Use
+\verb/asss.add_command('blah', c_blah, arena)/ to add a command, and
+save the returned handle until you want the command unregistered. The
+arena parameter is optional. The docstring of the command function will
+be used as the command's helptext.
+
+
+\subsubsection{Player and arena lists}
+
+Rather than exposing the actual list of all exising players or arenas,
+Python modules have to get at the list indirectly: Two functions are
+provided, \verb/asss.for_each_player/, and \verb/asss.for_each_arena/,
+that take a single function, and invoke that function on each player (or
+arena) in turn. The function can access extra data, if necessary,
+through nested scopes or default parameters.
+
+
+\subsubsection{Persistent data}
+
+This is similar to, but somewhat easier than, the C persistent data
+support. Registering is similar to C: call
+\texttt{asss.reg\_player\_persistent(key, interval, scope, getter,
+setter, clearer)}, or \verb/reg_arena_persistent/, where key is an
+integer, interval and scope have the same options as in C, and the last
+three parameters are functions to handle the data.
+
+The three functions are much easier than their counterparts in C,
+though: rather than dealing with binary data, serialization is handled
+for you using Python's pickle module. So you can save most Python
+objects directly as persistent data. The getter is passed one argument,
+the player or arena, and should return data to be stored, or \verb/None/
+to store no data and delete any previous data. The setter is passed two
+arguments, the player/arena, and the data that was previously stored.
+Its return value is ignored. The clearer is passed one argument, the
+player/arena to be cleared, and its return value is also ignored.
+
 
 
 \section{Misc. internals}
@@ -945,6 +1210,9 @@ FIXME
 
 FIXME
 
+\subsection{Module loaders}
+
+FIXME
 
 
 \section{Reference}
@@ -975,6 +1243,10 @@ FIXME
 FIXME
 
 \subsection{\texttt{logman}}
+
+FIXME
+
+\subsection{\texttt{fm\_password}}
 
 FIXME
 
