@@ -19,7 +19,7 @@ struct chat_client_stats
 };
 
 
-#define I_CHATNET "chatnet-1"
+#define I_CHATNET "chatnet-2"
 
 typedef struct Ichatnet
 {
@@ -35,10 +35,7 @@ typedef struct Ichatnet
 	void (*SendToSet)(LinkedList *set, const char *line, ...)
 		ATTR_FORMAT(printf, 2, 3);
 
-	void (*DropClient)(Player *p);
-
 	void (*GetClientStats)(Player *p, struct chat_client_stats *stats);
-
 } Ichatnet;
 
 #endif

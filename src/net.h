@@ -84,7 +84,7 @@ struct net_client_stats
 #include "encrypt.h"
 
 
-#define I_NET "net-8"
+#define I_NET "net-9"
 
 typedef struct Inet
 {
@@ -99,8 +99,6 @@ typedef struct Inet
 			RelCallback callback, void *clos);
 	int (*SendSized)(Player *p, void *clos, int len,
 			void (*request_data)(void *clos, int offset, byte *buf, int needed));
-
-	void (*DropClient)(Player *p);
 
 	void (*AddPacket)(int pktype, PacketFunc func);
 	void (*RemovePacket)(int pktype, PacketFunc func);

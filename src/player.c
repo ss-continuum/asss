@@ -199,20 +199,26 @@ local Player * PidToPlayer(int pid)
 
 local void KickPlayer(Player *p)
 {
-	if (IS_STANDARD(p))
+	pd->LockPlayer(p);
+
+	pd->WriteLock();
+
+	/* this will set state to S_LEAVING_ARENA, if it was anywhere above
+	 * S_LOGGEDIN. */
+	if (p->arena)
 	{
-		Inet *net = mm->GetInterface(I_NET, ALLARENAS);
-		if (net)
-			net->DropClient(p);
-		mm->ReleaseInterface(net);
+		Iarenaman *aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		if (aman) aman->LeaveArena(p);
+		mm->ReleaseInterface(aman);
 	}
-	else if (IS_CHAT(p))
-	{
-		Ichatnet *chatnet = mm->GetInterface(I_CHATNET, ALLARENAS);
-		if (chatnet)
-			chatnet->DropClient(p);
-		mm->ReleaseInterface(chatnet);
-	}
+
+	/* set this special flag so that the player will be set to leave
+	 * the zone when the S_LEAVING_ARENA-initiated actions are
+	 * completed. */
+	p->whenloggedin = S_LEAVING_ZONE;
+
+	pd->WriteUnlock();
+	pd->UnlockPlayer(p);
 }
 
 

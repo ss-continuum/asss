@@ -240,7 +240,6 @@ local void DropClientConnection(ClientConnection *cc);
 local inline int HashIP(struct sockaddr_in);
 local inline Player * LookupIP(struct sockaddr_in);
 local inline void SendRaw(ConnData *, byte *, int);
-local void KillConnection(Player *p);
 local void ProcessBuffer(Buffer *);
 local int InitSockets(void);
 local Buffer * GetBuffer(void);
@@ -365,8 +364,6 @@ local Inet netint =
 
 	SendToOne, SendToArena, SendToSet, SendToTarget,
 	SendWithCallback, SendSized,
-
-	KillConnection,
 
 	AddPacket, RemovePacket, AddSizedPacket, RemoveSizedPacket,
 
@@ -1002,14 +999,14 @@ local void handle_game_packet(ListenData *ld)
 			 * process it. we can't do that right now, so drop
 			 * the packet, initiate the logout, and hope that
 			 * the client re-sends it soon. */
-			KillConnection(p);
+			pd->KickPlayer(p);
 		}
 		goto freebuf;
 	}
 
 	/* we shouldn't get packets in this state, but it's harmless
 	 * if we do. */
-	if (status >= S_LEAVING_ZONE || p->whenloggedin == S_LEAVING_ZONE)
+	if (status >= S_LEAVING_ZONE || p->whenloggedin >= S_LEAVING_ZONE)
 		goto freebuf;
 
 	if (status > S_TIMEWAIT)
@@ -1330,6 +1327,7 @@ local void submit_rel_stats(Player *p)
 }
 
 
+/* call with bigmtx locked */
 local void end_sized(Player *p, int success)
 {
 	ConnData *conn = PPDATA(p, connkey);
@@ -1663,6 +1661,12 @@ local void process_lagouts(Player *p, unsigned int gtc, LinkedList *tokill, Link
 		/* finally, send disconnection packet */
 		SendRaw(conn, drop, sizeof(drop));
 
+		/* clear all our buffers */
+		pthread_mutex_lock(&conn->bigmtx);
+		end_sized(p, 0);
+		pthread_mutex_unlock(&conn->bigmtx);
+		clear_buffers(p);
+
 		/* tell encryption to forget about him */
 		if (conn->enc)
 		{
@@ -1736,7 +1740,7 @@ void * SendThread(void *dummy)
 
 		/* now kill the ones we needed to above */
 		for (link = LLGetHead(&tokill); link; link = link->next)
-			KillConnection(link->data);
+			pd->KickPlayer(link->data);
 		LLEmpty(&tokill);
 
 		/* and free ... */
@@ -1960,38 +1964,6 @@ Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v
 }
 
 
-void KillConnection(Player *p)
-{
-	pd->LockPlayer(p);
-
-	/* check to see if he has any ongoing file transfers */
-	end_sized(p, 0);
-
-	/* this will set status to at least S_LEAVING_ARENA, if the player
-	 * was in anything above S_LOGGEDIN. */
-	if (p->arena)
-	{
-		Iarenaman *aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
-		if (aman) aman->LeaveArena(p);
-		mm->ReleaseInterface(aman);
-	}
-
-	pd->WriteLock();
-
-	/* set this special flag so that the player will be set to leave
-	 * the zone when the S_LEAVING_ARENA-initiated actions are
-	 * completed. */
-	p->whenloggedin = S_LEAVING_ZONE;
-
-	pd->WriteUnlock();
-	pd->UnlockPlayer(p);
-
-	/* remove outgoing packets from the queue. this partially eliminates
-	 * the need for a timewait state. */
-	clear_buffers(p);
-}
-
-
 void ProcessKeyResp(Buffer *buf)
 {
 	ConnData *conn = buf->conn;
@@ -2205,7 +2177,7 @@ void ProcessDrop(Buffer *buf)
 	}
 
 	if (buf->conn->p)
-		KillConnection(buf->conn->p);
+		pd->KickPlayer(buf->conn->p);
 	else if (buf->conn->cc)
 	{
 		buf->conn->cc->i->Disconnected();
@@ -2411,7 +2383,11 @@ void ProcessCancel(Buffer *req)
 
 	/* the client is cancelling its current file transfer */
 	if (req->conn->p)
+	{
+		pthread_mutex_lock(&req->conn->bigmtx);
 		end_sized(req->conn->p, 0);
+		pthread_mutex_unlock(&req->conn->bigmtx);
+	}
 	FreeBuffer(req);
 }
 

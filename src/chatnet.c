@@ -148,35 +148,9 @@ local void process_line(const char *cmd, const char *rest, void *v)
 
 
 /* call with lock held */
-local void clear_bufs(Player *p)
+local void clear_bufs(sp_conn *cli)
 {
-	sp_conn *cli = PPDATA(p, cdkey);
 	clear_sp_conn(cli);
-}
-
-/* call with lock held */
-local void kill_connection(Player *p)
-{
-	if (!IS_CHAT(p)) return;
-
-	clear_bufs(p);
-
-	pd->LockPlayer(p);
-
-	pd->WriteLock();
-
-	/* this will set state to S_LEAVING_ARENA, if it was anywhere above
-	 * S_LOGGEDIN. */
-	if (p->arena)
-		process_line("LEAVE", NULL, p);
-
-	/* set this special flag so that the player will be set to leave
-	 * the zone when the S_LEAVING_ARENA-initiated actions are
-	 * completed. */
-	p->whenloggedin = S_LEAVING_ZONE;
-
-	pd->WriteUnlock();
-	pd->UnlockPlayer(p);
 }
 
 
@@ -223,6 +197,7 @@ local int do_one_iter(void *dummy)
 			{
 				/* handle disconnects */
 				lm->LogP(L_INFO, "chatnet", p, "disconnected");
+				clear_bufs(cli);
 				closesocket(cli->socket);
 				cli->socket = -1;
 				/* we can't remove players while we're iterating through
@@ -253,7 +228,7 @@ local int do_one_iter(void *dummy)
 			if (FD_ISSET(cli->socket, &readset))
 			{
 				if (do_sp_read(cli) == sp_read_died)
-					/* we can't call kill_connection in here because we have the
+					/* we can't call KickPlayer in here because we have the
 					 * player status mutex for reading instead of writing. so add to
 					 * list and do it later. */
 					LLAdd(&tokill, p);
@@ -274,7 +249,7 @@ local int do_one_iter(void *dummy)
 
 	/* kill players where we read eof above */
 	for (link = LLGetHead(&tokill); link; link = link->next)
-		kill_connection(link->data);
+		pd->KickPlayer(link->data);
 	LLEmpty(&tokill);
 
 	/* process clients who had info above */
@@ -392,7 +367,7 @@ local void do_final_shutdown(void)
 		if (IS_CHAT(p))
 		{
 			/* try to clean up as much memory as possible */
-			clear_bufs(p);
+			clear_bufs(cli);
 			/* close all the connections also */
 			if (cli->socket > 2)
 				closesocket(cli->socket);
@@ -407,7 +382,6 @@ local Ichatnet _int =
 	INTERFACE_HEAD_INIT(I_CHATNET, "net-chat")
 	AddHandler, RemoveHandler,
 	SendToOne, SendToArena, SendToSet,
-	kill_connection,
 	GetClientStats
 };
 

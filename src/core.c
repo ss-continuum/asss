@@ -31,7 +31,10 @@ typedef struct
 	AuthData *authdata;
 	struct LoginPacket *loginpkt;
 	int lplen;
-	byte hasdonegsync, hasdoneasync;
+	unsigned hasdonegsync : 1;
+	unsigned hasdoneasync : 1;
+	unsigned hasdonegcallbacks : 1;
+	unsigned padding : 29;
 } pdata;
 
 
@@ -320,7 +323,8 @@ int process_player_states(void *v)
 				DO_CBS(CB_PLAYERACTION,
 				       ALLARENAS,
 				       PlayerActionFunc,
-					   (player, PA_CONNECT, NULL));
+				       (player, PA_CONNECT, NULL));
+				d->hasdonegcallbacks = TRUE;
 				break;
 
 			case S_SEND_LOGIN_RESPONSE:
@@ -410,10 +414,9 @@ int process_player_states(void *v)
 				break;
 
 			case S_LEAVING_ZONE:
-				DO_CBS(CB_PLAYERACTION,
-				       ALLARENAS,
-				       PlayerActionFunc,
-					   (player, PA_DISCONNECT, NULL));
+				if (d->hasdonegcallbacks)
+					DO_CBS(CB_PLAYERACTION, ALLARENAS, PlayerActionFunc,
+							(player, PA_DISCONNECT, NULL));
 				if (persist && d->hasdonegsync)
 					persist->PutPlayer(player, NULL, player_sync_done);
 				else

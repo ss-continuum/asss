@@ -51,67 +51,87 @@ enum
 
 	/** player is connected (key exchange completed) but has not logged
 	 ** in yet */
+	/* transitions to: need_auth or leaving_zone */
 	S_CONNECTED,
 
 	/** player sent login, auth request will be sent */
+	/* transitions to: wait_auth */
 	S_NEED_AUTH,
 
 	/** waiting for auth response */
+	/* transitions to: connected or need_global_sync */
 	S_WAIT_AUTH,
 
 	/** auth done, will request global sync */
+	/* transitions to: wait_global_sync1 */
 	S_NEED_GLOBAL_SYNC,
 
 	/** waiting for sync global persistent data to complete */
+	/* transitions to: do_global_callbacks */
 	S_WAIT_GLOBAL_SYNC1,
 
 	/** global sync done, will call global player connecting callbacks */
+	/* transitions to: send_login_response */
 	S_DO_GLOBAL_CALLBACKS,
 
 	/** callbacks done, will send arena response */
+	/* transitions to: loggedin */
 	S_SEND_LOGIN_RESPONSE,
 
 	/** player is finished logging in but is not in an arena yet status
 	 ** returns here after leaving an arena, also */
+	/* transitions to: do_freq_and_arena_sync or leaving_zone */
 	S_LOGGEDIN,
 
 /* p->arena is valid starting here */
 
 	/** player has requested entering an arena, needs to be assigned a
 	 ** freq and have arena data syched */
+	/* transitions to: wait_arena_sync1 (or loggedin) */
 	S_DO_FREQ_AND_ARENA_SYNC,
 
 	/** waiting for scores sync */
+	/* transitions to: send_arena_response (or do_arena_sync2) */
 	S_WAIT_ARENA_SYNC1,
 
 	/** done with scores, needs to send arena response */
+	/* transitions to: do_arena_callbacks (or do_arena_sync2) */
 	S_SEND_ARENA_RESPONSE,
 
 	/** area response sent, now call arena entering callbacks */
+	/* transitions to: playing (or do_arena_sync2) */
 	S_DO_ARENA_CALLBACKS,
 
-	/** player is playing in an arena. typically the longest stage */
+	/** player is playing in an arena. typically the longest state */
+	/* transitions to: leaving_arena */
 	S_PLAYING,
 
 	/** player has left arena, callbacks need to be called */
+	/* transitions to: do_arena_sync2 */
 	S_LEAVING_ARENA,
 
 	/** need to sync in the other direction */
+	/* transitions to: wait_arena_sync2 */
 	S_DO_ARENA_SYNC2,
 
 	/** waiting for scores sync, other direction */
+	/* transitions to: loggedin */
 	S_WAIT_ARENA_SYNC2,
 
 /* p->arena is no longer valid after this point */
 
-	/** player is leaving zone, call disconnecting callbacks */
+	/** player is leaving zone, call disconnecting callbacks and start
+	 ** global sync */
+	/* transitions to: wait_global_sync2 */
 	S_LEAVING_ZONE,
 
 	/** waiting for global sync, other direction */
+	/* transitions to: timewait */
 	S_WAIT_GLOBAL_SYNC2,
 
 	/** the connection is all set to be ended. the network layer will
-	 ** move the player to S_FREE after this. */
+	 ** free the player after this. */
+	/* transitions to: (none) */
 	S_TIMEWAIT
 };
 
@@ -284,9 +304,10 @@ typedef struct Iplayerdata
 	void (*FreePlayer)(Player *p);
 
 	/** Disconnects a player from the server.
-	 * Modules can use this function to disconnect a player without
-	 * carnig about his type. It will call the appropriate function in
-	 * the network module managing the given player.
+	 * This does most of the work of disconnecting a player. The
+	 * player's state will be transitioned to S_TIMEWAIT, at which point
+	 * one of the network modules must take responsibility for final
+	 * cleanup.
 	 * @param p the player to kick
 	 */
 	void (*KickPlayer)(Player *p);
