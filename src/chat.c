@@ -106,8 +106,8 @@ local const char *get_chat_type(int type)
 	switch (type)
 	{
 		case MSG_ARENA: return "ARENA";
-		case MSG_PUB:
-		case MSG_PUBMACRO: return "PUB";
+		case MSG_PUB: return "PUB";
+		case MSG_PUBMACRO: return "PUBM";
 		case MSG_PRIV: return "PRIV";
 		case MSG_FREQ: return "FREQ";
 		case MSG_SYSOPWARNING: return "SYSOP";
@@ -649,8 +649,8 @@ local void MChat(Player *p, const char *line)
 	t = delimcpy(subtype, line, sizeof(subtype), ':');
 	if (!t) return;
 
-	if (!strcasecmp(subtype, "PUB") || !strcasecmp(subtype, "CMD"))
-		handle_pub(p, t, 0, 0);
+	if (!strncasecmp(subtype, "PUB", 3) || !strcasecmp(subtype, "CMD"))
+		handle_pub(p, t, subtype[3] == 'M', 0);
 	else if (!strcasecmp(subtype, "PRIV") || !strcasecmp(subtype, "PRIVCMD"))
 	{
 		t = delimcpy(data, t, sizeof(data), ':');
