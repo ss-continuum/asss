@@ -972,7 +972,7 @@ local void PDie(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	flagcount = killer->pkt.flagscarried;
+	flagcount = p->pkt.flagscarried;
 
 	/* this will figure out how many points to send in the packet */
 	DO_CBS(CB_KILL, arena, KillFunc,
