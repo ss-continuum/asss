@@ -1839,6 +1839,7 @@ local void Cscorereset(const char *tc, const char *params, Player *p, const Targ
 		{
 			stats->ScoreReset(p, INTERVAL_RESET);
 			stats->SendUpdates();
+			chat->SendMessage(p, "Score reset");
 		}
 		else
 			chat->SendMessage(p,
@@ -1848,6 +1849,7 @@ local void Cscorereset(const char *tc, const char *params, Player *p, const Targ
 	{
 		stats->ScoreReset(target->u.p, INTERVAL_RESET);
 		stats->SendUpdates();
+		chat->SendMessage(p, "Player score reset");
 	}
 }
 

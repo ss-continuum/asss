@@ -139,13 +139,10 @@ local Player * NewPlayer(int type)
 	if (!p)
 		p = pidmap[pid].p = alloc_player();
 
-	LLAdd(&pd->playerlist, p);
-	WULOCK();
-
 	/* set up player struct and packet */
 	p->pkt.pktype = S2C_PLAYERENTERING;
 	p->pkt.pid = pid;
-	p->status = S_CONNECTED;
+	p->status = S_UNINITIALIZED;
 	p->type = type;
 	p->arena = NULL;
 	p->newarena = NULL;
@@ -154,6 +151,10 @@ local Player * NewPlayer(int type)
 	p->p_attached = -1;
 	p->connecttime = current_ticks();
 	p->connectas = NULL;
+
+	LLAdd(&pd->playerlist, p);
+
+	WULOCK();
 
 	DO_CBS(CB_NEWPLAYER, ALLARENAS, NewPlayerFunc, (p, TRUE));
 

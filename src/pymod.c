@@ -1474,6 +1474,16 @@ local PyObject * mthd_is_human(PyObject *self, PyObject *args)
 	return PyInt_FromLong(IS_HUMAN(p));
 }
 
+local PyObject * mthd_current_ticks(PyObject *self, PyObject *args)
+{
+	return PyInt_FromLong(current_ticks());
+}
+
+local PyObject * mthd_current_millis(PyObject *self, PyObject *args)
+{
+	return PyInt_FromLong(current_millis());
+}
+
 
 local PyMethodDef asss_module_methods[] =
 {
@@ -1504,6 +1514,10 @@ local PyMethodDef asss_module_methods[] =
 		"is this player using a chat-only client?"},
 	{"is_human", mthd_is_human, METH_VARARGS,
 		"is this player a human (as opposed to an internal fake player)?"},
+	{"current_ticks", mthd_current_ticks, METH_VARARGS,
+		"the current server time, in ticks"},
+	{"current_millis", mthd_current_millis, METH_VARARGS,
+		"the current server time, in millis"},
 	{NULL}
 };
 

@@ -112,9 +112,6 @@ local Player * try_accept(int s)
 
 	p = pd->NewPlayer(T_CHAT);
 
-	lm->Log(L_DRIVEL, "<chatnet> [pid=%d] new connection from %s:%i",
-			p->pid, inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
-
 	cli = PPDATA(p, cdkey);
 	cli->socket = a;
 	cli->sin = sin;
@@ -125,6 +122,13 @@ local Player * try_accept(int s)
 
 	astrncpy(p->ipaddr, inet_ntoa(sin.sin_addr), sizeof(p->ipaddr));
 	astrncpy(p->clientname, "<unknown chat client>", sizeof(p->clientname));
+
+	pd->WriteLock();
+	p->status = S_CONNECTED;
+	pd->WriteUnlock();
+
+	lm->Log(L_DRIVEL, "<chatnet> [pid=%d] new connection from %s:%i",
+			p->pid, inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
 
 	return p;
 }

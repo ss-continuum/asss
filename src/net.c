@@ -1720,7 +1720,8 @@ void * SendThread(void *dummy)
 		/* first send outgoing packets (players) */
 		pd->Lock();
 		FOR_EACH_PLAYER_P(p, conn, connkey)
-			if (p->status < S_TIMEWAIT &&
+			if (p->status >= S_CONNECTED &&
+			    p->status < S_TIMEWAIT &&
 			    IS_OURS(p) &&
 			    pthread_mutex_trylock(&conn->olmtx) == 0)
 			{
@@ -1734,7 +1735,8 @@ void * SendThread(void *dummy)
 		pd->Lock();
 		gtc = current_ticks();
 		FOR_EACH_PLAYER(p)
-			if (IS_OURS(p))
+			if (p->status >= S_CONNECTED &&
+			    IS_OURS(p))
 				process_lagouts(p, gtc, &tokill, &tofree);
 		pd->Unlock();
 
@@ -1905,7 +1907,7 @@ Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v
 		 * reference to enc that we were given. */
 		mm->ReleaseInterface(enc);
 
-		if (p->status == S_CONNECTED)
+		if (p->status <= S_CONNECTED)
 			return p;
 		else
 		{
@@ -1953,6 +1955,10 @@ Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v
 		conn->nextinbucket = NULL;
 	}
 	pthread_mutex_unlock(&hashmtx);
+
+	pd->WriteLock();
+	p->status = S_CONNECTED;
+	pd->WriteUnlock();
 
 	if (sin)
 		lm->Log(L_DRIVEL,"<net> [pid=%d] new connection from %s:%i",

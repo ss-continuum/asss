@@ -49,6 +49,10 @@ enum
 {
 	/* pyconst: enum, "S_*" */
 
+	/** player was just created, and isn't ready to do anything yet */
+	/* transitions to: connected */
+	S_UNINITIALIZED,
+
 	/** player is connected (key exchange completed) but has not logged
 	 ** in yet */
 	/* transitions to: need_auth or leaving_zone */
@@ -280,7 +284,7 @@ typedef void (*NewPlayerFunc)(Player *p, int isnew);
 #endif
 
 /** the interface id for playerdata */
-#define I_PLAYERDATA "playerdata-6" I_PLAYERDATA_CFG
+#define I_PLAYERDATA "playerdata-7" I_PLAYERDATA_CFG
 
 /** the playerdata interface struct */
 typedef struct Iplayerdata

@@ -219,6 +219,7 @@ int process_player_states(void *v)
 		{
 			/* for all of these states, there's nothing to do in this
 			 * loop */
+			case S_UNINITIALIZED:
 			case S_WAIT_AUTH:
 			case S_WAIT_GLOBAL_SYNC1:
 			case S_WAIT_GLOBAL_SYNC2:
