@@ -30,6 +30,8 @@ local void Clsmod(const char *, int, int);
 local void Cinsmod(const char *, int, int);
 local void Crmmod(const char *, int, int);
 
+local void Cgetgroup(const char *, int, int);
+local void Csetgroup(const char *, int, int);
 
 /* global data */
 
@@ -88,6 +90,8 @@ int MM_playercmd(int action, Imodman *_mm, int arena)
 		cmd->AddCommand("lsmod", Clsmod);
 		cmd->AddCommand("insmod", Cinsmod);
 		cmd->AddCommand("rmmod", Crmmod);
+		cmd->AddCommand("getgroup", Cgetgroup);
+		cmd->AddCommand("setgroup", Csetgroup);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
@@ -103,6 +107,8 @@ int MM_playercmd(int action, Imodman *_mm, int arena)
 		cmd->RemoveCommand("lsmod", Clsmod);
 		cmd->RemoveCommand("insmod", Cinsmod);
 		cmd->RemoveCommand("rmmod", Crmmod);
+		cmd->RemoveCommand("getgroup", Cgetgroup);
+		cmd->RemoveCommand("setgroup", Csetgroup);
 
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_CHAT, &chat);
@@ -281,6 +287,48 @@ void Crmmod(const char *params, int pid, int target)
 		chat->SendMessage(pid, "Module %s unloaded successfully", params);
 	else
 		chat->SendMessage(pid, "Unloading module %s failed", params);
+}
+
+
+void Cgetgroup(const char *params, int pid, int target)
+{
+	if (PID_OK(pid) && capman)
+		chat->SendMessage(pid, "Group: %s", capman->GetGroup(pid));
+}
+
+
+void Csetgroup(const char *params, int pid, int target)
+{
+	char cap[MAXGROUPLEN+10];
+
+	if (!*params) return;
+	if (PID_BAD(target)) return;
+	if (!capman) return;
+
+	/* make sure the setter has permissions to set people to this group */
+	snprintf(cap, MAXGROUPLEN+10, "setgroup_%s", params);
+	if (!capman->HasCapability(pid, cap))
+	{
+		log->Log(L_WARN, "<playercmd> [%s] doesn't have permission to set to group '%s'",
+				players[pid].name, params);
+		return;
+	}
+
+	/* make sure the target isn't in a group already */
+	if (!strcasecmp(capman->GetGroup(target), "default"))
+	{
+		log->Log(L_WARN, "<playercmd> [%s] tried to set the group of [%s],"
+				"who is in '%s' already, to '%s'",
+				players[pid].name, players[target].name,
+				capman->GetGroup(target), params);
+		return;
+	}
+
+	capman->SetGroup(target, params);
+	chat->SendMessage(pid, "%s is now in group %s",
+			players[target].name, params);
+	chat->SendMessage(target, "You have been assigned to group %s by %s",
+			params, players[pid].name);
 }
 
 

@@ -4,12 +4,11 @@
 #include "asss.h"
 
 
-#define MAXGROUPLEN 32
-
-
 
 /* interface funcs */
 local int HasCapability(int pid, const char *cap);
+local char *GetGroup(int pid);
+local void SetGroup(int pid, const char *group);
 
 /* callbacks */
 local void ArenaAction(int arena, int action);
@@ -25,7 +24,7 @@ local Iarenaman *aman;
 local Ilogman *log;
 local Iconfig *cfg;
 
-local Icapman _myint = { HasCapability };
+local Icapman _myint = { HasCapability, GetGroup, SetGroup };
 
 
 int MM_capman(int action, Imodman *_mm, int arena)
@@ -165,6 +164,19 @@ void PlayerAction(int pid, int action, int arena)
 		UpdateGroup(pid, -1);
 	else if (action == PA_DISCONNECT || action == PA_LEAVEARENA)
 		astrncpy(groups[pid], "none", MAXGROUPLEN);
+}
+
+
+char *GetGroup(int pid)
+{
+	return groups[pid];
+}
+
+
+void SetGroup(int pid, const char *group)
+{
+	if (group)
+		astrncpy(groups[pid], group, MAXGROUPLEN);
 }
 
 

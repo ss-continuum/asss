@@ -19,11 +19,19 @@
  * naming convention.
  */
 
+#define MAXGROUPLEN 32
+
 
 typedef struct Icapman
 {
 	int (*HasCapability)(int pid, const char *cap);
 	/* returns true if the given player has the given capability. */
+
+	char *(*GetGroup)(int pid);
+	void (*SetGroup)(int pid, const char *group);
+	/* gets/sets the group of the player as specified. these functions
+	 * are dependant on one specific implementation of capabilities, and
+	 * should only be used from very few places. */
 } Icapman;
 
 
