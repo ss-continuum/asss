@@ -21,6 +21,7 @@
 /* global data */
 
 local Iplayerdata *pd;
+local Iconfig *cfg;
 local Ichat *chat;
 local Ilogman *lm;
 local Icmdman *cmd;
@@ -45,7 +46,6 @@ local void Cadmlogfile(const char *params, Player *p, const Target *target)
 	else if (!strcasecmp(params, "reopen"))
 		logfile->ReopenLog();
 }
-
 
 
 local helptext_t getfile_help =
@@ -73,6 +73,7 @@ typedef struct upload_t
 {
 	Player *p;
 	int unzip;
+	const char *setting;
 	char serverpath[1];
 } upload_t;
 
@@ -134,7 +135,20 @@ local void uploaded(const char *fname, void *clos)
 			remove(fname);
 		}
 		else
+		{
 			chat->SendMessage(u->p, "File received: %s", u->serverpath);
+			if (u->setting && cfg)
+			{
+				char info[128];
+				time_t tm = time(NULL);
+				snprintf(info, 100, "set by %s with ?putmap on ", u->p->name);
+				ctime_r(&tm, info + strlen(info));
+				RemoveCRLF(info);
+				cfg->SetStr(u->p->arena->cfg, u->setting, NULL,
+						u->serverpath, info, TRUE);
+				chat->SendMessage(u->p, "Set %s=%s", u->setting, u->serverpath);
+			}
+		}
 	}
 
 	afree(u);
@@ -170,6 +184,7 @@ local void Cputfile(const char *params, Player *p, const Target *target)
 
 		u->p = p;
 		u->unzip = 0;
+		u->setting = NULL;
 		strcpy(u->serverpath, serverpath);
 
 		filetrans->RequestFile(p, clientfile, uploaded, u);
@@ -206,10 +221,42 @@ local void Cputzip(const char *params, Player *p, const Target *target)
 
 		u->p = p;
 		u->unzip = 1;
+		u->setting = NULL;
 		strcpy(u->serverpath, serverpath);
 
 		filetrans->RequestFile(p, clientfile, uploaded, u);
 	}
+}
+
+
+local helptext_t putmap_help =
+"Targets: none\n"
+"Args: <map file>\n"
+"Transfers the specified map file from the client to the server.\n"
+"The map will be placed in maps/uploads/<arenabasename>.lvl,\n"
+"and the setting General:Map will be changed to the name of the\n"
+"uploaded file.\n";
+
+local void Cputmap(const char *params, Player *p, const Target *target)
+{
+	char serverpath[256];
+	upload_t *u;
+
+	/* make sure these exist */
+	mkdir("maps", 0666);
+	mkdir("maps/uploads", 0666);
+
+	snprintf(serverpath, sizeof(serverpath),
+			"maps/uploads/%s.lvl", p->arena->basename);
+
+	u = amalloc(sizeof(*u) + strlen(serverpath));
+
+	u->p = p;
+	u->unzip = 0;
+	u->setting = "General:Map";
+	strcpy(u->serverpath, serverpath);
+
+	filetrans->RequestFile(p, params, uploaded, u);
 }
 
 
@@ -286,12 +333,13 @@ local void Cbotfeature(const char *params, Player *p, const Target *target)
 
 
 
-EXPORT int MM_admincmd(int action, Imodman *_mm, Arena *arena)
+EXPORT int MM_admincmd(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
-		mm = _mm;
+		mm = mm_;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
@@ -305,6 +353,7 @@ EXPORT int MM_admincmd(int action, Imodman *_mm, Arena *arena)
 		cmd->AddCommand("getfile", Cgetfile, getfile_help);
 		cmd->AddCommand("putfile", Cputfile, putfile_help);
 		cmd->AddCommand("putzip", Cputzip, putzip_help);
+		cmd->AddCommand("putmap", Cputmap, putmap_help);
 		cmd->AddCommand("makearena", Cmakearena, makearena_help);
 		cmd->AddCommand("botfeature", Cbotfeature, botfeature_help);
 
@@ -316,9 +365,11 @@ EXPORT int MM_admincmd(int action, Imodman *_mm, Arena *arena)
 		cmd->RemoveCommand("getfile", Cgetfile);
 		cmd->RemoveCommand("putfile", Cputfile);
 		cmd->RemoveCommand("putzip", Cputzip);
+		cmd->RemoveCommand("putmap", Cputmap);
 		cmd->RemoveCommand("makearena", Cmakearena);
 		cmd->RemoveCommand("botfeature", Cbotfeature);
 		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(cmd);
