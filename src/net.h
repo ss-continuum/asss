@@ -86,6 +86,8 @@ typedef struct Inet
 {
 	INTERFACE_HEAD_DECL
 
+	/* pyint: use */
+
 	void (*SendToOne)(Player *p, byte *data, int length, int flags);
 	void (*SendToArena)(Arena *a, Player *except, byte *data, int length, int flags);
 	void (*SendToSet)(LinkedList *set, byte *data, int length, int flags);
@@ -112,6 +114,7 @@ typedef struct Inet
 
 	int (*GetListenData)(unsigned index, int *port, char *connectasbuf, int buflen);
 	/* returns true if it returned stuff, false if bad index */
+	/* pyint: int, int out, string out, int buflen -> int */
 } Inet;
 
 
