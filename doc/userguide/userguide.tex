@@ -36,7 +36,7 @@
 \fi
 
 
-\title{\asss{} User's Guide}
+\title{\asss{} User's Guide -- 1.2.0}
 \author{\small Grelminar \lt{}\texttt{grelminar@yahoo.com}\gt{}}
 
 \begin{document}
@@ -86,16 +86,17 @@ profiling on and off by changing the values of the \verb/debug/,
 \verb/opt/, and \verb/prof/ Makefile variables to \verb/yes/ or
 \verb/no/.
 
-If you're missing mysql, you should uncomment the line that sets the
-\verb/no_mysql/ variable. That will disable building all modules that
+If you're missing mysql, you should comment out or change the
+\verb/have_mysql/ variable. That will disable building all modules that
 require mysql, which is currently only the alias database. If you're
-missing Berkeley DB, you should uncomment the line that sets
-\verb/no_bdb/. This will disable the scoring modules and the
-\verb/dbtool/. If you're missing Python, you should uncomment the line
-that sets \verb/no_python/, which will disable the Python module loader.
+missing Berkeley DB, you should comment/change the line that sets
+\verb/have_bdb/. This will disable the scoring modules and the
+\verb/dbtool/. And if you're missing Python, you should comment/change
+the line that sets \verb/have_python/, which will disable the Python
+module loader.
 
 The Makefile should work without excessive modification on Linux,
-FreeBSD, and Cygwin.
+FreeBSD, Cygwin, and Mingw32.
 
 Currently, only 32-bit Intel platforms are supported because of
 byte-order issues. Eventually, \asss{} will be able to run on other
@@ -127,13 +128,17 @@ Here's what a typical machine's file layout should look like:
 + bin
 | + asss
 | + dbtool
-| + core.so
-| + commands.so
-| + game.so
+| + backtrace
+| + scoring.so
+| + security.so
+| + database.so
+| + funky.so
 | + ...
 |
 + zone1
 | + news.txt
+| + scrty
+| + scrty1
 | + bin  (symlinked to ../bin)
 | + arenas
 | | + (default)
@@ -180,6 +185,7 @@ Here's what a typical machine's file layout should look like:
 |   + data.db
 |
 + zone2
+  + news.txt
   + bin  (symlinked to ../bin)
   + ...
 \end{verbatim}
@@ -319,7 +325,7 @@ number of modules.
 
 There are currently
 % grep 'EXPORT *int *MM_[a-z]' ~/src/asss/src/*.c | wc -l
-69
+71
 modules that are part of \asss{}, but each zone might have some
 custom-developed modules for their zone as well.
 
@@ -520,11 +526,11 @@ servers or bugs in the server itself.
 
 There are currently
 % cat ~/src/asss/src/*.c | grep ">Log[AP]\?(L_" -c
-383
+362
 % cat ~/src/asss/src/*.c | grep ">Log[AP]\?(L_" | sed 's/.*>Log[AP]\?(L_\([A-Z]*\).*/\1/' | sort | uniq -c
-distinct log messages in the server. By type, there are 49 ERROR
-messages, 101 WARN messages, 97 MALICIOUS messages, 63 INFO messages, and
-73 DRIVEL messages.
+distinct log messages in the server. By type, there are 31 ERROR
+messages, 102 WARN messages, 85 MALICIOUS messages, 64 INFO messages, and
+80 DRIVEL messages.
 
 \subsection{Filtering}
 
@@ -665,7 +671,8 @@ You can specify multiple commands on one line by dividing them with
 vertical bars (\verb/|/). The subsequent commands (after the first bar)
 don't need question marks (although they are ignored if present). You
 can send multiple private commands, but you can't send both public and
-private commands on the same line.
+private commands on the same line. There's a hard limit of five commands
+on one line.
 
 
 \subsection{Built-in alias database}
@@ -676,12 +683,11 @@ depends on mysql support, although it's written so that it should be
 easy to port to another relational database if necessary.
 
 All logins are automatically entered if the \verb/aliasdb/ module is
-loaded. There are several ways to query the database: \verb/?qalias/
-isn't written yet, but it will be the most useful interface when it's
-done. \verb/?qip/ allows you to query by IP address range.
-\verb/?rawquery/ allows you to make custom queries with most SQL
-commands. You can find the documentation for these commands in the
-Commands section.
+loaded. There are several ways to query the database: \verb/?alias/ lets
+you do general-purpose queries, \verb/?qip/ allows you to query by IP
+address range. \verb/?rawquery/ allows you to make custom queries with
+most SQL commands. You can find the documentation for these commands in
+the Commands section.
 
 The \verb/?last/ command uses the alias database to find the last 10
 people to log in.
@@ -855,10 +861,9 @@ server.
 
 To create virtual servers, you have to tell the \verb/net/ module to
 listen on more than one port. You do this by creating additional
-settings in the ``Net'' section of \verb/global.conf/ named ``Listen1,''
-``Listen2,'' etc. Each setting must specify a port, and can also
-optionally specify a virtual server identifier, and a specific IP
-address to bind to.
+sections in \verb/global.conf/ named ``Listen1,'' ``Listen2,'' etc. Each
+setting must specify a port, and can also optionally specify a virtual
+server identifier, and a specific IP address to bind to.
 
 Virtual server identifiers are used in several ways: if you are using an
 arena placing module that supports them (e.g., \verb/ap_multipub/), the
@@ -878,17 +883,28 @@ Finally, an example to make this all clear:
 \begin{verbatim}
 ;; global.conf
 
-[Net]
 ;; listen on 3 different ports:
+
 ; players connecting to port 2000 will be send to a random arena.
-; players who connect to 5000 will be sent to pb1, pb2, etc. port 7500
-; will send them to aswz by default, and so on.
-Listen1 = 2000
-Listen2 = 5000:pb
-Listen3 = 7500:aswz
-; just as an example, this will force the server to listen on an
-; internal interface only, and send those players to a secret arena:
-Listen4 = 192.168.0.23:3300:#secret
+[Listen1]
+Port = 2000
+
+; players who connect to 5000 will be sent to pb1, pb2, etc.
+[Listen2]
+Port = 5000
+ConnectAs = pb
+
+; port 7500 will send them to aswz by default, and so on.
+[Listen3]
+Port = 7500
+ConnectAs = aswz
+
+; this will force the server to listen on an internal interface only
+; and send those players to a secret arena:
+[Listen4]
+BindAddress = 192.168.0.23
+Port = 3300
+ConnectAs = #secret
 
 [Directory]
 ;; point to the directory servers you want to be listed on. using
@@ -907,7 +923,7 @@ Description = Play with balls!
 
 [Directory-aswz]
 ;; specify only name for aswz:
-Name = A Small WarZone
+Name = A Small Warzone
 \end{verbatim}
 
 
