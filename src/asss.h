@@ -33,7 +33,7 @@
 #include "game.h"
 #include "periodic.h"
 #include "stats.h"
-#include "flags.h"
+#include "flagcore.h"
 #include "balls.h"
 #include "chatnet.h"
 #include "lagdata.h"

@@ -35,6 +35,7 @@ enum stat_t
 	STAT_FLAG_DEATHS,
 	STAT_FLAG_GAMES_WON, /* no per-game */
 	STAT_FLAG_GAMES_LOST, /* no per-game */
+	STAT_TURF_TAGS,
 
 	/* for powerball */
 	STAT_BALL_CARRIES = 300,

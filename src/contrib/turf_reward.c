@@ -132,7 +132,7 @@ local Imodman     *mm;         /* to get interfaces */
 local Iplayerdata *playerdata; /* player data */
 #define pd playerdata
 local Iarenaman   *arenaman;   /* arena manager, to get conf handle for arena */
-local Iflags      *flagsman;   /* to access flag tags and info */
+local Iflagcore   *flagcore;   /* to access flag tags and info */
 local Iconfig     *config;     /* conf (for arena .conf) services */
 local Istats      *stats;      /* stat / score services */
 local Ilogman     *logman;     /* logging services */
@@ -160,7 +160,7 @@ local ArenaPersistentData persist_tr_owners;
  *    turfRewardTimer: called when a reward is due to be processed
  */
 local void arenaAction(Arena *arena, int action);
-local void flagTag(Arena *arena, Player *p, int fid, int oldteam);
+local void flagTag(Arena *arena, Player *p, int fid, int oldteam, int newteam);
 local void freqChange(Player *p, int newfreq);
 local void shipChange(Player *p, int newship, int newfreq);
 local void killEvent(Arena *arena, Player *killer, Player *killed,
@@ -298,7 +298,7 @@ EXPORT int MM_turf_reward(int action, Imodman *_mm, Arena *arena)
 		/* get all of the interfaces that we are to use */
 		playerdata = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		arenaman   = mm->GetInterface(I_ARENAMAN,   ALLARENAS);
-		flagsman   = mm->GetInterface(I_FLAGS,      ALLARENAS);
+		flagcore   = mm->GetInterface(I_FLAGCORE,   ALLARENAS);
 		config     = mm->GetInterface(I_CONFIG,     ALLARENAS);
 		stats      = mm->GetInterface(I_STATS,      ALLARENAS);
 		logman     = mm->GetInterface(I_LOGMAN,     ALLARENAS);
@@ -310,7 +310,7 @@ EXPORT int MM_turf_reward(int action, Imodman *_mm, Arena *arena)
 		persist    = mm->GetInterface(I_PERSIST,    ALLARENAS);
 
 		/* if any of the interfaces are null then loading failed */
-		if( !playerdata || !arenaman || !flagsman || !config  ||
+		if( !playerdata || !arenaman || !flagcore || !config  ||
 			!stats      || !logman   || !mainloop || !mapdata ||
 			!chat       || !cmdman   || !net      || !persist )
 		{
@@ -355,7 +355,7 @@ EXPORT int MM_turf_reward(int action, Imodman *_mm, Arena *arena)
 		/* release all interfaces */
 		mm->ReleaseInterface(playerdata);
 		mm->ReleaseInterface(arenaman);
-		mm->ReleaseInterface(flagsman);
+		mm->ReleaseInterface(flagcore);
 		mm->ReleaseInterface(config);
 		mm->ReleaseInterface(stats);
 		mm->ReleaseInterface(logman);
@@ -373,7 +373,7 @@ EXPORT int MM_turf_reward(int action, Imodman *_mm, Arena *arena)
 		/* module only attached to an arena if listed in conf */
 		/* create all necessary callbacks */
 		mm->RegCallback(CB_ARENAACTION, arenaAction, arena);
-		mm->RegCallback(CB_FLAGPICKUP,  flagTag,     arena);
+		mm->RegCallback(CB_TURFTAG,     flagTag,     arena);
 		mm->RegCallback(CB_FREQCHANGE,  freqChange,  arena);
 		mm->RegCallback(CB_SHIPCHANGE,  shipChange,  arena);
 		mm->RegCallback(CB_KILL,        killEvent,   arena);
@@ -387,7 +387,7 @@ EXPORT int MM_turf_reward(int action, Imodman *_mm, Arena *arena)
 	{
 		/* unregister all the callbacks when detaching arena */
 		mm->UnregCallback(CB_ARENAACTION, arenaAction, arena);
-		mm->UnregCallback(CB_FLAGPICKUP,  flagTag,     arena);
+		mm->UnregCallback(CB_TURFTAG,     flagTag,     arena);
 		mm->UnregCallback(CB_FREQCHANGE,  freqChange,  arena);
 		mm->UnregCallback(CB_SHIPCHANGE,  shipChange,  arena);
 		mm->UnregCallback(CB_KILL,        killEvent,   arena);
@@ -830,10 +830,9 @@ local void clearFlagsData(Arena *arena, int init)
 }
 
 
-local void flagTag(Arena *arena, Player *p, int fid, int oldfreq)
+local void flagTag(Arena *arena, Player *p, int fid, int oldfreq, int freq)
 {
 	TurfArena *ta, **p_ta = P_ARENA_DATA(arena, trkey);
-	int freq=-1;
 	int r_freq=-1, r_dings, r_weight, r_pid, r_rec, r_tc, /* flag recover data */
 	    l_freq=-1, l_dings, l_weight, l_pid, l_rec, l_tc; /* flag lost data */
 	TurfFlag *pTF   = NULL;  /* pointer to turf flag that was tagged */
@@ -856,7 +855,6 @@ local void flagTag(Arena *arena, Player *p, int fid, int oldfreq)
 
 	LOCK_STATUS(arena);
 
-	freq = p->p_freq;
 	pTF = &ta->flags[fid];
 
 	if( (pTF->team) && (pTF->team->freq==freq) )
@@ -997,7 +995,6 @@ local void flagTag(Arena *arena, Player *p, int fid, int oldfreq)
 		fid, pTF->dings, pTF->weight, pTeam->freq);
 
 	/* finally do whatever callbacks are necessary */
-	DO_CBS(CB_TURFTAG, arena, TurfTagFunc, (arena, p, fid));
 	if(r_freq!=-1)
 		DO_CBS(CB_TURFRECOVER, arena, TurfRecoverFunc,
 			(arena, fid, r_pid, r_freq, r_dings, r_weight, r_rec));
@@ -1852,8 +1849,6 @@ local void C_turfResetTimer(const char *tc, const char *params, Player *p, const
 
 local void flagGameReset(Arena *arena)
 {
-	int x;
-	ArenaFlagData *afd;
 	TurfArena *ta, **p_ta = P_ARENA_DATA(arena, trkey);
 	if (!arena || !*p_ta) return; else ta = *p_ta;
 
@@ -1868,15 +1863,7 @@ local void flagGameReset(Arena *arena)
 	}
 
 	/* clear the data in the flags module */
-	afd = flagsman->GetFlagData(arena);
-	for(x=0 ; x<afd->flagcount ; x++)
-	{
-		struct FlagData *flagPtr = &afd->flags[x];
-		flagPtr->state   = FLAG_ONMAP;
-		flagPtr->freq    = -1;
-		flagPtr->carrier = NULL;
-	}
-	flagsman->ReleaseFlagData(arena);
+	flagcore->FlagReset(arena, -1, 0);
 
 	UNLOCK_STATUS(arena);
 }

@@ -23,6 +23,8 @@
 #include "watchdamage.h"
 #include "objects.h"
 #include "reldb.h"
+#include "fg_wz.h"
+#include "fg_turf.h"
 
 #include "contrib/turf_reward.h"
 
@@ -102,6 +104,8 @@ local void log_py_exception(char lev, const char *msg)
 
 		/* this is pretty disgusting. sorry, but it seems to be
 		 * necessary when using PyErr_Print to avoid leaking objects. */
+		PyDict_DelItemString(sysdict, "last_type");
+		PyDict_DelItemString(sysdict, "last_value");
 		PyDict_DelItemString(sysdict, "last_traceback");
 		PyErr_Clear();
 	}
@@ -436,6 +440,11 @@ local PyObject *Player_get_authenticated(PyObject *obj, void *v)
 	return PyInt_FromLong(p->flags.authenticated);
 }
 
+local PyObject *Player_get_flagscarried(PyObject *obj, void *v)
+{
+	GET_AND_CHECK_PLAYER(p)
+	return PyInt_FromLong(p->pkt.flagscarried);
+}
 
 local PyGetSetDef Player_getseters[] =
 {
@@ -455,6 +464,7 @@ local PyGetSetDef Player_getseters[] =
 	SIMPLE_GETTER(ipaddr, "client ip address")
 	SIMPLE_GETTER(connectas, "which virtual server the client connected to")
 	SIMPLE_GETTER(authenticated, "whether the client has been authenticated")
+	SIMPLE_GETTER(flagscarried, "how many flags the player is carrying")
 #undef SIMPLE_GETTER
 	{NULL}
 };
@@ -769,7 +779,7 @@ local PyObject *mthd_reg_callback(PyObject *self, PyObject *args)
 local PyObject *mthd_call_callback(PyObject *self, PyObject *args)
 {
 	char *cbid;
-	PyObject *cbargs;
+	PyObject *cbargs, *ret = NULL;
 	Arena *arena = ALLARENAS;
 	py_cb_caller func;
 
@@ -784,10 +794,11 @@ local PyObject *mthd_call_callback(PyObject *self, PyObject *args)
 
 	func = HashGetOne(py_cb_callers, cbid);
 	if (func)
-		func(arena, cbargs);
+		ret = func(arena, cbargs);
+	else
+		PyErr_SetString(PyExc_TypeError, "you can't call that callback from Python");
 
-	Py_INCREF(Py_None);
-	return Py_None;
+	return ret;
 }
 
 
@@ -1014,14 +1025,15 @@ local int pytmr_timer(void *v)
 
 local void clear_timer(void *v)
 {
-	PyObject *func = v;
-	mainloop->ClearTimer(pytmr_timer, func);
-	Py_DECREF(func);
+	PyObject **funcptr = v;
+	mainloop->ClearTimer(pytmr_timer, funcptr);
+	Py_DECREF(*funcptr);
+	afree(funcptr);
 }
 
 local PyObject *mthd_set_timer(PyObject *self, PyObject *args)
 {
-	PyObject *func;
+	PyObject *func, **funcptr;
 	int initial, interval = -1;
 
 	if (!PyArg_ParseTuple(args, "Oi|i", &func, &initial, &interval))
@@ -1036,11 +1048,17 @@ local PyObject *mthd_set_timer(PyObject *self, PyObject *args)
 		return NULL;
 	}
 
+	/* use an extra level of indirection for the key to ensure each
+	 * timer can be destroyed indivudually even if multiple ones refer
+	 * to the same python function. */
+	funcptr = amalloc(sizeof(PyObject*));
+	*funcptr = func;
+
 	Py_INCREF(func);
 
-	mainloop->SetTimer(pytmr_timer, initial, interval, func, func);
+	mainloop->SetTimer(pytmr_timer, initial, interval, func, funcptr);
 
-	return PyCObject_FromVoidPtr(func, clear_timer);
+	return PyCObject_FromVoidPtr(funcptr, clear_timer);
 }
 
 

@@ -14,7 +14,7 @@ local Imodman *mm;
 local Iplayerdata *pd;
 local Iarenaman *aman;
 local Iconfig *cfg;
-local Iflags *flags;
+local Iflagcore *flagcore;
 
 EXPORT int MM_points_kill(int action, Imodman *mm_, Arena *arena)
 {
@@ -24,7 +24,7 @@ EXPORT int MM_points_kill(int action, Imodman *mm_, Arena *arena)
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
-		flags = mm->GetInterface(I_FLAGS, ALLARENAS);
+		flagcore = mm->GetInterface(I_FLAGCORE, ALLARENAS);
 
 		return MM_OK;
 	}
@@ -33,7 +33,7 @@ EXPORT int MM_points_kill(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);
-		mm->ReleaseInterface(flags);
+		mm->ReleaseInterface(flagcore);
 		return MM_OK;
 	}
 	else if (action == MM_ATTACH)
@@ -73,23 +73,26 @@ void MyKillFunc(Arena *arena, Player *killer, Player *killed,
 			pts += transflags *
 				cfg->GetInt(arena->cfg, "Kill", "PointsPerKilledFlag", 0);
 
-		if (flags)
-		{
-			/* cfghelp: Kill:PointsPerCarriedFlag, arena, int, def: 0
-			 * The number of extra points to give for each flag the killing
-			 * player is carrying. Note that flags that were transfered to
-			 * the killer as part of the kill are counted here, so adjust
-			 * PointsPerKilledFlag accordingly. */
-			pts += flags->GetCarriedFlags(killer) *
+		/* cfghelp: Kill:PointsPerCarriedFlag, arena, int, def: 0
+		 * The number of extra points to give for each flag the killing
+		 * player is carrying. Note that flags that were transfered to
+		 * the killer as part of the kill are counted here, so adjust
+		 * PointsPerKilledFlag accordingly. */
+		if (killer->pkt.flagscarried)
+			pts += killer->pkt.flagscarried *
 				cfg->GetInt(arena->cfg, "Kill", "PointsPerCarriedFlag", 0);
 
+		if (flagcore)
+		{
 			/* cfghelp: Kill:PointsPerTeamFlag, arena, int, def: 0
 			 * The number of extra points to give for each flag owned by
 			 * the killing team. Note that flags that were transfered to
 			 * the killer as part of the kill are counted here, so
 			 * adjust PointsPerKilledFlag accordingly. */
-			pts += flags->GetFreqFlags(arena, killer->p_freq) *
-				cfg->GetInt(arena->cfg, "Kill", "PointsPerTeamFlag", 0);
+			int freqflags = flagcore->CountFreqFlags(arena, killer->p_freq);
+			if (freqflags)
+				pts += freqflags *
+					cfg->GetInt(arena->cfg, "Kill", "PointsPerTeamFlag", 0);
 		}
 	}
 

@@ -35,7 +35,7 @@ local Imainloop *ml;
 local Iarenaman *aman;
 local Igame *game;
 local Ijackpot *jackpot;
-local Iflags *flags;
+local Iflagcore *flagcore;
 local Iballs *balls;
 local Ilagquery *lagq;
 local Ipersist *persist;
@@ -182,17 +182,6 @@ local void Cshutdown(const char *tc, const char *params, Player *p, const Target
 		code = EXIT_RECYCLE;
 
 	ml->Quit(code);
-}
-
-
-local helptext_t flagreset_help =
-"Targets: none\n"
-"Args: none\n"
-"Causes the flag game to immediately reset.\n";
-
-local void Cflagreset(const char *tc, const char *params, Player *p, const Target *target)
-{
-	flags->FlagVictory(p->arena, -1, 0);
 }
 
 
@@ -1397,52 +1386,40 @@ local helptext_t flaginfo_help =
 
 local void Cflaginfo(const char *tc, const char *params, Player *p, const Target *target)
 {
-	ArenaFlagData *fd;
-	Arena *arena;
-	int i;
+#define MAXFLAGSTOPRINT 20
+	FlagInfo flags[MAXFLAGSTOPRINT];
+	int i, n;
 
 	if (target->type != T_ARENA)
 		return;
 
-	arena = p->arena;
+	n = flagcore->GetFlags(p->arena, 0, flags, MAXFLAGSTOPRINT);
 
-	fd = flags->GetFlagData(arena);
-
-	for (i = 0; i < fd->flagcount; i++)
-		switch (fd->flags[i].state)
+	for (i = 0; i < n; i++)
+		switch (flags[i].state)
 		{
-			case FLAG_NONE:
-				chat->SendMessage(p,
-						"flag %d: doesn't exist",
-						i);
+			case FI_NONE:
+				chat->SendMessage(p, "flag %d: doesn't exist", i);
 				break;
 
-			case FLAG_ONMAP:
+			case FI_ONMAP:
 				{
-					unsigned short x = fd->flags[i].x * 20 / 1024;
-					unsigned short y = fd->flags[i].y * 20 / 1024;
+					unsigned short x = flags[i].x * 20 / 1024;
+					unsigned short y = flags[i].y * 20 / 1024;
 
 					chat->SendMessage(p,
 							"flag %d: on the map at %c%d (%d,%d), owned by freq %d",
-							i, 'A'+x, y+1, fd->flags[i].x, fd->flags[i].y, fd->flags[i].freq);
+							i, 'A'+x, y+1, flags[i].x, flags[i].y, flags[i].freq);
 				}
 				break;
 
-			case FLAG_CARRIED:
-				if (fd->flags[i].carrier)
+			case FI_CARRIED:
+				if (flags[i].carrier)
 					chat->SendMessage(p,
 							"flag %d: carried by %s",
-							i, fd->flags[i].carrier->name);
-				break;
-
-			case FLAG_NEUTED:
-				chat->SendMessage(p,
-						"flag %d: neuted and has not reappeared yet",
-						i);
+							i, flags[i].carrier->name);
 				break;
 		}
-
-	flags->ReleaseFlagData(arena);
 }
 
 
@@ -1453,29 +1430,29 @@ local helptext_t neutflag_help =
 
 local void Cneutflag(const char *tc, const char *params, Player *p, const Target *target)
 {
-	ArenaFlagData *fd;
 	Arena *arena = p->arena;
-	int flagid;
+	int flagid, n;
 	char *next;
-
-	fd = flags->GetFlagData(arena);
+	FlagInfo fi;
 
 	flagid = strtol(params, &next, 0);
-	if (next == params || flagid < 0 || flagid >= fd->flagcount)
+	if (next == params ||
+	    (n = flagcore->GetFlags(arena, flagid, &fi, 1)) != 1)
+	{
 		chat->SendMessage(p, "neutflag: bad flag id");
-	else if (fd->flags[flagid].state == FLAG_ONMAP ||
-	         fd->flags[flagid].state == FLAG_NEUTED ||
-	         /* undocumented flag letting you force a flag away from a
-	          * player. this will leave the clients out of sync for a
-	          * while, so it's dangerous. */
-	         strcmp(next, "force") == 0)
+		return;
+	}
+
+	/* undocumented flag lets you force a flag away from a player. */
+	if (fi.state == FI_ONMAP || strcmp(next, "force") == 0)
+	{
 		/* set flag state to none, so that the flag timer will neut it
 		 * next time it runs. */
-		fd->flags[flagid].state = FLAG_NONE;
+		fi.state = FI_NONE;
+		flagcore->SetFlags(arena, flagid, &fi, 1);
+	}
 	else
 		chat->SendMessage(p, "neutflag: that flag isn't currently on the map");
-
-	flags->ReleaseFlagData(arena);
 }
 
 
@@ -1489,52 +1466,54 @@ local helptext_t moveflag_help =
 local void Cmoveflag(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
-	ArenaFlagData *fd;
 	char *next, *next2;
-	int flagid, x, y, freq;
-
-	if (!arena) return;
-
-	fd = flags->GetFlagData(arena);
+	int flagid, n, x, y;
+	FlagInfo fi;
 
 	flagid = strtol(params, &next, 0);
-	if (next == params || flagid < 0 || flagid >= fd->flagcount)
+	if (next == params ||
+	    (n = flagcore->GetFlags(arena, flagid, &fi, 1)) != 1)
 	{
-		chat->SendMessage(p, "moveflag: Bad flag id");
-		goto mf_unlock;
+		chat->SendMessage(p, "moveflag: bad flag id");
+		return;
 	}
 
-	freq = strtol(next, &next2, 0);
-	if (next == next2)
+	if (fi.state != FI_ONMAP)
 	{
-		/* bad freq */
-		chat->SendMessage(p, "moveflag: Bad freq");
-		goto mf_unlock;
+		chat->SendMessage(p, "moveflag: flag %d isn't on the map", flagid);
+		return;
+	}
+
+	fi.freq = strtol(next, &next2, 0);
+	if (next == next2 || fi.freq < 0 || fi.freq > 9999)
+	{
+		chat->SendMessage(p, "moveflag: bad freq");
+		return;
 	}
 
 	x = strtol(next2, &next, 0);
 	while (*next == ',' || *next == ' ') next++;
 	y = strtol(next, NULL, 0);
-	if (x == 0 || y == 0)
+	if (x > 0 && x < 1024 && y > 0 && y < 1024)
 	{
-		/* missing coords */
-		x = fd->flags[flagid].x;
-		y = fd->flags[flagid].y;
+		if (mapdata)
+			mapdata->FindEmptyTileNear(arena, &x, &y);
+		fi.x = x;
+		fi.y = y;
 	}
 
-	/* make sure it's not in a wall or off the map */
-	if (x < 0) x = 0;
-	if (y < 0) y = 0;
-	if (x > 1023) x = 1023;
-	if (y > 1023) y = 1023;
+	flagcore->SetFlags(arena, flagid, &fi, 1);
+}
 
-	if (mapdata)
-		mapdata->FindEmptyTileNear(arena, &x, &y);
 
-	flags->MoveFlag(arena, flagid, x, y, freq);
+local helptext_t flagreset_help =
+"Targets: none\n"
+"Args: none\n"
+"Causes the flag game to immediately reset.\n";
 
-mf_unlock:
-	flags->ReleaseFlagData(arena);
+local void Cflagreset(const char *tc, const char *params, Player *p, const Target *target)
+{
+	flagcore->FlagReset(p->arena, -1, 0);
 }
 
 
@@ -2138,7 +2117,7 @@ local const struct cmd_info config_commands[] =
 
 local const struct interface_info flag_requires[] =
 {
-	REQUIRE(flags, I_FLAGS)
+	REQUIRE(flagcore, I_FLAGCORE)
 	END()
 };
 local const struct cmd_info flag_commands[] =

@@ -12,7 +12,9 @@
  * the arena response procedure.
  */
 
-#define I_CLIENTSET "clientset-2"
+typedef u32 override_key_t;
+
+#define I_CLIENTSET "clientset-3"
 
 typedef struct Iclientset
 {
@@ -25,7 +27,13 @@ typedef struct Iclientset
 	u32 (*GetChecksum)(Arena *arena, u32 key);
 
 	int (*GetRandomPrize)(Arena *arena);
+
+	void (*Override)(Arena *arena, override_key_t key, i32 val);
+	void (*Unoverride)(Arena *arena, override_key_t key);
+	override_key_t (*GetOverrideKey)(const char *section, const char *key);
+	/* zero return means failure */
 } Iclientset;
+
 
 #endif
 

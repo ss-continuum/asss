@@ -147,7 +147,7 @@ local Ilogman *lm;
 local Ichat *chat;
 local Inet *net;
 local Iconfig *cfg;
-local Iflags *flags;
+local Iflagcore *flagcore;
 local Iballs *balls;
 local Imapdata *mapdata;
 local Iclientset *clientset;
@@ -1271,7 +1271,7 @@ EXPORT int MM_record(int action, Imodman *mm_, Arena *arena)
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
-		flags = mm->GetInterface(I_FLAGS, ALLARENAS);
+		flagcore = mm->GetInterface(I_FLAGCORE, ALLARENAS);
 		balls = mm->GetInterface(I_BALLS, ALLARENAS);
 		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
 		clientset = mm->GetInterface(I_CLIENTSET, ALLARENAS);
@@ -1317,7 +1317,7 @@ EXPORT int MM_record(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(cfg);
-		mm->ReleaseInterface(flags);
+		mm->ReleaseInterface(flagcore);
 		mm->ReleaseInterface(balls);
 		mm->ReleaseInterface(mapdata);
 		mm->ReleaseInterface(clientset);

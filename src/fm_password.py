@@ -94,7 +94,7 @@ def mm_attach(a):
 	a.fpwd_fpwds = {}
 
 def mm_detach(a):
-	del a.fpwd_myint, a.fpwd_oldfm
-	del a.fpwd_joinpwd_cmd, a.fpwd_freqpwd_cmd
-	del a.fpwd_fpwds
+	for attr in ['myint', 'oldfm', 'joinpwd_cmd', 'freqpwd_cmd', 'fpwds']:
+		try: delattr(a, 'fpwd_' + attr)
+		except: pass
 

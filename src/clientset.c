@@ -2,6 +2,7 @@
 /* dist: public */
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <assert.h>
 
@@ -14,10 +15,13 @@
 
 #define COUNT(x) (sizeof(x)/sizeof(x[0]))
 
+#define SIZE (sizeof(struct ClientSettings))
 
 typedef struct adata
 {
 	struct ClientSettings cs;
+	byte overrides[SIZE];
+	byte overridemask[SIZE];
 	/* prizeweight partial sums. 0-27 are used for now, representing
 	 * prizes 1 to 28. */
 	unsigned short pwps[32];
@@ -30,6 +34,9 @@ local void SendClientSettings(Player *p);
 local void Reconfigure(Arena *arena);
 local u32 GetChecksum(Arena *arena, u32 key);
 local int GetRandomPrize(Arena *arena);
+local void Override(Arena *arena, override_key_t key, i32 val);
+local void Unoverride(Arena *arena, override_key_t key);
+local override_key_t GetOverrideKey(const char *section, const char *key);
 
 /* global data */
 
@@ -51,7 +58,8 @@ local Iarenaman *aman;
 local Iclientset _myint =
 {
 	INTERFACE_HEAD_INIT(I_CLIENTSET, "clientset")
-	SendClientSettings, Reconfigure, GetChecksum, GetRandomPrize
+	SendClientSettings, Reconfigure, GetChecksum, GetRandomPrize,
+	Override, Unoverride, GetOverrideKey
 };
 
 /* the client settings definition */
@@ -206,6 +214,176 @@ local void load_settings(adata *ad, ConfigHandle conf)
 }
 
 
+/* override keys are two small integers stuffed into an unsigned 32-bit
+ * integer. the upper 16 bits are the length in bits, and the lower 16
+ * are the offset in bits */
+
+void override_work(Arena *arena, override_key_t key, i32 val, int set)
+{
+	adata *ad = P_ARENA_DATA(arena, adkey);
+	int len = (key >> 16) & 0xffffu;
+	int offset = key & 0xffffu;
+	u32 mask = set ? 0xffffffffu : 0;
+
+	/* don't override type byte */
+	if (offset < 8)
+		return;
+
+	LOCK();
+	if ((offset & 7) == 0 && len == 8)
+	{
+		/* easy case: write byte */
+		offset >>= 3;
+		((i8*)ad->overrides)[offset] = val;
+		((u8*)ad->overridemask)[offset] = mask;
+	}
+	else if ((offset & 15) == 0 && len == 16)
+	{
+		/* easy case: write short */
+		offset >>= 4;
+		((i16*)ad->overrides)[offset] = val;
+		((u16*)ad->overridemask)[offset] = mask;
+	}
+	else if ((offset & 31) == 0 && len == 32)
+	{
+		/* easy case: write long */
+		offset >>= 5;
+		((i32*)ad->overrides)[offset] = val;
+		((u32*)ad->overridemask)[offset] = mask;
+	}
+	/* FIXME: add bit support here */
+	else
+	{
+		lm->Log(L_WARN, "<clientset> illegal override key: %x", key);
+	}
+	UNLOCK();
+}
+
+
+void Override(Arena *arena, override_key_t key, i32 val)
+{
+	override_work(arena, key, val, TRUE);
+}
+
+void Unoverride(Arena *arena, override_key_t key)
+{
+	override_work(arena, key, 0, FALSE);
+}
+
+
+override_key_t GetOverrideKey(const char *section, const char *key)
+{
+#define MAKE_KEY(field, len) ((offsetof(struct ClientSettings, field)) << 3 | ((len) << 16))
+	char fullkey[MAXSECTIONLEN+MAXKEYLEN];
+	int i, j;
+
+	/* do prizeweights */
+	if (strcasecmp(section, "PrizeWeight") == 0)
+	{
+		for (i = 0; i < COUNT(prizeweight_names); i++)
+			/* HACK: that +12 there is kind of sneaky */
+			if (strcasecmp(prizeweight_names[i]+12, key) == 0)
+				return MAKE_KEY(prizeweight_set[i], 8);
+		return 0;
+	}
+
+	/* do ships */
+	for (i = 0; i < 8; i++)
+		if (strcasecmp(ship_names[i], section) == 0)
+		{
+			/* basic stuff */
+			for (j = 0; j < COUNT(ship_long_names); j++)
+				if (strcasecmp(ship_long_names[j], section) == 0)
+					return MAKE_KEY(ships[i].long_set[j], 32);
+			for (j = 0; j < COUNT(ship_short_names); j++)
+				if (strcasecmp(ship_short_names[j], section) == 0)
+					return MAKE_KEY(ships[i].short_set[j], 16);
+			for (j = 0; j < COUNT(ship_byte_names); j++)
+				if (strcasecmp(ship_byte_names[j], section) == 0)
+					return MAKE_KEY(ships[i].byte_set[j], 8);
+
+			/* don't support weapons bits yet:
+#define DO(x) \
+			wb.x = cfg->GetInt(conf, shipname, #x, 0)
+			DO(ShrapnelMax);  DO(ShrapnelRate);  DO(AntiWarpStatus);
+			DO(CloakStatus);  DO(StealthStatus); DO(XRadarStatus);
+			DO(InitialGuns);  DO(MaxGuns);
+			DO(InitialBombs); DO(MaxBombs);
+			DO(DoubleBarrel); DO(EmpBomb); DO(SeeMines);
+			DO(Unused1);
+#undef DO
+			ss->Weapons = wb;
+			*/
+
+			/* don't support the strange bitfield yet:
+			memset(&misc, 0, sizeof(misc));
+			misc.SeeBombLevel = cfg->GetInt(conf, shipname, "SeeBombLevel", 0);
+			misc.DisableFastShooting = cfg->GetInt(conf, shipname,
+					"DisableFastShooting", 0);
+			misc.Radius = cfg->GetInt(conf, shipname, "Radius", 0);
+			ss->short_set[10] = *(unsigned short*)&misc;
+			*/
+
+			return 0;
+		}
+
+	/* don't support spawn locations yet:
+	for (i = 0; i < 4; i++)
+	{
+		char xname[] = "Team#-X";
+		char yname[] = "Team#-Y";
+		char rname[] = "Team#-Radius";
+		xname[4] = yname[4] = rname[4] = '0' + i;
+		cs->spawn_pos[i].x = cfg->GetInt(conf, "Spawn", xname, 0);
+		cs->spawn_pos[i].y = cfg->GetInt(conf, "Spawn", yname, 0);
+		cs->spawn_pos[i].r = cfg->GetInt(conf, "Spawn", rname, 0);
+	}
+	*/
+
+	/* need full key for remaining ones: */
+	snprintf(fullkey, sizeof(fullkey), "%s:%s", section, key);
+
+	/* do rest of settings */
+	for (i = 0; i < COUNT(long_names); i++)
+		if (strcasecmp(long_names[i], fullkey) == 0)
+			return MAKE_KEY(long_set[i], 32);
+	for (i = 0; i < COUNT(short_names); i++)
+		if (strcasecmp(short_names[i], fullkey) == 0)
+			return MAKE_KEY(short_set[i], 16);
+	for (i = 0; i < COUNT(byte_names); i++)
+		if (strcasecmp(byte_names[i], fullkey) == 0)
+			return MAKE_KEY(byte_set[i], 8);
+
+	/* we don't support overriding bits yet:
+	cs->bit_set.ExactDamage = cfg->GetInt(conf, "Bullet", "ExactDamage", 0);
+	cs->bit_set.HideFlags = cfg->GetInt(conf, "Spectator", "HideFlags", 0);
+	cs->bit_set.NoXRadar = cfg->GetInt(conf, "Spectator", "NoXRadar", 0);
+	cs->bit_set.SlowFrameRate = cfg->GetInt(conf, "Misc", "SlowFrameCheck", 0);
+	cs->bit_set.DisableScreenshot = cfg->GetInt(conf, "Misc", "DisableScreenshot", 0);
+	cs->bit_set.MaxTimerDrift = cfg->GetInt(conf, "Misc", "MaxTimerDrift", 0);
+	cs->bit_set.DisableBallThroughWalls = cfg->GetInt(conf, "Misc", "DisableBallThroughWalls", 0);
+	cs->bit_set.DisableBallKilling = cfg->GetInt(conf, "Misc", "DisableBallKilling", 0);
+	*/
+
+	return 0;
+#undef MAKE_KEY
+}
+
+
+local void do_mask(struct ClientSettings *dest, adata *ad)
+{
+	int i;
+	unsigned long *c = (unsigned long*)&ad->cs;
+	unsigned long *d = (unsigned long*)dest;
+	unsigned long *o = (unsigned long*)ad->overrides;
+	unsigned long *m = (unsigned long*)ad->overridemask;
+
+	assert((sizeof(*dest) % sizeof(unsigned long)) == 0);
+	for (i = 0; i < sizeof(*dest)/sizeof(unsigned long); i++)
+		d[i] = (c[i] & ~m[i]) | (o[i] & m[i]);
+}
+
+
 void ActionFunc(Arena *arena, int action)
 {
 	adata *ad = P_ARENA_DATA(arena, adkey);
@@ -216,8 +394,10 @@ void ActionFunc(Arena *arena, int action)
 	}
 	else if (action == AA_CONFCHANGED)
 	{
+		struct ClientSettings tosend;
 		load_settings(ad, arena->cfg);
-		net->SendToArena(arena, NULL, (byte*)&ad->cs, sizeof(struct ClientSettings), NET_RELIABLE);
+		do_mask(&tosend, ad);
+		net->SendToArena(arena, NULL, (byte*)&tosend, sizeof(tosend), NET_RELIABLE);
 		lm->LogA(L_INFO, "clientset", arena, "sending modified settings");
 	}
 	else if (action == AA_DESTROY)
@@ -236,7 +416,11 @@ void SendClientSettings(Player *p)
 	if (p->arena)
 	{
 		if (ad->cs.bit_set.type == S2C_SETTINGS)
-			net->SendToOne(p, (byte*)&ad->cs, sizeof(struct ClientSettings), NET_RELIABLE);
+		{
+			struct ClientSettings tosend;
+			do_mask(&tosend, ad);
+			net->SendToOne(p, (byte*)&tosend, sizeof(tosend), NET_RELIABLE);
+		}
 		else
 			lm->LogA(L_ERROR, "clientset", p->arena, "uninitialized client settings");
 	}
@@ -246,10 +430,12 @@ void SendClientSettings(Player *p)
 
 void Reconfigure(Arena *arena)
 {
+	struct ClientSettings tosend;
 	adata *ad = P_ARENA_DATA(arena, adkey);
 	LOCK();
 	load_settings(ad, arena->cfg);
-	net->SendToArena(arena, NULL, (byte*)&ad->cs, sizeof(struct ClientSettings), NET_RELIABLE);
+	do_mask(&tosend, ad);
+	net->SendToArena(arena, NULL, (byte*)&tosend, sizeof(tosend), NET_RELIABLE);
 	UNLOCK();
 }
 
@@ -257,10 +443,12 @@ void Reconfigure(Arena *arena)
 u32 GetChecksum(Arena *arena, u32 key)
 {
 	adata *ad = P_ARENA_DATA(arena, adkey);
-	u32 *data = (u32*)&ad->cs;
+	struct ClientSettings tochecksum;
+	u32 *data = (u32*)&tochecksum;
 	u32 csum = 0, i;
 	LOCK();
-	for (i = 0; i < 357; i++, data++)
+	do_mask(&tochecksum, ad);
+	for (i = 0; i < (SIZE/sizeof(u32)); i++, data++)
 		csum += (*data ^ key);
 	UNLOCK();
 	return csum;

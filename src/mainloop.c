@@ -15,6 +15,7 @@ typedef struct TimerData
 	ticks_t interval, when;
 	void *param;
 	void *key;
+	int killme;
 } TimerData;
 
 
@@ -35,6 +36,7 @@ local Imainloop _int =
 };
 
 local int privatequit;
+local TimerData *thistimer;
 local LinkedList timers;
 local Imodman *mm;
 
@@ -86,16 +88,18 @@ startover:
 			if (td->func && TICK_GT(gtc, td->when))
 			{
 				int ret;
+				thistimer = td;
 				UNLOCK();
 				ret = td->func(td->param);
 				LOCK();
-				if (ret)
-					td->when = gtc + td->interval;
-				else
+				thistimer = NULL;
+				if (td->killme || !ret)
 				{
 					LLRemove(&timers, td);
 					afree(td);
 				}
+				else
+					td->when = gtc + td->interval;
 				goto startover;
 			}
 		}
@@ -144,8 +148,18 @@ void CleanupTimer(TimerFunc func, void *key, CleanupFunc cleanup)
 		{
 			if (cleanup)
 				cleanup(td->param);
-			LLRemove(&timers, td);
-			afree(td);
+			/* we might be inside the timer we're trying to remove. if
+			 * so, mark it for the main loop to take care of. if not, do
+			 * the removal now. */
+			if (td == thistimer)
+			{
+				td->killme = TRUE;
+			}
+			else
+			{
+				LLRemove(&timers, td);
+				afree(td);
+			}
 		}
 	}
 	UNLOCK();

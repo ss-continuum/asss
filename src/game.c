@@ -67,7 +67,6 @@ local Imainloop *ml;
 local Ilogman *lm;
 local Imodman *mm;
 local Iarenaman *aman;
-local Iflags *flags;
 local Icapman *capman;
 local Imapdata *mapdata;
 local Ilagcollect *lagc;
@@ -929,10 +928,7 @@ local void PDie(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	if (flags)
-		flagcount = flags->GetCarriedFlags(p);
-	else
-		flagcount = 0;
+	flagcount = killer->pkt.flagscarried;
 
 	/* this will figure out how many points to send in the packet */
 	DO_CBS(CB_KILL, arena, KillFunc,
@@ -1368,7 +1364,6 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		chatnet = mm->GetInterface(I_CHATNET, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
-		flags = mm->GetInterface(I_FLAGS, ALLARENAS);
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
 		lagc = mm->GetInterface(I_LAGCOLLECT, ALLARENAS);
@@ -1464,7 +1459,6 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(chatnet);
 		mm->ReleaseInterface(aman);
-		mm->ReleaseInterface(flags);
 		mm->ReleaseInterface(capman);
 		mm->ReleaseInterface(mapdata);
 		mm->ReleaseInterface(lagc);

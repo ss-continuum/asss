@@ -775,18 +775,21 @@ local %(retdecl)s %(funcname)s(%(allargs)s)
 	callback_file.write(code)
 
 	cbvars = create_py_to_c_func(func)
-	cbvars.update(vars())
-	if cbvars['extras1'] or cbvars['extras2'] or cbvars['extras3'] or \
-	   cbvars['outformat'] or cbvars['outargs']:
-		print "warning: %s: out or inout args not supported when " \
-				"calling cbs from python" % name
+	cbvars['name'] = name
+	cbvars['ctype'] = ctype
 	code = """
-local void py_cb_call_%(name)s(Arena *arena, PyObject *args)
+local PyObject * py_cb_call_%(name)s(Arena *arena, PyObject *args)
 {
+	PyObject *out;
 %(decls)s
 	if (!PyArg_ParseTuple(args, "%(informat)s"%(inargs)s))
-		return;
+		return NULL;
+%(extras1)s
 	DO_CBS(%(name)s, arena, %(ctype)s, (%(allargs)s));
+%(extras2)s
+	out = Py_BuildValue("%(outformat)s"%(outargs)s);
+%(extras3)s
+	return out;
 }
 
 """ % cbvars
@@ -795,7 +798,7 @@ local void py_cb_call_%(name)s(Arena *arena, PyObject *args)
 
 def finish_pycb():
 	callback_file.write("""
-typedef void (*py_cb_caller)(Arena *arena, PyObject *args);
+typedef PyObject * (*py_cb_caller)(Arena *arena, PyObject *args);
 local HashTable *py_cb_callers;
 
 local void init_py_callbacks(void)

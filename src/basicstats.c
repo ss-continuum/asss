@@ -2,6 +2,7 @@
 /* dist: public */
 
 #include "asss.h"
+#include "fg_turf.h"
 
 
 local Iplayerdata *pd;
@@ -36,22 +37,74 @@ local void mykill(Arena *arena, Player *killer, Player *killed,
 }
 
 
-local void myfpickup(Arena *arena, Player *p, int fid, int of, int carried)
+local void myflaggain(Arena *arena, Player *p, int fid, int how)
 {
-	if (carried)
-	{
-		stats->StartTimer(p, STAT_FLAG_CARRY_TIME);
+	if (how == FLAGGAIN_PICKUP)
 		stats->IncrementStat(p, STAT_FLAG_PICKUPS, 1);
+
+	/* always do this */
+	stats->StartTimer(p, STAT_FLAG_CARRY_TIME);
+}
+
+local void myflaglost(Arena *arena, Player *p, int how)
+{
+	/* only stop it if he lost his last flag */
+	if (p->pkt.flagscarried == 0)
+		stats->StopTimer(p, STAT_FLAG_CARRY_TIME);
+	/* this stuff may not be accurate: flag games can decide to make
+	 * various things regular or neuted drops, or something else
+	 * entirely. this is a rough approximation good for most purposes,
+	 * though. */
+	switch (how)
+	{
+		case CLEANUP_DROPPED:
+		case CLEANUP_INSAFE:
+			stats->IncrementStat(p, STAT_FLAG_DROPS, 1);
+			break;
+		case CLEANUP_SHIPCHANGE:
+		case CLEANUP_FREQCHANGE:
+		case CLEANUP_LEFTARENA:
+			stats->IncrementStat(p, STAT_FLAG_NEUT_DROPS, 1);
+			break;
+		case CLEANUP_KILL_NORMAL:
+		case CLEANUP_KILL_TK:
+		case CLEANUP_KILL_CANTCARRY:
+		case CLEANUP_KILL_FAKE:
+		case CLEANUP_OTHER:
+			break;
 	}
 }
 
-local void mydrop(Arena *arena, Player *p, int count, int neut)
+local void myturftag(Arena *a, Player *p, int oldfreq, int newfreq)
 {
-	stats->StopTimer(p, STAT_FLAG_CARRY_TIME);
-	if (!neut)
-		stats->IncrementStat(p, STAT_FLAG_DROPS, count);
-	else
-		stats->IncrementStat(p, STAT_FLAG_NEUT_DROPS, count);
+	stats->IncrementStat(p, STAT_TURF_TAGS, 1);
+}
+
+local void myflagreset(Arena *arena, int freq, int points)
+{
+	if (freq >= 0 && points > 0)
+	{
+		Player *p;
+		Link *link;
+
+		pd->Lock();
+		FOR_EACH_PLAYER(p)
+			if (p->status == S_PLAYING &&
+			    p->arena == arena &&
+			    p->p_ship != SHIP_SPEC)
+			{
+				if (p->p_freq == freq)
+				{
+					stats->IncrementStat(p, STAT_FLAG_GAMES_WON, 1);
+					/* only do flag reward points if not in safe zone */
+					if (!(p->position.status & STATUS_SAFEZONE))
+						stats->IncrementStat(p, STAT_FLAG_POINTS, points);
+				}
+				else
+					stats->IncrementStat(p, STAT_FLAG_GAMES_LOST, 1);
+			}
+		pd->Unlock();
+	}
 }
 
 
@@ -83,8 +136,10 @@ EXPORT int MM_basicstats(int action, Imodman *mm, Arena *arena)
 		mm->RegCallback(CB_PLAYERACTION, mypa, ALLARENAS);
 		mm->RegCallback(CB_KILL, mykill, ALLARENAS);
 
-		mm->RegCallback(CB_FLAGPICKUP, myfpickup, ALLARENAS);
-		mm->RegCallback(CB_FLAGDROP, mydrop, ALLARENAS);
+		mm->RegCallback(CB_FLAGRESET, myflagreset, ALLARENAS);
+		mm->RegCallback(CB_FLAGGAIN, myflaggain, ALLARENAS);
+		mm->RegCallback(CB_FLAGLOST, myflaglost, ALLARENAS);
+		mm->RegCallback(CB_TURFTAG, myturftag, ALLARENAS);
 
 		mm->RegCallback(CB_BALLPICKUP, mybpickup, ALLARENAS);
 		mm->RegCallback(CB_BALLFIRE, mybfire, ALLARENAS);
@@ -96,8 +151,10 @@ EXPORT int MM_basicstats(int action, Imodman *mm, Arena *arena)
 	{
 		mm->UnregCallback(CB_PLAYERACTION, mypa, ALLARENAS);
 		mm->UnregCallback(CB_KILL, mykill, ALLARENAS);
-		mm->UnregCallback(CB_FLAGPICKUP, myfpickup, ALLARENAS);
-		mm->UnregCallback(CB_FLAGDROP, mydrop, ALLARENAS);
+		mm->UnregCallback(CB_FLAGRESET, myflagreset, ALLARENAS);
+		mm->UnregCallback(CB_FLAGGAIN, myflaggain, ALLARENAS);
+		mm->UnregCallback(CB_FLAGLOST, myflaglost, ALLARENAS);
+		mm->UnregCallback(CB_TURFTAG, myturftag, ALLARENAS);
 		mm->UnregCallback(CB_BALLPICKUP, mybpickup, ALLARENAS);
 		mm->UnregCallback(CB_BALLFIRE, mybfire, ALLARENAS);
 		mm->UnregCallback(CB_GOAL, mygoal, ALLARENAS);

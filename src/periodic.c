@@ -9,7 +9,7 @@ local Imodman *mm;
 local Iplayerdata *pd;
 local Iarenaman *aman;
 local Imainloop *ml;
-local Iflags *flags;
+local Iflagcore *flagcore;
 local Iconfig *cfg;
 local Inet *net;
 local Istats *stats;
@@ -69,10 +69,6 @@ local int timer(void *set_)
 	Player *p;
 	Link *link;
 
-	/* lock status here to avoid repeatedly locking and unlocking it,
-	 * and also to avoid deadlock. */
-	flags->GetFlagData(set->arena);
-
 	/* figure out what freqs we have in this arena, how many players
 	 * each has, and how many flags each owns. */
 	pd->Lock();
@@ -87,7 +83,7 @@ local int timer(void *set_)
 				fd = amalloc(sizeof(*fd));
 				fd->head.key = freq;
 				fd->players = 0;
-				fd->flags = flags->GetFreqFlags(set->arena, freq);
+				fd->flags = flagcore->CountFreqFlags(set->arena, freq);
 				TrPut(&fdata, &fd->head);
 				freqcount++;
 			}
@@ -95,8 +91,6 @@ local int timer(void *set_)
 			totalplayers++;
 		}
 	pd->Unlock();
-
-	flags->ReleaseFlagData(set->arena);
 
 	if (totalplayers >= set->minplayers && set->pp)
 	{
@@ -190,11 +184,11 @@ EXPORT int MM_periodic(int action, Imodman *mm_, Arena *arena)
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
-		flags = mm->GetInterface(I_FLAGS, ALLARENAS);
+		flagcore = mm->GetInterface(I_FLAGCORE, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		stats = mm->GetInterface(I_STATS, ALLARENAS);
-		if (!pd || !aman || !flags || !cfg || !stats) return MM_FAIL;
+		if (!pd || !aman || !flagcore || !cfg || !stats) return MM_FAIL;
 
 		mm->RegCallback(CB_ARENAACTION, aaction, ALLARENAS);
 
@@ -207,7 +201,7 @@ EXPORT int MM_periodic(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(ml);
-		mm->ReleaseInterface(flags);
+		mm->ReleaseInterface(flagcore);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(stats);

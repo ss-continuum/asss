@@ -15,6 +15,7 @@
  * used by points_turf_reward for multiarena scoring locking/unlocking
  */
 
+#include "fg_turf.h"
 
 /* prototypes */
 struct TurfArena;
@@ -22,10 +23,8 @@ struct Iturfrewardpoints;
 
 
 /* turf_reward specific callbacks */
-/* called for all turf flag tags */
-#define CB_TURFTAG "turftag"
-typedef void (*TurfTagFunc)(Arena *arena, Player *p, int fid);
-/* pycb: arena, player, int */
+
+/* note CB_TURFTAG in fg_turf.h */
 
 #define CB_TURFSTEAL "turfsteal"
 typedef void (*TurfStealFunc)(Arena *arena, Player *p, int fid);
