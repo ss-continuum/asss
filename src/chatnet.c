@@ -118,7 +118,8 @@ local Player * try_accept(int s)
 	cli = PPDATA(p, cdkey);
 	cli->socket = a;
 	cli->sin = sin;
-	cli->lastmsgtime = TICK_MAKE(current_ticks() - 1000U);
+	cli->lastproctime = TICK_MAKE(current_ticks() - 1000U);
+	cli->lastsendtime = TICK_MAKE(current_ticks() + 1000U);
 	cli->inbuf = NULL;
 	LLInit(&cli->outbufs);
 
@@ -261,8 +262,12 @@ local int do_one_iter(void *dummy)
 				do_sp_write(cli);
 			/* or process? */
 			if (cli->inbuf &&
-			    TICK_DIFF(gtc, cli->lastmsgtime) > cfg_msgdelay)
+			    TICK_DIFF(gtc, cli->lastproctime) > cfg_msgdelay)
 				LLAdd(&toproc, p);
+			/* send noop if we haven't sent anything to this client for
+			 * 3 minutes */
+			if (TICK_DIFF(gtc, cli->lastsendtime) > 18000)
+				sp_send(cli, "NOOP");
 		}
 	pd->Unlock();
 
@@ -277,7 +282,7 @@ local int do_one_iter(void *dummy)
 		p = link->data;
 		do_sp_process(PPDATA(p, cdkey), process_line, p);
 	}
-	LLEmpty(&tokill);
+	LLEmpty(&toproc);
 
 	UNLOCK();
 
