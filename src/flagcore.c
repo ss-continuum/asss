@@ -459,7 +459,7 @@ local void freqchange(Player *p, int newfreq)
 	check_consistency();
 }
 
-local void kill(Arena *a, Player *killer, Player *killed,
+local void mykill(Arena *a, Player *killer, Player *killed,
 		int bty, int flags, int *pts, int *green)
 {
 	int cancarry, i, overflow = FALSE;
@@ -840,7 +840,7 @@ EXPORT int MM_flagcore(int action, Imodman *mm_, Arena *a)
 		mm->RegCallback(CB_ARENAACTION, aaction, ALLARENAS);
 		mm->RegCallback(CB_SHIPCHANGE, shipchange, ALLARENAS);
 		mm->RegCallback(CB_FREQCHANGE, freqchange, ALLARENAS);
-		mm->RegCallback(CB_KILL_POST_NOTIFY, kill, ALLARENAS);
+		mm->RegCallback(CB_KILL_POST_NOTIFY, mykill, ALLARENAS);
 
 		mm->RegInterface(&flagint, ALLARENAS);
 
@@ -857,7 +857,7 @@ EXPORT int MM_flagcore(int action, Imodman *mm_, Arena *a)
 		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
 		mm->UnregCallback(CB_SHIPCHANGE, shipchange, ALLARENAS);
 		mm->UnregCallback(CB_FREQCHANGE, freqchange, ALLARENAS);
-		mm->UnregCallback(CB_KILL, kill, ALLARENAS);
+		mm->UnregCallback(CB_KILL, mykill, ALLARENAS);
 
 		net->RemovePacket(C2S_PICKUPFLAG, p_flagtouch);
 		net->RemovePacket(C2S_DROPFLAGS, p_flagtimer);
