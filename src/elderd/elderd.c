@@ -41,6 +41,7 @@ void install_primitives();
 
 Scheme_Env *global;
 FILE *logfile;
+int childcount = 0;
 
 
 /* functions */
@@ -172,6 +173,8 @@ int main(int argc, char *argv[])
 
 		newsock = accept(sock, &sin, &sinsize);
 
+		childcount++;
+
 		if (newsock == -1)
 		{
 			die_with_error("elderd: main: accept");
@@ -225,22 +228,31 @@ LinkedList evalqueue;
 int sck;
 struct data_a2e_playerdata *cachedpd;
 
+struct {
+	unsigned expressions, errors;
+	unsigned cachehits, cachemisses;
+	unsigned outoforder, toobigpackets;
+} global_stats;
+
 
 /* child main */
 
-void run_child(int s)
+void run_child(int __s)
 {
 	struct data_a2e_evalstring *eval;
 	char *msgbuf;
 
 	/* initialize */
-	sck = s;
+	sck = __s;
 	LLInit(&evalqueue);
 	msgbuf = scheme_malloc_atomic(100);
 
 	/* enter loop */
 	for ( ; ; )
 	{
+		/* nice to do each iteration */
+		scheme_collect_garbage();
+
 		/* check if there are any expressions in the queue */
 		eval = LLRemoveFirst(&evalqueue);
 		if (eval)
@@ -250,6 +262,7 @@ void run_child(int s)
 			if (scheme_setjmp(scheme_error_buf))
 			{
 				/* error caught */
+				global_stats.errors++;
 				if (eval->pid >= 0)
 				{
 					send_text_message(eval->pid, "Error in Scheme expression");
@@ -258,6 +271,8 @@ void run_child(int s)
 			else
 			{
 				log("Evaluating string: %s", eval->string);
+				global_stats.expressions++;
+
 				res = scheme_eval_string(eval->string, global);
 				if (eval->pid >= 0)
 				{
@@ -294,6 +309,7 @@ void * listen_for_packet(int reqtype)
 		{
 			char temp[1024];
 			log("Recieved packet that's too big: %i", size);
+			global_stats.toobigpackets++;
 			/* read it all out */
 			do {
 				read_full(sck, temp, 1024);
@@ -325,7 +341,10 @@ void * listen_for_packet(int reqtype)
 				if (type == reqtype)
 					return msg;
 				else if (type != A2E_EVALSTRING)
+				{
 					log("Out of order packet recieved: %i", type);
+					global_stats.outoforder++;
+				}
 			}
 		}
 	}
