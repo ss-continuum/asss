@@ -318,7 +318,7 @@ void PArena(int pid, byte *p, int l)
 	if (go->shiptype < 0 || go->shiptype > SPEC)
 	{
 		log->Log(LOG_BADDATA, "Bad shiptype in request (%s)", players[pid].name);
-		return
+		return;
 	}
 
 	/* make a name from the request */

@@ -202,6 +202,7 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
+
 /**********************************************************************\
  *
  *  CHILD PROCESS
@@ -212,19 +213,23 @@ int main(int argc, char *argv[])
 
 void send_text_message(int pid, char *msg);
 void * listen_for_packet(int type);
+size_t read_full(int fd, void *buf, size_t req);
+size_t write_full(int fd, void *buf, size_t req);
 
 /* child global data */
 
 LinkedList evalqueue;
+int sck;
 
 /* child main */
 
-void run_child(int sock)
+void run_child(int s)
 {
 	struct data_a2e_evalstring *eval;
 	char *msgbuf;
 
 	/* initialize */
+	sck = s;
 	LLInit(&evalqueue);
 	msgbuf = scheme_malloc_atomic(100);
 
@@ -265,15 +270,114 @@ void run_child(int sock)
 }
 
 
-void install_primitives()
+size_t read_full(int fd, void *_buf, size_t req)
 {
+	int left, ret;
+	char *buf;
 
+	left = req;
+	buf = _buf;
+
+	while (left > 0)
+	{
+		ret = read(fd, buf, left);
+		if (ret == 0)
+			return 0;
+		if (ret > 0)
+		{
+			left -= ret;
+			buf += ret;
+		}
+	}
+	return req;
 }
 
 
-void * listen_for_packet(int type)
+size_t write_full(int fd, void *_buf, size_t req)
 {
+	int left, ret;
+	char *buf;
 
+	left = req;
+	buf = _buf;
+
+	while (left > 0)
+	{
+		ret = write(fd, buf, left);
+		if (ret == 0)
+			return 0;
+		if (ret > 0)
+		{
+			left -= ret;
+			buf += ret;
+		}
+	}
+	return req;
+}
+
+
+void * listen_for_packet(int reqtype)
+{
+	int size, bytes;
+	void *msg;
+
+	for ( ; ; )
+	{
+		bytes = read_full(sck, &size, sizeof(int));
+		if (bytes == 0)
+		{
+			/* connection closed, exit */
+			exit(0);
+		}
+		else if (size > MAX_MESSAGE_SIZE)
+		{
+			char temp[1024];
+			log("Recieved packet that's too big: %i", size);
+			/* read it all out */
+			do {
+				read_full(sck, temp, 1024);
+				size -= 1024;
+			} while (size > 1024);
+			read_full(sck, temp, size);
+		}
+		else
+		{
+			msg = scheme_malloc_atomic(size);
+			bytes = read_full(sck, msg, size);
+			if (bytes == 0)
+			{
+				exit(0);
+			}
+			else
+			{
+				int type;
+
+				type = *(int*)msg;
+
+				if (type == A2E_EVALSTRING) /* queue it */
+					LLAdd(&evalqueue, msg);
+
+				if (type == reqtype)
+					return msg;
+				else if (type != A2E_EVALSTRING)
+					log("Out of order packet recieved: %i", type);
+			}
+		}
+	}
+}
+
+
+/* new scheme primitives for asss */
+
+Scheme_Object * prim_test(int argc, Scheme_Object **argv)
+{
+	return scheme_make_string("fooo!");
+}
+
+
+void install_primitives()
+{
+	scheme_make_prim_w_arity(prim_test, "test", 0, 0);
 }
 
 
@@ -281,38 +385,15 @@ void send_text_message(int pid, char *msg)
 {
 	if (pid != -1)
 	{
+		struct data_e2a_sendmessage *pkt;
+		int len;
 
+		len = strlen(msg);
+		pkt = scheme_malloc_atomic(sizeof(struct data_e2a_sendmessage) + len);
+		pkt->pid = pid;
+		astrncpy(pkt->message, msg, len+1);
+		write_full(sck, pkt, sizeof(struct data_e2a_sendmessage) + len);
 	}
 }
 
-#if 0
-
-int main()
-{
-	char *buf;
-	Scheme_Object *res;
-
-	global = scheme_basic_env();
-
-	buf = scheme_malloc_atomic(1024);
-	
-	printf("> "); fflush(stdout);
-	while (fgets(buf, 1024, stdin))
-	{
-		if (scheme_setjmp(scheme_error_buf))
-		{
-			printf("Error occured.\n");
-		}
-		else
-		{
-			res = scheme_eval_string(buf, global);
-			printf("Result: %s\n", scheme_write_to_string(res, NULL));
-		}
-		printf("> "); fflush(stdout);
-	}
-	printf("\nExiting...\n");
-	return 0;
-}
-
-#endif
 

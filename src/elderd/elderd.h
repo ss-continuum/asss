@@ -4,6 +4,9 @@
 
 #define ELDERDPORT (8313)
 
+/* messages can be up to 16kb */
+#define MAX_MESSAGE_SIZE (16384)
+
 
 /* asss->extension messages */
 
