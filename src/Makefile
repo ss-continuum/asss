@@ -62,9 +62,9 @@ MYSQL_CFLAGS = -I$(MYSQL_INC)
 MYSQL_LDFLAGS = -L$(MYSQL_LIB) -Wl,-rpath,$(MYSQL_LIB) -lmysqlclient_r
 
 # change this to the location of your python 2.2 or higher install.
-PYTHON_HOME = /opt/python-2.2.2
+PYTHON_HOME = /usr
 # change this to the major/minor version number of your python install.
-PYTHON_VERSION = 2.2
+PYTHON_VERSION = 2.3
 # these probably won't have to change
 PYTHON_INC = $(PYTHON_HOME)/include/python$(PYTHON_VERSION)
 PYTHON_LIB = $(PYTHON_HOME)/lib/python$(PYTHON_VERSION)
@@ -114,12 +114,12 @@ W32COMPAT = win32compat.o
 SYS_NAME := ok
 endif
 ifneq ($(SYS_NAME),ok)
-$(error Unknown operating system, you'll have to edit the makefile yourself)
+$(error "Unknown operating system, you'll have to edit the makefile yourself")
 endif
 
 # apply build options
 ifeq ($(debug),yes)
-DEBUG_CFLAGS = -g -Wall -fpedantic
+DEBUG_CFLAGS = -g -Wall
 endif
 
 ifeq ($(prof),yes)
@@ -127,7 +127,7 @@ PROF_FLAGS = -pg
 endif
 
 ifeq ($(opt),yes)
-OPT_CFLAGS = -O2 -Wall -fpedantic
+OPT_CFLAGS = -O2 -Wall
 endif
 
 # for older gcc, remove the -std option
