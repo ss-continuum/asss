@@ -26,6 +26,7 @@
 #include "balls.h"
 #include "mapdata.h"
 #include "fake.h"
+#include "filetrans.h"
 #include "objects.h"
 #include "watchdamage.h"
 

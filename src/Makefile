@@ -44,6 +44,7 @@ EXTMODS = loggers.so       \
           command.so       \
           external.so      \
           scoring.so       \
+          admin.so         \
           funky.so
 
 
@@ -63,6 +64,8 @@ external.so: billcore.o directory.o
 
 scoring.so: persist.o stats.o points_kill.o points_flag.o points_goal.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -ldb1
+
+admin.so: filetrans.o
 
 funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
 	fake.o autoturret.o objects.o

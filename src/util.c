@@ -675,6 +675,15 @@ void DQRemove(DQNode *node)
 	node->next = node->prev = node;
 }
 
+int DQCount(DQNode *node)
+{
+	DQNode *n;
+	int c = 0;
+	for (n = node->next; n != node; n = n->next)
+		c++;
+	return c;
+}
+
 #endif
 
 
@@ -767,128 +776,52 @@ void SCFree(StringChunk *chunk)
 #endif
 
 
-#ifndef NOTHREAD
+#ifndef NOMPQUEUE
 
 #include "pthread.h"
-
-#ifndef NOMPQUEUE
 
 void MPInit(MPQueue *q)
 {
 	LLInit(&q->list);
-	InitMutex(&q->mtx);
-	InitCondition(&q->cond);
+	pthread_mutex_init(&q->mtx, NULL);
+	pthread_cond_init(&q->cond, NULL);
 }
 
 void MPDestroy(MPQueue *q)
 {
 	LLEmpty(&q->list);
-/*	DestroyMutex(&q->mtx);
-	DestroyCondition(&q->cond); */
+	pthread_mutex_destroy(&q->mtx);
+	pthread_cond_destroy(&q->cond);
 }
 
 void MPAdd(MPQueue *q, void *data)
 {
-	LockMutex(&q->mtx);
+	pthread_mutex_lock(&q->mtx);
 	LLAdd(&q->list, data);
-	SignalCondition(&q->cond, 0);
-	UnlockMutex(&q->mtx);
+	pthread_cond_signal(&q->cond);
+	pthread_mutex_unlock(&q->mtx);
 }
 
 void * MPTryRemove(MPQueue *q)
 {
 	void *data;
-	LockMutex(&q->mtx);
+	pthread_mutex_lock(&q->mtx);
 	data = LLRemoveFirst(&q->list);
-	UnlockMutex(&q->mtx);
+	pthread_mutex_unlock(&q->mtx);
 	return data;
 }
 	
 void * MPRemove(MPQueue *q)
 {
 	void *data;
-	LockMutex(&q->mtx);
+	pthread_mutex_lock(&q->mtx);
 	while (LLIsEmpty(&q->list))
-		WaitCondition(&q->cond, &q->mtx);
+		pthread_cond_wait(&q->cond, &q->mtx);
 	data = LLRemoveFirst(&q->list);
-	UnlockMutex(&q->mtx);
+	pthread_mutex_unlock(&q->mtx);
 	return data;
 }
 
 #endif /* MPQUEUE */
-
-
-Thread StartThread(ThreadFunc func, void *data)
-{
-	Thread ret;
-	if (pthread_create(&ret, NULL, func, data) == 0)
-		return ret;
-	else
-		return 0;
-}
-
-void JoinThread(Thread thd)
-{
-	void *dummy;
-	pthread_join(thd, &dummy);
-}
-
-void InitMutex(Mutex *mtx)
-{
-	pthread_mutex_init(mtx, NULL);
-}
-	
-void LockMutex(Mutex *mtx)
-{
-	pthread_mutex_lock(mtx);
-}
-
-void UnlockMutex(Mutex *mtx)
-{
-	pthread_mutex_unlock(mtx);
-}
-
-void InitCondition(Condition *cond)
-{
-	pthread_cond_init(cond, NULL);
-}
-
-void SignalCondition(Condition *cond, int all)
-{
-	if (all)
-		pthread_cond_broadcast(cond);
-	else
-		pthread_cond_signal(cond);
-}
-
-void WaitCondition(Condition *cond, Mutex *mtx)
-{
-	pthread_cond_wait(cond, mtx);
-}
-
-void WaitConditionTimed(Condition *cond, Mutex *mtx, int millis)
-{
-#ifndef WIN32
-	struct timeval tv;
-	struct timespec ts;
-
-	gettimeofday(&tv, NULL);
-	ts.tv_sec = tv.tv_sec;
-	ts.tv_nsec = (tv.tv_usec + millis * 1000) * 1000;
-	while (ts.tv_nsec >= 1000000000)
-	{
-		ts.tv_nsec -= 1000000000;
-		ts.tv_sec++;
-	}
-	pthread_cond_timedwait(cond, mtx, &ts);
-#else
-	/* GetTickCount() isn't enough here: pthread_cond_timedwait requires
-	 * an absolute time relative to the epoch. either way, this function
-	 * isn't currently used (and probably shouldn't ever be). */
-	Error(ERROR_GENERAL, "WaitConditionTimed isn't implemented on windows");
-#endif
-}
-
-#endif /* THREAD */
 
 

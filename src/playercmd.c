@@ -49,10 +49,10 @@ local Igame *game;
 local Ilog_file *logfile;
 local Iflags *flags;
 local Iballs *balls;
+local Ifiletrans *filetrans;
 local Imodman *mm;
 
 local PlayerData *players;
-local ArenaData *arenas;
 
 
 /* returns 0 if found, 1 if not */
@@ -101,14 +101,14 @@ local void Carena(const char *params, int pid, const Target *target)
 	pd->UnlockStatus();
 
 	/* build arena info packet */
-	seehid = capman->HasCapability(pid, CAP_SEEPRIVARENA);
+	seehid = capman && capman->HasCapability(pid, CAP_SEEPRIVARENA);
 	aman->LockStatus();
 	for (i = 0; (pos-buf) < 480 && i < MAXARENA; i++)
-		if (arenas[i].status == ARENA_RUNNING &&
-		    ( arenas[i].name[0] != '#' || seehid || i == arena ))
+		if (aman->arenas[i].status == ARENA_RUNNING &&
+		    ( aman->arenas[i].name[0] != '#' || seehid || i == arena ))
 		{
-			l = strlen(arenas[i].name) + 1;
-			strncpy(pos, arenas[i].name, l);
+			l = strlen(aman->arenas[i].name) + 1;
+			strncpy(pos, aman->arenas[i].name, l);
 			pos += l;
 			*pos++ = (pcount[i] >> 0) & 0xFF;
 			*pos++ = (pcount[i] >> 8) & 0xFF;
@@ -523,7 +523,7 @@ local void Clistmods(const char *params, int pid, const Target *target)
 		    strcmp(group = capman->GetGroup(i), "default"))
 			chat->SendMessage(pid, "listmods: %20s %10s %10s",
 					players[i].name,
-					arenas[players[i].arena].name,
+					aman->arenas[players[i].arena].name,
 					group);
 }
 
@@ -770,7 +770,7 @@ local void Csheep(const char *params, int pid, const Target *target)
 		return;
 
 	if (ARENA_OK(arena))
-		sheepmsg = cfg->GetStr(arenas[arena].cfg, "Misc", "SheepMessage");
+		sheepmsg = cfg->GetStr(aman->arenas[arena].cfg, "Misc", "SheepMessage");
 
 	if (sheepmsg)
 		chat->SendSoundMessage(pid, 24, sheepmsg);
@@ -792,7 +792,7 @@ local void Cspecall(const char *params, int pid, const Target *target)
 	if (ARENA_BAD(arena))
 		return;
 
-	freq = cfg->GetInt(arenas[arena].cfg, "Team", "SpectatorFrequency", 8025);
+	freq = cfg->GetInt(aman->arenas[arena].cfg, "Team", "SpectatorFrequency", 8025);
 
 	pd->TargetToSet(target, set);
 	for (p = set; *p != -1; p++)
@@ -854,7 +854,7 @@ local void Cgeta(const char *params, int pid, const Target *target)
 
 	if (ARENA_BAD(arena)) return;
 
-	res = cfg->GetStr(arenas[arena].cfg, params, NULL);
+	res = cfg->GetStr(aman->arenas[arena].cfg, params, NULL);
 	if (res)
 		chat->SendMessage(pid, "%s=%s", params, res);
 	else
@@ -886,7 +886,7 @@ local void Cseta(const char *params, int pid, const Target *target)
 	*k = '\0'; /* terminate key */
 	t++; /* skip over = */
 
-	cfg->SetStr(arenas[arena].cfg, key, NULL, t, info);
+	cfg->SetStr(aman->arenas[arena].cfg, key, NULL, t, info);
 }
 
 
@@ -1142,92 +1142,336 @@ local void Creloadconf(const char *params, int pid, const Target *target)
 
 
 
-local struct
+local helptext_t getfile_help = NULL;
+
+local void Cgetfile(const char *params, int pid, const Target *target)
+{
+	const char *basename = strrchr(params, '/');
+	basename = basename ? basename + 1 : params;
+	filetrans->SendFile(pid, params, basename);
+}
+
+
+local helptext_t putfile_help = NULL;
+
+local void Cputfile(const char *params, int pid, const Target *target)
+{
+	const char *basename = strrchr(params, '/');
+	basename = basename ? basename + 1 : params;
+	filetrans->RequestFile(pid, params, basename);
+}
+
+
+
+
+/* command group system */
+
+/* declarations */
+struct cmd_info
 {
 	const char *cmdname;
 	CommandFunc func;
 	helptext_t *phelptext;
-}
-const all_commands[] =
-{
-#define CMD(x) {#x, C ## x, & x ## _help} /* yay for the preprocessor */
-	CMD(arena),
-	CMD(shutdown),
-	CMD(admlogfile),
-	CMD(flagreset),
-	CMD(ballcount),
-	CMD(setfreq), CMD(setship),
-	CMD(version),
-	CMD(lsmod), CMD(insmod), CMD(rmmod),
-	CMD(getgroup), CMD(setgroup),
-	CMD(listmods),
-	CMD(netstats),
-	CMD(info),
-	CMD(setcm), CMD(getcm),
-	CMD(a),
-	CMD(warpto),
-	CMD(shipreset),
-	CMD(sheep),
-	CMD(specall),
-	CMD(setg), CMD(getg), CMD(seta), CMD(geta),
-	CMD(prize),
-	CMD(flaginfo), CMD(neutflag), CMD(moveflag),
-	CMD(reloadconf),
-	{ NULL }
-#undef CMD
 };
+
+struct interface_info
+{
+	void **ptr;
+	const char *iid;
+};
+
+struct cmd_group
+{
+	const char *groupname;
+	const struct interface_info *ifaces;
+	const struct cmd_info *cmds;
+	int loaded;
+};
+
+
+/* loading/unloading funcs */
+
+local int load_cmd_group(struct cmd_group *grp)
+{
+	const struct interface_info *ii;
+	const struct cmd_info *ci;
+
+	for (ii = grp->ifaces; ii->iid; ii++)
+	{
+		*(ii->ptr) = mm->GetInterface(ii->iid, ALLARENAS);
+		if (*(ii->ptr) == NULL)
+		{
+			/* if we can't get one, roll back all the others */
+			for (ii--; ii >= grp->ifaces; ii--)
+				mm->ReleaseInterface(*(ii->ptr));
+			return MM_FAIL;
+		}
+	}
+
+	for (ci = grp->cmds; ci->cmdname; ci++)
+		cmd->AddCommand(ci->cmdname, ci->func, *ci->phelptext);
+
+	grp->loaded = 1;
+
+	return MM_OK;
+}
+
+local void unload_cmd_group(struct cmd_group *grp)
+{
+	const struct interface_info *ii;
+	const struct cmd_info *ci;
+
+	if (!grp->loaded)
+		return;
+
+	for (ii = grp->ifaces; ii->iid; ii++)
+		mm->ReleaseInterface(*(ii->ptr));
+
+	for (ci = grp->cmds; ci->cmdname; ci++)
+		cmd->RemoveCommand(ci->cmdname, ci->func);
+
+	grp->loaded = 0;
+}
+
+/* loading/unloading commands */
+
+local struct cmd_group all_cmd_groups[];
+
+local struct cmd_group *find_group(const char *name)
+{
+	struct cmd_group *grp;
+	for (grp = all_cmd_groups; grp->groupname; grp++)
+		if (!strcasecmp(grp->groupname, name))
+			return grp;
+	return NULL;
+}
+
+local helptext_t enablecmdgroup_help =
+"Targets: none\n"
+"Args: <command group>\n"
+"Enables all the commands in the specified command group. This is only\n"
+"useful after using ?disablecmdgroup.\n";
+
+local void Cenablecmdgroup(const char *params, int pid, const Target *target)
+{
+	struct cmd_group *grp = find_group(params);
+	if (grp)
+	{
+		if (grp->loaded)
+			chat->SendMessage(pid, "Command group %s already enabled", params);
+		else if (load_cmd_group(grp) == MM_OK)
+			chat->SendMessage(pid, "Command group %s enabled", params);
+		else
+			chat->SendMessage(pid, "Error enabling command group %s", params);
+	}
+	else
+		chat->SendMessage(pid, "Command group %s not found");
+}
+
+local helptext_t disablecmdgroup_help =
+"Targets: none\n"
+"Args: <command group>\n"
+"Disables all the commands in the specified command group and released the\n"
+"modules that they require. This can be used to release interfaces so that\n"
+"modules can be unloaded or upgraded without unloading playercmd (which would\n"
+"be irreversable).\n";
+
+local void Cdisablecmdgroup(const char *params, int pid, const Target *target)
+{
+	struct cmd_group *grp = find_group(params);
+	if (grp)
+	{
+		if (grp->loaded)
+		{
+			unload_cmd_group(grp);
+			chat->SendMessage(pid, "Command group %s disabled", params);
+		}
+		else
+			chat->SendMessage(pid, "Command group %s not loaded", params);
+	}
+	else
+		chat->SendMessage(pid, "Command group %s not found", params);
+}
+
+
+/* actual group definitions */
+
+#define CMD(x) {#x, C ## x, & x ## _help},
+#define CMD_GROUP(x) {#x, x ## _requires, x ## _commands, 0},
+#define REQUIRE(name, iid) {(void**)&name, iid},
+#define END() {0}
+
+local const struct interface_info core_requires[] =
+{
+	REQUIRE(aman, I_ARENAMAN)
+	REQUIRE(net, I_NET)
+	REQUIRE(ml, I_MAINLOOP)
+	END()
+};
+local const struct cmd_info core_commands[] =
+{
+	CMD(enablecmdgroup)
+	CMD(disablecmdgroup)
+	CMD(arena)
+	CMD(shutdown)
+	CMD(version)
+	CMD(lsmod)
+	CMD(insmod)
+	CMD(rmmod)
+	CMD(info)
+	CMD(a)
+	CMD(netstats)
+	END()
+};
+
+
+local const struct interface_info game_requires[] =
+{
+	REQUIRE(net, I_NET)
+	REQUIRE(aman, I_ARENAMAN)
+	REQUIRE(game, I_GAME)
+	REQUIRE(cfg, I_CONFIG)
+	END()
+};
+local const struct cmd_info game_commands[] =
+{
+	CMD(setfreq)
+	CMD(setship)
+	CMD(specall)
+	CMD(warpto)
+	CMD(shipreset)
+	CMD(prize)
+	END()
+};
+
+
+local const struct interface_info config_requires[] =
+{
+	REQUIRE(aman, I_ARENAMAN)
+	REQUIRE(cfg, I_CONFIG)
+	END()
+};
+local const struct cmd_info config_commands[] =
+{
+	CMD(setg)
+	CMD(getg)
+	CMD(seta)
+	CMD(geta)
+	CMD(reloadconf)
+	END()
+};
+
+
+local const struct interface_info flag_requires[] =
+{
+	REQUIRE(flags, I_FLAGS)
+	END()
+};
+local const struct cmd_info flag_commands[] =
+{
+	CMD(flagreset)
+	CMD(flaginfo)
+	CMD(neutflag)
+	CMD(moveflag)
+	END()
+};
+
+
+local const struct interface_info ball_requires[] =
+{
+	REQUIRE(balls, I_BALLS)
+	END()
+};
+local const struct cmd_info ball_commands[] =
+{
+	CMD(ballcount)
+	END()
+};
+
+
+local const struct interface_info admin_requires[] =
+{
+	REQUIRE(filetrans, I_FILETRANS)
+	END()
+};
+local const struct cmd_info admin_commands[] =
+{
+	CMD(getfile)
+	CMD(putfile)
+	END()
+};
+
+
+local const struct interface_info misc_requires[] =
+{
+	REQUIRE(capman, I_CAPMAN)
+	REQUIRE(aman, I_ARENAMAN)
+	REQUIRE(lm, I_LOGMAN)
+	REQUIRE(logfile, I_LOG_FILE)
+	REQUIRE(cfg, I_CONFIG)
+	END()
+};
+local const struct cmd_info misc_commands[] =
+{
+	CMD(getgroup)
+	CMD(setgroup)
+	CMD(listmods)
+	CMD(setcm)
+	CMD(getcm)
+	CMD(sheep)
+	CMD(admlogfile)
+	END()
+};
+
+
+/* list of groups */
+local struct cmd_group all_cmd_groups[] =
+{
+	CMD_GROUP(core)
+	CMD_GROUP(game)
+	CMD_GROUP(config)
+	CMD_GROUP(flag)
+	CMD_GROUP(ball)
+	CMD_GROUP(admin)
+	CMD_GROUP(misc)
+	END()
+};
+
+#undef CMD
+#undef CMD_GROUP
+#undef REQUIRE
+#undef END
+
 
 
 EXPORT int MM_playercmd(int action, Imodman *_mm, int arena)
 {
-	int i;
+	struct cmd_group *grp;
+
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
-		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
-		net = mm->GetInterface(I_NET, ALLARENAS);
-		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
-		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
-		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
-		game = mm->GetInterface(I_GAME, ALLARENAS);
-		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
-		logfile = mm->GetInterface(I_LOG_FILE, ALLARENAS);
-		flags = mm->GetInterface(I_FLAGS, ALLARENAS);
-		balls = mm->GetInterface(I_BALLS, ALLARENAS);
 
-		if (!cmd || !net || !cfg || !aman) return MM_FAIL;
+		if (!pd || !chat || !cmd) return MM_FAIL;
 
 		players = pd->players;
-		arenas = aman->arenas;
 
-		for (i = 0; all_commands[i].cmdname; i++)
-			cmd->AddCommand(all_commands[i].cmdname,
-					all_commands[i].func,
-					*all_commands[i].phelptext);
+		for (grp = all_cmd_groups; grp->groupname; grp++)
+			load_cmd_group(grp);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		for (i = 0; all_commands[i].cmdname; i++)
-			cmd->RemoveCommand(all_commands[i].cmdname, all_commands[i].func);
+		for (grp = all_cmd_groups; grp->groupname; grp++)
+			unload_cmd_group(grp);
 
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(chat);
-		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(cmd);
-		mm->ReleaseInterface(net);
-		mm->ReleaseInterface(cfg);
-		mm->ReleaseInterface(capman);
-		mm->ReleaseInterface(aman);
-		mm->ReleaseInterface(game);
-		mm->ReleaseInterface(ml);
-		mm->ReleaseInterface(logfile);
-		mm->ReleaseInterface(flags);
-		mm->ReleaseInterface(balls);
 		return MM_OK;
 	}
 	return MM_FAIL;

@@ -106,7 +106,7 @@ local int write_dirty_values(void *dummy)
 	return TRUE;
 }
 
-local void FlushDirtyValues()
+local void FlushDirtyValues(void)
 {
 	write_dirty_values(NULL);
 }
@@ -274,7 +274,7 @@ local int check_modified_files(void *dummy)
 	return TRUE;
 }
 
-local void CheckModifiedFiles()
+local void CheckModifiedFiles(void)
 {
 	check_modified_files(NULL);
 }

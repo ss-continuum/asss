@@ -25,7 +25,7 @@ local void Void(int);
 /* globals */
 
 local EncData enc[MAXPLAYERS];
-local Mutex statmtx;
+local pthread_mutex_t statmtx;
 
 local Inet *net;
 
@@ -43,7 +43,7 @@ EXPORT int MM_encrypt1(int action, Imodman *mm, int arena)
 	{
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		mm->RegCallback(CB_CONNINIT, ConnInit, ALLARENAS);
-		InitMutex(&statmtx);
+		pthread_mutex_init(&statmtx, NULL);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
@@ -101,9 +101,9 @@ void Init(int pid, int k)
 
 	if (k == 0) return;
 
-	LockMutex(&statmtx);
+	pthread_mutex_lock(&statmtx);
 	enc->key = k;
-	UnlockMutex(&statmtx);
+	pthread_mutex_unlock(&statmtx);
 
 	for (loop = 0; loop < 0x104; loop++)
 	{
@@ -144,9 +144,9 @@ int Encrypt(int pid, byte *data, int len)
 		until = (len-1)/4 + 1;
 	}
 
-	LockMutex(&statmtx);
+	pthread_mutex_lock(&statmtx);
 	work = enc[pid].key;
-	UnlockMutex(&statmtx);
+	pthread_mutex_unlock(&statmtx);
 
 	if (work == 0) return len;
 
@@ -175,9 +175,9 @@ int Decrypt(int pid, byte *data, int len)
 		until = (len-1)/4 + 1;
 	}
 
-	LockMutex(&statmtx);
+	pthread_mutex_lock(&statmtx);
 	work = enc[pid].key;
-	UnlockMutex(&statmtx);
+	pthread_mutex_unlock(&statmtx);
 
 	if (work == 0) return len;
 
@@ -196,8 +196,8 @@ int Decrypt(int pid, byte *data, int len)
 
 void Void(int pid)
 {
-	LockMutex(&statmtx);
+	pthread_mutex_lock(&statmtx);
 	enc[pid].key = 0;
-	UnlockMutex(&statmtx);
+	pthread_mutex_unlock(&statmtx);
 }
 

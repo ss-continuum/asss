@@ -143,7 +143,7 @@ local helptext_t lastlog_help =
 "Targets: none\n"
 "Args: [<number of lines>] [<limiting text>]\n"
 "Prints out the last 10 lines in the server log. You can specify a number\n"
-"as an argument, ant it will print that many lines instead. If you\n"
+"as an argument, it will print that many lines instead. If you\n"
 "specify any text as an argument, besides a number, the display will be\n"
 "limited to lines that contain that text. You can specify both a number\n"
 "and limiting text, just put the number first.\n";

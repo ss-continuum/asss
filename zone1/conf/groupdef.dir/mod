@@ -6,6 +6,7 @@ seeprivfreq
 seeprivarena
 seeepd
 findinprivs
+uploadfile
 
 cmd_ballcount
 cmd_flagreset
@@ -36,6 +37,6 @@ cmd_setcm
 privcmd_getcm
 privcmd_setcm
 
-
 ; prefix chars
 prefix_+
+

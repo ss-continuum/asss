@@ -17,7 +17,7 @@ local void * LoggingThread(void *);
 
 
 local MPQueue queue;
-local Thread thd;
+local pthread_t thd;
 
 local Imodman *mm;
 
@@ -44,7 +44,7 @@ EXPORT int MM_logman(int action, Imodman *mm_, int arena)
 		pd = NULL;
 		aman = NULL;
 		MPInit(&queue);
-		thd = StartThread(LoggingThread, NULL);
+		pthread_create(&thd, NULL, LoggingThread, NULL);
 		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
@@ -65,7 +65,7 @@ EXPORT int MM_logman(int action, Imodman *mm_, int arena)
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 		MPAdd(&queue, NULL);
-		JoinThread(thd);
+		pthread_join(thd, NULL);
 		MPDestroy(&queue);
 		return MM_OK;
 	}
