@@ -423,6 +423,9 @@ local void CleanupAfter(int arena, int pid, int neut)
 			if (neut) f->carrier = -1;
 			f->time = GTC();
 			SendBallPacket(arena, i, NET_UNRELIABLE);
+			/* don't forget fire callbacks */
+			DO_CBS(CB_BALLFIRE, arena, BallFireFunc,
+					(arena, pid, i));
 		}
 		else if (neut && f->carrier == pid)
 		{

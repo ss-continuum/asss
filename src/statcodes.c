@@ -12,17 +12,14 @@ const char *get_stat_name(int st)
 		case STAT_ASSISTS: return "assists";
 		case STAT_TEAM_KILLS: return "team kills";
 		case STAT_TEAM_DEATHS: return "team deaths";
-		case STAT_TOTAL_TIME: return "total time";
-		case STAT_SPEC_TIME: return "spec time";
+		case STAT_ARENA_TOTAL_TIME: return "total time (in this arena)";
+		case STAT_ARENA_SPEC_TIME: return "spec time (in this arena)";
 		case STAT_DAMAGE_TAKEN: return "damage taken";
 		case STAT_DAMAGE_DEALT: return "damage dealt";
-		case STAT_THORS_FIRED: return "thors fired";
-		case STAT_BRICKS_DROPPED: return "bricks dropped";
 		case STAT_FLAG_PICKUPS: return "flag pickups";
 		case STAT_FLAG_CARRY_TIME: return "flag time";
-		case STAT_FLAG_GOOD_DROPS: return "good drops";
-		case STAT_FLAG_FAST_DROPS: return "fast drops";
-		case STAT_FLAG_NEUT_DROPS: return "neut drops";
+		case STAT_FLAG_DROPS: return "flag drops";
+		case STAT_FLAG_NEUT_DROPS: return "neutral drops";
 		case STAT_FLAG_KILLS: return "flag kills";
 		case STAT_FLAG_DEATHS: return "flag deaths";
 		case STAT_FLAG_GAMES_WON: return "flag games won";
@@ -40,8 +37,8 @@ const char *get_stat_name(int st)
 		case STAT_BALL_GAMES_WON: return "ball games won";
 		case STAT_BALL_GAMES_LOST: return "ball games lost";
 		case STAT_KOTH_GAMES_WON: return "koth games won";
-		default: return "unknown";
-	};
+	}
+	return "unknown";
 }
 
 const char *get_interval_name(int interval)
@@ -50,8 +47,9 @@ const char *get_interval_name(int interval)
 	{
 		case INTERVAL_FOREVER: return "forever";
 		case INTERVAL_RESET: return "per-reset";
+		case INTERVAL_MAPROTATION: return "per-map-rotation";
 		case INTERVAL_GAME: return "per-game";
-		default: return "unknown";
 	}
+	return "unknown";
 }
 

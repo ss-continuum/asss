@@ -14,22 +14,18 @@ enum stat_t
 	STAT_DEATHS,
 
 	/* these are extra general purpose statistics */
-	STAT_LOGINS = 100,
-	STAT_ASSISTS,
+	STAT_ASSISTS = 100,
 	STAT_TEAM_KILLS,
 	STAT_TEAM_DEATHS,
-	STAT_TOTAL_TIME,
-	STAT_SPEC_TIME,
-	STAT_DAMAGE_TAKEN,
-	STAT_DAMAGE_DEALT,
-	STAT_THORS_FIRED,
-	STAT_BRICKS_DROPPED,
+	STAT_ARENA_TOTAL_TIME,
+	STAT_ARENA_SPEC_TIME, /* not implemented */
+	STAT_DAMAGE_TAKEN, /* not implemented */
+	STAT_DAMAGE_DEALT, /* not implemented */
 
 	/* these are for flag stats */
 	STAT_FLAG_PICKUPS = 200,
 	STAT_FLAG_CARRY_TIME,
-	STAT_FLAG_GOOD_DROPS,
-	STAT_FLAG_FAST_DROPS,
+	STAT_FLAG_DROPS,
 	STAT_FLAG_NEUT_DROPS,
 	STAT_FLAG_KILLS,
 	STAT_FLAG_DEATHS,
@@ -40,18 +36,20 @@ enum stat_t
 	STAT_BALL_CARRIES = 300,
 	STAT_BALL_CARRY_TIME,
 	STAT_BALL_GOALS,
-	STAT_BALL_ASSISTS,
+	STAT_BALL_GAMES_WON, /* no per-game */
+	STAT_BALL_GAMES_LOST, /* no per-game */
+
+	/* other games */
+	STAT_KOTH_GAMES_WON = 400, /* no per-game, not implemented */
+
+	/* non-standard ball stats (none implemented yet) */
+	STAT_BALL_ASSISTS = 500,
 	STAT_BALL_STEALS,
 	STAT_BALL_DELAYED_STEALS,
 	STAT_BALL_TURNOVERS,
 	STAT_BALL_DELAYED_TURNOVERS,
 	STAT_BALL_SAVES,
 	STAT_BALL_CHOKES,
-	STAT_BALL_GAMES_WON, /* no per-game */
-	STAT_BALL_GAMES_LOST, /* no per-game */
-
-	/* other games */
-	STAT_KOTH_GAMES_WON = 400 /* no per-game */
 };
 
 

@@ -314,9 +314,6 @@ void RewardPoints(int arena, int winfreq)
 	int i, players = 0, points, ponfreq = 0;
 	int reward = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "Reward", 0);
 
-	if (!reward)
-		return;
-
 	pd->LockStatus();
 	for(i = 0; i < MAXPLAYERS; i++)
 		if (pd->players[i].status == S_PLAYING &&
@@ -325,7 +322,12 @@ void RewardPoints(int arena, int winfreq)
 		{
 			players++;
 			if (pd->players[i].freq == winfreq)
+			{
 				awardto[ponfreq++] = i;
+				stats->IncrementStat(i, STAT_BALL_GAMES_WON, 1);
+			}
+			else
+				stats->IncrementStat(i, STAT_BALL_GAMES_LOST, 1);
 		}
 	pd->UnlockStatus();
 
@@ -333,10 +335,10 @@ void RewardPoints(int arena, int winfreq)
 		points = reward * -1;
 	else
 		points = players * players * reward / 1000;
-	
+
 	for(i = 0; i < ponfreq; i++)
 		stats->IncrementStat(awardto[i], STAT_FLAG_POINTS, points);
-	
+
 	stats->SendUpdates();
 }
 

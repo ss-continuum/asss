@@ -59,8 +59,8 @@ command.so: cmdman.o playercmd.o watchdamage.o buy.o
 
 external.so: billcore.o directory.o
 
-scoring.so: persist.o stats.o statcodes.o points_kill.o points_flag.o points_goal.o \
-	jackpot.o periodic.o points_periodic.o
+scoring.so: persist.o stats.o statcodes.o points_kill.o points_flag.o \
+	points_goal.o jackpot.o periodic.o points_periodic.o basicstats.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(DBLIB) -Wl,-rpath,$(DBLIB) -ldb-4
 
 admin.so: filetrans.o

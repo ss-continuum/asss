@@ -1,6 +1,8 @@
 
+#ifndef WIN32
 #include <unistd.h>
-#include <signal.h>
+/* #include <signal.h> */
+#endif
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -142,6 +144,8 @@ local void * work_thread(void *dummy)
 	}
 
 	pthread_cleanup_pop(1);
+
+	return NULL;
 }
 
 
@@ -240,7 +244,7 @@ local Ireldb my_int =
 
 EXPORT int MM_mysql(int action, Imodman *mm, int arena)
 {
-	static sighandler_t oldh;
+	/* static sighandler_t oldh; */
 
 	if (action == MM_LOAD)
 	{
@@ -265,7 +269,7 @@ EXPORT int MM_mysql(int action, Imodman *mm, int arena)
 		pw = astrdup(pw);
 		dbname = astrdup(dbname);
 
-		oldh = signal(SIGPIPE, SIG_IGN);
+		/* oldh = signal(SIGPIPE, SIG_IGN); */
 
 		pthread_create(&wthd, NULL, work_thread, NULL);
 
@@ -287,7 +291,7 @@ EXPORT int MM_mysql(int action, Imodman *mm, int arena)
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(lm);
 
-		signal(SIGPIPE, oldh);
+		/* signal(SIGPIPE, oldh); */
 
 		return MM_OK;
 	}

@@ -473,7 +473,7 @@ local void CheckWin(int arena)
 local void CleanupAfter(int arena, int pid)
 {
 	/* make sure that if someone leaves, his flags respawn */
-	int i, fc;
+	int i, fc, dropped = 0;
 	struct FlagData *f = flagdata[arena].flags;
 
 	LOCK_STATUS(arena);
@@ -487,8 +487,12 @@ local void CleanupAfter(int arena, int pid)
 				f->x = pd->players[pid].position.x>>4;
 				f->y = pd->players[pid].position.y>>4;
 				/* the freq field will be set here. leave it as is. */
+				dropped++;
 			}
 	UNLOCK_STATUS(arena);
+
+	if (dropped)
+		DO_CBS(CB_FLAGDROP, arena, FlagDropFunc, (arena, pid, dropped, 1));
 }
 
 
@@ -581,7 +585,7 @@ void FlagKill(int arena, int killer, int killed, int bounty, int flags)
 
 void PPickupFlag(int pid, byte *p, int len)
 {
-	int arena, oldfreq;
+	int arena, oldfreq, carried;
 	struct S2CFlagPickup sfp = { S2C_FLAGPICKUP };
 	struct FlagData fd;
 	struct C2SFlagPickup *cfp = (struct C2SFlagPickup*)p;
@@ -597,9 +601,7 @@ void PPickupFlag(int pid, byte *p, int len)
 
 #define ERR(msg) \
 	{ \
-		logm->Log(L_MALICIOUS, "<flags> {%s} [%s] " msg, \
-				aman->arenas[arena].name, \
-				pd->players[pid].name); \
+		logm->LogP(L_MALICIOUS, "flags", pid, msg); \
 		return; \
 	}
 
@@ -642,6 +644,7 @@ void PPickupFlag(int pid, byte *p, int len)
 			 * information is hard to regain */
 			fd.freq = pd->players[pid].freq;
 			fd.carrier = pid;
+
 			flagdata[arena].flags[cfp->fid] = fd;
 			break;
 
@@ -650,6 +653,7 @@ void PPickupFlag(int pid, byte *p, int len)
 			 * change ownership */
 			fd.state = FLAG_ONMAP;
 			fd.freq = pd->players[pid].freq;
+
 			flagdata[arena].flags[cfp->fid] = fd;
 			break;
 
@@ -666,8 +670,9 @@ void PPickupFlag(int pid, byte *p, int len)
 	net->SendToArena(arena, -1, (byte*)&sfp, sizeof(sfp), NET_RELIABLE);
 
 	/* now call callbacks */
+	carried = (flagdata[arena].flags[cfp->fid].state == FLAG_CARRIED);
 	DO_CBS(CB_FLAGPICKUP, arena, FlagPickupFunc,
-			(arena, pid, cfp->fid, oldfreq));
+			(arena, pid, cfp->fid, oldfreq, carried));
 
 	logm->Log(L_DRIVEL, "<flags> {%s} [%s] Player picked up flag %d",
 			aman->arenas[arena].name,
@@ -678,7 +683,7 @@ void PPickupFlag(int pid, byte *p, int len)
 
 void PDropFlag(int pid, byte *p, int len)
 {
-	int arena, fid, fc;
+	int arena, fid, fc, dropped = 0;
 	struct S2CFlagDrop sfd = { S2C_FLAGDROP };
 	struct FlagData *fd;
 
@@ -711,7 +716,10 @@ void PDropFlag(int pid, byte *p, int len)
 			for (fid = 0, fd = flagdata[arena].flags; fid < fc; fid++, fd++)
 				if (fd->state == FLAG_CARRIED &&
 				    fd->carrier == pid)
+				{
 					SpawnFlag(arena, fid);
+					dropped++;
+				}
 			break;
 
 		case FLAGGAME_TURF:
@@ -730,7 +738,7 @@ void PDropFlag(int pid, byte *p, int len)
 	UNLOCK_STATUS(arena);
 
 	/* finally call callbacks */
-	DO_CBS(CB_FLAGDROP, arena, FlagDropFunc, (arena, pid));
+	DO_CBS(CB_FLAGDROP, arena, FlagDropFunc, (arena, pid, dropped, 0));
 
 	logm->Log(L_DRIVEL, "<flags> {%s} [%s] Player dropped flags",
 			aman->arenas[arena].name,

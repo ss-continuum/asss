@@ -14,7 +14,7 @@ typedef struct stat_info
 {
 	TreapHead head;
 	int value;
-	unsigned int started; /* for timers only */
+	time_t started; /* for timers only */
 	byte dirty;
 } stat_info;
 
@@ -85,27 +85,27 @@ local void IncrementStat(int pid, int stat, int amount)
 }
 
 
-local inline void update_timer(stat_info *si, unsigned gtc)
+local inline void update_timer(stat_info *si, time_t tm)
 {
 	if (si->started)
 	{
-		si->value += (gtc - si->started + 50) / 100;
-		si->started = gtc;
+		si->value += tm;
+		si->started = tm;
 		si->dirty = 1;
 	}
 }
 
-local inline void start_timer(stat_info *si, unsigned gtc)
+local inline void start_timer(stat_info *si, time_t tm)
 {
 	if (si->started)
-		update_timer(si, gtc);
+		update_timer(si, tm);
 	else
-		si->started = gtc;
+		si->started = tm;
 }
 
-local inline void stop_timer(stat_info *si, unsigned gtc)
+local inline void stop_timer(stat_info *si, time_t tm)
 {
-	update_timer(si, gtc);
+	update_timer(si, tm);
 	si->started = 0;
 }
 
@@ -113,7 +113,7 @@ local inline void stop_timer(stat_info *si, unsigned gtc)
 local void StartTimer(int pid, int stat)
 {
 	stat_info *si;
-	unsigned gtc = GTC();
+	time_t tm = time(NULL);
 
 	if (PID_OK(pid))
 	{
@@ -125,7 +125,7 @@ local void StartTimer(int pid, int stat)
 			si = new_stat(stat); \
 			TrPut((TreapHead**)(iv + pid), (TreapHead*)si); \
 		} \
-		start_timer(si, gtc);
+		start_timer(si, tm);
 
 		INC(forever_stats)
 		INC(reset_stats)
@@ -140,7 +140,7 @@ local void StartTimer(int pid, int stat)
 local void StopTimer(int pid, int stat)
 {
 	stat_info *si;
-	unsigned gtc = GTC();
+	time_t tm = time(NULL);
 
 	if (PID_OK(pid))
 	{
@@ -152,7 +152,7 @@ local void StopTimer(int pid, int stat)
 			si = new_stat(stat); \
 			TrPut((TreapHead**)(iv + pid), (TreapHead*)si); \
 		} \
-		stop_timer(si, gtc);
+		stop_timer(si, tm);
 
 		INC(forever_stats)
 		INC(reset_stats)

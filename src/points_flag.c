@@ -64,7 +64,12 @@ void MyFlagWin(int arena, int freq)
 		{
 			players++;
 			if (pd->players[i].freq == freq)
+			{
 				awardto[ponfreq++] = i;
+				stats->IncrementStat(i, STAT_FLAG_GAMES_WON, 1);
+			}
+			else
+				stats->IncrementStat(i, STAT_FLAG_GAMES_LOST, 1);
 		}
 	pd->UnlockStatus();
 
