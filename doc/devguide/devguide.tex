@@ -9,7 +9,7 @@
 \newcommand{\asss}{\texttt{asss}}
 \newcommand{\subgame}{\texttt{subgame}}
 
-\title{\asss{} Development Guide -- 1.3.2}
+\title{\asss{} Development Guide -- 1.3.6}
 %\author{Grelminar \texttt{<grelminar@yahoo.com>}}
 
 \begin{document}
@@ -302,11 +302,10 @@ identifier, use \verb/LookupResult/. They will be returned as a list.
 \item After using the list, use \verb/FreeLookupResult/ to return the
 memory used by the list.
 
-\end{itemize}
+\item Instead of using the last two functions, almost everyone will want
+to use the \verb/DO_CBS/ macro that handles the list and looping stuff.
 
-Most of the time, you can use a provided macro to invoke all the
-callbacks of a certain type, so you won't need to use
-\verb/LookupResult/ and \verb/FreeLookupResult/ at all.
+\end{itemize}
 
 
 \subsubsection{Example: declaring, defining, and calling a callback}
