@@ -207,6 +207,7 @@ local inline int matches(const Target *t, Player *p)
 local void TargetToSet(const Target *target, LinkedList *set)
 {
 	Link *link;
+	Player *p;
 	if (target->type == T_LIST)
 	{
 		for (link = LLGetHead(&target->u.list); link; link = link->next)
