@@ -2,6 +2,7 @@
 /* dist: public */
 
 #include <string.h>
+#include <assert.h>
 
 #include "asss.h"
 
@@ -9,7 +10,7 @@
 /* static data */
 
 local Imodman *mm;
-local int mtxkey;
+local int magickey, mtxkey;
 #if 0
 local pthread_rwlock_t plock;
 #define RDLOCK() pthread_rwlock_rdlock(&plock)
@@ -33,6 +34,7 @@ local Iplayerdata myint;
 
 local void LockPlayer(Player *p)
 {
+	assert(*(unsigned*)PPDATA(p, magickey) == MODMAN_MAGIC);
 	pthread_mutex_lock((pthread_mutex_t*)PPDATA(p, mtxkey));
 }
 
@@ -62,6 +64,7 @@ local Player * NewPlayer(int type)
 	int pid;
 	Player *p = amalloc(sizeof(*p) + perplayerspace);
 
+	*(unsigned*)PPDATA(p, magickey) = MODMAN_MAGIC;
 	pthread_mutex_init((pthread_mutex_t*)PPDATA(p, mtxkey), &recmtxattr);
 
 	WRLOCK();
@@ -329,6 +332,7 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 		perplayerspace = cfg ? cfg->GetInt(GLOBAL, "General", "PerPlayerBytes", 4000) : 4000;
 		mm->ReleaseInterface(cfg);
 
+		magickey = AllocatePlayerData(sizeof(unsigned));
 		mtxkey = AllocatePlayerData(sizeof(pthread_mutex_t));
 
 		/* register interface */

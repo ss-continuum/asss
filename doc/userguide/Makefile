@@ -58,10 +58,10 @@ userguide.dvi: userguide.tex commands.tex settings.tex
 userguide.ps: userguide.dvi
 	$(DVIPS) $(TWOSIDEDSTUFF) -o userguide.ps userguide.dvi
 
-userguide.pdf: userguide.tex commands.tex
+userguide.pdf: userguide.tex commands.tex settings.tex
 	pdflatex userguide.tex
 
-userguide.html: userguide.tex commands.tex
+userguide.html: userguide.tex commands.tex settings.tex
 	tex2page userguide.tex
 
 userguide.txt: userguide.html

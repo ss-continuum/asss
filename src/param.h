@@ -56,10 +56,6 @@
 #define CFG_ALLOW_ALL_IF_CAPMAN_IS_MISSING
 
 
-/* this is the name of the command used to get help on other commands */
-#define CFG_HELP_COMMAND "help"
-
-
 /* the maximum value for Team:DesiredTeams */
 #define CFG_MAX_DESIRED 10
 

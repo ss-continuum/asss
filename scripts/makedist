@@ -1,6 +1,7 @@
 #!/bin/sh
 
 set -e
+set -x
 
 cd ~/src/asss
 
@@ -11,22 +12,22 @@ cp -a dist $d
 
 tar cf - `grep -lr '[d]ist: public' src scripts` scripts/banner.font | \
 	(cd $d ; tar xf -)
-mv $d/src/Makefile.dist $d/src/Makefile
+cp src/Makefile.dist $d/src/Makefile
 
-make -C src -f Makefile.dist clean
-make -C src -f Makefile.dist install
-make -C src -f Makefile.dist clean
+make -C $d/src install
+make -C $d/src clean
 make -C ~/src/extra-asss/contenc all
 make -C ~/src/extra-asss/contenc clean
 
-cp bin/asss bin/*.so $d/bin
-rm $d/bin/turf.so
+cp bin/security.so $d/bin
 
 make -C doc/userguide all
-cp doc/userguide/userguide.{dvi,ps,pdf,html,txt} $d/doc
+cp doc/userguide/userguide.{dvi,pdf,html,txt} $d/doc
 make -C doc/userguide clean
+
+cp doc/tutorial.txt $d/doc
 
 find $d -exec touch -r $d/bin/asss {} \;
 tar --numeric-owner -czvf $d.tar.gz $d
-rm -rf $d
+#rm -rf $d
 

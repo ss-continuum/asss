@@ -648,7 +648,7 @@ local void Cinfo(const char *params, Player *p, const Target *target)
 
 		chat->SendMessage(p,
 				"%s: pid=%d  status=%d  name='%s'  squad='%s'",
-				prefix, t, t->status, t->name, t->squad);
+				prefix, t->pid, t->status, t->name, t->squad);
 		chat->SendMessage(p,
 				"%s: arena=%s  type=%s  res=%dx%d  seconds=%d",
 				prefix, t->arena ? t->arena->name : "(none)", type, t->xres,

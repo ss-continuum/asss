@@ -10,7 +10,7 @@ typedef struct PlayerData
 {
 	u8 pktype;
 	u8 ship;
-	u8 flags;
+	u8 acceptaudio;
 	char name[20];
 	char squad[20];
 	i32 killpoints;

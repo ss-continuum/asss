@@ -1,0 +1,117 @@
+
+line count savings from removing confusing crap from net and encrypt1:
+
+before:
+
+    147 net.h
+   2025 net.c
+     69 encrypt.h
+    324 encrypt1.c
+   2565 total
+
+after:
+
+    133 net.h
+   1840 net.c
+     58 encrypt.h
+    238 encrypt1.c
+   2269 total
+
+diff in net.c: -185
+diff total   : -296
+
+
+new biller protocol:
+
+i like ascii over tcp, and it worked well for the chat protocol (i could
+write a really simple client in python, and the server's side was fairly
+easy to write also), so let's use that for this. if people want
+security, the protocol can be run over ssl.
+
+
+what do the server and biller need to communicate?
+
+
+server connect:
+s2b: server name, network name, password, id(s)?
+b2s: result
+
+authentication:
+s2b: pid, flag, name, password, ip, various ids
+  flag = 0 for normal login
+         1 for "i want to create a new player"
+b2s: pid, result, name, squad, userid, banner, usage, firstused
+
+player disconnect:
+s2b: pid
+
+
+sending remote priv msgs:
+s2b: frompid, toplayer, sound, text
+
+recving remote priv msgs:
+b2s: topid, fromplayer, sound, text
+
+
+sending chat msgs:
+s2b: pid, channel, sound, text
+
+recving chat msgs:
+b2s: pid, channel, sound, text
+
+
+player commands to biller:
+s2b: pid, command, args
+
+message from biller:
+b2s: pid, sound, text
+
+
+sending some log output to biller:
+s2b: optionalpid, logtext
+
+
+sending staff-only output to server:
+b2s: sound, text
+
+
+broadcast messages:
+b2s: sound, text
+
+
+server going down:
+s2b: (close socket)
+
+
+biller going down:
+b2s: (close socket)
+
+
+
+how to handle disconnects, what are the problems?
+
+the server needs to know when the biller disconnects. this is relatively
+easy with tcp, it will just see the socket closed. the server will then
+stop sending data to the biller and try to reestablish a connection. in
+the meantime, the server will send a warning message to all connected
+players, and allow logins with an initial ^.
+
+when the server reestablishes a connection, it should send an
+informative message. the biller will have no state information about any
+of the players in the zone, so they will have to log out and log in
+again to use any biller features.
+
+the alternative is to have the server automatically re-log-in all
+players. that has many issues, though: it means the server needs to keep
+their password and contid around forever. and what happens if the biller
+responds differently (because it switched databases)? should the server
+kick the player? what about ^players? the server can attempt to log them
+in when the biller is back, but how will it give them a new name?
+
+it's too complicated, just force them to log in again after a disconnect
+if they want biller features.
+
+
+
+formal spec of protocol: see file 'new-biller-prot.txt'
+

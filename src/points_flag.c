@@ -55,11 +55,11 @@ EXPORT int MM_points_flag(int action, Imodman *mm_, Arena *arena)
 void MyFlagWin(Arena *arena, int freq)
 {
 	LinkedList set = LL_INITIALIZER;
-	int players, ponfreq, reward, splitpts, points;
+	int players, reward, splitpts, points;
 	Player *i;
 	Link *link;
 
-	players = ponfreq = 0;
+	players = 0;
 	pd->Lock();
 	FOR_EACH_PLAYER(i)
 		if (i->status == S_PLAYING &&
@@ -90,8 +90,8 @@ void MyFlagWin(Arena *arena, int freq)
 
 	flags->FlagVictory(arena, freq, points);
 
-	if (splitpts)
-		points /= ponfreq;
+	if (splitpts && LLCount(&set) > 0)
+		points /= LLCount(&set);
 
 	for (link = LLGetHead(&set); link; link = link->next)
 		stats->IncrementStat(link->data, STAT_FLAG_POINTS, points);

@@ -59,7 +59,7 @@ struct S2CWeapons
 	i16 xspeed;
 	u8 checksum;
 	u8 status;
-	u8 ping;
+	u8 c2slatency;
 	i16 y;
 	u16 bounty;
 	struct Weapons weapon;
@@ -73,7 +73,7 @@ struct S2CPosition
 	i8 rotation;
 	u16 time;
 	i16 x;
-	u8 ping;
+	u8 c2slatency;
 	u8 bounty;
 	u8 playerid;
 	i8 status;

@@ -1,0 +1,192 @@
+
+notes on the game recording features:
+
+
+the game recorder should be pretty simple. ?startrecord foo.game will
+start recording the current arena to foo.game. ?stoprecord will stop it.
+?playrecord foo.game will start playing it (and possibly lock everone in
+spec for the duration of playback). it might support ?rewind, ?seek
++10 sec, etc.
+
+it works by recording "events" to a file, and then reading them and
+faking them within the server for playback.
+
+when it starts recording a game, it'll dump the list of everyone in the
+arena to the file header, with their ships and freqs. then it will just
+record events. what's an event?
+
+enter arena (record pid, name, ship, freq)
+leave arena (record pid, name)
+ship change (record pid, ship)
+freq change (record pid, freq)
+kill (record killer, killed, bty, flags)
+chat message (pub and team only) (record pid, type, optional freq, msg)
+incoming position (the biggie) (record pid, position data)
+(record ticks past start of game for all of them)
+
+a special eof event at the end of the recorded game, maybe.
+
+
+internal details:
+
+how will it see all the events?
+enter arena: playeraction cb
+leave arena: playeraction cb
+ship change: shipchange cb
+freq change: freqchange cb
+kill: kill cb
+chat message: chat cb (not impl yet)
+incoming position: get raw position packets from net
+
+
+how will it play back events?
+enter arena: fake->CreateFakePlayer
+leave arena: fake->EndFaked
+ship change: game->SetFreqAndShip
+freq change: game->SetFreq
+kill: game->???
+chat message: chat->???
+incoming position: game->???
+
+
+how will it write events to a file?
+
+it can do it synchronously, or pass them to a writer thread.
+
+sychronously means it has to wait for file writes sometimes, and worse,
+if we're using zlib, it has to compress them.
+
+passing messages means it has to lock a mutex on every event, which is
+fine for everything but ppks. well, it's probably fine for ppks too,
+since they end up locking tons of outlistmtx's for each one.
+
+synchronously is much easier, though. let's do that for now and measure
+performance.
+
+
+how will it read events and play them back?
+
+it can have either a separate thread or a mainloop function. mainloop is
+probably easier, let's try that:
+
+it will go through a list of currently playing games. for each one:
+check the event in the buffer to see if its time is >= to the current
+time. if so, process it and read another event into the buffer. either
+way, continue.
+
+if it gets an eof on any, do game cleanup.
+
+game cleanup:
+	kill all fake players that are part of the playback.
+	send arena message.
+	close file.
+	deallocate structures.
+
+
+
+file format:
+
+struct initial_player
+{
+	char name[24], squad[24];
+	int ship, freq, pid;
+};
+
+
+struct event_header
+{
+	unsigned long tm;
+	int type;
+};
+
+struct event_enter
+{
+	int pid;
+	char name[24], squad[24];
+	int ship, freq;
+};
+
+
+struct event_leave
+{
+	int pid;
+};
+
+struct event_sc
+{
+	int pid;
+	int newship, newfreq;
+};
+
+struct event_fc
+{
+	int pid;
+	int newfreq;
+};
+
+struct event_kill
+{
+	int killer, killed, bty, flags;
+};
+
+struct event_chat
+{
+	int pid;
+	int type, target;
+	char msg[128];
+};
+
+struct event_pos
+{
+	int pid;
+	struct C2SPosition
+	{
+		u8 type; /* special: this byte holds the length of the rest of
+		            the packet, since the last field is optional */
+		i8 rotation;
+		u32 time;
+		i16 xspeed;
+		i16 y;
+		i8 checksum;
+		i8 status;
+		i16 x;
+		i16 yspeed;
+		u16 bounty;
+		i16 energy;
+		struct Weapons weapon;
+		struct ExtraPosData extra;
+	} pos;
+};
+
+
+struct game_file
+{
+	char header[8] = "asssgame";
+	int numplayers;
+	initial_player players[numplayers];
+	struct
+	{
+		event_header head;
+		event_<something> data;
+	} events[];
+};
+
+
+
+
+file size:
+
+assume 20 playing players, so 200 position packets/second.
+lots of spectators and team chat, so say 1 chat msg/second.
+also 1 kill/second.
+
+chat msg = 128+5*4 = 148 bts
+kill = 6*4 = 24 bts
+ppk = 32+3*4 = 44 bts
+
+148+24+44*200 = 8972 bytes/second
+
+assume zlib can get it down to 5k/second.
+
+a one-hour game would take 5*3600k = 18000k = 18 megs
+

@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 #include <stdlib.h>
 
 #ifndef WIN32
@@ -383,10 +384,13 @@ void PLogin(Player *p, byte *opkt, int l)
 		memcpy(lp, pkt, l);
 		p->macid = pkt->macid;
 		p->permid = pkt->D2;
-		/* replace colons with underscores */
+		/* replace colons and nonprintables with underscores */
 		for (c = 0; c < sizeof(lp->name); c++)
-			if (lp->name[c] == ':')
+			if (lp->name[c] == ':' || lp->name[c] < 32 || lp->name[c] > 126)
 				lp->name[c] = '_';
+		/* must start with number, letter, or underscore */
+		if (!isalnum(lp->name[0]))
+			lp->name[0] = '_';
 		/* set up status */
 		pd->WriteLock();
 		p->status = S_NEED_AUTH;
@@ -403,6 +407,7 @@ void MLogin(Player *p, const char *line)
 	char vers[16];
 	struct LoginPacket *lp;
 	Player *oldp;
+	int c;
 
 	if (p->status != S_CONNECTED)
 	{
@@ -418,6 +423,13 @@ void MLogin(Player *p, const char *line)
 	if (!t) return;
 	lp->cversion = atoi(vers);
 	t = delimcpy(lp->name, t, sizeof(lp->name), ':');
+	/* replace nonprintables with underscores */
+	for (c = 0; c < sizeof(lp->name); c++)
+		if (lp->name[c] < 32 || lp->name[c] > 126)
+			lp->name[c] = '_';
+	/* must start with number, letter, or underscore */
+	if (!isalnum(lp->name[0]))
+		lp->name[0] = '_';
 	if (!t) return;
 	astrncpy(lp->password, t, sizeof(lp->password));
 
@@ -433,9 +445,9 @@ void MLogin(Player *p, const char *line)
 
 	p->macid = p->permid = 101;
 	/* set up status */
-	/* pd->WriteLock(); */
+	pd->WriteLock();
 	p->status = S_NEED_AUTH;
-	/* pd->Unlock(); */
+	pd->Unlock();
 	lm->Log(L_DRIVEL, "<core> [pid=%d] Login request: '%s'", p->pid, lp->name);
 }
 

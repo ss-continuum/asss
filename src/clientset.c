@@ -99,15 +99,9 @@ EXPORT int MM_clientset(int action, Imodman *mm_, Arena *arena)
 }
 
 
-/* call with lock held! */
-local void LoadSettings(Arena *arena)
+local void load_settings(struct ClientSettings *cs, ConfigHandle conf)
 {
-	struct ClientSettings *cs = P_ARENA_DATA(arena, csetkey);
-	ConfigHandle conf;
 	int i, j;
-
-	/* get the file */
-	conf = arena->cfg;
 
 	/* clear and set type */
 	memset(cs, 0, sizeof(*cs));
@@ -174,6 +168,14 @@ local void LoadSettings(Arena *arena)
 	cs->long_set[10] *= 1000; /* BurstDamageLevel */
 	cs->long_set[11] *= 1000; /* BulletDamageLevel */
 	cs->long_set[16] *= 1000; /* InactiveShrapDamage */
+}
+
+
+/* call with lock held! */
+local void LoadSettings(Arena *arena)
+{
+	struct ClientSettings *cs = P_ARENA_DATA(arena, csetkey);
+	load_settings(cs, arena->cfg);
 }
 
 

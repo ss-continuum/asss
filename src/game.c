@@ -215,6 +215,11 @@ void Pppk(Player *p, byte *p2, int n)
 	Player *i;
 	LinkedList regset = LL_INITIALIZER, epdset = LL_INITIALIZER;
 	Link *link;
+	unsigned gtc = GTC();
+	int latency = gtc - pos->time;
+
+	if (latency < 0) latency = 0;
+	if (latency > 255) latency = 255;
 
 	/* handle common errors */
 	if (!arena || arena->status != ARENA_RUNNING) return;
@@ -278,8 +283,9 @@ void Pppk(Player *p, byte *p2, int n)
 		{
 			int range = wpnrange[pos->weapon.type], nflags;
 			struct S2CWeapons wpn = {
-				S2C_WEAPON, pos->rotation, pos->time & 0xFFFF, pos->x, pos->yspeed,
-				p->pid, pos->xspeed, 0, pos->status, 0, pos->y, pos->bounty
+				S2C_WEAPON, pos->rotation, gtc & 0xFFFF, pos->x, pos->yspeed,
+				p->pid, pos->xspeed, 0, pos->status, (u8)latency,
+				pos->y, pos->bounty
 			};
 			wpn.weapon = pos->weapon;
 			wpn.extra = pos->extra;
@@ -344,7 +350,7 @@ void Pppk(Player *p, byte *p2, int n)
 		{
 			int nflags;
 			struct S2CPosition sendpos = {
-				S2C_POSITION, pos->rotation, pos->time & 0xFFFF, pos->x, 0,
+				S2C_POSITION, pos->rotation, gtc & 0xFFFF, pos->x, (u8)latency,
 				pos->bounty, (u8)p->pid, pos->status, pos->yspeed, pos->y, pos->xspeed
 			};
 
@@ -386,6 +392,7 @@ void Pppk(Player *p, byte *p2, int n)
 							  (randnum > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0)))))
 						LLAdd(set, i);
 				}
+			pd->Unlock();
 
 			net->SendToSet(&regset,
 					(byte*)&sendpos,
@@ -438,10 +445,15 @@ void PSpecRequest(Player *p, byte *pkt, int n)
 {
 	pdata *data = PPDATA(p, pdkey);
 	int pid2 = ((struct SimplePacket*)pkt)->d1;
-	Player *p2 = pd->PidToPlayer(pid2);
 
-	if (p->p_ship == SPEC && p2 && p2->status == S_PLAYING)
-		data->speccing = p2;
+	if (pid2 >= 0)
+	{
+		Player *p2 = pd->PidToPlayer(pid2);
+		if (p->p_ship == SPEC && p2 && p2->status == S_PLAYING)
+			data->speccing = p2;
+	}
+	else
+		data->speccing = NULL;
 }
 
 

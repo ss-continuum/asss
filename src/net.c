@@ -21,7 +21,9 @@
 
 #include "asss.h"
 #include "encrypt.h"
+#if 0
 #include "billcore.h"
+#endif
 
 /* defines */
 

@@ -98,15 +98,13 @@
 #define C2S_WAVESEND 0x0E
 #define C2S_SETFREQ 0x0F
 #define C2S_ATTACHTO 0x10
-/* new name registration data */
-#define C2S_REGDATA 0x11
 /* missing 12 */
 #define C2S_PICKUPFLAG 0x13
 #define C2S_TURRETKICKOFF 0x14
 #define C2S_DROPFLAGS 0x15
 /* uploading a file to server */
 #define C2S_UPLOADFILE 0x16
-#define C2S_NAMEREG 0x17
+#define C2S_REGDATA 0x17
 #define C2S_SETSHIP 0x18
 /* sending new banner */
 #define C2S_BANNER 0x19

@@ -11,7 +11,6 @@ cmd_insmod
 cmd_rmmod
 cmd_setscore
 cmd_resetgame
-privcmd_warpto
 
 cmd_setg
 cmd_getg

@@ -2,10 +2,11 @@
 /* dist: public */
 
 #include "asss.h"
-#include "billcore.h"
-
-#include "packets/billmisc.h"
 #include "packets/banners.h"
+#if 0
+#include "billcore.h"
+#include "packets/billmisc.h"
+#endif
 
 local Imodman *mm;
 #if 0

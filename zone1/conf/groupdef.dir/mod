@@ -41,6 +41,7 @@ cmd_resetkoth
 
 ; fun stuff
 cmd_brickwrite
+privcmd_warpto
 
 cmd_getcm
 cmd_setcm

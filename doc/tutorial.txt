@@ -9,17 +9,17 @@ The design works something like this: everything is a module. So you
 extend the server just by writing more modules. The current list of
 modules is:
 
-arenaman arenaperm autoturret autowarp balls billcore bricklayer capman
-chat clientset cmdman config core encrypt1 fake flags fm_normal
-freqowners game log_console log_file log_sysop logman mainloop mapdata
-mapnewsdl net persist playerdata playercmd points_flag points_goal
-points_kill stats
+sed -n '/MM_[a-z]/s/.*MM_\([a-z_]\+\).*/\1/p' ../src/*.c | sort -u | fmt
 
-Still need to be done are:
-encrypt_cont - cont encryption
-lagstats - collects lag stats from net and other places
-lagaction - takes actions based on the lag stats
-banner - handle banners
+aliasdb ap_multipub arenaman arenaperm auth_file auth_prefix autoturret
+autowarp balls banners basicstats billcore bricklayer buy capman cfghelp
+chat chatnet clientset cmdman config core directory encrypt fake filetrans
+flags fm_normal freqowners game game_timer help jackpot koth lagaction
+lagdata log_console log_file log_sysop logman mainloop mapdata mapnewsdl
+messages mysql net nullenc objects periodic persist playercmd playerdata
+points_flag points_goal points_kill points_periodic points_turf_reward
+quickfix security sendfile stats turf_reward turf_stats watchdamage
+
 
 A module resides in a single .c file, and an optional .h file if it
 exposes any interfaces for other modules to use. All functions except
@@ -63,7 +63,7 @@ local void LogConsole(char lev, char *s)
  * which we can find out about others. arena is only used if action is
  * MM_ATTACH or MM_DETACH, and it will specify which arena to set up
  * stuff for. */
-EXPORT int MM_log_console(int action, Imodman *mm, int arena)
+EXPORT int MM_log_console(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -92,18 +92,10 @@ EXPORT int MM_log_console(int action, Imodman *mm, int arena)
 		/* you have to call ReleaseInterface on any interface that you
 		 * get from GetInterface so that proper reference counts can be
 		 * maintained. */
-		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(logm);
 		/* and signify success */
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		/* this special action requests that the module return the value
-		 * of the pre-processor constant BUILDNUMBER. this is so that we
-		 * can check at runtime if modules were compiled with the same
-		 * version of the header files as the module loader. if this
-		 * check fails, the module will not be loaded, because crashes
-		 * would be likely. */
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 
@@ -167,16 +159,17 @@ local Iconfig *cfg;
 /* this is the first important part: declare a static value of the
  * interface type, and initialize it with your functions. the compiler
  * can check these signatures statically. */
-local Ilogman _int =
+local Ilogman lmint =
 {
 	/* this macro must always be first. it initializes the stuff that
-	 * INTERFACE_HEAD_DECL declared. the name given to the macro should
-	 * uniquely identify this particular _implementation_ of this
-	 * interface. that is, if you have two implementations of some
-	 * interface, they should be given different names. in this case,
-	 * there is only one implementation of the log manager, so we name
-	 * it the same as the interface name. */
-	INTERFACE_HEAD_INIT("logman")
+	 * INTERFACE_HEAD_DECL declared. the first thing is the id of the
+	 * interface that we're implementing. the next is the name. the name
+	 * given to the macro should uniquely identify this particular
+	 * _implementation_ of this interface. that is, if you have two
+	 * implementations of some interface, they should be given different
+	 * names. in this case, there is only one implementation of the log
+	 * manager, so we name it the same as the interface name. */
+	INTERFACE_HEAD_INIT(I_LOGMAN, "logman")
 	/* these are the actual implementing functions */
 	Log, FilterLog
 };
@@ -194,7 +187,7 @@ EXPORT int MM_logman(int action, Imodman *mm_, int arena)
 		/* ... other initializing stuff omitted ... */
 		/* this is the important part: register the interface as a log
 		 * manager, and specify that it's valid for ALLARENAS. */
-		mm->RegInterface("logman", &_int, ALLARENAS);
+		mm->RegInterface(&lmint, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
@@ -204,7 +197,7 @@ EXPORT int MM_logman(int action, Imodman *mm_, int arena)
 		 * that haven't been released yet. if that number isn't zero,
 		 * return MM_FAIL to indicate that we shouldn't be unloaded yet.
 		 */
-		if (mm->UnregInterface("logman", &_int, ALLARENAS))
+		if (mm->UnregInterface(&lmint, ALLARENAS))
 			return MM_FAIL;
 		/* ... other deinitializing stuff omitted ... */
 		/* release the interface that we got above */

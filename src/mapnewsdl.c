@@ -467,7 +467,10 @@ local void get_data(void *clos, int offset, byte *buf, int needed)
 	struct data_locator *dl = (struct data_locator*)clos;
 
 	if (needed == 0)
+	{
+		lm->Log(L_DRIVEL, "<mapnewsdl> finished map/news download (transfer %p)", dl);
 		afree(dl);
+	}
 	else if (dl->arena == NULL && dl->len == cmpnewssize)
 		memcpy(buf, cmpnews + offset, needed);
 	else if ((data = get_map(dl->arena, dl->lvznum, dl->wantopt)) &&
@@ -512,8 +515,8 @@ local void PMapRequest(Player *p, byte *pkt, int len)
 		dl->len = data->cmplen;
 
 		net->SendSized(p, dl, data->cmplen, get_data);
-		lm->LogP(L_DRIVEL, "mapnewsdl", p, "Sending map/lvz %d (%d bytes)",
-				lvznum, data->cmplen);
+		lm->LogP(L_DRIVEL, "mapnewsdl", p, "Sending map/lvz %d (%d bytes) (transfer %p)",
+				lvznum, data->cmplen, dl);
 	}
 	else if (pkt[0] == C2S_NEWSREQUEST)
 	{
@@ -523,7 +526,7 @@ local void PMapRequest(Player *p, byte *pkt, int len)
 			dl->arena = NULL;
 			dl->len = cmpnewssize;
 			net->SendSized(p, dl, cmpnewssize, get_data);
-			lm->Log(L_DRIVEL,"<mapnewsdl> [%s] Sending news.txt", p->name);
+			lm->Log(L_DRIVEL,"<mapnewsdl> [%s] Sending news.txt (transfer %p)", p->name, dl);
 		}
 		else
 			lm->Log(L_WARN, "<mapnewsdl> News request, but compressed news doesn't exist");
