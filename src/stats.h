@@ -19,24 +19,31 @@
 typedef struct Istats
 {
 	INTERFACE_HEAD_DECL
+	/* pyint: use */
 
 	void (*IncrementStat)(Player *p, int stat, int amount);
 	/* increments a particular statistic in _all_ intervals */
+	/* pyint: player, int, int -> void */
 
 	void (*StartTimer)(Player *p, int stat);
+	/* pyint: player, int -> void */
 	void (*StopTimer)(Player *p, int stat);
+	/* pyint: player, int -> void */
 	/* "timer" stats can be managed just like other stats, using
 	 * IncrementStat, or you can use these functions, which take care of
 	 * tracking the start time and updating the database periodically. */
 
 	void (*SetStat)(Player *p, int stat, int interval, int value);
 	/* sets a statistic to a given value */
+	/* pyint: player, int, int, int -> void */
 
 	int (*GetStat)(Player *p, int stat, int interval);
 	/* gets the value of one statistic */
+	/* pyint: player, int, int -> int */
 
 	void (*SendUpdates)(void);
 	/* sends out score updates for everyone that needs to be updated */
+	/* pyint: void -> void */
 } Istats;
 
 #endif

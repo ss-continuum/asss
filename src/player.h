@@ -48,7 +48,7 @@ enum
 	S_NEED_GLOBAL_SYNC,
 	/* auth done, will request global sync */
 
-	S_WAIT_GLOBAL_SYNC,
+	S_WAIT_GLOBAL_SYNC1,
 	/* waiting for sync global persistent data to complete */
 
 	S_DO_GLOBAL_CALLBACKS,
@@ -65,7 +65,7 @@ enum
 	/* player has requested entering an arena, needs to be assigned a
 	 * freq and have arena data syched */
 
-	S_WAIT_ARENA_SYNC,
+	S_WAIT_ARENA_SYNC1,
 	/* waiting for scores sync */
 
 	S_SEND_ARENA_RESPONSE,
@@ -78,12 +78,16 @@ enum
 	/* player is playing in an arena. typically the longest stage */
 
 	S_LEAVING_ARENA,
-	/* player has left arena, callbacks need to be called will return to
-	 * S_LOGGEDIN after this */
+	/* player has left arena, callbacks need to be called. */
+
+	S_WAIT_ARENA_SYNC2,
+	/* waiting for scores sync, other direction */
 
 	S_LEAVING_ZONE,
-	/* player is leaving zone, call disconnecting callbacks, go to
-	 * TIMEWAIT after this */
+	/* player is leaving zone, call disconnecting callbacks */
+
+	S_WAIT_GLOBAL_SYNC2,
+	/* waiting for global sync, other direction */
 
 	S_TIMEWAIT
 	/* the connection is all set to be ended. the network layer will
@@ -100,7 +104,7 @@ struct Arena;
 struct PlayerPosition
 {
 	int x, y, xspeed, yspeed, rotation;
-	int bounty, status;
+	unsigned bounty, status;
 };
 
 
@@ -160,21 +164,29 @@ struct Player
 };
 
 
+#define CB_NEWPLAYER "newplayer"
+typedef void (*NewPlayerFunc)(Player *p, int isnew);
+
+
 #define I_PLAYERDATA "playerdata-3"
 
 typedef struct Iplayerdata
 {
 	INTERFACE_HEAD_DECL
+	/* pyint: use  */
 
 	Player * (*NewPlayer)(int type);
 	void (*FreePlayer)(Player *p);
 	void (*KickPlayer)(Player *p);
+	/* pyint: player -> void */
 
 	void (*LockPlayer)(Player *p);
 	void (*UnlockPlayer)(Player *p);
 
 	Player * (*PidToPlayer)(int pid);
+	/* pyint: int -> player */
 	Player * (*FindPlayer)(const char *name);
+	/* pyint: string -> player */
 
 	void (*TargetToSet)(const Target *target, LinkedList *set);
 

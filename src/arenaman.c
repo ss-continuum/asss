@@ -80,34 +80,16 @@ local void arena_conf_changed(void *v)
 		DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_CONFCHANGED));
 }
 
-local void syncdone1(Arena *a)
-{
-	RDLOCK();
-	if (a)
-	{
-		if (a->status == ARENA_WAIT_SYNC1)
-			a->status = ARENA_RUNNING;
-		else
-			lm->LogA(L_WARN, "arenaman", a, "syncdone1 called from wrong state");
-	}
-	else
-		lm->Log(L_WARN, "<arenaman> syncdone1 called for bad arena");
-	UNLOCK();
-}
 
-
-local void syncdone2(Arena *a)
+local void arena_sync_done(Arena *a)
 {
-	RDLOCK();
-	if (a)
-	{
-		if (a->status == ARENA_WAIT_SYNC2)
-			a->status = ARENA_DO_DEINIT;
-		else
-			lm->LogA(L_WARN, "arenaman", a, "syncdone2 called from wrong state");
-	}
+	WRLOCK();
+	if (a->status == ARENA_WAIT_SYNC1)
+		a->status = ARENA_RUNNING;
+	else if (a->status == ARENA_WAIT_SYNC2)
+		a->status = ARENA_DO_DEINIT;
 	else
-		lm->Log(L_WARN, "<arenaman> syncdone2 called for bad arena");
+		lm->LogA(L_WARN, "arenaman", a, "arena_sync_done called from wrong state");
 	UNLOCK();
 }
 
@@ -148,7 +130,7 @@ local int ProcessArenaStates(void *dummy)
 				/* finally, persistant stuff */
 				if (persist)
 				{
-					persist->GetArena(a, syncdone1);
+					persist->GetArena(a, arena_sync_done);
 					a->status = ARENA_WAIT_SYNC1;
 				}
 				else
@@ -167,7 +149,7 @@ local int ProcessArenaStates(void *dummy)
 				{
 					if (persist)
 					{
-						persist->PutArena(a, syncdone2);
+						persist->PutArena(a, arena_sync_done);
 						a->status = ARENA_WAIT_SYNC2;
 					}
 					else
@@ -391,7 +373,7 @@ local void complete_go(Player *p, const char *reqname, int ship, int xres, int y
 
 	if (p->status != S_LOGGEDIN && p->status != S_PLAYING)
 	{
-		lm->LogP(L_MALICIOUS, "arenaman", p, "Sent arena request from bad status (%d)",
+		lm->LogP(L_MALICIOUS, "arenaman", p, "sent arena request from bad status (%d)",
 				p->status);
 		return;
 	}
@@ -413,7 +395,7 @@ local void complete_go(Player *p, const char *reqname, int ship, int xres, int y
 
 	if (a == NULL)
 	{
-		lm->Log(L_INFO, "<arenaman> {%s} Creating arena", name);
+		lm->Log(L_INFO, "<arenaman> {%s} creating arena", name);
 		a = create_arena(name);
 		if (a == NULL)
 		{
@@ -422,7 +404,7 @@ local void complete_go(Player *p, const char *reqname, int ship, int xres, int y
 			if (!l)
 			{
 				lm->Log(L_ERROR,
-						"<arenaman> Internal error: no running arenas but cannot create new one");
+						"<arenaman> internal error: no running arenas but cannot create new one");
 				UNLOCK();
 				return;
 			}
@@ -469,14 +451,14 @@ local void PArena(Player *p, byte *pkt, int l)
 	          (type == T_CONT && l != LEN_GOARENAPACKET_CONT) )
 #endif
 	{
-		lm->Log(L_MALICIOUS,"<arenaman> [%s] Bad arena packet length (%d)",
+		lm->Log(L_MALICIOUS,"<arenaman> [%s] bad arena packet length (%d)",
 				p->name, l);
 		return;
 	}
 
 	if (go->shiptype > SPEC)
 	{
-		lm->Log(L_MALICIOUS, "<arenaman> [%s] Bad shiptype in arena request", p->name);
+		lm->Log(L_MALICIOUS, "<arenaman> [%s] bad shiptype in arena request", p->name);
 		return;
 	}
 
@@ -506,7 +488,7 @@ local void PArena(Player *p, byte *pkt, int l)
 	}
 	else
 	{
-		lm->Log(L_MALICIOUS, "<arenaman> [%s] Bad arenatype in arena request", p->name);
+		lm->Log(L_MALICIOUS, "<arenaman> [%s] bad arenatype in arena request", p->name);
 		return;
 	}
 
@@ -561,7 +543,7 @@ local int ReapArenas(void *q)
 				if (p->arena == a)
 					goto skip;
 
-			lm->Log(L_DRIVEL, "<arenaman> {%s} Arena being destroyed", a->name);
+			lm->Log(L_DRIVEL, "<arenaman> {%s} arena being destroyed", a->name);
 			/* set its status so that the arena processor will do
 			 * appropriate things */
 			a->status = ARENA_DO_WRITE_DATA;

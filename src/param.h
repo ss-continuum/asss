@@ -88,6 +88,12 @@
 #define CFG_LAG_BUCKET_WIDTH 20
 
 
+/* whether to set the SO_REUSEADDR option on tcp sockets (specifically
+ * the chatnet server socket). this makes restarting the server always
+ * work. */
+#define CFG_SET_REUSEADDR
+
+
 /* whether to keep a list of free links. this is an optimization that
  * will have different effects on different systems. enabling it will
  * probably decrease memory use a bit, and might make things faster or

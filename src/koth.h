@@ -10,6 +10,7 @@
 typedef struct Ipoints_koth
 {
 	INTERFACE_HEAD_DECL
+	/* pyint: use, impl */
 	int (*GetPoints)(
 			Arena *arena,
 			int totalplaying,
@@ -17,6 +18,7 @@ typedef struct Ipoints_koth
 	/* this will be called by the koth module when some group of people
 	 * wins a round of koth. it should return the number of points to be
 	 * given to each player. */
+	/* pyint: arena, int, int -> int */
 } Ipoints_koth;
 
 #endif

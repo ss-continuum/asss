@@ -45,7 +45,7 @@ class Bindings:
 		if type(seq) == type([]):
 			seq = tuple(seq)
 
-		def realfunc(args = args):
+		def realfunc(func = func, args = args):
 			func(*args)
 
 		me.bindings[seq] = realfunc
@@ -292,23 +292,86 @@ class Colors:
 		me.colors = COLORS
 		me.pairs = COLOR_PAIRS
 
-		if me.pairs < 16:
-			raise "Not enough colors!"
-
-		for c in range(1, 16):
+		for c in range(1, me.pairs):
 			init_pair(c, c % COLORS, 0)
 
 		me.default = color_pair(0)
-		me.info = color_pair(14) | A_BLINK
-		me.arena = color_pair(10) | A_BLINK
-		me.pub = color_pair(15)
+		me.info = color_pair(14 % me.pairs) | A_BLINK
+		me.arena = color_pair(10 % me.pairs) | A_BLINK
+		me.pub = color_pair(15 % me.pairs)
 		me.priv = color_pair(2)
-		me.rempriv = color_pair(10)
-		me.freq = color_pair(11)
-		me.chat = color_pair(9)
-		me.mod = color_pair(12)
-		me.sysop = color_pair(9) | A_BLINK
+		me.rempriv = color_pair(10 % me.pairs)
+		me.freq = color_pair(11 % me.pairs)
+		me.chat = color_pair(9 % me.pairs)
+		me.mod = color_pair(12 % me.pairs)
+		me.sysop = color_pair(9 % me.pairs) | A_BLINK
 
+		# add colors that we couldn't do before
+		global deferred_color_args
+		for args in deferred_color_args:
+			me.set_color(*args)
+		del deferred_color_args
+
+	def set_color(me, name, num, bold = 0):
+		if bold:
+			setattr(me, name, curses.color_pair(num) | curses.A_BLINK)
+		else:
+			setattr(me, name, curses.color_pair(num))
+
+
+def init_logfile(fname):
+	global logfile, original_log_filename
+	import os.path
+
+	original_log_filename = fname
+
+	if not fname:
+		logfile = 0
+		return
+
+	# support ~/ and strftime macros in the logfile setting
+	fname = os.path.expanduser(fname)
+	fname = time.strftime(fname)
+
+	# if we're opening the same thing again, don't bother
+	try:
+		if logfile and logfile.name == fname:
+			return
+	except:
+		pass
+
+	logfile = 0
+
+	try:
+		logfile = open(fname, 'a', 1)
+		add_line("Logging to file %s" % fname, 'info')
+	except:
+		print "Can't open '%s'. Logging disabled."
+
+def reload_logfile():
+	global original_log_filename
+	init_logfile(original_log_filename)
+
+
+# log types
+L_INFO = 'I'
+L_CMD = 'D'
+L_PUB = 'P'
+L_ARENA = 'A'
+L_PRIV = 'V'
+L_REMOTEPRIV = 'R'
+L_FREQ = 'T' # team
+L_NMEFREQ = 'E' # team
+L_CHAT = 'C'
+L_SYSOP = 'W' # warn
+L_MOD = 'M' # warn
+
+def log(type, text):
+	if not logfile:
+		return
+	line = (time.asctime(), ' ', type, ' ', text, '\n')
+	line = ''.join(line)
+	logfile.write(line)
 
 
 def start_curses():
@@ -322,6 +385,8 @@ def start_curses():
 	curses.start_color()
 	init_wins()
 
+	#curses.mousemask(curses.BUTTON3_CLICKED)
+
 
 def init_wins():
 	global wins, editheight, pwidth
@@ -331,12 +396,13 @@ def init_wins():
 	wins.stdscr.erase()
 
 	wins.iwin = curses.newwin(editheight, w, h-editheight, 0)
-	wins.stdscr.hline(h-editheight-1, 0, '-', w)
+	wins.stdscr.hline(h-editheight-1, 0, curses.ACS_HLINE, w)
 
 	if pwidth:
 		wins.twin = curses.newwin(h-editheight-1, w-pwidth-1, 0, 0)
 		wins.pwin = curses.newwin(h-editheight-1, pwidth, 0, w-pwidth)
-		wins.stdscr.vline(0, w-pwidth-1, '|', h-editheight-1)
+		wins.stdscr.vline(0, w-pwidth-1, curses.ACS_VLINE, h-editheight-1)
+		wins.stdscr.addch(h-editheight-1, w-pwidth-1, curses.ACS_BTEE)
 	else:
 		wins.twin = curses.newwin(h-editheight-1, w, 0, 0)
 
@@ -355,31 +421,42 @@ def end_curses():
 def process_typed(line):
 	global myname, colors, showtime, breakloop
 
+	if not line:
+		return
+
 	if line.startswith(';'):
 		# chat message
 		ns = line.find(';', 1)
 		if ns == -1:
 			send_line("SEND:CHAT:%s" % line[1:])
-			add_line("1:%s> %s" % (myname, line[1:]), colors.chat)
+			txt = "1:%s> %s" % (myname, line[1:])
+			add_line(txt, colors.chat)
+			log(L_CHAT, txt)
 		else:
-			send_line("SEND:CHAT:%s" % line)
-			add_line("%s:%s> %s" % (line[1:ns], myname, line[ns+1:]), colors.chat)
+			send_line("SEND:CHAT:%s" % line[1:])
+			txt = "%s:%s> %s" % (line[1:ns], myname, line[ns+1:])
+			add_line(txt, colors.chat)
+			log(L_CHAT, txt)
 	elif line.startswith(':'):
 		# priv msg
 		ns = line.find(':', 1)
 		if ns != -1:
 			send_line("SEND:PRIV:%s:%s" % (line[1:ns], line[ns+1:]))
-			add_line("%s to %s> %s" % (myname, line[1:ns], line[ns+1:]), colors.priv)
+			txt = "%s to %s> %s" % (myname, line[1:ns], line[ns+1:])
+			add_line(txt, colors.priv)
+			log(L_PRIV, txt)
 	elif line.startswith("'") or line.startswith('//') or line.startswith('"'):
 		# team chat
 		pass
 	elif line.startswith('\\'):
 		# mod chat
 		send_line("SEND:MOD:%s" % line[1:])
-		add_line("%s> %s" % (myname, line[1:]), colors.mod)
+		txt = "%s> %s" % (myname, line[1:])
+		add_line(txt, colors.mod)
+		log(L_MOD, txt)
 	elif line.startswith('?'):
 		# possible command
-		cmd = line[1:].lower()
+		cmd = line[1:]
 		if cmd.startswith('exit') or cmd.startswith('quit'):
 			breakloop = 1
 		elif cmd.startswith('showtime'):
@@ -390,7 +467,9 @@ def process_typed(line):
 			send_line("GO:%s" % cmd[3:])
 		else:
 			send_line("SEND:PUB:%s" % line)
-		add_line("%s> %s" % (myname, line), colors.default)
+		txt = "%s> %s" % (myname, line)
+		add_line(txt, colors.default)
+		log(L_CMD, txt)
 	elif line.startswith('='):
 		# freq change
 		try:
@@ -401,24 +480,29 @@ def process_typed(line):
 	else:
 		# pub msg
 		send_line("SEND:PUB:%s" % line)
-		add_line("%s> %s" % (myname, line), colors.default)
+		txt = "%s> %s" % (myname, line)
+		add_line(txt, colors.pub)
+		log(L_PUB, txt)
 
 
 def process_loginok(line):
-	global myname
-	add_line("Login ok. You are: %s" % line, 'info')
+	global myname, logindone
+	logindone = ("Login ok.", 1)
 	myname = line
 
 
 def process_loginbad(line):
-	add_line("Bad login: %s" % line, 'info')
+	global logindone
+	logindone = ("Bad login: %s" % line, 0)
 
 
 def process_inarena(line):
 	global players, myname
 
 	arena, freq = line.split(':')
-	add_line("Entered arena: %s" % arena, 'info')
+	txt = "Entered arena: %s" % arena
+	add_line(txt, 'info')
+	log(L_INFO, txt)
 
 	players.clear()
 	players[myname] = Player(myname, int(freq))
@@ -428,7 +512,9 @@ def process_player(line):
 	global players
 
 	name, ship, freq = line.split(':')
-	add_line("Player here: %s" % name, 'info')
+	txt = "Player here: %s" % name
+	add_line(txt, 'info')
+	log(L_INFO, txt)
 	players[name] = Player(name, int(freq))
 
 
@@ -436,7 +522,9 @@ def process_entering(line):
 	global players
 
 	name, ship, freq = line.split(':')
-	add_line("Player entering: %s" % name, 'info')
+	txt = "Player entering: %s" % name
+	add_line(txt, 'info')
+	log(L_INFO, txt)
 	players[name] = Player(name, int(freq))
 
 
@@ -445,7 +533,9 @@ def process_leaving(line):
 
 	name = line
 
-	add_line("Player leaving: %s" % name, 'info')
+	txt = "Player leaving: %s" % name
+	add_line(txt, 'info')
+	log(L_INFO, txt)
 	del players[name]
 
 
@@ -456,27 +546,40 @@ def process_msg(line):
 	if type == 'ARENA':
 		msg = rest
 		add_line(msg, colors.arena)
+		log(L_ARENA, msg)
 	elif type == 'PUB':
 		name, msg = rest.split(':', 1)
-		add_line('%s> %s' % (name, msg), colors.pub)
+		txt = '%s> %s' % (name, msg)
+		add_line(txt, colors.pub)
+		log(L_PUB, txt)
 	elif type == 'PRIV':
 		name, msg = rest.split(':', 1)
-		add_line('%s> %s' % (name, msg), colors.priv)
+		txt = '%s> %s' % (name, msg)
+		add_line(txt, colors.priv)
+		log(L_PRIV, txt)
 	elif type == 'REMOTEPRIV':
-		msg = rest
-		add_line(rest, colors.rempriv)
+		name, msg = rest.split(':', 1)
+		txt = '%s> %s' % (name, msg)
+		add_line(txt, colors.rempriv)
+		log(L_REMOTEPRIV, txt)
 	elif type == 'FREQ':
 		name, msg = rest.split(':', 1)
-		add_line('%s> %s' % (name, msg), colors.freq)
+		txt = '%s> %s' % (name, msg)
+		add_line(txt, colors.freq)
+		log(L_FREQ, txt)
 	elif type == 'CHAT':
 		msg = rest
 		add_line(msg, colors.chat)
+		log(L_CHAT, msg)
 	elif type == 'MOD':
 		name, msg = rest.split(':', 1)
-		add_line('%s> %s' % (name, msg), colors.mod)
+		txt = '%s> %s' % (name, msg)
+		add_line(txt, colors.mod)
+		log(L_MOD, txt)
 	elif type == 'SYSOP':
 		msg = rest
 		add_line(msg, colors.sysop)
+		log(L_SYSOP, msg)
 	else:
 		add_line("Bad message subtype from server: '%s'" % type, colors.info)
 
@@ -489,9 +592,13 @@ def process_sfc(line):
 	freq = int(freq)
 
 	if ship == 8:
-		add_line('%s is now on freq %s as a spectator' % (player, freq), colors.info)
+		txt = '%s is now on freq %s as a spectator' % (player, freq)
+		add_line(txt, colors.info)
+		log(L_INFO, txt)
 	else:
-		add_line('%s is now on freq %s in a %s' % (player, freq, ship_names[ship]), colors.info)
+		txt = '%s is now on freq %s in a %s' % (player, freq, ship_names[ship])
+		add_line(txt, colors.info)
+		log(L_INFO, txt)
 
 
 dispatch = \
@@ -519,8 +626,15 @@ def send_line(line):
 	sock.sendall(line + '\n')
 
 
+deferred_lines = []
 def add_line(line, color = None):
 	global text, colors, scrollback, jumpback, newcrap
+	if not colors:
+		# if we're trying to add a line before curses initialization,
+		# save it in a list for later.
+		global deferred_lines
+		deferred_lines.append((line, color))
+		return
 	if color == None:
 		color = colors.default
 	elif type(color) == type(''):
@@ -531,6 +645,13 @@ def add_line(line, color = None):
 	elif scrollback > 0:
 		newcrap += 1
 		scrollback += 1
+
+
+def complete_deferred_lines():
+	global deferred_lines
+	for l, c in deferred_lines:
+		add_line(l, c)
+	del deferred_lines
 
 
 def display_players(scr):
@@ -556,13 +677,17 @@ def display_players(scr):
 
 
 def process_key():
-	global wins
+	global wins, bindings
 
 	ch = wins.stdscr.getch()
 	if ch == -1:
 		pass
 	elif ch == curses.KEY_RESIZE:
 		init_wins()
+	elif ch == curses.KEY_MOUSE:
+		id, x, y, z, state = curses.getmouse()
+		if state & curses.BUTTON4_CLICKED:
+			pass
 	elif ch == 27:
 		# get all chars of an escape sequence
 		seq = []
@@ -606,12 +731,31 @@ def read_data():
 		pass
 
 
+last_sent_keepalive = time.time()
+def send_keepalive(tm):
+	global keepalive, last_sent_keepalive
+
+	if keepalive and (tm - last_sent_keepalive) > keepalive:
+		send_line('NOOP')
+		last_sent_keepalive = tm
+
+
+# reload the log file once per day
+last_days_value = 0
+def check_logfile(tm):
+	global last_days_value
+	timetuple = time.localtime(tm)
+	days = timetuple[2]
+	if days != last_days_value:
+		reload_logfile()
+		last_days_value = days
+
 def main_loop():
 	global wins, text, edit, sock, breakloop
 
 	breakloop = 0
 
-	while 1:
+	while not breakloop:
 		# show stuff
 		text.display(wins.twin)
 		display_players(wins.pwin)
@@ -624,19 +768,30 @@ def main_loop():
 		except:
 			pass
 
+		tm = time.time()
+
 		# get key
 		process_key()
-
 		# read some data
 		read_data()
+		# send keepalive
+		send_keepalive(tm)
+		# check for re-opening logfile
+		check_logfile(tm)
 
-		if breakloop:
-			break
+
+def cleanup_code(code):
+	import string
+	lines = code.split('\n')
+	lines = map(string.strip, lines)
+	return '\n'.join(lines)
 
 
+deferred_color_args = []
 def process_config(file):
 	global bindings
 	global editheight, pwidth, showtime, indent, jumpback, keeplines
+	global keepalive
 
 	bindings = Bindings()
 
@@ -668,7 +823,39 @@ def process_config(file):
 		if d.startswith('KEY_'):
 			opts[d] = getattr(curses, d)
 
+	# add a color setter function
+	def color(*args):
+		global deferred_color_args
+		deferred_color_args.append(args)
+	opts['color'] = color
+
 	execfile(file, opts, opts)
+
+	# check command-line params
+	args = sys.argv[1:]
+	if args:
+		for arg in args:
+			if opts.has_key(arg):
+				try:
+					exec cleanup_code(opts[arg]) in opts
+				except:
+					import traceback
+					print "Error in config file:"
+					traceback.print_exc()
+			else:
+				try:
+					exec arg
+				except:
+					import traceback
+					print "Can't process command line argument '%s':" % arg
+					traceback.print_exc()
+	elif opts.has_key('default'):
+		try:
+			exec cleanup_code(opts['default']) in opts
+		except:
+			import traceback
+			print "Error in config file:"
+			traceback.print_exc()
 
 	editheight = opts.get('editheight', 3)
 	pwidth = opts.get('playerwidth', 15)
@@ -676,33 +863,35 @@ def process_config(file):
 	showtime = opts.get('showtime', 1)
 	jumpback = opts.get('jumpback', 0)
 	keeplines = opts.get('keeplines', 1000)
+	keepalive = opts.get('keepalive', 0)
 
 	return opts
 
 
 def main():
 	global wins, text, edit, sock, players, myname, colors, scrollback
-	global newcrap
+	global newcrap, logindone
 
+	colors = 0
 	players = {}
 	myname = ''
 
 	# get config file
-	if len(sys.argv) > 1:
-		opts = process_config(sys.argv[1])
-	elif os.environ.get('CCC_CONFIG_FILE'):
+	if os.environ.get('CCC_CONFIG_FILE'):
 		opts = process_config(os.environ.get('CCC_CONFIG_FILE'))
 	else:
 		try:
 			opts = process_config(os.environ.get('HOME') + '/.ccc-config')
 		except:
-			print "You must supply a configuration file."
+			import traceback
+			print "Error in config file:"
+			traceback.print_exc()
 			sys.exit(1)
 
 	# check for required options
 	if not opts.has_key('name') or not opts.has_key('password') or \
-	   not opts.has_key('host') or not opts.has_key('port'):
-		print "The config file must include a name, password, host, and port."
+	   not opts.has_key('server') or not opts.has_key('port'):
+		print "The config file must include a name, password, server, and port."
 		sys.exit(2)
 
 	scrollback = 0
@@ -712,35 +901,73 @@ def main():
 	text = Text()
 	edit = Edit()
 
+	print "ccc - a console chat client <grelminar@yahoo.com>"
+	print "Connecting to %s:%d as %s..." % \
+		(opts['server'], opts['port'], opts['name'])
+
+	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	sock.connect((opts['server'], opts['port']))
+	sock.setblocking(0)
+
+	print "Logging in..."
+
+	send_line("LOGIN:1:%s:%s" % (opts['name'], opts['password']))
+
+	# limited version of main loop just to get login result
+	logindone = 0
+	while not logindone:
+		try:
+			select.select([sock], [], [], 1000)
+		except:
+			pass
+		read_data()
+
+	msg, ok = logindone
+	print msg
+
+	if not ok:
+		return
+
+	init_logfile(opts.get('logfile'))
+
+	txt = "Connected to %s:%d as %s" % (opts['server'], opts['port'], myname)
+	add_line(txt, 'info')
+	log(L_INFO, txt)
+
+	# enter arena
+	send_line("GO:%s" % opts.get('arena', ''))
+
+	# join chats and other autocommands
+	if opts.has_key('chats'):
+		send_line("SEND:CMD:?chat=%s" % opts['chats'])
+
 	start_curses()
 
-	bindings.bind(curses.erasechar(), bindings.backspace)
-	bindings.bind(curses.killchar(), bindings.kill_line)
-
 	try:
+		# default bindings based on curses settings. these can't be done
+		# until after we init curses.
+		bindings.bind(curses.erasechar(), bindings.backspace)
+		bindings.bind(curses.killchar(), bindings.kill_line)
 
 		colors = Colors()
 
-		add_line("ccc - a console chat client <grelminar@yahoo.com>", 'info')
-		add_line("Connecting to %s:%d as %s..." % \
-			(opts['host'], opts['port'], opts['name']), 'info')
-		text.display(wins.twin)
-		curses.doupdate()
+		# curses initialization is done, add lines that we couldn't add
+		# before.
+		complete_deferred_lines()
 
-		sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		sock.connect((opts['host'], opts['port']))
-		sock.setblocking(0)
-
-		add_line("Logging in...", 'info')
-		text.display(wins.twin)
-		curses.doupdate()
-
-		send_line("LOGIN:1:%s:%s" % (opts['name'], opts['password']))
+		# init lines can be split by newlines or bars
+		if opts.has_key('init'):
+			for l1 in opts['init'].split('\n'):
+				for l2 in l1.split('|'):
+					process_typed(l2)
 
 		main_loop()
 
 	finally:
 		end_curses()
+
+	log(L_INFO, "Disconnected.")
+	print "Disconnected."
 
 
 if __name__ == '__main__':

@@ -199,7 +199,7 @@ void SpawnFlag(Arena *arena, int fid)
 	}
 	else
 	{
-		logm->Log(L_WARN, "<flags> SpawnFlag called for a flag on the map");
+		logm->Log(L_WARN, "<flags> spawnFlag called for a flag on the map");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -280,7 +280,7 @@ void MoveFlag(Arena *arena, int fid, int x, int y, int freq)
 	net->SendToArena(arena, NULL, (byte*)&fl, sizeof(fl), NET_RELIABLE);
 	DO_CBS(CB_FLAGPOS, arena, FlagPosFunc,
 			(arena, fid, x, y, freq));
-	logm->Log(L_DRIVEL, "<flags> {%s} Flag %d is at (%d, %d) owned by %d",
+	logm->Log(L_DRIVEL, "<flags> {%s} flag %d is at (%d, %d) owned by %d",
 			arena->name, fid, x, y, freq);
 }
 
@@ -467,7 +467,7 @@ local void LoadFlagSettings(Arena *arena, int init)
 	}
 
 	if (init && pfd->gametype)
-		logm->Log(L_INFO, "<flags> {%s} Arena has flaggame %d (%d-%d flags)",
+		logm->Log(L_INFO, "<flags> {%s} arena has flaggame %d (%d-%d flags)",
 				arena->name,
 				pfd->gametype,
 				pfd->minflags,
@@ -553,7 +553,7 @@ local void CheckWin(Arena *arena)
 		DO_CBS(CB_FLAGWIN, arena, FlagWinFunc,
 				(arena, freq));
 
-		logm->Log(L_INFO, "<flags> {%s} Flag victory: freq %d won",
+		logm->Log(L_INFO, "<flags> {%s} flag victory: freq %d won",
 				arena->name, freq);
 	}
 
@@ -678,7 +678,7 @@ void FlagKill(Arena *arena, Player *killer, Player *killed, int bounty, int flag
 	}
 	UNLOCK_STATUS(arena);
 	killed->pkt.flagscarried = 0;
-	/* logm->Log(L_DRIVEL, "<flags> [%s] by [%s] Flag kill: %d flags transferred",
+	/* logm->Log(L_DRIVEL, "<flags> [%s] by [%s] flag kill: %d flags transferred",
 			killed->name,
 			killer->name,
 			tot); */
@@ -695,30 +695,26 @@ void PPickupFlag(Player *p, byte *pkt, int len)
 	struct FlagData fd;
 	struct C2SFlagPickup *cfp = (struct C2SFlagPickup*)pkt;
 
-	if (!arena)
-	{
-		logm->Log(L_MALICIOUS, "<flags> [%s] Flag pickup from bad arena",
-				p->name);
-		return;
-	}
-
 #define ERR(msg) \
 	{ \
 		logm->LogP(L_MALICIOUS, "flags", p, msg); \
 		return; \
 	}
 
+	if (!arena)
+		ERR("flag pickup from bad arena")
+
 	if (p->status != S_PLAYING)
-		ERR("Flag pickup from bad arena or status")
+		ERR("flag pickup from bad arena or status")
 
 	if (len != sizeof(struct C2SFlagPickup))
-		ERR("Bad size for flag pickup packet")
+		ERR("bad size for flag pickup packet")
 
 	if (p->p_ship >= SPEC)
-		ERR("Flag pickup packet from spec")
+		ERR("flag pickup packet from spec")
 
 	if (p->flags.during_change)
-		ERR("Flag pickup before ship/freq change ack")
+		ERR("flag pickup before ship/freq change ack")
 
 #undef ERR
 
@@ -737,7 +733,7 @@ void PPickupFlag(Player *p, byte *pkt, int len)
 	/* make sure someone else didn't get it first */
 	if (fd.state != FLAG_ONMAP)
 	{
-		logm->Log(L_MALICIOUS, "<flags> {%s} [%s] Tried to pick up a carried flag",
+		logm->Log(L_MALICIOUS, "<flags> {%s} [%s] tried to pick up a carried flag",
 				arena->name,
 				p->name);
 		UNLOCK_STATUS(arena);
@@ -785,10 +781,7 @@ void PPickupFlag(Player *p, byte *pkt, int len)
 	DO_CBS(CB_FLAGPICKUP, arena, FlagPickupFunc,
 			(arena, p, cfp->fid, oldfreq, carried));
 
-	logm->Log(L_DRIVEL, "<flags> {%s} [%s] Player picked up flag %d",
-			arena->name,
-			p->name,
-			cfp->fid);
+	logm->LogP(L_DRIVEL, "flags", p, "player picked up flag %d", cfp->fid);
 }
 
 
@@ -803,13 +796,13 @@ void PDropFlag(Player *p, byte *pkt, int len)
 
 	if (!arena || p->status != S_PLAYING)
 	{
-		logm->Log(L_MALICIOUS, "<flags> [%s] Flag drop packet from bad arena or status", p->name);
+		logm->Log(L_MALICIOUS, "<flags> [%s] flag drop packet from bad arena or status", p->name);
 		return;
 	}
 
 	if (p->p_ship >= SPEC)
 	{
-		logm->Log(L_MALICIOUS, "<flags> [%s] Flag drop packet from spec", p->name);
+		logm->Log(L_MALICIOUS, "<flags> [%s] flag drop packet from spec", p->name);
 		return;
 	}
 
@@ -836,7 +829,7 @@ void PDropFlag(Player *p, byte *pkt, int len)
 
 		case FLAGGAME_TURF:
 			/* clients shouldn't send this packet in turf games */
-			logm->Log(L_MALICIOUS, "<flags> {%s} [%s] Recvd flag drop packet in turf game",
+			logm->Log(L_MALICIOUS, "<flags> {%s} [%s] recvd flag drop packet in turf game",
 					arena->name,
 					p->name);
 			break;
@@ -852,9 +845,7 @@ void PDropFlag(Player *p, byte *pkt, int len)
 	/* finally call callbacks */
 	DO_CBS(CB_FLAGDROP, arena, FlagDropFunc, (arena, p, dropped, 0));
 
-	logm->Log(L_DRIVEL, "<flags> {%s} [%s] Player dropped flags",
-			arena->name,
-			p->name);
+	logm->LogP(L_DRIVEL, "flags", p, "player dropped flags");
 
 	/* do this after the drop callbacks have been called because this
 	 * has the potential to call the win callbacks and we don't want the
@@ -941,7 +932,7 @@ int TurfFlagTimer(void *dummy)
 }
 
 
-local int get_turf_owners(Arena *arena, void *data, int len)
+local int get_turf_owners(Arena *arena, void *data, int len, void *v)
 {
 	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
 	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
@@ -967,7 +958,7 @@ local int get_turf_owners(Arena *arena, void *data, int len)
 	return fc * sizeof(short);
 }
 
-local void set_turf_owners(Arena *arena, void *data, int len)
+local void set_turf_owners(Arena *arena, void *data, int len, void *v)
 {
 	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
 	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
@@ -998,7 +989,7 @@ local void set_turf_owners(Arena *arena, void *data, int len)
 	UNLOCK_STATUS(arena);
 }
 
-local void clear_turf_owners(Arena *arena)
+local void clear_turf_owners(Arena *arena, void *v)
 {
 	/* no-op: the arena create action does this already */
 }

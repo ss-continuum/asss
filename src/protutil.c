@@ -64,7 +64,6 @@ int set_nonblock(int s)
 		return 0;
 #else
 	unsigned long nb = 1;
-
 	if (ioctlsocket(s, FIONBIO, &nb) == SOCKET_ERROR)
 		return -1;
 	else
@@ -96,6 +95,13 @@ int init_listening_socket(int port, unsigned long int bindaddr)
 		perror("socket");
 		return -1;
 	}
+
+#ifdef CFG_SET_REUSEADDR
+	{
+		int yes = 1;
+		setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+	}
+#endif
 
 	if (bind(s, (struct sockaddr *)&sin, sizeof(sin)) == -1)
 	{

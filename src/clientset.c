@@ -215,7 +215,7 @@ void ActionFunc(Arena *arena, int action)
 	{
 		load_settings(ad, arena->cfg);
 		net->SendToArena(arena, NULL, (byte*)&ad->cs, sizeof(struct ClientSettings), NET_RELIABLE);
-		lm->LogA(L_INFO, "clientset", arena, "Sending modified settings");
+		lm->LogA(L_INFO, "clientset", arena, "sending modified settings");
 	}
 	else if (action == AA_DESTROY)
 	{

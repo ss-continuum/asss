@@ -264,6 +264,14 @@ local void ReloadConfigFile(ConfigHandle ch)
 }
 
 
+local void AddRef(ConfigHandle ch)
+{
+	pthread_mutex_lock(&ch->mutex);
+	ch->refcount++;
+	pthread_mutex_unlock(&ch->mutex);
+}
+
+
 local int check_modified_files(void *dummy)
 {
 	Link *l;
@@ -506,6 +514,7 @@ local Iconfig _int =
 	INTERFACE_HEAD_INIT(I_CONFIG, "config-file")
 	GetStr, GetInt, SetStr, SetInt,
 	OpenConfigFile, CloseConfigFile, ReloadConfigFile,
+	AddRef,
 	FlushDirtyValues, CheckModifiedFiles
 };
 

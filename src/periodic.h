@@ -10,6 +10,7 @@
 typedef struct Iperiodicpoints
 {
 	INTERFACE_HEAD_DECL
+	/* pyint: use, impl */
 	int (*GetPoints)(
 			Arena *arena,
 			int freq,
@@ -22,6 +23,7 @@ typedef struct Iperiodicpoints
 	 * the parameters passed (other than arena and freq), are just for
 	 * utilty. feel free to query any other information about the freq
 	 * necessary to determine reward points. */
+	/* pyint: arena, int, int, int, int -> int */
 } Iperiodicpoints;
 
 #endif

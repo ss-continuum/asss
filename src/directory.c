@@ -57,7 +57,7 @@ local int SendUpdates(void *dummy)
 	Link *link, *l, *k;
 	Player *p;
 
-	lm->Log(L_DRIVEL, "<directory> Sending information to directory servers");
+	lm->Log(L_DRIVEL, "<directory> sending information to directory servers");
 
 	/* figure out player count */
 	pd->Lock();
@@ -96,7 +96,7 @@ local void init_data(void)
 
 	/* cfghelp: Directory:Password, global, string, def: cane
 	 * The password used to send information to the directory
-	 * server. */
+	 * server. Don't change this. */
 	pwd = cfg->GetStr(GLOBAL, "Directory", "Password");
 	if (!pwd)
 		pwd = "cane";
@@ -163,6 +163,7 @@ local void init_data(void)
 		LLAdd(&packets, data);
 	}
 
+	mm->ReleaseInterface(net);
 }
 
 
@@ -197,7 +198,7 @@ local void init_servers(void)
 				sin->sin_port = htons(port);
 				memcpy(&sin->sin_addr, ent->h_addr, sizeof(sin->sin_addr));
 				LLAdd(&servers, sin);
-				lm->Log(L_INFO, "<directory> Using '%s' at %s as a directory server",
+				lm->Log(L_INFO, "<directory> using '%s' at %s as a directory server",
 						ent->h_name, inet_ntoa(sin->sin_addr));
 			}
 		}
@@ -205,7 +206,7 @@ local void init_servers(void)
 }
 
 
-local void deinit_servers(void)
+local void deinit_all(void)
 {
 	LLEnum(&servers, afree);
 	LLEmpty(&servers);
@@ -251,7 +252,7 @@ EXPORT int MM_directory(int action, Imodman *mm_, Arena *arena)
 	else if (action == MM_UNLOAD)
 	{
 		ml->ClearTimer(SendUpdates, NULL);
-		deinit_servers();
+		deinit_all();
 		close(sock);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(ml);

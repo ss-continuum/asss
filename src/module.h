@@ -11,16 +11,9 @@
 
 #include "util.h"
 
+struct Imodman;
 
-typedef struct Imodman Imodman;
-
-
-/* all module entry points must be of this type */
-typedef int (*ModMain)(int action, Imodman *mm, Arena *arena);
-
-
-/* action codes for module main functions */
-
+/* module load/unload operations */
 enum
 {
 	MM_LOAD,
@@ -52,9 +45,9 @@ enum
 };
 
 
-/* return values for ModMain functions */
-#define MM_FAIL 1
-#define MM_OK   0
+/* return values for module functions */
+#define MM_OK     0
+#define MM_FAIL   1
 
 
 /* all interfaces declarations MUST start with this macro */
@@ -73,13 +66,40 @@ typedef struct InterfaceHead
 	int priority, refcount;
 } InterfaceHead;
 
-#define MODMAN_MAGIC 0x46692016
+#define MODMAN_MAGIC 0x46692017
 
 
-struct Imodman
+typedef struct mod_args_t
+{
+	char name[32];
+	const char *info;
+	void *privdata;
+} mod_args_t;
+
+typedef int (*ModuleLoaderFunc)(int action, mod_args_t *args, const char *line, Arena *arena);
+/* this will be called when loading a module. action is:
+ * MM_LOAD - requesting to load a module. line will be set. fill in
+ * args. ignore arena. return MM_OK/FAIL
+ * MM_UNLOAD - requesting to unload. ignore line. args will be set.
+ * return MM_OK/FAIL.
+ * MM_ATTACH - requesting to attach. args and arena will be set. ignore
+ * line.
+ * MM_DETACH - requesting to detach. args and arena will be set. ignore
+ * line.
+ * MM_POSTLOAD, MM_PREUNLOAD - two more phases of initialization. don't
+ * worry about these.
+ *
+ * line, when it is set, is a module specifier (from modules.conf or
+ * ?insmod).
+ * all of the stuff in args is for the module loader's use, although
+ * name and info will be used by the module manager.
+ */
+
+
+typedef struct Imodman
 {
 	INTERFACE_HEAD_DECL
-
+	/* pyint: use */
 
 	/* module stuff */
 
@@ -88,9 +108,11 @@ struct Imodman
 	 * is the filename (without the .so/.dll) or 'int' for internal modules.
 	 * eventually, 'file:modname@remotehost:port' will be supported for
 	 * remote modules.  */
+	/* pyint: string -> int */
 
 	int (*UnloadModule)(const char *name);
 	/* unloads a module. only the name should be given (not the file). */
+	/* pyint: string -> int */
 
 	void (*EnumModules)(void (*func)(const char *name, const char *info,
 				void *clos), void *clos);
@@ -141,6 +163,10 @@ struct Imodman
 	 * list of functions to call. when you're done calling them all,
 	 * call FreeLookupResult on the list. */
 
+	Arena * (*GetArenaOfCurrentCallback)(void);
+	Arena * (*GetArenaOfLastInterfaceRequest)(void);
+	/* does what they say. you shouldn't need to use these. */
+
 #define ALLARENAS NULL
 	/* if you want a callback to take effect globally, use ALLARENAS as
 	 * the 'arena' parameter to the above functions. callbacks
@@ -151,6 +177,10 @@ struct Imodman
 	 * return callbacks that are specific to an arena. if you think the
 	 * behaviour doesn't make sense, tell me.) */
 
+	/* module loaders */
+	void (*RegModuleLoader)(const char *signature, ModuleLoaderFunc func);
+	void (*UnregModuleLoader)(const char *signature, ModuleLoaderFunc func);
+
 	/* these functions should be called only from main.c */
 	struct
 	{
@@ -158,7 +188,7 @@ struct Imodman
 		void (*UnloadAllModules)(void);
 		void (*NoMoreModules)(void);
 	} frommain;
-};
+} Imodman;
 
 
 Imodman * InitModuleManager(void);
@@ -176,7 +206,7 @@ do {                                                   \
 	LinkedList lst;                                    \
 	Link *l;                                           \
 	mm->LookupCallback(cb, arena, &lst);               \
-	for (l = LLGetHead(&lst); l; l = l->next)           \
+	for (l = LLGetHead(&lst); l; l = l->next)          \
 		((type)l->data) args ;                         \
 	mm->FreeLookupResult(&lst);                        \
 } while (0)

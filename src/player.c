@@ -109,12 +109,16 @@ local Player * NewPlayer(int type)
 	p->connecttime = current_ticks();
 	p->connectas = NULL;
 
+	DO_CBS(CB_NEWPLAYER, ALLARENAS, NewPlayerFunc, (p, TRUE));
+
 	return p;
 }
 
 
 local void FreePlayer(Player *p)
 {
+	DO_CBS(CB_NEWPLAYER, ALLARENAS, NewPlayerFunc, (p, FALSE));
+
 	WRLOCK();
 	LLRemove(&myint.playerlist, p);
 	pidmap[p->pid] = NULL;

@@ -20,17 +20,21 @@
 typedef struct Imapdata
 {
 	INTERFACE_HEAD_DECL
+	/* pyint: use */
 
 	int (*GetMapFilename)(Arena *arena, char *buf, int buflen, const char *mapname);
 	/* returns true if it could find a map and put the filename in buf.
 	 * false if it couldn't find a map or buf wasn't big enough. mapname
 	 * should be null unless you're looking for lvzs or something. */
+	/* pyint: arena, string out, int buflen, string -> int */
 
 	int (*GetFlagCount)(Arena *arena);
 	/* gets the number of turf flags on the map */
+	/* pyint: arena -> int */
 
 	int (*GetTile)(Arena *arena, int x, int y);
 	/* returns the contents of the given tile. */
+	/* pyint: arena, int, int -> int */
 
 
 	/* the following two functions deal with the map region system. */
@@ -59,6 +63,7 @@ typedef struct Imapdata
 	u32 (*GetChecksum)(Arena *arena, u32 key);
 
 	void (*DoBrick)(Arena *arena, int drop, int x1, int y1, int x2, int y2);
+	/* only used from game */
 } Imapdata;
 
 #endif

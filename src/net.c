@@ -39,7 +39,7 @@
 
 /* if we haven't sent a reliable packet after this many tries, drop the
  * connection. */
-#define MAXRETRIES 5
+#define MAXRETRIES 10
 
 /* packets to queue up for sending files */
 #define QUEUE_PACKETS 15
@@ -265,7 +265,7 @@ local pthread_mutex_t ccmtx = PTHREAD_MUTEX_INITIALIZER;
 local DQNode freelist, rellist;
 local pthread_mutex_t freemtx, relmtx;
 local pthread_cond_t relcond;
-volatile int killallthreads = 0;
+local pthread_t rel_thread, recv_thread, send_thread;
 
 local int connkey;
 local Player * clienthash[CFG_HASHSIZE];
@@ -355,7 +355,6 @@ local Inet_client netclientint =
 EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 {
 	int i;
-	pthread_t thd;
 
 	if (action == MM_LOAD)
 	{
@@ -402,12 +401,9 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		DQInit(&rellist);
 
 		/* start the threads */
-		pthread_create(&thd, NULL, RecvThread, NULL);
-		pthread_detach(thd);
-		pthread_create(&thd, NULL, SendThread, NULL);
-		pthread_detach(thd);
-		pthread_create(&thd, NULL, RelThread, NULL);
-		pthread_detach(thd);
+		pthread_create(&recv_thread, NULL, RecvThread, NULL);
+		pthread_create(&send_thread, NULL, SendThread, NULL);
+		pthread_create(&rel_thread, NULL, RelThread, NULL);
 
 		ml->SetTimer(QueueMoreData, 200, 150, NULL, NULL);
 
@@ -478,11 +474,13 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 			LLEmpty(sizedhandlers + i);
 		}
 
-		/* let threads die */
-		/* note: we don't join them because they could be blocked on
-		 * something, and who ever wants to unload net anyway? */
-		killallthreads = 1;
-		usleep(500000);
+		/* kill threads */
+		pthread_cancel(recv_thread);
+		pthread_cancel(send_thread);
+		pthread_cancel(rel_thread);
+		pthread_join(recv_thread, NULL);
+		pthread_join(send_thread, NULL);
+		pthread_join(rel_thread, NULL);
 
 		/* close all our sockets */
 		for (link = LLGetHead(&listening); link; link = link->next)
@@ -775,8 +773,8 @@ int InitSockets(void)
 
 		LLAdd(&listening, ld);
 
-		lm->Log(L_DRIVEL, "<net> Listen%d: listening on %s:%d",
-				i, inet_ntoa(sin.sin_addr), port);
+		lm->Log(L_DRIVEL, "<net> listening on %s:%d (%d)",
+				inet_ntoa(sin.sin_addr), port, i);
 	}
 
 	/* now grab a socket for the client connections */
@@ -870,11 +868,11 @@ local void handle_game_packet(ListenData *ld)
 			DO_CBS(CB_CONNINIT, ALLARENAS, ConnectionInitFunc,
 					(&sin, buf->d.raw, len, ld));
 		else if (len > 1)
-			lm->Log(L_DRIVEL, "<net> Recvd data (%02x %02x ; %d bytes) "
+			lm->Log(L_DRIVEL, "<net> recvd data (%02x %02x ; %d bytes) "
 					"before connection established",
 					buf->d.raw[0], buf->d.raw[1], len);
 		else
-			lm->Log(L_DRIVEL, "<net> Recvd data (%02x ; %d byte) "
+			lm->Log(L_DRIVEL, "<net> recvd data (%02x ; %d byte) "
 					"before connection established",
 					buf->d.raw[0], len);
 		goto freebuf;
@@ -916,7 +914,7 @@ local void handle_game_packet(ListenData *ld)
 
 	if (status > S_TIMEWAIT)
 	{
-		lm->Log(L_WARN, "<net> [pid=%d] Packet recieved from bad state %d", p->pid, status);
+		lm->Log(L_WARN, "<net> [pid=%d] packet recieved from bad state %d", p->pid, status);
 		goto freebuf;
 		/* don't set lastpkt time here */
 	}
@@ -1088,14 +1086,15 @@ void * RecvThread(void *dummy)
 		}
 	}
 
-	while (!killallthreads)
+	for (;;)
 	{
 		/* wait for a packet */
 		do {
+			pthread_testcancel();
 			selfds = myfds;
 			tv.tv_sec = 10;
 			tv.tv_usec = 0;
-		} while (select(maxfd+1, &selfds, NULL, NULL, &tv) < 1 && !killallthreads);
+		} while (select(maxfd+1, &selfds, NULL, NULL, &tv) < 1);
 
 		/* process whatever we got */
 		for (l = LLGetHead(&listening); l; l = l->next)
@@ -1270,8 +1269,9 @@ local void send_outgoing(ConnData *conn)
 				continue;
 
 			/* check if it's time to send this yet (increase timeout
-			 * linearly with the retry number) */
-			if (TICK_DIFF(now, buf->lastretry) <= (timeout * buf->retries))
+			 * exponentially). */
+			if (buf->retries != 0 &&
+			    TICK_DIFF(now, buf->lastretry) <= (timeout << (buf->retries-1)))
 				continue;
 
 			/* only buffer fixed number of rel packets to client */
@@ -1306,6 +1306,9 @@ local void send_outgoing(ConnData *conn)
 				CLIP(conn->limit, LOW_LIMIT, HIGH_LIMIT);
 			}
 
+			buf->lastretry = now;
+			buf->retries++;
+
 			/* try to group it */
 			if (buf->len <= 255 &&
 			    buf->callback == NULL &&
@@ -1316,12 +1319,7 @@ local void send_outgoing(ConnData *conn)
 				gptr += buf->len;
 				bytessince += buf->len + 1;
 				gcount++;
-				if (IS_REL(buf))
-				{
-					buf->lastretry = now;
-					buf->retries++;
-				}
-				else
+				if (!IS_REL(buf))
 				{
 					DQRemove((DQNode*)buf);
 					FreeBuffer(buf);
@@ -1332,12 +1330,7 @@ local void send_outgoing(ConnData *conn)
 				/* send immediately */
 				bytessince += buf->len + IP_UDP_OVERHEAD;
 				SendRaw(conn, buf->d.raw, buf->len);
-				if (IS_REL(buf))
-				{
-					buf->lastretry = now;
-					buf->retries++;
-				}
-				else
+				if (!IS_REL(buf))
 				{
 					/* if we just sent an unreliable packet,
 					 * free it so we don't send it again. */
@@ -1375,6 +1368,7 @@ local void process_lagouts(Player *p, unsigned int gtc, LinkedList *tokill, Link
 
 	/* process lagouts */
 	if (p->whenloggedin == 0 && /* acts as flag to prevent dups */
+	    p->status < S_LEAVING_ZONE && /* don't kick them if they're already on the way out */
 	    (diff > config.droptimeout || conn->hitmaxretries))
 	{
 		Ichat *chat= mm->GetInterface(I_CHAT, ALLARENAS);
@@ -1411,8 +1405,7 @@ local void process_lagouts(Player *p, unsigned int gtc, LinkedList *tokill, Link
 		}
 
 		/* log message */
-		lm->Log(L_INFO, "<net> [%s] [pid=%d] Disconnected",
-				p->name, p->pid);
+		lm->Log(L_INFO, "<net> [%s] [pid=%d] disconnected", p->name, p->pid);
 
 		pthread_mutex_lock(&hashmtx);
 		bucket = HashIP(conn->sin);
@@ -1429,7 +1422,7 @@ local void process_lagouts(Player *p, unsigned int gtc, LinkedList *tokill, Link
 				jcli->nextinbucket = conn->nextinbucket;
 			else
 			{
-				lm->Log(L_ERROR, "<net> Internal error: "
+				lm->Log(L_ERROR, "<net> internal error: "
 						"established connection not in hash table");
 			}
 		}
@@ -1446,7 +1439,7 @@ local void process_lagouts(Player *p, unsigned int gtc, LinkedList *tokill, Link
 
 void * SendThread(void *dummy)
 {
-	while (!killallthreads)
+	for (;;)
 	{
 		ticks_t gtc;
 		ConnData *conn;
@@ -1456,7 +1449,9 @@ void * SendThread(void *dummy)
 		LinkedList tofree = LL_INITIALIZER;
 		LinkedList tokill = LL_INITIALIZER;
 
+		pthread_testcancel();
 		usleep(10000); /* 1/100 second */
+		pthread_testcancel();
 
 		/* first send outgoing packets (players) */
 		pd->/*Read*/Lock();
@@ -1505,8 +1500,8 @@ void * SendThread(void *dummy)
 			 * net, we're safe for now, but they should be cleaned up. */
 			if (cc->c.hitmaxretries ||
 			    /* use a special limit of 65 seconds here, unless we
-			     * haven't gotten _any_ packets, then use 5. */
-			    TICK_DIFF(gtc, cc->c.lastpkt) > (cc->c.pktrecvd ? 6500 : 500))
+			     * haven't gotten _any_ packets, then use 10. */
+			    TICK_DIFF(gtc, cc->c.lastpkt) > (cc->c.pktrecvd ? 6500 : 1000))
 				dropme = cc;
 		}
 		pthread_mutex_unlock(&ccmtx);
@@ -1517,7 +1512,6 @@ void * SendThread(void *dummy)
 			DropClientConnection(dropme);
 		}
 	}
-
 	return NULL;
 }
 
@@ -1529,7 +1523,8 @@ void * RelThread(void *dummy)
 	ConnData *conn;
 
 	pthread_mutex_lock(&relmtx);
-	while (!killallthreads)
+	pthread_cleanup_push((void(*)(void*))pthread_mutex_unlock, (void*)&relmtx);
+	for (;;)
 	{
 		/* wait for reliable pkt to process */
 		if (!worked)
@@ -1594,7 +1589,7 @@ void * RelThread(void *dummy)
 			}
 		}
 	}
-	pthread_mutex_unlock(&relmtx);
+	pthread_cleanup_pop(1);
 	return NULL;
 }
 
@@ -1709,10 +1704,10 @@ Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v
 	pthread_mutex_unlock(&hashmtx);
 
 	if (sin)
-		lm->Log(L_DRIVEL,"<net> [pid=%d] New connection from %s:%i",
+		lm->Log(L_DRIVEL,"<net> [pid=%d] new connection from %s:%i",
 				p->pid, inet_ntoa(sin->sin_addr), ntohs(sin->sin_port));
 	else
-		lm->Log(L_DRIVEL,"<net> [pid=%d] New internal connection", p->pid);
+		lm->Log(L_DRIVEL,"<net> [pid=%d] new internal connection", p->pid);
 
 	return p;
 }
@@ -1742,7 +1737,6 @@ void KillConnection(Player *p)
 	if (p->status < S_LEAVING_ARENA)
 		p->status = S_LEAVING_ZONE;
 
-	/* set status */
 	/* set this special flag so that the player will be set to leave
 	 * the zone when the S_LEAVING_ARENA-initiated actions are
 	 * completed. */
@@ -2035,12 +2029,12 @@ void ProcessPresize(Buffer *buf)
 
 	if (conn->sizedrecv.totallen != size)
 	{
-		lm->LogP(L_MALICIOUS, "net", conn->p, "Length mismatch in sized packet");
+		lm->LogP(L_MALICIOUS, "net", conn->p, "length mismatch in sized packet");
 		end_sized(conn->p, 0);
 	}
 	else if ((conn->sizedrecv.offset + buf->len - 6) > size)
 	{
-		lm->LogP(L_MALICIOUS, "net", conn->p, "Sized packet overflow");
+		lm->LogP(L_MALICIOUS, "net", conn->p, "sized packet overflow");
 		end_sized(conn->p, 0);
 	}
 	else
@@ -2417,8 +2411,10 @@ ClientConnection *MakeClientConnection(const char *addr, int port,
 	pthread_mutex_unlock(&ccmtx);
 
 	pkt.t1 = 0x00;
+#if 0
 	pkt.t2 = 0x07;
 	SendRaw(&cc->c, (byte*)&pkt, 2);
+#endif
 	pkt.key = random() | 0x80000000UL;
 	pkt.t2 = 0x01;
 	pkt.type = 0x0001;

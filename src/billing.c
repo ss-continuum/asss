@@ -309,7 +309,7 @@ local void Cbillingid(const char *params, Player *p, const Target *target)
 	Player *t = target->type == T_PLAYER ? target->u.p : p;
 	pdata *tdata = PPDATA(t, pdkey);
 	if (tdata->knowntobiller)
-		chat->SendMessage(p, "%s has billing id %d",
+		chat->SendMessage(p, "%s has billing id %ld",
 				t->name, tdata->billingid);
 	else
 		chat->SendMessage(p, "billing id unknown for %s", t->name);
@@ -515,7 +515,7 @@ local void process_chat(const char *line)
 		Link link = { NULL, p };
 		LinkedList list = { &link, &link };
 
-		chat->SendAnyMessage(&list, MSG_CHAT, chatdata.sound,
+		chat->SendAnyMessage(&list, MSG_CHAT, chatdata.sound, NULL,
 				"%s:%s> %s", num, chatdata.sender, chatdata.text);
 	}
 }
@@ -540,7 +540,7 @@ local void process_rmt(const char *line)
 		Link link = { NULL, p };
 		LinkedList list = { &link, &link };
 
-		chat->SendAnyMessage(&list, MSG_REMOTEPRIV, atoi(soundstr),
+		chat->SendAnyMessage(&list, MSG_REMOTEPRIV, atoi(soundstr), NULL,
 				"%s> %s", sender, text);
 	}
 }
@@ -568,7 +568,7 @@ local void process_rmtsqd(const char *line)
 			LLAdd(&list, p);
 	pd->Unlock();
 
-	chat->SendAnyMessage(&list, MSG_REMOTEPRIV, atoi(soundstr),
+	chat->SendAnyMessage(&list, MSG_REMOTEPRIV, atoi(soundstr), NULL,
 			"S (%s)> %s", sender, t);
 }
 

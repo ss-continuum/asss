@@ -18,8 +18,6 @@ struct Arena
 
 /* ArenaAction funcs are called when arenas are created or destroyed */
 
-#define CB_ARENAACTION "arenaaction"
-
 enum
 {
 	/* called when arena is created */
@@ -30,31 +28,34 @@ enum
 	AA_DESTROY
 };
 
+#define CB_ARENAACTION "arenaaction"
 typedef void (*ArenaActionFunc)(Arena *a, int action);
-
+/* the python module handles this one internally, so no pycb directive
+ * here. */
 
 /* status conditions */
 enum
 {
 	ARENA_DO_INIT,
-/* someone wants to enter the arena. first, the config file must be
- * loaded, callbacks called, and the persistant data loaded  */
+	/* someone wants to enter the arena. first, the config file must be
+	 * loaded, callbacks called, and the persistant data loaded. */
 
 	ARENA_WAIT_SYNC1,
-/* waiting on the database */
+	/* waiting on the database */
 
 	ARENA_RUNNING,
-/* now the arena is fully created. core can now send the arena responses
- * to players waiting to enter this arena */
+	/* now the arena is fully created. core can now send the arena
+	 * responses to players waiting to enter this arena. */
 
 	ARENA_DO_WRITE_DATA,
-/* the arena is being reaped, first put info in database */
+	/* the arena is being reaped, first put info in database */
 
 	ARENA_WAIT_SYNC2,
-/* waiting on the database to finish before we can unregister modules */
+	/* waiting on the database to finish before we can unregister
+	 * modules */
 
 	ARENA_DO_DEINIT
-/* then unload the config file. status returns to free after this */
+	/* then unload the config file. status returns to free after this. */
 };
 
 
@@ -63,12 +64,15 @@ enum
 typedef struct Iarenaman
 {
 	INTERFACE_HEAD_DECL
+	
+	/* pyint: use */
 
 	void (*SendArenaResponse)(Player *p);
 	void (*LeaveArena)(Player *p);
 
 	void (*SendToArena)(Player *p, const char *aname, int spawnx, int spawny);
 	/* works on cont clients only. set spawnx/y to 0 for default spawn. */
+	/* pyint: player, string, int, int -> void */
 
 	Arena * (*FindArena)(const char *name, int *totalcount, int *playing);
 	/* this is a multi-purpose function. given a name, it returns either
@@ -76,6 +80,7 @@ typedef struct Iarenaman
 	 * not). if it's running, it also fills in the next two params with
 	 * the number of players in the arena and the number of non-spec
 	 * players in the arena. */
+	/* pyint: string, int out, int out -> arena */
 
 	int (*AllocateArenaData)(size_t bytes);
 	/* returns -1 on failure */
@@ -113,10 +118,13 @@ typedef struct Iarenaman
 typedef struct Iarenaplace
 {
 	INTERFACE_HEAD_DECL
+	/* pyint: use, impl */
+
 	int (*Place)(char *name, int namelen, int *spawnx, int *spawny, Player *p);
 	/* this should put an arena name in name, which has namelen space.
 	 * if it puts a name there, it should return true, if not (it failed
 	 * for some reason), return false. */
+	/* pyint: string out, int buflen, int out, int out, player -> int */
 } Iarenaplace;
 
 

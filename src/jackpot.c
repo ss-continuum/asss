@@ -52,7 +52,7 @@ local int GetJP(Arena *arena)
 }
 
 
-local int get_data(Arena *arena, void *d, int len)
+local int get_data(Arena *arena, void *d, int len, void *v)
 {
 	int jp = GetJP(arena);
 	if (jp)
@@ -64,7 +64,7 @@ local int get_data(Arena *arena, void *d, int len)
 		return 0;
 }
 
-local void set_data(Arena *arena, void *d, int len)
+local void set_data(Arena *arena, void *d, int len, void *v)
 {
 	jpdata *jpd = P_ARENA_DATA(arena, jpkey);
 	if (len == sizeof(int))
@@ -77,7 +77,7 @@ local void set_data(Arena *arena, void *d, int len)
 		ResetJP(arena);
 }
 
-local void clear_data(Arena *arena)
+local void clear_data(Arena *arena, void *v)
 {
 	ResetJP(arena);
 }

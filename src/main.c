@@ -17,6 +17,7 @@
 #endif
 
 #include "asss.h"
+#include "cmod.h"
 #include "app.h"
 #include "persist.h"
 
@@ -255,6 +256,7 @@ int main(int argc, char *argv[])
 		daemonize(0);
 
 	mm = InitModuleManager();
+	RegCModLoader(mm);
 
 	printf("Loading modules...\n");
 
@@ -272,11 +274,11 @@ int main(int argc, char *argv[])
 	if (!ml)
 		Error(EXIT_MODLOAD, "mainloop module missing");
 
-	if (lm) lm->Log(L_DRIVEL, "<main> Entering main loop");
+	if (lm) lm->Log(L_DRIVEL, "<main> entering main loop");
 
 	code = ml->RunLoop();
 
-	if (lm) lm->Log(L_DRIVEL, "<main> Exiting main loop");
+	if (lm) lm->Log(L_DRIVEL, "<main> exiting main loop");
 
 	{
 		/* send a nice message */
@@ -309,6 +311,7 @@ int main(int argc, char *argv[])
 	mm->frommain.DoStage(MM_PREUNLOAD);
 	mm->frommain.UnloadAllModules();
 
+	UnregCModLoader();
 	DeInitModuleManager(mm);
 
 	return code;

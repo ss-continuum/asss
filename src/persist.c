@@ -151,7 +151,7 @@ local unsigned int get_serialno(const char *sg, int interval)
 	if (err == DB_NOTFOUND)
 	{
 		/* if it's not found, initialize it and return 0 */
-		lm->Log(L_INFO, "<persist> Initializing serial number for "
+		lm->Log(L_INFO, "<persist> initializing serial number for "
 				"interval %s, arenagrp %s to zero",
 				get_interval_name(interval), sg);
 		put_serialno(sg, interval, 0);
@@ -181,7 +181,7 @@ local void put_one_arena(ArenaPersistentData *data, Arena *arena, int serialno)
 	strncpy(keydata.arena, arena->name, sizeof(keydata.arena));
 
 	/* get data */
-	size = data->GetData(arena, buf, sizeof(buf));
+	size = data->GetData(arena, buf, sizeof(buf), data->clos);
 
 	if (size > 0)
 	{
@@ -235,7 +235,7 @@ local void put_one_player(PlayerPersistentData *data, Player *p, Arena *arena, i
 	ToLowerStr(keydata.name);
 
 	/* get data */
-	size = data->GetData(p, buf, sizeof(buf));
+	size = data->GetData(p, buf, sizeof(buf), data->clos);
 
 	if (size > 0)
 	{
@@ -285,7 +285,7 @@ local void get_one_arena(ArenaPersistentData *data, Arena *arena, int serialno)
 	DBT key, val;
 
 	/* always clear data first */
-	data->ClearData(arena);
+	data->ClearData(arena, data->clos);
 
 	/* prepare key */
 	memset(&keydata, 0, sizeof(keydata));
@@ -311,7 +311,7 @@ local void get_one_arena(ArenaPersistentData *data, Arena *arena, int serialno)
 	err = db->get(db, NULL, &key, &val, 0);
 
 	if (err == 0)
-		data->SetData(arena, val.data, val.size);
+		data->SetData(arena, val.data, val.size, data->clos);
 	else if (err != DB_NOTFOUND)
 		lm->Log(L_WARN, "<persist> db->get error (2): %s",
 				db_strerror(err));
@@ -327,7 +327,7 @@ local void get_one_player(PlayerPersistentData *data, Player *p, Arena *arena, i
 	DBT key, val;
 
 	/* always clear data first */
-	data->ClearData(p);
+	data->ClearData(p, data->clos);
 
 	/* prepare key */
 	memset(&keydata, 0, sizeof(keydata));
@@ -355,7 +355,7 @@ local void get_one_player(PlayerPersistentData *data, Player *p, Arena *arena, i
 	err = db->get(db, NULL, &key, &val, 0);
 
 	if (err == 0)
-		data->SetData(p, val.data, val.size);
+		data->SetData(p, val.data, val.size, data->clos);
 	else if (err != DB_NOTFOUND)
 		lm->Log(L_WARN, "<persist> db->get error (3): %s",
 				db_strerror(err));
@@ -411,16 +411,17 @@ local void do_end_interval(const char *ag, int interval)
 	{
 		/* global data is loaded during S_WAIT_GLOBAL_SYNC, so we want to
 		 * perform the getting/clearing if the player is after that. */
-		statmin = S_WAIT_GLOBAL_SYNC;
-		/* it's saved during S_LEAVING_ZONE, so perform the get/clear if
-		 * the player is before that. */
-		statmax = S_LEAVING_ZONE;
+		statmin = S_DO_ARENA_CALLBACKS;
+		/* after we've saved global data for the last time, status goes
+		 * to S_TIMEWAIT, so if we're before that, we still have data to
+		 * save. */
+		statmax = S_WAIT_GLOBAL_SYNC2;
 	}
 	else
 	{
 		/* similar to above, but for arena data */
-		statmin = S_WAIT_ARENA_SYNC;
-		statmax = S_LEAVING_ARENA;
+		statmin = S_SEND_ARENA_RESPONSE;
+		statmax = S_WAIT_ARENA_SYNC2;
 	}
 
 	/* first get/clear all data for players in these arenas */
@@ -428,8 +429,8 @@ local void do_end_interval(const char *ag, int interval)
 	FOR_EACH_PLAYER(p)
 	{
 		pd->LockPlayer(p);
-		if (p->status > statmin &&
-		    p->status < statmax &&
+		if (p->status >= statmin &&
+		    p->status <= statmax &&
 		    (global || arena_match(p->arena, ag, interval)))
 				for (l = LLGetHead(&playerpd); l; l = l->next)
 				{
@@ -441,7 +442,7 @@ local void do_end_interval(const char *ag, int interval)
 						put_one_player(data, p, p->arena, serialno);
 						/* then clear data that will be associated with the
 						 * new serialno. */
-						data->ClearData(p);
+						data->ClearData(p, data->clos);
 					}
 				}
 		pd->UnlockPlayer(p);
@@ -460,7 +461,7 @@ local void do_end_interval(const char *ag, int interval)
 					/* grab latest arena data */
 					put_one_arena(data, arena, serialno);
 					/* then clear it */
-					data->ClearData(arena);
+					data->ClearData(arena, data->clos);
 				}
 			}
 	aman->Unlock();
@@ -711,7 +712,7 @@ local int SyncTimer(void *dummy)
 	msg->data = 0;
 	MPAdd(&dbq, msg);
 
-	lm->Log(L_DRIVEL, "<persist> Collecting all persistent data and syncing to disk");
+	lm->Log(L_DRIVEL, "<persist> collecting all persistent data and syncing to disk");
 
 	return 1;
 }

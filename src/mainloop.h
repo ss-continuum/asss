@@ -33,9 +33,10 @@
 
 typedef int (*TimerFunc)(void *param);
 typedef void (*CleanupFunc)(void *param);
-typedef void (*MainLoopFunc)(void);
 
-#define CB_MAINLOOP ("mainloop")
+#define CB_MAINLOOP "mainloop"
+typedef void (*MainLoopFunc)(void);
+/* no python in the main loop */
 
 
 #define I_MAINLOOP "mainloop-2"

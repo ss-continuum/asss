@@ -205,11 +205,11 @@ local int update_score(Player *p, struct PlayerScore *s)
 local void paction(Player *p, int action, Arena *arena)
 {
 	pdata *data = PPDATA(p, pdkey);
+	pthread_mutex_lock(&mtx);
 	if (action == PA_DISCONNECT && data->knowntobiller)
 	{
 		struct S2B_UserLogoff pkt;
 
-		pthread_mutex_lock(&mtx);
 		if(data->Done)
 		{
 			//disconnected while waiting auth
@@ -235,13 +235,11 @@ local void paction(Player *p, int action, Arena *arena)
 		else
 			netcli->SendPacket(cc, (byte*)&pkt,
 					offsetof(struct S2B_UserLogoff, Score), NET_RELIABLE);
-		pthread_mutex_unlock(&mtx);
 	}
 #if 0
 	/* i don't want the biller messing with my stats */
 	else if (action == PA_ENTERARENA && arena->ispublic)
 	{
-		pthread_mutex_lock(&mtx);
 		if (data->setpublicscore)
 		{
 			data->setpublicscore = FALSE;
@@ -252,19 +250,17 @@ local void paction(Player *p, int action, Arena *arena)
 			stats->SetStat(p, STAT_FLAG_PICKUPS,INTERVAL_RESET, data->saved_score.Flags);
 			stats->SendUpdates();
 		}
-		pthread_mutex_unlock(&mtx);
 	}
 #endif
 	else if (action == PA_LEAVEARENA && arena->ispublic)
 	{
-		pthread_mutex_lock(&mtx);
 		data->saved_score.Score = stats->GetStat(p, STAT_KILL_POINTS, INTERVAL_RESET);
 		data->saved_score.FlagScore = stats->GetStat(p, STAT_FLAG_POINTS, INTERVAL_RESET);
 		data->saved_score.Kills = stats->GetStat(p, STAT_KILLS, INTERVAL_RESET);
 		data->saved_score.Deaths = stats->GetStat(p, STAT_DEATHS, INTERVAL_RESET);
 		data->saved_score.Flags = stats->GetStat(p, STAT_FLAG_PICKUPS,INTERVAL_RESET);
-		pthread_mutex_unlock(&mtx);
 	}
+	pthread_mutex_unlock(&mtx);
 }
 
 
@@ -282,7 +278,6 @@ local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, c
 		struct S2B_UserChannelChat pkt;
 		const char *t;
 
-		pthread_mutex_lock(&mtx);
 		pkt.Type = S2B_USER_CHANNEL_CHAT;
 		pkt.ConnectionID = p->pid;
 		memset(pkt.ChannelNr,0,sizeof(pkt.ChannelNr));
@@ -292,6 +287,7 @@ local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, c
 		else
 			strcpy(pkt.ChannelNr, "1");
 		astrncpy(pkt.Text, text, sizeof(pkt.Text));
+		pthread_mutex_lock(&mtx);
 		netcli->SendPacket(cc, (byte*)&pkt, strchr(pkt.Text,0) + 1 - (char*)&pkt, NET_RELIABLE);
 		pthread_mutex_unlock(&mtx);
 	}
@@ -302,11 +298,10 @@ local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, c
 		char dest[32];
 		const char *t;
 
-		pthread_mutex_lock(&mtx);
 		pkt.Type = S2B_USER_PRIVATE_CHAT;
-		//for some odd reason ConnectionID>=0 indicates global boradcast message
+		//for some odd reason ConnectionID>=0 indicates global broadcast message
 		pkt.ConnectionID = -1;
-		pkt.GroupID = 0;
+		pkt.GroupID = 1;
 		pkt.SubType = 2;
 		pkt.Sound = sound;
 
@@ -316,9 +311,10 @@ local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, c
 		else
 		{
 			snprintf(pkt.Text, sizeof(pkt.Text), ":%s:(%s)>%s", dest, p->name, t);
+			pthread_mutex_lock(&mtx);
 			netcli->SendPacket(cc, (byte*)&pkt, strchr(pkt.Text,0) + 1 - (char*)&pkt, NET_RELIABLE);
+			pthread_mutex_unlock(&mtx);
 		}
-		pthread_mutex_unlock(&mtx);
 	}
 }
 
@@ -410,7 +406,6 @@ local void Cdefault(const char *line, Player *p, const Target *target)
 		}
 	}
 
-	pthread_mutex_lock(&mtx);
 	pkt.Type = S2B_USER_COMMAND;
 	pkt.ConnectionID = p->pid;
 	if (!cmdcopyed)
@@ -418,6 +413,7 @@ local void Cdefault(const char *line, Player *p, const Target *target)
 		pkt.Text[0]='?';
 		astrncpy(pkt.Text+1, line, sizeof(pkt.Text)-1);
 	}
+	pthread_mutex_lock(&mtx);
 	netcli->SendPacket(cc, (byte*)&pkt, strchr(pkt.Text,0) + 1 - (char*)&pkt, NET_RELIABLE);
 	pthread_mutex_unlock(&mtx);
 }
@@ -468,7 +464,7 @@ local void Cuserid(const char *params, Player *p, const Target *target)
 	Player *t = target->type == T_PLAYER ? target->u.p : p;
 	pdata *tdata = PPDATA(t, pdkey);
 	if (tdata->knowntobiller)
-		chat->SendMessage(p, "%s has user id %d",
+		chat->SendMessage(p, "%s has user id %ld",
 				t->name, tdata->billingid);
 	else
 		chat->SendMessage(p, "user id unknown for %s", t->name);
@@ -633,16 +629,35 @@ local void process_rmt(const char *data,int len)
 		const char *text = delimcpy(recipient, pkt->Text+1, sizeof(recipient), ':');
 		if (!text) return;
 
-		p = pd->FindPlayer(recipient);
-		if (p)
+		if (recipient[0] == '#')
+		{
+			/* squad msg */
+			Link *link;
+			LinkedList set = LL_INITIALIZER;
+			pd->Lock();
+			FOR_EACH_PLAYER(p)
+				if (strcasecmp(recipient+1, p->squad) == 0)
+					LLAdd(&set, p);
+			pd->Unlock();
+			chat->SendAnyMessage(&set, MSG_REMOTEPRIV, pkt->Sound, NULL,
+					"(%s)%s", recipient, text);
+#ifdef CFG_LOG_PRIVATE
+			lm->Log(L_DRIVEL, "<chat> (%d rcpts) incoming remote squad msg: %s",
+					LLCount(&set), text);
+#endif
+			LLEmpty(&set);
+		}
+		else if ((p = pd->FindPlayer(recipient)))
 		{
 			Link link = { NULL, p };
 			LinkedList list = { &link, &link };
-			chat->SendAnyMessage(&list, MSG_REMOTEPRIV, pkt->Sound, "%s", text);
+			chat->SendAnyMessage(&list, MSG_REMOTEPRIV, pkt->Sound, NULL, "%s", text);
+#ifdef CFG_LOG_PRIVATE
 			/* this is sort of wrong, but i think it makes more sense to
 			 * use the module name chat here for ease of filtering. */
-			lm->Log(L_DRIVEL, "<chat> [%s] incoming remote priv: [%s] %s",
+			lm->Log(L_DRIVEL, "<chat> [%s] incoming remote priv: %s",
 					p->name, text);
+#endif
 		}
 		else
 			lm->Log(L_DRIVEL, "<billing_ssc> unknown destination for incoming remote priv: %s",
@@ -692,36 +707,44 @@ local void process_chanchat(const char *data,int len)
 		Link link = { NULL, p };
 		LinkedList list = { &link, &link };
 
-		chat->SendAnyMessage(&list, MSG_CHAT, 0, "%d:%s",
-										pkt->ChannelNr, pkt->Text);
+		chat->SendAnyMessage(&list, MSG_CHAT, 0, NULL,
+				"%d:%s", pkt->ChannelNr, pkt->Text);
+#ifdef CFG_LOG_PRIVATE
+		lm->Log(L_DRIVEL, "<chat> [%s] incoming chat msg: %d:%s",
+				p->name, pkt->ChannelNr, pkt->Text);
+#endif
 	}
 }
 
-local void process_mchanchat(const char *data,int len)
+local void process_mchanchat(const char *data, int len)
 {
 	struct B2S_UserMChannelChat *pkt = (struct B2S_UserMChannelChat *)data;
 	const char *txt;
 	int i;
 
 	if (len < offsetof(struct B2S_UserMChannelChat, Recipient[1]) ||
-	    (txt=(char *)&pkt->Recipient[pkt->Count]) - data < len ||
+	    ((txt=(const char *)&pkt->Recipient[pkt->Count]) - data) < len ||
 	    !memchr(txt,0,data+len-txt))
 	{
 		lm->Log(L_WARN, "<billing_ssc> invalid mchannel chat packet len %d", len);
 		return;
 	}
 
-	for(i = 0;i < pkt->Count; i++)
+	for(i = 0; i < pkt->Count; i++)
 	{
 		Player *p = pd->PidToPlayer(pkt->Recipient[i].ConnectionID);
 		if (p)
 		{
 			Link link = { NULL, p };
 			LinkedList list = { &link, &link };
-			chat->SendAnyMessage(&list, MSG_CHAT, 0, "%d:%s",
-					pkt->Recipient[i].ChanNr, txt);
+			chat->SendAnyMessage(&list, MSG_CHAT, 0, NULL,
+					"%d:%s", pkt->Recipient[i].ChanNr, txt);
 		}
 	}
+#ifdef CFG_LOG_PRIVATE
+	lm->Log(L_DRIVEL, "<chat> (%d rcpts) incoming chat msg: %s",
+			pkt->Count, txt);
+#endif
 }
 
 local void process_cmdchat(const char *data,int len)
@@ -746,6 +769,10 @@ local void process_cmdchat(const char *data,int len)
 			chat->SendMessage(p, "(staff) %s", t+1);
 		else
 			chat->SendMessage(p, "%s", pkt->Text);
+#ifdef CFG_LOG_PRIVATE
+		lm->Log(L_DRIVEL, "<chat> [%s] incoming command chat msg: %s",
+				p->name, pkt->Text);
+#endif
 	}
 }
 
@@ -770,6 +797,9 @@ local void process_userpkt(const char *data,int len)
 		if (p)
 			net->SendToOne(p, pkt->Data, datalen, NET_RELIABLE);
 	}
+	lm->Log(L_DRIVEL, "<billing_ssc> [pid=%d] "
+			"user data packet from billing server, %d bytes",
+			(int)pkt->ConnectionID, len);
 }
 #endif
 
@@ -782,6 +812,8 @@ local void process_scorereset(const char *data,int len)
 		lm->Log(L_WARN, "<billing_ssc> invalid scorereset packet len %d", len);
 		return;
 	}
+
+	lm->Log(L_INFO, "<billing_ssc> billing server requested score reset");
 
 	{
 		/* reset scores in public arenas */
@@ -806,6 +838,10 @@ local void process_identity(const char *data, int len)
 
 local void process_packet(byte *pkt, int len)
 {
+	pthread_mutex_lock(&mtx);
+
+	/* move past waitlogin on any packet (other than 0007, which won't
+	 * get here). */
 	if (state == s_waitlogin)
 	{
 		struct S2B_ServerCapabilities cpkt = {S2B_SERVER_CAPABILITIES,1,0};
@@ -821,7 +857,7 @@ local void process_packet(byte *pkt, int len)
 		lm->Log(L_INFO, "<billing_ssc> user database server logged in");
 	}
 
-	switch(*pkt)
+	switch (*pkt)
 	{
 		case B2S_USER_LOGIN:
 			process_user_login(pkt,len);
@@ -855,6 +891,8 @@ local void process_packet(byte *pkt, int len)
 		default:
 			lm->Log(L_WARN, "<billing_ssc> unsupported packet type %d", *pkt);
 	}
+
+	pthread_mutex_unlock(&mtx);
 }
 
 local void got_connection(void)
@@ -897,6 +935,7 @@ local void got_disconnection(void)
 	cc = NULL;
 	lm->Log(L_INFO, "<billing_ssc> lost connection to user database server "
 			"(auto-retry in %d seconds)", cfg_retryseconds);
+	time(&lastretry);
 	drop_connection(s_retry);
 }
 
@@ -945,8 +984,9 @@ local int do_one_iter(void *v)
 	}
 	else if (state == s_waitlogin)
 	{
-		/* er, this billing protocol doesn't respond to the login packet */
-		state = s_loggedin;
+		/* this billing protocol doesn't respond to the login packet,
+		 * but process_packet will set the next state when it gets any
+		 * packet. */
 	}
 	else if (state == s_loggedin)
 	{

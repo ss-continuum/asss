@@ -105,7 +105,7 @@ local const char *get_chat_type(int type)
 	}
 }
 
-local void v_send_msg(LinkedList *set, char type, char sound, const char *str, va_list ap)
+local void v_send_msg(LinkedList *set, char type, char sound, Player *from, const char *str, va_list ap)
 {
 	int size;
 	char _buf[256];
@@ -119,7 +119,7 @@ local void v_send_msg(LinkedList *set, char type, char sound, const char *str, v
 	cp->pktype = S2C_CHAT;
 	cp->type = type;
 	cp->sound = sound;
-	cp->pid = -1;
+	cp->pid = from ? from->pid : -1;
 	if (net) net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
 	if (chatnet && ctype)
 		chatnet->SendToSet(set, "MSG:%s:%s", ctype, cp->text);
@@ -131,7 +131,7 @@ local void SendMessage_(Player *p, const char *str, ...)
 	LinkedList set = { &l, &l };
 	va_list args;
 	va_start(args, str);
-	v_send_msg(&set, MSG_ARENA, 0, str, args);
+	v_send_msg(&set, MSG_ARENA, 0, NULL, str, args);
 	va_end(args);
 }
 
@@ -139,7 +139,7 @@ local void SendSetMessage(LinkedList *set, const char *str, ...)
 {
 	va_list args;
 	va_start(args, str);
-	v_send_msg(set, MSG_ARENA, 0, str, args);
+	v_send_msg(set, MSG_ARENA, 0, NULL, str, args);
 	va_end(args);
 }
 
@@ -149,7 +149,7 @@ local void SendSoundMessage(Player *p, char sound, const char *str, ...)
 	LinkedList set = { &l, &l };
 	va_list args;
 	va_start(args, str);
-	v_send_msg(&set, MSG_ARENA, sound, str, args);
+	v_send_msg(&set, MSG_ARENA, sound, NULL, str, args);
 	va_end(args);
 }
 
@@ -157,7 +157,7 @@ local void SendSetSoundMessage(LinkedList *set, char sound, const char *str, ...
 {
 	va_list args;
 	va_start(args, str);
-	v_send_msg(set, MSG_ARENA, sound, str, args);
+	v_send_msg(set, MSG_ARENA, sound, NULL, str, args);
 	va_end(args);
 }
 
@@ -193,7 +193,7 @@ local void SendArenaMessage(Arena *arena, const char *str, ...)
 	get_arena_set(&set, arena);
 
 	va_start(args, str);
-	v_send_msg(&set, MSG_ARENA, 0, str, args);
+	v_send_msg(&set, MSG_ARENA, 0, NULL, str, args);
 	va_end(args);
 }
 
@@ -205,15 +205,15 @@ local void SendArenaSoundMessage(Arena *arena, char sound, const char *str, ...)
 	get_arena_set(&set, arena);
 
 	va_start(args, str);
-	v_send_msg(&set, MSG_ARENA, sound, str, args);
+	v_send_msg(&set, MSG_ARENA, sound, NULL, str, args);
 	va_end(args);
 }
 
-local void SendAnyMessage(LinkedList *set, char type, char sound, const char *str, ...)
+local void SendAnyMessage(LinkedList *set, char type, char sound, Player *from, const char *str, ...)
 {
 	va_list args;
 	va_start(args, str);
-	v_send_msg(set, type, sound, str, args);
+	v_send_msg(set, type, sound, from, str, args);
 	va_end(args);
 }
 
@@ -223,7 +223,7 @@ local void SendModMessage(const char *fmt, ...)
 	va_list args;
 	get_cap_set(&set, CAP_MODCHAT);
 	va_start(args, fmt);
-	v_send_msg(&set, MSG_MODCHAT, 0, fmt, args);
+	v_send_msg(&set, MSG_MODCHAT, 0, NULL, fmt, args);
 	va_end(args);
 }
 
@@ -324,11 +324,11 @@ local void handle_modchat(Player *p, const char *msg, int sound)
 			if (chatnet) chatnet->SendToSet(&set, "MSG:MOD:%s:%s",
 					p->name, msg);
 			DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_MODCHAT, sound, NULL, -1, msg));
-			lm->LogP(L_DRIVEL, "chat", p, "Mod chat: %s", msg);
+			lm->LogP(L_DRIVEL, "chat", p, "mod chat: %s", msg);
 		}
 		else
 		{
-			lm->LogP(L_DRIVEL, "chat", p, "Attempted mod chat "
+			lm->LogP(L_DRIVEL, "chat", p, "attempted mod chat "
 					"(missing cap or shutup): %s", msg);
 		}
 	}
@@ -468,8 +468,9 @@ local void handle_remote_priv(Player *p, const char *msg, int sound)
 
 local void handle_chat(Player *p, const char *msg, int sound)
 {
+	/* msg should look like "text" or "#;text" */
 #ifdef CFG_LOG_PRIVATE
-	lm->LogP(L_DRIVEL, "chat", p, "Chat msg: %s", msg);
+	lm->LogP(L_DRIVEL, "chat", p, "chat msg: %s", msg);
 #endif
 	DO_CBS(CB_CHATMSG, ALLARENAS, ChatMsgFunc, (p, MSG_CHAT, sound, NULL, -1, msg));
 }
@@ -489,7 +490,7 @@ local void PChat(Player *p, byte *pkt, int len)
 
 	if (len < 6 || from->text[len - 6] != '\0')
 	{
-		lm->LogP(L_MALICIOUS, "chat", p, "Non-null terminated chat message");
+		lm->LogP(L_MALICIOUS, "chat", p, "non-null terminated chat message");
 		return;
 	}
 
@@ -499,7 +500,7 @@ local void PChat(Player *p, byte *pkt, int len)
 	switch (from->type)
 	{
 		case MSG_ARENA:
-			lm->LogP(L_MALICIOUS, "chat", p, "Recieved arena message");
+			lm->LogP(L_MALICIOUS, "chat", p, "recieved arena message");
 			break;
 
 		case MSG_PUBMACRO:
@@ -532,7 +533,7 @@ local void PChat(Player *p, byte *pkt, int len)
 			break;
 
 		case MSG_SYSOPWARNING:
-			lm->LogP(L_MALICIOUS, "chat", p, "Recieved sysop message");
+			lm->LogP(L_MALICIOUS, "chat", p, "recieved sysop message");
 			break;
 
 		case MSG_CHAT:
@@ -564,7 +565,7 @@ local void MChat(Player *p, const char *line)
 		t = delimcpy(data, t, sizeof(data), ':');
 		if (!t) return;
 		i = pd->FindPlayer(data);
-		if (i)
+		if (i && i->arena == p->arena)
 			handle_priv(p, i, t, 0);
 		else
 			/* this is a little hacky: we want to pass in the colon
@@ -644,14 +645,14 @@ local void aaction(Arena *arena, int action)
 
 #ifdef CFG_PERSISTENT_CHAT_MASKS
 
-local void clear_data(Player *p)
+local void clear_data(Player *p, void *v)
 {
 	struct player_mask_t *pm = PPDATA(p, pmkey);
 	pm->mask = 0;
 	pm->expires = 0;
 }
 
-local int get_data(Player *p, void *data, int len)
+local int get_data(Player *p, void *data, int len, void *v)
 {
 	struct player_mask_t *pm = PPDATA(p, pmkey);
 	expire_mask(p);
@@ -664,7 +665,7 @@ local int get_data(Player *p, void *data, int len)
 		return 0;
 }
 
-local void set_data(Player *p, void *data, int len)
+local void set_data(Player *p, void *data, int len, void *v)
 {
 	struct player_mask_t *pm = PPDATA(p, pmkey);
 	if (len == sizeof(*pm))

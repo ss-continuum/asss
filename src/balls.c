@@ -291,6 +291,8 @@ void PlaceBall(Arena *arena, int bid, struct BallData *newpos)
 {
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
 
+	if (!newpos) return;
+
 	LOCK_STATUS(arena);
 	if (bid >= 0 && bid < abd->ballcount)
 	{
@@ -299,7 +301,7 @@ void PlaceBall(Arena *arena, int bid, struct BallData *newpos)
 	}
 	UNLOCK_STATUS(arena);
 
-	logm->Log(L_DRIVEL, "<balls> {%s} Ball %d is at (%d, %d)",
+	logm->Log(L_DRIVEL, "<balls> {%s} ball %d is at (%d, %d)",
 			arena->name, bid, newpos->x, newpos->y);
 }
 
@@ -402,7 +404,7 @@ local void LoadBallSettings(Arena *arena, int spawnballs)
 			for (i = 0; i < bc; i++)
 				SpawnBall(arena, i);
 
-			logm->Log(L_INFO, "<balls> {%s} Arena has %d balls",
+			logm->Log(L_INFO, "<balls> {%s} arena has %d balls",
 					arena->name,
 					bc);
 		}
@@ -528,13 +530,13 @@ void PPickupBall(Player *p, byte *pkt, int len)
 
 	if (!arena || p->status != S_PLAYING)
 	{
-		logm->Log(L_WARN, "<balls> [%s] Ball pickup packet from bad arena or status", p->name);
+		logm->Log(L_WARN, "<balls> [%s] ball pickup packet from bad arena or status", p->name);
 		return;
 	}
 
 	if (p->p_ship >= SPEC)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "Ball pickup packet from spec");
+		logm->LogP(L_MALICIOUS, "balls", p, "ball pickup packet from spec");
 		return;
 	}
 
@@ -549,7 +551,7 @@ void PPickupBall(Player *p, byte *pkt, int len)
 
 	if (bp->ballid >= abd->ballcount)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "Tried to pick up a nonexistent ball");
+		logm->LogP(L_MALICIOUS, "balls", p, "tried to pick up a nonexistent ball");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -559,14 +561,14 @@ void PPickupBall(Player *p, byte *pkt, int len)
 	/* make sure someone else didn't get it first */
 	if (bd->state != BALL_ONMAP)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "Tried to pick up a carried ball");
+		logm->LogP(L_MALICIOUS, "balls", p, "tried to pick up a carried ball");
 		UNLOCK_STATUS(arena);
 		return;
 	}
 
 	if (bp->time != bd->time)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "Tried to pick up a ball from stale coords");
+		logm->LogP(L_MALICIOUS, "balls", p, "tried to pick up a ball from stale coords");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -596,7 +598,7 @@ void PPickupBall(Player *p, byte *pkt, int len)
 	DO_CBS(CB_BALLPICKUP, arena, BallPickupFunc,
 			(arena, p, bp->ballid));
 
-	logm->Log(L_DRIVEL, "<balls> {%s} [%s] Player picked up ball %d",
+	logm->Log(L_DRIVEL, "<balls> {%s} [%s] player picked up ball %d",
 			arena->name,
 			p->name,
 			bp->ballid);
@@ -614,19 +616,19 @@ void PFireBall(Player *p, byte *pkt, int len)
 
 	if (len != sizeof(struct BallPacket))
 	{
-		logm->Log(L_MALICIOUS, "<balls> [%s] Bad size for ball fire packet", p->name);
+		logm->LogP(L_MALICIOUS, "balls", p, "bad size for ball fire packet");
 		return;
 	}
 
 	if (!arena || p->status != S_PLAYING)
 	{
-		logm->Log(L_WARN, "<balls> [%s] Ball fire packet from bad arena or status", p->name);
+		logm->LogP(L_WARN, "balls", p, "ball fire packet from bad arena or status");
 		return;
 	}
 
 	if (p->p_ship >= SPEC)
 	{
-		logm->Log(L_MALICIOUS, "<balls> [%s] Ball fire packet from spec", p->name);
+		logm->LogP(L_MALICIOUS, "balls", p, "ball fire packet from spec");
 		return;
 	}
 
@@ -634,7 +636,7 @@ void PFireBall(Player *p, byte *pkt, int len)
 
 	if (bid < 0 || bid >= abd->ballcount)
 	{
-		logm->Log(L_MALICIOUS, "<balls> [%s] Tried to fire up a nonexistent ball", p->name);
+		logm->LogP(L_MALICIOUS, "balls", p, "tried to fire up a nonexistent ball");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -643,7 +645,7 @@ void PFireBall(Player *p, byte *pkt, int len)
 
 	if (bd->state != BALL_CARRIED || bd->carrier != p)
 	{
-		logm->Log(L_MALICIOUS, "<balls> [%s] Player tried to fire ball he wasn't carrying", p->name);
+		logm->LogP(L_MALICIOUS, "balls", p, "player tried to fire ball he wasn't carrying");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -662,10 +664,7 @@ void PFireBall(Player *p, byte *pkt, int len)
 	/* finally call callbacks */
 	DO_CBS(CB_BALLFIRE, arena, BallFireFunc, (arena, p, bid));
 
-	logm->Log(L_DRIVEL, "<balls> {%s} [%s] Player fired ball %d",
-			arena->name,
-			p->name,
-			bid);
+	logm->LogP(L_DRIVEL, "balls", p, "player fired ball %d", bid);
 }
 
 
@@ -680,13 +679,13 @@ void PGoal(Player *p, byte *pkt, int len)
 
 	if (len != sizeof(struct C2SGoal))
 	{
-		logm->Log(L_MALICIOUS, "<balls> [%s] Bad size for goal packet", p->name);
+		logm->LogP(L_MALICIOUS, "balls", p, "bad size for goal packet");
 		return;
 	}
 
 	if (!arena || p->status != S_PLAYING)
 	{
-		logm->Log(L_WARN, "<balls> [%s] Goal packet from bad arena or status", p->name);
+		logm->LogP(L_WARN, "balls", p, "goal packet from bad arena or status");
 		return;
 	}
 
@@ -696,7 +695,7 @@ void PGoal(Player *p, byte *pkt, int len)
 
 	if (bid < 0 || bid >= abd->ballcount)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "Sent a goal for a nonexistent ball");
+		logm->LogP(L_MALICIOUS, "balls", p, "sent a goal for a nonexistent ball");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -712,14 +711,14 @@ void PGoal(Player *p, byte *pkt, int len)
 
 	if (bd->state != BALL_ONMAP)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "Sent goal for carried ball");
+		logm->LogP(L_MALICIOUS, "balls", p, "sent goal for carried ball");
 		UNLOCK_STATUS(arena);
 		return;
 	}
 
 	if (p != bd->carrier)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "Sent goal for ball he didn't fire");
+		logm->LogP(L_MALICIOUS, "balls", p, "sent goal for ball he didn't fire");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -748,10 +747,7 @@ void PGoal(Player *p, byte *pkt, int len)
 
 	UNLOCK_STATUS(arena);
 
-	logm->Log(L_DRIVEL, "<balls> {%s} [%s] Goal with ball %d",
-			arena->name,
-			p->name,
-			g->ballid);
+	logm->LogP(L_DRIVEL, "balls", p, "goal with ball %d", g->ballid);
 }
 
 

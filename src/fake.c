@@ -119,7 +119,8 @@ EXPORT int MM_fake(int action, Imodman *mm_, Arena *arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(&_int, ALLARENAS);
+		if (mm->UnregInterface(&_int, ALLARENAS))
+			return MM_FAIL;
 		cmd->RemoveCommand("makefake", Cmakefake);
 		cmd->RemoveCommand("killfake", Ckillfake);
 		mm->ReleaseInterface(pd);

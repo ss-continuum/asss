@@ -80,12 +80,13 @@ local void DropBrick(Arena *arena, int freq, int x1, int y1, int x2, int y2);
 local void WarpTo(const Target *target, int x, int y);
 local void GivePrize(const Target *target, int type, int count);
 local void FakePosition(Player *p, struct C2SPosition *pos);
+local void FakeKill(Player *killer, Player *killed, int bounty, int flags);
 
 local Igame _myint =
 {
 	INTERFACE_HEAD_INIT(I_GAME, "game")
 	SetFreq, SetShip, SetFreqAndShip, DropBrick, WarpTo, GivePrize,
-	FakePosition
+	FakePosition, FakeKill
 };
 
 
@@ -449,13 +450,13 @@ void Pppk(Player *p, byte *p2, int n)
 				n >= 26 ? pos->extra.s2cping * 10 : -1,
 				data->wpnsent);
 
+	if ((pos->status ^ data->pos.status) & 0x20U)
+		DO_CBS(CB_SAFEZONE, arena, SafeZoneFunc, (p, pos->x, pos->y, pos->status & 0x20));
+
 	/* copy the whole thing. this will copy the epd, or, if the client
 	 * didn't send any epd, it will copy zeros because the buffer was
 	 * zeroed before data was recvd into it. */
 	memcpy(&data->pos, p2, sizeof(data->pos));
-
-	if ((pos->status & 0x20) != p->position.status)
-		DO_CBS(CB_SAFEZONE, arena, SafeZoneFunc, (p, pos->x, pos->y, pos->status & 0x20));
 
 	/* update position in global players array */
 	p->position.x = pos->x;
@@ -538,7 +539,7 @@ void SetFreqAndShip(Player *p, int ship, int freq)
 	DO_CBS(CB_SHIPCHANGE, arena, ShipChangeFunc,
 			(p, ship, freq));
 
-	lm->LogP(L_DRIVEL, "game", p, "Changed ship/freq to ship %d, freq %d",
+	lm->LogP(L_DRIVEL, "game", p, "changed ship/freq to ship %d, freq %d",
 			ship, freq);
 }
 
@@ -631,10 +632,7 @@ void SetFreq(Player *p, int freq)
 
 	DO_CBS(CB_FREQCHANGE, arena, FreqChangeFunc, (p, freq));
 
-	lm->Log(L_DRIVEL, "<game> {%s} [%s] Changed freq to %d",
-			arena->name,
-			p->name,
-			freq);
+	lm->LogP(L_DRIVEL, "game", p, "changed freq to %d", freq);
 }
 
 void PSetFreq(Player *p, byte *pkt, int n)
@@ -706,12 +704,20 @@ void MChangeFreq(Player *p, const char *line)
 }
 
 
+local void notify_kill(Player *killer, Player *killed, int bty, int flags, int green, int rel)
+{
+	struct KillPacket kp = { S2C_KILL, green, killer->pid, killed->pid, bty, flags };
+	net->SendToArena(killer->arena, NULL, (byte*)&kp, sizeof(kp), rel);
+	if (chatnet)
+		chatnet->SendToArena(killer->arena, NULL, "KILL:%s:%s:%d:%d",
+				killer->name, killed->name, bty, flags);
+}
+
 void PDie(Player *p, byte *pkt, int n)
 {
 	struct SimplePacket *dead = (struct SimplePacket*)pkt;
-	struct KillPacket kp = { S2C_KILL };
 	int bty = dead->d2;
-	int flagcount, reldeaths;
+	int flagcount, reldeaths, green;
 	Arena *arena = p->arena;
 	Player *killer;
 
@@ -726,26 +732,21 @@ void PDie(Player *p, byte *pkt, int n)
 
 	{
 		Iclientset *cset = mm->GetInterface(I_CLIENTSET, arena);
-		kp.green = cset ? cset->GetRandomPrize(arena) : 0;
+		green = cset ? cset->GetRandomPrize(arena) : 0;
 		mm->ReleaseInterface(cset);
 	}
-	kp.killer = killer->pid;
-	kp.killed = p->pid;
-	kp.bounty = bty;
+
 	if (flags)
 		flagcount = flags->GetCarriedFlags(p);
 	else
 		flagcount = 0;
-	kp.flags = flagcount;
 
 	if (p->p_freq == killer->p_freq)
-		kp.bounty = 0;
+		bty = 0;
 
 	reldeaths = cfg->GetInt(arena->cfg, "Misc", "ReliableKills", 1);
-	net->SendToArena(arena, NULL, (byte*)&kp, sizeof(kp), reldeaths ? NET_RELIABLE : NET_UNRELIABLE);
-	if (chatnet)
-		chatnet->SendToArena(arena, NULL, "KILL:%s:%s:%d:%d",
-				killer->name, p->name, bty, flagcount);
+
+	notify_kill(killer, p, bty, flagcount, green, reldeaths);
 
 	lm->Log(L_DRIVEL, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d)",
 			arena->name,
@@ -757,6 +758,11 @@ void PDie(Player *p, byte *pkt, int n)
 	/* call callbacks */
 	DO_CBS(CB_KILL, arena, KillFunc,
 			(arena, killer, p, bty, flagcount));
+}
+
+void FakeKill(Player *killer, Player *killed, int bounty, int flags)
+{
+	notify_kill(killer, killed, bounty, flags, 0, TRUE);
 }
 
 
@@ -992,7 +998,7 @@ local void drop_brick(Arena *arena, int freq, int x1, int y1, int x2, int y2)
 	LLAdd(&bd->list, pkt);
 
 	net->SendToArena(arena, NULL, (byte*)pkt, sizeof(*pkt), NET_RELIABLE | NET_PRI_P4);
-	lm->Log(L_DRIVEL, "<game> {%s} Brick dropped (%d,%d)-(%d,%d) (freq=%d) (id=%d)",
+	lm->Log(L_DRIVEL, "<game> {%s} brick dropped (%d,%d)-(%d,%d) (freq=%d) (id=%d)",
 			arena->name,
 			x1, y1, x2, y2, freq,
 			pkt->brickid);

@@ -608,9 +608,9 @@ local void Cinfo(const char *params, Player *p, const Target *target)
 		tm = TICK_DIFF(current_ticks(), t->connecttime);
 
 		chat->SendMessage(p,
-				"%s: pid=%d  status=%d  name='%s'  squad='%s'  auth=%c",
-				prefix, t->pid, t->status, t->name, t->squad,
-				t->flags.authenticated ? 'y' : 'n');
+				"%s: pid=%d  name='%s'  squad='%s'  auth=%c  ship=%d  freq=%d",
+				prefix, t->pid, t->name, t->squad, t->flags.authenticated ? 'y' : 'n',
+				t->p_ship, t->p_freq);
 		chat->SendMessage(p,
 				"%s: arena=%s  type=%s  res=%dx%d  onfor=%d  connectas=%s",
 				prefix, t->arena ? t->arena->name : "(none)", type, t->xres,
@@ -642,6 +642,8 @@ local void Cinfo(const char *params, Player *p, const Target *target)
 				mm->ReleaseInterface(chatnet);
 			}
 		}
+		if (t->status != S_PLAYING)
+			chat->SendMessage(p, "%s: status=%d", prefix, t->status);
 	}
 }
 
@@ -776,6 +778,20 @@ local void Ca(const char *params, Player *p, const Target *target)
 	LinkedList set = LL_INITIALIZER;
 	pd->TargetToSet(target, &set);
 	chat->SendSetMessage(&set, "%s  -%s", params, p->name);
+	LLEmpty(&set);
+}
+
+
+local helptext_t aa_help =
+"Targets: player, freq, or arena\n"
+"Args: <text>\n"
+"Displays the text as an anonymous arena message to the targets.\n";
+
+local void Caa(const char *params, Player *p, const Target *target)
+{
+	LinkedList set = LL_INITIALIZER;
+	pd->TargetToSet(target, &set);
+	chat->SendSetMessage(&set, "%s", params);
 	LLEmpty(&set);
 }
 
@@ -1517,7 +1533,7 @@ local void Cenablecmdgroup(const char *params, Player *p, const Target *target)
 			chat->SendMessage(p, "Error enabling command group %s", params);
 	}
 	else
-		chat->SendMessage(p, "Command group %s not found");
+		chat->SendMessage(p, "Command group %s not found", params);
 }
 
 local helptext_t disablecmdgroup_help =
@@ -1575,6 +1591,7 @@ local const struct cmd_info core_commands[] =
 	CMD(rmmod)
 	CMD(info)
 	CMD(a)
+	CMD(aa)
 	CMD(cheater)
 	CMD(netstats)
 	CMD(send)

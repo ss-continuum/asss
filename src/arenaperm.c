@@ -83,15 +83,15 @@ void MyPA(Player *p, int action, Arena *arena)
 			aman->Unlock();
 
 			if (!link || !a)
-				lm->Log(L_WARN, "<arenaperm> [%s] Can't find any unrestricted arena!",
+				lm->Log(L_WARN, "<arenaperm> [%s] can't find any unrestricted arena!",
 						p->name);
 			else
 			{
 				p->arena = a; /* redirect him to new arena! */
 				chat->SendMessage(p, "You don't have permission to enter arena %s!",
 						arena->name);
-				lm->Log(L_INFO, "<arenaperm> [%s] Redirected from arena {%s} to {%s}",
-						arena->name, a->name);
+				lm->Log(L_INFO, "<arenaperm> [%s] redirected from arena {%s} to {%s}",
+						p->name, arena->name, a->name);
 			}
 		}
 	}

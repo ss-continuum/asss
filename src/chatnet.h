@@ -28,9 +28,12 @@ typedef struct Ichatnet
 	void (*AddHandler)(const char *type, MessageFunc func);
 	void (*RemoveHandler)(const char *type, MessageFunc func);
 
-	void (*SendToOne)(Player *p, const char *line, ...);
-	void (*SendToArena)(Arena *a, Player *except, const char *line, ...);
-	void (*SendToSet)(LinkedList *set, const char *line, ...);
+	void (*SendToOne)(Player *p, const char *line, ...)
+		ATTR_FORMAT(printf, 2, 3);
+	void (*SendToArena)(Arena *a, Player *except, const char *line, ...)
+		ATTR_FORMAT(printf, 3, 4);
+	void (*SendToSet)(LinkedList *set, const char *line, ...)
+		ATTR_FORMAT(printf, 2, 3);
 
 	void (*DropClient)(Player *p);
 

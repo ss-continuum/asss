@@ -445,7 +445,7 @@ local void Cunlockarena(const char *params, Player *p, const Target *target)
 }
 
 
-local Ifreqman _fm =
+local Ifreqman fm_int =
 {
 	INTERFACE_HEAD_INIT(I_FREQMAN, "fm-normal")
 	Initial, Ship, Freq
@@ -479,6 +479,8 @@ EXPORT int MM_fm_normal(int action, Imodman *_mm, Arena *arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
+		if (fm_int.head.refcount)
+			return MM_FAIL;
 		pd->FreePlayerData(pdkey);
 		aman->FreeArenaData(adkey);
 		if (cmd)
@@ -498,11 +500,13 @@ EXPORT int MM_fm_normal(int action, Imodman *_mm, Arena *arena)
 	}
 	else if (action == MM_ATTACH)
 	{
-		mm->RegInterface(&_fm, arena);
+		mm->RegInterface(&fm_int, arena);
+		return MM_OK;
 	}
 	else if (action == MM_DETACH)
 	{
-		mm->UnregInterface(&_fm, arena);
+		mm->UnregInterface(&fm_int, arena);
+		return MM_OK;
 	}
 	return MM_FAIL;
 }

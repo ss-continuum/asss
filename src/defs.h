@@ -6,10 +6,18 @@
 
 #include <stddef.h>
 
-#include "util.h"
+#undef ATTR_FORMAT
+#undef ATTR_MALLOC
+#ifdef __GNUC__
+#define ATTR_FORMAT(type, idx, first) __attribute__ ((format (type, idx, first)))
+#define ATTR_MALLOC() __attribute__ ((malloc))
+#else
+#define ATTR_FORMAT(type, idx, first)
+#define ATTR_MALLOC()
+#endif
 
-#define ASSSVERSION "1.0rc2"
-#define ASSSVERSION_NUM 0x00010000
+#define ASSSVERSION "1.1.0"
+#define ASSSVERSION_NUM 0x00010100
 #define BUILDDATE __DATE__ " " __TIME__
 
 
@@ -22,7 +30,10 @@
 #pragma warning ( default : 4013 )
 #endif
 
-/* an alias to keep most stuff local to modules */
+#include "util.h"
+
+
+/* an alias to use to keep stuff local to modules */
 #define local static
 
 

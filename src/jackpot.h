@@ -18,10 +18,14 @@
 typedef struct Ijackpot
 {
 	INTERFACE_HEAD_DECL
+	/* pyint: use */
 
 	void (*ResetJP)(Arena *arena);
+	/* pyint: arena -> void */
 	void (*AddJP)(Arena *arena, int pts);
+	/* pyint: arena, int -> void */
 	int (*GetJP)(Arena *arena);
+	/* pyint: arena -> int */
 } Ijackpot;
 
 #endif

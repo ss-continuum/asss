@@ -112,7 +112,7 @@ local Player * try_accept(int s)
 
 	p = pd->NewPlayer(T_CHAT);
 
-	lm->Log(L_DRIVEL, "<chatnet> [pid=%d] New connection from %s:%i",
+	lm->Log(L_DRIVEL, "<chatnet> [pid=%d] new connection from %s:%i",
 			p->pid, inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
 
 	cli = PPDATA(p, cdkey);
@@ -224,7 +224,7 @@ local int do_one_iter(void *dummy)
 			else
 			{
 				/* handle disconnects */
-				lm->LogP(L_INFO, "chatnet", p, "Disconnected");
+				lm->LogP(L_INFO, "chatnet", p, "disconnected");
 				close(cli->socket);
 				cli->socket = -1;
 				/* we can't remove players while we're iterating through

@@ -68,7 +68,7 @@ local int RefreshNewsTxt(void *dummy)
 	fd = open(cfg_newsfile, O_RDONLY);
 	if (fd == -1)
 	{
-		lm->Log(L_WARN,"<mapnewsdl> News file '%s' not found in current directory", cfg_newsfile);
+		lm->Log(L_WARN,"<mapnewsdl> news file '%s' not found in current directory", cfg_newsfile);
 		return 1; /* let's get called again in case the file's been replaced */
 	}
 
@@ -158,7 +158,7 @@ local int RefreshNewsTxt(void *dummy)
 
 		if (cmpnews) afree(cmpnews);
 		cmpnews = cnews;
-		lm->Log(L_DRIVEL,"<mapnewsdl> News file '%s' reread", cfg_newsfile);
+		lm->Log(L_DRIVEL,"<mapnewsdl> news file '%s' reread", cfg_newsfile);
 	}
 	close(fd);
 	return 1;
@@ -189,7 +189,7 @@ local void SendMapFilename(Player *p)
 	dls = P_ARENA_DATA(arena, dlkey);
 	if (LLIsEmpty(dls))
 	{
-		lm->LogA(L_WARN, "<mapnewsdl>", arena, "Missing map data");
+		lm->LogA(L_WARN, "<mapnewsdl>", arena, "missing map data");
 		return;
 	}
 
@@ -471,7 +471,7 @@ local void PMapRequest(Player *p, byte *pkt, int len)
 
 		if (!arena)
 		{
-			lm->Log(L_MALICIOUS, "<mapnewsdl> [%s] Map request before entering arena",
+			lm->Log(L_MALICIOUS, "<mapnewsdl> [%s] map request before entering arena",
 					p->name);
 			return;
 		}
@@ -480,7 +480,7 @@ local void PMapRequest(Player *p, byte *pkt, int len)
 
 		if (!data)
 		{
-			lm->LogP(L_WARN, "mapnewsdl", p, "Can't find lvl/lvz %d", lvznum);
+			lm->LogP(L_WARN, "mapnewsdl", p, "can't find lvl/lvz %d", lvznum);
 			return;
 		}
 
@@ -492,7 +492,7 @@ local void PMapRequest(Player *p, byte *pkt, int len)
 		dl->len = data->cmplen;
 
 		net->SendSized(p, dl, data->cmplen, get_data);
-		lm->LogP(L_DRIVEL, "mapnewsdl", p, "Sending map/lvz %d (%d bytes) (transfer %p)",
+		lm->LogP(L_DRIVEL, "mapnewsdl", p, "sending map/lvz %d (%d bytes) (transfer %p)",
 				lvznum, data->cmplen, dl);
 	}
 	else if (pkt[0] == C2S_NEWSREQUEST)
@@ -506,7 +506,7 @@ local void PMapRequest(Player *p, byte *pkt, int len)
 			lm->Log(L_DRIVEL,"<mapnewsdl> [%s] Sending news.txt (transfer %p)", p->name, dl);
 		}
 		else
-			lm->Log(L_WARN, "<mapnewsdl> News request, but compressed news doesn't exist");
+			lm->Log(L_WARN, "<mapnewsdl> news request, but compressed news doesn't exist");
 	}
 }
 

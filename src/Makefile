@@ -16,14 +16,22 @@ MYSQL_LIB = $(MYSQL_HOME)/lib
 MYSQL_CFLAGS = -I$(MYSQL_INC)
 MYSQL_LDFLAGS = -L$(MYSQL_LIB) -Wl,-rpath,$(MYSQL_LIB) -lmysqlclient_r
 
+# change this to the location of your python 2.2+ install
+PYTHON_HOME = /opt/python-2.2.2
+PYTHON_INC = $(PYTHON_HOME)/include/python2.2
+PYTHON_LIB = $(PYTHON_HOME)/lib/python2.2
+PYTHON_CFLAGS = -I$(PYTHON_INC)
+PYTHON_LDFLAGS = -L$(PYTHON_LIB)/config -lpython2.2 -lutil -lm
+
+
 LDFLAGS = -fPIC $(PROF_FLAGS)
 #PROF_FLAGS = -pg
 
 #OPT_CFLAGS = -O2 -fomit-frame-pointer -Wall -fpedantic -DNDEBUG
 DEBUG_CFLAGS = -g -Wall -fpedantic
-ALL_CFLAGS = -D_REENTRANT -D_GNU_SOURCE -fPIC $(DB_CFLAGS) $(MYSQL_CFLAGS)
+STD_CFLAGS = -D_REENTRANT -D_GNU_SOURCE -fPIC
 
-CFLAGS = $(ALL_CFLAGS) $(DEBUG_CFLAGS) $(PROF_FLAGS) $(OPT_CFLAGS)
+CFLAGS = $(STD_CFLAGS) $(DEBUG_CFLAGS) $(PROF_FLAGS) $(OPT_CFLAGS)
 
 CC = gcc -pipe
 
@@ -38,6 +46,7 @@ ALL_STUFF = asss         \
             admin.so     \
             database.so  \
             turf.so      \
+            pymod.so     \
             funky.so
 
 
@@ -45,10 +54,7 @@ ALL_STUFF = asss         \
 # comment out 'install' here to not replace binaries by default
 all: $(ALL_STUFF) install
 
-opt: clean
-	$(MAKE) "CFLAGS=$(ALL_CFLAGS) $(OPT_CFLAGS) $(PROF_FLAGS)"
-
-asss: main.o app.o module.o util.o pathutil.o protutil.o region.o rwlock.o
+asss: main.o app.o module.o cmod.o util.o pathutil.o protutil.o region.o rwlock.o
 	$(CC) $(LDFLAGS) -rdynamic -o $@ $^ -ldl -lpthread
 
 dbtool: dbtool.o statcodes.o util.c
@@ -82,29 +88,44 @@ database.so: mysql.o aliasdb.o
 
 turf.so: turf_reward.o points_turf_reward.o turf_stats.o
 
+pymod.so: pymod.o
+	$(CC) $(LDFLAGS) -shared -o $@ $^ $(PYTHON_LDFLAGS)
+
 funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
-	fake.o autoturret.o chatnet.o md5.o auth_file.o ap_multipub.o sendfile.o
+	fake.o autoturret.o chatnet.o md5.o auth_file.o ap_multipub.o sendfile.o \
+	record.o
+	$(CC) $(LDFLAGS) -shared -o $@ $^ -lz
 
 
 
 sparse.inc: $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py
 	$(SCRIPTS)/gensparse.py $@ $(SCRIPTS)/sparse_params.py
 
-mapdata.o: sparse.inc
-
 letters.inc: $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font
 	$(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font > $@
-
-bricklayer.o: letters.inc
 
 cfghelp.inc: $(SCRIPTS)/extract-cfg-docs.py
 	cat *.c *.def | $(SCRIPTS)/extract-cfg-docs.py -c > $@
 
-cfghelp.o: cfghelp.inc
+py_constants.inc py_callbacks.inc py_interfaces.inc: $(SCRIPTS)/pymod-process.py *.h
+	cat *.h | $(SCRIPTS)/pymod-process.py
+
+persist.o:
+	$(CC) $(CFLAGS) $(DB_CFLAGS) -c -o $@ $<
+
+dbtool.o:
+	$(CC) $(CFLAGS) $(DB_CFLAGS) -c -o $@ $<
+
+mysql.o:
+	$(CC) $(CFLAGS) $(MYSQL_CFLAGS) -c -o $@ $<
+
+pymod.o:
+	$(CC) $(CFLAGS) $(PYTHON_CFLAGS) -c -o $@ $<
 
 
-Makefile.deps: sparse.inc letters.inc cfghelp.inc # *.c *.h
-	-$(CC) $(ALL_CFLAGS) -MM *.c > $@
+Makefile.deps: sparse.inc letters.inc cfghelp.inc py_constants.inc \
+	py_callbacks.inc py_interfaces.inc # *.c *.h
+	-$(CC) $(STD_CFLAGS) $(DB_CFLAGS) $(MYSQL_CFLAGS) $(PYTHON_CFLAGS) -MM *.c > $@
 
 
 include Makefile.deps

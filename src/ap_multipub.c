@@ -104,7 +104,8 @@ EXPORT int MM_ap_multipub(int action, Imodman *mm, Arena *arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(&myint, arena);
+		if (mm->UnregInterface(&myint, arena))
+			return MM_FAIL;
 		LLEnum(&pubnames, afree);
 		LLEmpty(&pubnames);
 		mm->ReleaseInterface(aman);

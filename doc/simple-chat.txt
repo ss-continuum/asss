@@ -101,8 +101,7 @@ server sends:
 	MSG:PRIV:name:msg
 	MSG:REMOTEPRIV:name:msg
 	MSG:FREQ:name:msg
-	MSG:CHAT:line
-		(line is "channelnum:msg")
+	MSG:CHAT:channelnum:msg
 	MSG:MOD:name:msg
 	MSG:SYSOP:msg
 

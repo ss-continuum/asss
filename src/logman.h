@@ -30,8 +30,9 @@
 
 
 /* called for each log line */
-#define CB_LOGFUNC ("log")
+#define CB_LOGFUNC "log"
 typedef void (*LogFunc)(const char *line);
+/* pycb: string */
 
 
 #define I_LOGMAN "logman-1"
@@ -40,17 +41,26 @@ typedef struct Ilogman
 {
 	INTERFACE_HEAD_DECL
 
-	void (*Log)(char level, const char *format, ...);
+	/* pyint: use */
+
+	void (*Log)(char level, const char *format, ...)
+		ATTR_FORMAT(printf, 2, 3);
+	/* pyint: int, formatted -> void */
 
 	/* utilty functions for the above */
-	void (*LogA)(char level, const char *mod, Arena *a, const char *format, ...);
-	void (*LogP)(char level, const char *mod, Player *p, const char *format, ...);
+	void (*LogA)(char level, const char *mod, Arena *a, const char *format, ...)
+		ATTR_FORMAT(printf, 4, 5);
+	/* pyint: int, string, arena, formatted -> void */
+	void (*LogP)(char level, const char *mod, Player *p, const char *format, ...)
+		ATTR_FORMAT(printf, 4, 5);
+	/* pyint: int, string, player, formatted -> void */
 
 	/* log modules can optionally call this function for help filtering
 	 * their log messages. you should pass it the log line you recieved,
 	 * and then the name of your own module (filtering will be performed
 	 * based on this module name). */
 	int (*FilterLog)(const char *line, const char *modname);
+	/* pyint: string, string -> int */
 } Ilogman;
 
 

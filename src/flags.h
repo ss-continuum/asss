@@ -24,21 +24,25 @@ typedef enum
 
 /* called when a player picks up a flag (in turf games, this means he
  * claimed the flag) */
-#define CB_FLAGPICKUP ("flagpickup")
+#define CB_FLAGPICKUP "flagpickup"
 typedef void (*FlagPickupFunc)(Arena *arena, Player *p, int fid, int oldfreq, int carried);
+/* pycb: arena, player, int, int, int */
 
 /* called when a player drops his flags (regular games only) */
-#define CB_FLAGDROP ("flagdrop")
+#define CB_FLAGDROP "flagdrop"
 typedef void (*FlagDropFunc)(Arena *arena, Player *p, int count, int neut);
+/* pycb: arena, player, int, int */
 
 /* called when a flag is positioned on the map */
-#define CB_FLAGPOS ("flagpos")
+#define CB_FLAGPOS "flagpos"
 typedef void (*FlagPosFunc)(Arena *arena, int fid, int x, int y, int freq);
+/* pycb: arena, int, int, int, int */
 
 /* called when a freq owns all the flags in an arena (in regular games
  * only) */
-#define CB_FLAGWIN ("flagwin")
+#define CB_FLAGWIN "flagwin"
 typedef void (*FlagWinFunc)(Arena *arena, int freq);
+/* pycb: arena, int */
 
 
 struct FlagData
@@ -63,18 +67,23 @@ typedef struct ArenaFlagData
 typedef struct Iflags
 {
 	INTERFACE_HEAD_DECL
+	/* pyint: use */
 
 	void (*MoveFlag)(Arena *arena, int fid, int x, int y, int freq);
 	/* moves the specified flag to the specified coordinates */
+	/* pyint: arena, int, int, int, int -> void */
 
 	void (*FlagVictory)(Arena *arena, int freq, int points);
 	/* ends the flag game (freq=-1 to reset flags with no winner) */
+	/* pyint: arena, int, int -> void */
 
 	int (*GetCarriedFlags)(Player *p);
 	/* a utility function to get the number of flags carried by a player */
+	/* pyint: player -> int */
 
 	int (*GetFreqFlags)(Arena *arena, int freq);
 	/* a utility function to get the number of flags owned by a freq */
+	/* pyint: arena, int -> int */
 
 	ArenaFlagData * (*GetFlagData)(Arena *arena);
 	void (*ReleaseFlagData)(Arena *arena);

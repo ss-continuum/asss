@@ -49,22 +49,25 @@ typedef struct AuthData
 
 /* playeraction stuff */
 
-#define CB_PLAYERACTION ("playeraction")
+enum
+{
+	/* these first two actions involve no arena, so callbacks must be
+	 * registered with ALLARENAS to get them. */
+	PA_CONNECT,
+	PA_DISCONNECT,
+	/* this is called at some unknown point in player processing that
+	 * happens to be as early as possible. it can be used for dangerous
+	 * stuff like, say, redirecting people to different arenas. */
+	PA_PREENTERARENA,
+	/* these two do involve arenas, so callbacks can be registered
+	 * either globally or for a specific arena. */
+	PA_ENTERARENA,
+	PA_LEAVEARENA
+};
 
-#define PA_CONNECT        1
-#define PA_DISCONNECT     2
-/* these first two actions involve no arena, so callbacks must be
- * registered with ALLARENAS to get them. */
-#define PA_PREENTERARENA  3
-/* this is called at some unknown point in player processing that
- * happens to be as early as possible. it can be used for dangerous
- * stuff like, say, redirecting people to different arenas. */
-#define PA_ENTERARENA     4
-#define PA_LEAVEARENA     5
-/* these two do involve arenas, so callbacks can be registered either
- * globally or for a specific arena. */
-
+#define CB_PLAYERACTION "playeraction"
 typedef void (*PlayerActionFunc)(Player *p, int action, Arena *arena);
+/* pycb: player, int, arena */
 
 
 /* freq management
@@ -81,9 +84,13 @@ typedef void (*PlayerActionFunc)(Player *p, int action, Arena *arena);
 typedef struct Ifreqman
 {
 	INTERFACE_HEAD_DECL
+	/* pyint: use, impl */
 	void (*InitialFreq)(Player *p, int *ship, int *freq);
+	/* pyint: player, int inout, int inout -> void */
 	void (*ShipChange)(Player *p, int *ship, int *freq);
+	/* pyint: player, int inout, int inout -> void */
 	void (*FreqChange)(Player *p, int *ship, int *freq);
+	/* pyint: player, int inout, int inout -> void */
 } Ifreqman;
 
 

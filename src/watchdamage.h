@@ -7,7 +7,7 @@
 #include "packets/watchdamage.h"
 
 /* called when get player damage */
-#define CB_PLAYERDAMAGE ("playerdamage")
+#define CB_PLAYERDAMAGE "playerdamage"
 typedef void (*PlayerDamage)(Arena *arena, Player *p, struct S2CWatchDamage *damage);
 
 

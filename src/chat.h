@@ -31,6 +31,7 @@
 #define CB_CHATMSG "chatmsg"
 typedef void (*ChatMsgFunc)(Player *p, int type, int sound, Player *target,
 		int freq, const char *text);
+/* pycb: player, int, int, player, int, string */
 
 
 /* the bits of one of these represent those types above. only use the
@@ -42,27 +43,47 @@ typedef unsigned short chat_mask_t;
 #define SET_ALLOWED(mask, type) (mask) &= ~(1<<(type))
 
 
-#define I_CHAT "chat-4"
+#define I_CHAT "chat-5"
 
 typedef struct Ichat
 {
 	INTERFACE_HEAD_DECL
 
-	void (*SendMessage)(Player *p, const char *format, ...);
-	void (*SendSetMessage)(LinkedList *set, const char *format, ...);
-	void (*SendSoundMessage)(Player *p, char sound, const char *format, ...);
-	void (*SendSetSoundMessage)(LinkedList *set, char sound, const char *format, ...);
-	void (*SendAnyMessage)(LinkedList *set, char type, char sound, const char *format, ...);
-	void (*SendArenaMessage)(Arena *arena, const char *format, ...);
-	void (*SendArenaSoundMessage)(Arena *arena, char sound, const char *format, ...);
+	/* pyint: use */
+	/* NOTE: that things involving player sets (lists) aren't supported yet. */
+
+	void (*SendMessage)(Player *p, const char *format, ...)
+		ATTR_FORMAT(printf, 2, 3);
+	/* pyint: player, formatted -> void */
+	void (*SendSetMessage)(LinkedList *set, const char *format, ...)
+		ATTR_FORMAT(printf, 2, 3);
+	void (*SendSoundMessage)(Player *p, char sound, const char *format, ...)
+		ATTR_FORMAT(printf, 3, 4);
+	/* pyint: player, int, formatted -> void */
+	void (*SendSetSoundMessage)(LinkedList *set, char sound, const char *format, ...)
+		ATTR_FORMAT(printf, 3, 4);
+	void (*SendAnyMessage)(LinkedList *set, char type, char sound, Player *from, const char *format, ...)
+		ATTR_FORMAT(printf, 5, 6);
+	void (*SendArenaMessage)(Arena *arena, const char *format, ...)
+		ATTR_FORMAT(printf, 2, 3);
+	/* pyint: arena, formatted -> void */
+	void (*SendArenaSoundMessage)(Arena *arena, char sound, const char *format, ...)
+		ATTR_FORMAT(printf, 3, 4);
+	/* pyint: arena, int, formatted -> void */
 	/* in the above two, use arena == ALLARENAS for zone. */
-	void (*SendModMessage)(const char *format, ...);
+	void (*SendModMessage)(const char *format, ...)
+		ATTR_FORMAT(printf, 1, 2);
+	/* pyint: formatted -> void */
 
 	chat_mask_t (*GetArenaChatMask)(Arena *arena);
+	/* pyint: arena -> int */
 	void (*SetArenaChatMask)(Arena *arena, chat_mask_t mask);
+	/* pyint: arena, int -> void */
 	chat_mask_t (*GetPlayerChatMask)(Player *p);
+	/* pyint: player -> int */
 	void (*SetPlayerChatMask)(Player *p, chat_mask_t mask, int timeout);
 	/* (timeout is 0 to mean 'for a session' mask, or a number of seconds) */
+	/* pyint: player, int, int -> void */
 } Ichat;
 
 

@@ -44,7 +44,7 @@ local int TimerMaster(void *nothing)
 	FOR_EACH_ARENA_P(arena, td, tdkey)
 		if (td->enabled && TICK_GT(now, td->timeout))
 		{
-			lm->LogA(L_DRIVEL, "game_timer", arena, "Timer expired");
+			lm->LogA(L_DRIVEL, "game_timer", arena, "timer expired");
 			DO_CBS(CB_TIMESUP, arena, GameTimerFunc, (arena));
 			chat->SendArenaMessage(arena, "Time has expired.");
 			if (td->gamelen)

@@ -58,11 +58,13 @@ EXPORT int MM_autowarp(int action, Imodman *mm_, Arena *arena)
 	{
 		struct adata *ad = P_ARENA_DATA(arena, adkey);
 		ad->on = 1;
+		return MM_OK;
 	}
 	else if (action == MM_DETACH)
 	{
 		struct adata *ad = P_ARENA_DATA(arena, adkey);
 		ad->on = 0;
+		return MM_OK;
 	}
 	return MM_FAIL;
 }

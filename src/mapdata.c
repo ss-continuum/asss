@@ -262,7 +262,7 @@ void ArenaAction(Arena *arena, int action)
 			char *t;
 
 			if (read_lvl(mapname, md))
-				lm->Log(L_ERROR, "<mapdata> {%s} Error parsing map file '%s'",
+				lm->Log(L_ERROR, "<mapdata> {%s} error parsing map file '%s'",
 						arena->name, mapname);
 			/* if extension == .lvl */
 			t = strrchr(mapname, '.');
@@ -274,7 +274,7 @@ void ArenaAction(Arena *arena, int action)
 			}
 		}
 		else
-			lm->Log(L_ERROR, "<mapdata> {%s} Can't find map file for arena",
+			lm->Log(L_ERROR, "<mapdata> {%s} can't find map file for arena",
 					arena->name);
 		pthread_mutex_unlock(&md->mtx);
 	}

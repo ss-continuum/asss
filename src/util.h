@@ -49,6 +49,13 @@
 /* include for size_t */
 #include <stddef.h>
 
+#ifndef ATTR_FORMAT
+#define ATTR_FORMAT(a,b,c)
+#endif
+#ifndef ATTR_MALLOC
+#define ATTR_MALLOC()
+#endif
+
 /* ticks are 31 bits in size. the value is stored in the lower 31 bits
  * of an unsigned int value */
 typedef unsigned int ticks_t;
@@ -66,7 +73,7 @@ ticks_t current_millis(void);
 char *RemoveCRLF(char *str);
 char *ToLowerStr(char *str);
 
-void *amalloc(size_t bytes);
+void *amalloc(size_t bytes) ATTR_MALLOC();
 void *arealloc(void *p, size_t bytes);
 char *astrdup(const char *str);
 void afree(const void *ptr);
@@ -79,7 +86,7 @@ int strsplit(const char *big, const char *delims, char *buf, int buflen, const c
 void wrap_text(const char *txt, int mlen, char delim,
 		void (*cb)(const char *line, void *clos), void *clos);
 
-void Error(int errorcode, char *message, ...);
+void Error(int errorcode, char *message, ...) ATTR_FORMAT(printf, 2, 3);
 
 
 /* list manipulation functions */
@@ -92,12 +99,10 @@ typedef struct Link
 } Link;
 
 /* DON'T access this directly, use LLGetHead */
-struct LinkedList
+typedef struct LinkedList
 {
 	Link *start, *end;
-};
-
-typedef struct LinkedList LinkedList;
+} LinkedList;
 
 #define LL_INITIALIZER { NULL, NULL }
 
@@ -114,10 +119,9 @@ void *LLRemoveFirst(LinkedList *lst);
 int LLIsEmpty(LinkedList *lst);
 int LLCount(LinkedList *lst);
 void LLEnum(LinkedList *lst, void (*func)(const void *ptr));
-
-#ifdef USE_PROTOTYPES
 Link *LLGetHead(LinkedList *lst);
-#else
+
+#ifndef USE_PROTOTYPES
 #define LLGetHead(lst) ((lst)->start)
 #define LLIsEmpty(lst) ((lst)->start == NULL)
 #endif
@@ -131,6 +135,7 @@ HashTable * HashAlloc(int);
 void HashFree(HashTable *ht);
 void HashEnum(HashTable *ht, void (*func)(char *key, void *val, void *data), void *data);
 void HashAdd(HashTable *ht, const char *key, void *data);
+void HashAddFront(HashTable *ht, const char *key, void *data);
 void HashReplace(HashTable *ht, const char *key, void *data);
 void HashRemove(HashTable *ht, const char *key, void *data);
 LinkedList *HashGet(HashTable *ht, const char *key);

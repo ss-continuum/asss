@@ -8,6 +8,9 @@ start recording the current arena to foo.game. ?stoprecord will stop it.
 spec for the duration of playback). it might support ?rewind, ?seek
 +10 sec, etc.
 
+update: the ?gamerecord command controls everything. seeking is too hard
+and isn't currently working.
+
 it works by recording "events" to a file, and then reading them and
 faking them within the server for playback.
 
@@ -24,7 +27,8 @@ chat message (pub and team only) (record pid, type, optional freq, msg)
 incoming position (the biggie) (record pid, position data)
 (record ticks past start of game for all of them)
 
-a special eof event at the end of the recorded game, maybe.
+a special eof event at the end of the recorded game, maybe. (isn't
+currently used.)
 
 
 internal details:
@@ -35,7 +39,7 @@ leave arena: playeraction cb
 ship change: shipchange cb
 freq change: freqchange cb
 kill: kill cb
-chat message: chat cb (not impl yet)
+chat message: chat cb
 incoming position: get raw position packets from net
 
 
@@ -44,8 +48,8 @@ enter arena: fake->CreateFakePlayer
 leave arena: fake->EndFaked
 ship change: game->SetFreqAndShip
 freq change: game->SetFreq
-kill: game->???
-chat message: chat->???
+kill: game->FakeKill
+chat message: chat->SendAnyMessage
 incoming position: game->FakePosition
 
 
@@ -60,21 +64,14 @@ passing messages means it has to lock a mutex on every event, which is
 fine for everything but ppks. well, it's probably fine for ppks too,
 since they end up locking tons of outlistmtx's for each one.
 
-synchronously is much easier, though. let's do that for now and measure
-performance.
+update: async isn't so hard, and it's what's currently implemented. each
+recorder gets a thread.
 
 
 how will it read events and play them back?
 
-it can have either a separate thread or a mainloop function. mainloop is
-probably easier, let's try that:
-
-it will go through a list of currently playing games. for each one:
-check the event in the buffer to see if its time is >= to the current
-time. if so, process it and read another event into the buffer. either
-way, continue.
-
-if it gets an eof on any, do game cleanup.
+it can have either a separate thread or a mainloop function.
+update: a separate thread is created for each playing game.
 
 game cleanup:
 	kill all fake players that are part of the playback.
@@ -86,82 +83,7 @@ game cleanup:
 
 file format:
 
-struct event_header
-{
-	unsigned long tm;
-	int type;
-};
-
-struct event_enter
-{
-	int pid;
-	char name[24], squad[24];
-	int ship, freq;
-};
-
-
-struct event_leave
-{
-	int pid;
-};
-
-struct event_sc
-{
-	int pid;
-	int newship, newfreq;
-};
-
-struct event_fc
-{
-	int pid;
-	int newfreq;
-};
-
-struct event_kill
-{
-	int killer, killed, bty, flags;
-};
-
-struct event_chat
-{
-	int pid;
-	int type, target;
-	char msg[128];
-};
-
-struct event_pos
-{
-	int pid;
-	struct C2SPosition
-	{
-		u8 type; /* special: this byte holds the length of the rest of
-		            the packet, since the last field is optional */
-		i8 rotation;
-		u32 time;
-		i16 xspeed;
-		i16 y;
-		i8 checksum;
-		i8 status;
-		i16 x;
-		i16 yspeed;
-		u16 bounty;
-		i16 energy;
-		struct Weapons weapon;
-		struct ExtraPosData extra;
-	} pos;
-};
-
-
-struct game_file
-{
-	char header[8] = "asssgame";
-	struct
-	{
-		event_header head;
-		event_<something> data;
-	} events[];
-};
-
+update: see record.c
 
 
 

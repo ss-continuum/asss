@@ -53,11 +53,12 @@ typedef void (*ConfigChangedFunc)(void *clos);
 
 
 /* this callback is called when the global config file has been changed */
-#define CB_GLOBALCONFIGCHANGED ("gconfchanged")
+#define CB_GLOBALCONFIGCHANGED "gconfchanged"
 typedef void (*GlobalConfigChangedFunc)(void);
+/* pycb: */
 
 
-#define I_CONFIG "config-1"
+#define I_CONFIG "config-2"
 
 typedef struct Iconfig
 {
@@ -75,6 +76,7 @@ typedef struct Iconfig
 			ConfigChangedFunc func, void *clos);
 	void (*CloseConfigFile)(ConfigHandle ch);
 	void (*ReloadConfigFile)(ConfigHandle ch);
+	void (*AddRef)(ConfigHandle ch);
 
 	void (*FlushDirtyValues)(void);
 	void (*CheckModifiedFiles)(void);

@@ -21,146 +21,168 @@ struct TurfArena;
 struct Iturfrewardpoints;
 
 
-// called for all turf flag tags
-#define CB_TURFTAG ("turftag")
+/* turf_reward specific callbacks */
+/* called for all turf flag tags */
+#define CB_TURFTAG "turftag"
 typedef void (*TurfTagFunc)(Arena *arena, Player *p, int fid);
+/* pycb: arena, player, int */
 
-// called when a flag is 'recovered' (note: CB_TURFTAG will still be called)
-// possible use would be to have a module that manipulates lvz objects telling player that the flag tagged was recovered
-#define CB_TURFRECOVER ("turfrecover")
-typedef void (*TurfRecoverFunc)(Arena *arena, int fid, int pid, int freq, int dings, int weight, int recovered);
+/* called when a flag is 'recovered' (note: CB_TURFTAG will still be called)
+ * possible use would be to have a module that manipulates lvz objects telling
+ * player that the flag tagged was recovered */
+#define CB_TURFRECOVER "turfrecover"
+typedef void (*TurfRecoverFunc)(Arena *arena, int fid, int pid, int freq,
+	int dings, int weight, int recovered);
+/* pycb: arena, int, int, int, int, int, int */
 
-// called when a flag is 'lost' (note: CB_TURFTAG will still be called)
-// possible use would be to have a module that manipulates lvz objects telling players that a flag was lost
-#define CB_TURFLOST ("turflost")
-typedef void (*TurfLostFunc)(Arena *arena, int fid, int pid, int freq, int dings, int weight, int recovered);
+/* called when a flag is 'lost' (note: CB_TURFTAG will still be called) possible
+ * use would be to have a module that manipulates lvz objects telling players
+ * that a flag was lost */
+#define CB_TURFLOST "turflost"
+typedef void (*TurfLostFunc)(Arena *arena, int fid, int pid, int freq,
+	int dings, int weight, int recovered);
+/* pycb: arena, int, int, int, int, int, int */
 
-
-// this is a special callback - turf_arena is LOCKED when this is called
-// called AFTER players are awarded points (good time for history stuff / stats output)
-#define CB_TURFPOSTREWARD ("turfpostreward")
+/* A special callback!! - the turf_arena data is LOCKED when this is called
+ * This is called AFTER players are awarded points (good time for history stuff
+ * and/or stats output).  Any function registering with this callback must not
+ * require a long processing time. */
+#define CB_TURFPOSTREWARD "turfpostreward"
 typedef void (*TurfPostRewardFunc)(Arena *arena, struct TurfArena *ta);
 
 
-/*
-// called during a flag game victory
-#define CB_TURFVICTORY ("turfvictory")
-typedef void (*TurfVictoryFunc) (Arena *arena)
-*/
+/* called during a flag game victory */
+/* NOT CURRENTLY IMPLEMENTED */
+#define CB_TURFVICTORY "turfvictory"
+typedef void (*TurfVictoryFunc) (Arena *arena);
+/* pycb: arena */
 
 
-// for linked list for data on teams that have a chance to 'recover'
+/* for linked list for data on teams that have a chance to 'recover' */
 struct OldNode
 {
-	int lastOwned;   // how many dings ago the flag was owned
+	int lastOwned;   /* how many dings ago the flag was owned */
 
-	int freq;        // previous team that owned the flag
-	int dings;       // previous # of dings
-	int weight;      // previous weight of flag
-	int taggerPID;   // pid of player that owned the flag last
-	int recovered;   // number of times was recovered
-	ticks_t tagTC;   // time flag was originally tagged in ticks
-	ticks_t lostTC;  // time flag was lost in ticks
+	int freq;        /* previous team that owned the flag */
+	int dings;       /* previous # of dings */
+	int weight;      /* previous weight of flag */
+	int taggerPID;   /* pid of player that owned the flag last */
+	int recovered;   /* number of times was recovered */
+	ticks_t tagTC;   /* time flag was originally tagged in ticks */
+	ticks_t lostTC;  /* time flag was lost in ticks */
 };
 
-// to hold extra flag data for turf flags
+/* to hold extra flag data for turf flags */
 struct TurfFlag
 {
-	int freq;        // freq of player that last tagged flag
-	int dings;       // number of dings the flag has been owned for
-	int weight;      // weight of the flag (how much it's worth)
-	int taggerPID;   // id of player that tagged the flag
-	                 // note: player may have been on another team when tag occured or may have even left the game
-	int recovered;   // number of times flag was recovered
-	ticks_t tagTC;   // time flag was originally tagged in ticks
-	ticks_t lastTC;  // time flag was last tagged in ticks
+	int freq;        /* freq of player that last tagged flag */
+	int dings;       /* number of dings the flag has been owned for */
+	int weight;      /* weight of the flag (how much it's worth) */
+	int taggerPID;   /* id of player that tagged the flag */
+	                 /* note: player may have been on another team when tag */
+	                 /* occured or may have even left the game */
+	int recovered;   /* number of times flag was recovered */
+	ticks_t tagTC;   /* time flag was originally tagged in ticks */
+	ticks_t lastTC;  /* time flag was last tagged in ticks */
 
-	LinkedList old;  // linked list of OldNodes storing data of flag's previous owners who have a chance to 'recover' it
+	LinkedList old;  /* linked list of OldNodes storing data of flag's */
+	                 /* previous owners who have a chance to 'recover' it */
 };
 
 struct FreqInfo
 {
-	int freq;                       // freq number
-	
-	int numFlags;                   // number of flags freq owns
-	double percentFlags;            // percent of the flags owned
+	int freq;                  /* freq number */
 
-	long int numWeights;            // sum of weights for owned flags
-	double percentWeights;          // percent of the total weights
+	int numFlags;              /* number of flags freq owns */
+	double percentFlags;       /* percent of the flags owned */
 
-	unsigned int numTags;           // # of flag tags
-	unsigned int numRecovers;       // # of flag recoveries
-	unsigned int numLost;           // # of flags lost
+	long int numWeights;       /* sum of weights for owned flags */
+	double percentWeights;     /* percent of the total weights */
 
-	int numPlayers;                 // # of players on the freq
-	double perCapita;               // weights per player on freq
-	double percent;                 // percent of jackpot to recieve
-	unsigned int numPoints;         // number of points to award to freq
+	unsigned int numTags;      /* # of flag tags */
+	unsigned int numRecovers;  /* # of flag recoveries */
+	unsigned int numLost;      /* # of flags lost */
+
+	int numPlayers;            /* # of players on the freq */
+	double perCapita;          /* weights per player on freq */
+	double percent;            /* percent of jackpot to recieve */
+	unsigned int numPoints;    /* number of points to award to freq */
 };
 
 struct TurfArena
 {
-	// cfg settings for turf reward
-	int reward_style;               // change reward algorithms
-	void *multi_arena_id;             // when using a multi arena algorithm, arenas with matching id's are scored together
-	int min_players_on_freq;        // min # of players needed on a freq for that freq to recieve reward pts
-	int min_players_in_arena;       // min # of players needed in the arena for anyone to recieve reward pts
-	int min_teams;                  // min # of teams needed for anyone to recieve reward pts
-	int min_flags;                  // min # of flags needed to be owned by freq in order to recieve reward pts
-	double min_percent_flags;       // min % of flags needed to be owned by freq in order to recieve reward pts
-	int min_weights;                // min # of weights needed to be owned by freq in order to recieve reward pts
-	double min_percent_weights;     // min % of weights needed to be owned by freq in order to recieve reward pts
-	double min_percent;             // min percentage of jackpot needed to recieve an award
-	int jackpot_modifier;           // modifies the jackpot based on how many points per player playing
-	int max_points;                 // maximum # of points to award a single person
+	/* cfg settings for turf reward */
+	int reward_style;           /* change reward algorithms */
+	void *multi_arena_id;       /* when using a multi arena algorithm, arenas */
+	                            /* with matching id's are scored together */
+	int min_players_on_freq;    /* min # of players needed on a freq for that */
+	                            /* freq to recieve reward pts */
+	int min_players_in_arena;   /* min # of players needed in the arena for */
+	                            /* anyone to recieve reward pts */
+	int min_teams;              /* min # of teams needed for anyone to */
+	                            /* recieve reward pts */
+	int min_flags;              /* min # of flags needed to be owned by freq */
+	                            /* in order to recieve reward pts */
+	double min_percent_flags;   /* min % of flags needed to be owned by freq */
+	                            /* in order to recieve reward pts */
+	int min_weights;            /* min # of weights needed to be owned by */
+	                            /* freq in order to recieve reward pts */
+	double min_percent_weights; /* min % of weights needed to be owned by */
+	                            /* freq in order to recieve reward pts */
+	double min_percent;         /* min percentage of jackpot needed to */
+	                            /* recieve an award */
+	int jackpot_modifier;       /* modifies the jackpot based on how many */
+	                            /* points per player playing */
+	int max_points;             /*maximum # of points to award a single person */
 
-	int recovery_cutoff;            // recovery cutoff style to be used
+	int recovery_cutoff;        /* recovery cutoff style to be used */
 	int recover_dings;
 	int recover_time;
 	int recover_max;
 
 	int weight_calc;
-	int set_weights;                // number of weights that were set from cfg
-	int *weights;                   // array of weights from cfg
+	int set_weights;            /* number of weights that were set from cfg */
+	int *weights;               /* array of weights from cfg */
+/*
+	int min_kills_arena;   todo: min # of kills needed for anyone to recieve rewards
+	int min_kills_freq;    todo: min # of kills needed by a freq for that freq to recieve rewards
+	int min_tags_arena;    todo: min # of tags needed in arena for anyone to recieve rewards
+	int min_tags_freq;     todo: min # of tags needed by a freq for that freq to recieve rewards
+*/
+	/* data for timer */
+	ticks_t dingTime;              /* time of last ding */
+	int timer_initial;             /* initial timer delay */
+	int timer_interval;            /* interval for timer to repeat */
+	struct Iturfrewardpoints *trp; /* turf reward scoring interface */
 
-	// int min_kills_arena;         // todo: minimum # of kills needed for anyone to recieve rewards
-	// int min_kills_freq;          // todo: minimum # of kills needed by a freq for that freq to recieve rewards
-	// int min_tags_arena;          // todo: minimum # of tags needed in arena for anyone to recieve rewards
-	// int min_tags_freq;           // todo: minimum # of tags needed by a freq for that freq to recieve rewards
+	/* reward data */
+	int numFlags;                /* # of flags on the map */
+	int numPlayers;              /* # of people playing (not inc. spec) */
+	int numTeams;                /* # of teams (not including ones */
+	                             /* with < MinPlayersOnFreq) */
+	long int numWeights;         /* the complete number of flag weights */
+	unsigned long int numPoints; /* number of points to split up */
+	double sumPerCapitas;        /* sum of all teams percapitas */
 
-	// data for timer
-	ticks_t dingTime;               // time of last ding
-	int timer_initial;              // initial timer delay
-	int timer_interval;             // interval for timer to repeat
-	struct Iturfrewardpoints *trp;  // turf reward scoring interface
+	unsigned int numTags;        /* # of flag tags during reward interval */
+	unsigned int numLost;        /* # of flag losses during reward interval */
+	unsigned int numRecovers;    /* # of flag recoveries during reward interval */
+	/* unsigned int numKills;*/     /* # of kills during reward interval */
 
-	// reward data
-	int numFlags;                   // number of flags on the map
-	int numPlayers;                 // number of people playing (not including spectators)
-	int numTeams;                   // number of teams (not including ones with < MinPlayersOnFreq)
-	long int numWeights;            // the complete number of flag weights
-	unsigned long int numPoints;    // number of points to split up
-	double sumPerCapitas;           // sum of all teams percapitas
-
-	unsigned int numTags;           // number of flag tags during reward interval
-	unsigned int numLost;           // number of flag losses during reward interval
-	unsigned int numRecovers;       // number of flag recoveries during reward interval
-	//unsigned int numKills;        // todo: number of kills during reward interval
-
-	struct TurfFlag *flags;         // pointer to array of turf flags
-	LinkedList freqs;               // linked list of FreqInfo
+	struct TurfFlag *flags;      /* pointer to array of turf flags */
+	LinkedList freqs;            /* linked list of FreqInfo */
 };
 
 typedef enum
 {
 	/* single arena codes */
-	TR_AWARD_UPDATE,             // do award and update
-	TR_AWARD_ONLY,               // do award only
-	TR_UPDATE_ONLY,              // do update only
-	TR_NO_AWARD_NO_UPDATE,       // don't do award or update
-	TR_FAIL_REQUIREMENTS,        // arena failed minimum requirements, update only
-	TR_FAIL_CALCULATIONS,        // error while doing calculations, no award or update
-	
+	TR_AWARD_UPDATE,       /* do award and update */
+	TR_AWARD_ONLY,         /* do award only */
+	TR_UPDATE_ONLY,        /* do update only */
+	TR_NO_AWARD_NO_UPDATE, /* don't do award or update */
+	TR_FAIL_REQUIREMENTS,  /* arena failed minimum requirements, update only */
+	TR_FAIL_CALCULATIONS,  /* error while doing calculations, no award or update */
+
 	/* multi arena codes */
 	TR_AWARD_UPDATE_MULTI,
 	TR_AWARD_ONLY_MULTI,

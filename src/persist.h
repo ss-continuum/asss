@@ -58,18 +58,20 @@ typedef struct PlayerPersistentData
 {
 	int key, interval;
 	persist_scope_t scope;
-	int (*GetData)(Player *p, void *data, int len);
-	void (*SetData)(Player *p, void *data, int len);
-	void (*ClearData)(Player *p);
+	int (*GetData)(Player *p, void *data, int len, void *clos);
+	void (*SetData)(Player *p, void *data, int len, void *clos);
+	void (*ClearData)(Player *p, void *clos);
+	void *clos;
 } PlayerPersistentData;
 
 typedef struct ArenaPersistentData
 {
 	int key, interval;
 	persist_scope_t scope;
-	int (*GetData)(Arena *a, void *data, int len);
-	void (*SetData)(Arena *a, void *data, int len);
-	void (*ClearData)(Arena *a);
+	int (*GetData)(Arena *a, void *data, int len, void *clos);
+	void (*SetData)(Arena *a, void *data, int len, void *clos);
+	void (*ClearData)(Arena *a, void *clos);
+	void *clos;
 } ArenaPersistentData;
 
 /* for per-player data, scope can be a single arena, or one of the
@@ -83,7 +85,7 @@ typedef struct ArenaPersistentData
  */
 
 
-#define I_PERSIST "persist-4"
+#define I_PERSIST "persist-5"
 
 typedef struct Ipersist
 {

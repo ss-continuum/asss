@@ -30,12 +30,16 @@ typedef struct Icapman
 {
 	INTERFACE_HEAD_DECL
 
+	/* pyint: use, impl */
+
 	int (*HasCapability)(Player *p, const char *cap);
 	/* returns true if the given player has the given capability. */
+	/* pyint: player, string -> int */
 
 	int (*HasCapabilityByName)(const char *name, const char *cap);
 	/* same as HasCapability, but intented to be used in strange places
 	 * like before the player has logged in yet */
+	/* pyint: string, string -> int */
 } Icapman;
 
 
@@ -47,12 +51,18 @@ typedef struct Igroupman
 {
 	INTERFACE_HEAD_DECL
 
+	/* pyint: use */
+
 	const char *(*GetGroup)(Player *p);
+	/* pyint: player -> string */
 	void (*SetPermGroup)(Player *p, const char *group, int global, const char *info);
+	/* pyint: player, string, int, string -> void */
 	void (*SetTempGroup)(Player *p, const char *group);
+	/* pyint: player, string -> void */
 
 	int (*CheckGroupPassword)(const char *group, const char *pwd);
 	/* true if the password is correct */
+	/* pyint: string, string -> int */
 } Igroupman;
 
 #define MAXGROUPLEN 32

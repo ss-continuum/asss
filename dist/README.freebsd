@@ -1,0 +1,7 @@
+
+There are asss binaries compiled for freebsd in the freebsd directory.
+Also in there, you'll find a patch for the Makefile so you can compile
+it yourself.
+
+You'll need to have installed Berkeley DB 4.x from the ports library.
+

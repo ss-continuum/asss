@@ -5,7 +5,9 @@ set -x
 
 umask 022
 
-cd ~/src/asss
+: using ASSSDIR=${ASSSDIR:=~/src/asss}
+
+cd $ASSSDIR
 
 #d="asss-`date +%Y%m%d`"
 d="asss-`sed -n 's/#define ASSSVERSION "\(.*\)"/\1/p' src/defs.h`"
@@ -19,15 +21,15 @@ cp src/Makefile.dist $d/src/Makefile
 
 make -C $d/src install
 make -C $d/src clean
-make -C ~/src/extra-asss/contenc all
-make -C ~/src/extra-asss/contenc clean
+make -C ~/src/extra-asss/contenc "ASSSDIR=$ASSSDIR" all
+make -C ~/src/extra-asss/contenc "ASSSDIR=$ASSSDIR" clean
 
 cp bin/security.so $d/bin
 ln -s '../scripts/bproxy/bproxy' $d/bin/bproxy
 
-make -C doc/userguide all
+make -C doc/userguide "ASSSDIR=$ASSSDIR" all
 cp doc/userguide/userguide.{pdf,html,txt} $d/doc
-make -C doc/userguide clean
+make -C doc/userguide "ASSSDIR=$ASSSDIR" clean
 
 test -d freebsd && cp -a freebsd $d
 test -d freebsd || rm -f $d/*freebsd*

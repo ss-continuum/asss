@@ -112,7 +112,7 @@ void LogSysop(const char *s)
 			}
 		}
 		pd->Unlock();
-		chat->SendAnyMessage(&set, MSG_SYSOPWARNING, 0, "%s", s);
+		chat->SendAnyMessage(&set, MSG_SYSOPWARNING, 0, NULL, "%s", s);
 	}
 
 	/* always add to lastlog */
@@ -171,7 +171,7 @@ void Clastlog(const char *params, Player *p, const Target *target)
 	{
 		if (ll_data[c][0])
 			if (*end == '\0' || strstr(ll_data[c], end))
-				chat->SendAnyMessage(&lst, MSG_SYSOPWARNING, 0, "%s", ll_data[c]);
+				chat->SendAnyMessage(&lst, MSG_SYSOPWARNING, 0, NULL, "%s", ll_data[c]);
 		c = (c+1) % MAXLAST;
 	}
 	UNLOCK_LL();

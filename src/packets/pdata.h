@@ -33,9 +33,10 @@ typedef struct PlayerData
 #define UNSET_HAS_CROWN(pid) (p->pkt.miscbits &= ~F_HAS_CROWN)
 
 /* whether clients should send data for damage done to this player */
+/* FIXME: not implemented in continuum yet */
 #define F_SEND_DAMAGE 0x02
-#define SET_SEND_DAMAGE(pid) (p->pkt.miscbits |= F_SEND_DAMAGE)
-#define UNSET_SEND_DAMAGE(pid) (p->pkt.miscbits &= ~F_SEND_DAMAGE)
+#define SET_SEND_DAMAGE(pid) /* (p->pkt.miscbits |= F_SEND_DAMAGE) */
+#define UNSET_SEND_DAMAGE(pid) /* (p->pkt.miscbits &= ~F_SEND_DAMAGE) */
 
 
 #endif

@@ -31,6 +31,7 @@ typedef struct
 	AuthData *authdata;
 	struct LoginPacket *loginpkt;
 	int lplen;
+	byte hasdonegsync, hasdoneasync;
 } pdata;
 
 
@@ -41,8 +42,7 @@ local void PLogin(Player *, byte *, int);
 local void MLogin(Player *, const char *);
 
 local void AuthDone(Player *, AuthData *);
-local void GSyncDone(Player *);
-local void ASyncDone(Player *);
+local void player_sync_done(Player *);
 
 local int SendKeepalive(void *);
 local int process_player_states(void *);
@@ -196,9 +196,10 @@ int process_player_states(void *v)
 	int ns, oldstatus;
 	Player *player;
 	Link *link;
+	pdata *d;
 
 	pd->WriteLock();
-	FOR_EACH_PLAYER(player)
+	FOR_EACH_PLAYER_P(player, d, pdkey)
 	{
 		oldstatus = player->status;
 		switch (oldstatus)
@@ -207,9 +208,11 @@ int process_player_states(void *v)
 			 * loop */
 			case S_CONNECTED:
 			case S_WAIT_AUTH:
-			case S_WAIT_GLOBAL_SYNC:
+			case S_WAIT_GLOBAL_SYNC1:
+			case S_WAIT_GLOBAL_SYNC2:
 			/* case S_LOGGEDIN: */
-			case S_WAIT_ARENA_SYNC:
+			case S_WAIT_ARENA_SYNC1:
+			case S_WAIT_ARENA_SYNC2:
 			case S_PLAYING:
 			case S_TIMEWAIT:
 				continue;
@@ -222,14 +225,14 @@ int process_player_states(void *v)
 		switch (oldstatus)
 		{
 			case S_NEED_AUTH:           ns = S_WAIT_AUTH;           break;
-			case S_NEED_GLOBAL_SYNC:    ns = S_WAIT_GLOBAL_SYNC;    break;
+			case S_NEED_GLOBAL_SYNC:    ns = S_WAIT_GLOBAL_SYNC1;   break;
 			case S_DO_GLOBAL_CALLBACKS: ns = S_SEND_LOGIN_RESPONSE; break;
 			case S_SEND_LOGIN_RESPONSE: ns = S_LOGGEDIN;            break;
-			case S_DO_FREQ_AND_ARENA_SYNC: ns = S_WAIT_ARENA_SYNC;  break;
+			case S_DO_FREQ_AND_ARENA_SYNC: ns = S_WAIT_ARENA_SYNC1; break;
 			case S_SEND_ARENA_RESPONSE: ns = S_DO_ARENA_CALLBACKS;  break;
 			case S_DO_ARENA_CALLBACKS:  ns = S_PLAYING;             break;
-			case S_LEAVING_ARENA:       ns = S_LOGGEDIN;            break;
-			case S_LEAVING_ZONE:        ns = S_TIMEWAIT;            break;
+			case S_LEAVING_ARENA:       ns = S_WAIT_ARENA_SYNC2;    break;
+			case S_LEAVING_ZONE:        ns = S_WAIT_GLOBAL_SYNC2;   break;
 
 			case S_LOGGEDIN:
 				/* check if the player's arena is ready.
@@ -251,7 +254,7 @@ int process_player_states(void *v)
 				continue;
 
 			default:
-				lm->Log(L_ERROR,"<core> [pid=%d] Internal error: unknown player status %d",
+				lm->Log(L_ERROR,"<core> [pid=%d] internal error: unknown player status %d",
 						player->pid, oldstatus);
 				continue;
 		}
@@ -268,29 +271,32 @@ int process_player_states(void *v)
 		{
 			case S_NEED_AUTH:
 				{
-					pdata *d = PPDATA(player, pdkey);
 					Iauth *auth = mm->GetInterface(I_AUTH, ALLARENAS);
 
 					if (auth && d->loginpkt != NULL && d->lplen > 0)
 					{
 						lm->Log(L_DRIVEL, "<core> authenticating with '%s'", auth->head.name);
 						auth->Authenticate(player, d->loginpkt, d->lplen, AuthDone);
-						mm->ReleaseInterface(auth);
 					}
 					else
-						lm->Log(L_WARN, "<core> Can't authenticate player!");
+					{
+						lm->Log(L_WARN, "<core> can't authenticate player!");
+						pd->KickPlayer(player);
+					}
 
 					afree(d->loginpkt);
 					d->loginpkt = NULL;
 					d->lplen = 0;
+					mm->ReleaseInterface(auth);
 				}
 				break;
 
 			case S_NEED_GLOBAL_SYNC:
 				if (persist)
-					persist->GetPlayer(player, NULL, GSyncDone);
+					persist->GetPlayer(player, NULL, player_sync_done);
 				else
-					GSyncDone(player);
+					player_sync_done(player);
+				d->hasdonegsync = TRUE;
 				break;
 
 			case S_DO_GLOBAL_CALLBACKS:
@@ -302,7 +308,7 @@ int process_player_states(void *v)
 
 			case S_SEND_LOGIN_RESPONSE:
 				SendLoginResponse(player);
-				lm->Log(L_INFO, "<core> [%s] [pid=%d] Player logged in",
+				lm->Log(L_INFO, "<core> [%s] [pid=%d] player logged in",
 						player->name, player->pid);
 				break;
 
@@ -321,7 +327,10 @@ int process_player_states(void *v)
 
 					/* if this arena has a manager, use it */
 					if (fm)
+					{
 						fm->InitialFreq(player, &ship, &freq);
+						mm->ReleaseInterface(fm);
+					}
 
 					/* set the results back */
 					player->p_ship = ship;
@@ -329,9 +338,10 @@ int process_player_states(void *v)
 				}
 				/* then, sync scores */
 				if (persist)
-					persist->GetPlayer(player, player->arena, ASyncDone);
+					persist->GetPlayer(player, player->arena, player_sync_done);
 				else
-					ASyncDone(player);
+					player_sync_done(player);
+				d->hasdoneasync = TRUE;
 				break;
 
 			case S_SEND_ARENA_RESPONSE:
@@ -359,8 +369,9 @@ int process_player_states(void *v)
 				       player->oldarena,
 				       PlayerActionFunc,
 				       (player, PA_LEAVEARENA, player->oldarena));
-				if (persist)
-					persist->PutPlayer(player, player->oldarena, NULL);
+				if (persist && d->hasdoneasync)
+					persist->PutPlayer(player, player->oldarena, player_sync_done);
+				d->hasdoneasync = FALSE;
 				break;
 
 			case S_LEAVING_ZONE:
@@ -368,8 +379,9 @@ int process_player_states(void *v)
 				       ALLARENAS,
 				       PlayerActionFunc,
 					   (player, PA_DISCONNECT, NULL));
-				if (persist)
-					persist->PutPlayer(player, NULL, NULL);
+				if (persist && d->hasdonegsync)
+					persist->PutPlayer(player, NULL, player_sync_done);
+				d->hasdonegsync = FALSE;
 				break;
 		}
 
@@ -389,7 +401,7 @@ void PLogin(Player *p, byte *opkt, int l)
 	int type = p->type;
 
 	if (type != T_VIE && type != T_CONT)
-		lm->Log(L_MALICIOUS, "<core> [pid=%d] Login packet from wrong client type (%d)",
+		lm->Log(L_MALICIOUS, "<core> [pid=%d] login packet from wrong client type (%d)",
 				p->pid, type);
 #ifdef CFG_RELAX_LENGTH_CHECKS
 	else if (l != LEN_LOGINPACKET_VIE && l != LEN_LOGINPACKET_CONT)
@@ -397,22 +409,13 @@ void PLogin(Player *p, byte *opkt, int l)
 	else if ( (type == T_VIE && l != LEN_LOGINPACKET_VIE) ||
 	          (type == T_CONT && l != LEN_LOGINPACKET_CONT) )
 #endif
-		lm->Log(L_MALICIOUS, "<core> [pid=%d] Bad login packet length (%d)", p->pid, l);
+		lm->Log(L_MALICIOUS, "<core> [pid=%d] bad login packet length (%d)", p->pid, l);
 	else if (p->status != S_CONNECTED)
-		lm->Log(L_MALICIOUS, "<core> [pid=%d] Login request from wrong stage: %d", p->pid, p->status);
+		lm->Log(L_MALICIOUS, "<core> [pid=%d] login request from wrong stage: %d", p->pid, p->status);
 	else
 	{
 		struct LoginPacket *pkt = (struct LoginPacket*)opkt, *lp;
-		Player *oldp = pd->FindPlayer(pkt->name);
 		int c;
-
-		if (oldp != NULL && oldp != p)
-		{
-			lm->Log(L_DRIVEL,"<core> [%s] Player already on, kicking him off "
-					"(pid %d replacing %d)",
-					pkt->name, p->pid, oldp->pid);
-			pd->KickPlayer(oldp);
-		}
 
 		/* copy into storage for use by authenticator */
 		lp = d->loginpkt = amalloc(sizeof(*lp));
@@ -432,7 +435,7 @@ void PLogin(Player *p, byte *opkt, int l)
 		pd->WriteLock();
 		p->status = S_NEED_AUTH;
 		pd->WriteUnlock();
-		lm->Log(L_DRIVEL, "<core> [pid=%d] Login request: '%s'", p->pid, pkt->name);
+		lm->Log(L_DRIVEL, "<core> [pid=%d] login request: '%s'", p->pid, pkt->name);
 	}
 }
 
@@ -443,12 +446,11 @@ void MLogin(Player *p, const char *line)
 	const char *t;
 	char vers[16];
 	struct LoginPacket *lp;
-	Player *oldp;
 	int c, l;
 
 	if (p->status != S_CONNECTED)
 	{
-		lm->Log(L_MALICIOUS, "<core> [pid=%d] Login request from wrong stage: %d", p->pid, p->status);
+		lm->Log(L_MALICIOUS, "<core> [pid=%d] login request from wrong stage: %d", p->pid, p->status);
 		return;
 	}
 
@@ -471,22 +473,12 @@ void MLogin(Player *p, const char *line)
 	if (!t) return;
 	astrncpy(lp->password, t, sizeof(lp->password));
 
-	oldp = pd->FindPlayer(lp->name);
-
-	if (oldp != NULL && oldp != p)
-	{
-		lm->Log(L_DRIVEL,"<core> [%s] Player already on, kicking him off "
-				"(pid %d replacing %d)",
-				lp->name, p->pid, oldp->pid);
-		pd->KickPlayer(oldp);
-	}
-
 	p->macid = p->permid = 101;
 	/* set up status */
 	pd->WriteLock();
 	p->status = S_NEED_AUTH;
 	pd->WriteUnlock();
-	lm->Log(L_DRIVEL, "<core> [pid=%d] Login request: '%s'", p->pid, lp->name);
+	lm->Log(L_DRIVEL, "<core> [pid=%d] login request: '%s'", p->pid, lp->name);
 }
 
 
@@ -510,6 +502,18 @@ void AuthDone(Player *p, AuthData *auth)
 	if (AUTH_IS_OK(auth->code))
 	{
 		/* login suceeded */
+
+		/* make sure we don't have two identical players */
+		Player *oldp = pd->FindPlayer(auth->name);
+
+		if (oldp != NULL && oldp != p)
+		{
+			lm->Log(L_DRIVEL,"<core> [%s] player already on, kicking him off "
+					"(pid %d replacing %d)",
+					auth->name, p->pid, oldp->pid);
+			pd->KickPlayer(oldp);
+		}
+
 		/* also copy to player struct */
 		strncpy(p->pkt.name, auth->sendname, 20);
 		astrncpy(p->name, auth->name, 21);
@@ -534,24 +538,20 @@ void AuthDone(Player *p, AuthData *auth)
 }
 
 
-void GSyncDone(Player *p)
+void player_sync_done(Player *p)
 {
 	pd->WriteLock();
-	if (p->status != S_WAIT_GLOBAL_SYNC)
-		lm->Log(L_WARN, "<core> [pid=%s] GSyncDone called from wrong stage", p->pid, p->status);
-	else
-		p->status = S_DO_GLOBAL_CALLBACKS;
-	pd->WriteUnlock();
-}
-
-
-void ASyncDone(Player *p)
-{
-	pd->WriteLock();
-	if (p->status != S_WAIT_ARENA_SYNC)
-		lm->Log(L_WARN, "<core> [pid=%s] ASyncDone called from wrong stage", p->pid, p->status);
-	else
+	if (p->status == S_WAIT_ARENA_SYNC1)
 		p->status = S_SEND_ARENA_RESPONSE;
+	else if (p->status == S_WAIT_ARENA_SYNC2)
+		p->status = S_LOGGEDIN;
+	else if (p->status == S_WAIT_GLOBAL_SYNC1)
+		p->status = S_DO_GLOBAL_CALLBACKS;
+	else if (p->status == S_WAIT_GLOBAL_SYNC2)
+		p->status = S_TIMEWAIT;
+	else
+		lm->Log(L_WARN, "<core> [pid=%d] player_sync_done called from wrong status: %d",
+				p->pid, p->status);
 	pd->WriteUnlock();
 }
 

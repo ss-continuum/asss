@@ -56,6 +56,9 @@ cmd_resetkoth
 cmd_brickwrite
 privcmd_warpto
 
+cmd_gamerecord
+cmd_rec
+
 ; shutup, etc.
 cmd_getcm
 cmd_setcm

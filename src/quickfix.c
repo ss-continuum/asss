@@ -77,7 +77,7 @@ local void do_quickfix(Player *p, const char *limit)
 
 	if (fd == -1)
 	{
-		lm->Log(L_WARN, "<quickfix> Can't create temp file. Make sure tmp/ exists.");
+		lm->Log(L_WARN, "<quickfix> can't create temp file. Make sure tmp/ exists.");
 		chat->SendMessage(p, "Error: can't create temporary file.");
 		return;
 	}
@@ -156,7 +156,7 @@ local void p_settingchange(Player *p, byte *pkt, int len)
 		CHECK(pos)
 		pos = delimcpy(key, pos, MAXKEYLEN, ':');
 		CHECK(pos)
-		lm->LogP(L_INFO, "quickfix", p, "Setting %s:%s = %s",
+		lm->LogP(L_INFO, "quickfix", p, "setting %s:%s = %s",
 				sec, key, pos);
 		cfg->SetStr(ch, sec, key, pos, info);
 		pos = pos + strlen(pos) + 1;

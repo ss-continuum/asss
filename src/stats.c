@@ -325,7 +325,7 @@ local void clear_stats_enum(TreapHead *node, void *clos)
 
 #define DO_PERSISTENT_DATA(ival, code)                                         \
                                                                                \
-local int get_##ival##_data(Player *p, void *data, int len)                    \
+local int get_##ival##_data(Player *p, void *data, int len, void *v)           \
 {                                                                              \
     pdata *stats = PPDATA(p, pdkey);                                           \
     struct get_stats_clos clos = { data, len / sizeof(struct stored_stat),     \
@@ -336,7 +336,7 @@ local int get_##ival##_data(Player *p, void *data, int len)                    \
     return (byte*)clos.ss - (byte*)data;                                       \
 }                                                                              \
                                                                                \
-local void set_##ival##_data(Player *p, void *data, int len)                   \
+local void set_##ival##_data(Player *p, void *data, int len, void *v)          \
 {                                                                              \
     pdata *stats = PPDATA(p, pdkey);                                           \
     struct stored_stat *ss = (struct stored_stat*)data;                        \
@@ -347,7 +347,7 @@ local void set_##ival##_data(Player *p, void *data, int len)                   \
     UNLOCK_PLAYER(stats);                                                      \
 }                                                                              \
                                                                                \
-local void clear_##ival##_data(Player *p)                                      \
+local void clear_##ival##_data(Player *p, void *v)                             \
 {                                                                              \
     pdata *stats = PPDATA(p, pdkey);                                           \
     LOCK_PLAYER(stats);                                                        \
@@ -370,15 +370,15 @@ DO_PERSISTENT_DATA(game, INTERVAL_GAME)
 
 /* interval ending time */
 
-local int get_ending_time(Arena *arena, void *data, int len)
+local int get_ending_time(Arena *arena, void *data, int len, void *v)
 {
 	time(data);
 	return sizeof(time_t);
 }
 
-local void set_ending_time(Arena *arena, void *data, int len) { /* noop */ }
+local void set_ending_time(Arena *arena, void *data, int len, void *v) { /* noop */ }
 
-local void clear_ending_time(Arena *arena) { /* noop */ }
+local void clear_ending_time(Arena *arena, void *v) { /* noop */ }
 
 local ArenaPersistentData my_reset_end_time_data =
 {

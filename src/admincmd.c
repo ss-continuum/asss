@@ -61,7 +61,7 @@ local void Cgetfile(const char *params, Player *p, const Target *target)
 	t1 = t1 ? t1 + 1 : params;
 
 	if (params[0] == '/' || strstr(params, ".."))
-		lm->LogP(L_MALICIOUS, "playercmd", p, "Attempted ?getfile with bad path: '%s'", params);
+		lm->LogP(L_MALICIOUS, "playercmd", p, "attempted ?getfile with bad path: '%s'", params);
 	else
 		filetrans->SendFile(p, params, t1, 0);
 }

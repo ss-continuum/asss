@@ -161,7 +161,7 @@ local void get_data(void *clos, int offset, byte *buf, int needed)
 	if (needed == 0)
 	{
 		/* done */
-		lm->Log(L_INFO, "<filetrans> Completed send of '%s'", dd->fname);
+		lm->Log(L_INFO, "<filetrans> completed send of '%s'", dd->fname);
 		fclose(dd->fp);
 		if (dd->path)
 		{
@@ -195,14 +195,14 @@ local int SendFile(Player *p, const char *path, const char *fname, int delafter)
 	ret = stat(path, &st);
 	if (ret == -1)
 	{
-		lm->Log(L_WARN, "<filetrans> Can't stat '%s': %s", path, strerror(errno));
+		lm->Log(L_WARN, "<filetrans> can't stat '%s': %s", path, strerror(errno));
 		return MM_FAIL;
 	}
 
 	fp = fopen(path, "rb");
 	if (!fp)
 	{
-		lm->Log(L_WARN, "<filetrans> Can't open '%s' for reading: %s", path, strerror(errno));
+		lm->Log(L_WARN, "<filetrans> can't open '%s' for reading: %s", path, strerror(errno));
 		return MM_FAIL;
 	}
 
@@ -212,7 +212,7 @@ local int SendFile(Player *p, const char *path, const char *fname, int delafter)
 	dd->path = NULL;
 
 	net->SendSized(p, dd, st.st_size + 17, get_data);
-	lm->LogP(L_INFO, "filetrans", p, "Sending '%s' (as '%s')", path, fname);
+	lm->LogP(L_INFO, "filetrans", p, "sending '%s' (as '%s')", path, fname);
 
 	if (delafter)
 #ifdef WIN32

@@ -223,10 +223,10 @@ local void log_command(Player *p, const Target *target, const char *cmd, const c
 		astrncpy(t, "(other)", 32);
 
 	if (*params)
-		lm->LogP(L_INFO, "cmdman", p, "Command %s '%s' '%s'",
+		lm->LogP(L_INFO, "cmdman", p, "command %s '%s' '%s'",
 				t, cmd, params);
 	else
-		lm->LogP(L_INFO, "cmdman", p, "Command %s '%s'",
+		lm->LogP(L_INFO, "cmdman", p, "command %s '%s'",
 				t, cmd);
 }
 
@@ -245,10 +245,10 @@ local int allowed(Player *p, const char *cmd, int check)
 	if (!capman)
 	{
 #ifdef ALLOW_ALL_IF_CAPMAN_IS_MISSING
-		lm->Log(L_WARN, "<cmdman> The capability manager isn't loaded, allowing all commands");
+		lm->Log(L_WARN, "<cmdman> the capability manager isn't loaded, allowing all commands");
 		return TRUE;
 #else
-		lm->Log(L_WARN, "<cmdman> The capability manager isn't loaded, disallowing all commands");
+		lm->Log(L_WARN, "<cmdman> the capability manager isn't loaded, disallowing all commands");
 		return FALSE;
 #endif
 	}
@@ -319,7 +319,7 @@ void Command(const char *line, Player *p, const Target *target)
 	}
 #ifdef CFG_LOG_ALL_COMMAND_DENIALS
 	else
-		lm->Log(L_DRIVEL, "<cmdman> [%s] Permission denied for %s",
+		lm->Log(L_DRIVEL, "<cmdman> [%s] permission denied for %s",
 				p->name, cmd);
 #endif
 

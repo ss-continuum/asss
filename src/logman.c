@@ -85,8 +85,7 @@ void * LoggingThread(void *dummy)
 		if (ll == NULL)
 			return NULL;
 
-		DO_CBS(CB_LOGFUNC, ALLARENAS, LogFunc,
-				(ll));
+		DO_CBS(CB_LOGFUNC, ALLARENAS, LogFunc, (ll));
 		afree(ll);
 	}
 }

@@ -38,6 +38,8 @@ EXPORT int MM_points_periodic(int action, Imodman *mm, Arena *arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
+		if (myint.head.refcount)
+			return MM_FAIL;
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);
 		return MM_OK;

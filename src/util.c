@@ -505,7 +505,7 @@ inline unsigned Hash(const char *s, int modulus)
 {
 	unsigned len = 3, ret = 1447;
 	while (*s)
-		ret = (ret * tolower(*s++) + len++ *7) % modulus;
+		ret = (ret * tolower(*s++) + len++ *7);
 	return ret % modulus;
 }
 
@@ -572,6 +572,19 @@ void HashAdd(HashTable *h, const char *s, void *p)
 		/* this is first hash entry for this key */
 		h->lists[slot] = e;
 	}
+}
+
+void HashAddFront(HashTable *h, const char *s, void *p)
+{
+	int slot;
+	HashEntry *e;
+
+	slot = Hash(s, h->size);
+
+	e = GetAnEntry(s);
+	e->p = p;
+	e->next = h->lists[slot];
+	h->lists[slot] = e;
 }
 
 void HashReplace(HashTable *h, const char *s, void *p)
@@ -953,7 +966,7 @@ void * MPRemove(MPQueue *q)
 	 * cleanup. this casting is a bit hacky, but it's in the man page,
 	 * so it can't be that bad. */
 	pthread_cleanup_push((void(*)(void*)) pthread_mutex_unlock, (void*) &q->mtx);
-	pthread_mutex_lock(&q->mtx);
+		pthread_mutex_lock(&q->mtx);
 		while (LLIsEmpty(&q->list))
 			pthread_cond_wait(&q->cond, &q->mtx);
 		data = LLRemoveFirst(&q->list);

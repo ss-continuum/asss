@@ -1,6 +1,5 @@
 ; conf/groups/default
 
-
 cmd_help
 cmd_go
 cmd_arena
