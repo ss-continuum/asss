@@ -19,7 +19,7 @@ struct ArenaStats /* 64 bytes */
 
 /* prototypes */
 
-local void IncrementStat(int, Stat, int);
+local void IncrementStat(int, stat_t, int);
 local void SendUpdates(int);
 
 local void GetA(int, void *);
@@ -100,7 +100,7 @@ int MM_stats(int action, Imodman *mm_)
 }
 
 
-void IncrementStat(int pid, Stat stat, int amount)
+void IncrementStat(int pid, stat_t stat, int amount)
 {
 	struct ArenaStats *d = adata + pid;
 
