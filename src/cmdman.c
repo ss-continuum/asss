@@ -1,21 +1,24 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "asss.h"
+
+
+#define ALLOW_ALL_IF_CAPMAN_IS_MISSING 1
 
 
 /* structs */
 typedef struct CommandData
 {
 	CommandFunc func;
-	int oplevel;
 } CommandData;
 
 
 /* prototypes */
 
-local void AddCommand(const char *, CommandFunc, int);
+local void AddCommand(const char *, CommandFunc);
 local void RemoveCommand(const char *, CommandFunc);
 local void Command(const char *, int, int);
 
@@ -24,6 +27,7 @@ local void Command(const char *, int, int);
 local Iplayerdata *pd;
 local Ilogman *log;
 local Iarenaman *aman;
+local Icapman *capman;
 
 local HashTable *cmds;
 local CommandFunc defaultfunc;
@@ -38,6 +42,7 @@ int MM_cmdman(int action, Imodman *mm, int arena)
 		mm->RegInterest(I_PLAYERDATA, &pd);
 		mm->RegInterest(I_LOGMAN, &log);
 		mm->RegInterest(I_ARENAMAN, &aman);
+		mm->RegInterest(I_CAPMAN, &capman);
 
 		cmds = HashAlloc(47);
 		defaultfunc = NULL;
@@ -50,6 +55,7 @@ int MM_cmdman(int action, Imodman *mm, int arena)
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_ARENAMAN, &aman);
+		mm->UnregInterest(I_CAPMAN, &capman);
 		HashFree(cmds);
 		return MM_OK;
 	}
@@ -60,7 +66,7 @@ int MM_cmdman(int action, Imodman *mm, int arena)
 
 
 
-void AddCommand(const char *cmd, CommandFunc f, int oplevel)
+void AddCommand(const char *cmd, CommandFunc f)
 {
 	if (!cmd)
 		defaultfunc = f;
@@ -69,7 +75,6 @@ void AddCommand(const char *cmd, CommandFunc f, int oplevel)
 		CommandData *data;
 		data = amalloc(sizeof(CommandData));
 		data->func = f;
-		data->oplevel = oplevel;
 		HashAdd(cmds, cmd, data);
 	}
 }
@@ -109,9 +114,7 @@ void Command(const char *line, int pid, int target)
 {
 	LinkedList *lst;
 	Link *l;
-	CommandData *data;
-	char *saveline = (char*)line, cmd[32], *t = cmd, found = 0;
-	int opl;
+	char *saveline = (char*)line, cmd[40], *t, found = 0;
 
 	/* first log it. this shouldn't be so complicated... */
 	if (log)
@@ -134,6 +137,22 @@ void Command(const char *line, int pid, int target)
 					line);
 	}
 
+	if (!capman)
+	{
+#ifdef ALLOW_ALL_IF_CAPMAN_IS_MISSING
+		log->Log(L_WARN, "<cmdman> The capability manager isn't loaded, allowing all commands");
+#else
+		log->Log(L_ERROR, "<cmdman> The capability manager isn't loaded, disallowing all commands");
+		return;
+#endif
+	}
+
+	if (target == TARGET_ARENA || target == TARGET_NONE)
+		strncpy(cmd, "cmd_", 40);
+	else
+		strncpy(cmd, "privcmd_", 40);
+	t = cmd + strlen(cmd);
+
 	/* find end of command */
 	while (*line && *line != ' ' && *line != '=' && (t-cmd) < 30)
 		*t++ = *line++;
@@ -143,31 +162,17 @@ void Command(const char *line, int pid, int target)
 	while (*line && (*line == ' ' || *line == '='))
 		line++;
 
-	if (pid >= 0 && pid < MAXPLAYERS)
+	if (pid == PID_INTERNAL || !capman || capman->HasCapability(pid, cmd))
 	{
-		pd->LockPlayer(pid);
-		opl = pd->players[pid].oplevel;
-		pd->UnlockPlayer(pid);
+		/* use strchr to get to the actual name again (from the cap name) */
+		lst = HashGet(cmds, strchr(cmd, '_') + 1);
+		for (l = LLGetHead(lst); l; l = l->next)
+		{
+			((CommandData*)l->data)->func(line, pid, target);
+			found = 1;
+		}
+		LLFree(lst);
 	}
-
-	lst = HashGet(cmds, cmd);
-	for (l = LLGetHead(lst); l; l = l->next)
-	{
-		int runme = 0;
-
-		data = (CommandData*) l->data;
-
-		if (pid < 0)
-			runme = 1;
-		else if (pid < MAXPLAYERS)
-			if (opl >= data->oplevel)
-				runme = 1;
-		if (runme)
-			data->func(line, pid, target);
-
-		found = 1;
-	}
-	LLFree(lst);
 
 	if (!found && defaultfunc)
 		defaultfunc(saveline, pid, target); /* give whole thing, not just params */

@@ -10,19 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 #include "asss.h"
 
-/* SYNCHRONIZATION DEBUGGING
-#define LockMutex(mtx) \
-	log->Log(LOG_DEBUG, "waiting on " #mtx " at %i", __LINE__); \
-	pthread_mutex_lock(mtx); \
-	log->Log(LOG_DEBUG, "    locked " #mtx " at %i", __LINE__)
-
-#define UnlockMutex(mtx) \
-	log->Log(LOG_DEBUG, " unlocking " #mtx " at %i", __LINE__); \
-	pthread_mutex_unlock(mtx)
-*/
 
 /* MACROS */
 

@@ -10,13 +10,10 @@
 /* prototypes */
 
 local void Carena(const char *, int, int);
-local void Clogin(const char *, int, int);
-local void Csetop(const char *, int, int);
 local void Cshutdown(const char *, int, int);
 local void Cflagreset(const char *, int, int);
 local void Clogfile(const char *, int, int);
-local void Caddball(const char *, int, int);
-local void Cremoveball(const char *, int, int);
+local void Cballcount(const char *, int, int);
 
 
 /* global data */
@@ -61,28 +58,20 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		players = pd->players;
 		arenas = aman->arenas;
 
-		configops = cfg->OpenConfigFile(NULL, "oplevels.conf");
-
-		cmd->AddCommand("arena", Carena, 0);
-		cmd->AddCommand("login", Clogin, 0);
-		cmd->AddCommand("setop", Csetop, 0);
-		cmd->AddCommand("shutdown", Cshutdown, 200);
-		cmd->AddCommand("logfile", Clogfile, 200);
-		cmd->AddCommand("flagreset", Cflagreset, 100);
-		cmd->AddCommand("addball", Caddball, 50);
-		cmd->AddCommand("removeball", Cremoveball, 50);
+		cmd->AddCommand("arena", Carena);
+		cmd->AddCommand("shutdown", Cshutdown);
+		cmd->AddCommand("logfile", Clogfile);
+		cmd->AddCommand("flagreset", Cflagreset);
+		cmd->AddCommand("ballcount", Cballcount);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		cmd->RemoveCommand("arena", Carena);
-		cmd->RemoveCommand("login", Clogin);
-		cmd->RemoveCommand("setop", Csetop);
 		cmd->RemoveCommand("shutdown", Cshutdown);
 		cmd->RemoveCommand("logfile", Clogfile);
 		cmd->RemoveCommand("flagreset", Cflagreset);
-		cmd->RemoveCommand("addball", Caddball);
-		cmd->RemoveCommand("removeball", Cremoveball);
+		cmd->RemoveCommand("ballcount", Cballcount);
 
 		cfg->CloseConfigFile(configops);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
@@ -147,57 +136,6 @@ void Carena(const char *params, int pid, int target)
 }
 
 
-void Clogin(const char *params, int pid, int target)
-{
-	int arena = players[pid].arena, op2;
-
-	if (strlen(params))
-	{
-		players[pid].oplevel = cfg->GetInt(
-				configops, "Passwords", params, 0);
-		log->Log(L_INFO, "<command> [%s] 'login' Player got oplevel %i with a password",
-				players[pid].name, players[pid].oplevel);
-	}
-	else
-	{
-		char *where = "global";
-
-		players[pid].oplevel = cfg->GetInt(
-				configops, "Staff", players[pid].name, 0);
-		if (arena >= 0)
-		{
-			op2 = cfg->GetInt(arenas[arena].cfg,
-					"Staff", players[pid].name, 0);
-			if (op2 > players[pid].oplevel)
-			{
-				players[pid].oplevel = op2;
-				where = "arena";
-			}
-		}
-		log->Log(L_INFO, "<command> [%s] 'login' Player got oplevel %i from the %s staff list",
-				players[pid].name, players[pid].oplevel, where);
-	}
-	chat->SendMessage(pid, "Your current oplevel is %i", players[pid].oplevel);
-}
-
-
-void Csetop(const char *params, int pid, int target)
-{
-	int op = atoi(params);
-
-	if (target < 0 || op < 0 || op > 255) return;
-	if (op > players[pid].oplevel) return;
-	pd->LockPlayer(target);
-	players[target].oplevel = op;
-	pd->UnlockPlayer(target);
-	chat->SendMessage(pid, "You have assigned oplevel %i to %s", op, players[target].name);
-	chat->SendMessage(target, "Your have been given oplevel %i by %s",
-			op, players[pid].name);
-	log->Log(L_INFO, "<command> [%s] to [%s] 'setop' Player assigned oplevel %i",
-			players[pid].name, op, players[target].name);
-}
-
-
 void Cshutdown(const char *params, int pid, int target)
 {
 	ml->Quit();
@@ -219,7 +157,7 @@ void Cflagreset(const char *params, int pid, int target)
 }
 
 
-void Caddball(const char *params, int pid, int target)
+void Cballcount(const char *params, int pid, int target)
 {
 	int bc, arena = players[pid].arena, add;
 	if (arena >= 0 && arena < MAXARENA)
@@ -230,21 +168,6 @@ void Caddball(const char *params, int pid, int target)
 		if (add == 0)
 			add = 1;
 		balls->SetBallCount(arena, bc + add);
-		balls->UnlockBallStatus(arena);
-	}
-}
-
-void Cremoveball(const char *params, int pid, int target)
-{
-	int bc, arena = players[pid].arena, add;
-	if (arena >= 0 && arena < MAXARENA)
-	{
-		balls->LockBallStatus(arena);
-		bc = balls->balldata[arena].ballcount;
-		add = atoi(params);
-		if (add == 0)
-			add = 1;
-		balls->SetBallCount(arena, bc - add);
 		balls->UnlockBallStatus(arena);
 	}
 }

@@ -13,6 +13,7 @@
 #include "chat.h"
 #include "core.h"
 #include "arenaman.h"
+#include "capman.h"
 #include "encrypt.h"
 #include "billcore.h"
 #include "mapnewsdl.h"

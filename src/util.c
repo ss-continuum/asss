@@ -382,7 +382,7 @@ void HashFree(HashTable *h)
 #endif
 }
 
-void HashEnum(HashTable *h, void (*func)(void *))
+void HashEnum(HashTable *h, void (*func)(char *key, void *val, void *data), void *data)
 {
 	HashEntry *e;
 	int i;
@@ -391,7 +391,7 @@ void HashEnum(HashTable *h, void (*func)(void *))
 		e = h->lists[i];
 		while (e)
 		{
-			func(e->p);
+			func(e->key, e->p, data);
 			e = e->next;
 		}
 	}

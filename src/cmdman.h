@@ -6,14 +6,13 @@
  * Icmdman - manages commands and stuff
  *
  * modules register commands with this module by calling AddCommand with
- * the name of a command, a function to be called with that command is
- * typed, and the required oplevel for the command. the command
- * functions take a char pointer to the params (that is, everything
- * following the command on the typed line), the pid who typed it (or
- * PID_INTERNAL for an internal server-generated command), and the
- * target pid for private message commands (or TARGET_ARENA for commands
- * typed in pub messages, or TARGET_FREQ for commands typed in team
- * messages)
+ * the name of a command, and a function to be called with that command
+ * is typed. the command functions take a char pointer to the params
+ * (that is, everything following the command on the typed line), the
+ * pid who typed it (or PID_INTERNAL for an internal server-generated
+ * command), and the target pid for private message commands (or
+ * TARGET_ARENA for commands typed in pub messages, or TARGET_FREQ for
+ * commands typed in team messages)
  *
  * note that the command itself is not passed to the command handler.
  * this means you have to register a separate function for each command
@@ -39,8 +38,7 @@
  *
  * a final note: there is no difference between ? commands and *
  * commands! any prior distinction was artificial and i don't like
- * artificial distinctions. any command can restrict usage to a specific
- * oplevel.
+ * artificial distinctions.
  *
  */
 
@@ -50,7 +48,7 @@ typedef void (*CommandFunc)(const char *params, int pid, int target);
 
 typedef struct Icmdman
 {
-	void (*AddCommand)(const char *cmdname, CommandFunc func, int oplevel);
+	void (*AddCommand)(const char *cmdname, CommandFunc func);
 	void (*RemoveCommand)(const char *cmdname, CommandFunc func);
 	void (*Command)(const char *typedline, int pid, int target);
 } Icmdman;

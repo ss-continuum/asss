@@ -66,7 +66,7 @@ int MM_scheme(int action, Imodman *_mm, int arena)
 		/* this thread handles all io on the schemesock */
 		StartThread(SchemeThread, NULL);
 
-		cmd->AddCommand("scm", Cscm, 100);
+		cmd->AddCommand("scm", Cscm);
 
 		return MM_OK;
 	}

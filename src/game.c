@@ -105,7 +105,7 @@ int MM_game(int action, Imodman *mm_, int arena)
 		net->AddPacket(C2S_ATTACHTO, PAttach);
 		net->AddPacket(C2S_TURRETKICKOFF, PKickoff);
 
-		cmd->AddCommand("report", Creport, 0);
+		cmd->AddCommand("report", Creport);
 
 		mm->RegInterface(I_ASSIGNFREQ, &_myaf);
 

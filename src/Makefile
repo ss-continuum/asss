@@ -32,7 +32,8 @@ INTMODS = config.o    \
           arenaman.o  \
           mapdata.o   \
           mapnewsdl.o \
-          clientset.o
+          clientset.o \
+          capman.o
 
 EXTRAOBJS = module.o  \
             util.o    \

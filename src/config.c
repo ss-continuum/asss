@@ -74,7 +74,13 @@ int MM_config(int action, Imodman *mm, int arena)
 
 #define LINESIZE 512
 
-local int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashTable *defines, const char *arena, const char *name)
+local int ProcessConfigFile(
+		HashTable *thetable,
+		StringChunk *thestrings,
+		HashTable *defines,
+		const char *arena,
+		const char *name,
+		char *initsection)
 {
 	FILE *f;
 	char realbuf[LINESIZE], *buf, *t, *t2;
@@ -85,10 +91,20 @@ local int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashTa
 	f = fopen(realbuf, "r");
 	if (!f) return MM_FAIL;
 
+	if (initsection)
+	{
+		astrncpy(key, initsection, MAXNAMELEN+3);
+		thespot = strchr(key, ':') + 1;
+	}
+
 	while (buf = realbuf, fgets(buf, LINESIZE, f))
 	{
-		while (*buf && (*buf == ' ' || *buf == '\t')) buf++; /* kill leading spaces */
-		RemoveCRLF(buf); /* get rid of newlines */
+		/* kill leading spaces */
+		while (*buf && (*buf == ' ' || *buf == '\t')) buf++;
+		/* kill trailing spaces */
+		t = buf + strlen(buf) - 1;
+		while (t >= buf && (*t == ' ' || *t == '\t' || *t == '\r' || *t == '\n')) t--;
+		*++t = 0;
 
 		if (*buf == '[' || *buf == '{')
 		{	/* new section: copy to key name */
@@ -118,7 +134,7 @@ local int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashTa
 				/* recur with name equal to the argument to #include.
 				 * because of the search path, this will allow absolute
 				 * filenames as name to be found. */
-				ProcessConfigFile(thetable, thestrings, defines, arena, buf);
+				ProcessConfigFile(thetable, thestrings, defines, arena, buf, key);
 			}
 			else if (!strncmp(buf, "define", 6))
 			{
@@ -156,19 +172,20 @@ local int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashTa
 				if (log) log->Log(L_WARN, "<config> Unexpected configuration directive '%s'", buf);
 			}
 		}
-		else if (thespot && !(*buf == '/' || *buf == ';' || *buf == '}'))
+		else if (thespot && !(*buf == '/' || *buf == ';' || *buf == '}' || *buf == 0))
 		{
 			t = strchr(buf, '=');
+			if (!t) t = strchr(buf, ':');
 			if (t)
 			{
 				char *trydef;
 
 				t2 = t + 1;
 				/* kill = sign and spaces before it */
-				while (*t == ' ' || *t == '=' || *t == '\t') t--;
+				while (*t == ' ' || *t == '=' || *t == '\t' || *t == ':') t--;
 				*++t = 0;
 				/* kill spaces before value */
-				while (*t2 == ' ' || *t2 == '=' || *t2 == '\t') t2++;
+				while (*t2 == ' ' || *t2 == '=' || *t2 == '\t' || *t2 == ':') t2++;
 
 				astrncpy(thespot, buf, MAXKEYLEN); /* modifies key */
 
@@ -179,6 +196,13 @@ local int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashTa
 				data = SCAdd(thestrings, t2);
 				HashReplace(thetable, key, data);
 			}
+			else
+			{
+				/* there is no value for this key, so enter it with the
+				 * empty string. */
+				astrncpy(thespot, buf, MAXKEYLEN);
+				HashReplace(thetable, key, "");
+			}
 		}
 	}
 	fclose(f);
@@ -186,6 +210,10 @@ local int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashTa
 }
 
 
+local void afree_hash(char *key, void *val, void *d)
+{
+	afree(val);
+}
 
 ConfigHandle LoadConfigFile(const char *arena, const char *name)
 {
@@ -199,16 +227,16 @@ ConfigHandle LoadConfigFile(const char *arena, const char *name)
 
 	/*printf("config: LoadConfigFile(%s, %s)\n", arena, name);*/
 
-	if (ProcessConfigFile(thefile->thetable, thefile->thestrings, defines, arena, name) == MM_OK)
+	if (ProcessConfigFile(thefile->thetable, thefile->thestrings, defines, arena, name, NULL) == MM_OK)
 	{
 		files++;
-		HashEnum(defines, afree);
+		HashEnum(defines, afree_hash, NULL);
 		HashFree(defines);
 		return thefile;
 	}
 	else
 	{
-		HashEnum(defines, afree);
+		HashEnum(defines, afree_hash, NULL);
 		HashFree(defines);
 		HashFree(thefile->thetable);
 		SCFree(thefile->thestrings);
@@ -224,8 +252,8 @@ void FreeConfigFile(ConfigHandle ch)
 		SCFree(ch->thestrings);
 		HashFree(ch->thetable);
 		afree(ch);
+		files--;
 	}
-	files--;
 }
 
 
@@ -259,6 +287,8 @@ char *GetStr(ConfigHandle ch, const char *sec, const char *key)
 {
 	char keystring[MAXNAMELEN+MAXKEYLEN+2];
 
+	if (!ch)
+		return NULL;
 	if (ch == GLOBAL) ch = global;
 
 	if (sec && key)

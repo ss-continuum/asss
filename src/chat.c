@@ -6,6 +6,8 @@
 #include "asss.h"
 
 
+#define CAP_MODCHAT "seemodchat"
+
 
 /* prototypes */
 
@@ -22,6 +24,7 @@ local Ilogman *log;
 local Icmdman *cmd;
 local Imodman *mm;
 local Iarenaman *aman;
+local Icapman *capman;
 
 local PlayerData *players;
 local ArenaData *arenas;
@@ -44,6 +47,7 @@ int MM_chat(int action, Imodman *mm_, int arena)
 		mm->RegInterest(I_LOGMAN, &log);
 		mm->RegInterest(I_ARENAMAN, &aman);
 		mm->RegInterest(I_CMDMAN, &cmd);
+		mm->RegInterest(I_CAPMAN, &capman);
 
 		if (!net || !cfg || !aman) return MM_FAIL;
 
@@ -65,6 +69,7 @@ int MM_chat(int action, Imodman *mm_, int arena)
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_ARENAMAN, &aman);
 		mm->UnregInterest(I_CMDMAN, &cmd);
+		mm->UnregInterest(I_CAPMAN, &capman);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -87,7 +92,7 @@ void PChat(int pid, byte *p, int len)
 	arena = players[pid].arena;
 	if (arena < 0) return;
 
-	to = alloca(len + 30);
+	to = alloca(len + 40);
 	to->pktype = S2C_CHAT;
 	to->type = from->type;
 	to->sound = 0;
@@ -113,22 +118,27 @@ void PChat(int pid, byte *p, int len)
 			{
 				log->Log(L_DRIVEL, "<chat> {%s} [%s] Mod chat: %s",
 					arenas[arena].name, players[pid].name, from->text+1);
-				to->type = MSG_SYSOPWARNING;
-				sprintf(to->text, "%s> %s", players[pid].name, from->text+1);
-				pd->LockStatus();
-				for (i = 0; i < MAXPLAYERS; i++)
-					if (    players[i].status == S_PLAYING
-					     && players[i].oplevel > 0
-					     && i != pid)
-						set[setc++] = i;
-				pd->UnlockStatus();
-				set[setc] = -1;
-				net->SendToSet(set, (byte*)to, len+30, NET_RELIABLE);
+				if (capman)
+				{
+					to->type = MSG_SYSOPWARNING;
+					sprintf(to->text, "%s> %s", players[pid].name, from->text+1);
+					pd->LockStatus();
+					for (i = 0; i < MAXPLAYERS; i++)
+						if (    players[i].status == S_PLAYING
+							 && capman->HasCapability(i, CAP_MODCHAT)
+							 && i != pid)
+							set[setc++] = i;
+					pd->UnlockStatus();
+					set[setc] = -1;
+					net->SendToSet(set, (byte*)to, strlen(to->text)+6, NET_RELIABLE);
+				}
+				else
+					SendMessage(pid, "Mod chat is currently disabled");
 				/* FIXME: sending garbage after null terminator */
 			}
 			else /* normal pub message */
 			{
-				log->Log(L_DRIVEL,"<chat> {%s} [%s] Pub message: %s",
+				log->Log(L_DRIVEL,"<chat> {%s} [%s] Pub msg: %s",
 					arenas[arena].name, players[pid].name, from->text);
 				net->SendToArena(arena, pid, (byte*)to, len, cfg_msgrel);
 			}
@@ -145,7 +155,7 @@ void PChat(int pid, byte *p, int len)
 			}
 			else
 			{
-				log->Log(L_DRIVEL,"<chat> {%s} [%s] (freq=%i) Freq message: %s",
+				log->Log(L_DRIVEL,"<chat> {%s} [%s] (freq=%i) Freq msg: %s",
 					arenas[arena].name, players[pid].name, freq, from->text);
 				pd->LockStatus();
 				for (i = 0; i < MAXPLAYERS; i++)
@@ -166,7 +176,7 @@ void PChat(int pid, byte *p, int len)
 			}
 			else if (from->pid >= 0 && from->pid < MAXPLAYERS)
 			{
-				log->Log(L_DRIVEL,"<chat> {%s} [%s] to [%s] Priv message: %s",
+				log->Log(L_DRIVEL,"<chat> {%s} [%s] to [%s] Priv msg: %s",
 					arenas[arena].name, players[pid].name,
 					players[from->pid].name, from->text);
 				net->SendToOne(from->pid, (byte*)to, len, cfg_msgrel);
@@ -185,7 +195,7 @@ void PChat(int pid, byte *p, int len)
 			break;
 
 		case MSG_CHAT:
-			log->Log(L_DRIVEL,"<chat> {%s} [%s] Chat message: %s",
+			log->Log(L_DRIVEL,"<chat> {%s} [%s] Chat msg: %s",
 				arenas[arena].name, players[pid].name, from->text);
 			/* the billcore module picks these up, so nothing more here */
 			break;

@@ -19,7 +19,7 @@
  *
  * there can also be secondary global or arena config files, specified
  * with the second parameter of OpenConfigFile. these will be used for
- * oplevels and other things.
+ * staff lists and other things.
  *
  * setting configuration values is a little complicated. it doesn't work
  * right now. it might work at some time in the future, or it might not.
@@ -36,7 +36,7 @@
 
 typedef struct ConfigFile *ConfigHandle;
 
-#define GLOBAL ((ConfigHandle)0)
+#define GLOBAL ((ConfigHandle)(-3))
 
 
 typedef struct Iconfig

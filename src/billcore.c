@@ -86,7 +86,7 @@ int MM_billcore(int action, Imodman *_mm, int arena)
 		/* packets from clients */
 		net->AddPacket(C2S_CHAT, PChat);
 
-		cmd->AddCommand(NULL, DefaultCmd, 0);
+		cmd->AddCommand(NULL, DefaultCmd);
 
 		mm->RegInterface(I_AUTH, &_iauth);
 		mm->RegInterface(I_BILLCORE, &_ibillcore);

@@ -186,7 +186,8 @@ local void PhaseBall(int arena, int bid)
 
 	LOCK_STATUS(arena);
 	bd->state = BALL_ONMAP;
-	bd->x = bd->y = bd->xspeed = bd->yspeed = 0;
+	bd->x = bd->y = 30000;
+	bd->xspeed = bd->yspeed = 0;
 	bd->time = 0xFFFFFFFF; /* this is the key for making it phased */
 	bd->carrier = -1;
 	/* send it reliably, because clients are never going to see this

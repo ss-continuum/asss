@@ -28,7 +28,7 @@ typedef struct PlayerData
 	i16 attachedto;
 	i8 unknown1[3];
 	/* stuff below this point is not part of the recieved data */
-	int status, whenloggedin, arena, oldarena, oplevel;
+	int status, whenloggedin, arena, oldarena;
 	char name[24], squad[24];
 	i16 xres, yres;
 	struct PlayerPosition position;

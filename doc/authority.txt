@@ -7,6 +7,7 @@ possible capabilities:
 see log messages from the log_sysop module
 see priv freqs
 see priv arenas
+see extra position data from spec
 for each command:
 	use command with target arena
 	use command with target person/freq
@@ -16,4 +17,117 @@ the standard capability manager will:
 	have group membership information stored per arena.
 	  OR
 	have groups contain the arenas they are valid in.
+	  OR
+	both?!
+
+capability names:
+
+for commands:
+cmd_<cmd name>
+privcmd_<cmd name>
+
+others:
+
+seesysoplog
+seeprivfreq
+seeprivarena
+seeepd
+allowufo
+findinprivs
+
+
+
+sample config setup:
+
+; conf/groups/default
+cmd_usage
+cmd_sheep
+cmd_packetloss
+cmd_arena
+cmd_score
+cmd_stats
+cmd_zone
+cmd_lag
+cmd_find
+cmd_version
+
+; conf/groups/mod
+cmd_a
+cmd_shipreset
+cmd_scorereset
+cmd_flagreset
+
+privcmd_report
+privcmd_setship
+privcmd_setfreq
+privcmd_watchgreen
+privcmd_lag
+
+seeprivfreq
+seeprivarena
+seeepd
+findinprivs
+
+; conf/groups/smod
+cmd_zone
+cmd_recycle
+cmd_restart
+cmd_prize
+cmd_listmod
+privcmd_info
+
+; conf/groups/sysop
+cmd_stat
+cmd_shutdown
+cmd_set
+cmd_get
+cmd_sysoplog
+
+cmd_getfile
+cmd_putfile
+cmd_delfile
+
+cmd_lsmod
+cmd_insmod
+cmd_rmmod
+
+privcmd_ufo
+
+privcmd_messagelogging
+privcmd_tweaknet
+
+; conf/groups/groups.conf
+
+[group_default]
+#include groups/default
+
+[group_mod]
+#include groups/default
+#include groups/mod
+
+[group_smod]
+#include groups/default
+#include groups/mod
+#include groups/smod
+
+[group_sysop]
+#include groups/default
+#include groups/mod
+#include groups/smod
+#include groups/sysop
+
+
+; conf/staff.conf
+
+	[Staff]
+
+Grelminar = sysop
+divine.216 = smod
+otherperson = turf:mod
+
+
+; arenas/foo/staff.conf
+
+	[Staff]
+thirdperson = mod
 

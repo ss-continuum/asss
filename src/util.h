@@ -99,7 +99,7 @@ typedef struct HashTable HashTable;
 
 HashTable * HashAlloc(int);
 void HashFree(HashTable *ht);
-void HashEnum(HashTable *ht, void (*func)(void *));
+void HashEnum(HashTable *ht, void (*func)(char *key, void *val, void *data), void *data);
 void HashAdd(HashTable *ht, const char *key, void *data);
 void HashReplace(HashTable *ht, const char *key, void *data);
 void HashRemove(HashTable *ht, const char *key, void *data);

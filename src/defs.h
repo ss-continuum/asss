@@ -46,6 +46,7 @@
 #define I_FLAGS         18
 #define I_BALLS         19
 #define I_MAPDATA       20
+#define I_CAPMAN        21
 #define I_ENCRYPTBASE   90
 /*#define I_BALL */
 /*#define I_DATABASE */

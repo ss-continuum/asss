@@ -73,8 +73,8 @@ int MM_stats(int action, Imodman *mm_, int arena)
 		if (!net || !cmd || !persist) return MM_FAIL;
 
 		mm->RegCallback(CALLBACK_PLAYERACTION, PAFunc, ALLARENAS);
-		cmd->AddCommand("stats", CStats, 0);
-		cmd->AddCommand("score", CScores, 0);
+		cmd->AddCommand("stats", CStats);
+		cmd->AddCommand("score", CScores);
 		persist->RegPersistantData(&gdatadesc);
 		persist->RegPersistantData(&adatadesc);
 		net->AddPacket(C2S_CHAT, PChat);

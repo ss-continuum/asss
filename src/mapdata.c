@@ -169,7 +169,7 @@ int read_lvl(char *name, struct MapData *md)
 }
 
 
-local void FreeRegion(void *v)
+local void FreeRegion(char *k, void *v, void *d)
 {
 	struct Region *r = (struct Region *)v;
 	delete_rectlist(r->rects);
@@ -189,7 +189,7 @@ void ArenaAction(int arena, int action)
 
 		if (mapdata[arena].regions)
 		{
-			HashEnum(mapdata[arena].regions, FreeRegion);
+			HashEnum(mapdata[arena].regions, FreeRegion, NULL);
 			HashFree(mapdata[arena].regions);
 			mapdata[arena].regions = NULL;
 		}
