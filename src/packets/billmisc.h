@@ -5,7 +5,7 @@
 /* billmisc.h - miscellaneous billing protocol packets */
 
 
-struct S2BLogon
+struct S2BLogin
 {
 	i8 type;
 	i32 serverid;
@@ -18,7 +18,7 @@ struct S2BLogon
 struct S2BPlayerEntering
 {
 	i8 type;
-	i8 logonflag;
+	i8 loginflag;
 	i32 ipaddy;
 	char name[32];
 	char pw[32];
@@ -31,7 +31,7 @@ struct S2BPlayerEntering
 struct B2SPlayerResponse
 {
 	i8 type;
-	i8 logonflag;
+	i8 loginflag;
 	i32 pid;
 	char name[24];
 	char squad[24];

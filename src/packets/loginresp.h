@@ -1,11 +1,11 @@
 
-#ifndef __PACKETS_LOGONRESP_H
-#define __PACKETS_LOGONRESP_H
+#ifndef __PACKETS_LOGINRESP_H
+#define __PACKETS_LOGINRESP_H
 
-/* logonresp.h - logon repsonse packet */
+/* loginresp.h - login repsonse packet */
 
 
-struct LogonResponse
+struct LoginResponse
 {
 	i8 type;
 	i8 code;

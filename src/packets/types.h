@@ -14,7 +14,7 @@
 #define S2C_CHAT 0x07
 #define S2C_GREEN 0x08
 #define S2C_SCOREUPDATE 0x09
-#define S2C_LOGONRESPONSE 0x0A
+#define S2C_LOGINRESPONSE 0x0A
 #define S2C_SOCCERGOAL 0x0B
 /* missing 0C */
 #define S2C_FREQCHANGE 0x0D
@@ -61,7 +61,7 @@
 #define C2S_CHAT 0x06
 #define C2S_GREEN 0x07
 #define C2S_SPECREQUEST 0x08
-#define C2S_LOGON 0x09
+#define C2S_LOGIN 0x09
 /* missing 0A 0B */
 #define C2S_MAPREQUEST 0x0C
 #define C2S_NEWSREQUEST 0x0D
@@ -86,9 +86,9 @@
 
 
 #define S2B_KEEPALIVE 0x01
-#define S2B_LOGON 0x02
+#define S2B_LOGIN 0x02
 #define S2B_LOGOFF 0x03
-#define S2B_PLAYERLOGON 0x04
+#define S2B_PLAYERLOGIN 0x04
 #define S2B_PLAYERLEAVING 0x05
 /* missing 06 */
 #define S2B_PRIVATEMSG 0x07

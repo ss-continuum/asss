@@ -1,11 +1,11 @@
 
-#ifndef __PACKETS_LOGON_H
-#define __PACKETS_LOGON_H
+#ifndef __PACKETS_LOGIN_H
+#define __PACKETS_LOGIN_H
 
-/* logon.h - player logon packet */
+/* login.h - player login packet */
 
 
-struct LogonPacket
+struct LoginPacket
 {
 	i8 type;
 	i8 flags;
