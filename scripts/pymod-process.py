@@ -550,8 +550,9 @@ def translate_pycb(name, ctype, line):
 	dict = create_py_to_c_func(line, 'void')
 	dict.update(vars())
 	if dict['extras1'] or dict['extras2'] or dict['extras3'] or \
-	   dict['outformat'] or dict['outargs'] or dict['extras3']:
-		raise Exception, "uh oh"
+	   dict['outformat'] or dict['outargs']:
+		print "warning: %s: out or inout args not supported when " \
+				"calling cbs from python" % name
 	func = """
 local void py_cb_call_%(name)s(Arena *arena, PyObject *args)
 {

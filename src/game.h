@@ -27,7 +27,7 @@
  */
 typedef void (*KillFunc)(Arena *arena, Player *killer, Player *killed,
 		int bounty, int flags, int *pts, int *green);
-/* FIXMEpycb: arena, player, player, int, int, int inout */
+/* pycb: arena, player, player, int, int, int inout, int inout */
 
 
 /** this callback is called when a player changes his freq (but stays in
