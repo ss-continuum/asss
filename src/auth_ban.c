@@ -82,16 +82,14 @@ local void Ckick(const char *params, Player *p, const Target *target)
 		return;
 	}
 
-	pd->KickPlayer(t);
-
-	/* now try timeout stuff */
-	if (IS_STANDARD(p))
+	/* try timeout stuff while the player still exists */
+	if (IS_STANDARD(t))
 	{
 		int mins = strtol(params, NULL, 0);
 		if (mins)
 		{
 			ban_node_t *bn = amalloc(sizeof(*bn));
-			bn->head.key = (int)p->macid;
+			bn->head.key = (int)t->macid;
 			bn->count = 0;
 			bn->expire = time(NULL) + mins * 60;
 			pthread_mutex_lock(&banmtx);
@@ -99,6 +97,8 @@ local void Ckick(const char *params, Player *p, const Target *target)
 			pthread_mutex_unlock(&banmtx);
 		}
 	}
+
+	pd->KickPlayer(t);
 }
 
 
