@@ -6,11 +6,17 @@
 
 #include "config.h"
 
-#define ARENA_OK(arena) \
-	((arena) >= 0 && (arena) < MAXARENA)
 
-#define ARENA_BAD(arena) \
-	((arena) < 0 || (arena) >= MAXARENA)
+struct Arena
+{
+	int status, ispublic;
+	char name[20], basename[20];
+	ConfigHandle cfg;
+	/* if this isn't going to be dynamic, might as well allocate it
+	 * right here in the struct to make things a bit faster. */
+	byte extradata[0];
+};
+
 
 /* ArenaAction funcs are called when arenas are created or destroyed */
 
@@ -26,15 +32,12 @@ enum
 	AA_DESTROY
 };
 
-typedef void (*ArenaActionFunc)(int arena, int action);
+typedef void (*ArenaActionFunc)(Arena *a, int action);
+
 
 /* status conditions */
-
 enum
 {
-	ARENA_NONE,
-/* free arena ids have this status */
-
 	ARENA_DO_INIT,
 /* someone wants to enter the arena. first, the config file must be
  * loaded, callbacks called, and the persistant data loaded  */
@@ -57,16 +60,7 @@ enum
 };
 
 
-
-typedef struct ArenaData
-{
-	int status, ispublic;
-	char name[20], basename[20];
-	ConfigHandle cfg;
-} ArenaData;
-
-
-#define I_ARENAMAN "arenaman-3"
+#define I_ARENAMAN "arenaman-4"
 
 typedef struct Iarenaman
 {
@@ -78,20 +72,43 @@ typedef struct Iarenaman
 	void (*SendToArena)(int pid, const char *aname, int spawnx, int spawny);
 	/* works on cont clients only. set spawnx/y to 0 for default spawn */
 
-	int (*FindArena)(const char *name, int *totalcount, int *playing);
+	Arena * (*FindArena)(const char *name, int *totalcount, int *playing);
 	/* this is a multi-purpose function. given a name, it returns either
-	 * an arena id (if some arena by that name is running) or -1 (if
+	 * an arena (if some arena by that name is running) or NULL (if
 	 * not). if it's running, it also fills in the next two params with
 	 * the number of players in the arena and the number of non-spec
 	 * players in the arena. */
 
-	void (*LockStatus)(void);
-	void (*UnlockStatus)(void);
-	/* use these before accessing the big array */
+	int (*AllocateArenaData)(size_t bytes);
+	/* returns -1 on failure */
+	void (*FreeArenaData)(int key);
 
-	ArenaData *arenas;
-	/* this is a big array of public data */
+	void (*Lock)(void);
+	void (*Unlock)(void);
+	/* these must always be used to iterate over all the arenas
+	 * (with the FOR_EACH_ARENA macro). */
+
+	LinkedList arenalist;
 } Iarenaman;
+
+
+/* use this to access per-arena data */
+#define P_ARENA_DATA(a, mykey) ((void*)((a)->extradata+mykey))
+
+/* these assume you have a Link * named 'link' and that 'aman' points to
+ * the arena manager interface. don't forget to use aman->Lock() first. */
+#define FOR_EACH_ARENA(a) \
+	for ( \
+			link = LLGetHead(&aman->arenalist); \
+			link && ((a = link->data) || 1); \
+			link = link->next)
+
+#define FOR_EACH_ARENA_P(a, d, key) \
+	for ( \
+			link = LLGetHead(&aman->arenalist); \
+			link && (((a = link->data), \
+			          (d = P_ARENA_DATA(a, key))) || 1); \
+			link = link->next)
 
 
 #define I_ARENAPLACE "arenaplace-1"

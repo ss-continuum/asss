@@ -39,18 +39,18 @@ typedef struct ModuleData
 local int LoadMod(const char *);
 local int UnloadModule(const char *);
 local void EnumModules(void (*)(const char *, const char *, void *), void *);
-local void AttachModule(const char *, int);
-local void DetachModule(const char *, int);
+local void AttachModule(const char *, Arena *);
+local void DetachModule(const char *, Arena *);
 
-local void RegInterface(void *iface, int arena);
-local int UnregInterface(void *iface, int arena);
-local void *GetInterface(const char *id, int arena);
+local void RegInterface(void *iface, Arena *arena);
+local int UnregInterface(void *iface, Arena *arena);
+local void *GetInterface(const char *id, Arena *arena);
 local void *GetInterfaceByName(const char *name);
 local void ReleaseInterface(void *iface);
 
-local void RegCallback(const char *, void *, int);
-local void UnregCallback(const char *, void *, int);
-local LinkedList * LookupCallback(const char *, int);
+local void RegCallback(const char *, void *, Arena *);
+local void UnregCallback(const char *, void *, Arena *);
+local void LookupCallback(const char *, Arena *, LinkedList *);
 local void FreeLookupResult(LinkedList *);
 
 local void DoStage(int);
@@ -350,14 +350,14 @@ void EnumModules(void (*func)(const char *, const char *, void *), void *clos)
 }
 
 
-void AttachModule(const char *name, int arena)
+void AttachModule(const char *name, Arena *arena)
 {
 	ModuleData *mod = GetModuleByName(name);
 	if (mod)
 		mod->mm(MM_ATTACH, &mmint, arena);
 }
 
-void DetachModule(const char *name, int arena)
+void DetachModule(const char *name, Arena *arena)
 {
 	ModuleData *mod = GetModuleByName(name);
 	if (mod)
@@ -367,7 +367,7 @@ void DetachModule(const char *name, int arena)
 
 /* interface management stuff */
 
-void RegInterface(void *iface, int arena)
+void RegInterface(void *iface, Arena *arena)
 {
 	const char *id;
 	InterfaceHead *head = (InterfaceHead*)iface;
@@ -385,8 +385,7 @@ void RegInterface(void *iface, int arena)
 	else
 	{
 		char key[64];
-		key[0] = arena + ' ';
-		astrncpy(key + 1, id, 63);
+		snprintf(key, 64, "%p-%s", (void*)arena, id);
 		HashAdd(arenaints, key, iface);
 	}
 
@@ -395,7 +394,7 @@ void RegInterface(void *iface, int arena)
 	head->refcount = 0;
 }
 
-int UnregInterface(void *iface, int arena)
+int UnregInterface(void *iface, Arena *arena)
 {
 	const char *id;
 	InterfaceHead *head = (InterfaceHead*)iface;
@@ -415,8 +414,7 @@ int UnregInterface(void *iface, int arena)
 	else
 	{
 		char key[64];
-		key[0] = arena + ' ';
-		astrncpy(key + 1, id, 63);
+		snprintf(key, 64, "%p-%s", (void*)arena, id);
 		HashRemove(arenaints, key, iface);
 	}
 
@@ -452,7 +450,7 @@ local inline InterfaceHead *get_int(HashTable *hash, const char *id)
 }
 
 
-void * GetInterface(const char *id, int arena)
+void * GetInterface(const char *id, Arena *arena)
 {
 	InterfaceHead *head;
 
@@ -462,8 +460,7 @@ void * GetInterface(const char *id, int arena)
 	else
 	{
 		char key[64];
-		key[0] = arena + ' ';
-		astrncpy(key + 1, id, 63);
+		snprintf(key, 64, "%p-%s", (void*)arena, id);
 		head = get_int(arenaints, key);
 		/* if the arena doesn't have it, fall back to a global one */
 		if (!head)
@@ -499,7 +496,7 @@ void ReleaseInterface(void *iface)
 
 /* callback stuff */
 
-void RegCallback(const char *id, void *f, int arena)
+void RegCallback(const char *id, void *f, Arena *arena)
 {
 	pthread_mutex_lock(&cbmtx);
 	if (arena == ALLARENAS)
@@ -509,14 +506,13 @@ void RegCallback(const char *id, void *f, int arena)
 	else
 	{
 		char key[64];
-		key[0] = arena + ' ';
-		astrncpy(key + 1, id, 63);
+		snprintf(key, 64, "%p-%s", (void*)arena, id);
 		HashAdd(arenacallbacks, key, f);
 	}
 	pthread_mutex_unlock(&cbmtx);
 }
 
-void UnregCallback(const char *id, void *f, int arena)
+void UnregCallback(const char *id, void *f, Arena *arena)
 {
 	pthread_mutex_lock(&cbmtx);
 	if (arena == ALLARENAS)
@@ -526,41 +522,35 @@ void UnregCallback(const char *id, void *f, int arena)
 	else
 	{
 		char key[64];
-		key[0] = arena + ' ';
-		astrncpy(key + 1, id, 63);
+		snprintf(key, 64, "%p-%s", (void*)arena, id);
 		HashRemove(arenacallbacks, key, f);
 	}
 	pthread_mutex_unlock(&cbmtx);
 }
 
-LinkedList * LookupCallback(const char *id, int arena)
+void LookupCallback(const char *id, Arena *arena, LinkedList *ll)
 {
-	LinkedList *ll;
-
+	LLInit(ll);
 	pthread_mutex_lock(&cbmtx);
 	if (arena == ALLARENAS)
 	{
-		ll = HashGet(globalcallbacks, id);
+		HashGetAppend(globalcallbacks, id, ll);
 	}
 	else
 	{
 		char key[64];
 		/* first get global ones */
-		ll= HashGet(globalcallbacks, id);
+		HashGetAppend(globalcallbacks, id, ll);
 		/* then append local ones */
-		key[0] = arena + ' ';
-		astrncpy(key + 1, id, 63);
+		snprintf(key, 64, "%p-%s", (void*)arena, id);
 		HashGetAppend(arenacallbacks, key, ll);
 	}
 	pthread_mutex_unlock(&cbmtx);
-	return ll;
 }
 
 void FreeLookupResult(LinkedList *lst)
 {
-	LLFree(lst);
+	LLEmpty(lst);
 }
-
-
 
 

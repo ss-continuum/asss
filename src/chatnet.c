@@ -136,7 +136,7 @@ local int init_socket(void)
 	 * should bind to for the text-based chat protocol. If unset, it
 	 * will use the value of Net:BindIP. */
 	addr = cfg->GetStr(GLOBAL, "Net", "ChatBindIP");
-	if (!addr) addr = cfg->GetStr(GLOBAL, "Net", "ChatBindIP");
+	if (!addr) addr = cfg->GetStr(GLOBAL, "Net", "BindIP");
 	bindaddr = addr ? inet_addr(addr) : INADDR_ANY;
 
 	sin.sin_family = AF_INET;
@@ -254,7 +254,7 @@ local void kill_connection(int pid)
 	pd->LockPlayer(pid);
 
 	/* will put in S_LEAVING_ARENA */
-	if (pd->players[pid].arena >= 0)
+	if (pd->players[pid].arena)
 		process_line(pid, "LEAVE");
 
 	pd->LockStatus();
@@ -497,12 +497,12 @@ local void SendToOne(int pid, const char *line, ...)
 }
 
 
-local void SendToArena(int arena, int except, const char *line, ...)
+local void SendToArena(Arena *arena, int except, const char *line, ...)
 {
 	va_list args;
 	int set[MAXPLAYERS+1], i, p = 0;
 
-	if (arena < 0) return;
+	if (!arena) return;
 
 	pd->LockStatus();
 	for (i = 0; i < MAXPLAYERS; i++)
@@ -539,7 +539,7 @@ local Ichatnet _int =
 };
 
 
-EXPORT int MM_chatnet(int action, Imodman *mm_, int arena)
+EXPORT int MM_chatnet(int action, Imodman *mm_, Arena *a)
 {
 	int i;
 
@@ -574,7 +574,7 @@ EXPORT int MM_chatnet(int action, Imodman *mm_, int arena)
 		handlers = HashAlloc(71);
 
 		/* install timer */
-		ml->SetTimer(main_loop, 10, 10, NULL, -1);
+		ml->SetTimer(main_loop, 10, 10, NULL, NULL);
 
 		/* install ourself */
 		mm->RegInterface(&_int, ALLARENAS);
@@ -587,7 +587,7 @@ EXPORT int MM_chatnet(int action, Imodman *mm_, int arena)
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 
-		ml->ClearTimer(main_loop, -1);
+		ml->ClearTimer(main_loop, NULL);
 
 		/* clean up */
 		HashFree(handlers);

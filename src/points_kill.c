@@ -6,7 +6,7 @@
 
 /* prototypes */
 
-local void MyKillFunc(int, int, int, int, int);
+local void MyKillFunc(Arena *, int, int, int, int);
 
 /* global data */
 
@@ -16,7 +16,7 @@ local Iarenaman *aman;
 local Iconfig *cfg;
 local Istats *stats;
 
-EXPORT int MM_points_kill(int action, Imodman *mm_, int arena)
+EXPORT int MM_points_kill(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -51,7 +51,7 @@ EXPORT int MM_points_kill(int action, Imodman *mm_, int arena)
 }
 
 
-void MyKillFunc(int arena, int killer, int killed, int bounty, int flags)
+void MyKillFunc(Arena *arena, int killer, int killed, int bounty, int flags)
 {
 	int tk, pts;
 
@@ -63,12 +63,12 @@ void MyKillFunc(int arena, int killer, int killed, int bounty, int flags)
 	 * was carrying. */
 	if (flags)
 		pts += flags *
-			cfg->GetInt(aman->arenas[arena].cfg, "Kill", "FlagValue", 100);
+			cfg->GetInt(arena->cfg, "Kill", "FlagValue", 100);
 
 	/* cfghelp: Misc:TeamKillPoints, arena, bool, def: 0
 	 * Whether points are awarded for a team-kill. */
 	if (tk &&
-	    cfg->GetInt(aman->arenas[arena].cfg, "Misc", "TeamKillPoints", 0))
+	    cfg->GetInt(arena->cfg, "Misc", "TeamKillPoints", 0))
 		pts = 0;
 
 	if (stats)

@@ -16,15 +16,14 @@
 
 
 /* prototypes */
-local void ActionFunc(int arena, int action);
+local void ActionFunc(Arena *arena, int action);
 local void SendClientSettings(int pid);
-local void Reconfigure(int arena);
-local u32 GetChecksum(int arena, u32 key);
+local void Reconfigure(Arena *arena);
+local u32 GetChecksum(Arena *arena, u32 key);
 
 /* global data */
 
-/* this array is pretty big. about 27k */
-local struct ClientSettings settings[MAXARENA];
+local int csetkey;
 local pthread_mutex_t setmtx = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK() pthread_mutex_lock(&setmtx)
 #define UNLOCK() pthread_mutex_unlock(&setmtx)
@@ -36,9 +35,6 @@ local Inet *net;
 local Ilogman *lm;
 local Imodman *mm;
 local Iarenaman *aman;
-
-/* cached data pointers */
-local ArenaData *arenas;
 
 /* interfaces */
 local Iclientset _myint =
@@ -64,7 +60,8 @@ EXPORT int MM_clientset(int action, Imodman *mm_, int arena)
 
 		if (!net || !cfg || !lm || !aman) return MM_FAIL;
 
-		arenas = aman->arenas;
+		csetkey = aman->AllocateArenaData(sizeof(struct ClientSettings));
+		if (csetkey == -1) return MM_FAIL;
 
 		mm->RegCallback(CB_ARENAACTION, ActionFunc, ALLARENAS);
 
@@ -91,6 +88,7 @@ EXPORT int MM_clientset(int action, Imodman *mm_, int arena)
 		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
 		mm->UnregCallback(CB_ARENAACTION, ActionFunc, ALLARENAS);
+		aman->FreeArenaData(csetkey);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(cfg);
@@ -103,18 +101,18 @@ EXPORT int MM_clientset(int action, Imodman *mm_, int arena)
 
 
 /* call with lock held! */
-local void LoadSettings(int arena)
+local void LoadSettings(Arena *arena)
 {
-	struct ClientSettings *cs = settings + arena;
+	struct ClientSettings *cs = P_ARENA_DATA(arena, csetkey);
 	ConfigHandle conf;
 	int i, j;
 
 	/* get the file */
-	conf = arenas[arena].cfg;
+	conf = arena->cfg;
 
 	/* clear and set type */
 	memset(cs, 0, sizeof(*cs));
-	cs->type = S2C_SETTINGS;
+	cs->bit_set.type = S2C_SETTINGS;
 
 	cs->bit_set.ExactDamage = cfg->GetInt(conf, "Bullet", "ExactDamage", 0);
 	cs->bit_set.HideFlags = cfg->GetInt(conf, "Spectator", "HideFlags", 0);
@@ -180,7 +178,7 @@ local void LoadSettings(int arena)
 }
 
 
-void ActionFunc(int arena, int action)
+void ActionFunc(Arena *arena, int action)
 {
 	LOCK();
 	if (action == AA_CREATE)
@@ -189,7 +187,7 @@ void ActionFunc(int arena, int action)
 	}
 	else if (action == AA_CONFCHANGED)
 	{
-		byte *data = (byte*)(settings + arena);
+		byte *data = P_ARENA_DATA(arena, csetkey);
 		LoadSettings(arena);
 		net->SendToArena(arena, -1, data, sizeof(struct ClientSettings), NET_RELIABLE);
 		lm->LogA(L_INFO, "clientset", arena, "Sending modified settings");
@@ -197,7 +195,8 @@ void ActionFunc(int arena, int action)
 	else if (action == AA_DESTROY)
 	{
 		/* mark settings as destroyed (for asserting later) */
-		settings[arena].type = 0;
+		struct ClientSettings *cs = P_ARENA_DATA(arena, csetkey);
+		cs->bit_set.type = 0;
 	}
 	UNLOCK();
 }
@@ -205,23 +204,17 @@ void ActionFunc(int arena, int action)
 
 void SendClientSettings(int pid)
 {
-	byte *data = (byte*)(settings + pd->players[pid].arena);
-
+	byte *data = P_ARENA_DATA(pd->players[pid].arena, csetkey);
 	LOCK();
-	if (ARENA_BAD(pd->players[pid].arena) || data[0] != S2C_SETTINGS)
-	{
-		UNLOCK();
-		return;
-	}
-	net->SendToOne(pid, data, sizeof(struct ClientSettings), NET_RELIABLE);
+	if (pd->players[pid].arena && data[0] == S2C_SETTINGS)
+		net->SendToOne(pid, data, sizeof(struct ClientSettings), NET_RELIABLE);
 	UNLOCK();
 }
 
 
-void Reconfigure(int arena)
+void Reconfigure(Arena *arena)
 {
-	byte *data = (byte*)(settings + arena);
-
+	byte *data = P_ARENA_DATA(arena, csetkey);
 	LOCK();
 	LoadSettings(arena);
 	net->SendToArena(arena, -1, data, sizeof(struct ClientSettings), NET_RELIABLE);
@@ -229,15 +222,14 @@ void Reconfigure(int arena)
 }
 
 
-u32 GetChecksum(int arena, u32 key)
+u32 GetChecksum(Arena *arena, u32 key)
 {
-	u32 *data = (u32*)(settings + arena), csum = 0, i;
-
+	u32 csum = 0, i;
+	u32 *data = P_ARENA_DATA(arena, csetkey);
 	LOCK();
 	for (i = 0; i < 357; i++, data++)
 		csum += (*data ^ key);
 	UNLOCK();
-
 	return csum;
 }
 

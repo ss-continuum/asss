@@ -39,7 +39,7 @@ local Ichat *chat;
 local Imodman *mm;
 
 
-EXPORT int MM_fm_normal(int action, Imodman *_mm, int arena)
+EXPORT int MM_fm_normal(int action, Imodman *_mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -70,7 +70,7 @@ EXPORT int MM_fm_normal(int action, Imodman *_mm, int arena)
 }
 
 
-local int count_current_playing(int arena)
+local int count_current_playing(Arena *arena)
 {
 	int playing = 0, pid;
 	pd->LockStatus();
@@ -84,7 +84,7 @@ local int count_current_playing(int arena)
 }
 
 
-local int count_freq(int arena, int freq, int excl, int inclspec)
+local int count_freq(Arena *arena, int freq, int excl, int inclspec)
 {
 	int t = 0, i;
 	pd->LockStatus();
@@ -99,12 +99,12 @@ local int count_freq(int arena, int freq, int excl, int inclspec)
 }
 
 
-local int FindLegalShip(int arena, int freq, int ship)
+local int FindLegalShip(Arena *arena, int freq, int ship)
 {
 	/* cfghelp: Team:FrequencyShipTypes, arena, bool, def: 0
 	 * If this is set, freq 0 will only be allowed to use warbirds, freq
 	 * 1 can only use javelins, etc. */
-	int clockwork = cfg->GetInt(aman->arenas[arena].cfg,
+	int clockwork = cfg->GetInt(arena->cfg,
 			"Misc", "FrequencyShipTypes", 0);
 
 	if (clockwork)
@@ -123,15 +123,15 @@ local int FindLegalShip(int arena, int freq, int ship)
 }
 
 
-local int BalanceFreqs(int arena, int excl, int inclspec)
+local int BalanceFreqs(Arena *arena, int excl, int inclspec)
 {
 	int counts[CFG_MAX_DESIRED] = { 0 }, i, desired, min = MAXPLAYERS, best = -1, max;
 
-	max = MAXTEAM(aman->arenas[arena].cfg);
+	max = MAXTEAM(arena->cfg);
 	/* cfghelp: Team:DesiredTeams, arena, int, def: 2
 	 * The number of teams that the freq balancer will form as players
 	 * enter. */
-	desired = cfg->GetInt(aman->arenas[arena].cfg,
+	desired = cfg->GetInt(arena->cfg,
 			"Team", "DesiredTeams", 2);
 
 	if (desired < 1) desired = 1;
@@ -171,14 +171,15 @@ local int BalanceFreqs(int arena, int excl, int inclspec)
 
 void Initial(int pid, int *ship, int *freq)
 {
-	int arena, f, s = *ship;
+	Arena *arena;
+	int f, s = *ship;
 	ConfigHandle ch;
 
 	arena = pd->players[pid].arena;
 
-	if (ARENA_BAD(arena)) return;
+	if (!arena) return;
 
-	ch = aman->arenas[arena].cfg;
+	ch = arena->cfg;
 
 	if (count_current_playing(arena) >= MAXPLAYING(ch))
 		s = SPEC;
@@ -202,14 +203,15 @@ void Initial(int pid, int *ship, int *freq)
 
 void Ship(int pid, int *ship, int *freq)
 {
-	int arena, specfreq, f = *freq, s = *ship;
+	Arena *arena;
+	int specfreq, f = *freq, s = *ship;
 	ConfigHandle ch;
 
 	arena = pd->players[pid].arena;
 
-	if (ARENA_BAD(arena)) return;
+	if (!arena) return;
 
-	ch = aman->arenas[arena].cfg;
+	ch = arena->cfg;
 	specfreq = SPECFREQ(ch);
 
 	if (s >= SPEC)
@@ -255,15 +257,16 @@ void Ship(int pid, int *ship, int *freq)
 
 void Freq(int pid, int *ship, int *freq)
 {
-	int arena, specfreq, f = *freq, s = *ship;
+	Arena *arena;
+	int specfreq, f = *freq, s = *ship;
 	int count, max, inclspec, maxfreq, privlimit;
 	ConfigHandle ch;
 
 	arena = pd->players[pid].arena;
 
-	if (ARENA_BAD(arena)) return;
+	if (!arena) return;
 
-	ch = aman->arenas[arena].cfg;
+	ch = arena->cfg;
 	specfreq = SPECFREQ(ch);
 	inclspec = INCLSPEC(ch);
 	/* cfghelp: Team:MaxFrequency, arena, int, range: 0-9999, def: 9999

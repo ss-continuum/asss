@@ -39,7 +39,7 @@ typedef struct
 } laglimits_t;
 
 local int cfg_checkinterval;
-local laglimits_t *limits[MAXARENA];
+local int limkey;
 local unsigned lastchecked[MAXPLAYERS];
 
 local Iplayerdata *pd;
@@ -156,7 +156,8 @@ local void check_spike(int pid, laglimits_t *ll)
 
 local void mainloop()
 {
-	int pid, arena;
+	int pid;
+	Arena *arena;
 	laglimits_t *ll;
 	unsigned now = GTC();
 
@@ -167,23 +168,21 @@ local void mainloop()
 			lastchecked[pid] = now;
 
 			arena = pd->players[pid].arena;
-			if (ARENA_BAD(arena) || (ll = limits[arena]) == NULL)
-				continue;
+			if (!arena) continue;
 
+			ll = P_ARENA_DATA(arena, limkey);
 			check_spike(pid, ll);
 			check_lag(pid, ll);
 		}
 }
 
 
-local void arenaaction(int arena, int action)
+local void arenaaction(Arena *arena, int action)
 {
-	laglimits_t *oldlimits = limits[arena];
-
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
 	{
-		ConfigHandle ch = aman->arenas[arena].cfg;
-		laglimits_t *ll = amalloc(sizeof(*ll));
+		ConfigHandle ch = arena->cfg;
+		laglimits_t *ll = P_ARENA_DATA(arena, limkey);
 
 #define DOINT(field, key, def) \
 		ll->field = cfg->GetInt(ch, "Lag", key, def)
@@ -253,14 +252,7 @@ local void arenaaction(int arena, int action)
 
 		/* cache this for later */
 		ll->specfreq = cfg->GetInt(ch, "Team", "SpectatorFrequency", 8025);
-
-		limits[arena] = ll;
 	}
-	else if (action == AA_DESTROY)
-		limits[arena] = NULL;
-
-	if (action == AA_CREATE || action == AA_DESTROY || action == AA_CONFCHANGED)
-		afree(oldlimits);
 }
 
 
@@ -277,6 +269,9 @@ EXPORT int MM_lagaction(int action, Imodman *mm, int arena)
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		if (!pd || !aman || !cfg || !lag || !game || !net) return MM_FAIL;
+
+		limkey = aman->AllocateArenaData(sizeof(laglimits_t));
+		if (limkey == -1) return MM_FAIL;
 
 		/* cfghelp: Lag:CheckInterval, global, int, def: 300
 		 * How often to check each player for out-of-bounds lag values
@@ -301,6 +296,7 @@ EXPORT int MM_lagaction(int action, Imodman *mm, int arena)
 
 		mm->UnregCallback(CB_MAINLOOP, mainloop, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, arenaaction, ALLARENAS);
+		aman->FreeArenaData(limkey);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);

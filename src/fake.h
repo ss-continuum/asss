@@ -13,7 +13,7 @@ typedef struct Ifake
 {
 	INTERFACE_HEAD_DECL
 
-	int (*CreateFakePlayer)(const char *name, int arena, int ship, int freq);
+	int (*CreateFakePlayer)(const char *name, Arena *arena, int ship, int freq);
 	int (*EndFaked)(int pid);
 } Ifake;
 

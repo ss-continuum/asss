@@ -21,38 +21,38 @@ typedef struct Imapdata
 {
 	INTERFACE_HEAD_DECL
 
-	int (*GetFlagCount)(int arena);
+	int (*GetFlagCount)(Arena *arena);
 	/* gets the number of turf flags on the map */
 
-	int (*GetTile)(int arena, int x, int y);
+	int (*GetTile)(Arena *arena, int x, int y);
 	/* returns the contents of the given tile. */
 
 
 	/* the following two functions deal with the map region system. */
 
-	const char * (*GetRegion)(int arena, int x, int y);
+	const char * (*GetRegion)(Arena *arena, int x, int y);
 	/* returns the region containing the given coordinates. only returns
 	 * regions that specify IsBase to be true. returns NULL if there is
 	 * no named region covering that area. */
 
-	int (*InRegion)(int arena, const char *region, int x, int y);
+	int (*InRegion)(Arena *arena, const char *region, int x, int y);
 	/* returns true if the given point is in the given region. */
 
 
 	/* the following three functions are in this module because of
 	 * efficiency concerns. */
 
-	void (*FindFlagTile)(int arena, int *x, int *y);
+	void (*FindFlagTile)(Arena *arena, int *x, int *y);
 	/* finds the tile nearest to the given tile that is appropriate for
 	 * placing a flag (empty and accessible). */
 
-	void (*FindBrickEndpoints)(int arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2);
+	void (*FindBrickEndpoints)(Arena *arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2);
 	/* calculates the placement of a brick of a given length dropped at
 	 * a certain position. */
 
-	u32 (*GetChecksum)(int arena, u32 key);
+	u32 (*GetChecksum)(Arena *arena, u32 key);
 
-	void (*DoBrick)(int arena, int drop, int x1, int y1, int x2, int y2);
+	void (*DoBrick)(Arena *arena, int drop, int x1, int y1, int x2, int y2);
 } Imapdata;
 
 #endif

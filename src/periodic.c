@@ -16,7 +16,7 @@ local Istats *stats;
 
 typedef struct periodic_settings
 {
-	int arena;
+	Arena *arena;
 	int delay;
 	int minplayers;
 	Iperiodicpoints *pp;
@@ -69,7 +69,7 @@ local int timer(void *set_)
 
 	/* lock status here to avoid repeatedly locking and unlocking it,
 	 * and also to avoid deadlock. */
-	flags->LockFlagStatus(set->arena);
+	flags->GetFlagData(set->arena);
 
 	/* figure out what freqs we have in this arena, how many players
 	 * each has, and how many flags each owns. */
@@ -94,7 +94,7 @@ local int timer(void *set_)
 		}
 	pd->UnlockStatus();
 
-	flags->UnlockFlagStatus(set->arena);
+	flags->ReleaseFlagData(set->arena);
 
 	if (totalplayers >= set->minplayers && set->pp)
 	{
@@ -141,14 +141,14 @@ local void cleanup(void *set_)
 
 
 
-local void aaction(int arena, int action)
+local void aaction(Arena *arena, int action)
 {
 	int delay;
 
 	/* cfghelp: Periodic:RewardDelay, arena, int, def: 0
 	 * The interval between periodic rewards (in ticks). Zero to disable. */
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
-		delay = cfg->GetInt(aman->arenas[arena].cfg, "Periodic", "RewardDelay", 0);
+		delay = cfg->GetInt(arena->cfg, "Periodic", "RewardDelay", 0);
 	else if (action == AA_DESTROY)
 		delay = 0;
 	else
@@ -169,7 +169,7 @@ local void aaction(int arena, int action)
 			/* cfghelp: Periodic:RewardMinimumPlayers, arena, int, def: 0
 			 * The minimum players necessary in the arena to give out
 			 * periodic rewards. */
-			set->minplayers = cfg->GetInt(aman->arenas[arena].cfg, "Periodic", "RewardMinimumPlayers", 0);
+			set->minplayers = cfg->GetInt(arena->cfg, "Periodic", "RewardMinimumPlayers", 0);
 			set->pp = pp;
 			ml->SetTimer(timer, delay, delay, set, arena);
 		}
@@ -177,7 +177,7 @@ local void aaction(int arena, int action)
 }
 
 
-EXPORT int MM_periodic(int action, Imodman *mm_, int arena)
+EXPORT int MM_periodic(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -198,7 +198,7 @@ EXPORT int MM_periodic(int action, Imodman *mm_, int arena)
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
-		ml->CleanupTimer(timer, -1, cleanup);
+		ml->CleanupTimer(timer, NULL, cleanup);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(ml);

@@ -21,87 +21,97 @@ local Ichat *chat;
 local Imainloop *ml;
 
 /* timer data */
-local struct
+typedef struct
 {
 	int gamelen;
 	int enabled;
 	unsigned timeout;
 	int warnmsgs[MAXWARNMSGS];
-} ar_tmr[MAXARENA];
+} timerdata;
+
+int tdkey;
 
 
 local int TimerMaster(void *nothing)
 {
 	unsigned tickcount = GTC();
-	int i,j;
+	int j;
+	Link *link;
+	Arena *arena;
+	timerdata *td;
 
-	for (i = 0; i < MAXARENA; i++)
-		if (ar_tmr[i].enabled && tickcount > ar_tmr[i].timeout)
+	aman->Lock();
+	FOR_EACH_ARENA_P(arena, td, tdkey)
+		if (td->enabled && tickcount > td->timeout)
 		{
-			lm->LogA(L_DRIVEL, "game_timer", i, "Timer expired");
-			DO_CBS(CB_TIMESUP, i, GameTimerFunc, (i));
-			chat->SendArenaMessage(i, "Time has expired.");
-			if (ar_tmr[i].gamelen)
-				ar_tmr[i].timeout = tickcount+ar_tmr[i].gamelen;
+			lm->LogA(L_DRIVEL, "game_timer", arena, "Timer expired");
+			DO_CBS(CB_TIMESUP, arena, GameTimerFunc, (arena));
+			chat->SendArenaMessage(arena, "Time has expired.");
+			if (td->gamelen)
+				td->timeout = tickcount+td->gamelen;
 			else
 			{
-				ar_tmr[i].enabled = 0;
-				ar_tmr[i].timeout = 0;
+				td->enabled = 0;
+				td->timeout = 0;
 			}
 		}
-		else if (ar_tmr[i].enabled)
+		else if (td->enabled)
 		{
-			tickcount = (ar_tmr[i].timeout - GTC())/100;
+			tickcount = (td->timeout - GTC())/100;
 			for (j = 0; j < MAXWARNMSGS; j++)
-				if (tickcount && ar_tmr[i].warnmsgs[j] == tickcount)
+				if (tickcount && td->warnmsgs[j] == tickcount)
 				{
-					if (!(ar_tmr[i].warnmsgs[j]%60))
-						chat->SendArenaMessage(i, "NOTICE: %u minute%s remaining.", tickcount/60, tickcount == 60 ? "" : "s");
+					if (!(td->warnmsgs[j]%60))
+						chat->SendArenaMessage(arena, "NOTICE: %u minute%s remaining.", tickcount/60, tickcount == 60 ? "" : "s");
 					else
-						chat->SendArenaMessage(i, "NOTICE: %u seconds remaining.", tickcount);
+						chat->SendArenaMessage(arena, "NOTICE: %u seconds remaining.", tickcount);
 				}
 		}
+	aman->Unlock();
 	return TRUE;
 }
 
 
-local void ArenaAction(int arena, int action)
+local void ArenaAction(Arena *arena, int action)
 {
 	int i, savedlen;
 	const char *warnvals, *tmp = NULL;
 	char num[16];
+	timerdata *td = P_ARENA_DATA(arena, tdkey);
 
+	if (action == AA_CREATE)
+		memset(td, 0, sizeof(*td));
 
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
 	{
 		/* FIXME: document this setting */
-		warnvals = cfg->GetStr(aman->arenas[arena].cfg, "Misc", "TimerWarnings");
+		warnvals = cfg->GetStr(arena->cfg, "Misc", "TimerWarnings");
 		for (i = 0; i < MAXWARNMSGS; i++)
-			ar_tmr[arena].warnmsgs[i] = 0;
+			td->warnmsgs[i] = 0;
 		if (warnvals)
 			for (i = 0; i < MAXWARNMSGS && strsplit(warnvals, " ,", num, sizeof(num), &tmp); i++)
-				ar_tmr[arena].warnmsgs[i] = strtol(num, NULL, 0);
+				td->warnmsgs[i] = strtol(num, NULL, 0);
 
-		savedlen = ar_tmr[arena].gamelen;
+		savedlen = td->gamelen;
 		/* cfghelp: Misc:TimedGame, arena, int, def: 0
 		 * How long the game timer lasts (in ticks). Zero to disable. */
-		ar_tmr[arena].gamelen = cfg->GetInt(aman->arenas[arena].cfg, "Misc", "TimedGame", 0);
-		if (action == AA_CREATE && ar_tmr[arena].gamelen)
+		td->gamelen = cfg->GetInt(arena->cfg, "Misc", "TimedGame", 0);
+		if (action == AA_CREATE && td->gamelen)
 		{
-			ar_tmr[arena].enabled = 1;
-			ar_tmr[arena].timeout = GTC()+ar_tmr[arena].gamelen;
+			td->enabled = 1;
+			td->timeout = GTC()+td->gamelen;
 		}
-		else if (action == AA_CONFCHANGED && !savedlen && ar_tmr[arena].gamelen)
+		else if (action == AA_CONFCHANGED && !savedlen && td->gamelen)
 		{
 			/* switch to timedgame immediately */
-			ar_tmr[arena].enabled = 1;
-			ar_tmr[arena].timeout = GTC()+ar_tmr[arena].gamelen;
+			td->enabled = 1;
+			td->timeout = GTC()+td->gamelen;
 		}
 	}
 	else if (action == AA_DESTROY)
 	{
-		ar_tmr[arena].enabled = 0;
-		ar_tmr[arena].timeout = 0;
+		td->enabled = 0;
+		td->timeout = 0;
 	}
 }
 
@@ -114,20 +124,22 @@ local helptext_t time_help =
 
 local void Ctime(const char *params, int pid, const Target *target)
 {
-	int arena = pd->players[pid].arena, mins, secs;
+	Arena *arena = pd->players[pid].arena;
+	int mins, secs;
 	unsigned tout;
+	timerdata *td = P_ARENA_DATA(arena, tdkey);
 
-	if (ar_tmr[arena].enabled)
+	if (td->enabled)
 	{
-		tout = ar_tmr[arena].timeout - GTC();
+		tout = td->timeout - GTC();
 		mins = tout/60/100;
 		secs = (tout/100)%60;
 		chat->SendMessage(pid, "Time left: %d minutes %d seconds", mins, secs);
 	}
-	else if (ar_tmr[arena].timeout)
+	else if (td->timeout)
 	{
-		 mins = ar_tmr[arena].timeout/60/100;
-		 secs = (ar_tmr[arena].timeout/100)%60;
+		 mins = td->timeout/60/100;
+		 secs = (td->timeout/100)%60;
 		 chat->SendMessage(pid, "Timer paused at:  %d minutes %d seconds", mins, secs);
 	}
 	else
@@ -144,9 +156,11 @@ local helptext_t timer_help =
 
 local void Ctimer(const char *params, int pid, const Target *target)
 {
-	int arena = pd->players[pid].arena, mins = 0, secs = 0;
+	Arena *arena = pd->players[pid].arena;
+	int mins = 0, secs = 0;
+	timerdata *td = P_ARENA_DATA(arena, tdkey);
 
-	if (ar_tmr[arena].gamelen == 0)
+	if (td->gamelen == 0)
 	{
 		char *end;
 		mins = strtol(params, &end, 10);
@@ -154,8 +168,8 @@ local void Ctimer(const char *params, int pid, const Target *target)
 		{
 			if ((end = strchr(end, ':')))
 				secs = strtol(end+1, NULL, 10);
-			ar_tmr[arena].enabled = 1;
-			ar_tmr[arena].timeout = GTC()+(60*100*mins)+(100*secs);
+			td->enabled = 1;
+			td->timeout = GTC()+(60*100*mins)+(100*secs);
 			Ctime(params, pid, target);
 		}
 		else chat->SendMessage(pid, "timer format is: '?timer mins[:secs]'");
@@ -171,12 +185,13 @@ local helptext_t timereset_help =
 
 local void Ctimereset(const char *params, int pid, const Target *target)
 {
-	int arena = pd->players[pid].arena;
-	long gamelen = ar_tmr[arena].gamelen;
+	Arena *arena = pd->players[pid].arena;
+	timerdata *td = P_ARENA_DATA(arena, tdkey);
+	long gamelen = td->gamelen;
 
 	if (gamelen)
 	{
-		ar_tmr[arena].timeout = GTC() + gamelen;
+		td->timeout = GTC() + gamelen;
 		Ctime(params, pid, target);
 	}
 }
@@ -189,23 +204,24 @@ local helptext_t pausetimer_help =
 
 local void Cpausetimer(const char *params, int pid, const Target *target)
 {
-	int arena = pd->players[pid].arena;
+	Arena *arena = pd->players[pid].arena;
+	timerdata *td = P_ARENA_DATA(arena, tdkey);
 
-	if (ar_tmr[arena].gamelen) return;
+	if (td->gamelen) return;
 
-	if (ar_tmr[arena].enabled)
+	if (td->enabled)
 	{
-		ar_tmr[arena].enabled = 0;
-		ar_tmr[arena].timeout -= GTC();
+		td->enabled = 0;
+		td->timeout -= GTC();
 		chat->SendMessage(pid,"Timer paused at:  %d minutes %d seconds",
-							ar_tmr[arena].timeout/60/100, (ar_tmr[arena].timeout/100)%60);
+							td->timeout/60/100, (td->timeout/100)%60);
 	}
-	else if (ar_tmr[arena].timeout)
+	else if (td->timeout)
 	{
 		chat->SendMessage(pid,"Timer resumed at: %d minutes %d seconds",
-							ar_tmr[arena].timeout/60/100, (ar_tmr[arena].timeout/100)%60);
-		ar_tmr[arena].enabled = 1;
-		ar_tmr[arena].timeout += GTC();
+							td->timeout/60/100, (td->timeout/100)%60);
+		td->enabled = 1;
+		td->timeout += GTC();
 	}
 }
 
@@ -215,8 +231,6 @@ EXPORT int MM_game_timer(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
-		int i;
-
 		mm = mm_;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
@@ -226,13 +240,12 @@ EXPORT int MM_game_timer(int action, Imodman *mm_, int arena)
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 
-
-		for (i = 0; i < MAXARENA; i++)
-			ar_tmr[i].enabled = 0;
+		tdkey = aman->AllocateArenaData(sizeof(timerdata));
+		if (tdkey == -1) return MM_FAIL;
 
 		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
-		ml->SetTimer(TimerMaster, 100, 100, NULL, -1);
+		ml->SetTimer(TimerMaster, 100, 100, NULL, NULL);
 
 		cmd->AddCommand("timer", Ctimer, timer_help);
 		cmd->AddCommand("time", Ctime, time_help);
@@ -248,7 +261,8 @@ EXPORT int MM_game_timer(int action, Imodman *mm_, int arena)
 		cmd->RemoveCommand("timereset", Ctimereset);
 		cmd->RemoveCommand("pausetimer", Cpausetimer);
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
-		ml->ClearTimer(TimerMaster, -1);
+		ml->ClearTimer(TimerMaster, NULL);
+		aman->FreeArenaData(tdkey);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);

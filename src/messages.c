@@ -13,7 +13,8 @@
 
 typedef struct periodic_msgs
 {
-	int die, count, arena;
+	Arena *arena;
+	int die, count;
 	struct
 	{
 		const char *msg;
@@ -27,13 +28,6 @@ local Iplayerdata *pd;
 local Iarenaman *aman;
 local Ichat *chat;
 local Imainloop *ml;
-
-local pthread_mutex_t msgmtx = PTHREAD_MUTEX_INITIALIZER;
-#define LOCK() pthread_mutex_lock(&msgmtx)
-#define UNLOCK() pthread_mutex_unlock(&msgmtx)
-
-local periodic_msgs *msgs[MAXARENA];
-
 
 
 local int msg_timer(void *v)
@@ -54,19 +48,19 @@ local void msg_cleanup(void *v)
 	int i;
 	periodic_msgs *pm = (periodic_msgs*)v;
 
-	for (i = 0; i < MAXARENA; i++)
+	for (i = 0; i < MAXMSGS; i++)
 		afree(pm->msgs[i].msg);
 	afree(pm);
 }
 
 
 /* handles only greetmessages */
-local void paction(int pid, int action, int arena)
+local void paction(int pid, int action, Arena *arena)
 {
 	if (action == PA_ENTERARENA)
 	{
-		int arena = pd->players[pid].arena;
-		ConfigHandle ch = ARENA_OK(arena) ? aman->arenas[arena].cfg : NULL;
+		Arena *arena = pd->players[pid].arena;
+		ConfigHandle ch = arena ? arena->cfg : NULL;
 		/* cfghelp: Misc:GreetMessage, arena, string
 		 * The message to send to each player on entering the arena. */
 		const char *msg = ch ? cfg->GetStr(ch, "Misc", "GreetMessage") : NULL;
@@ -78,9 +72,8 @@ local void paction(int pid, int action, int arena)
 
 
 /* starts timer to handle periodmessages */
-local void aaction(int arena, int action)
+local void aaction(Arena *arena, int action)
 {
-	LOCK();
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
 	{
 		int i, c = 0;
@@ -101,7 +94,7 @@ local void aaction(int arena, int action)
 
 			snprintf(key, sizeof(key), "PeriodicMessage%d", i);
 
-			v = cfg->GetStr(aman->arenas[arena].cfg, "Misc", key);
+			v = cfg->GetStr(arena->cfg, "Misc", key);
 
 			if (v)
 			{
@@ -127,10 +120,7 @@ local void aaction(int arena, int action)
 		}
 
 		if (c)
-		{
 			ml->SetTimer(msg_timer, 6000, 6000, pm, arena);
-			msgs[arena] = pm;
-		}
 		else
 			afree(pm);
 	}
@@ -138,12 +128,11 @@ local void aaction(int arena, int action)
 	{
 		ml->CleanupTimer(msg_timer, arena, msg_cleanup);
 	}
-	UNLOCK();
 }
 
 
 
-EXPORT int MM_messages(int action, Imodman *mm, int arena)
+EXPORT int MM_messages(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -165,7 +154,7 @@ EXPORT int MM_messages(int action, Imodman *mm, int arena)
 		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
 
-		ml->CleanupTimer(msg_timer, -1, msg_cleanup);
+		ml->CleanupTimer(msg_timer, NULL, msg_cleanup);
 
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(pd);

@@ -56,8 +56,8 @@ local int NewPlayer(int type)
 	LockStatus();
 	memset(players + pid, 0, sizeof(PlayerData));
 	players[pid].pktype = S2C_PLAYERENTERING; /* restore type */
-	players[pid].arena = -1;
-	players[pid].oldarena = -1;
+	players[pid].arena = NULL;
+	players[pid].oldarena = NULL;
 	players[pid].pid = pid;
 	players[pid].shiptype = SPEC;
 	players[pid].attachedto = -1;
@@ -198,7 +198,7 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, int arena)
 		for (i = 0; i < MAXPLAYERS; i++)
 		{
 			players[i].status = S_FREE;
-			players[i].arena = -1;
+			players[i].arena = NULL;
 			players[i].attachedto = -1;
 		}
 

@@ -11,7 +11,7 @@ typedef struct Ipoints_koth
 {
 	INTERFACE_HEAD_DECL
 	int (*GetPoints)(
-			int arena,
+			Arena *arena,
 			int totalplaying,
 			int winners);
 	/* this will be called by the koth module when some group of people

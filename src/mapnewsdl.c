@@ -30,7 +30,8 @@ struct MapDownloadData
 
 struct data_locator
 {
-	int arena, lvznum, wantopt, len;
+	Arena *arena;
+	int lvznum, wantopt, len;
 };
 
 
@@ -44,10 +45,7 @@ local Ilogman *lm;
 local Iarenaman *aman;
 local Imainloop *ml;
 
-local PlayerData *players;
-local ArenaData *arenas;
-
-local LinkedList mapdldata[MAXARENA];
+local int dlkey;
 
 local const char *cfg_newsfile;
 local u32 newschecksum, cmpnewssize;
@@ -178,21 +176,25 @@ local u32 GetNewsChecksum(void)
 local void SendMapFilename(int pid)
 {
 	struct MapFilename *mf;
+	LinkedList *dls;
 	struct MapDownloadData *data;
-	int arena, len, wantopt = WANT_ALL_LVZ(pid);
+	int len, wantopt = WANT_ALL_LVZ(pid);
+	Arena *arena;
 
 	arena = pd->players[pid].arena;
+	if (!arena) return;
 
-	if (LLIsEmpty(mapdldata + arena))
+	dls = P_ARENA_DATA(arena, dlkey);
+	if (LLIsEmpty(dls))
 	{
 		lm->LogA(L_WARN, "<mapnewsdl>", arena, "Missing map data");
 		return;
 	}
 
-	if (players[pid].type != T_CONT)
+	if (pd->players[pid].type != T_CONT)
 	{
-		data = LLGetHead(mapdldata + arena)->data;
-		mf = amalloc(21);
+		data = LLGetHead(dls)->data;
+		mf = alloca(21);
 
 		strncpy(mf->files[0].filename, data->filename, 16);
 		mf->files[0].checksum = data->checksum;
@@ -204,9 +206,9 @@ local void SendMapFilename(int pid)
 		Link *l;
 
 		/* allocate for the maximum possible */
-		mf = amalloc(sizeof(mf->files[0]) * LLCount(mapdldata + arena));
+		mf = alloca(sizeof(mf->files[0]) * LLCount(dls));
 
-		for (l = LLGetHead(mapdldata + arena); l; l = l->next)
+		for (l = LLGetHead(dls); l; l = l->next)
 		{
 			data = l->data;
 			if (!data->optional || wantopt)
@@ -352,26 +354,31 @@ fail1:
 	return NULL;
 }
 
-local void free_maps(int arena)
+
+/* call with arena data lock */
+local void free_maps(Arena *arena)
 {
+	LinkedList *dls;
 	Link *l;
-	for (l = LLGetHead(mapdldata + arena); l; l = l->next)
+
+	dls = P_ARENA_DATA(arena, dlkey);
+	for (l = LLGetHead(dls); l; l = l->next)
 	{
 		struct MapDownloadData *data = l->data;
 		afree(data->cmpmap);
 		afree(data);
 	}
-	LLEmpty(mapdldata + arena);
+	LLEmpty(dls);
 }
 
 
 #include "pathutil.h"
 
-local int real_get_filename(int arena, const char *map, char *buffer, int bufferlen)
+local int real_get_filename(Arena *arena, const char *map, char *buffer, int bufferlen)
 {
 	struct replace_table repls[2] =
 	{
-		{'a', aman->arenas[arena].basename},
+		{'a', arena->basename},
 		{'m', map}
 	};
 
@@ -385,8 +392,10 @@ local int real_get_filename(int arena, const char *map, char *buffer, int buffer
 			2);
 }
 
-local void ArenaAction(int arena, int action)
+local void ArenaAction(Arena *arena, int action)
 {
+	LinkedList *dls = P_ARENA_DATA(arena, dlkey);
+
 	/* clear any old maps lying around */
 	if (action == AA_CREATE || action == AA_DESTROY)
 		free_maps(arena);
@@ -402,21 +411,21 @@ local void ArenaAction(int arena, int action)
 		 * The name of the level file for this arena. */
 		if (real_get_filename(
 					arena,
-					cfg->GetStr(aman->arenas[arena].cfg, "General", "Map"),
+					cfg->GetStr(arena->cfg, "General", "Map"),
 					fname,
 					256) != -1)
 		{
 			data = compress_map(fname, 1);
 			if (data)
-				LLAdd(mapdldata + arena, data);
+				LLAdd(dls, data);
 		}
 
 		/* now look for lvzs */
 		/* cfghelp: General:LevelFiles, arena, string
 		 * A list of extra files to send to the client for downloading.
 		 * A '+' before any file means it's marked as optional. */
-		lvzs = cfg->GetStr(aman->arenas[arena].cfg, "General", "LevelFiles");
-		if (!lvzs) lvzs = cfg->GetStr(aman->arenas[arena].cfg, "Misc", "LevelFiles");
+		lvzs = cfg->GetStr(arena->cfg, "General", "LevelFiles");
+		if (!lvzs) lvzs = cfg->GetStr(arena->cfg, "Misc", "LevelFiles");
 		while (strsplit(lvzs, ",: ", lvzname, 256, &tmp))
 		{
 			char *real = lvzname[0] == '+' ? lvzname+1 : lvzname;
@@ -427,7 +436,7 @@ local void ArenaAction(int arena, int action)
 				{
 					if (lvzname[0] == '+')
 						data->optional = 1;
-					LLAdd(mapdldata + arena, data);
+					LLAdd(dls, data);
 				}
 			}
 		}
@@ -436,13 +445,14 @@ local void ArenaAction(int arena, int action)
 
 
 
-local struct MapDownloadData *get_map(int arena, int lvznum, int wantopt)
+local struct MapDownloadData *get_map(Arena *arena, int lvznum, int wantopt)
 {
+	LinkedList *dls = P_ARENA_DATA(arena, dlkey);
 	Link *l;
 	int idx;
 
 	/* find the right spot */
-	for (idx = lvznum, l = LLGetHead(mapdldata + arena); idx && l; l = l->next)
+	for (idx = lvznum, l = LLGetHead(dls); idx && l; l = l->next)
 		if (!((struct MapDownloadData*)(l->data))->optional || wantopt)
 			idx--;
 
@@ -457,7 +467,7 @@ local void get_data(void *clos, int offset, byte *buf, int needed)
 
 	if (needed == 0)
 		afree(dl);
-	else if (dl->arena == -1 && dl->len == cmpnewssize)
+	else if (dl->arena == NULL && dl->len == cmpnewssize)
 		memcpy(buf, cmpnews + offset, needed);
 	else if ((data = get_map(dl->arena, dl->lvznum, dl->wantopt)) &&
 	         dl->len == data->cmplen)
@@ -470,7 +480,7 @@ local void get_data(void *clos, int offset, byte *buf, int needed)
 local void PMapRequest(int pid, byte *p, int len)
 {
 	struct data_locator *dl;
-	int arena = players[pid].arena;
+	Arena *arena = pd->players[pid].arena;
 	int wantopt = WANT_ALL_LVZ(pid);
 
 	if (p[0] == C2S_MAPREQUEST)
@@ -478,10 +488,10 @@ local void PMapRequest(int pid, byte *p, int len)
 		struct MapDownloadData *data;
 		unsigned short lvznum = (len == 3) ? p[1] | p[2]<<8 : 0;
 
-		if (ARENA_BAD(arena))
+		if (!arena)
 		{
 			lm->Log(L_MALICIOUS, "<mapnewsdl> [%s] Map request before entering arena",
-					players[pid].name);
+					pd->players[pid].name);
 			return;
 		}
 
@@ -509,10 +519,10 @@ local void PMapRequest(int pid, byte *p, int len)
 		if (cmpnews)
 		{
 			dl = amalloc(sizeof(*dl));
-			dl->arena = -1;
+			dl->arena = NULL;
 			dl->len = cmpnewssize;
 			net->SendSized(pid, dl, cmpnewssize, get_data);
-			lm->Log(L_DRIVEL,"<mapnewsdl> [%s] Sending news.txt", players[pid].name);
+			lm->Log(L_DRIVEL,"<mapnewsdl> [%s] Sending news.txt", pd->players[pid].name);
 		}
 		else
 			lm->Log(L_WARN, "<mapnewsdl> News request, but compressed news doesn't exist");
@@ -545,11 +555,8 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 
 		if (!net || !cfg || !lm || !ml || !aman || !pd) return MM_FAIL;
 
-		players = pd->players;
-		arenas = aman->arenas;
-
-		for (arena = 0; arena < MAXARENA; arena++)
-			LLInit(mapdldata + arena);
+		dlkey = aman->AllocateArenaData(sizeof(LinkedList));
+		if (dlkey == -1) return MM_FAIL;
 
 		/* set up callbacks */
 		net->AddPacket(C2S_MAPREQUEST, PMapRequest);
@@ -561,7 +568,7 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		 * How often to check for an updated news.txt. */
 		ml->SetTimer(RefreshNewsTxt, 50,
 				cfg->GetInt(GLOBAL, "General", "NewsRefreshMinutes", 5)
-				* 60 * 100, NULL, -1);
+				* 60 * 100, NULL, NULL);
 
 		/* cache some config data */
 		/* cfghelp: General:NewsFile, global, string, def: news.txt
@@ -581,12 +588,10 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		net->RemovePacket(C2S_NEWSREQUEST, PMapRequest);
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
-		/* clear any old maps lying around */
-		for (arena = 0; arena < MAXARENA; arena++)
-			free_maps(arena);
-
 		afree(cmpnews);
-		ml->ClearTimer(RefreshNewsTxt, -1);
+		ml->ClearTimer(RefreshNewsTxt, NULL);
+
+		aman->FreeArenaData(dlkey);
 
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);

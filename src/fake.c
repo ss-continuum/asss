@@ -13,7 +13,7 @@ local Icmdman *cmd;
 local Ilogman *lm;
 
 
-local int CreateFakePlayer(const char *name, int arena, int ship, int freq)
+local int CreateFakePlayer(const char *name, Arena *arena, int ship, int freq)
 {
 	int pid;
 	PlayerData *player;
@@ -41,7 +41,7 @@ local int CreateFakePlayer(const char *name, int arena, int ship, int freq)
 
 	if (lm)
 		lm->Log(L_INFO, "<fake> {%s} [%s] Fake player created",
-				aman->arenas[arena].name,
+				arena->name,
 				name);
 
 	return pid;
@@ -50,7 +50,7 @@ local int CreateFakePlayer(const char *name, int arena, int ship, int freq)
 
 local int EndFaked(int pid)
 {
-	int arena;
+	Arena *arena;
 	struct SimplePacket pk = { S2C_PLAYERLEAVING };
 
 	if (PID_BAD(pid))
@@ -59,7 +59,7 @@ local int EndFaked(int pid)
 		return 0;
 
 	arena = pd->players[pid].arena;
-	pd->players[pid].arena = -1;
+	pd->players[pid].arena = NULL;
 
 	/* leave arena */
 	pk.d1 = pid;
@@ -70,7 +70,7 @@ local int EndFaked(int pid)
 	/* log before freeing pid to avoid races */
 	if (lm)
 		lm->Log(L_INFO, "<fake> {%s} [%s] Fake player destroyed",
-				aman->arenas[arena].name,
+				arena->name,
 				pd->players[pid].name);
 
 	/* leave game */
@@ -100,7 +100,7 @@ local Ifake _int =
 };
 
 
-EXPORT int MM_fake(int action, Imodman *mm_, int arena)
+EXPORT int MM_fake(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{

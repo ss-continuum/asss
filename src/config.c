@@ -465,13 +465,13 @@ local void set_timers()
 	 * How often to check for modified config files on disk (in ticks). */
 	files = GetInt(global, "Config", "CheckModifiedFilesInterval", 1500);
 
-	ml->ClearTimer(write_dirty_values, -1);
+	ml->ClearTimer(write_dirty_values, NULL);
 	if (dirty)
-		ml->SetTimer(write_dirty_values, 700, dirty, NULL, -1);
+		ml->SetTimer(write_dirty_values, 700, dirty, NULL, NULL);
 
-	ml->ClearTimer(check_modified_files, -1);
+	ml->ClearTimer(check_modified_files, NULL);
 	if (files)
-		ml->SetTimer(check_modified_files, 1500, files, NULL, -1);
+		ml->SetTimer(check_modified_files, 1500, files, NULL, NULL);
 }
 
 
@@ -537,7 +537,7 @@ EXPORT int MM_config(int action, Imodman *mm_, int arena)
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 
-		ml->ClearTimer(write_dirty_values, -1);
+		ml->ClearTimer(write_dirty_values, NULL);
 		mm->ReleaseInterface(ml);
 
 		/* one last time... */

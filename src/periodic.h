@@ -11,7 +11,7 @@ typedef struct Iperiodicpoints
 {
 	INTERFACE_HEAD_DECL
 	int (*GetPoints)(
-			int arena,
+			Arena *arena,
 			int freq,
 			int freqplayers,
 			int totalplayers,

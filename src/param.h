@@ -6,10 +6,6 @@
 #define CFG_MAX_PLAYERS 255
 
 
-/* maximum arenas */
-#define CFG_MAX_ARENAS 50
-
-
 /* the search path for config files */
 #define CFG_CONFIG_SEARCH_PATH "arenas/%a/%n:defaultarena/%n:conf/%n:%n"
 

@@ -144,7 +144,7 @@ void Init(int pid, int k)
 
 int Encrypt(int pid, byte *data, int len)
 {
-	int *mytable, *mydata;
+	int *mytable = NULL, *mydata;
 	int work = 0, loop, until;
 
 	pthread_mutex_lock(&mtx);
@@ -155,7 +155,7 @@ int Encrypt(int pid, byte *data, int len)
 	}
 	pthread_mutex_unlock(&mtx);
 
-	if (work == 0) return len;
+	if (work == 0 || mytable == NULL) return len;
 
 	if (data[0] == 0)
 	{
@@ -179,7 +179,7 @@ int Encrypt(int pid, byte *data, int len)
 
 int Decrypt(int pid, byte *data, int len)
 {
-	int *mytable, *mydata;
+	int *mytable = NULL, *mydata;
 	int work = 0, loop, until, esi, edx;
 
 	pthread_mutex_lock(&mtx);
@@ -190,7 +190,7 @@ int Decrypt(int pid, byte *data, int len)
 	}
 	pthread_mutex_unlock(&mtx);
 
-	if (work == 0) return len;
+	if (work == 0 || mytable == NULL) return len;
 
 	if (data[0] == 0)
 	{

@@ -14,14 +14,14 @@ typedef struct TimerData
 	TimerFunc func;
 	unsigned int interval, when;
 	void *param;
-	int key;
+	void *key;
 } TimerData;
 
 
 
-local void StartTimer(TimerFunc, int, int, void *, int);
-local void ClearTimer(TimerFunc, int);
-local void CleanupTimer(TimerFunc func, int key, CleanupFunc cleanup);
+local void StartTimer(TimerFunc, int, int, void *, void *);
+local void ClearTimer(TimerFunc, void *);
+local void CleanupTimer(TimerFunc func, void *key, CleanupFunc cleanup);
 
 local int RunLoop(void);
 local void KillML(int code);
@@ -119,7 +119,7 @@ void KillML(int code)
 }
 
 
-void StartTimer(TimerFunc f, int startint, int interval, void *param, int key)
+void StartTimer(TimerFunc f, int startint, int interval, void *param, void *key)
 {
 	TimerData *data = amalloc(sizeof(TimerData));
 
@@ -134,7 +134,7 @@ void StartTimer(TimerFunc f, int startint, int interval, void *param, int key)
 }
 
 
-void CleanupTimer(TimerFunc func, int key, CleanupFunc cleanup)
+void CleanupTimer(TimerFunc func, void *key, CleanupFunc cleanup)
 {
 	Link *l, *next;
 
@@ -144,7 +144,7 @@ void CleanupTimer(TimerFunc func, int key, CleanupFunc cleanup)
 		TimerData *td = l->data;
 		next = l->next;
 
-		if (td->func == func && (td->key == key || key == -1))
+		if (td->func == func && (td->key == key || key == NULL))
 		{
 			if (cleanup)
 				cleanup(td->param);
@@ -155,7 +155,7 @@ void CleanupTimer(TimerFunc func, int key, CleanupFunc cleanup)
 	UNLOCK();
 }
 
-void ClearTimer(TimerFunc f, int key)
+void ClearTimer(TimerFunc f, void *key)
 {
 	CleanupTimer(f, key, NULL);
 }

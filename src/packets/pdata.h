@@ -9,6 +9,7 @@
 #include "ppk.h"
 #include "login.h"
 
+struct Arena;
 
 struct PlayerPosition
 {
@@ -31,12 +32,14 @@ typedef struct PlayerData
 	i16 wins;
 	i16 losses;
 	i16 attachedto;
-	i8 unknown1[3];
+	i16 flagscarried;
+	u8 miscbits;
 	/* stuff below this point is not part of the recieved data */
-	int status, arena;
+	int status;
+	Arena *arena, *oldarena;
 	/* these only need to go up to 255 or so, so save space. the above
 	 * two can fit in bytes too, but they're accessed very frequently. */
-	unsigned char type, whenloggedin, pflags, oldarena;
+	unsigned char type, whenloggedin, pflags;
 	char name[24], squad[24];
 	i16 xres, yres;
 	unsigned int connecttime;
@@ -49,7 +52,20 @@ typedef struct PlayerData
 } PlayerData;
 
 
-/* flag bits for the flags bits */
+/* flag bits for the miscbits field */
+
+/* whether the player has a crown */
+#define F_HAS_CROWN 0x01
+#define SET_HAS_CROWN(pid) (pd->players[pid].miscbits |= F_HAS_CROWN)
+#define UNSET_HAS_CROWN(pid) (pd->players[pid].miscbits &= ~F_HAS_CROWN)
+
+/* whether clients should send data for damage done to this player */
+#define F_SEND_DAMAGE 0x02
+#define SET_SEND_DAMAGE(pid) (pd->players[pid].miscbits |= F_SEND_DAMAGE)
+#define UNSET_SEND_DAMAGE(pid) (pd->players[pid].miscbits &= ~F_SEND_DAMAGE)
+
+
+/* flag bits for the pflags field */
 
 /* set when the player has changed freqs or ships, but before he has
  * acknowleged it */

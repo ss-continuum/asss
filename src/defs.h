@@ -129,6 +129,9 @@ enum
 };
 
 
+typedef struct Arena Arena;
+
+
 /* this struct/union thing will be used to refer to a set of players */
 typedef struct
 {
@@ -144,8 +147,8 @@ typedef struct
 	union
 	{
 		int pid;
-		int arena;
-		struct { int arena, freq; } freq;
+		Arena *arena;
+		struct { Arena *arena; int freq; } freq;
 		int *set;
 	} u;
 } Target;

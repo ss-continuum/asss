@@ -40,7 +40,8 @@ EXPORT int MM_bricklayer(int action, Imodman *mm, int arena)
 void Cbrickwrite(const char *params, int pid, const Target *target)
 {
 	int i, wid;
-	int arena = pd->players[pid].arena, freq = pd->players[pid].freq;
+	Arena *arena = pd->players[pid].arena;
+	int freq = pd->players[pid].freq;
 	int x = pd->players[pid].position.x >> 4;
 	int y = pd->players[pid].position.y >> 4;
 

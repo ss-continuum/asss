@@ -42,7 +42,7 @@ typedef struct Ilogman
 
 	/* utilty functions for the above */
 
-	void (*LogA)(char level, const char *mod, int arena, const char *format, ...);
+	void (*LogA)(char level, const char *mod, Arena *a, const char *format, ...);
 
 	void (*LogP)(char level, const char *mod, int pid, const char *format, ...);
 

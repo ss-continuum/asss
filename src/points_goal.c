@@ -49,21 +49,21 @@ struct ArenaScores
 
 
 /* prototypes */
-local void MyGoal(int, int, int, int, int);
-local void MyAA(int, int);
+local void MyGoal(Arena *, int, int, int, int);
+local void MyAA(Arena *, int);
 #if 0
 local int  IdGoalScored(int, int, int);
 #endif
-local void RewardPoints(int, int);
-local void CheckGameOver(int, int);
-local void ScoreMsg(int, int);
+local void RewardPoints(Arena *, int);
+local void CheckGameOver(Arena *, int);
+local void ScoreMsg(Arena *, int);
 local void Csetscore(const char *,int, const Target *);
 local void Cscore(const char *, int, const Target *);
 local void Cresetgame(const char *, int, const Target *);
 local helptext_t setscore_help, score_help, resetgame_help;
 
 /* global data */
-local struct ArenaScores scores[MAXARENA];
+local int scrkey;
 
 local Imodman *mm;
 local Iplayerdata *pd;
@@ -75,7 +75,7 @@ local Icmdman *cmd;
 local Istats *stats;
 
 
-EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
+EXPORT int MM_points_goal(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -88,6 +88,9 @@ EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		stats = mm->GetInterface(I_STATS, ALLARENAS);
 
+		scrkey = aman->AllocateArenaData(sizeof(struct ArenaScores));
+		if (scrkey == -1) return MM_FAIL;
+
 		cmd->AddCommand("setscore",Csetscore, setscore_help);
 		cmd->AddCommand("score",Cscore, score_help);
 		cmd->AddCommand("resetgame",Cresetgame, resetgame_help);
@@ -95,6 +98,10 @@ EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
+		cmd->RemoveCommand("setscore",Csetscore);
+		cmd->RemoveCommand("score",Cscore);
+		cmd->RemoveCommand("resetgame",Cresetgame);
+		aman->FreeArenaData(scrkey);
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(aman);
@@ -102,9 +109,6 @@ EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(stats);
-		cmd->RemoveCommand("setscore",Csetscore);
-		cmd->RemoveCommand("score",Cscore);
-		cmd->RemoveCommand("resetgame",Cresetgame);
 		return MM_OK;
 	}
 	else if (action == MM_ATTACH)
@@ -123,28 +127,30 @@ EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
 }
 
 
-void MyAA(int arena, int action)
+void MyAA(Arena *arena, int action)
 {
+	struct ArenaScores *scores = P_ARENA_DATA(arena, scrkey);
+
 	/* FIXME: add AA_CONFCHANGED support */
 	if (action == AA_CREATE)
 	{
 		int i, cpts;
 
 		/* FIXME: document these settings */
-		scores[arena].mode = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "Mode",0);
-		cpts = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "CapturePoints",1);
+		scores->mode = cfg->GetInt(arena->cfg, "Soccer", "Mode",0);
+		cpts = cfg->GetInt(arena->cfg, "Soccer", "CapturePoints",1);
 
 		if (cpts < 0)
 		{
-			scores[arena].stealpts = 0;
+			scores->stealpts = 0;
 			for(i = 0; i < MAXFREQ; i++)
-				scores[arena].score[i] = 0;
+				scores->score[i] = 0;
 		}
 		else
 		{
-			scores[arena].stealpts = cpts;
+			scores->stealpts = cpts;
 			for(i = 0; i < MAXFREQ; i++)
-				scores[arena].score[i] = cpts;
+				scores->score[i] = cpts;
 		}
 
 #if 0
@@ -156,26 +162,26 @@ void MyAA(int arena, int action)
 
 			for (i = 0; i < MAXGOALS; i++)
 			{
-				scores[arena].goals[i].upperleft_x = -1;
-				scores[arena].goals[i].upperleft_y = -1;
-				scores[arena].goals[i].width = -1;
-				scores[arena].goals[i].height = -1;
-				scores[arena].goals[i].goalfreq = -1;
+				scores->goals[i].upperleft_x = -1;
+				scores->goals[i].upperleft_y = -1;
+				scores->goals[i].width = -1;
+				scores->goals[i].height = -1;
+				scores->goals[i].goalfreq = -1;
 			}
 
-			if (scores[arena].mode == 7)
+			if (scores->mode == 7)
 			{
 				g = goalstr;
 				for(i=0;(i < MAXGOALS) && g;i++) {
 					sprintf(goalstr,"Goal%d",goalc);
-					g = cfg->GetStr(aman->arenas[arena].cfg, "Soccer", goalstr);
+					g = cfg->GetStr(arena->cfg, "Soccer", goalstr);
 					if (g && sscanf(g, "%d,%d,%d,%d,%d", &cx, &cy, &w, &h, &gf) == 5)
 					{
-						scores[arena].goals[i].upperleft_x = cx;
-						scores[arena].goals[i].upperleft_y = cy;
-						scores[arena].goals[i].width = w;
-						scores[arena].goals[i].height = h;
-						scores[arena].goals[i].goalfreq = gf;
+						scores->goals[i].upperleft_x = cx;
+						scores->goals[i].upperleft_y = cy;
+						scores->goals[i].width = w;
+						scores->goals[i].height = h;
+						scores->goals[i].goalfreq = gf;
 					}
 					goalc++;
 				}
@@ -186,70 +192,73 @@ void MyAA(int arena, int action)
 }
 
 
-void MyGoal(int arena, int pid, int bid, int x, int y)
+void MyGoal(Arena *arena, int pid, int bid, int x, int y)
 {
+	struct ArenaScores *scores = P_ARENA_DATA(arena, scrkey);
 	int freq = -1, i, nullgoal = 0;
 	int teamset[MAXPLAYERS+1], nmeset[MAXPLAYERS+1];
 	int teamc = 0, nmec = 0;
 
-	switch (scores[arena].mode)
+	ArenaBallData *abd = balls->GetBallData(arena);
+
+	switch (scores->mode)
 	{
 		case GOAL_ALL:
-			freq = balls->balldata[arena].balls[bid].freq;
+			freq = abd->balls[bid].freq;
 			break;
 
 		case GOAL_LEFTRIGHT:
 			freq = x < 512 ? 1 : 0;
-			scores[arena].score[freq]++;
-			if (scores[arena].stealpts) scores[arena].score[(~freq)+2]--;
+			scores->score[freq]++;
+			if (scores->stealpts) scores->score[(~freq)+2]--;
 			break;
 
 		case GOAL_TOPBOTTOM:
 			freq = y < 512 ? 1 : 0;
-			scores[arena].score[freq]++;
-			if (scores[arena].stealpts) scores[arena].score[(~freq)+2]--;
+			scores->score[freq]++;
+			if (scores->stealpts) scores->score[(~freq)+2]--;
 			break;
 
 		case GOAL_CORNERS_3_1:
-			freq = balls->balldata[arena].balls[bid].freq;
+			freq = abd->balls[bid].freq;
 			if (x < 512)
 				i = y < 512 ? 0 : 2;
 			else
 				i = y < 512 ? 1 : 3;
 
-			if (!scores[arena].stealpts) scores[arena].score[freq]++;
-			else if (scores[arena].score[i])
+			if (!scores->stealpts) scores->score[freq]++;
+			else if (scores->score[i])
 			{
-				scores[arena].score[freq]++;
-				scores[arena].score[i]--;
+				scores->score[freq]++;
+				scores->score[i]--;
 			}
 			else nullgoal = 1;
 			break;
 
 		case GOAL_CORNERS_1_3: /* only use absolute scoring, as stealpts game is pointless */
-			freq = balls->balldata[arena].balls[bid].freq;
-			scores[arena].score[freq]++;
+			freq = abd->balls[bid].freq;
+			scores->score[freq]++;
 			break;
 
 		case GOAL_SIDES_3_1:
-			freq = balls->balldata[arena].balls[bid].freq;
+			freq = abd->balls[bid].freq;
 			if (x < y)
 				i = x < (1024-y) ? 0 : 1;
 			else
 				i = x < (1024-y) ? 2 : 3;
 
-			if (!scores[arena].stealpts) scores[arena].score[freq]++;
-			else if (scores[arena].score[i])
+			if (!scores->stealpts) scores->score[freq]++;
+			else if (scores->score[i])
 			{
-				scores[arena].score[freq]++;
-				scores[arena].score[i]--;
+				scores->score[freq]++;
+				scores->score[i]--;
 			}
 			else nullgoal = 1;
 			break;
 
 		case GOAL_SIDES_1_3:
-			freq = balls->balldata[arena].balls[bid].freq;
-			scores[arena].score[freq]++;
+			freq = abd->balls[bid].freq;
+			scores->score[freq]++;
 			break;
 	}
 
@@ -270,39 +279,42 @@ void MyGoal(int arena, int pid, int bid, int x, int y)
 	chat->SendSetSoundMessage(nmeset, SOUND_GOAL, "Enemy Goal! by %s", pd->players[pid].name);
 	if (nullgoal) chat->SendArenaMessage(arena,"Enemy goal had no points to give.");
 
-	if (scores[arena].mode)
+	if (scores->mode)
 	{
 		ScoreMsg(arena, -1);
 		CheckGameOver(arena, bid);
 	}
 
-	balls->balldata[arena].balls[bid].freq = -1;
+	abd->balls[bid].freq = -1;
+
+	balls->ReleaseBallData(arena);
 }
 
 
 #if 0
-int IdGoalScored (int arena, int x, int y)
+int IdGoalScored (Arena *arena, int x, int y)
 {
+	struct ArenaScores *scores = P_ARENA_DATA(arena, scrkey);
 	int i = 0, xmin, xmax, ymin, ymax;
 
-	for(i=0; (i < MAXGOALS) && (scores[arena].goals[i].upperleft_x != -1); i++)
+	for(i=0; (i < MAXGOALS) && (scores->goals[i].upperleft_x != -1); i++)
 	{
 		chat->SendArenaMessage(arena,"goal %d: %d,%d,%d,%d,%d",i,
-			scores[arena].goals[i].upperleft_x,
-			scores[arena].goals[i].upperleft_y,
-			scores[arena].goals[i].width,
-			scores[arena].goals[i].height,
-			scores[arena].goals[i].goalfreq);
+			scores->goals[i].upperleft_x,
+			scores->goals[i].upperleft_y,
+			scores->goals[i].width,
+			scores->goals[i].height,
+			scores->goals[i].goalfreq);
 
 
-		xmin = scores[arena].goals[i].upperleft_x;
-		xmax = xmin + scores[arena].goals[i].width;
-		ymin = scores[arena].goals[i].upperleft_y;
-		ymax = ymin + scores[arena].goals[i].height;
+		xmin = scores->goals[i].upperleft_x;
+		xmax = xmin + scores->goals[i].width;
+		ymin = scores->goals[i].upperleft_y;
+		ymax = ymin + scores->goals[i].height;
 
 		if ((x >= xmin) && (x <= xmax) && (y >= ymin) && (y <= ymax))
 		{
-			return scores[arena].goals[i].goalfreq;
+			return scores->goals[i].goalfreq;
 		}
 	}
 
@@ -311,12 +323,12 @@ int IdGoalScored (int arena, int x, int y)
 #endif
 
 
-void RewardPoints(int arena, int winfreq)
+void RewardPoints(Arena *arena, int winfreq)
 {
 	int awardto[MAXPLAYERS];
 	int i, players = 0, points, ponfreq = 0;
 	/* FIXME: document this setting */
-	int reward = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "Reward", 0);
+	int reward = cfg->GetInt(arena->cfg, "Soccer", "Reward", 0);
 
 	pd->LockStatus();
 	for(i = 0; i < MAXPLAYERS; i++)
@@ -346,32 +358,33 @@ void RewardPoints(int arena, int winfreq)
 	stats->SendUpdates();
 }
 
-void CheckGameOver(int arena, int bid)
+void CheckGameOver(Arena *arena, int bid)
 {
+	struct ArenaScores *scores = P_ARENA_DATA(arena, scrkey);
 	int i, j = 0, freq = 0;
 
-	if (cfg->GetInt(aman->arenas[arena].cfg, "Misc", "TimedGame", 0))
+	if (cfg->GetInt(arena->cfg, "Misc", "TimedGame", 0))
 		return;
 
 	for(i = 0; i < MAXFREQ; i++)
-		if (scores[arena].score[i] > scores[arena].score[freq]) freq = i;
+		if (scores->score[i] > scores->score[freq]) freq = i;
 
 	// check if game is over
-	if (scores[arena].mode <= 2 && scores[arena].stealpts)
+	if (scores->mode <= 2 && scores->stealpts)
 	{
-		if (!scores[arena].score[(~freq)+2]) // check opposite freq (either 0 or 1)
+		if (!scores->score[(~freq)+2]) // check opposite freq (either 0 or 1)
 		{
 			chat->SendArenaSoundMessage(arena, SOUND_DING, "Soccer game over.");
 			RewardPoints(arena, freq);
 			balls->EndGame(arena);
 			for(i=0;i < MAXFREQ;i++)
-				scores[arena].score[i] = scores[arena].stealpts;
+				scores->score[i] = scores->stealpts;
 		}
 	}
-	else if (scores[arena].mode > 2 && scores[arena].stealpts)
+	else if (scores->mode > 2 && scores->stealpts)
 	{
 		for (i = 0, j = 0; i < 4; i++) // check that other 3 freqs have no points
-			if (!scores[arena].score[i]) j++;
+			if (!scores->score[i]) j++;
 
 		if (j == 3)
 		{
@@ -379,18 +392,18 @@ void CheckGameOver(int arena, int bid)
 			RewardPoints(arena, freq);
 			balls->EndGame(arena);
 			for(i=0;i < MAXFREQ;i++)
-				scores[arena].score[i] = scores[arena].stealpts;
+				scores->score[i] = scores->stealpts;
 		}
 	}
 	else // is mode 1-6 with absolute scoring
 	{
-		int win = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "CapturePoints",0);
+		int win = cfg->GetInt(arena->cfg, "Soccer", "CapturePoints",0);
 		/* FIXME: document this */
-		int by  = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "WinBy",0);
+		int by  = cfg->GetInt(arena->cfg, "Soccer", "WinBy",0);
 
-		if (scores[arena].score[freq] >= win*-1)
+		if (scores->score[freq] >= win*-1)
 			for(i = 0; i < MAXFREQ; i++)
-				if ((scores[arena].score[i]+by) <= scores[arena].score[freq]) j++;
+				if ((scores->score[i]+by) <= scores->score[freq]) j++;
 
 		if (j == MAXFREQ-1)
 		{
@@ -398,27 +411,28 @@ void CheckGameOver(int arena, int bid)
 			RewardPoints(arena, freq);
 			balls->EndGame(arena);
 			for(i=0;i < MAXFREQ;i++)
-				scores[arena].score[i] = 0;
+				scores->score[i] = 0;
 
 		}
 	}
 
 }
 
-void ScoreMsg(int arena, int pid)  // pid = -1 means arena-wide, otherwise private
+void ScoreMsg(Arena *arena, int pid)  // pid = -1 means arena-wide, otherwise private
 {
+	struct ArenaScores *scores = P_ARENA_DATA(arena, scrkey);
 	char _buf[256];
 
 	strcpy(_buf,"SCORE: Warbirds:%d  Javelins:%d");
-	if (scores[arena].mode > 2)
+	if (scores->mode > 2)
 		{
 			strcat(_buf,"  Spiders:%d  Leviathans:%d");
-			if (pid < 0) chat->SendArenaMessage(arena,_buf,scores[arena].score[0],scores[arena].score[1],scores[arena].score[2],scores[arena].score[3]);
-			else chat->SendMessage(pid,_buf,scores[arena].score[0],scores[arena].score[1],scores[arena].score[2],scores[arena].score[3]);
+			if (pid < 0) chat->SendArenaMessage(arena,_buf,scores->score[0],scores->score[1],scores->score[2],scores->score[3]);
+			else chat->SendMessage(pid,_buf,scores->score[0],scores->score[1],scores->score[2],scores->score[3]);
 		}
 		else
-			if (pid < 0) chat->SendArenaMessage(arena,_buf,scores[arena].score[0],scores[arena].score[1]);
-			else chat->SendMessage(pid,_buf,scores[arena].score[0],scores[arena].score[1]);
+			if (pid < 0) chat->SendArenaMessage(arena,_buf,scores->score[0],scores->score[1]);
+			else chat->SendMessage(pid,_buf,scores->score[0],scores->score[1]);
 }
 
 
@@ -431,7 +445,9 @@ local helptext_t setscore_help =
 
 void Csetscore(const char *params, int pid, const Target *target)
 {
-	int i, newscores[MAXFREQ], arena = pd->players[pid].arena;
+	Arena *arena = pd->players[pid].arena;
+	struct ArenaScores *scores = P_ARENA_DATA(arena, scrkey);
+	int i, newscores[MAXFREQ];
 
 	/* crude for now */
 	for(i = 0; i < MAXFREQ; i++)
@@ -441,13 +457,13 @@ void Csetscore(const char *params, int pid, const Target *target)
 		&newscores[3], &newscores[4], &newscores[5],&newscores[6], &newscores[7]) > 0)
 	{
 		// only allowed to setscore in modes 1-6 and if game is absolute scoring
-		if (!scores[arena].mode) return;
-		if (scores[arena].stealpts) return;
+		if (!scores->mode) return;
+		if (scores->stealpts) return;
 
 		for(i = 0; i < MAXFREQ && newscores[i] != -1; i ++)
-			scores[arena].score[i] = newscores[i];
+			scores->score[i] = newscores[i];
 
-		if (scores[arena].mode) {
+		if (scores->mode) {
 			ScoreMsg(arena, -1);
 			CheckGameOver(arena, -1);
 		}
@@ -464,9 +480,10 @@ local helptext_t score_help =
 
 void Cscore(const char *params, int pid, const Target *target)
 {
-	int arena = pd->players[pid].arena;
+	Arena *arena = pd->players[pid].arena;
+	struct ArenaScores *scores = P_ARENA_DATA(arena, scrkey);
 
-	if (scores[arena].mode) ScoreMsg(arena, pid);
+	if (scores->mode) ScoreMsg(arena, pid);
 }
 
 
@@ -477,16 +494,18 @@ local helptext_t resetgame_help =
 
 void Cresetgame(const char *params, int pid, const Target *target)
 {
-	int arena = pd->players[pid].arena, i, j = 0;
+	Arena *arena = pd->players[pid].arena;
+	struct ArenaScores *scores = P_ARENA_DATA(arena, scrkey);
+	int i, j = 0;
 
-	if (scores[arena].mode)
+	if (scores->mode)
 	{
 		chat->SendArenaMessage(arena, "Resetting game. -%s", pd->players[pid].name);
 		chat->SendArenaSoundMessage(arena, SOUND_DING, "Soccer game over.");
 		balls->EndGame(arena);
-		if (scores[arena].stealpts) j = scores[arena].stealpts;
+		if (scores->stealpts) j = scores->stealpts;
 		for(i = 0; i < MAXFREQ; i++)
-			scores[arena].score[i] = j;
+			scores->score[i] = j;
 	}
 }
 

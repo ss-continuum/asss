@@ -87,41 +87,55 @@ local void Carena(const char *params, int pid, const Target *target)
 {
 	byte buf[MAXPACKET];
 	byte *pos = buf;
-	int i = 0, arena, l, pcount[MAXARENA], seehid;
+	int i = 0, l, seehid;
+	int key, *count;
+	Arena *arena = players[pid].arena, *a;
+	Link *link;
+
+	key = aman->AllocateArenaData(sizeof(int));
+	if (key == -1) return;
 
 	*pos++ = S2C_ARENA;
-	memset(pcount, 0, MAXARENA * sizeof(int));
+
+	aman->Lock();
+
+	/* zero all the player counts */
+	FOR_EACH_ARENA_P(a, count, key)
+		*count = 0;
 
 	pd->LockStatus();
-
-	arena = players[pid].arena;
 
 	/* count up players */
 	for (i = 0; i < MAXPLAYERS; i++)
 		if (players[i].status == S_PLAYING &&
-		    players[i].arena >= 0)
-			pcount[players[i].arena]++;
+		    players[i].arena)
+			(*(int*)P_ARENA_DATA(players[i].arena, key))++;
+	pd->UnlockStatus();
 
 	/* signify current arena */
-	if (ARENA_OK(players[pid].arena))
-		pcount[arena] *= -1;
-
-	pd->UnlockStatus();
+	if (arena)
+		*(int*)P_ARENA_DATA(arena, key) *= -1;
 
 	/* build arena info packet */
 	seehid = capman && capman->HasCapability(pid, CAP_SEEPRIVARENA);
-	aman->LockStatus();
-	for (i = 0; (pos-buf) < 480 && i < MAXARENA; i++)
-		if (aman->arenas[i].status == ARENA_RUNNING &&
-		    ( aman->arenas[i].name[0] != '#' || seehid || i == arena ))
+	FOR_EACH_ARENA_P(a, count, key)
+	{
+		if ((pos-buf) > 480) break;
+
+		if (a->status == ARENA_RUNNING &&
+		    ( a->name[0] != '#' || seehid || a == arena ))
 		{
-			l = strlen(aman->arenas[i].name) + 1;
-			strncpy(pos, aman->arenas[i].name, l);
+			l = strlen(a->name) + 1;
+			strncpy(pos, a->name, l);
 			pos += l;
-			*pos++ = (pcount[i] >> 0) & 0xFF;
-			*pos++ = (pcount[i] >> 8) & 0xFF;
+			*pos++ = (*count >> 0) & 0xFF;
+			*pos++ = (*count >> 8) & 0xFF;
 		}
-	aman->UnlockStatus();
+	}
+
+	aman->Unlock();
+
+	aman->FreeArenaData(key);
 
 #ifdef CFG_DO_EXTRAARENAS
 	/* add in more arenas if requested */
@@ -253,17 +267,13 @@ local helptext_t ballcount_help =
 
 local void Cballcount(const char *params, int pid, const Target *target)
 {
-	int bc, arena = players[pid].arena, add;
-
+	Arena *arena = players[pid].arena;
 	REQUIRE_MOD(balls)
-
-	if (ARENA_OK(arena))
+	if (arena)
 	{
-		balls->LockBallStatus(arena);
-		bc = balls->balldata[arena].ballcount;
-		add = strtol(params, NULL, 0);
-		balls->SetBallCount(arena, bc + add);
-		balls->UnlockBallStatus(arena);
+		ArenaBallData *abd = balls->GetBallData(arena);
+		balls->SetBallCount(arena, abd->ballcount + strtol(params, NULL, 0));
+		balls->ReleaseBallData(arena);
 	}
 }
 
@@ -571,7 +581,7 @@ local void Clistmods(const char *params, int pid, const Target *target)
 		    strcmp(group = groupman->GetGroup(i), "default"))
 			chat->SendMessage(pid, "listmods: %20s %10s %10s",
 					players[i].name,
-					aman->arenas[players[i].arena].name,
+					players[i].arena->name,
 					group);
 }
 
@@ -631,8 +641,9 @@ local void Cinfo(const char *params, int pid, const Target *target)
 				"%s: pid=%d  status=%d  name='%s'  squad='%s'",
 				prefix, t, p->status, p->name, p->squad);
 		chat->SendMessage(pid,
-				"%s: arena=%d  type=%s  res=%dx%d  seconds=%d",
-				prefix, p->arena, type, p->xres, p->yres, tm / 100);
+				"%s: arena=%s  type=%s  res=%dx%d  seconds=%d",
+				prefix, p->arena ? p->arena : "(none)", type, p->xres,
+				p->yres, tm / 100);
 		if (IS_STANDARD(t))
 		{
 			struct net_client_stats s;
@@ -799,11 +810,11 @@ local helptext_t cheater_help =
 
 local void Ccheater(const char *params, int pid, const Target *target)
 {
-	int arena = pd->players[pid].arena;
+	Arena *arena = pd->players[pid].arena;
 	if (IS_ALLOWED(chat->GetPlayerChatMask(pid), MSG_MODCHAT))
 	{
 		chat->SendModMessage("cheater {%s} %s> %s",
-				aman->arenas[arena].name, pd->players[pid].name, params);
+				arena->name, pd->players[pid].name, params);
 		chat->SendMessage(pid, "Message has been sent to online staff");
 	}
 }
@@ -864,7 +875,7 @@ local helptext_t sheep_help = NULL;
 
 local void Csheep(const char *params, int pid, const Target *target)
 {
-	int arena = players[pid].arena;
+	Arena *arena = players[pid].arena;
 	const char *sheepmsg = NULL;
 
 	if (target->type != T_ARENA)
@@ -872,8 +883,8 @@ local void Csheep(const char *params, int pid, const Target *target)
 
 	/* cfghelp: Misc:SheepMessage, arena, string
 	 * The message that appears when someone says ?sheep */
-	if (ARENA_OK(arena))
-		sheepmsg = cfg->GetStr(aman->arenas[arena].cfg, "Misc", "SheepMessage");
+	if (arena)
+		sheepmsg = cfg->GetStr(arena->cfg, "Misc", "SheepMessage");
 
 	if (sheepmsg)
 		chat->SendSoundMessage(pid, 24, sheepmsg);
@@ -889,13 +900,13 @@ local helptext_t specall_help =
 
 local void Cspecall(const char *params, int pid, const Target *target)
 {
-	int set[MAXPLAYERS+1], *p, arena, freq;
+	int set[MAXPLAYERS+1], *p, freq;
+	Arena *arena;
 
 	arena = players[pid].arena;
-	if (ARENA_BAD(arena))
-		return;
+	if (!arena) return;
 
-	freq = cfg->GetInt(aman->arenas[arena].cfg, "Team", "SpectatorFrequency", 8025);
+	freq = cfg->GetInt(arena->cfg, "Team", "SpectatorFrequency", 8025);
 
 	pd->TargetToSet(target, set);
 	for (p = set; *p != -1; p++)
@@ -952,12 +963,12 @@ local helptext_t geta_help =
 
 local void Cgeta(const char *params, int pid, const Target *target)
 {
-	int arena = players[pid].arena;
+	Arena *arena = players[pid].arena;
 	const char *res;
 
-	if (ARENA_BAD(arena)) return;
+	if (!arena) return;
 
-	res = cfg->GetStr(aman->arenas[arena].cfg, params, NULL);
+	res = cfg->GetStr(arena->cfg, params, NULL);
 	if (res)
 		chat->SendMessage(pid, "%s=%s", params, res);
 	else
@@ -972,12 +983,12 @@ local helptext_t seta_help =
 
 local void Cseta(const char *params, int pid, const Target *target)
 {
-	int arena = players[pid].arena;
+	Arena *arena = players[pid].arena;
 	time_t tm = time(NULL);
 	char info[128], key[MAXSECTIONLEN+MAXKEYLEN+2], *k = key;
 	const char *t = params;
 
-	if (ARENA_BAD(arena)) return;
+	if (!arena) return;
 
 	snprintf(info, 128, "set by %s on ", players[pid].name);
 	ctime_r(&tm, info + strlen(info));
@@ -989,7 +1000,7 @@ local void Cseta(const char *params, int pid, const Target *target)
 	*k = '\0'; /* terminate key */
 	t++; /* skip over = */
 
-	cfg->SetStr(aman->arenas[arena].cfg, key, NULL, t, info);
+	cfg->SetStr(arena->cfg, key, NULL, t, info);
 }
 
 
@@ -1107,19 +1118,18 @@ local helptext_t flaginfo_help =
 
 local void Cflaginfo(const char *params, int pid, const Target *target)
 {
-	struct ArenaFlagData *fd;
-	int arena, i;
+	ArenaFlagData *fd;
+	Arena *arena;
+	int i;
 
 	REQUIRE_MOD(flags)
 
-	if (PID_BAD(pid) || ARENA_BAD(players[pid].arena) || target->type != T_ARENA)
+	if (PID_BAD(pid) || !players[pid].arena || target->type != T_ARENA)
 		return;
 
 	arena = players[pid].arena;
 
-	flags->LockFlagStatus(arena);
-
-	fd = flags->flagdata + arena;
+	fd = flags->GetFlagData(arena);
 
 	for (i = 0; i < fd->flagcount; i++)
 		switch (fd->flags[i].state)
@@ -1149,7 +1159,7 @@ local void Cflaginfo(const char *params, int pid, const Target *target)
 				break;
 		}
 
-	flags->UnlockFlagStatus(arena);
+	flags->ReleaseFlagData(arena);
 }
 
 
@@ -1160,22 +1170,24 @@ local helptext_t neutflag_help =
 
 local void Cneutflag(const char *params, int pid, const Target *target)
 {
-	int flagid, arena = players[pid].arena;
+	ArenaFlagData *fd;
+	Arena *arena = players[pid].arena;
+	int flagid;
 	char *next;
 
 	REQUIRE_MOD(flags)
 
-	flags->LockFlagStatus(arena);
+	fd = flags->GetFlagData(arena);
 
 	flagid = strtol(params, &next, 0);
-	if (next == params || flagid < 0 || flagid >= flags->flagdata[arena].flagcount)
+	if (next == params || flagid < 0 || flagid >= fd->flagcount)
 		chat->SendMessage(pid, "neutflag: Bad flag id");
 	else
 		/* set flag state to none, so that the flag timer will neut it
 		 * next time it runs. */
-		flags->flagdata[arena].flags[flagid].state = FLAG_NONE;
+		fd->flags[flagid].state = FLAG_NONE;
 
-	flags->UnlockFlagStatus(arena);
+	flags->ReleaseFlagData(arena);
 }
 
 
@@ -1188,19 +1200,19 @@ local helptext_t moveflag_help =
 
 local void Cmoveflag(const char *params, int pid, const Target *target)
 {
-	/* syntax: ?moveflag <flagid> <freq> <x> <y> */
+	Arena *arena = players[pid].arena;
+	ArenaFlagData *fd;
 	char *next, *next2;
-	int flagid, x, y, freq, arena = players[pid].arena;
+	int flagid, x, y, freq;
 
 	REQUIRE_MOD(flags)
 
-	if (ARENA_BAD(arena))
-		return;
+	if (!arena) return;
 
-	flags->LockFlagStatus(arena);
+	fd = flags->GetFlagData(arena);
 
 	flagid = strtol(params, &next, 0);
-	if (next == params || flagid < 0 || flagid >= flags->flagdata[arena].flagcount)
+	if (next == params || flagid < 0 || flagid >= fd->flagcount)
 	{
 		chat->SendMessage(pid, "moveflag: Bad flag id");
 		goto mf_unlock;
@@ -1220,14 +1232,14 @@ local void Cmoveflag(const char *params, int pid, const Target *target)
 	if (x == 0 || y == 0)
 	{
 		/* missing coords */
-		x = flags->flagdata[arena].flags[flagid].x;
-		y = flags->flagdata[arena].flags[flagid].y;
+		x = fd->flags[flagid].x;
+		y = fd->flags[flagid].y;
 	}
 
 	flags->MoveFlag(arena, flagid, x, y, freq);
 
 mf_unlock:
-	flags->UnlockFlagStatus(arena);
+	flags->ReleaseFlagData(arena);
 }
 
 
@@ -1692,7 +1704,7 @@ struct cmd_group *find_group(const char *name)
 
 
 
-EXPORT int MM_playercmd(int action, Imodman *_mm, int arena)
+EXPORT int MM_playercmd(int action, Imodman *_mm, Arena *arena)
 {
 	struct cmd_group *grp;
 

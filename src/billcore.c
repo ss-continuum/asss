@@ -130,7 +130,7 @@ EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
 		 * server doesn't keep scores on the billing server. */
 		cfg_scoreid = cfg->GetInt(GLOBAL, "Billing", "ScoreId", 5000),
 
-		ml->SetTimer(SendPing, 300, 3000, NULL, -1);
+		ml->SetTimer(SendPing, 300, 3000, NULL, NULL);
 
 		/* packets from billing server */
 		mm->RegCallback(CB_CLIENTCONNECTED, SendLogin, ALLARENAS);
@@ -176,7 +176,7 @@ EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
 		net->RemovePacket(C2S_CHAT, PChat);
 		if (chatnet) chatnet->RemoveHandler("SEND", MChat);
 
-		ml->ClearTimer(SendPing, -1);
+		ml->ClearTimer(SendPing, NULL);
 
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);

@@ -71,11 +71,11 @@ local void print_costs(ConfigHandle ch, int pid)
 
 local void Cbuy(const char *params, int pid, const Target *target)
 {
-	int arena = pd->players[pid].arena;
-	ConfigHandle ch = aman->arenas[arena].cfg;
+	Arena *arena = pd->players[pid].arena;
+	ConfigHandle ch = arena->cfg;
 	int anywhere;
 
-	if (ARENA_BAD(arena)) return;
+	if (!arena) return;
 
 	/* cfghelp: Cost:PurchaseAnytime, arena, bool, def: 0
 	 * Whether players can buy items outside a safe zone. */
@@ -132,7 +132,7 @@ local void Cbuy(const char *params, int pid, const Target *target)
 }
 
 
-EXPORT int MM_buy(int action, Imodman *mm, int arena)
+EXPORT int MM_buy(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{

@@ -14,13 +14,13 @@
 #define KEY_TURF_OWNERS 19
 
 #define LOCK_STATUS(arena) \
-	pthread_mutex_lock(flagmtx + arena)
+	pthread_mutex_lock((pthread_mutex_t*)P_ARENA_DATA(arena, mtxkey))
 #define UNLOCK_STATUS(arena) \
-	pthread_mutex_unlock(flagmtx + arena)
+	pthread_mutex_unlock((pthread_mutex_t*)P_ARENA_DATA(arena, mtxkey))
 
 
 /* internal structs */
-struct MyArenaData
+typedef struct MyArenaData
 {
 	int gametype, minflags, maxflags;
 	/* min/max flags specify the range of possible flag counts in basic
@@ -31,15 +31,16 @@ struct MyArenaData
 	int spawnr, dropr, neutr;
 	int friendlytransfer, dropowned, neutowned;
 	int persistturf;
-};
+} MyArenaData;
+
 
 /* prototypes */
-local void SpawnFlag(int arena, int fid);
-local void AAFlag(int arena, int action);
-local void PAFlag(int pid, int action, int arena);
+local void SpawnFlag(Arena *arena, int fid);
+local void AAFlag(Arena *arena, int action);
+local void PAFlag(int pid, int action, Arena *arena);
 local void ShipChange(int, int, int);
 local void FreqChange(int, int);
-local void FlagKill(int, int, int, int, int);
+local void FlagKill(Arena *, int, int, int, int);
 
 /* timers */
 local int BasicFlagTimer(void *);
@@ -50,12 +51,12 @@ local void PPickupFlag(int, byte *, int);
 local void PDropFlag(int, byte *, int);
 
 /* interface funcs */
-local void MoveFlag(int arena, int fid, int x, int y, int freq);
-local void FlagVictory(int arena, int freq, int points);
-local void LockFlagStatus(int arena);
-local void UnlockFlagStatus(int arena);
+local void MoveFlag(Arena *arena, int fid, int x, int y, int freq);
+local void FlagVictory(Arena *arena, int freq, int points);
+local struct ArenaFlagData * GetFlagData(Arena *arena);
+local void ReleaseFlagData(Arena *arena);
 local int GetCarriedFlags(int pid);
-local int GetFreqFlags(int arena, int freq);
+local int GetFreqFlags(Arena *arena, int freq);
 
 
 /* local data */
@@ -70,21 +71,19 @@ local Imapdata *mapdata;
 local Ipersist *persist;
 
 /* the big flagdata array */
-local struct ArenaFlagData flagdata[MAXARENA];
-local struct MyArenaData pflagdata[MAXARENA];
-local pthread_mutex_t flagmtx[MAXARENA];
-local PersistentData persist_turf_owners;
+local int afdkey, pfdkey, mtxkey;
+local ArenaPersistentData persist_turf_owners;
 
 local Iflags _myint =
 {
 	INTERFACE_HEAD_INIT(I_FLAGS, "flag-core")
 	MoveFlag, FlagVictory, GetCarriedFlags, GetFreqFlags,
-	LockFlagStatus, UnlockFlagStatus, flagdata
+	GetFlagData, ReleaseFlagData
 };
 
 
 
-EXPORT int MM_flags(int action, Imodman *_mm, int arena)
+EXPORT int MM_flags(int action, Imodman *_mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -98,6 +97,11 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
 		persist = mm->GetInterface(I_PERSIST, ALLARENAS);
 
+		afdkey = aman->AllocateArenaData(sizeof(struct FlagData));
+		pfdkey = aman->AllocateArenaData(sizeof(struct MyArenaData));
+		mtxkey = aman->AllocateArenaData(sizeof(pthread_mutex_t));
+		if (afdkey == -1 || pfdkey == -1 || mtxkey == -1) return MM_FAIL;
+
 		mm->RegCallback(CB_ARENAACTION, AAFlag, ALLARENAS);
 		mm->RegCallback(CB_PLAYERACTION, PAFlag, ALLARENAS);
 		mm->RegCallback(CB_SHIPCHANGE, ShipChange, ALLARENAS);
@@ -107,26 +111,9 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 		net->AddPacket(C2S_PICKUPFLAG, PPickupFlag);
 		net->AddPacket(C2S_DROPFLAGS, PDropFlag);
 
-		{ /* init data */
-			int i;
-			for (i = 0; i < MAXARENA; i++)
-				pflagdata[i].gametype = FLAGGAME_NONE;
-		}
-
-		{ /* init mutexes */
-			int i;
-			pthread_mutexattr_t attr;
-
-			pthread_mutexattr_init(&attr);
-			pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-			for (i = 0; i < MAXARENA; i++)
-				pthread_mutex_init(flagmtx + i, &attr);
-			pthread_mutexattr_destroy(&attr);
-		}
-
 		/* timers */
-		ml->SetTimer(BasicFlagTimer, 500, 500, NULL, -1);
-		ml->SetTimer(TurfFlagTimer, 1500, 1500, NULL, -1);
+		ml->SetTimer(BasicFlagTimer, 500, 500, NULL, NULL);
+		ml->SetTimer(TurfFlagTimer, 1500, 1500, NULL, NULL);
 
 		if (persist)
 			persist->RegArenaPD(&persist_turf_owners);
@@ -148,8 +135,11 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 		mm->UnregCallback(CB_KILL, FlagKill, ALLARENAS);
 		net->RemovePacket(C2S_PICKUPFLAG, PPickupFlag);
 		net->RemovePacket(C2S_DROPFLAGS, PDropFlag);
-		ml->ClearTimer(BasicFlagTimer, -1);
-		ml->ClearTimer(TurfFlagTimer, -1);
+		ml->ClearTimer(BasicFlagTimer, NULL);
+		ml->ClearTimer(TurfFlagTimer, NULL);
+		aman->FreeArenaData(afdkey);
+		aman->FreeArenaData(pfdkey);
+		aman->FreeArenaData(mtxkey);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(logm);
@@ -166,20 +156,22 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 
 
 
-void SpawnFlag(int arena, int fid)
+void SpawnFlag(Arena *arena, int fid)
 {
 	/* note that this function should be called only for arenas with
 	 * FLAGGAME_BASIC */
 	int cx, cy, rad, x, y, freq, good;
-	struct FlagData *f = &flagdata[arena].flags[fid];
+	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
+	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
+	struct FlagData *f = &afd->flags[fid];
 
 	LOCK_STATUS(arena);
 	if (f->state == FLAG_NONE)
 	{
 		/* spawning neutral flag in center */
-		cx = pflagdata[arena].spawnx;
-		cy = pflagdata[arena].spawny;
-		rad = pflagdata[arena].spawnr;
+		cx = pfd->spawnx;
+		cy = pfd->spawny;
+		rad = pfd->spawnr;
 		freq = -1;
 	}
 	else if (f->state == FLAG_CARRIED)
@@ -188,8 +180,8 @@ void SpawnFlag(int arena, int fid)
 		int pid = f->carrier;
 		cx = pd->players[pid].position.x>>4;
 		cy = pd->players[pid].position.y>>4;
-		rad = pflagdata[arena].dropr;
-		if (pflagdata[arena].dropowned)
+		rad = pfd->dropr;
+		if (pfd->dropowned)
 			freq = f->freq;
 		else
 			freq = -1;
@@ -200,8 +192,8 @@ void SpawnFlag(int arena, int fid)
 		/* these fields were set when the flag was neuted */
 		cx = f->x;
 		cy = f->y;
-		rad = pflagdata[arena].neutr;
-		if (pflagdata[arena].neutowned)
+		rad = pfd->neutr;
+		if (pfd->neutowned)
 			freq = f->freq;
 		else
 			freq = -1;
@@ -247,8 +239,8 @@ void SpawnFlag(int arena, int fid)
 
 		/* finally make sure it doesn't hit any other flags */
 		good = 1;
-		fc = pflagdata[arena].maxflags;
-		for (i = 0, f = flagdata[arena].flags; i < fc; i++, f++)
+		fc = pfd->maxflags;
+		for (i = 0, f = afd->flags; i < fc; i++, f++)
 			if (f->state == FLAG_ONMAP && /* only check placed flags */
 			    fid != i && /* don't compare with ourself */
 			    f->x == x &&
@@ -267,61 +259,74 @@ void SpawnFlag(int arena, int fid)
 }
 
 
-void MoveFlag(int arena, int fid, int x, int y, int freq)
+void MoveFlag(Arena *arena, int fid, int x, int y, int freq)
 {
+	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
 	struct S2CFlagLocation fl = { S2C_FLAGLOC, fid, x, y, freq };
+	int oldp;
 
 	LOCK_STATUS(arena);
-	flagdata[arena].flags[fid].state = FLAG_ONMAP;
-	flagdata[arena].flags[fid].x = x;
-	flagdata[arena].flags[fid].y = y;
-	flagdata[arena].flags[fid].freq = freq;
-	flagdata[arena].flags[fid].carrier = -1;
+	afd->flags[fid].state = FLAG_ONMAP;
+	afd->flags[fid].x = x;
+	afd->flags[fid].y = y;
+	afd->flags[fid].freq = freq;
+	oldp = afd->flags[fid].carrier;
+	if (PID_OK(oldp) &&
+	    pd->players[oldp].status == S_PLAYING &&
+	    pd->players[oldp].flagscarried > 0)
+		pd->players[oldp].flagscarried--;
+	afd->flags[fid].carrier = -1;
 	UNLOCK_STATUS(arena);
+
 	net->SendToArena(arena, -1, (byte*)&fl, sizeof(fl), NET_RELIABLE);
 	DO_CBS(CB_FLAGPOS, arena, FlagPosFunc,
 			(arena, fid, x, y, freq));
 	logm->Log(L_DRIVEL, "<flags> {%s} Flag %d is at (%d, %d) owned by %d",
-			aman->arenas[arena].name, fid, x, y, freq);
+			arena->name, fid, x, y, freq);
 }
 
 
-void FlagVictory(int arena, int freq, int points)
+void FlagVictory(Arena *arena, int freq, int points)
 {
 	int i, fc;
+	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
+	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
 	struct S2CFlagVictory fv = { S2C_FLAGRESET, freq, points };
 
 	LOCK_STATUS(arena);
-	flagdata[arena].flagcount = 0;
-	fc = pflagdata[arena].maxflags;
+	afd->flagcount = 0;
+	fc = pfd->maxflags;
 	for (i = 0; i < fc; i++)
-		flagdata[arena].flags[i].state = FLAG_NONE;
+		afd->flags[i].state = FLAG_NONE;
 	UNLOCK_STATUS(arena);
 
 	net->SendToArena(arena, -1, (byte*)&fv, sizeof(fv), NET_RELIABLE);
 }
 
 
-void LockFlagStatus(int arena)
+ArenaFlagData * GetFlagData(Arena *arena)
 {
 	LOCK_STATUS(arena);
+	return P_ARENA_DATA(arena, afdkey);
 }
 
-void UnlockFlagStatus(int arena)
+void ReleaseFlagData(Arena *arena)
 {
 	UNLOCK_STATUS(arena);
 }
 
 int GetCarriedFlags(int pid)
 {
-	int tot = 0, arena = pd->players[pid].arena, i, fc;
+	Arena *arena = pd->players[pid].arena;
+	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
+	int tot = 0, i, fc;
 	struct FlagData *f;
 
-	if (ARENA_BAD(arena)) return -1;
+	if (!arena) return -1;
 
 	LOCK_STATUS(arena);
-	f = flagdata[arena].flags;
-	fc = pflagdata[arena].maxflags;
+	f = afd->flags;
+	fc = afd->flagcount;
 	for (i = 0; i < fc; i++, f++)
 		if (f->state == FLAG_CARRIED &&
 		    f->carrier == pid)
@@ -330,16 +335,17 @@ int GetCarriedFlags(int pid)
 	return tot;
 }
 
-int GetFreqFlags(int arena, int freq)
+int GetFreqFlags(Arena *arena, int freq)
 {
 	int tot = 0, i, fc;
+	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
 	struct FlagData *f;
 
-	if (ARENA_BAD(arena)) return -1;
+	if (!arena) return -1;
 
-	f = flagdata[arena].flags;
+	f = afd->flags;
 	LOCK_STATUS(arena);
-	fc = pflagdata[arena].maxflags;
+	fc = afd->flagcount;
 	for (i = 0; i < fc; i++, f++)
 		if ( ( f->state == FLAG_ONMAP &&
 		       f->freq == freq ) ||
@@ -352,10 +358,11 @@ int GetFreqFlags(int arena, int freq)
 }
 
 
-local void LoadFlagSettings(int arena, int init)
+local void LoadFlagSettings(Arena *arena, int init)
 {
-	struct MyArenaData *d = pflagdata + arena;
-	ConfigHandle c = aman->arenas[arena].cfg;
+	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
+	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
+	ConfigHandle c = arena->cfg;
 
 	/* get flag game type, only the first time */
 	/* cfghelp: Flag:GameType, arena, enum, def: $FLAGGAME_NONE
@@ -363,42 +370,42 @@ local void LoadFlagSettings(int arena, int init)
 	 * game, $FLAGGAME_BASIC is a standard warzone or running zone game,
 	 * and $FLAGGAME_TURF specifies immobile flags. */
 	if (init)
-		d->gametype = cfg->GetInt(c, "Flag", "GameType", FLAGGAME_NONE);
+		pfd->gametype = cfg->GetInt(c, "Flag", "GameType", FLAGGAME_NONE);
 
 	/* and initialize settings for that type */
-	if (d->gametype == FLAGGAME_BASIC)
+	if (pfd->gametype == FLAGGAME_BASIC)
 	{
 		const char *count, *c2;
 
 		/* cfghelp: Flag:ResetDelay, arena, int, def: 0
 		 * The length of the delay between flag games. */
-		d->resetdelay = cfg->GetInt(c, "Flag", "ResetDelay", 0);
+		pfd->resetdelay = cfg->GetInt(c, "Flag", "ResetDelay", 0);
 		/* cfghelp: Flag:SpawnX, arena, int, def: 512
 		 * The X coordinate that new flags spawn at (in tiles). */
-		d->spawnx = cfg->GetInt(c, "Flag", "SpawnX", 512);
+		pfd->spawnx = cfg->GetInt(c, "Flag", "SpawnX", 512);
 		/* cfghelp: Flag:SpawnY, arena, int, def: 512
 		 * The Y coordinate that new flags spawn at (in tiles). */
-		d->spawny = cfg->GetInt(c, "Flag", "SpawnY", 512);
+		pfd->spawny = cfg->GetInt(c, "Flag", "SpawnY", 512);
 		/* cfghelp: Flag:SpawnRadius, arena, int, def: 50
 		 * How far from the spawn center that new flags spawn (in
 		 * tiles). */
-		d->spawnr = cfg->GetInt(c, "Flag", "SpawnRadius", 50);
+		pfd->spawnr = cfg->GetInt(c, "Flag", "SpawnRadius", 50);
 		/* cfghelp: Flag:DropRadius, arena, int, def: 2
 		 * How far from a player do dropped flags appear (in tiles). */
-		d->dropr = cfg->GetInt(c, "Flag", "DropRadius", 2);
+		pfd->dropr = cfg->GetInt(c, "Flag", "DropRadius", 2);
 		/* cfghelp: Flag:NeutRadius, arena, int, def: 2
 		 * How far from a player do neut-dropped flags appear (in
 		 * tiles). */
-		d->neutr = cfg->GetInt(c, "Flag", "NeutRadius", 2);
+		pfd->neutr = cfg->GetInt(c, "Flag", "NeutRadius", 2);
 		/* cfghelp: Flag:FriendlyTransfer , arena, bool, def: 1
 		 * Whether you get a teammates flags when you kill him. */
-		d->friendlytransfer = cfg->GetInt(c, "Flag", "FriendlyTransfer", 1);
+		pfd->friendlytransfer = cfg->GetInt(c, "Flag", "FriendlyTransfer", 1);
 		/* cfghelp: Flag:DropOwned, arena, bool, def: 1
 		 * Whether flags you drop are owned by your team. */
-		d->dropowned = cfg->GetInt(c, "Flag", "DropOwned", 1);
+		pfd->dropowned = cfg->GetInt(c, "Flag", "DropOwned", 1);
 		/* cfghelp: Flag:NeutOwned, arena, bool, def: 0
 		 * Whether flags you neut-drop are owned by your team. */
-		d->neutowned = cfg->GetInt(c, "Flag", "NeutOwned", 0);
+		pfd->neutowned = cfg->GetInt(c, "Flag", "NeutOwned", 0);
 
 		if (init)
 		{
@@ -407,32 +414,32 @@ local void LoadFlagSettings(int arena, int init)
 			count = cfg->GetStr(c, "Flag", "FlagCount");
 			if (count)
 			{
-				d->minflags = strtol(count, NULL, 0);
-				if (d->minflags < 0) d->minflags = 0;
-				if (d->minflags > 256) d->minflags = 256;
+				pfd->minflags = strtol(count, NULL, 0);
+				if (pfd->minflags < 0) pfd->minflags = 0;
+				if (pfd->minflags > 256) pfd->minflags = 256;
 				c2 = strchr(count, '-');
 				if (c2)
 				{
-					d->maxflags = strtol(c2+1, NULL, 0);
-					if (d->maxflags > 256) d->maxflags = 256;
-					if (d->maxflags < d->minflags)
-						d->maxflags = d->minflags;
+					pfd->maxflags = strtol(c2+1, NULL, 0);
+					if (pfd->maxflags > 256) pfd->maxflags = 256;
+					if (pfd->maxflags < pfd->minflags)
+						pfd->maxflags = pfd->minflags;
 				}
 				else
-					d->maxflags = d->minflags;
+					pfd->maxflags = pfd->minflags;
 			}
 			else
-				d->maxflags = d->minflags = 0;
+				pfd->maxflags = pfd->minflags = 0;
 
 			/* allocate array for public flag data */
-			flagdata[arena].flags = amalloc(d->maxflags * sizeof(struct FlagData));
+			afd->flags = amalloc(pfd->maxflags * sizeof(struct FlagData));
 
 			/* the timer event will notice that flagcount < maxflags and
 			 * init the flags. */
-			flagdata[arena].flagcount = 0;
+			afd->flagcount = 0;
 		}
 	}
-	else if (d->gametype == FLAGGAME_TURF && init)
+	else if (pfd->gametype == FLAGGAME_TURF && init)
 	{
 		int i;
 		struct FlagData *f;
@@ -440,15 +447,15 @@ local void LoadFlagSettings(int arena, int init)
 		/* cfghelp: Flag:PersistentTurfOwners, arena, bool, def: 1
 		 * Whether ownership of turf flags persists even when the arena
 		 * is empty (or the server crashes). */
-		d->persistturf = cfg->GetInt(c, "Flag", "PersistentTurfOwners", 1);
+		pfd->persistturf = cfg->GetInt(c, "Flag", "PersistentTurfOwners", 1);
 
-		d->minflags = d->maxflags = flagdata[arena].flagcount =
+		pfd->minflags = pfd->maxflags = afd->flagcount =
 			mapdata->GetFlagCount(arena);
 
 		/* allocate array for public flag data */
-		flagdata[arena].flags = amalloc(d->maxflags * sizeof(struct FlagData));
+		afd->flags = amalloc(pfd->maxflags * sizeof(struct FlagData));
 
-		for (i = 0, f = flagdata[arena].flags; i < d->maxflags; i++, f++)
+		for (i = 0, f = afd->flags; i < pfd->maxflags; i++, f++)
 		{
 			f->state = FLAG_ONMAP;
 			f->freq = -1;
@@ -457,30 +464,46 @@ local void LoadFlagSettings(int arena, int init)
 		}
 	}
 
-	if (init && d->gametype)
+	if (init && pfd->gametype)
 		logm->Log(L_INFO, "<flags> {%s} Arena has flaggame %d (%d-%d flags)",
-				aman->arenas[arena].name,
-				d->gametype,
-				d->minflags,
-				d->maxflags);
+				arena->name,
+				pfd->gametype,
+				pfd->minflags,
+				pfd->maxflags);
 }
 
 
-void AAFlag(int arena, int action)
+void AAFlag(Arena *arena, int action)
 {
-	LOCK_STATUS(arena);
-	if (action == AA_CREATE || action == AA_DESTROY)
+	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
+	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
+
+	if (action == AA_CREATE)
 	{
+		pthread_mutexattr_t attr;
+
+		pthread_mutexattr_init(&attr);
+		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+		pthread_mutex_init(P_ARENA_DATA(arena, mtxkey), &attr);
+		pthread_mutexattr_destroy(&attr);
+		memset(afd, 0, sizeof(*afd));
+		memset(pfd, 0, sizeof(*pfd));
+	}
+	else if (action == AA_DESTROY)
+		pthread_mutex_destroy(P_ARENA_DATA(arena, mtxkey));
+
+	if (action == AA_CREATE || action == AA_DESTROY) {
 		/* clean up old flag data */
-		if (flagdata[arena].flags)
+		if (afd->flags)
 		{
-			afree(flagdata[arena].flags);
-			flagdata[arena].flags = NULL;
-			flagdata[arena].flagcount = 0;
+			afree(afd->flags);
+			afd->flags = NULL;
+			afd->flagcount = 0;
 		}
-		pflagdata[arena].gametype = FLAGGAME_NONE;
+		pfd->gametype = FLAGGAME_NONE;
 	}
 
+	LOCK_STATUS(arena);
 	if (action == AA_CREATE)
 	{
 		/* only if we're creating, load the data */
@@ -495,8 +518,10 @@ void AAFlag(int arena, int action)
 }
 
 
-local void CheckWin(int arena)
+local void CheckWin(Arena *arena)
 {
+	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
+	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
 	struct FlagData *f;
 	int freq = -1, flagc = 0, i, cflags, fc;
 
@@ -504,9 +529,9 @@ local void CheckWin(int arena)
 	 * note that we don't need the max, because by definition, a win is
 	 * when you're the _only_ freq that owns flags. */
 	LOCK_STATUS(arena);
-	cflags = flagdata[arena].flagcount;
-	fc = pflagdata[arena].maxflags;
-	for (i = 0, f = flagdata[arena].flags; i < fc; i++, f++)
+	cflags = afd->flagcount;
+	fc = pfd->maxflags;
+	for (i = 0, f = afd->flags; i < fc; i++, f++)
 		if (f->state == FLAG_ONMAP)
 		{
 			if (f->freq == freq)
@@ -527,21 +552,25 @@ local void CheckWin(int arena)
 				(arena, freq));
 
 		logm->Log(L_INFO, "<flags> {%s} Flag victory: freq %d won",
-				aman->arenas[arena].name, freq);
+				arena->name, freq);
 	}
 
 }
 
 
-local void CleanupAfter(int arena, int pid)
+local void CleanupAfter(Arena *arena, int pid)
 {
 	/* make sure that if someone leaves, his flags respawn */
+	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
+	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
 	int i, fc, dropped = 0;
-	struct FlagData *f = flagdata[arena].flags;
+	struct FlagData *f = afd->flags;
+
+	pd->players[pid].flagscarried = 0;
 
 	LOCK_STATUS(arena);
-	fc = pflagdata[arena].maxflags;
-	if (pflagdata[arena].gametype != FLAGGAME_NONE)
+	fc = pfd->maxflags;
+	if (pfd->gametype != FLAGGAME_NONE)
 		for (i = 0; i < fc; i++, f++)
 			if (f->state == FLAG_CARRIED &&
 				f->carrier == pid)
@@ -559,17 +588,20 @@ local void CleanupAfter(int arena, int pid)
 }
 
 
-void PAFlag(int pid, int action, int arena)
+void PAFlag(int pid, int action, Arena *arena)
 {
+	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
+	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
+
 	if (action == PA_ENTERARENA)
 	{
 		/* send him flag locations */
 		int i, fc;
-		struct FlagData *f = flagdata[arena].flags;
+		struct FlagData *f = afd->flags;
 
 		LOCK_STATUS(arena);
-		fc = pflagdata[arena].maxflags;
-		if (pflagdata[arena].gametype == FLAGGAME_BASIC)
+		fc = afd->flagcount;
+		if (pfd->gametype == FLAGGAME_BASIC)
 			for (i = 0; i < fc; i++, f++)
 			{
 				if (f->state == FLAG_ONMAP)
@@ -584,6 +616,7 @@ void PAFlag(int pid, int action, int arena)
 				}
 			}
 		UNLOCK_STATUS(arena);
+		pd->players[pid].flagscarried = 0;
 	}
 	else if (action == PA_LEAVEARENA)
 		CleanupAfter(arena, pid);
@@ -600,19 +633,21 @@ void FreqChange(int pid, int newfreq)
 	CleanupAfter(pd->players[pid].arena, pid);
 }
 
-void FlagKill(int arena, int killer, int killed, int bounty, int flags)
+void FlagKill(Arena *arena, int killer, int killed, int bounty, int flags)
 {
+	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
+	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
 	int i, fc, newfreq;
 	struct FlagData *f;
 
 	if (flags < 1) return;
 
-	f = flagdata[arena].flags;
+	f = afd->flags;
 	newfreq = pd->players[killer].freq;
 	LOCK_STATUS(arena);
-	fc = pflagdata[arena].maxflags;
+	fc = pfd->maxflags;
 	if (pd->players[killer].freq != pd->players[killed].freq ||
-	    pflagdata[arena].friendlytransfer)
+	    pfd->friendlytransfer)
 	{
 		for (i = 0; i < fc; i++, f++)
 		{
@@ -621,6 +656,7 @@ void FlagKill(int arena, int killer, int killed, int bounty, int flags)
 			{
 				f->carrier = killer;
 				f->freq = newfreq;
+				pd->players[killer].flagscarried++;
 			}
 		}
 	}
@@ -639,6 +675,7 @@ void FlagKill(int arena, int killer, int killed, int bounty, int flags)
 		}
 	}
 	UNLOCK_STATUS(arena);
+	pd->players[killed].flagscarried = 0;
 	/* logm->Log(L_DRIVEL, "<flags> [%s] by [%s] Flag kill: %d flags transferred",
 			pd->players[killed].name,
 			pd->players[killer].name,
@@ -648,14 +685,15 @@ void FlagKill(int arena, int killer, int killed, int bounty, int flags)
 
 void PPickupFlag(int pid, byte *p, int len)
 {
-	int arena, oldfreq, carried;
+	Arena *arena = pd->players[pid].arena;
+	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
+	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
+	int oldfreq, carried;
 	struct S2CFlagPickup sfp = { S2C_FLAGPICKUP };
 	struct FlagData fd;
 	struct C2SFlagPickup *cfp = (struct C2SFlagPickup*)p;
 
-	arena = pd->players[pid].arena;
-
-	if (ARENA_BAD(arena))
+	if (!arena)
 	{
 		logm->Log(L_MALICIOUS, "<flags> [%s] Flag pickup from bad arena",
 				pd->players[pid].name);
@@ -691,20 +729,20 @@ void PPickupFlag(int pid, byte *p, int len)
 
 	LOCK_STATUS(arena);
 	/* copy the fd struct so we can modify it */
-	fd = flagdata[arena].flags[cfp->fid];
+	fd = afd->flags[cfp->fid];
 	oldfreq = fd.freq;
 
 	/* make sure someone else didn't get it first */
 	if (fd.state != FLAG_ONMAP)
 	{
 		logm->Log(L_MALICIOUS, "<flags> {%s} [%s] Tried to pick up a carried flag",
-				aman->arenas[arena].name,
+				arena->name,
 				pd->players[pid].name);
 		UNLOCK_STATUS(arena);
 		return;
 	}
 
-	switch (pflagdata[arena].gametype)
+	switch (pfd->gametype)
 	{
 		case FLAGGAME_BASIC:
 			/* in this game, flags are carried */
@@ -714,8 +752,9 @@ void PPickupFlag(int pid, byte *p, int len)
 			 * information is hard to regain */
 			fd.freq = pd->players[pid].freq;
 			fd.carrier = pid;
+			pd->players[pid].flagscarried++;
 
-			flagdata[arena].flags[cfp->fid] = fd;
+			afd->flags[cfp->fid] = fd;
 			break;
 
 		case FLAGGAME_TURF:
@@ -724,7 +763,7 @@ void PPickupFlag(int pid, byte *p, int len)
 			fd.state = FLAG_ONMAP;
 			fd.freq = pd->players[pid].freq;
 
-			flagdata[arena].flags[cfp->fid] = fd;
+			afd->flags[cfp->fid] = fd;
 			break;
 
 		case FLAGGAME_NONE:
@@ -740,12 +779,12 @@ void PPickupFlag(int pid, byte *p, int len)
 	net->SendToArena(arena, -1, (byte*)&sfp, sizeof(sfp), NET_RELIABLE);
 
 	/* now call callbacks */
-	carried = (flagdata[arena].flags[cfp->fid].state == FLAG_CARRIED);
+	carried = (afd->flags[cfp->fid].state == FLAG_CARRIED);
 	DO_CBS(CB_FLAGPICKUP, arena, FlagPickupFunc,
 			(arena, pid, cfp->fid, oldfreq, carried));
 
 	logm->Log(L_DRIVEL, "<flags> {%s} [%s] Player picked up flag %d",
-			aman->arenas[arena].name,
+			arena->name,
 			pd->players[pid].name,
 			cfp->fid);
 }
@@ -753,13 +792,14 @@ void PPickupFlag(int pid, byte *p, int len)
 
 void PDropFlag(int pid, byte *p, int len)
 {
-	int arena, fid, fc, dropped = 0;
+	Arena *arena = pd->players[pid].arena;
+	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
+	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
+	int fid, fc, dropped = 0;
 	struct S2CFlagDrop sfd = { S2C_FLAGDROP };
 	struct FlagData *fd;
 
-	arena = pd->players[pid].arena;
-
-	if (ARENA_BAD(arena) || pd->players[pid].status != S_PLAYING)
+	if (!arena || pd->players[pid].status != S_PLAYING)
 	{
 		logm->Log(L_MALICIOUS, "<flags> [%s] Flag drop packet from bad arena or status", pd->players[pid].name);
 		return;
@@ -776,14 +816,14 @@ void PDropFlag(int pid, byte *p, int len)
 	net->SendToArena(arena, -1, (byte*)&sfd, sizeof(sfd), NET_RELIABLE);
 
 	LOCK_STATUS(arena);
-	fc = pflagdata[arena].maxflags;
+	fc = pfd->maxflags;
 
 	/* now modify flag info and place flags */
-	switch (pflagdata[arena].gametype)
+	switch (pfd->gametype)
 	{
 		case FLAGGAME_BASIC:
 			/* here, we have to place carried flags */
-			for (fid = 0, fd = flagdata[arena].flags; fid < fc; fid++, fd++)
+			for (fid = 0, fd = afd->flags; fid < fc; fid++, fd++)
 				if (fd->state == FLAG_CARRIED &&
 				    fd->carrier == pid)
 				{
@@ -795,7 +835,7 @@ void PDropFlag(int pid, byte *p, int len)
 		case FLAGGAME_TURF:
 			/* clients shouldn't send this packet in turf games */
 			logm->Log(L_MALICIOUS, "<flags> {%s} [%s] Recvd flag drop packet in turf game",
-					aman->arenas[arena].name,
+					arena->name,
 					pd->players[pid].name);
 			break;
 
@@ -811,7 +851,7 @@ void PDropFlag(int pid, byte *p, int len)
 	DO_CBS(CB_FLAGDROP, arena, FlagDropFunc, (arena, pid, dropped, 0));
 
 	logm->Log(L_DRIVEL, "<flags> {%s} [%s] Player dropped flags",
-			aman->arenas[arena].name,
+			arena->name,
 			pd->players[pid].name);
 
 	/* do this after the drop callbacks have been called because this
@@ -823,27 +863,33 @@ void PDropFlag(int pid, byte *p, int len)
 
 int BasicFlagTimer(void *dummy)
 {
-	int arena;
-	for (arena = 0; arena < MAXARENA; arena++)
+	Arena *arena;
+	Link *link;
+
+	aman->Lock();
+	FOR_EACH_ARENA(arena)
 	{
+		ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
+		MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
+
 		LOCK_STATUS(arena);
-		if (pflagdata[arena].gametype == FLAGGAME_BASIC)
+		if (pfd->gametype == FLAGGAME_BASIC)
 		{
 			int flagcount, f;
 			struct FlagData *flags;
 
 			/* first check if we have to pick a new flag count */
-			if (flagdata[arena].flagcount < pflagdata[arena].minflags)
+			if (afd->flagcount < pfd->minflags)
 			{
 				float diff, cflags;
-				diff = pflagdata[arena].maxflags - pflagdata[arena].minflags + 1;
+				diff = pfd->maxflags - pfd->minflags + 1;
 				cflags = diff * ((float)rand() / (RAND_MAX+1.0));
-				flagdata[arena].flagcount = (int)cflags + pflagdata[arena].minflags;
+				afd->flagcount = (int)cflags + pfd->minflags;
 			}
 
 			/* now check the flags up to flagcount */
-			flagcount = flagdata[arena].flagcount;
-			flags = flagdata[arena].flags;
+			flagcount = afd->flagcount;
+			flags = afd->flags;
 			for (f = 0; f < flagcount; f++)
 				if (flags[f].state == FLAG_NONE || flags[f].state == FLAG_NEUTED)
 					SpawnFlag(arena, f);
@@ -854,76 +900,89 @@ int BasicFlagTimer(void *dummy)
 		}
 		UNLOCK_STATUS(arena);
 	}
+	aman->Unlock();
 
-	return 1;
+	return TRUE;
 }
 
 
 int TurfFlagTimer(void *dummy)
 {
-	int arena;
-	for (arena = 0; arena < MAXARENA; arena++)
+	Arena *arena;
+	Link *link;
+
+	aman->Lock();
+	FOR_EACH_ARENA(arena)
 	{
+		ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
+		MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
+
 		LOCK_STATUS(arena);
-		if (pflagdata[arena].gametype == FLAGGAME_TURF)
+		if (pfd->gametype == FLAGGAME_TURF)
 		{
 			/* send big turf flag summary */
 			int i, fc;
 			struct SimplePacketA *pkt;
 
-			fc = flagdata[arena].flagcount;
+			fc = afd->flagcount;
 			pkt = alloca(1 + fc * 2);
 			pkt->type = S2C_TURFFLAGS;
 			for (i = 0; i < fc; i++)
-				pkt->d[i] = flagdata[arena].flags[i].freq;
+				pkt->d[i] = afd->flags[i].freq;
 			net->SendToArena(arena, -1, (byte*)pkt, 1 + fc * 2, NET_UNRELIABLE);
 		}
 		UNLOCK_STATUS(arena);
 	}
-	return 1;
+	aman->Unlock();
+
+	return TRUE;
 }
 
 
-local int get_turf_owners(int arena, void *data, int len)
+local int get_turf_owners(Arena *arena, void *data, int len)
 {
+	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
+	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
 	short *d = data, i;
 	int fc;
 
 	LOCK_STATUS(arena);
 
-	if (pflagdata[arena].gametype != FLAGGAME_TURF ||
-	    !pflagdata[arena].persistturf ||
-	    !flagdata[arena].flags)
+	if (pfd->gametype != FLAGGAME_TURF ||
+	    !pfd->persistturf ||
+	    !afd->flags)
 	{
 		UNLOCK_STATUS(arena);
 		return 0;
 	}
 
-	fc = flagdata[arena].flagcount;
+	fc = afd->flagcount;
 	for (i = 0; i < fc; i++)
-		d[i] = flagdata[arena].flags[i].freq;
+		d[i] = afd->flags[i].freq;
 
 	UNLOCK_STATUS(arena);
 
 	return fc * sizeof(short);
 }
 
-local void set_turf_owners(int arena, void *data, int len)
+local void set_turf_owners(Arena *arena, void *data, int len)
 {
+	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
+	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
 	short *d = data, i;
 	int fc;
 
 	LOCK_STATUS(arena);
 
-	if (pflagdata[arena].gametype != FLAGGAME_TURF ||
-	    !pflagdata[arena].persistturf ||
-	    !flagdata[arena].flags)
+	if (pfd->gametype != FLAGGAME_TURF ||
+	    !pfd->persistturf ||
+	    !afd->flags)
 	{
 		UNLOCK_STATUS(arena);
 		return;
 	}
 
-	fc = flagdata[arena].flagcount;
+	fc = afd->flagcount;
 
 	if (len != fc * sizeof(short))
 	{
@@ -932,21 +991,21 @@ local void set_turf_owners(int arena, void *data, int len)
 	}
 
 	for (i = 0; i < fc; i++)
-		flagdata[arena].flags[i].freq = d[i];
+		afd->flags[i].freq = d[i];
 
 	UNLOCK_STATUS(arena);
 }
 
-local void clear_turf_owners(int arena)
+local void clear_turf_owners(Arena *arena)
 {
 	/* no-op: the arena create action does this already */
 }
 
-local PersistentData persist_turf_owners =
+local ArenaPersistentData persist_turf_owners =
 {
 	/* ideally, this would only get registered for arenas with a turf
 	 * game going, but this is ok. */
-	KEY_TURF_OWNERS, PERSIST_ALLARENAS, INTERVAL_GAME,
+	KEY_TURF_OWNERS, INTERVAL_GAME, PERSIST_ALLARENAS,
 	get_turf_owners, set_turf_owners, clear_turf_owners
 };
 

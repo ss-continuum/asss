@@ -16,7 +16,7 @@ typedef struct Imodman Imodman;
 
 
 /* all module entry points must be of this type */
-typedef int (*ModMain)(int action, Imodman *mm, int arena);
+typedef int (*ModMain)(int action, Imodman *mm, Arena *arena);
 
 
 /* action codes for module main functions */
@@ -98,16 +98,16 @@ struct Imodman
 	 * module name any extra info, and a closure pointer for it to use.
 	 */
 
-	void (*AttachModule)(const char *modname, int arena);
-	void (*DetachModule)(const char *modname, int arena);
+	void (*AttachModule)(const char *modname, Arena *arena);
+	void (*DetachModule)(const char *modname, Arena *arena);
 	/* these are called by the arena manager to attach and detach
 	 * modules to arenas that are loaded and destroyed. */
 
 
 	/* interface stuff */
 
-	void (*RegInterface)(void *iface, int arena);
-	int (*UnregInterface)(void *iface, int arena);
+	void (*RegInterface)(void *iface, Arena *arena);
+	int (*UnregInterface)(void *iface, Arena *arena);
 	/* these are the way of providing interfaces for other modules. they
 	 * should be called with an interface id and a pointer to the
 	 * interface. UnregInterface will refuse to unregister an interface
@@ -115,7 +115,7 @@ struct Imodman
 	 * count of the interface that's being unregistered, so a zero means
 	 * success. */
 
-	void * (*GetInterface)(const char *id, int arena);
+	void * (*GetInterface)(const char *id, Arena *arena);
 	void * (*GetInterfaceByName)(const char *name);
 	/* these two retrieve interface pointers. GetInterface gets the
 	 * interface pointer of the highest-priority implementation for that
@@ -129,19 +129,19 @@ struct Imodman
 
 	/* callback stuff */
 
-	void (*RegCallback)(const char *id, void *func, int arena);
-	void (*UnregCallback)(const char *id, void *func, int arena);
+	void (*RegCallback)(const char *id, void *func, Arena *arena);
+	void (*UnregCallback)(const char *id, void *func, Arena *arena);
 	/* these manage callback functions. putting this functionality in
 	 * here keeps every other module that wants to call callbacks from
 	 * implementing it themselves. */
 
-	LinkedList * (*LookupCallback)(const char *id, int arena);
-	void (*FreeLookupResult)(LinkedList *lst);
+	void (*LookupCallback)(const char *id, Arena *arena, LinkedList *res);
+	void (*FreeLookupResult)(LinkedList *res);
 	/* these are how callbacks are called. LookupCallback will return a
 	 * list of functions to call. when you're done calling them all,
 	 * call FreeLookupResult on the list. */
 
-#define ALLARENAS (-1)
+#define ALLARENAS NULL
 	/* if you want a callback to take effect globally, use ALLARENAS as
 	 * the 'arena' parameter to the above functions. callbacks
 	 * registered with ALLARENAS will be returned to _any_ call to
@@ -172,11 +172,12 @@ void DeInitModuleManager(Imodman *mm);
 /* this might be a useful macro */
 #define DO_CBS(cb, arena, type, args)                  \
 do {                                                   \
-	LinkedList *lst = mm->LookupCallback(cb, arena);   \
+	LinkedList lst;                                    \
 	Link *l;                                           \
-	for (l = LLGetHead(lst); l; l = l->next)           \
+	mm->LookupCallback(cb, arena, &lst);               \
+	for (l = LLGetHead(&lst); l; l = l->next)           \
 		((type)l->data) args ;                         \
-	mm->FreeLookupResult(lst);                         \
+	mm->FreeLookupResult(&lst);                        \
 } while (0)
 
 

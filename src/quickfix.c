@@ -84,15 +84,16 @@ local void try_section(const char *limit, const struct section_help *sh,
 
 local void do_quickfix(int pid, const char *limit)
 {
-	int i, fd, arena;
+	int i, fd;
+	Arena *arena;
 	ConfigHandle ch;
 	const struct section_help *sh;
 	char name[] = "tmp/quickfix-XXXXXX";
 	FILE *f;
 
 	arena = pd->players[pid].arena;
-	if (ARENA_BAD(arena)) return;
-	ch = aman->arenas[arena].cfg;
+	if (!arena) return;
+	ch = arena->cfg;
 
 #ifndef WIN32
 	fd = mkstemp(name);
@@ -160,15 +161,15 @@ local void Cquickfix(const char *params, int pid, const Target *target)
 
 local void p_settingchange(int pid, byte *pkt, int len)
 {
-	int arena;
+	Arena *arena;
 	ConfigHandle ch;
 	time_t tm = time(NULL);
 	const char *p = (const char*)pkt + 1;
 	char sec[MAXSECTIONLEN], key[MAXKEYLEN], info[128];
 
 	arena = pd->players[pid].arena;
-	if (ARENA_BAD(arena)) return;
-	ch = aman->arenas[arena].cfg;
+	if (!arena) return;
+	ch = arena->cfg;
 
 #define CHECK(n) \
 	if (!n) { \

@@ -20,15 +20,15 @@ typedef enum
 
 /* called when a player picks up a ball */
 #define CB_BALLPICKUP ("ballpickup")
-typedef void (*BallPickupFunc)(int arena, int pid, int bid);
+typedef void (*BallPickupFunc)(Arena *arena, int pid, int bid);
 
 /* called when a player fires a ball */
 #define CB_BALLFIRE ("ballfire")
-typedef void (*BallFireFunc)(int arena, int pid, int bid);
+typedef void (*BallFireFunc)(Arena *arena, int pid, int bid);
 
 /* called when a player scores a goal */
 #define CB_GOAL ("goal")
-typedef void (*GoalFunc)(int arena, int pid, int bid, int x, int y);
+typedef void (*GoalFunc)(Arena *arena, int pid, int bid, int x, int y);
 
 
 struct BallData
@@ -42,14 +42,14 @@ struct BallData
 	             time when the ball will be re-spawned. */
 };
 
-struct ArenaBallData
+typedef struct ArenaBallData
 {
 	int ballcount;
 	/* the number of balls currently in play. 0 if the arena has no ball
 	 * game. */
 	struct BallData *balls;
 	/* points to an array of at least ballcount structs */
-};
+} ArenaBallData;
 
 
 #define I_BALLS "balls-3"
@@ -58,24 +58,21 @@ typedef struct Iballs
 {
 	INTERFACE_HEAD_DECL
 
-	void (*SetBallCount)(int arena, int ballcount);
+	void (*SetBallCount)(Arena *arena, int ballcount);
 	/* sets the number of balls in the arena. if the new count is higher
 	 * than the current one, new balls are spawned. if it's lower, the
 	 * dead balls are "phased" in the upper left corner. */
 
-	void (*PlaceBall)(int arena, int bid, struct BallData *newpos);
+	void (*PlaceBall)(Arena *arena, int bid, struct BallData *newpos);
 	/* sets the parameters of the ball to those in the given BallData
 	 * struct */
 
-	void (*EndGame)(int arena);
+	void (*EndGame)(Arena *arena);
 	/* ends the ball game */
 
-	void (*LockBallStatus)(int arena);
-	void (*UnlockBallStatus)(int arena);
-	/* since the following array is global data, access must be
-	 * controlled by a mutex. */
-
-	struct ArenaBallData *balldata; /* indexed by arena */
+	ArenaBallData * (*GetBallData)(Arena *arena);
+	void (*ReleaseBallData)(Arena *arena);
+	/* always release the ball data when you're done using it */
 } Iballs;
 
 

@@ -111,7 +111,7 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 		mm->RegInterface(&_iauth, ALLARENAS);
 
 		/* set up periodic events */
-		ml->SetTimer(SendKeepalive, 500, 500, NULL, -1);
+		ml->SetTimer(SendKeepalive, 500, 500, NULL, NULL);
 
 		return MM_OK;
 	}
@@ -129,7 +129,7 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 	{
 		if (mm->UnregInterface(&_iauth, ALLARENAS))
 			return MM_FAIL;
-		ml->ClearTimer(SendKeepalive, -1);
+		ml->ClearTimer(SendKeepalive, NULL);
 		mm->UnregCallback(CB_MAINLOOP, ProcessLoginQueue, ALLARENAS);
 		if (net)
 		{
@@ -197,8 +197,8 @@ void ProcessLoginQueue(void)
 				/* check if the player's arena is ready.
 				 * LOCK: we don't grab the arena status lock because it
 				 * doesn't matter if we miss it this time around */
-				if (ARENA_OK(player->arena))
-					if (aman->arenas[player->arena].status == ARENA_RUNNING)
+				if (player->arena)
+					if (player->arena->status == ARENA_RUNNING)
 						player->status = S_DO_FREQ_AND_ARENA_SYNC;
 
 				/* check whenloggedin. this is used to move players to
@@ -256,7 +256,7 @@ void ProcessLoginQueue(void)
 				DO_CBS(CB_PLAYERACTION,
 				       ALLARENAS,
 				       PlayerActionFunc,
-					   (pid, PA_CONNECT, -1));
+					   (pid, PA_CONNECT, NULL));
 				break;
 
 			case S_SEND_LOGIN_RESPONSE:
@@ -326,7 +326,7 @@ void ProcessLoginQueue(void)
 				DO_CBS(CB_PLAYERACTION,
 				       ALLARENAS,
 				       PlayerActionFunc,
-					   (pid, PA_DISCONNECT, -1));
+					   (pid, PA_DISCONNECT, NULL));
 				if (persist)
 					persist->PutPlayer(pid, PERSIST_GLOBAL, NULL);
 				break;

@@ -97,10 +97,10 @@ void LogSysop(const char *s)
 				/* now we have to check if the arena matches. it kinda
 				 * sucks that it has to be done this way, but to do it
 				 * the "right" way would require undesirable changes. */
-				int arena = pd->players[pid].arena;
-				if (ARENA_OK(arena))
+				Arena *arena = pd->players[pid].arena;
+				if (arena)
 				{
-					char *carena = aman->arenas[arena].name;
+					char *carena = arena->name;
 					char *t = strchr(s, '{');
 					if (t)
 					{

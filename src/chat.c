@@ -38,9 +38,7 @@ local Ipersist *persist;
 #endif
 
 local PlayerData *players;
-local ArenaData *arenas;
 
-local chat_mask_t arena_mask[MAXARENA];
 local struct player_mask_t
 {
 	chat_mask_t mask;
@@ -52,6 +50,7 @@ local struct player_mask_t
 } player_mask[MAXPLAYERS];
 
 local int cfg_msgrel, cfg_floodlimit, cfg_floodshutup;
+local int cmkey;
 
 
 local void expire_mask(int pid)
@@ -163,7 +162,7 @@ local void SendSetSoundMessage(int *set, char sound, const char *str, ...)
 	va_end(args);
 }
 
-local void get_arena_set(int *set, int arena)
+local void get_arena_set(int *set, Arena *arena)
 {
 	int setc = 0, i;
 	pd->LockStatus();
@@ -187,7 +186,7 @@ local void get_cap_set(int *set, const char *cap)
 	set[setc] = -1;
 }
 
-local void SendArenaMessage(int arena, const char *str, ...)
+local void SendArenaMessage(Arena *arena, const char *str, ...)
 {
 	int set[MAXPLAYERS+1];
 	va_list args;
@@ -199,7 +198,7 @@ local void SendArenaMessage(int arena, const char *str, ...)
 	va_end(args);
 }
 
-local void SendArenaSoundMessage(int arena, char sound, const char *str, ...)
+local void SendArenaSoundMessage(Arena *arena, char sound, const char *str, ...)
 {
 	int set[MAXPLAYERS+1];
 	va_list args;
@@ -237,7 +236,7 @@ local void SendModMessage(const char *fmt, ...)
 #define CMD_CHAR_3 '!'
 #define MOD_CHAT_CHAR '\\'
 
-#define OK(type) IS_ALLOWED(player_mask[pid].mask | arena_mask[arena], type)
+#define OK(type) IS_ALLOWED(player_mask[pid].mask | *am, type)
 
 
 local void run_commands(const char *text, int pid, Target *target)
@@ -265,7 +264,8 @@ local void run_commands(const char *text, int pid, Target *target)
 
 local void handle_pub(int pid, const char *msg, int ismacro)
 {
-	int arena = players[pid].arena;
+	Arena *arena = players[pid].arena;
+	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
 	struct ChatPacket *to = alloca(strlen(msg) + 40);
 
 	if (msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2 || msg[0] == CMD_CHAR_3)
@@ -303,7 +303,8 @@ local void handle_pub(int pid, const char *msg, int ismacro)
 
 local void handle_modchat(int pid, const char *msg)
 {
-	int arena = players[pid].arena;
+	Arena *arena = players[pid].arena;
+	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
 	int set[MAXPLAYERS+1];
 	struct ChatPacket *to = alloca(strlen(msg) + 40);
 
@@ -337,8 +338,9 @@ local void handle_modchat(int pid, const char *msg)
 
 local void handle_freq(int pid, int freq, const char *msg)
 {
-	int arena = players[pid].arena, i;
-	int set[MAXPLAYERS+1], setc = 0;
+	Arena *arena = players[pid].arena;
+	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
+	int set[MAXPLAYERS+1], setc = 0, i;
 	struct ChatPacket *to = alloca(strlen(msg) + 40);
 
 	if (msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2 || msg[0] == CMD_CHAR_3)
@@ -381,7 +383,8 @@ local void handle_freq(int pid, int freq, const char *msg)
 
 local void handle_priv(int pid, int dst, const char *msg)
 {
-	int arena = players[pid].arena;
+	Arena *arena = players[pid].arena;
+	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
 	struct ChatPacket *to = alloca(strlen(msg) + 40);
 
 	if (msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2)
@@ -430,9 +433,10 @@ local void handle_chat(int pid, const char *msg)
 local void PChat(int pid, byte *p, int len)
 {
 	struct ChatPacket *from = (struct ChatPacket *)p;
-	int arena = players[pid].arena, freq = players[pid].freq;
+	Arena *arena = players[pid].arena;
+	int freq = players[pid].freq;
 
-	if (ARENA_BAD(arena) || PID_BAD(pid)) return;
+	if (!arena || PID_BAD(pid)) return;
 
 	expire_mask(pid);
 
@@ -494,7 +498,7 @@ local void MChat(int pid, const char *line)
 	char subtype[10], data[24];
 	int i;
 
-	if (ARENA_BAD(players[pid].arena)) return;
+	if (!players[pid].arena) return;
 
 	expire_mask(pid);
 
@@ -531,15 +535,16 @@ local void MChat(int pid, const char *line)
 
 /* chat mask stuff */
 
-local chat_mask_t GetArenaChatMask(int arena)
+local chat_mask_t GetArenaChatMask(Arena *arena)
 {
-	return ARENA_OK(arena) ? arena_mask[arena] : 0;
+	chat_mask_t *cmp = P_ARENA_DATA(arena, cmkey);
+	return arena ? *cmp : 0;
 }
 
-local void SetArenaChatMask(int arena, chat_mask_t mask)
+local void SetArenaChatMask(Arena *arena, chat_mask_t mask)
 {
-	if (ARENA_OK(arena))
-		arena_mask[arena] = mask;
+	chat_mask_t *cmp = P_ARENA_DATA(arena, cmkey);
+	if (arena) *cmp = mask;
 }
 
 local chat_mask_t GetPlayerChatMask(int pid)
@@ -558,15 +563,15 @@ local void SetPlayerChatMask(int pid, chat_mask_t mask, int timeout)
 }
 
 
-local void aaction(int arena, int action)
+local void aaction(Arena *arena, int action)
 {
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
 	{
-		ConfigHandle ch = aman->arenas[arena].cfg;
+		chat_mask_t *cmp = P_ARENA_DATA(arena, cmkey);
 		/* cfghelp: Chat:RestrictChat, arena, int, def: 0
 		 * This specifies an initial chat mask for the arena. Don't use
 		 * this unless you know what you're doing. */
-		arena_mask[arena] = cfg->GetInt(ch, "Chat", "RestrictChat", 0);
+		*cmp = cfg->GetInt(arena->cfg, "Chat", "RestrictChat", 0);
 	}
 }
 
@@ -597,15 +602,15 @@ local void set_data(int pid, void *data, int len)
 		memcpy(player_mask + pid, data, sizeof(player_mask[pid]));
 }
 
-local PersistentData pdata =
+local PlayerPersistentData pdata =
 {
-	KEY_CHAT, PERSIST_ALLARENAS, INTERVAL_FOREVER,
+	KEY_CHAT, INTERVAL_FOREVER, PERSIST_ALLARENAS,
 	get_data, set_data, clear_data
 };
 
 #else
 
-local void paction(int pid, int action, int arena)
+local void paction(int pid, int action, Arena *arena)
 {
 	struct player_mask_t *pm = player_mask + pid;
 	pm->mask = pm->expires = pm->msgs = pm->lastcheck = 0;
@@ -627,7 +632,7 @@ local Ichat _int =
 };
 
 
-EXPORT int MM_chat(int action, Imodman *mm_, int arena)
+EXPORT int MM_chat(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -650,7 +655,9 @@ EXPORT int MM_chat(int action, Imodman *mm_, int arena)
 		if (!cfg || !aman || !pd) return MM_FAIL;
 
 		players = pd->players;
-		arenas = aman->arenas;
+
+		cmkey = aman->AllocateArenaData(sizeof(chat_mask_t));
+		if (cmkey == -1) return MM_FAIL;
 
 #ifndef CFG_PERSISTENT_CHAT_MASKS
 		mm->RegCallback(CB_PLAYERACTION, PAction, ALLARENAS);
@@ -693,6 +700,7 @@ EXPORT int MM_chat(int action, Imodman *mm_, int arena)
 #else
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
 #endif
+		aman->FreeArenaData(cmkey);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(chatnet);

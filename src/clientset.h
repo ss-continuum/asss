@@ -20,9 +20,9 @@ typedef struct Iclientset
 
 	void (*SendClientSettings)(int pid);
 
-	void (*Reconfigure)(int arena);
+	void (*Reconfigure)(Arena *arena);
 
-	u32 (*GetChecksum)(int arena, u32 key);
+	u32 (*GetChecksum)(Arena *arena, u32 key);
 } Iclientset;
 
 #endif

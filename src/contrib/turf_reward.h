@@ -21,29 +21,29 @@ struct Iturfrewardpoints;
 
 // called for all turf flag tags
 #define CB_TURFTAG ("turftag")
-typedef void (*TurfTagFunc)(int arena, int pid, int fid);
+typedef void (*TurfTagFunc)(Arena *arena, int pid, int fid);
 
 // called when a flag is 'recovered' (note: CB_TURFTAG will still be called)
 // possible use would be to have a module that manipulates lvz objects telling player that the flag tagged was recovered
 #define CB_TURFRECOVER ("turfrecover")
-typedef void (*TurfRecoverFunc)(int arena, int fid, int pid, int freq, int dings, int weight);
+typedef void (*TurfRecoverFunc)(Arena *arena, int fid, int pid, int freq, int dings, int weight);
 
 // called when a flag is 'lost' (note: CB_TURFTAG will still be called)
 // possible use would be to have a module that manipulates lvz objects telling players that a flag was lost
 #define CB_TURFLOST ("turflost")
-typedef void (*TurfLostFunc)(int arena, int fid, int pid, int freq, int dings, int weight);
+typedef void (*TurfLostFunc)(Arena *arena, int fid, int pid, int freq, int dings, int weight);
 
 
 // this is a special callback - turf_arena is LOCKED when this is called
 // called AFTER players are awarded points (good time for history stuff / stats output)
 #define CB_TURFPOSTREWARD ("turfpostreward")
-typedef void (*TurfPostRewardFunc)(int arena, struct TurfArena *ta);
+typedef void (*TurfPostRewardFunc)(Arena *arena, struct TurfArena *ta);
 
 
 /*
 // called during a flag game victory
 #define CB_TURFVICTORY ("turfvictory")
-typedef void (*TurfVictoryFunc) (int arena)
+typedef void (*TurfVictoryFunc) (Arena *arena)
 */
 
 
@@ -94,7 +94,7 @@ struct TurfArena
 {
 	// cfg settings for turf reward
 	int reward_style;               // change reward algorithms
-	int multi_arena_id;             // when using a multi arena algorithm, arenas with matching id's are scored together
+	void *multi_arena_id;             // when using a multi arena algorithm, arenas with matching id's are scored together
 	int min_players_on_freq;        // min # of players needed on a freq for that freq to recieve reward pts
 	int min_players_in_arena;       // min # of players needed in the arena for anyone to recieve reward pts
 	int min_teams;                  // min # of teams needed for anyone to recieve reward pts
@@ -113,7 +113,7 @@ struct TurfArena
 	// int min_tags_freq;           // todo: minimum # of tags needed by a freq for that freq to recieve rewards
 
 	// data for timer
-	int arena;                      // data for the timer to know which arena to award
+	Arena *arena;                      // data for the timer to know which arena to award
 	unsigned int dingTime;          // time of last ding
 	int timer_initial;              // initial timer delay
 	int timer_interval;             // interval for timer to repeat
@@ -159,7 +159,7 @@ typedef enum
 typedef struct Iturfrewardpoints
 {
 	INTERFACE_HEAD_DECL
-	trstate_t (*CalcReward)(int arena, struct TurfArena *tr);
+	trstate_t (*CalcReward)(Arena *arena, struct TurfArena *tr);
 	/* This will be called by the turf_reward module for each arena that
 	 * exists when points should be awarded. It should figure out and
 	 * fill in the many stats for each freq. The ta->freqs linked list
@@ -171,7 +171,7 @@ typedef struct Iturfrewardpoints
 	 * this interface will fill in numPoints for ALL the teams.
 	 * Obviously, to not award a freq points, set numPoints=0.  The
 	 * module has access to ALL arena's data for the arena through *tr.
-	 * The arena is already locked when this function is is called.  
+	 * The arena is already locked when this function is is called.
 	 *
 	 * Note: for multi-arena scoring, only the arena that called the
 	 * timer is assured to have the freqs linked list initialized.  This
@@ -195,19 +195,19 @@ typedef struct Iturfreward
 {
 	INTERFACE_HEAD_DECL
 
-	void (*ResetFlagGame)(int arena);
+	void (*ResetFlagGame)(Arena *arena);
 	/* a utility function to reset all flag data INCLUDING flag data in
 	 * the flags module */
 
-	void (*ResetTimer)(int arena);
+	void (*ResetTimer)(Arena *arena);
 	/* a utility function to reset the ding timer for an arena */
 
-	void (*DoReward)(int arena);
+	void (*DoReward)(Arena *arena);
 	/* a utility function to force a ding to occur immedately */
 
-	void (*LockTurfStatus)(int arena);
-	void (*UnlockTurfStatus)(int arena);
-	/* locks and unlocks the turf mutexes for a certain arena */
+	struct TurfArena * (*GetTurfData)(Arena *arena);
+	void (*ReleaseTurfData)(Arena *arena);
+	/* gets turf data for an arena. always release it when you're done */
 } Iturfreward;
 
 

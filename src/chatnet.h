@@ -29,7 +29,7 @@ typedef struct Ichatnet
 	void (*RemoveHandler)(const char *type, MessageFunc func);
 
 	void (*SendToOne)(int pid, const char *line, ...);
-	void (*SendToArena)(int arena, int except, const char *line, ...);
+	void (*SendToArena)(Arena *a, int except, const char *line, ...);
 	void (*SendToSet)(int *set, const char *line, ...);
 
 	void (*DropClient)(int pid);

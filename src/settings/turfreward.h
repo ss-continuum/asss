@@ -1,6 +1,4 @@
 
-// turf_reward.c does not use one of it's built in scoring algoithms
-// another module must use CB_TURFCALCREWARD to take care of calculations
 #define REWARD_DISABLED    0
 
 // simple periodic scoring (when you want stats or access to the additional flag info)

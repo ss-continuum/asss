@@ -37,7 +37,7 @@ local void BannerToArena(int pid)
 {
 	struct S2CBanner send;
 
-	if (banner_status[pid] != 2 || ARENA_BAD(pd->players[pid].arena))
+	if (banner_status[pid] != 2 || !pd->players[pid].arena)
 		return;
 	send.type = S2C_BANNER;
 	send.pid = pid;
@@ -127,7 +127,7 @@ local void BBanner(int bpid, byte *p, int len)
 }
 
 
-local void PA(int pid, int action, int arena)
+local void PA(int pid, int action, Arena *arena)
 {
 	if (action == PA_CONNECT || action == PA_DISCONNECT)
 		/* reset banner */
@@ -161,7 +161,7 @@ local void PA(int pid, int action, int arena)
 }
 
 
-EXPORT int MM_banners(int action, Imodman *mm_, int arena)
+EXPORT int MM_banners(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{

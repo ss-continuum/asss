@@ -25,20 +25,20 @@ typedef enum
 /* called when a player picks up a flag (in turf games, this means he
  * claimed the flag) */
 #define CB_FLAGPICKUP ("flagpickup")
-typedef void (*FlagPickupFunc)(int arena, int pid, int fid, int oldfreq, int carried);
+typedef void (*FlagPickupFunc)(Arena *arena, int pid, int fid, int oldfreq, int carried);
 
 /* called when a player drops his flags (regular games only) */
 #define CB_FLAGDROP ("flagdrop")
-typedef void (*FlagDropFunc)(int arena, int pid, int count, int neut);
+typedef void (*FlagDropFunc)(Arena *arena, int pid, int count, int neut);
 
 /* called when a flag is positioned on the map */
 #define CB_FLAGPOS ("flagpos")
-typedef void (*FlagPosFunc)(int arena, int fid, int x, int y, int freq);
+typedef void (*FlagPosFunc)(Arena *arena, int fid, int x, int y, int freq);
 
 /* called when a freq owns all the flags in an arena (in regular games
  * only) */
 #define CB_FLAGWIN ("flagwin")
-typedef void (*FlagWinFunc)(int arena, int freq);
+typedef void (*FlagWinFunc)(Arena *arena, int freq);
 
 
 struct FlagData
@@ -49,13 +49,13 @@ struct FlagData
 	int carrier; /* the pid carrying the flag, or -1 if down */
 };
 
-struct ArenaFlagData
+typedef struct ArenaFlagData
 {
 	int flagcount;
 	/* the number of flags currently in play */
 	struct FlagData *flags;
 	/* points to an array of at least flagcount structs */
-};
+} ArenaFlagData;
 
 
 #define I_FLAGS "flags-2"
@@ -64,24 +64,21 @@ typedef struct Iflags
 {
 	INTERFACE_HEAD_DECL
 
-	void (*MoveFlag)(int arena, int fid, int x, int y, int freq);
+	void (*MoveFlag)(Arena *arena, int fid, int x, int y, int freq);
 	/* moves the specified flag to the specified coordinates */
 
-	void (*FlagVictory)(int arena, int freq, int points);
+	void (*FlagVictory)(Arena *arena, int freq, int points);
 	/* ends the flag game (freq=-1 to reset flags with no winner) */
 
 	int (*GetCarriedFlags)(int pid);
 	/* a utility function to get the number of flags carried by a player */
 
-	int (*GetFreqFlags)(int arena, int freq);
+	int (*GetFreqFlags)(Arena *arena, int freq);
 	/* a utility function to get the number of flags owned by a freq */
 
-	void (*LockFlagStatus)(int arena);
-	void (*UnlockFlagStatus)(int arena);
-	/* since the following array is global data, access must be
-	 * controlled by a mutex. */
-
-	struct ArenaFlagData *flagdata; /* indexed by arena */
+	ArenaFlagData * (*GetFlagData)(Arena *arena);
+	void (*ReleaseFlagData)(Arena *arena);
+	/* you must always release the flag data after using it */
 } Iflags;
 
 

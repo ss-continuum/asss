@@ -53,7 +53,7 @@ core.so: config.o player.o core.o logman.o mainloop.o net.o \
 loggers.so: log_file.o log_console.o log_sysop.o
 
 game.so: game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
-	banners.o objects.o messages.o
+	banners.o objects.o messages.o koth.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -lm
 
 command.so: cmdman.o playercmd.o watchdamage.o buy.o help.o cfghelp.o
@@ -71,10 +71,8 @@ admin.so: filetrans.o quickfix.o
 database.so: mysql.o aliasdb.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(MYSQLLIB) -lmysqlclient_r -lz
 
-turf.so: turf_reward.o turf_stats.o points_turf_reward.o
-
 funky.so: bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
-	chatnet.o md5.o auth_file.o ap_multipub.o
+	chatnet.o md5.o auth_file.o ap_multipub.o sendfile.o
 
 
 

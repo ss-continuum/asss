@@ -50,7 +50,7 @@ EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
 		fp = cfg->GetInt(GLOBAL, "Log", "FileFlushPeriod", 10);
 
 		if (fp)
-			ml->SetTimer(flush_timer, fp * 60 * 100, fp * 60 * 100, NULL, -1);
+			ml->SetTimer(flush_timer, fp * 60 * 100, fp * 60 * 100, NULL, NULL);
 
 		mm->RegInterface(&_lfint, ALLARENAS);
 
@@ -62,7 +62,7 @@ EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
 			return MM_FAIL;
 		if (logfile)
 			fclose(logfile);
-		ml->ClearTimer(flush_timer, -1);
+		ml->ClearTimer(flush_timer, NULL);
 		mm->UnregCallback(CB_LOGFUNC, LogFile, ALLARENAS);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(lm);

@@ -16,13 +16,13 @@ local Iturfreward *turfreward;    // for multi arena processing (locking and unl
 /* function prototypes */
 // connected to interface
 // decides which of the basic scoring algorithms to use
-local trstate_t calcReward(int arena, struct TurfArena *tr);
+local trstate_t calcReward(Arena *arena, struct TurfArena *tr);
 
 // reward calculation functions
-local trstate_t crStandard(int arena, struct TurfArena *ta);  // REWARD_STD
-local trstate_t crPeriodic(int arena, struct TurfArena *ta);  // REWARD_PERIODIC
-local trstate_t crFixedPts(int arena, struct TurfArena *ta);  // REWARD_FIXED_PTS
-local trstate_t crStdMulti(int arena, struct TurfArena *tr);  // REWARD_STD_MULTI
+local trstate_t crStandard(Arena *arena, struct TurfArena *ta);  // REWARD_STD
+local trstate_t crPeriodic(Arena *arena, struct TurfArena *ta);  // REWARD_PERIODIC
+local trstate_t crFixedPts(Arena *arena, struct TurfArena *ta);  // REWARD_FIXED_PTS
+local trstate_t crStdMulti(Arena *arena, struct TurfArena *tr);  // REWARD_STD_MULTI
 
 
 // to be registered with interface so that this module does scoring for turf_reward
@@ -33,9 +33,9 @@ local Iturfrewardpoints myint =
 };
 
 
-EXPORT const char info_points_turf_reward[] = "v1.1 by GiGaKiLLeR <gigamon@hotmail.com>";
+EXPORT const char info_points_turf_reward[] = "v1.2 by GiGaKiLLeR <gigamon@hotmail.com>";
 
-EXPORT int MM_points_turf_reward(int action, Imodman *mm, int arena)
+EXPORT int MM_points_turf_reward(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -67,13 +67,13 @@ EXPORT int MM_points_turf_reward(int action, Imodman *mm, int arena)
 }
 
 
-local trstate_t calcReward(int arena, struct TurfArena *tr)
+local trstate_t calcReward(Arena *arena, struct TurfArena *tr)
 {
-	switch(tr[arena].reward_style)
+	switch(tr->reward_style)
 	{
-	case REWARD_PERIODIC:  return crPeriodic(arena, &tr[arena]);
-	case REWARD_FIXED_PTS: return crFixedPts(arena, &tr[arena]);  // TODO: havn't decided how to specify points
-	case REWARD_STD:       return crStandard(arena, &tr[arena]);
+	case REWARD_PERIODIC:  return crPeriodic(arena, tr);
+	case REWARD_FIXED_PTS: return crFixedPts(arena, tr);  // TODO: havn't decided how to specify points
+	case REWARD_STD:       return crStandard(arena, tr);
 	case REWARD_STD_MULTI: return crStdMulti(arena, tr);  // TODO: super hard, last thing on todo list
 	case REWARD_DISABLED:  return TR_NO_AWARD_NO_UPDATE;
 	}
@@ -83,20 +83,13 @@ local trstate_t calcReward(int arena, struct TurfArena *tr)
 }
 
 
-local trstate_t crStandard(int arena, struct TurfArena *ta)
+local trstate_t crStandard(Arena *arena, struct TurfArena *ta)
 {
 	//int x;
 	//struct TurfFlag *flags = ta->flags;
 	struct FreqInfo *pFreq = NULL;
 	LinkedList getPts;  // linked list of freqs that will recieve points
 	Link *l;
-
-	// make sure these are clear (they should be already)
-	ta->numPlayers    = 0;
-	ta->numPoints     = 0;
-	ta->numTeams      = 0;
-	ta->numWeights    = 0;
-	ta->sumPerCapitas = 0;
 
 	// make sure cfg settings are valid (we dont want any crashes in here)
 	if(ta->min_players_on_freq < 1)
@@ -254,7 +247,7 @@ local trstate_t crStandard(int arena, struct TurfArena *ta)
 }
 
 
-local trstate_t crPeriodic(int arena, struct TurfArena *ta)
+local trstate_t crPeriodic(Arena *arena, struct TurfArena *ta)
 {
 	int modifier = ta->jackpot_modifier;
 	struct FreqInfo *pFreq;
@@ -304,7 +297,7 @@ local trstate_t crPeriodic(int arena, struct TurfArena *ta)
 }
 
 
-local trstate_t crFixedPts(int arena, struct TurfArena *ta)
+local trstate_t crFixedPts(Arena *arena, struct TurfArena *ta)
 {
 	crStandard(arena, ta);
 	
@@ -317,7 +310,7 @@ local trstate_t crFixedPts(int arena, struct TurfArena *ta)
 
 // FIXME: for multiple arenas there can must only be 1 timer, turf_reward.c is going to need a couple modifications
 //        before multiple arena scoring can be handled
-local trstate_t crStdMulti(int arena, struct TurfArena *tr)
+local trstate_t crStdMulti(Arena *arena, struct TurfArena *tr)
 {
 	// TODO
 	/*

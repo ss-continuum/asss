@@ -5,58 +5,64 @@
 
 #define WARPDIST (19<<4)
 
+struct adata
+{
+	int on;
+	/* FIXME: add warpdist and stuff here */
+};
+
 /* packet funcs */
 local void Pppk(int, byte *, int);
 
-
 /* global data */
-
-local int onfor[MAXARENA];
-
+local int adkey;
 local Imodman *mm;
 local Iplayerdata *pd;
 local Iconfig *cfg;
 local Inet *net;
 local Imapdata *mapdata;
+local Iarenaman *aman;
 
 
-EXPORT int MM_autowarp(int action, Imodman *mm_, int arena)
+EXPORT int MM_autowarp(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
-		int i;
-
 		mm = mm_;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
-
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		if (!net || !cfg || !pd || !mapdata) return MM_FAIL;
 
-		net->AddPacket(C2S_POSITION, Pppk);
+		adkey = aman->AllocateArenaData(sizeof(struct adata));
+		if (adkey == -1) return MM_FAIL;
 
-		for (i = 0; i < MAXARENA; i++)
-			onfor[i] = 0;
+		net->AddPacket(C2S_POSITION, Pppk);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		net->RemovePacket(C2S_POSITION, Pppk);
+		aman->FreeArenaData(adkey);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(mapdata);
+		mm->ReleaseInterface(aman);
 		return MM_OK;
 	}
 	else if (action == MM_ATTACH)
 	{
-		onfor[arena] = 1;
+		struct adata *ad = P_ARENA_DATA(arena, adkey);
+		ad->on = 1;
 	}
 	else if (action == MM_DETACH)
 	{
-		onfor[arena] = 0;
+		struct adata *ad = P_ARENA_DATA(arena, adkey);
+		ad->on = 0;
 	}
 	return MM_FAIL;
 }
@@ -76,10 +82,12 @@ local void DoChecksum(struct S2CWeapons *pkt)
 void Pppk(int pid, byte *p2, int n)
 {
 	struct C2SPosition *p = (struct C2SPosition *)p2;
-	int arena = pd->players[pid].arena, warpy = 0;
+	Arena *arena = pd->players[pid].arena;
+	struct adata *ad = P_ARENA_DATA(arena, adkey);
+	int warpy = 0;
 
 	/* handle common errors */
-	if (arena < 0 || !onfor[arena]) return;
+	if (!arena || !ad->on) return;
 
 	/* speccers don't get their position sent to anyone */
 	if (pd->players[pid].shiptype == SPEC)

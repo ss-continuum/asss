@@ -105,7 +105,7 @@ typedef struct Inet
 	INTERFACE_HEAD_DECL
 
 	void (*SendToOne)(int pid, byte *data, int length, int flags);
-	void (*SendToArena)(int arenaid, int exception, byte *data, int length, int flags);
+	void (*SendToArena)(Arena *a, int exception, byte *data, int length, int flags);
 	void (*SendToSet)(int *pidset, byte *data, int length, int flags);
 	void (*SendToTarget)(const Target *target, byte *data, int length, int flags);
 	void (*SendToAll)(byte *data, int length, int flags);

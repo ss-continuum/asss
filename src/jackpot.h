@@ -19,9 +19,9 @@ typedef struct Ijackpot
 {
 	INTERFACE_HEAD_DECL
 
-	void (*ResetJP)(int arena);
-	void (*AddJP)(int arena, int pts);
-	int (*GetJP)(int arena);
+	void (*ResetJP)(Arena *arena);
+	void (*AddJP)(Arena *arena, int pts);
+	int (*GetJP)(Arena *arena);
 } Ijackpot;
 
 #endif

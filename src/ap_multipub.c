@@ -39,11 +39,12 @@ local int Place(char *retname, int namelen, int ppid)
 		for (l = LLGetHead(&pubnames); l; l = l->next)
 		{
 			const char *name = l->data;
-			int arena, total, playing, des;
+			int total, playing, des;
+			Arena *arena;
 
 			snprintf(buf, sizeof(buf), "%s%d", name, pass);
 			arena = aman->FindArena(buf, &total, &playing);
-			if (arena == -1)
+			if (!arena)
 			{
 				/* doesn't exist yet, perfect */
 				astrncpy(retname, buf, namelen);
@@ -51,7 +52,7 @@ local int Place(char *retname, int namelen, int ppid)
 			}
 			else
 			{
-				ConfigHandle ch = aman->arenas[arena].cfg;
+				ConfigHandle ch = arena->cfg;
 				/* cfghelp: General:DesiredPlaying, arena, int, def: 15, \
 				 * mod: ap_multipub
 				 * This controls when the server will create new public
@@ -76,7 +77,7 @@ local Iarenaplace myint =
 	Place
 };
 
-EXPORT int MM_ap_multipub(int action, Imodman *mm, int arena)
+EXPORT int MM_ap_multipub(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{

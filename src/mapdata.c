@@ -48,23 +48,23 @@ struct MapData
 
 
 /* prototypes */
-local void ArenaAction(int arena, int action);
+local void ArenaAction(Arena *arena, int action);
 local int read_lvl(char *name, struct MapData *md);
 local HashTable * LoadRegions(char *fname);
 
 /* interface funcs */
-local int GetFlagCount(int arena);
-local int GetTile(int arena, int x, int y);
-local const char *GetRegion(int arena, int x, int y);
-local int InRegion(int arena, const char *region, int x, int y);
-local void FindFlagTile(int arena, int *x, int *y);
-local void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2);
-local u32 GetChecksum(int arena, u32 key);
-local void DoBrick(int arena, int drop, int x1, int y1, int x2, int y2);
+local int GetFlagCount(Arena *arena);
+local int GetTile(Arena *arena, int x, int y);
+local const char *GetRegion(Arena *arena, int x, int y);
+local int InRegion(Arena *arena, const char *region, int x, int y);
+local void FindFlagTile(Arena *arena, int *x, int *y);
+local void FindBrickEndpoints(Arena *arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2);
+local u32 GetChecksum(Arena *arena, u32 key);
+local void DoBrick(Arena *arena, int drop, int x1, int y1, int x2, int y2);
 
 /* global data */
 
-local struct MapData mapdata[MAXARENA];
+local int mdkey;
 
 /* cached interfaces */
 local Imodman *mm;
@@ -87,16 +87,16 @@ local Imapdata _int =
 
 EXPORT int MM_mapdata(int action, Imodman *_mm, int arenas)
 {
-	int i;
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		if (!cfg || !aman || !lm) return MM_FAIL;
 
-		for (i = 0; i < MAXARENA; i++)
-			pthread_mutex_init(&mapdata[i].mtx, NULL);
+		mdkey = aman->AllocateArenaData(sizeof(struct MapData));
+		if (mdkey == -1) return MM_FAIL;
 
 		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
@@ -110,12 +110,11 @@ EXPORT int MM_mapdata(int action, Imodman *_mm, int arenas)
 
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
+		aman->FreeArenaData(mdkey);
+
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);
-
-		for (i = 0; i < MAXARENA; i++)
-			pthread_mutex_destroy(&mapdata[i].mtx);
 
 		return MM_OK;
 	}
@@ -125,54 +124,51 @@ EXPORT int MM_mapdata(int action, Imodman *_mm, int arenas)
 
 int read_lvl(char *name, struct MapData *md)
 {
+	unsigned short bm;
+	struct TileData td;
 	int flags = 0, errors = 0;
 	sparse_arr arr;
 	FILE *f = fopen(name,"r");
 	if (!f) return 1;
 
-	{ /* first try to skip over bmp header */
-		unsigned short bm;
-		fread(&bm, sizeof(bm), 1, f);
-		if (bm == 0x4D42)
+	/* first try to skip over bmp header */
+	fread(&bm, sizeof(bm), 1, f);
+	if (bm == 0x4D42)
+	{
+		unsigned long len;
+		fread(&len, sizeof(len), 1, f);
+		fseek(f, len, SEEK_SET);
+	}
+	else
+		rewind(f);
+
+	/* now read the map */
+	arr = init_sparse();
+
+	while (fread(&td, sizeof(td), 1, f))
+	{
+		if (td.x < 1024 && td.y < 1024)
 		{
-			unsigned long len;
-			fread(&len, sizeof(len), 1, f);
-			fseek(f, len, SEEK_SET);
+			if (td.type == TILE_FLAG)
+				flags++;
+			if (td.type < 0xD0)
+				insert_sparse(arr, td.x, td.y, td.type);
+			else
+			{
+				int size = 1, x, y;
+				if (td.type == 0xD9)
+					size = 2;
+				else if (td.type == 0xDB)
+					size = 6;
+				else if (td.type == 0xDC)
+					size = 5;
+				for (x = 0; x < size; x++)
+					for (y = 0; y < size; y++)
+						insert_sparse(arr, td.x+x, td.y+y, td.type);
+			}
 		}
 		else
-			rewind(f);
-	}
-
-	{ /* now read the map */
-		struct TileData td;
-
-		arr = init_sparse();
-
-		while (fread(&td, sizeof(td), 1, f))
-		{
-			if (td.x < 1024 && td.y < 1024)
-			{
-				if (td.type == TILE_FLAG)
-					flags++;
-				if (td.type < 0xD0)
-					insert_sparse(arr, td.x, td.y, td.type);
-				else
-				{
-					int size = 1, x, y;
-					if (td.type == 0xD9)
-						size = 2;
-					else if (td.type == 0xDB)
-						size = 6;
-					else if (td.type == 0xDC)
-						size = 5;
-					for (x = 0; x < size; x++)
-						for (y = 0; y < size; y++)
-							insert_sparse(arr, td.x+x, td.y+y, td.type);
-				}
-			}
-			else
-				errors++;
-		}
+			errors++;
 	}
 
 	fclose(f);
@@ -192,11 +188,11 @@ local void FreeRegion(char *k, void *v, void *d)
 
 #include "pathutil.h"
 
-local int real_get_filename(int arena, const char *map, char *buffer, int bufferlen)
+local int real_get_filename(Arena *arena, const char *map, char *buffer, int bufferlen)
 {
 	struct replace_table repls[2] =
 	{
-		{'a', aman->arenas[arena].basename},
+		{'a', arena->basename},
 		{'m', map}
 	};
 
@@ -210,22 +206,32 @@ local int real_get_filename(int arena, const char *map, char *buffer, int buffer
 			2);
 }
 
-void ArenaAction(int arena, int action)
+void ArenaAction(Arena *arena, int action)
 {
+	struct MapData *md;
+	
+	md = P_ARENA_DATA(arena, mdkey);
+
+	if (action == AA_CREATE)
+		pthread_mutex_init(&md->mtx, NULL);
+	else if (action == AA_DESTROY)
+		pthread_mutex_destroy(&md->mtx);
+
 	/* no matter what is happening, destroy old mapdata */
 	if (action == AA_CREATE || action == AA_DESTROY)
 	{
-		if (mapdata[arena].arr)
+
+		if (md->arr)
 		{
-			delete_sparse(mapdata[arena].arr);
-			mapdata[arena].arr = NULL;
+			delete_sparse(md->arr);
+			md->arr = NULL;
 		}
 
-		if (mapdata[arena].regions)
+		if (md->regions)
 		{
-			HashEnum(mapdata[arena].regions, FreeRegion, NULL);
-			HashFree(mapdata[arena].regions);
-			mapdata[arena].regions = NULL;
+			HashEnum(md->regions, FreeRegion, NULL);
+			HashFree(md->regions);
+			md->regions = NULL;
 		}
 	}
 
@@ -233,51 +239,52 @@ void ArenaAction(int arena, int action)
 	if (action == AA_CREATE)
 	{
 		char mapname[256];
-		pthread_mutex_lock(&mapdata[arena].mtx);
+		pthread_mutex_lock(&md->mtx);
 		if (real_get_filename(
 					arena,
-					cfg->GetStr(aman->arenas[arena].cfg, "General", "Map"),
+					cfg->GetStr(arena->cfg, "General", "Map"),
 					mapname,
 					256) == -1)
 			lm->Log(L_ERROR, "<mapdata> {%s} Can't find map file for arena",
-					aman->arenas[arena].name);
+					arena->name);
 		else
 		{
 			char *t;
 
-			if (read_lvl(mapname, mapdata + arena))
+			if (read_lvl(mapname, md))
 				lm->Log(L_ERROR, "<mapdata> {%s} Error parsing map file '%s'",
-						aman->arenas[arena].name, mapname);
+						arena->name, mapname);
 			/* if extension == .lvl */
 			t = strrchr(mapname, '.');
 			if (t && t[1] == 'l' && t[2] == 'v' && t[3] == 'l' && t[4] == 0)
 			{
 				/* change extension to rgn */
 				t[1] = 'r'; t[2] = 'g'; t[3] = 'n';
-				mapdata[arena].regions = LoadRegions(mapname);
+				md->regions = LoadRegions(mapname);
 			}
 		}
-		pthread_mutex_unlock(&mapdata[arena].mtx);
+		pthread_mutex_unlock(&md->mtx);
 	}
 }
 
 
-int GetTile(int arena, int x, int y)
+int GetTile(Arena *a, int x, int y)
 {
 	int ret;
-	pthread_mutex_lock(&mapdata[arena].mtx);
-	ret = mapdata[arena].arr ? lookup_sparse(mapdata[arena].arr, x, y) : -1;
-	pthread_mutex_unlock(&mapdata[arena].mtx);
+	struct MapData *md = P_ARENA_DATA(a, mdkey);
+	pthread_mutex_lock(&md->mtx);
+	ret = md->arr ? lookup_sparse(md->arr, x, y) : -1;
+	pthread_mutex_unlock(&md->mtx);
 	return ret;
 }
 
-int GetFlagCount(int arena)
+int GetFlagCount(Arena *a)
 {
-	return mapdata[arena].flags;
+	return ((struct MapData*)P_ARENA_DATA(a, mdkey))->flags;
 }
 
 
-void FindFlagTile(int arena, int *x, int *y)
+void FindFlagTile(Arena *arena, int *x, int *y)
 {
 	/* init context. these values are funny because they are one
 	 * iteration before where we really want to start from. */
@@ -288,11 +295,15 @@ void FindFlagTile(int arena, int *x, int *y)
 		int x, y;
 	} ctx = { left, 0, 1, *x + 1, *y };
 	int good = 0;
-	sparse_arr arr = mapdata[arena].arr;
+	struct MapData *md;
+	sparse_arr arr;
 
-	if (!arr) return;
+	md = P_ARENA_DATA(arena, mdkey);
+	pthread_mutex_lock(&md->mtx);
 
-	pthread_mutex_lock(&mapdata[arena].mtx);
+	arr = md->arr;
+
+	if (!arr) goto failed_1;
 
 	/* do it */
 	do
@@ -337,25 +348,28 @@ void FindFlagTile(int arena, int *x, int *y)
 		*x = ctx.x; *y = ctx.y;
 	}
 
-	pthread_mutex_unlock(&mapdata[arena].mtx);
+failed_1:
+	pthread_mutex_unlock(&md->mtx);
 }
 
 
-void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2)
+void FindBrickEndpoints(Arena *arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2)
 {
-	sparse_arr arr = mapdata[arena].arr;
+	struct MapData *md;
+	sparse_arr arr;
 	enum { down, right, up, left } dir;
 	int bestcount, bestdir, x, y, destx = dropx, desty = dropy;
 
-	pthread_mutex_lock(&mapdata[arena].mtx);
+	md = P_ARENA_DATA(arena, mdkey);
+	pthread_mutex_lock(&md->mtx);
+	arr = md->arr;
 
 	if (lookup_sparse(arr, dropx, dropy))
 	{
 		/* we can't drop it on a wall! */
 		*x1 = *x2 = dropx;
 		*y1 = *y2 = dropy;
-		pthread_mutex_unlock(&mapdata[arena].mtx);
-		return;
+		goto failed_2;
 	}
 
 	/* find closest wall and the point next to it */
@@ -394,8 +408,7 @@ void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, in
 		/* shouldn't happen */
 		*x1 = *x2 = dropx;
 		*y1 = *y2 = dropy;
-		pthread_mutex_unlock(&mapdata[arena].mtx);
-		return;
+		goto failed_2;
 	}
 
 	if (bestcount == length)
@@ -467,16 +480,19 @@ void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, in
 		*y2 = y;
 	}
 
-	pthread_mutex_unlock(&mapdata[arena].mtx);
+failed_2:
+	pthread_mutex_unlock(&md->mtx);
 }
 
 
-void DoBrick(int arena, int drop, int x1, int y1, int x2, int y2)
+void DoBrick(Arena *arena, int drop, int x1, int y1, int x2, int y2)
 {
 	unsigned char tile = drop ? TILE_BRICK : 0;
-	sparse_arr arr = mapdata[arena].arr;
+	sparse_arr arr;
+	struct MapData *md = P_ARENA_DATA(arena, mdkey);
 
-	pthread_mutex_lock(&mapdata[arena].mtx);
+	pthread_mutex_lock(&md->mtx);
+	arr = md->arr;
 
 	if (x1 == x2)
 	{
@@ -495,18 +511,22 @@ void DoBrick(int arena, int drop, int x1, int y1, int x2, int y2)
 	if (tile == 0)
 		cleanup_sparse(arr);
 
-	pthread_mutex_unlock(&mapdata[arena].mtx);
+	pthread_mutex_unlock(&md->mtx);
 }
 
 
-u32 GetChecksum(int arena, u32 key)
+u32 GetChecksum(Arena *arena, u32 key)
 {
 	int x, y, savekey = (int)key;
-	sparse_arr arr = mapdata[arena].arr;
+	struct MapData *md;
+	sparse_arr arr;
 
-	if (!arr) return 0;
+	md = P_ARENA_DATA(arena, mdkey);
+	pthread_mutex_lock(&md->mtx);
+	arr = md->arr;
 
-	pthread_mutex_lock(&mapdata[arena].mtx);
+	if (!arr) goto failed_3;
+
 	for (y = savekey % 32; y < 1024; y += 32)
 		for (x = savekey % 31; x < 1024; x += 31)
 		{
@@ -514,8 +534,9 @@ u32 GetChecksum(int arena, u32 key)
 			if ((tile > 0x00 && tile < 0xa1) || tile == 0xab)
 				key += savekey ^ tile;
 		}
-	pthread_mutex_unlock(&mapdata[arena].mtx);
 
+failed_3:
+	pthread_mutex_unlock(&md->mtx);
 	return key;
 }
 
@@ -575,32 +596,30 @@ HashTable * LoadRegions(char *fname)
 }
 
 
-const char *GetRegion(int arena, int x, int y)
+const char *GetRegion(Arena *arena, int x, int y)
 {
 	return NULL;
 }
 
-int InRegion(int arena, const char *region, int x, int y)
+int InRegion(Arena *arena, const char *region, int x, int y)
 {
 	struct Region *reg;
+	struct MapData *md = P_ARENA_DATA(arena, mdkey);
 
-	if (!mapdata[arena].regions)
-		return 0;
+	if (md->regions)
+		if ((reg = HashGetOne(md->regions, region)))
+		{
+			int i;
+			rect_t *r;
+			for (i = 0, r = reg->rects.data; i < reg->rects.count; i++, r++)
+				if (x >= r->x &&
+				    (x - r->x) < r->w &&
+				    y >= r->y &&
+				    (y - r->y) < r->h)
+					return 1;
+		}
 
-	if ((reg = HashGetOne(mapdata[arena].regions, region)))
-	{
-		int i;
-		rect_t *r;
-		for (i = 0, r = reg->rects.data; i < reg->rects.count; i++, r++)
-			if (x >= r->x &&
-			    (x - r->x) < r->w &&
-			    y >= r->y &&
-			    (y - r->y) < r->h)
-				return 1;
-		return 0;
-	}
-	else
-		return 0;
+	return 0;
 }
 
 

@@ -8,7 +8,7 @@
 
 /* called when get player damage */
 #define CB_PLAYERDAMAGE ("playerdamage")
-typedef void (*PlayerDamage)(int arena, int pid, struct S2CWatchDamage *damage);
+typedef void (*PlayerDamage)(Arena *arena, int pid, struct S2CWatchDamage *damage);
 
 
 #define I_WATCHDAMAGE "watchdamage-1"

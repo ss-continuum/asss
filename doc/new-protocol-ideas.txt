@@ -3,10 +3,12 @@
 server-controlled ships that take damage by listening to damage packets
 from clients:
 
-use the high bit of the 3rd byte in the player entering/player info
-packet. the client should send one of these to the server every time one
-of its weapons (bullets, bombs, shrap, burst, thor) hits any player with
-the server-controlled bit on.
+the last byte of the player entering/player info packet is now a
+bitfield. bit 0 (mask 0x01) means the person has a koth crown. bit 1
+(mask 0x02) means the player is "server-controlled". the client should
+send one of these to the server every time one of its weapons (bullets,
+bombs, shrap, burst, thor) hits any player with the server-controlled
+bit on.
 
 
 /* file: packets/fakedamage.h */
@@ -121,7 +123,8 @@ struct S2CStatUpdate
 	{
 		u16 pid; /* if pid == -1, apply this update to all players */
 		u16 statid; /* if statid == -1, apply this update to all stats for this pid */
-		u8 interval;
+		u8 interval; /* if interval == -1, INCREMENT stats in all
+		                invervals by newval */
 		i32 newval;
 	} updates[0];
 };

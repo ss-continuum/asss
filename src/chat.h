@@ -53,13 +53,13 @@ typedef struct Ichat
 	void (*SendSoundMessage)(int pid, char sound, const char *format, ...);
 	void (*SendSetSoundMessage)(int *set, char sound, const char *format, ...);
 	void (*SendAnyMessage)(int *set, char type, char sound, const char *format, ...);
-	void (*SendArenaMessage)(int arena, const char *format, ...);
-	void (*SendArenaSoundMessage)(int arena, char sound, const char *format, ...);
+	void (*SendArenaMessage)(Arena *arena, const char *format, ...);
+	void (*SendArenaSoundMessage)(Arena *arena, char sound, const char *format, ...);
 	/* in the above two, use arena == ALLARENAS for zone. */
 	void (*SendModMessage)(const char *format, ...);
 
-	chat_mask_t (*GetArenaChatMask)(int arena);
-	void (*SetArenaChatMask)(int arena, chat_mask_t mask);
+	chat_mask_t (*GetArenaChatMask)(Arena *arena);
+	void (*SetArenaChatMask)(Arena *arena, chat_mask_t mask);
 	chat_mask_t (*GetPlayerChatMask)(int pid);
 	void (*SetPlayerChatMask)(int pid, chat_mask_t mask, int timeout);
 	/* (timeout is 0 to mean 'for a session' mask, or a number of seconds) */

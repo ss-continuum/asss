@@ -70,7 +70,7 @@ admin.so: filetrans.o quickfix.o
 database.so: mysql.o aliasdb.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(MYSQLLIB) -lmysqlclient_r -lz
 
-turf.so: turf_reward.o turf_stats.o points_turf_reward.o
+turf.so: turf_reward.o points_turf_reward.o #turf_stats.o
 
 funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
 	fake.o autoturret.o chatnet.o md5.o auth_file.o ap_multipub.o sendfile.o

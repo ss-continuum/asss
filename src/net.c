@@ -143,7 +143,7 @@ typedef struct Buffer
 
 /* interface: */
 local void SendToOne(int, byte *, int, int);
-local void SendToArena(int, int, byte *, int, int);
+local void SendToArena(Arena *, int, byte *, int, int);
 local void SendToSet(int *, byte *, int, int);
 local void SendToTarget(const Target *, byte *, int, int);
 local void SendToAll(byte *, int, int);
@@ -283,7 +283,7 @@ local Inet _int =
 /* start of functions */
 
 
-EXPORT int MM_net(int action, Imodman *mm_, int arena)
+EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 {
 	int i;
 	pthread_t thd;
@@ -359,7 +359,7 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		pthread_create(&thd, NULL, SendThread, NULL);
 		pthread_create(&thd, NULL, RelThread, NULL);
 
-		ml->SetTimer(QueueMoreData, 200, 150, NULL, -1);
+		ml->SetTimer(QueueMoreData, 200, 150, NULL, NULL);
 
 		/* install ourself */
 		mm->RegInterface(&_int, ALLARENAS);
@@ -372,7 +372,7 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 
-		ml->ClearTimer(QueueMoreData, -1);
+		ml->ClearTimer(QueueMoreData, NULL);
 
 		/* disconnect all clients nicely */
 		for (i = 0; i < MAXPLAYERS; i++)
@@ -380,6 +380,7 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 			    IS_OURS(i))
 			{
 				byte discon[2] = { 0x00, 0x07 };
+				clients[i].enc = NULL;
 				SendRaw(i, discon, 2);
 			}
 
@@ -1436,7 +1437,7 @@ void KillConnection(int pid)
 	/* if we haven't processed the leaving arena packet yet (quite
 	 * likely), just generate one and process it. this will set status
 	 * to S_LEAVING_ARENA */
-	if (players[pid].arena >= 0)
+	if (players[pid].arena)
 		ProcessPacket(pid, &leaving, 1);
 
 	pd->LockStatus();
@@ -1889,10 +1890,10 @@ void SendToOne(int pid, byte *data, int len, int flags)
 }
 
 
-void SendToArena(int arena, int except, byte *data, int len, int flags)
+void SendToArena(Arena *arena, int except, byte *data, int len, int flags)
 {
 	int set[MAXPLAYERS+1], i, p = 0;
-	if (arena < 0) return;
+	if (!arena) return;
 	pd->LockStatus();
 	for (i = 0; i < MAXPLAYERS; i++)
 		if (players[i].status == S_PLAYING &&

@@ -224,7 +224,7 @@ local void PDamage(int pid, byte *p, int len)
 {
 	struct C2SWatchDamage *wd = (struct C2SWatchDamage *)p;
 	struct S2CWatchDamage s2cwd;
-	int arena = pd->players[pid].arena;
+	Arena *arena = pd->players[pid].arena;
 	Link *l;
 
 	if (sizeof(struct C2SWatchDamage) != len)
@@ -233,8 +233,7 @@ local void PDamage(int pid, byte *p, int len)
 		return;
 	}
 
-	if (ARENA_BAD(arena))
-		return;
+	if (!arena) return;
 
 	s2cwd.type = S2C_DAMAGE;
 	s2cwd.damageuid = pid;

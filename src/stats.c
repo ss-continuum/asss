@@ -356,9 +356,9 @@ local void clear_##ival##_data(int pid)                                        \
     UNLOCK_PLAYER(pid);                                                        \
 }                                                                              \
                                                                                \
-local PersistentData my_##ival##_data =                                        \
+local PlayerPersistentData my_##ival##_data =                                  \
 {                                                                              \
-    KEY_STATS, ALLARENAS, code,                                                \
+    KEY_STATS, code, PERSIST_ALLARENAS,                                        \
     get_##ival##_data, set_##ival##_data, clear_##ival##_data                  \
 };
 
@@ -371,25 +371,25 @@ DO_PERSISTENT_DATA(game, INTERVAL_GAME)
 
 /* interval ending time */
 
-local int get_ending_time(int arena, void *data, int len)
+local int get_ending_time(Arena *arena, void *data, int len)
 {
 	time(data);
 	return sizeof(time_t);
 }
 
-local void set_ending_time(int arena, void *data, int len) { /* noop */ }
+local void set_ending_time(Arena *arena, void *data, int len) { /* noop */ }
 
-local void clear_ending_time(int arena) { /* noop */ }
+local void clear_ending_time(Arena *arena) { /* noop */ }
 
-local PersistentData my_reset_end_time_data =
+local ArenaPersistentData my_reset_end_time_data =
 {
-	KEY_ENDING_TIME, ALLARENAS, INTERVAL_RESET,
+	KEY_ENDING_TIME, INTERVAL_RESET, PERSIST_ALLARENAS,
 	get_ending_time, set_ending_time, clear_ending_time
 };
 
-local PersistentData my_game_end_time_data =
+local ArenaPersistentData my_game_end_time_data =
 {
-	KEY_ENDING_TIME, ALLARENAS, INTERVAL_GAME,
+	KEY_ENDING_TIME, INTERVAL_GAME, PERSIST_ALLARENAS,
 	get_ending_time, set_ending_time, clear_ending_time
 };
 

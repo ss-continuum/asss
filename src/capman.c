@@ -17,16 +17,16 @@ local Ilogman *lm;
 local Iconfig *cfg;
 
 
-local void UpdateGroup(int pid, int arena)
+local void UpdateGroup(int pid, Arena *arena)
 {
 #define LOGIT(from) \
 	lm->Log(L_DRIVEL, "<capman> {%s} [%s] Player assigned to group '%s' from %s", \
-			aname, \
+			arena->name, \
 			pd->players[pid].name, \
 			groups[pid], \
 			from)
 
-	if (ARENA_BAD(arena))
+	if (!arena)
 	{
 		/* only global groups available for now */
 		const char *gg = cfg->GetStr(gstaff, "Staff", pd->players[pid].name);
@@ -43,14 +43,13 @@ local void UpdateGroup(int pid, int arena)
 	else
 	{
 		const char *gg = cfg->GetStr(gstaff, "Staff", pd->players[pid].name);
-		const char *ag = cfg->GetStr(aman->arenas[arena].cfg, "Staff", pd->players[pid].name);
-		char *aname = aman->arenas[arena].name;
+		const char *ag = cfg->GetStr(arena->cfg, "Staff", pd->players[pid].name);
 
 		if (gg)
 		{
 			char *t;
 			/* check if this is an 'arena:group' thing */
-			t = strstr(gg, aname);
+			t = strstr(gg, arena->name);
 			if (t)
 			{
 				t = strchr(t, ':');
@@ -91,12 +90,12 @@ local void UpdateGroup(int pid, int arena)
 }
 
 
-local void PlayerAction(int pid, int action, int arena)
+local void PlayerAction(int pid, int action, Arena *arena)
 {
 	if (action == PA_PREENTERARENA)
 		UpdateGroup(pid, arena);
 	else if (action == PA_CONNECT)
-		UpdateGroup(pid, -1);
+		UpdateGroup(pid, NULL);
 	else if (action == PA_DISCONNECT || action == PA_LEAVEARENA)
 		astrncpy(groups[pid], "none", MAXGROUPLEN);
 }
@@ -118,10 +117,10 @@ local void SetTempGroup(int pid, const char *group)
 local void SetPermGroup(int pid, const char *group, int global, const char *info)
 {
 	ConfigHandle ch;
-	int arena = pd->players[pid].arena;
+	Arena *arena = pd->players[pid].arena;
 
 	/* figure out where to set it */
-	ch = global ? gstaff : (ARENA_OK(arena) ? aman->arenas[arena].cfg : NULL);
+	ch = global ? gstaff : (arena ? arena->cfg : NULL);
 	if (!ch) return;
 
 	/* first set it for the current session */

@@ -6,7 +6,7 @@
 
 /* prototypes */
 
-local void MyFlagWin(int, int);
+local void MyFlagWin(Arena *, int);
 
 /* global data */
 
@@ -17,7 +17,7 @@ local Istats *stats;
 local Iarenaman *aman;
 local Iconfig *cfg;
 
-EXPORT int MM_points_flag(int action, Imodman *mm_, int arena)
+EXPORT int MM_points_flag(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -52,7 +52,7 @@ EXPORT int MM_points_flag(int action, Imodman *mm_, int arena)
 }
 
 
-void MyFlagWin(int arena, int freq)
+void MyFlagWin(Arena *arena, int freq)
 {
 	int awardto[MAXPLAYERS];
 	int players, ponfreq, reward, splitpts, points, i;
@@ -78,11 +78,11 @@ void MyFlagWin(int arena, int freq)
 	/* cfghelp: Flag:FlagReward, arena, int, def: 5000, mod: points_flag
 	 * The basic flag reward is calculated as (players in arena)^2 *
 	 * reward / 1000. */
-	reward = cfg->GetInt(aman->arenas[arena].cfg, "Flag", "FlagReward", 5000);
+	reward = cfg->GetInt(arena->cfg, "Flag", "FlagReward", 5000);
 	/* cfghelp: Flag:SplitPoints, arena, bool, def: 0
 	 * Whether to split a flag reward between the members of a freq or
 	 * give them each the full amount. */
-	splitpts = cfg->GetInt(aman->arenas[arena].cfg, "Flag", "SplitPoints", 0);
+	splitpts = cfg->GetInt(arena->cfg, "Flag", "SplitPoints", 0);
 
 	points = players * players * reward / 1000;
 

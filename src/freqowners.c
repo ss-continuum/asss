@@ -10,7 +10,7 @@ local void Cfreqkick(const char *, int, const Target *);
 local helptext_t giveowner_help, freqkick_help;
 
 /* callbacks */
-local void MyPA(int pid, int action, int arena);
+local void MyPA(int pid, int action, Arena *arena);
 local void MyFreqCh(int pid, int newfreq);
 local void MyShipCh(int pid, int newship, int newfreq);
 
@@ -26,7 +26,7 @@ local Ichat *chat;
 local Imodman *mm;
 
 
-EXPORT int MM_freqowners(int action, Imodman *_mm, int arena)
+EXPORT int MM_freqowners(int action, Imodman *_mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -66,7 +66,7 @@ EXPORT int MM_freqowners(int action, Imodman *_mm, int arena)
 }
 
 
-local int CountFreq(int arena, int freq, int excl)
+local int CountFreq(Arena *arena, int freq, int excl)
 {
 	int t = 0, i;
 	pd->LockStatus();
@@ -126,7 +126,7 @@ void Cfreqkick(const char *params, int pid, const Target *target)
 }
 
 
-void MyPA(int pid, int action, int arena)
+void MyPA(int pid, int action, Arena *arena)
 {
 	ownsfreq[pid] = 0;
 }
@@ -134,10 +134,8 @@ void MyPA(int pid, int action, int arena)
 
 void MyFreqCh(int pid, int newfreq)
 {
-	int arena = pd->players[pid].arena;
-	ConfigHandle ch;
-
-	ch = aman->arenas[arena].cfg;
+	Arena *arena = pd->players[pid].arena;
+	ConfigHandle ch = arena->cfg;
 
 	/* cfghelp: Team:AllowFreqOwners, arena, bool, def: 1
 	 * Whether to enable the freq ownership feature in this arena. */

@@ -11,7 +11,7 @@
 
 
 local void Log(char, const char *, ...);
-local void LogA(char level, const char *mod, int arena, const char *format, ...);
+local void LogA(char level, const char *mod, Arena *arena, const char *format, ...);
 local void LogP(char level, const char *mod, int pid, const char *format, ...);
 local int FilterLog(const char *, const char *);
 
@@ -110,7 +110,7 @@ void Log(char level, const char *format, ...)
 }
 
 
-void LogA(char level, const char *mod, int arena, const char *format, ...)
+void LogA(char level, const char *mod, Arena *a, const char *format, ...)
 {
 	int len;
 	va_list argptr;
@@ -119,7 +119,7 @@ void LogA(char level, const char *mod, int arena, const char *format, ...)
 	len = snprintf(buf, 1024, "%c <%s> {%s} ",
 			level,
 			mod,
-			aman && ARENA_OK(arena) ? aman->arenas[arena].name : "???");
+			a ? a->name : "(bad arena)");
 	assert(len < 1024);
 
 	va_start(argptr, format);
@@ -132,7 +132,8 @@ void LogA(char level, const char *mod, int arena, const char *format, ...)
 
 void LogP(char level, const char *mod, int pid, const char *format, ...)
 {
-	int len, arena;
+	int len;
+	Arena *arena;
 	va_list argptr;
 	char buf[1024], buf2[16];
 
@@ -151,11 +152,11 @@ void LogP(char level, const char *mod, int pid, const char *format, ...)
 		}
 
 		arena = pd->players[pid].arena;
-		if (ARENA_OK(arena))
+		if (arena)
 			len = snprintf(buf, 1024, "%c <%s> {%s} [%s] ",
 					level,
 					mod,
-					aman->arenas[arena].name,
+					arena->name,
 					name);
 		else
 			len = snprintf(buf, 1024, "%c <%s> [%s] ",

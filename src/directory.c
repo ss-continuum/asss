@@ -177,12 +177,12 @@ EXPORT int MM_directory(int action, Imodman *mm, int arena)
 		init_data();
 		init_servers();
 
-		ml->SetTimer(SendUpdates, 1000, 6000, NULL, -1);
+		ml->SetTimer(SendUpdates, 1000, 6000, NULL, NULL);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		ml->ClearTimer(SendUpdates, -1);
+		ml->ClearTimer(SendUpdates, NULL);
 		deinit_servers();
 		close(sock);
 		mm->ReleaseInterface(cfg);

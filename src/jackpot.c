@@ -15,38 +15,43 @@ local pthread_mutex_t mtx;
 #define LOCK() pthread_mutex_lock(&mtx)
 #define UNLOCK() pthread_mutex_unlock(&mtx)
 
-local struct
+typedef struct
 {
 	int jp;
 	int percent;
-} data[MAXARENA];
+} jpdata;
+
+local int jpkey;
 
 
-local void ResetJP(int arena)
+local void ResetJP(Arena *arena)
 {
+	jpdata *jpd = P_ARENA_DATA(arena, jpkey);
 	LOCK();
-	data[arena].jp = 0;
+	jpd->jp = 0;
 	UNLOCK();
 }
 
-local void AddJP(int arena, int pts)
+local void AddJP(Arena *arena, int pts)
 {
+	jpdata *jpd = P_ARENA_DATA(arena, jpkey);
 	LOCK();
-	data[arena].jp += pts;
+	jpd->jp += pts;
 	UNLOCK();
 }
 
-local int GetJP(int arena)
+local int GetJP(Arena *arena)
 {
+	jpdata *jpd = P_ARENA_DATA(arena, jpkey);
 	int jp;
 	LOCK();
-	jp = data[arena].jp;
+	jp = jpd->jp;
 	UNLOCK();
 	return jp;
 }
 
 
-local int get_data(int arena, void *d, int len)
+local int get_data(Arena *arena, void *d, int len)
 {
 	int jp = GetJP(arena);
 	if (jp)
@@ -58,46 +63,49 @@ local int get_data(int arena, void *d, int len)
 		return 0;
 }
 
-local void set_data(int arena, void *d, int len)
+local void set_data(Arena *arena, void *d, int len)
 {
+	jpdata *jpd = P_ARENA_DATA(arena, jpkey);
 	if (len == sizeof(int))
 	{
 		LOCK();
-		data[arena].jp = *(int*)d;
+		jpd->jp = *(int*)d;
 		UNLOCK();
 	}
 	else
 		ResetJP(arena);
 }
 
-local void clear_data(int arena)
+local void clear_data(Arena *arena)
 {
 	ResetJP(arena);
 }
 
-local PersistentData jpdata =
+local ArenaPersistentData persistdata =
 {
-	KEY_JACKPOT, PERSIST_ALLARENAS, INTERVAL_GAME,
+	KEY_JACKPOT, INTERVAL_GAME, PERSIST_ALLARENAS,
 	get_data, set_data, clear_data
 };
 
 
-local void kill(int arena, int killer, int killed, int bounty, int flags)
+local void kill(Arena *arena, int killer, int killed, int bounty, int flags)
 {
+	jpdata *jpd = P_ARENA_DATA(arena, jpkey);
 	LOCK();
-	if (data[arena].percent)
-		data[arena].jp += bounty * data[arena].percent / 1000;
+	if (jpd->percent)
+		jpd->jp += bounty * jpd->percent / 1000;
 	UNLOCK();
 }
 
-local void aaction(int arena, int action)
+local void aaction(Arena *arena, int action)
 {
+	jpdata *jpd = P_ARENA_DATA(arena, jpkey);
 	LOCK();
 	/* cfghelp: Kill:JackpotBountyPercent, arena, int, def: 0
 	 * The percent of a player's bounty added to the jackpot on each
 	 * kill. Units: 0.1%. */
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
-		data[arena].percent = cfg->GetInt(aman->arenas[arena].cfg, "Kill", "JackpotBountyPercent", 0);
+		jpd->percent = cfg->GetInt(arena->cfg, "Kill", "JackpotBountyPercent", 0);
 	UNLOCK();
 }
 
@@ -109,7 +117,7 @@ local Ijackpot jpint =
 };
 
 
-EXPORT int MM_jackpot(int action, Imodman *mm_, int arena)
+EXPORT int MM_jackpot(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -119,12 +127,15 @@ EXPORT int MM_jackpot(int action, Imodman *mm_, int arena)
 		persist = mm->GetInterface(I_PERSIST, ALLARENAS);
 		if (!aman || !cfg || !persist) return MM_FAIL;
 
+		jpkey = aman->AllocateArenaData(sizeof(jpdata));
+		if (jpkey == -1) return MM_FAIL;
+
 		pthread_mutex_init(&mtx, NULL);
 
 		mm->RegCallback(CB_KILL, kill, ALLARENAS);
 		mm->RegCallback(CB_ARENAACTION, aaction, ALLARENAS);
 
-		persist->RegArenaPD(&jpdata);
+		persist->RegArenaPD(&persistdata);
 
 		mm->RegInterface(&jpint, ALLARENAS);
 
@@ -136,7 +147,8 @@ EXPORT int MM_jackpot(int action, Imodman *mm_, int arena)
 			return MM_FAIL;
 		mm->UnregCallback(CB_KILL, kill, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
-		persist->UnregArenaPD(&jpdata);
+		persist->UnregArenaPD(&persistdata);
+		aman->FreeArenaData(jpkey);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(persist);

@@ -15,12 +15,6 @@
 
 #define MAXHISTORY 10  // maximum historical data of previous rewards to keep
 
-// easy calls for mutex
-#define LOCK_STATUS(arena) \
-        pthread_mutex_lock(mtx + arena)
-#define UNLOCK_STATUS(arena) \
-        pthread_mutex_unlock(mtx + arena)
-
 local Imodman     *mm;
 local Iplayerdata *playerdata;          // player data
 local Iarenaman   *arenaman;            // arena manager
@@ -450,6 +444,7 @@ local void C_turfStats(const char *params, int pid, const Target *target)
 	if (histNum>MAXHISTORY-1 || !history[arena][histNum])
 	{
 		chat->SendMessage(pid, "History from %d dings ago is not available.", histNum);
+		UNLOCK_STATUS(arena);
 		return;
 	}
 	PDisplay(arena, pid, histNum);
@@ -475,6 +470,7 @@ local void C_forceStats(const char *params, int pid, const Target *target)
 	if (histNum>MAXHISTORY-1 || !history[arena][histNum])
 	{
 		chat->SendMessage(pid, "History from %d dings ago is not available.", histNum);
+		UNLOCK_STATUS(arena);
 		return;
 	}
 	ADisplay(arena, histNum);

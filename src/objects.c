@@ -15,10 +15,10 @@ local void Cobjoff(const char *params, int pid, const Target *target);
 local void Cobjset(const char *params, int pid, const Target *target);
 
 /* interface funcs */
-local void ToggleArenaMultiObjects(int arena, short *objs, char *ons, int size);
+local void ToggleArenaMultiObjects(Arena *arena, short *objs, char *ons, int size);
 local void TogglePidSetMultiObjects(int *pidset, short *objs, char *ons, int size);
 local void ToggleMultiObjects(int pid, short *objs, char *ons, int size);
-local void ToggleArenaObject(int arena, short obj, char on);
+local void ToggleArenaObject(Arena *arena, short obj, char on);
 local void ToggleObject(int pid, short obj, char on);
 
 /* local data */
@@ -36,7 +36,7 @@ local Iobjects _myint =
 };
 
 
-EXPORT int MM_objects(int action, Imodman *_mm, int arena)
+EXPORT int MM_objects(int action, Imodman *_mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -127,7 +127,7 @@ void Cobjset(const char *params, int pid, const Target *target)
 	}
 }
 
-void ToggleArenaObject(int arena, short obj, char on)
+void ToggleArenaObject(Arena *arena, short obj, char on)
 {
 	ToggleArenaMultiObjects(arena, &obj, &on, 1);
 }
@@ -137,7 +137,7 @@ void ToggleObject(int pid, short obj, char on)
 	ToggleMultiObjects(pid, &obj, &on, 1);
 }
 
-void ToggleArenaMultiObjects(int arena, short *objs, char *ons, int size)
+void ToggleArenaMultiObjects(Arena *arena, short *objs, char *ons, int size)
 {
 	int set[MAXPLAYERS+1];
 	Target targ = { T_ARENA };
