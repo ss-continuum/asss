@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-# ccc - a console chat client for asss
-# <grelminar@yahoo.com>
-
+# ccc - a console chat client for asss <grelminar@yahoo.com>
 # dist: public
+
+ccc_version = '2.1'
 
 import sys, time, curses, socket, select, os
 
@@ -893,6 +893,10 @@ def process_inarena(line):
 		view.players.clear()
 		view.players.add(Player(myname, myfreq))
 
+	for l in deferred_typed_lines:
+		process_typed('', l)
+	del deferred_typed_lines[:]
+
 
 def process_player(line):
 	name, ship, freq = line.split(':')
@@ -1273,11 +1277,12 @@ def process_config(file):
 
 def main():
 	global wins, sock, views, myname, colors, chatparser
-	global logindone, last_priv_list
+	global logindone, last_priv_list, deferred_typed_lines
 
 	colors = 0
 	myname = ''
 	myfreq = 0
+	deferred_typed_lines = []
 
 	views = [make_arena_view()]
 	last_priv_list = LastPrivList(10)
@@ -1302,7 +1307,7 @@ def main():
 		print "The config file must include a name, password, server, and port."
 		sys.exit(2)
 
-	print "ccc - a console chat client <grelminar@yahoo.com>"
+	print "ccc %s - a console chat client <grelminar@yahoo.com>" % ccc_version
 	print "Connecting to %s:%d as %s..." % \
 		(opts['server'], opts['port'], opts['name'])
 
@@ -1340,13 +1345,19 @@ def main():
 
 	# join chats and other autocommands
 	if opts.has_key('chats'):
-		send_line("SEND:CMD:?chat=%s" % opts['chats'])
+		deferred_typed_lines.append('?chat=%s' % opts['chats'])
 		if opts.get('chatwindows', 0):
 			chats = opts['chats'].split(',')
 			idx = 1
 			for c in chats:
 				views.append(make_chat_view(idx, c))
 				idx += 1
+
+	# init lines can be split by newlines or bars
+	if opts.has_key('init'):
+		for l1 in opts['init'].split('\n'):
+			for l2 in l1.split('|'):
+				deferred_typed_lines.append(l2)
 
 	start_curses()
 
@@ -1361,12 +1372,6 @@ def main():
 		# curses initialization is done, add lines that we couldn't add
 		# before.
 		complete_deferred_lines()
-
-		# init lines can be split by newlines or bars
-		if opts.has_key('init'):
-			for l1 in opts['init'].split('\n'):
-				for l2 in l1.split('|'):
-					process_typed('', l2)
 
 		main_loop()
 
