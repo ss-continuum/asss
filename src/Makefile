@@ -30,12 +30,10 @@ ALL_STUFF = asss         \
 
 
 # comment out 'install' here to not replace binaries by default
-all: pre $(ALL_STUFF) install
+all: $(ALL_STUFF) install
 
-opt:
+opt: clean
 	$(MAKE) "CFLAGS=$(ALL_CFLAGS) $(OPT_CFLAGS) $(PROF_FLAGS)"
-
-pre: sparse.inc letters.inc
 
 asss: main.o app.o module.o util.o pathutil.o region.o
 	$(CC) $(LDFLAGS) -rdynamic -o $@ $^ -ldl -lpthread
@@ -75,7 +73,7 @@ arpc_stubs.c: $(SCRIPTS)/arpc.py *.h
 	$(SCRIPTS)/arpc.py makestubs > $@
 
 
-Makefile.deps: # *.c *.h
+Makefile.deps: sparse.inc letters.inc # *.c *.h
 	-$(CC) -MM *.c > $@
 
 
@@ -86,10 +84,11 @@ include Makefile.deps
 	$(CC) $(LDFLAGS) -shared -o $@ $^
 
 install: $(ALL_STUFF)
-	-cp -f $(ALL_STUFF) $(ASSSHOME)/bin
+	if [ ! -d $(ASSSHOME)/bin ]; then mkdir $(ASSSHOME)/bin; fi
+	cp -f $(ALL_STUFF) $(ASSSHOME)/bin
 
 clean:
 	-rm -f asss *.o *.so *.inc core Makefile.deps
 
-.PHONY: clean install all tags
+.PHONY: clean install all
 

@@ -273,7 +273,7 @@ local void handle_priv(int pid, int dst, const char *msg)
 	int arena = players[pid].arena;
 	struct ChatPacket *to = alloca(strlen(msg) + 40);
 
-	if (msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2 || msg[0] == CMD_CHAR_3)
+	if (msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2)
 	{
 		Target target;
 		target.type = T_PID;

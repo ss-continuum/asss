@@ -3,10 +3,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
-
-#ifndef WIN32
 #include <sys/types.h>
 #include <sys/stat.h>
+
+#ifndef WIN32
 #include <paths.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -52,6 +52,12 @@ local void p_inc_file(int pid, byte *data, int len)
 
 	astrncpy(fname, "tmp/", sizeof(fname));
 	strncat(fname, data+1, 16);
+
+	if (strstr(fname, ".."))
+	{
+		lm->LogP(L_MALICIOUS, "filetrans", pid, "Sent a file with '..' in the filename");
+		return;
+	}
 
 	fp = fopen(fname, "wb");
 	if (!fp)
@@ -105,11 +111,17 @@ local void sized_p_inc_file(int pid, byte *data, int len, int offset, int totall
 	{
 		if (!capman || capman->HasCapability(pid, CAP_UPLOADFILE))
 		{
-			char fname[PATH_MAX];
+			char fname[32];
 			astrncpy(fname, "tmp/", sizeof(fname));
 			strncat(fname, data+1, 16);
 
-			lm->LogP(L_INFO, "filetrans", pid, "Accepted '%.16s' for upload", data+1);
+			if (strstr(fname, ".."))
+			{
+				lm->LogP(L_MALICIOUS, "filetrans", pid, "Sent a file with '..' in the filename");
+				return;
+			}
+
+			lm->LogP(L_INFO, "filetrans", pid, "Accepted '%s' for upload", fname+4);
 
 			ud->fname = astrdup(fname);
 			ud->fp = fopen(fname, "wb");
@@ -207,6 +219,8 @@ local void RequestFile(int pid, const char *path, const char *fname)
 	net->SendToOne(pid, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
 	lm->LogP(L_INFO, "filetrans", pid, "Requesting file '%s' (as '%s')",
 			path, fname);
+	if (strstr(fname, ".."))
+		lm->LogP(L_WARN, "filetrans", pid, "Sent file request with '..'");
 }
 
 

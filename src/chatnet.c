@@ -47,6 +47,7 @@ typedef struct cdata
 {
 	int socket;
 	struct sockaddr_in sin;
+	unsigned int lastmsgtime;
 	buffer *inbuf;
 	LinkedList outbufs;
 } cdata;
@@ -61,6 +62,8 @@ local Iconfig *cfg;
 
 local HashTable *handlers;
 local int mysock;
+
+local int cfg_msgdelay;
 
 /* global clients struct! */
 local cdata clients[MAXPLAYERS];
@@ -87,6 +90,7 @@ local buffer *get_in_buffer(void)
 
 local int set_nonblock(int s)
 {
+#ifndef WIN32
 	int opts = fcntl(s, F_GETFL);
 	if (opts == -1)
 		return -1;
@@ -94,6 +98,14 @@ local int set_nonblock(int s)
 		return -1;
 	else
 		return 0;
+#else
+	unsigned long nb = 1;
+
+	if (ioctlsocket(s, FIONBIO, &nb) == SOCKET_ERROR)
+		return -1;
+	else
+		return 0;
+#endif
 }
 
 
@@ -158,7 +170,7 @@ local int try_accept(int s)
 	struct sockaddr_in sin;
 
 	sinsize = sizeof(sin);
-	a = accept(s, &sin, &sinsize);
+	a = accept(s, (struct sockaddr*)&sin, &sinsize);
 
 	if (a == -1)
 	{
@@ -180,6 +192,7 @@ local int try_accept(int s)
 
 	clients[pid].socket = a;
 	clients[pid].sin = sin;
+	clients[pid].lastmsgtime = 0;
 	clients[pid].inbuf = NULL;
 	LLInit(&clients[pid].outbufs);
 
@@ -212,6 +225,11 @@ local void kill_connection(int pid)
 	if (!IS_CHAT(pid))
 		return;
 
+	afree(clients[pid].inbuf);
+	clients[pid].inbuf = 0;
+	LLEnum(&clients[pid].outbufs, afree);
+	LLEmpty(&clients[pid].outbufs);
+
 	pd->LockPlayer(pid);
 
 	if (pd->players[pid].arena >= 0)
@@ -239,7 +257,6 @@ local void do_read(int pid)
 {
 	int n;
 	buffer *buf = clients[pid].inbuf;
-	char *src;
 
 	if (!buf)
 		buf = get_in_buffer();
@@ -248,48 +265,15 @@ local void do_read(int pid)
 
 	if (n == 0)
 	{
+		/* client disconnected */
 		kill_connection(pid);
 		return;
 	}
-
-	if (n > 0)
+	else if (n > 0)
 		buf->cur += n;
 
-	/* try processing stuff */
-	src = buf->data;
-	/* as long as there's a complete message... */
-	while (memchr(src, CR, buf->cur - src) || memchr(src, LF, buf->cur - src))
-	{
-		char line[MAXMSGSIZE+1], *dst = line;
-		/* copy it into line, minus terminators */
-		while (*src != CR && *src != LF) *dst++ = *src++;
-		/* close it off */
-		*dst = 0;
-		/* process it */
-		process_line(pid, line);
-		/* skip terminators in input */
-		while (*src == CR || *src == LF) src++;
-	}
-
-	/* if we processed some data... */
-	if (src > buf->data)
-	{
-		buffer *buf2 = NULL;
-		/* and there's unprocessed data left... */
-		if ((buf->cur - src) > 0)
-		{
-			/* put the unprocessed data in a new buffer */
-			buffer *buf2 = get_in_buffer();
-			memcpy(buf2->data, src, buf->cur - src);
-			buf2->cur += buf->cur - src;
-		}
-		/* and free the old one */
-		afree(buf);
-		buf = buf2;
-	}
-
 	/* if the line is too long... */
-	if (buf && LEFT(buf) <= 0)
+	if (LEFT(buf) <= 0)
 	{
 		lm->LogP(L_MALICIOUS, "chatnet", pid, "Line too long");
 		afree(buf);
@@ -298,6 +282,47 @@ local void do_read(int pid)
 
 	/* replace the buffer */
 	clients[pid].inbuf = buf;
+}
+
+
+/* call w/big lock */
+local void try_process(int pid)
+{
+	buffer *buf = clients[pid].inbuf;
+	char *src = buf->data;
+
+	/* if there is a complete message */
+	if (memchr(src, CR, buf->cur - src) || memchr(src, LF, buf->cur - src))
+	{
+		char line[MAXMSGSIZE+1], *dst = line;
+		buffer *buf2 = NULL;
+
+		/* copy it into line, minus terminators */
+		while (*src != CR && *src != LF) *dst++ = *src++;
+		/* close it off */
+		*dst = 0;
+
+		/* process it */
+		process_line(pid, line);
+
+		/* skip terminators in input */
+		while (*src == CR || *src == LF) src++;
+		/* if there's unprocessed data left... */
+		if ((buf->cur - src) > 0)
+		{
+			/* put the unprocessed data in a new buffer */
+			buf2 = get_in_buffer();
+			memcpy(buf2->data, src, buf->cur - src);
+			buf2->cur += buf->cur - src;
+		}
+
+		/* free the old one */
+		afree(buf);
+		/* put the new one in place */
+		clients[pid].inbuf = buf2;
+		/* reset message time */
+		clients[pid].lastmsgtime = GTC();
+	}
 }
 
 
@@ -326,7 +351,7 @@ local void do_write(int pid)
 
 local int main_loop(void *dummy)
 {
-	int pid, max, ret;
+	int pid, max, ret, gtc = GTC();
 	fd_set readset, writeset;
 	struct timeval tv = { 0, 0 };
 
@@ -346,7 +371,7 @@ local int main_loop(void *dummy)
 		{
 			if (pd->players[pid].status != S_TIMEWAIT)
 			{
-				/* always check for more incoming data */
+				/* always check for incoming data */
 				FD_SET(clients[pid].socket, &readset);
 				/* maybe for writing too */
 				if (LLCount(&clients[pid].outbufs) > 0)
@@ -367,25 +392,27 @@ local int main_loop(void *dummy)
 
 	ret = select(max + 1, &readset, &writeset, NULL, &tv);
 
-	if (ret > 0)
-	{
-		/* new connections? */
-		if (FD_ISSET(mysock, &readset))
-			try_accept(mysock);
+	/* new connections? */
+	if (FD_ISSET(mysock, &readset))
+		try_accept(mysock);
 
-		for (pid = 0; pid < MAXPLAYERS; pid++)
-			if (IS_CHAT(pid) &&
-			    pd->players[pid].status >= S_CONNECTED &&
-			    clients[pid].socket > 2)
-			{
-				/* data to read? */
-				if (FD_ISSET(clients[pid].socket, &readset))
-					do_read(pid);
-				/* or write? */
-				if (FD_ISSET(clients[pid].socket, &writeset))
-					do_write(pid);
-			}
-	}
+	for (pid = 0; pid < MAXPLAYERS; pid++)
+		if (IS_CHAT(pid) &&
+		    pd->players[pid].status >= S_CONNECTED &&
+		    pd->players[pid].status < S_TIMEWAIT &&
+		    clients[pid].socket > 2)
+		{
+			/* data to read? */
+			if (FD_ISSET(clients[pid].socket, &readset))
+				do_read(pid);
+			/* or write? */
+			if (FD_ISSET(clients[pid].socket, &writeset))
+				do_write(pid);
+			/* or process? */
+			if (clients[pid].inbuf &&
+			    (gtc - clients[pid].lastmsgtime) > cfg_msgdelay)
+				try_process(pid);
+		}
 
 	UNLOCK();
 
@@ -503,6 +530,8 @@ EXPORT int MM_chatnet(int action, Imodman *mm_, int arena)
 		mysock = init_socket();
 		if (mysock == -1)
 			return MM_FAIL;
+
+		cfg_msgdelay = cfg->GetInt(GLOBAL, "Net", "ChatMessageDelay", 50);
 
 		/* init mutx */
 		pthread_mutexattr_init(&attr);

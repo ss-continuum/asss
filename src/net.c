@@ -1389,7 +1389,7 @@ void ProcessAck(Buffer *buf)
 	DQNode *outlist;
 
 	RelCallback callback = NULL;
-	void *clos;
+	void *clos = NULL;
 
 	pthread_mutex_lock(outlistmtx + buf->pid);
 	outlist = &clients[buf->pid].outlist;

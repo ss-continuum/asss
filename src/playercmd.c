@@ -1160,7 +1160,11 @@ local void Cgetfile(const char *params, int pid, const Target *target)
 {
 	const char *basename = strrchr(params, '/');
 	basename = basename ? basename + 1 : params;
-	filetrans->SendFile(pid, params, basename);
+
+	if (params[0] == '/' || strstr(params, ".."))
+		lm->LogP(L_MALICIOUS, "playercmd", pid, "Attempted ?getfile with bad path: '%s'", params);
+	else
+		filetrans->SendFile(pid, params, basename);
 }
 
 

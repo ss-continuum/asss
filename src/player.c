@@ -86,7 +86,7 @@ local void KickPlayer(int pid)
 	}
 	else if (players[pid].type == T_CHAT)
 	{
-		Inet *chatnet = mm->GetInterface(I_CHATNET, ALLARENAS);
+		Ichatnet *chatnet = mm->GetInterface(I_CHATNET, ALLARENAS);
 		if (chatnet)
 			chatnet->DropClient(pid);
 		mm->ReleaseInterface(chatnet);

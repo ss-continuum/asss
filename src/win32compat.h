@@ -14,10 +14,14 @@
 #define snprintf _snprintf
 #define vsnprintf _vsnprintf
 #define usleep(x) Sleep((x)/1000)
+#define sleep(x) Sleep((x)*1000)
 #define alloca _alloca
 #define access _access
 #define R_OK 4
 #define S_ISDIR(a) ((a) & _S_IFDIR)
+#define mkdir(a,b) _mkdir(a)
+
+typedef int socklen_t;
 
 #define BROKEN_VSNPRINTF
 

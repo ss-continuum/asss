@@ -135,7 +135,7 @@ enum
 
 /* authentication return codes */
 #define AUTH_OK             0x00   /* success */
-#define AUTH_UNKNOWN        0x01   /* fail */
+#define AUTH_NEWNAME        0x01   /* fail */
 #define AUTH_BADPASSWORD    0x02   /* fail */
 #define AUTH_ARENAFULL      0x03   /* fail */
 #define AUTH_LOCKEDOUT      0x04   /* fail */
@@ -149,10 +149,10 @@ enum
 #define AUTH_OFFENSIVENAME  0x0C   /* fail */
 #define AUTH_NOSCORES       0x0D   /* success */
 #define AUTH_SERVERBUSY     0x0E   /* fail */
-#define AUTH_EXPONLY        0x0F   /* ??? */
-#define AUTH_ISDEMO         0x10   /* ??? */
+#define AUTH_TOOLOWUSAGE    0x0F   /* fail */
+#define AUTH_NONAME         0x10   /* fail */
 #define AUTH_TOOMANYDEMO    0x11   /* fail */
-#define AUTH_NODEMO         0x12   /* ??? */
+#define AUTH_NODEMO         0x12   /* fail */
 
 #define AUTH_IS_OK(a) \
 	((a) == AUTH_OK || (a) == AUTH_SPECONLY || (a) == AUTH_NOSCORES)
@@ -168,6 +168,7 @@ enum
 #define W_DECOY         6
 #define W_BURST         7
 #define W_THOR          8
+#define W_WORMHOLE      0 /* used in watchdamage packet only */
 
 
 /* some ship names */

@@ -325,7 +325,7 @@ void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, in
 {
 	sparse_arr arr = mapdata[arena].arr;
 	enum { down, right, up, left } dir;
-	int bestcount, bestdir, x, y, destx, desty;
+	int bestcount, bestdir, x, y, destx = dropx, desty = dropy;
 
 	if (lookup_sparse(arr, dropx, dropy))
 	{

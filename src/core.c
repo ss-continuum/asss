@@ -209,7 +209,7 @@ void ProcessLoginQueue(void)
 
 			default:
 				lm->Log(L_ERROR,"<core> [pid=%d] Internal error: unknown player status %d", pid, oldstatus);
-				break;
+				continue;
 		}
 
 		player->status = ns; /* set it */
@@ -483,7 +483,7 @@ local const char *get_auth_code_msg(int code)
 	switch (code)
 	{
 		case AUTH_OK: return "ok";
-		case AUTH_UNKNOWN: return "unknown name";
+		case AUTH_NEWNAME: return "new user";
 		case AUTH_BADPASSWORD: return "incorrect password";
 		case AUTH_ARENAFULL: return "arena full";
 		case AUTH_LOCKEDOUT: return "you have been locked out";
@@ -497,8 +497,8 @@ local const char *get_auth_code_msg(int code)
 		case AUTH_OFFENSIVENAME: return "offensive player name";
 		case AUTH_NOSCORES: return "the server is not recordng scores";
 		case AUTH_SERVERBUSY: return "the server is busy";
-		case AUTH_EXPONLY: return "???";
-		case AUTH_ISDEMO: return "???";
+		case AUTH_TOOLOWUSAGE: return "too low usage";
+		case AUTH_NONAME: return "no name sent";
 		case AUTH_TOOMANYDEMO: return "too many demo players";
 		case AUTH_NODEMO: return "no demo players allowed";
 		default: return "???";

@@ -132,11 +132,11 @@ int LoadMod(const char *_spec)
 		filename = "internal";
 	}
 
-	if (lm) lm->Log(L_DRIVEL,"<module> Loading module '%s' from '%s'", modname, filename);
+	if (lm) lm->Log(L_INFO, "<module> Loading module '%s' from '%s'", modname, filename);
 
 	mod = amalloc(sizeof(ModuleData));
 
-	if (!strcasecmp(filename, "internal") || !strcasecmp(filename, "int"))
+	if (!strcasecmp(filename, "internal"))
 	{
 #ifndef WIN32
 		path = NULL;
@@ -177,23 +177,24 @@ int LoadMod(const char *_spec)
 #ifndef WIN32
 		if (lm) lm->Log(L_ERROR,"<module> Error in dlopen: %s", dlerror());
 #else
+		LPVOID lpMsgBuf;
+
+		FormatMessage(
+				FORMAT_MESSAGE_ALLOCATE_BUFFER |
+				FORMAT_MESSAGE_FROM_SYSTEM |
+				FORMAT_MESSAGE_IGNORE_INSERTS,
+				NULL,
+				GetLastError(),
+				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+				(LPTSTR) &lpMsgBuf,
+				0,
+				NULL
+		);
 		if (lm)
-		{
-			LPVOID lpMsgBuf;
-			FormatMessage(
-					FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL,
-					GetLastError(),
-					MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-					(LPTSTR) &lpMsgBuf,
-					0,
-					NULL
-			);
 			lm->Log(L_ERROR, "<module> Error in LoadLibrary: %s", (LPCTSTR)lpMsgBuf);
-			LocalFree(lpMsgBuf);
-		}
+		else
+			fprintf(stderr, "%c <module> Error in LoadLibrary: %s", L_ERROR, (LPCTSTR)lpMsgBuf);
+		LocalFree(lpMsgBuf);
 #endif
 		goto die;
 	}
@@ -205,23 +206,23 @@ int LoadMod(const char *_spec)
 #ifndef WIN32
 		if (lm) lm->Log(L_ERROR,"<module> Error in dlsym: %s", dlerror());
 #else
+		LPVOID lpMsgBuf;
+		FormatMessage(
+				FORMAT_MESSAGE_ALLOCATE_BUFFER |
+				FORMAT_MESSAGE_FROM_SYSTEM |
+				FORMAT_MESSAGE_IGNORE_INSERTS,
+				NULL,
+				GetLastError(),
+				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+				(LPTSTR) &lpMsgBuf,
+				0,
+				NULL
+		);
 		if (lm)
-		{
-			LPVOID lpMsgBuf;
-			FormatMessage(
-					FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL,
-					GetLastError(),
-					MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-					(LPTSTR) &lpMsgBuf,
-					0,
-					NULL
-			);
 			lm->Log(L_ERROR, "<module> Error in GetProcAddress: %s", (LPCTSTR)lpMsgBuf);
-			LocalFree(lpMsgBuf);
-		}
+		else
+			fprintf(stderr, "%c <module> Error in GetProcAddress: %s", L_ERROR, (LPCTSTR)lpMsgBuf);
+		LocalFree(lpMsgBuf);
 #endif
 		if (!mod->myself) dlclose(mod->hand);
 		goto die;
@@ -233,8 +234,10 @@ int LoadMod(const char *_spec)
 
 	if (ret != MM_OK)
 	{
-		if (lm) lm->Log(L_ERROR,
-				"<module> Error loading module '%s'", modname);
+		if (lm)
+			lm->Log(L_ERROR, "<module> Error loading module '%s'", modname);
+		else
+			printf("%c <module> Error loading module '%s'\n", L_ERROR, modname);
 		if (!mod->myself) dlclose(mod->hand);
 		goto die;
 	}
@@ -242,6 +245,7 @@ int LoadMod(const char *_spec)
 	pthread_mutex_lock(&modmtx);
 	LLAdd(mods, mod);
 	pthread_mutex_unlock(&modmtx);
+	if (lm) ReleaseInterface(lm);
 
 	return MM_OK;
 
@@ -318,8 +322,7 @@ void DoStage(int stage)
 void UnloadAllModules(void)
 {
 	RecursiveUnload(LLGetHead(mods));
-	LLFree(mods);
-	mods = NULL;
+	LLEmpty(mods);
 }
 
 

@@ -7,6 +7,8 @@
 
 #ifndef WIN32
 #include <unistd.h>
+#else
+#include <direct.h>
 #endif
 
 #include "db.h"
