@@ -13,12 +13,15 @@
 
 #undef ATTR_FORMAT
 #undef ATTR_MALLOC
+#undef ATTR_UNUSED
 #if defined(__GNUC__) && __GNUC__ >= 3
 #define ATTR_FORMAT(type, idx, first) __attribute__ ((format (type, idx, first)))
 #define ATTR_MALLOC() __attribute__ ((malloc))
+#define ATTR_UNUSED() __attribute__ ((unused))
 #else
 #define ATTR_FORMAT(type, idx, first)
 #define ATTR_MALLOC()
+#define ATTR_UNUSED()
 #endif
 
 /** a version number, represented as a string */

@@ -46,7 +46,8 @@ typedef void (*FlagWinFunc)(Arena *arena, int freq);
 
 struct FlagData
 {
-	flagstate_t state; /* the state of this flag */
+	/* pytype: struct, struct FlagData, flagdata */
+	int state; /* the state of this flag */
 	int x, y; /* the coordinates of the flag */
 	int freq; /* the freq owning the flag, or -1 if neutral */
 	Player *carrier; /* the pid carrying the flag, or NULL if down */

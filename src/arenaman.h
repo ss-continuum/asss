@@ -63,8 +63,7 @@ enum
  * @param a the arena that something is happening to
  * @param action what is happening. @see AA_CREATE, etc. */
 typedef void (*ArenaActionFunc)(Arena *a, int action);
-/* the python module handles this one internally, so no pycb directive
- * here. */
+/* pycb: arena, int */
 
 /** arena states */
 enum

@@ -103,6 +103,7 @@ local void log_py_exception(char lev, const char *msg)
 		/* this is pretty disgusting. sorry, but it seems to be
 		 * necessary when using PyErr_Print to avoid leaking objects. */
 		PyDict_DelItemString(sysdict, "last_traceback");
+		PyErr_Clear();
 	}
 }
 
@@ -230,46 +231,34 @@ local PyObject * cvt_c2p_target(Target *t)
 	}
 }
 
-local int cvt_p2c_target(PyObject *o, Target **tp)
+local int cvt_p2c_target(PyObject *o, Target *t)
 {
-	Target *t;
 	if (o->ob_type == &PlayerType)
 	{
-		t = amalloc(sizeof(*t));
 		t->type = T_PLAYER;
 		t->u.p = ((PlayerObject*)o)->p;
-		*tp = t;
 		return TRUE;
 	}
 	else if (o->ob_type == &ArenaType)
 	{
-		t = amalloc(sizeof(*t));
 		t->type = T_ARENA;
 		t->u.arena = ((ArenaObject*)o)->a;
-		*tp = t;
 		return TRUE;
 	}
 	else if (PyTuple_Check(o))
 	{
-		t = amalloc(sizeof(*t));
 		t->type = T_FREQ;
 		t->u.arena = ((ArenaObject*)o)->a;
-		if (!PyArg_ParseTuple(o, "O&i",
-					cvt_p2c_arena, &t->u.freq.arena,
-					&t->u.freq.freq))
-		{
-			afree(t);
-			return FALSE;
-		}
-		*tp = t;
-		return TRUE;
+		return PyArg_ParseTuple(o, "O&i",
+				cvt_p2c_arena,
+				&t->u.freq.arena,
+				&t->u.freq.freq);
 	}
 	else if (PyString_Check(o))
 	{
 		const char *c = PyString_AsString(o);
 		if (strcmp(c, "zone") == 0)
 		{
-			t = amalloc(sizeof(*t));
 			t->type = T_ZONE;
 			return TRUE;
 		}
@@ -283,7 +272,6 @@ local int cvt_p2c_target(PyObject *o, Target **tp)
 #endif
 	else if (o == Py_None)
 	{
-		t = amalloc(sizeof(*t));
 		t->type = T_NONE;
 		return TRUE;
 	}
@@ -333,28 +321,34 @@ local void Player_dealloc(PlayerObject *obj)
 	PyObject_Del(obj);
 }
 
+#define GET_AND_CHECK_PLAYER(var) \
+	Player *var = ((PlayerObject*)obj)->p; \
+	if (!var) { \
+		PyErr_SetString(PyExc_ValueError, "stale player object"); \
+		return NULL; \
+	}
 
 local PyObject *Player_get_pid(PyObject *obj, void *v)
 {
-	Player *p = ((PlayerObject*)obj)->p;
+	GET_AND_CHECK_PLAYER(p)
 	return PyInt_FromLong(p->pid);
 }
 
 local PyObject *Player_get_status(PyObject *obj, void *v)
 {
-	Player *p = ((PlayerObject*)obj)->p;
+	GET_AND_CHECK_PLAYER(p)
 	return PyInt_FromLong(p->status);
 }
 
 local PyObject *Player_get_type(PyObject *obj, void *v)
 {
-	Player *p = ((PlayerObject*)obj)->p;
+	GET_AND_CHECK_PLAYER(p)
 	return PyInt_FromLong(p->type);
 }
 
 local PyObject *Player_get_arena(PyObject *obj, void *v)
 {
-	Player *p = ((PlayerObject*)obj)->p;
+	GET_AND_CHECK_PLAYER(p)
 	PyObject *ao = p->arena ?
 		(PyObject*)(((adata*)P_ARENA_DATA(p->arena, adkey))->obj) :
 		Py_None;
@@ -364,44 +358,44 @@ local PyObject *Player_get_arena(PyObject *obj, void *v)
 
 local PyObject *Player_get_name(PyObject *obj, void *v)
 {
-	Player *p = ((PlayerObject*)obj)->p;
+	GET_AND_CHECK_PLAYER(p)
 	return PyString_FromString(p->name);
 }
 
 local PyObject *Player_get_squad(PyObject *obj, void *v)
 {
-	Player *p = ((PlayerObject*)obj)->p;
+	GET_AND_CHECK_PLAYER(p)
 	return PyString_FromString(p->squad);
 }
 
 local PyObject *Player_get_ship(PyObject *obj, void *v)
 {
-	Player *p = ((PlayerObject*)obj)->p;
+	GET_AND_CHECK_PLAYER(p)
 	return PyInt_FromLong(p->p_ship);
 }
 
 local PyObject *Player_get_freq(PyObject *obj, void *v)
 {
-	Player *p = ((PlayerObject*)obj)->p;
+	GET_AND_CHECK_PLAYER(p)
 	return PyInt_FromLong(p->p_freq);
 }
 
 local PyObject *Player_get_res(PyObject *obj, void *v)
 {
-	Player *p = ((PlayerObject*)obj)->p;
+	GET_AND_CHECK_PLAYER(p)
 	return Py_BuildValue("ii", p->xres, p->yres);
 }
 
 local PyObject *Player_get_onfor(PyObject *obj, void *v)
 {
-	Player *p = ((PlayerObject*)obj)->p;
+	GET_AND_CHECK_PLAYER(p)
 	int tm = TICK_DIFF(current_ticks(), p->connecttime);
 	return PyLong_FromLong(tm/100);
 }
 
 local PyObject *Player_get_position(PyObject *obj, void *v)
 {
-	Player *p = ((PlayerObject*)obj)->p;
+	GET_AND_CHECK_PLAYER(p)
 	return Py_BuildValue("iiiiiii",
 			p->position.x,
 			p->position.y,
@@ -414,19 +408,19 @@ local PyObject *Player_get_position(PyObject *obj, void *v)
 
 local PyObject *Player_get_macid(PyObject *obj, void *v)
 {
-	Player *p = ((PlayerObject*)obj)->p;
+	GET_AND_CHECK_PLAYER(p)
 	return PyLong_FromLong(p->macid);
 }
 
 local PyObject *Player_get_ipaddr(PyObject *obj, void *v)
 {
-	Player *p = ((PlayerObject*)obj)->p;
+	GET_AND_CHECK_PLAYER(p)
 	return PyString_FromString(p->ipaddr);
 }
 
 local PyObject *Player_get_connectas(PyObject *obj, void *v)
 {
-	Player *p = ((PlayerObject*)obj)->p;
+	GET_AND_CHECK_PLAYER(p)
 	if (p->connectas)
 		return PyString_FromString(p->connectas);
 	else
@@ -438,7 +432,7 @@ local PyObject *Player_get_connectas(PyObject *obj, void *v)
 
 local PyObject *Player_get_authenticated(PyObject *obj, void *v)
 {
-	Player *p = ((PlayerObject*)obj)->p;
+	GET_AND_CHECK_PLAYER(p)
 	return PyInt_FromLong(p->flags.authenticated);
 }
 
@@ -517,46 +511,52 @@ local void Arena_dealloc(ArenaObject *obj)
 	PyObject_Del(obj);
 }
 
+#define GET_AND_CHECK_ARENA(var) \
+	Arena *var = ((ArenaObject*)obj)->a; \
+	if (!var) { \
+		PyErr_SetString(PyExc_ValueError, "stale arena object"); \
+		return NULL; \
+	}
 
 local PyObject *Arena_get_status(PyObject *obj, void *v)
 {
-	Arena *a = ((ArenaObject*)obj)->a;
+	GET_AND_CHECK_ARENA(a)
 	return PyInt_FromLong(a->status);
 }
 
 local PyObject *Arena_get_name(PyObject *obj, void *v)
 {
-	Arena *a = ((ArenaObject*)obj)->a;
+	GET_AND_CHECK_ARENA(a)
 	return PyString_FromString(a->name);
 }
 
 local PyObject *Arena_get_basename(PyObject *obj, void *v)
 {
-	Arena *a = ((ArenaObject*)obj)->a;
+	GET_AND_CHECK_ARENA(a)
 	return PyString_FromString(a->basename);
 }
 
 local PyObject *Arena_get_cfg(PyObject *obj, void *v)
 {
-	Arena *a = ((ArenaObject*)obj)->a;
+	GET_AND_CHECK_ARENA(a)
 	return cvt_c2p_config(a->cfg);
 }
 
 local PyObject *Arena_get_specfreq(PyObject *obj, void *v)
 {
-	Arena *a = ((ArenaObject*)obj)->a;
+	GET_AND_CHECK_ARENA(a)
 	return PyInt_FromLong(a->specfreq);
 }
 
 local PyObject *Arena_get_playing(PyObject *obj, void *v)
 {
-	Arena *a = ((ArenaObject*)obj)->a;
+	GET_AND_CHECK_ARENA(a)
 	return PyInt_FromLong(a->playing);
 }
 
 local PyObject *Arena_get_total(PyObject *obj, void *v)
 {
-	Arena *a = ((ArenaObject*)obj)->a;
+	GET_AND_CHECK_ARENA(a)
 	return PyInt_FromLong(a->total);
 }
 
@@ -620,37 +620,7 @@ local PyTypeObject ArenaType =
 
 
 
-
-/* other types */
-
-
-
-
 /* associating asss objects with python objects */
-
-
-local void call_gen_py_callbacks(const char *cbid, PyObject *args)
-{
-	LinkedList cbs = LL_INITIALIZER;
-	Link *l;
-	PyObject *ret;
-
-	mm->LookupCallback(cbid, mm->GetArenaOfCurrentCallback(), &cbs);
-
-	for (l = LLGetHead(&cbs); l; l = l->next)
-	{
-		ret = PyObject_Call(l->data, args, NULL);
-		if (ret)
-			Py_DECREF(ret);
-		else
-		{
-			lm->Log(L_ERROR, "<pymod> error in callback for '%s'", cbid+3);
-			log_py_exception(L_ERROR, NULL);
-		}
-	}
-	LLEmpty(&cbs);
-}
-
 
 typedef struct {
 	PyObject_HEAD
@@ -730,20 +700,12 @@ local void py_newplayer(Player *p, int isnew)
 local void py_aaction(Arena *a, int action)
 {
 	adata *d = P_ARENA_DATA(a, adkey);
-	PyObject *args;
 
 	if (action == AA_PRECREATE)
 	{
 		d->obj = PyObject_New(ArenaObject, &ArenaType);
 		d->obj->a = a;
 		d->obj->dict = PyDict_New();
-	}
-
-	args = Py_BuildValue("Oi", d->obj, action);
-	if (args)
-	{
-		call_gen_py_callbacks(PYCBPREFIX CB_ARENAACTION, args);
-		Py_DECREF(args);
 	}
 
 	if (action == AA_POSTDESTROY && d->obj)
@@ -1500,12 +1462,17 @@ local void init_asss_module(void)
 	if (PyType_Ready(&ArenaType) < 0)
 		return;
 
+	if (ready_generated_types() < 0)
+		return;
+
 	m = Py_InitModule3("asss", asss_module_methods, "the asss interface module");
 	if (m == NULL)
 		return;
 
 	PyModule_AddObject(m, "PlayerType", (PyObject*)&PlayerType);
 	PyModule_AddObject(m, "ArenaType", (PyObject*)&ArenaType);
+
+	add_type_objects_to_module(m);
 
 	/* handle constants */
 #define STRING(x) PyModule_AddStringConstant(m, #x, x);

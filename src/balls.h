@@ -37,7 +37,8 @@ typedef void (*GoalFunc)(Arena *arena, Player *p, int bid, int x, int y);
 
 struct BallData
 {
-	ballstate_t state; /* the state of this ball */
+	/* pytype: struct, struct BallData, balldata */
+	int state; /* the state of this ball */
 	int x, y, xspeed, yspeed; /* the coordinates of the ball */
 	Player *carrier; /* the player that is carrying or last touched the ball */
 	int freq; /* freq of carrier */
@@ -73,7 +74,7 @@ typedef struct Iballs
 	void (*PlaceBall)(Arena *arena, int bid, struct BallData *newpos);
 	/* sets the parameters of the ball to those in the given BallData
 	 * struct */
-	/* FIXMEpyint: arena, int, balldata -> void  */
+	/* pyint: arena, int, balldata -> void */
 
 	void (*EndGame)(Arena *arena);
 	/* ends the ball game */

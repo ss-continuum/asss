@@ -9,6 +9,7 @@
 
 struct PingSummary
 {
+	/* pytype: struct, struct PingSummary, pingsummary */
 	int cur, avg, min, max;
 	/* only used for QueryCPing: */
 	int s2cslowtotal;
@@ -19,11 +20,13 @@ struct PingSummary
 
 struct PLossSummary
 {
+	/* pytype: struct, struct PLossSummary, plosssummary */
 	double s2c, c2s, s2cwpn;
 };
 
 struct ReliableLagData
 {
+	/* pytype: struct, struct ReliableLagData, reliablelagdata */
 	/* dups is the total number of duplicates that have been recieved,
 	 * c2sn is the reliable seqnum so far (i.e., the number of reliable
 	 * packets that should have been recieved, excluding dups). */
@@ -40,21 +43,29 @@ struct ReliableLagData
 typedef struct Ilagquery
 {
 	INTERFACE_HEAD_DECL
+	/* pyint: use */
 
 	void (*QueryPPing)(Player *p, struct PingSummary *ping);
+	/* pyint: player, pingsummary out -> void */
 	void (*QueryCPing)(Player *p, struct PingSummary *ping);
+	/* pyint: player, pingsummary out -> void */
 	void (*QueryRPing)(Player *p, struct PingSummary *ping);
+	/* pyint: player, pingsummary out -> void */
 
 	void (*QueryPLoss)(Player *p, struct PLossSummary *d);
+	/* pyint: player, plosssummary out -> void */
 	void (*QueryRelLag)(Player *p, struct ReliableLagData *d);
+	/* pyint: player, reliablelagdata out -> void */
 
 	void (*DoPHistogram)(Player *p,
 			void (*callback)(Player *p, int bucket, int count, int maxcount, void *clos),
 			void *clos);
+	/* pyint: player, (player, int, int, int, clos -> void), clos -> void */
 
 	void (*DoRHistogram)(Player *p,
 			void (*callback)(Player *p, int bucket, int count, int maxcount, void *clos),
 			void *clos);
+	/* pyint: player, (player, int, int, int, clos -> void), clos -> void */
 } Ilagquery;
 
 

@@ -62,7 +62,7 @@ enum map_tile_t
 
 
 typedef struct Region Region;
-/* pytype: opaque: struct Region *, region */
+/* pytype: opaque, Region *, region */
 
 
 struct mapdata_memory_stats_t
@@ -108,7 +108,7 @@ typedef struct Imapdata
 
 	/** like RegionChunk, but for the map itself. */
 	int (*MapChunk)(Arena *arena, u32 ctype, const void **datap, int *sizep);
-	/* pyint: arena, int, bufp out, int buflenout -> void */
+	/* pyint: arena, int, bufp out, int buflen out -> void */
 
 	/** returns the number of flags on the map in this arena. */
 	int (*GetFlagCount)(Arena *arena);
@@ -179,7 +179,7 @@ typedef struct Imapdata
 	 * @return true if the chunk was found, false if not.
 	 */
 	int (*RegionChunk)(Region *rgn, u32 ctype, const void **datap, int *sizep);
-	/* pyint: region, int, bufp out, int buflenout -> void */
+	/* pyint: region, int, bufp out, int buflen out -> void */
 
 	/** checks if the specified point is in the specified region.
 	 * @param rgn a region handle.

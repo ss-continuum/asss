@@ -23,7 +23,7 @@ re_pyint_dir = re.compile(r'\s*/\* pyint: (.*?)(\*/)?$')
 re_pyint_done = re.compile(r'^}')
 
 # types
-re_pytype_opaque = re.compile(r'/\* pytype: opaque: (.*), (.*) \*/')
+re_pytype = re.compile(r'\s*/\* pytype: (.*) \*/')
 
 
 # utility functions for constant translation
@@ -131,18 +131,24 @@ class type_gen:
 		raise Exception()
 	def decl(me):
 		raise Exception()
-	def buf_decl(me):
-		return me.decl('')
-	def buf_addr(me, s):
-		return '&' + s
+	def buf_decl(me, s):
+		return me.decl(s)
+	def buf_decl_def(me, s):
+		return me.buf_decl(s) + ' = %s' % me.buf_init()
+	def parse_decl(me, s):
+		return me.buf_decl(s)
 	def ptr_decl(me, s):
 		return '%s*%s' % (me.decl(''), s)
 	def conv_to_buf(me, buf, val):
 		return '\t*%s = %s;' % (buf, val)
 	def buf_init(me):
 		return '0'
-	def needs_free(me):
-		return 0
+	def buf_prefix(me):
+		return '&'
+	def out_prefix(me):
+		return ''
+	def ptr_val(me):
+		return '*'
 
 class type_void(type_gen):
 	def decl(me, s):
@@ -165,34 +171,60 @@ class type_int(type_gen):
 		return 'i'
 	def decl(me, s):
 		return 'int ' + s
+	def to_obj(me, s):
+		return 'PyInt_FromLong(%s)' % s
+	def from_obj(me, s):
+		return 'PyInt_AsLong(%s)' % s
+
+class type_short(type_int):
+	def format_char(me):
+		return 'h'
+	def decl(me, s):
+		return 'short ' + s
+
+class type_uint(type_int):
+	def format_char(me):
+		return 'I'
+	def decl(me, s):
+		return 'unsigned int ' + s
+
+class type_ushort(type_int):
+	def format_char(me):
+		return 'H'
+	def decl(me, s):
+		return 'unsigned short ' + s
 
 class type_double(type_gen):
 	def format_char(me):
 		return 'd'
 	def decl(me, s):
 		return 'double ' + s
+	def to_obj(me, s):
+		return 'PyFloat_FromDouble(%s)' % s
+	def from_obj(me, s):
+		return 'PyFloat_AsDouble(%s)' % s
 
 class type_string(type_gen):
 	def format_char(me):
 		return 's'
 	def decl(me, s):
 		return 'const char *' + s
-	def buf_decl(me):
-		return 'charbuf'
+	def parse_decl(me, s):
+		return me.decl(s)
+	def buf_decl(me, s):
+		return 'charbuf %s' % s
 	def ptr_decl(me, s):
 		return 'char *%s' % s
-	def buf_addr(me, s):
-		return s
 	def buf_init(me):
 		return '{0}'
 	def conv_to_buf(me, buf, val):
 		return '\tastrncpy(%s, %s, buflen);' % (buf, val)
+	def buf_prefix(me):
+		return ''
 
-class type_zstring(type_gen):
+class type_zstring(type_string):
 	def format_char(me):
 		return 'z'
-	def decl(me, s):
-		return 'const char *' + s
 
 class type_player(type_gen):
 	def format_char(me):
@@ -203,8 +235,6 @@ class type_player(type_gen):
 		return 'cvt_c2p_player'
 	def parse_converter(me):
 		return 'cvt_p2c_player'
-	def buf_decl(me):
-		return Exception()
 
 class type_arena(type_gen):
 	def format_char(me):
@@ -215,8 +245,6 @@ class type_arena(type_gen):
 		return 'cvt_c2p_arena'
 	def parse_converter(me):
 		return 'cvt_p2c_arena'
-	def buf_decl(me):
-		return Exception()
 
 class type_config(type_gen):
 	def format_char(me):
@@ -227,8 +255,6 @@ class type_config(type_gen):
 		return 'cvt_c2p_config'
 	def parse_converter(me):
 		return 'cvt_p2c_config'
-	def buf_decl(me):
-		return Exception()
 
 class type_banner(type_gen):
 	def format_char(me):
@@ -239,22 +265,20 @@ class type_banner(type_gen):
 		return 'cvt_c2p_banner'
 	def parse_converter(me):
 		return 'cvt_p2c_banner'
-	def buf_decl(me):
-		return Exception()
 
 class type_target(type_gen):
 	def format_char(me):
 		return 'O&'
 	def decl(me, s):
-		return 'const Target *' + s
+		return 'Target *' + s
+	def buf_decl(me, s):
+		return 'Target ' + s
 	def build_converter(me):
 		return 'cvt_c2p_target'
 	def parse_converter(me):
 		return 'cvt_p2c_target'
-	def buf_decl(me):
-		return Exception()
-	def needs_free(me):
-		return 1
+	def out_prefix(me):
+		return '&'
 	def conv_to_buf(me, buf, val):
 		raise Exception()
 
@@ -263,8 +287,8 @@ class type_bufp(type_gen):
 		return 's#'
 	def decl(me, s):
 		raise Exception()
-	def buf_decl(me):
-		return 'const void *'
+	def buf_decl(me, s):
+		return 'const void *%s' % s
 	def buf_init(me):
 		return 'NULL'
 	def conv_to_buf(me, buf, val):
@@ -280,8 +304,7 @@ def get_type(tp):
 		return None
 
 
-def create_c_to_py_func(name, func, body, description, checkretval = 0):
-
+def create_c_to_py_func(func):
 	args = func.args
 	out = func.out
 
@@ -341,34 +364,36 @@ def create_c_to_py_func(name, func, body, description, checkretval = 0):
 		elif 'out' in opts:
 			# this is an outgoing arg
 			argname += '_out'
-			decls.append('\t%s;' % typ.decl(argname+'v'))
+			vargname = argname + '_v'
+			decls.append('\t%s;' % (typ.buf_decl(vargname)))
 			outformat.append(typ.format_char())
 			try:
 				outargs.append(typ.parse_converter())
 			except:
 				pass
-			outargs.append('&%sv' % argname)
+			outargs.append('&%s' % vargname)
 			allargs.append(typ.ptr_decl(argname))
-			extras3.append(typ.conv_to_buf(argname, argname+'v'))
+			extras3.append(typ.conv_to_buf(argname, vargname))
 
 		elif 'inout' in opts:
 			# this is both incoming and outgoing
 			argname += '_inout'
-			decls.append('\t%s;' % typ.decl(argname+'v'))
+			vargname = argname + '_v'
+			decls.append('\t%s;' % (typ.buf_decl(vargname)))
 			informat.append(typ.format_char())
 			outformat.append(typ.format_char())
 			try:
 				inargs.append(typ.parse_converter())
 			except:
 				pass
-			inargs.append('*%s' % argname)
+			inargs.append(typ.ptr_val() + argname)
 			try:
 				outargs.append(typ.build_converter())
 			except:
 				pass
-			outargs.append('&%sv' % argname)
+			outargs.append('&%s' % vargname)
 			allargs.append(typ.ptr_decl(argname))
-			extras3.append(typ.conv_to_buf('%s' % argname, '%sv' % argname))
+			extras3.append(typ.conv_to_buf(argname, vargname))
 
 		elif 'buflen' in opts:
 			# this arg is a buffer length
@@ -394,55 +419,9 @@ def create_c_to_py_func(name, func, body, description, checkretval = 0):
 	outformat = ''.join(outformat)
 	decls = '\n'.join(decls)
 	extras3 = '\n'.join(extras3)
-	funcdecl = '%s(%s)' % (name, allargs)
-	funcdecl = rettype.decl(funcdecl)
+	retdecl = rettype.decl('')
 
-	code = []
-	code.append("local %(funcdecl)s\n{\n")
-	if outargs or checkretval:
-		code.append("\tPyObject *args, *out;\n")
-	else:
-		code.append("\tPyObject *args;\n")
-	code.append("""\
-%(decls)s
-	args = Py_BuildValue("(%(informat)s)"%(inargs)s);
-	if (!args)
-	{
-		log_py_exception(L_ERROR, "python error building args for "
-			"%(description)s");
-		return %(defretval)s;
-	}
-%(body)s
-	Py_DECREF(args);
-""")
-	if outargs or checkretval:
-		code.append("""\
-	if (!out)
-	{
-		log_py_exception(L_ERROR, "python error calling "
-			"%(description)s");
-		return %(defretval)s;
-	}
-""")
-	if outargs:
-		code.append("""\
-	if (!PyArg_ParseTuple(out, "%(outformat)s"%(outargs)s))
-	{
-		Py_XDECREF(out);
-		log_py_exception(L_ERROR, "python error unpacking results of "
-			"%(description)s");
-		return %(defretval)s;
-	}
-%(extras3)s
-""")
-	if outargs or checkretval:
-		# this can be just a DECREF because of the check above.
-		# if you change the conditions above, this might have to be
-		# changed.
-		code.append("\tPy_DECREF(out);\n")
-	code.append("\treturn %(retorblank)s;\n}\n\n")
-
-	return (''.join(code)) % vars()
+	return vars()
 
 
 def create_py_to_c_func(func):
@@ -527,76 +506,112 @@ def create_py_to_c_func(func):
 					failval = opts[opts.index('failval')+1]
 					extras2.append(
 							'\tif (ret == (%s)) { Py_DECREF(cbfunc); }' % failval)
-				cbcode = create_c_to_py_func(cbfuncname, arg.tp,
-					'\tout = PyObject_Call(closobj, args, NULL);\n'
-					'\tPy_DECREF(closobj);',
-					'callback function', 1)
+				decref = '\tPy_DECREF(closobj);'
 			else:
-				cbcode = create_c_to_py_func(cbfuncname, arg.tp,
-					'\tout = PyObject_Call(closobj, args, NULL);',
-					'callback function', 1)
+				decref = ''
+
+			cbdict = create_c_to_py_func(arg.tp)
+			cbdict['cbfuncname'] = cbfuncname
+			cbdict['decref'] = decref
+			cbcode = []
+			cbcode.append("""
+local %(retdecl)s %(cbfuncname)s(%(allargs)s)
+{
+	PyObject *args, *out;
+%(decls)s
+	args = Py_BuildValue("(%(informat)s)"%(inargs)s);
+	if (!args)
+	{
+		log_py_exception(L_ERROR, "python error building args for "
+				"interface argument function");
+		return %(defretval)s;
+	}
+	out = PyObject_Call(closobj, args, NULL);
+%(decref)s
+	if (!out)
+	{
+		log_py_exception(L_ERROR, "python error calling "
+				"interface argument function");
+		return %(defretval)s;
+	}
+""")
+			if cbdict['outargs']:
+				cbcode.append("""
+	if (!PyArg_ParseTuple(out, "%(outformat)s"%(outargs)s))
+	{
+		Py_DECREF(out);
+		log_py_exception(L_ERROR, "python error unpacking results of "
+				"interface argument function");
+		return %(defretval)s;
+	}
+""")
+			else:
+				cbcode.append("""
+	if (out != Py_None)
+	{
+		Py_DECREF(out);
+		log_py_exception(L_ERROR, "interface argument function didn't return None as expected");
+		return %(defretval)s;
+	}
+""")
+			cbcode.append("""
+%(extras3)s
+	Py_DECREF(out);
+}
+""")
+			cbcode = ''.join(cbcode) % cbdict
 			extracode.append(cbcode)
 
 		elif 'in' in opts or not opts:
 			# this is an incoming arg
 			argname += '_in'
 			informat.append(typ.format_char())
-			decls.append('\t%s;' % typ.decl(argname))
+			decls.append('\t%s;' % (typ.parse_decl(argname)))
 			try:
 				inargs.append(typ.parse_converter())
 			except:
 				pass
-			if typ.needs_free():
-				extras2.append('\tafree(%s);' % argname)
 			if typ.format_char():
 				inargs.append('&' + argname)
-			allargs.append(argname)
+			allargs.append(typ.out_prefix() + argname)
 
 		elif 'out' in opts:
 			# this is an outgoing arg
 			argname += '_out'
-			outformat.append(typ.format_char())
-			decls.append('\t%s %s = %s;' % (typ.buf_decl(), argname, typ.buf_init()))
+			if 'buflen' not in opts:
+				outformat.append(typ.format_char())
+			decls.append('\t%s;' % (typ.buf_decl_def(argname)))
 			try:
 				outargs.append(typ.build_converter())
 			except:
 				pass
-			outargs.append('%s' % argname)
-			allargs.append(typ.buf_addr(argname))
+			outargs.append(typ.out_prefix() + argname)
+			allargs.append(typ.buf_prefix() + argname)
 
 		elif 'inout' in opts:
 			# this is both incoming and outgoing
 			argname += '_inout'
 			informat.append(typ.format_char())
 			outformat.append(typ.format_char())
-			decls.append('\t%s %s = %s;' % (typ.buf_decl(), argname, typ.buf_init()))
-			try:
-				inargs.append(typ.parse_converter())
-			except:
-				pass
-			inargs.append('&%s' % argname)
+			decls.append('\t%s;' % (typ.buf_decl_def(argname)))
+			if typ.format_char():
+				try:
+					inargs.append(typ.parse_converter())
+				except:
+					pass
+				inargs.append('&' + argname)
 			try:
 				outargs.append(typ.build_converter())
 			except:
 				pass
-			if typ.needs_free():
-				extras3.append('\tafree(%s);' % argname)
-			outargs.append('%s' % argname)
-			allargs.append('&%s' % argname)
+			outargs.append(typ.out_prefix() + argname)
+			allargs.append(typ.buf_prefix() + argname)
 
 		elif 'buflen' in opts:
 			# this arg is a buffer length
 			# it must be passed in, so it's sort of like an
 			# inarg, but it doesn't get parsed.
 			allargs.append('%s' % DEFBUFLEN)
-
-		elif 'buflenout' in opts:
-			# this is an outgoing arg, but it's a buffer length, so it's
-			# treated differenly.
-			argname += '_out'
-			decls.append('\t%s %s = %s;' % (typ.buf_decl(), argname, typ.buf_init()))
-			outargs.append('%s' % argname)
-			allargs.append(typ.buf_addr(argname))
 
 	decls = '\n'.join(decls)
 	if inargs:
@@ -630,16 +645,106 @@ def translate_pycb(name, ctype, line):
 	func = parse_func(tokens)
 
 	funcname = 'py_cb_%s' % name
-	code = create_c_to_py_func(
-		funcname, func,
-		'\tcall_gen_py_callbacks(PYCBPREFIX %s, args);' % name,
-		'callback %s' % name)
+	cbvars = create_c_to_py_func(func)
+	cbvars.update(vars())
+
+	# an optimization: if we have outargs, we need to build the arg
+	# tuple every time to get the updated values, but if we don't, we
+	# can reuse the tuple.
+	outargs = cbvars['outargs']
+
+	buildcode = """
+	args = Py_BuildValue("(%(informat)s)"%(inargs)s);
+	if (!args)
+	{
+		log_py_exception(L_ERROR, "python error building args for "
+			"callback %(name)s");
+		return %(defretval)s;
+	}
+"""
+	decref = """
+	Py_DECREF(args);
+"""
+
+	if cbvars['outargs']:
+		buildspot1 = ''
+		buildspot2 = buildcode
+		decrefspot1 = ''
+		decrefspot2 = decref
+	else:
+		buildspot1 = buildcode
+		buildspot2 = ''
+		decrefspot1 = decref
+		decrefspot2 = ''
+	code = []
+	code.append("""
+local %(retdecl)s %(funcname)s(%(allargs)s)
+{
+	PyObject *args, *out;
+	LinkedList cbs = LL_INITIALIZER;
+	Link *l;
+%(decls)s
+""")
+	if not outargs:
+		code.append(buildcode)
+	code.append("""
+	mm->LookupCallback(PYCBPREFIX %(name)s, mm->GetArenaOfCurrentCallback(), &cbs);
+
+	for (l = LLGetHead(&cbs); l; l = l->next)
+	{
+""")
+	if outargs:
+		code.append(buildcode)
+	code.append("""
+		out = PyObject_Call(l->data, args, NULL);
+""")
+	if outargs:
+		code.append(decref)
+	code.append("""
+		if (!out)
+		{
+			log_py_exception(L_ERROR, "python error calling "
+				"callback %(name)s");
+			continue;
+		}
+""")
+	if outargs:
+		code.append("""
+		if (!PyArg_ParseTuple(out, "%(outformat)s"%(outargs)s))
+		{
+			Py_DECREF(out);
+			log_py_exception(L_ERROR, "python error unpacking results of "
+				"callback %(name)s");
+			continue;
+		}
+""")
+	else:
+		code.append("""
+		if (out != Py_None)
+		{
+			Py_DECREF(out);
+			log_py_exception(L_ERROR, "callback %(name)s didn't return None as expected");
+			continue;
+		}
+""")
+	code.append("""
+		Py_DECREF(out);
+%(extras3)s
+	}
+""")
+	if not outargs:
+		code.append(decref)
+	code.append("""
+	LLEmpty(&cbs);
+}
+""")
+	code = ''.join(code) % cbvars
 	callback_file.write(code)
 
-	dict = create_py_to_c_func(func)
-	dict.update(vars())
-	if dict['extras1'] or dict['extras2'] or dict['extras3'] or \
-	   dict['outformat'] or dict['outargs']:
+	cbvars = create_py_to_c_func(func)
+	cbvars.update(vars())
+	if cbvars['extras1'] or cbvars['extras2'] or cbvars['extras3'] or \
+	   cbvars['outformat'] or cbvars['outargs']:
 		print "warning: %s: out or inout args not supported when " \
 				"calling cbs from python" % name
 	code = """
@@ -650,7 +755,8 @@ local void py_cb_call_%(name)s(Arena *arena, PyObject *args)
 		return;
 	DO_CBS(%(name)s, arena, %(ctype)s, (%(allargs)s));
 }
-""" % dict
+
+""" % cbvars
 	callback_file.write(code)
 
 
@@ -688,15 +794,13 @@ def init_pyint():
 	out.write("""
 /* pyint declarations */
 
-typedef char charbuf[%s];
-
 local void pyint_generic_dealloc(pyint_generic_interface_object *self)
 {
 	mm->ReleaseInterface(self->i);
 	PyObject_Del(self);
 }
 
-""" % DEFBUFLEN)
+""")
 
 pyint_init_code = []
 
@@ -848,9 +952,55 @@ local PyTypeObject %(typestructname)s = {
 				print "bad declaration '%s'" % thing
 				continue
 			funcname = 'pyint_func_%s_%s' % (iid, name)
-			code = create_c_to_py_func(funcname, func,
-				"\tout = call_gen_py_interface(PYINTPREFIX %(iid)s, %(funcidx)d, args);" % vars(),
-				'function %(name)s in interface %(iid)s' % vars(), 1)
+			funcdict = create_c_to_py_func(func)
+			funcdict.update(vars())
+			code = []
+			code.append("""
+local %(retdecl)s %(funcname)s(%(allargs)s)
+{
+	PyObject *args, *out;
+%(decls)s
+	args = Py_BuildValue("(%(informat)s)"%(inargs)s);
+	if (!args)
+	{
+		log_py_exception(L_ERROR, "python error building args for "
+				"function %(name)s in interface %(iid)s");
+		return %(defretval)s;
+	}
+	out = call_gen_py_interface(PYINTPREFIX %(iid)s, %(funcidx)d, args);
+	if (!out)
+	{
+		log_py_exception(L_ERROR, "python error calling "
+				"function %(name)s in interface %(iid)s");
+		return %(defretval)s;
+	}
+""")
+			if funcdict['outargs']:
+				code.append("""
+	if (!PyArg_ParseTuple(out, "%(outformat)s"%(outargs)s))
+	{
+		Py_DECREF(out);
+		log_py_exception(L_ERROR, "python error unpacking results of "
+				"function %(name)s in interface %(iid)s");
+		return %(defretval)s;
+	}
+""")
+			else:
+				code.append("""
+	if (out != Py_None)
+	{
+		Py_DECREF(out);
+		log_py_exception(L_ERROR, "callback %(name)s didn't return None as expected");
+		return %(defretval)s;
+	}
+""")
+			code.append("""
+%(extras3)s
+	Py_DECREF(out);
+	return %(retorblank)s;
+}
+""")
+			code = ''.join(code) % funcdict
 			funcs.append(code)
 			funcnames.append(funcname)
 
@@ -900,8 +1050,8 @@ local void deinit_py_interfaces(void)
 
 
 def handle_pyconst_directive(tp, pat):
-	def clear(_):
-		del pyconst_pats[:]
+	def clear():
+		del extra_patterns[:]
 
 	pat = pat.replace('*', '[A-Z_0-9]*')
 
@@ -909,22 +1059,56 @@ def handle_pyconst_directive(tp, pat):
 		# these are always ints, and last until a line with a close-brace
 		pat = r'\s*(%s)' % pat
 		newre = re.compile(pat)
-		pyconst_pats.append((newre, const_int))
-		pyconst_pats.append((re.compile(r'.*}.*;.*()'), clear))
+		extra_patterns.append((newre, const_int))
+		extra_patterns.append((re.compile(r'.*}.*;.*'), clear))
 	elif tp.startswith('define'):
 		# these can be ints or strings, and last until a blank line
 		pat = r'#define (%s)' % pat
 		newre = re.compile(pat)
 		subtp = tp.split()[1].strip()
 		func = { 'int': const_int, 'string': const_string, }[subtp]
-		pyconst_pats.append((newre, func))
-		pyconst_pats.append((re.compile(r'^$()'), clear))
+		extra_patterns.append((newre, func))
+		extra_patterns.append((re.compile(r'^$'), clear))
 	elif tp == 'config':
 		pat = r'#define (%s)' % pat
-		pyconst_pats.append((re.compile(pat + ' "'), const_string))
-		pyconst_pats.append((re.compile(pat + ' [0-9]'), const_int))
-		pyconst_pats.append((re.compile(pat + '$'), const_one))
-		pyconst_pats.append((re.compile(r'/\* pyconst: config end \*/()'), clear))
+		extra_patterns.append((re.compile(pat + ' "'), const_string))
+		extra_patterns.append((re.compile(pat + ' [0-9]'), const_int))
+		extra_patterns.append((re.compile(pat + '$'), const_one))
+		extra_patterns.append((re.compile(r'/\* pyconst: config end \*/'), clear))
+
+
+def add_converted_type(ctype, name, isstruct):
+	class mytype(type_gen):
+		def format_char(me):
+			return 'O&'
+		if isstruct:
+			def decl(me, s):
+				return '%s *%s' % (ctype, s)
+			def ptr_decl(me, s):
+				return '%s *%s' % (ctype, s)
+		else:
+			def decl(me, s):
+				return '%s %s' % (ctype, s)
+		if isstruct:
+			def buf_decl(me, s):
+				return '%s %s' % (ctype, s)
+		if isstruct:
+			def buf_init(me):
+				return '{ }';
+		else:
+			def buf_init(me):
+				raise Exception()
+		def build_converter(me):
+			return 'cvt_c2p_' + name
+		def parse_converter(me):
+			return 'cvt_p2c_' + name
+		if isstruct:
+			def out_prefix(me):
+				return '&'
+		def ptr_val(me):
+			return ''
+
+	globals()['type_' + name] = mytype
 
 
 def make_opaque_type(ctype, name):
@@ -932,6 +1116,7 @@ def make_opaque_type(ctype, name):
 /* dummy value for uniqueness */
 static int pytype_desc_%(name)s;
 
+ATTR_UNUSED()
 local PyObject * cvt_c2p_%(name)s(void *p)
 {
 	if (p == NULL)
@@ -943,6 +1128,7 @@ local PyObject * cvt_c2p_%(name)s(void *p)
 		return PyCObject_FromVoidPtrAndDesc(p, &pytype_desc_%(name)s, NULL);
 }
 
+ATTR_UNUSED()
 local int cvt_p2c_%(name)s(PyObject *o, void **pp)
 {
 	if (o == Py_None)
@@ -965,22 +1151,249 @@ local int cvt_p2c_%(name)s(PyObject *o, void **pp)
 """ % vars()
 	type_file.write(code)
 
-	class mytype(type_gen):
-		def format_char(me):
-			return 'O&'
-		def decl(me, s):
-			return ctype + s
-		def build_converter(me):
-			return 'cvt_c2p_' + name
-		def parse_converter(me):
-			return 'cvt_p2c_' + name
-		def buf_decl(me):
-			return Exception()
-		def conv_to_buf(me, buf, val):
-			return Exception()
+	add_converted_type(ctype, name, 0)
 
-	globals()['type_' + name] = mytype
 
+def map_struct_type(tp):
+	return {
+		'Player': 'player',
+		'Arena': 'arena',
+		'ticks_t': 'int',
+	}.get(tp, tp)
+
+def getter_name(tp):
+	return 'pytype_getter_%s' % tp
+
+def setter_name(tp):
+	return 'pytype_setter_%s' % tp
+
+pytype_made_getsetters = {}
+pytype_objects = []
+
+def generate_getset_code(tp):
+	if pytype_made_getsetters.has_key(tp):
+		return []
+	pytype_made_getsetters[tp] = 1
+
+	typ = get_type(tp)
+	if not typ:
+		return []
+
+	ctype = typ.decl('')
+	getname = getter_name(tp)
+	setname = setter_name(tp)
+
+	getter = """
+local PyObject * %(getname)s(PyObject *obj, void *v)
+{
+	int offset = (int)v;
+	%(ctype)s *ptr = (%(ctype)s*)(((char*)obj)+offset);
+""" % vars()
+	try:
+		getter += """\
+	return %s(*ptr);
+}
+""" % typ.build_converter()
+	except:
+		getter += """\
+	return %s;
+}
+""" % typ.to_obj('*ptr')
+
+	setter = """
+local int %(setname)s(PyObject *obj, PyObject *newval, void *v)
+{
+	int offset = (int)v;
+	%(ctype)s *ptr = (%(ctype)s*)(((char*)obj)+offset);
+""" % vars()
+	try:
+		setter += """\
+	return %s(newval, ptr) ? 0 : -1;
+}
+""" % typ.parse_converter()
+	except:
+		setter += """\
+	*ptr = %s;
+	return 0;
+}
+""" % typ.from_obj('newval')
+
+	return [getter, setter]
+
+
+class struct_context:
+	def __init__(me, ctype, name):
+		me.ctype = ctype
+		me.name = name
+		me.fields = []
+
+	def finish(me):
+		del extra_patterns[:]
+
+		typeobj = 'pytype_%s_typeobj' % me.name
+		pytype_objects.append((me.name, typeobj))
+		objtype = 'pytype_%s_struct' % me.name
+		getsetters = 'pytype_%s_getset' % me.name
+
+		code = []
+		code.append("""
+typedef struct %(objtype)s
+{
+	PyObject_HEAD
+	%(ctype)s data;
+} %(objtype)s;
+""")
+
+		for tp, vname in me.fields:
+			code.extend(generate_getset_code(tp))
+
+		code.append("""
+local PyGetSetDef %(getsetters)s[] =
+{
+""")
+
+		for tp, vname in me.fields:
+			code.append('\t{ "%s", %s, %s, NULL, (void*)offsetof(%s, data.%s) },\n' % (
+				vname,
+				getter_name(tp),
+				setter_name(tp),
+				objtype,
+				vname))
+
+		code.append("""
+	{NULL}
+};
+
+local PyTypeObject %(typeobj)s =
+{
+	PyObject_HEAD_INIT(NULL)
+	0,                         /*ob_size*/
+	"asss.%(name)s_wrapper",   /*tp_name*/
+	sizeof(%(objtype)s),       /*tp_basicsize*/
+	0,                         /*tp_itemsize*/
+	(destructor)PyObject_Del,  /*tp_dealloc*/
+	0,                         /*tp_print*/
+	0,                         /*tp_getattr*/
+	0,                         /*tp_setattr*/
+	0,                         /*tp_compare*/
+	0,                         /*tp_repr*/
+	0,                         /*tp_as_number*/
+	0,                         /*tp_as_sequence*/
+	0,                         /*tp_as_mapping*/
+	0,                         /*tp_hash */
+	0,                         /*tp_call*/
+	0,                         /*tp_str*/
+	0,                         /*tp_getattro*/
+	0,                         /*tp_setattro*/
+	0,                         /*tp_as_buffer*/
+	Py_TPFLAGS_DEFAULT,        /*tp_flags*/
+	"type object for %(name)s",/* tp_doc */
+	0,                         /* tp_traverse */
+	0,                         /* tp_clear */
+	0,                         /* tp_richcompare */
+	0,                         /* tp_weaklistoffset */
+	0,                         /* tp_iter */
+	0,                         /* tp_iternext */
+	0,                         /* tp_methods */
+	0,                         /* tp_members */
+	%(getsetters)s,            /* tp_getset */
+	0,                         /* tp_base */
+	0,                         /* tp_dict */
+	0,                         /* tp_descr_get */
+	0,                         /* tp_descr_set */
+	0,                         /* tp_dictoffset */
+	0,                         /* tp_init */
+	0,                         /* tp_alloc */
+	PyType_GenericNew,         /* tp_new */
+};
+
+ATTR_UNUSED()
+local PyObject * cvt_c2p_%(name)s(void *p)
+{
+	if (p == NULL)
+	{
+		Py_INCREF(Py_None);
+		return Py_None;
+	}
+	else
+	{
+		struct %(objtype)s *o = PyObject_New(%(objtype)s, &%(typeobj)s);
+		o->data = *(%(ctype)s*)p;
+		return (PyObject*)o;
+	}
+}
+
+ATTR_UNUSED()
+local int cvt_p2c_%(name)s(PyObject *o, void **pp)
+{
+	if (o->ob_type == &%(typeobj)s)
+	{
+		*(%(ctype)s*)pp = ((%(objtype)s*)o)->data;
+		return TRUE;
+	}
+	else
+	{
+		PyErr_SetString(PyExc_TypeError, "arg isn't a '%(name)s'");
+		return FALSE;
+	}
+}
+""")
+		dict = vars()
+		dict['name'] = me.name
+		dict['ctype'] = me.ctype
+		type_file.write(''.join(code) % dict)
+
+	def handle_line(me, unsigned, tp, vs):
+		if unsigned:
+			tp = 'u' + tp
+		tp = map_struct_type(tp)
+		vs = [v.strip(' \t*') for v in vs.split(',')]
+		for v in vs:
+			me.fields.append((tp, v))
+
+
+def start_struct_type(ctype, name):
+	ctx = struct_context(ctype, name)
+
+	extra_patterns.append((re.compile(r'\s*(unsigned\s+)?([A-Za-z_0-9]+)\s+([^;]+);'),
+		ctx.handle_line))
+	extra_patterns.append((re.compile(r'.*}.*;.*'), ctx.finish))
+
+	add_converted_type(ctype, name, 1)
+
+
+def handle_pytype(line):
+	things = map(string.strip, line.split(','))
+	if things[0] == 'opaque':
+		make_opaque_type(things[1], things[2])
+	elif things[0] == 'struct':
+		start_struct_type(things[1], things[2])
+
+def finish_pytype():
+	type_file.write("""
+
+local int ready_generated_types(void)
+{
+""")
+	for n, t in pytype_objects:
+		type_file.write("\tif (PyType_Ready(&%s) < 0) return -1;\n" % t)
+	type_file.write("""
+	return 0;
+}
+
+""")
+
+	type_file.write("""
+
+local void add_type_objects_to_module(PyObject *m)
+{
+""")
+	for n, t in pytype_objects:
+		type_file.write('\tPyModule_AddObject(m, "%s", (PyObject*)&%s);\n' % (n, t))
+	type_file.write("""
+}
+
+""")
 
 # output files
 const_file = open('py_constants.inc', 'w')
@@ -997,6 +1410,10 @@ callback_file.write(warning)
 int_file.write(warning)
 type_file.write(warning)
 
+type_file.write("""
+typedef char charbuf[%d];
+""" % DEFBUFLEN)
+
 lines = []
 for pat in sys.argv[1:]:
 	for f in glob.glob(pat):
@@ -1012,7 +1429,7 @@ const_int('FALSE')
 
 init_pyint()
 
-pyconst_pats = []
+extra_patterns = []
 
 # now process file
 intdirs = []
@@ -1023,11 +1440,6 @@ for l in lines:
 	m = re_pyconst_dir.match(l)
 	if m:
 		handle_pyconst_directive(m.group(1), m.group(2))
-
-	for myre, func in pyconst_pats:
-		m = myre.match(l)
-		if m:
-			func(m.group(1))
 
 	# callbacks
 	m = re_pycb_cbdef.match(l)
@@ -1063,11 +1475,18 @@ for l in lines:
 			intdirs = []
 
 	# types
-	m = re_pytype_opaque.match(l)
+	m = re_pytype.match(l)
 	if m:
-		make_opaque_type(m.group(1).strip(), m.group(2).strip())
+		handle_pytype(m.group(1))
+
+	# generic stuff
+	for myre, func in extra_patterns:
+		m = myre.match(l)
+		if m:
+			apply(func, m.groups())
 
 
 finish_pycb()
 finish_pyint()
+finish_pytype()
 
