@@ -14,6 +14,7 @@ d="asss-`sed -n 's/#define ASSSVERSION "\(.*\)"/\1/p' src/defs.h`"
 
 rm -rf $d
 cp -a dist $d
+mkdir $d/{data,log,tmp}
 
 tar cf - `grep -lr '[d]ist: public' src scripts doc` scripts/banner.font | \
 	(cd $d ; tar xf -)
@@ -39,6 +40,8 @@ find $d -name CVS -exec rm -rf {} \; -prune
 
 find $d -exec touch -r $d/bin/asss {} \;
 tar --numeric-owner -czvf $d.tar.gz $d
+
+#exit
 
 set +e
 
