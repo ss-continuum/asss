@@ -25,6 +25,7 @@ local void Cscm(const char *, int, int);
 
 /* global data */
 
+local Iplayerdata *pd;
 local Ichat *chat;
 local Ilogman *log;
 local Icmdman *cmd;
@@ -45,6 +46,7 @@ int MM_scheme(int action, Imodman *_mm)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
+		mm->RegInterest(I_PLAYERDATA, &pd);
 		mm->RegInterest(I_CHAT, &chat);
 		mm->RegInterest(I_LOGMAN, &log);
 		mm->RegInterest(I_CMDMAN, &cmd);
@@ -52,7 +54,8 @@ int MM_scheme(int action, Imodman *_mm)
 		mm->RegInterest(I_CONFIG, &cfg);
 		mm->RegInterest(I_ARENAMAN, &aman);
 		if (!cmd || !net || !cfg || !aman) return MM_FAIL;
-		players = mm->players;
+
+		players = pd->players;
 		arenas = aman->data;
 
 		schemesock = ConnectToSchemeServer();

@@ -38,7 +38,7 @@ local void LoadModuleFile(char *fname)
 			ret = mm->LoadModule(line);
 			if (ret == MM_FAIL)
 			{
-				fprintf(stderr,"Error in loading module '%s'", line);
+				fprintf(stderr,"Error in loading module '%s'\n", line);
 				exit(1);
 			}
 		}

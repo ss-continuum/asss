@@ -21,22 +21,23 @@ local void Command(const char *, int, int);
 
 
 /* static data */
-
-local Icmdman _int = { AddCommand, RemoveCommand, Command };
+local Iplayerdata *pd;
 
 local HashTable *cmds;
 local CommandFunc defaultfunc;
-local PlayerData *players;
+
+local Icmdman _int = { AddCommand, RemoveCommand, Command };
 
 
 int MM_cmdman(int action, Imodman *mm)
 {
 	if (action == MM_LOAD)
 	{
+		mm->RegInterest(I_PLAYERDATA, &pd);
+
 		cmds = HashAlloc(47);
 		defaultfunc = NULL;
 		mm->RegInterface(I_CMDMAN, &_int);
-		players = mm->players;
 	}
 	else if (action == MM_UNLOAD)
 	{
@@ -117,9 +118,22 @@ void Command(const char *line, int pid, int target)
 	lst = HashGet(cmds, cmd);
 	for (l = LLGetHead(lst); l; l = l->next)
 	{
+		int runme = 0;
+
 		data = (CommandData*) l->data;
-		if (pid < 0 || (pid < MAXPLAYERS && players[pid].oplevel >= data->oplevel))
+
+		if (pid < 0)
+			runme = 1;
+		else if (pid < MAXPLAYERS)
+		{
+			pd->LockPlayer(pid);
+			if (pd->players[pid].oplevel >= data->oplevel)
+				runme = 1;
+			pd->UnlockPlayer(pid);
+		}
+		if (runme)
 			data->func(line, pid, target);
+
 		found = 1;
 	}
 	LLFree(lst);

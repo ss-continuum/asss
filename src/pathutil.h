@@ -14,7 +14,7 @@
 struct replace_table
 {
 	int repl;
-	char *with;
+	const char *with;
 };
 
 int macro_expand_string(

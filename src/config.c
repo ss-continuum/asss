@@ -7,6 +7,8 @@
 
 #include "asss.h"
 
+#include "pathutil.h"
+
 
 /* structs */
 
@@ -22,8 +24,9 @@ struct ConfigFile
 local char *GetStr(ConfigHandle, const char *, const char *);
 local int GetInt(ConfigHandle, const char *, const char *, int);
 
-local ConfigHandle LoadConfigFile(const char *);
+local ConfigHandle LoadConfigFile(const char *arena, const char *name);
 local void FreeConfigFile(ConfigHandle);
+local int LocateConfigFile(char *dest, int destlen, const char *arena, const char *name);
 
 
 /* globals */
@@ -50,9 +53,8 @@ int MM_config(int action, Imodman *mm)
 		mm->RegInterest(I_LOGMAN, &log);
 
 		files = 0;
-		global = LoadConfigFile("global");
-		if (!global) global = LoadConfigFile("asss");
-		if (!global) global = LoadConfigFile("zone");
+		global = NULL;
+		global = LoadConfigFile(NULL, NULL);
 		if (!global) return MM_FAIL;
 		mm->RegInterface(I_CONFIG, &_int);
 	}
@@ -73,19 +75,15 @@ int MM_config(int action, Imodman *mm)
 
 #define LINESIZE 512
 
-static int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashTable *defines, const char *name)
+static int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashTable *defines, const char *arena, const char *name)
 {
 	FILE *f;
-	char _realbuf[LINESIZE], *buf = _realbuf, *t, *t2;
+	char _realbuf[LINESIZE], *buf, *t, *t2;
 	char key[MAXNAMELEN+MAXKEYLEN+3], *thespot = NULL, *data;
 
-	sprintf(buf, "conf/%s.conf", name);
-	f = fopen(buf, "r");
-	if (!f)
-	{
-		sprintf(buf, "conf/%s", name);
-		f = fopen(buf, "r");
-	}
+	if (LocateConfigFile(_realbuf, LINESIZE, arena, name) == -1)
+		return MM_FAIL;
+	f = fopen(_realbuf, "r");
 	if (!f) return MM_FAIL;
 
 	while (buf = _realbuf, fgets(buf, LINESIZE, f))
@@ -118,7 +116,7 @@ static int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashT
 			{
 				buf += 7;
 				while (*buf == ' ' || *buf == '\t') buf++;
-				if (ProcessConfigFile(thetable, thestrings, defines, buf) == MM_FAIL)
+				if (ProcessConfigFile(thetable, thestrings, defines, arena, buf) == MM_FAIL)
 				{
 					if (log) log->Log(LOG_ERROR, "Cannot find #included file '%s'", buf);
 					/* return MM_FAIL; let's not abort on #include error */ 
@@ -190,7 +188,7 @@ static int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashT
 }
 
 
-ConfigHandle LoadConfigFile(const char *name)
+ConfigHandle LoadConfigFile(const char *arena, const char *name)
 {
 	ConfigHandle thefile;
 	HashTable *defines;
@@ -200,7 +198,7 @@ ConfigHandle LoadConfigFile(const char *name)
 	thefile->thestrings = SCAlloc();
 	defines = HashAlloc(17);
 
-	if (ProcessConfigFile(thefile->thetable, thefile->thestrings, defines, name) == MM_OK)
+	if (ProcessConfigFile(thefile->thetable, thefile->thestrings, defines, arena, name) == MM_OK)
 	{
 		files++;
 		HashEnum(defines, afree);
@@ -224,6 +222,31 @@ void FreeConfigFile(ConfigHandle ch)
 	HashFree(ch->thetable);
 	afree(ch);
 	files--;
+}
+
+
+int LocateConfigFile(char *dest, int destlen, const char *arena, const char *name)
+{
+	char *path = NULL;
+	struct replace_table repls[] =
+		{ { 'a', arena }, { 'n', name } };
+
+	if (arena)
+	{
+		if (!name)
+			repls[1].with = "arena";
+		if (global)
+			path = GetStr(global, "General", "ConfigSearchPath");
+		if (!path)
+			path = DEFAULTSEARCHPATH;
+		return find_file_on_path(dest, destlen, path, repls, 2);
+	}
+	else
+	{
+		if (!name) name = "global";
+		snprintf(dest, destlen, "conf/%s.conf", name);
+		return 0;
+	}
 }
 
 

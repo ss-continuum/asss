@@ -40,12 +40,12 @@ int macro_expand_string(
 				{
 					if (repls[i].repl == it)
 					{
-						char *with = repls[i].with;
+						const char *with = repls[i].with;
 						i = replslen + 7;
 						if (strlen(with) < ((end-curpos)-1))
 						{
 							/* custom strcat */
-							while (*curpos++ = *with++) ;
+							while ((*curpos++ = *with++)) ;
 							curpos--; /* back up over the null */
 						}
 						else

@@ -48,6 +48,7 @@ local int MyAssignFreq(int, int, byte);
 
 /* global data */
 
+local Iplayerdata *pd;
 local Iconfig *cfg;
 local Inet *net;
 local Ilogman *log;
@@ -72,12 +73,13 @@ int MM_game(int action, Imodman *mm_)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
+		mm->RegInterest(I_PLAYERDATA, &pd);
 		mm->RegInterest(I_CONFIG, &cfg);
 		mm->RegInterest(I_LOGMAN, &log);
 		mm->RegInterest(I_NET, &net);
 		mm->RegInterest(I_ASSIGNFREQ, &afreq);
 		mm->RegInterest(I_ARENAMAN, &aman);
-		players = mm->players;
+		players = pd->players;
 
 		if (!net || !cfg || !log || !aman) return MM_FAIL;
 		
@@ -111,7 +113,8 @@ int MM_game(int action, Imodman *mm_)
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_ASSIGNFREQ, &afreq);
 		mm->UnregInterest(I_ARENAMAN, &aman);
-		/* do this last so we don't get prevented from unloading because of ourself */
+		/* do this last so we don't get prevented from unloading because
+		 * of ourself */
 		mm->UnregInterface(I_ASSIGNFREQ, &_myaf);
 	}
 	else if (action == MM_DESCRIBE)
@@ -124,13 +127,17 @@ int MM_game(int action, Imodman *mm_)
 
 void Pppk(int pid, byte *p2, int n)
 {
+	/* LOCK: yeah, more stuff should really be locked here. but since
+	 * this will be the most often-called handler by far, we can't
+	 * afford it. */
 	struct C2SPosition *p = (struct C2SPosition *)p2;
 	int arena = players[pid].arena, sp = 0, i;
 	int x1, y1, x2, y2, xr, yr, dist, cfg_pospix2 = cfg_pospix * cfg_pospix;
 	static int set[MAXPLAYERS];
 
+	/* handle common errors */
 	if (arena < 0) return;
-	if (players[pid].shiptype == SPEC) return;
+	if (players[pid].shiptype == SPEC) goto copypos;
 
 	x1 = p->x;
 	y1 = p->y;
@@ -144,14 +151,14 @@ void Pppk(int pid, byte *p2, int n)
 		* (i16*) &wpn.weapon = * (i16*) &p->weapon;
 
 		for (i = 0; i < MAXPLAYERS; i++)
-			if (	players[i].status == S_CONNECTED &&
+			if (	players[i].status == S_PLAYING &&
 					players[i].arena == arena &&
 					i != pid)
 			{
 				x2 = x1 - pos[i].x; y2 = y1 - pos[i].y;
 				if (x2 < 0) x2 = -x2; if (y2 < 0) y2 = -y2;
 
-				if (p->weapon.type < W_BOMB) /* hack: bullet or bouncebullet */
+				if (p->weapon.type < W_BOMB) /* HACK: bullet or bouncebullet */
 				{
 					if (x1 <= cfg_bulletpix || y1 <= cfg_bulletpix)
 						set[sp++] = i;
@@ -177,7 +184,7 @@ void Pppk(int pid, byte *p2, int n)
 		};
 
 		for (i = 0; i < MAXPLAYERS; i++)
-			if (	players[i].status == S_CONNECTED &&
+			if (	players[i].status == S_PLAYING &&
 					players[i].arena == arena &&
 					i != pid)
 			{
@@ -200,6 +207,8 @@ void Pppk(int pid, byte *p2, int n)
 				NET_UNRELIABLE | NET_IMMEDIATE);
 		/*if (warped) SendOldWeapons(); */
 	}
+
+copypos:
 	memcpy(pos + pid, p2, sizeof(pos[0]));
 }
 
@@ -213,8 +222,12 @@ void PSpecRequest(int pid, byte *p, int n)
 
 int MyAssignFreq(int pid, int requested, byte ship)
 {
-	int arena = players[pid].arena;
+	int arena;
 	ConfigHandle ch;
+
+	pd->LockPlayer(pid);
+	arena = players[pid].arena;
+	pd->UnlockPlayer(pid);
 
 	if (arena < 0) return BADFREQ;
 	ch = arenas[arena].cfg;
@@ -271,11 +284,15 @@ void PSetShip(int pid, byte *p, int n)
 void PSetFreq(int pid, byte *p, int n)
 {
 	struct SimplePacket to = { S2C_FREQCHANGE, pid };
-	int freq = ((struct SimplePacket*)p)->d1, newfreq;
-	int arena = players[pid].arena;
+	int freq, arena, newfreq;
+
+	freq = ((struct SimplePacket*)p)->d1;
+	arena = players[pid].arena;
 
 	if (arena < 0) return;
+
 	newfreq = afreq->AssignFreq(arena, freq, players[pid].shiptype);
+
 	if (newfreq != BADFREQ)
 	{
 		to.d2 = newfreq;
@@ -287,6 +304,7 @@ void PSetFreq(int pid, byte *p, int n)
 
 void PDie(int pid, byte *p, int n)
 {
+	/* GCC: fix these nonconstant initializers sometime */
 	struct SimplePacket *dead = (struct SimplePacket*)p;
 	struct KillPacket kp = { S2C_KILL, 0, dead->d1, pid, dead->d2, 0 };
 	int arena = players[pid].arena, reldeaths;
@@ -304,7 +322,7 @@ void PGreen(int pid, byte *p, int n)
 	struct GreenPacket *g = (struct GreenPacket *)p;
 	int arena = players[pid].arena;
 	g->pid = pid;
-	g->type = S2C_GREEN;
+	g->type = S2C_GREEN; /* HACK :) */
 	net->SendToArena(arena, pid, p, sizeof(struct GreenPacket), NET_UNRELIABLE);
 	g->type = C2S_GREEN;
 }
@@ -313,14 +331,18 @@ void PGreen(int pid, byte *p, int n)
 void PAttach(int pid, byte *p2, int n)
 {
 	struct SimplePacket *p = (struct SimplePacket*)p2;
-	int pid2 = p->d1, arena = players[pid].arena;
+	int pid2 = p->d1, arena;
 	struct SimplePacket to = { S2C_TURRET, pid, pid2, 0, 0, 0 };
 
+	arena = players[pid].arena;
 	if (arena < 0) return;
+
+	pd->LockPlayer(pid2);
 	if (pid2 == -1 ||
 			( players[pid].arena == players[pid2].arena &&
 			  players[pid].freq  == players[pid2].freq) )
 		net->SendToArena(arena, -1, (byte*)&to, 5, NET_RELIABLE);
+	pd->UnlockPlayer(pid2);
 }
 
 

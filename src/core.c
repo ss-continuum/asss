@@ -12,15 +12,7 @@
 #include "asss.h"
 
 
-
 #define EXECHECKSUM 0xF1429CE8
-
-#define STAGE_INIT          1
-#define STAGE_WAITFORAUTH   2
-#define STAGE_NEEDSCORES    3
-#define STAGE_WAITFORSCORES 4
-#define STAGE_DOCALLBACKS   5
-#define STAGE_DONE          6
 
 
 /* STRUCTS */
@@ -29,13 +21,6 @@
 
 #include "packets/loginresp.h"
 
-typedef struct LoginQueueData
-{
-	int pid, stage;
-	struct LoginPacket pkt;
-	AuthData auth;
-} LoginQueueData;
-
 
 /* PROTOTYPES */
 
@@ -43,11 +28,13 @@ typedef struct LoginQueueData
 local void PLogin(int, byte *, int);
 
 local void AuthDone(int, AuthData *);
-local void ScoresDone(int);
+local void GSyncDone(int);
+local void ASyncDone(int);
 
+local void CallPA(int pid, int action);
 local int SendKeepalive(void *);
 local void ProcessLoginQueue();
-local void SendLoginResponse(LoginQueueData *);
+local void SendLoginResponse(int);
 
 /* default auth, can be replaced */
 local void DefaultAuth(int, struct LoginPacket *, void (*)(int, AuthData *));
@@ -56,10 +43,10 @@ local int DefaultAssignFreq(int, int, byte);
 
 /* GLOBALS */
 
-LinkedList loginqueue;
-Mutex lqmtx;
+AuthData bigauthdata[MAXPLAYERS];
+struct LoginPacket bigloginpkt[MAXPLAYERS];
 
-local PlayerData *players;
+local Iplayerdata *pd;
 local Imainloop *ml;
 local Iconfig *cfg;
 local Inet *net;
@@ -67,6 +54,8 @@ local Imodman *mm;
 local Ilogman *log;
 local Imapnewsdl *map;
 local Iauth *auth;
+local Iassignfreq *afreq;
+local Iarenaman *aman;
 
 local PlayerData *players;
 
@@ -82,19 +71,18 @@ int MM_core(int action, Imodman *mm_)
 	{
 		/* get interface pointers */
 		mm = mm_;
+		mm->RegInterest(I_PLAYERDATA, &pd);
 		mm->RegInterest(I_NET, &net);
 		mm->RegInterest(I_LOGMAN, &log);
 		mm->RegInterest(I_CONFIG, &cfg);
 		mm->RegInterest(I_MAINLOOP, &ml);
 		mm->RegInterest(I_MAPNEWSDL, &map);
 		mm->RegInterest(I_AUTH, &auth);
-		players = mm->players;
+		mm->RegInterest(I_ASSIGNFREQ, &afreq);
+		mm->RegInterest(I_ARENAMAN, &aman);
+		players = pd->players;
 
 		if (!net || !ml) return MM_FAIL;
-
-		/* init stuff */
-		LLInit(&loginqueue);
-		InitMutex(&lqmtx);
 
 		/* set up callbacks */
 		net->AddPacket(C2S_LOGIN, PLogin);
@@ -109,7 +97,6 @@ int MM_core(int action, Imodman *mm_)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		LLEmpty(&loginqueue);
 		mm->UnregInterface(I_ASSIGNFREQ, &_iaf);
 		mm->UnregInterface(I_AUTH, &_iauth);
 		net->RemovePacket(C2S_LOGIN, PLogin);
@@ -130,169 +117,185 @@ int MM_core(int action, Imodman *mm_)
 
 void ProcessLoginQueue()
 {
-	Link *l;
-	LoginQueueData *lq;
+	int pid, newstatus;
+	PlayerData *player;
 
-	LockMutex(&lqmtx);
-	for (l = LLGetHead(&loginqueue); l; l = l->next)
+	pd->LockStatus();
+	for (pid = 0, player = players; pid < MAXPLAYERS; pid++, player++)
 	{
-		
-		lq = l->data;
-		switch (lq->stage)
+		newstatus = player->status;
+		switch (newstatus)
 		{
-			case STAGE_INIT:
-				lq->stage++;
-				auth->Authenticate(lq->pid, &lq->pkt, AuthDone);
+			/* for all of these states, there's nothing to do in this
+			 * loop */
+			case S_FREE:
+			case S_CONNECTED:
+			case S_WAIT_AUTH:
+			case S_WAIT_GLOBAL_SYNC:
+			case S_LOGGEDIN:
+			case S_WAIT_ARENA_SYNC:
+			case S_PLAYING:
+			case S_TIMEWAIT:
+			case S_TIMEWAIT2:
+				continue;
+		}
+
+		/* release status lock and just hold player lock */
+		pd->UnlockStatus();
+		pd->LockPlayer(pid);
+
+		switch (newstatus)
+		{
+			case S_NEED_AUTH:
+				newstatus = S_WAIT_AUTH;
+				auth->Authenticate(pid, bigloginpkt + pid, AuthDone);
 				break;
 
-			case STAGE_WAITFORAUTH:
+			case S_NEED_GLOBAL_SYNC:
+				newstatus = S_WAIT_GLOBAL_SYNC;
+				/* FIXME: scoreman->SyncFromFileAsync(pid, 1, GSyncDone); */
 				break;
 
-			case STAGE_NEEDSCORES:
-				lq->stage++;
-				//scoreman->SyncFromFileAsync(lq->pid, 1, ScoresDone);
+			case S_DO_GLOBAL_CALLBACKS:
+				newstatus = S_SEND_LOGIN_RESPONSE;
+				CallPA(pid, PA_CONNECT);
 				break;
 
-			case STAGE_WAITFORSCORES:
+			case S_SEND_LOGIN_RESPONSE:
+				newstatus = S_LOGGEDIN;
+				SendLoginResponse(pid);
+				log->Log(LOG_INFO, "Player logged on (%s)", player->name);
 				break;
 
-			case STAGE_DOCALLBACKS:
-				{
-					LinkedList *lst;
-					Link *l;
+			case S_ASSIGN_FREQ:
+				newstatus = S_NEED_ARENA_SYNC;
+				/* yes, player->shiptype will be set here because it's
+				 * done in PArena */
+				player->freq = afreq->AssignFreq(pid, BADFREQ,
+						player->shiptype);
+				break;
 
-					lst = mm->LookupCallback(CALLBACK_PLAYERACTION);
-					UnlockMutex(&lqmtx); /* don't hold mutex here, this might take a while */
-					for (l = LLGetHead(lst); l; l = l->next)
-						((PlayerActionFunc)l->data)(lq->pid, PA_CONNECT);
-					LockMutex(&lqmtx); /* get mutex back again */
-				}
-				lq->stage++;
+			case S_NEED_ARENA_SYNC:
+				newstatus = S_WAIT_ARENA_SYNC;
+				/* FIXME: scoreman->SyncFromFileAsync(pid, 0, ASyncDone); */
+				break;
+
+			case S_DO_ARENA_CALLBACKS:
+				newstatus = S_SEND_ARENA_RESPONSE;
+				CallPA(pid, PA_ENTERARENA);
+				break;
+
+			case S_SEND_ARENA_RESPONSE:
+				newstatus = S_PLAYING;
+				aman->SendArenaResponse(pid);
+				break;
+
+			case S_LEAVING_ARENA:
+				newstatus = S_LOGGEDIN;
+				CallPA(pid, PA_LEAVEARENA);
+				break;
+
+			case S_LEAVING_ZONE:
+				newstatus = S_TIMEWAIT;
+				CallPA(pid, PA_DISCONNECT);
 				break;
 		}
 
-		if (lq->stage >= STAGE_DONE)
-		{
-			SendLoginResponse(lq);
-			LLRemove(&loginqueue, lq);
-			log->Log(LOG_INFO, "Player logged on (%s)", players[lq->pid].name);
-			afree(lq);
-		}
+		/* now we release player and take back status */
+		/* maybe hold player lock while setting status? */
+		pd->UnlockPlayer(pid);
+		pd->LockStatus();
+		player->status = newstatus;
 	}
-	UnlockMutex(&lqmtx);
 }
+
 
 
 void PLogin(int pid, byte *p, int l)
 {
 	if (l != sizeof(struct LoginPacket))
 		log->Log(LOG_BADDATA,"Bad login packet length (%i)",pid);
+	else if (players[pid].status != S_CONNECTED)
+		log->Log(LOG_BADDATA,"Login request in wrong stage: %i (%i)", players[pid].status, pid);
 	else
 	{
-		LoginQueueData *lq;
-
-		lq = amalloc(sizeof(LoginQueueData));
-		lq->pid = pid;
-		lq->stage = STAGE_INIT;
-		memcpy(&lq->pkt, p, sizeof(struct LoginPacket));
-
-		LockMutex(&lqmtx);
-		LLAdd(&loginqueue, lq);
-		UnlockMutex(&lqmtx);
+		memcpy(bigloginpkt + pid, p, sizeof(struct LoginPacket));
+		players[pid].status = S_NEED_AUTH;
 	}
+}
+
+
+void CallPA(int pid, int action)
+{
+	LinkedList *lst;
+	Link *l;
+
+	lst = mm->LookupCallback(CALLBACK_PLAYERACTION);
+	for (l = LLGetHead(lst); l; l = l->next)
+		((PlayerActionFunc)l->data)(pid, action);
+	LLFree(lst);
 }
 
 
 void AuthDone(int pid, AuthData *auth)
 {
-	Link *l;
-	LoginQueueData *lq;
+	PlayerData *player = players + pid;
 
-	LockMutex(&lqmtx);
-
-	for (l = LLGetHead(&loginqueue); l; l = l->next)
+	if (player->status != S_WAIT_AUTH)
 	{
-		lq = l->data;
-		if (lq->pid == pid)
-			break;
-	}
-
-	if (lq->pid == pid && lq->stage != STAGE_WAITFORAUTH)
-	{
-		log->Log(LOG_BADDATA, "AuthDone called when the loginqueue entry is not at STAGE_WAITFORAUTH");
-		LLRemove(&loginqueue, lq);
-		afree(lq);
-		UnlockMutex(&lqmtx);
-		return;
-	}
-
-	UnlockMutex(&lqmtx);
-
-	if (lq->pid != pid)
-	{
-		log->Log(LOG_BADDATA, "AuthDone called on pid that's not in the loginqueue: %i", pid);
+		log->Log(LOG_BADDATA, "AuthDone called from wrong stage: %i (%i)", player->status, pid);
 		return;
 	}
 
 	/* copy the authdata */
-	memcpy(&lq->auth, auth, sizeof(AuthData));
+	memcpy(bigauthdata + pid, auth, sizeof(AuthData));
 
 	/* also copy to player struct */
-	strncpy(players[pid].sendname, auth->name, 20);
-	astrncpy(players[pid].name, auth->name, 21);
-	strncpy(players[pid].sendsquad, auth->squad, 20);
-	astrncpy(players[pid].squad, auth->squad, 21);
-
-	lq->stage++;
-}
-
-
-void ScoresDone(int pid)
-{
-	Link *l;
-	LoginQueueData *lq;
-
-	LockMutex(&lqmtx);
-
-	for (l = LLGetHead(&loginqueue); l; l = l->next)
-	{
-		lq = l->data;
-		if (lq->pid == pid)
-			break;
-	}
-
-	if (lq->pid == pid && lq->stage != STAGE_WAITFORSCORES)
-	{
-		log->Log(LOG_BADDATA, "ScoresDone called when the loginqueue entry is not at STAGE_WAITFORSCORES");
-		LLRemove(&loginqueue, lq);
-		afree(lq);
-		UnlockMutex(&lqmtx);
-		return;
-	}
-
-	UnlockMutex(&lqmtx);
-
-	if (lq->pid != pid)
-	{
-		log->Log(LOG_BADDATA, "ScoresDone called on pid that's not in the loginqueue: %i", pid);
-		return;
-	}
+	strncpy(player->sendname, auth->name, 20);
+	astrncpy(player->name, auth->name, 21);
+	strncpy(player->sendsquad, auth->squad, 20);
+	astrncpy(player->squad, auth->squad, 21);
 
 	/* increment stage */
-	lq->stage++;
+	player->status = S_NEED_GLOBAL_SYNC;
 }
 
 
-void SendLoginResponse(LoginQueueData *lq)
+void GSyncDone(int pid)
+{
+	pd->LockStatus();
+	if (players[pid].status != S_WAIT_GLOBAL_SYNC)
+		log->Log(LOG_BADDATA, "GSyncDone called from wrong stage: %i (%i)", players[pid].status, pid);
+	else
+		players[pid].status = S_DO_GLOBAL_CALLBACKS;
+	pd->UnlockStatus();
+}
+
+
+void ASyncDone(int pid)
+{
+	pd->LockStatus();
+	if (players[pid].status != S_WAIT_ARENA_SYNC)
+		log->Log(LOG_BADDATA, "ASyncDone called from wrong stage: %i (%i)", players[pid].status, pid);
+	else
+		players[pid].status = S_DO_ARENA_CALLBACKS;
+	pd->UnlockStatus();
+}
+
+
+void SendLoginResponse(int pid)
 {
 	struct LoginResponse lr =
 		{ S2C_LOGINRESPONSE, 0, 134, 0, EXECHECKSUM, {0, 0},
 			0, 0x281CC948, 0, {0, 0, 0, 0, 0, 0, 0, 0} };
+	AuthData *auth;
 
-	lr.code = lq->auth.code;
-	lr.demodata = lq->auth.demodata;
+	auth = bigauthdata + pid;
+
+	lr.code = auth->code;
+	lr.demodata = auth->demodata;
 	lr.newschecksum = map->GetNewsChecksum();
-	net->SendToOne(lq->pid, (char*)&lr, sizeof(lr), NET_RELIABLE);
+	net->SendToOne(pid, (char*)&lr, sizeof(lr), NET_RELIABLE);
 }
 
 
@@ -303,7 +306,7 @@ void DefaultAuth(int pid, struct LoginPacket *p, void (*Done)(int, AuthData *))
 	auth.demodata = 0;
 	auth.code = AUTH_OK;
 	astrncpy(auth.name, p->name, 24);
-	auth.squad[0] = 0;
+	memset(auth.squad, 0, sizeof(auth.squad));
 
 	Done(pid, &auth);
 }

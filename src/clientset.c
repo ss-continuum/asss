@@ -13,6 +13,7 @@
 /* global data */
 
 /* cached interfaces */
+local Iplayerdata *pd;
 local Inet *net;
 local Iconfig *cfg;
 local Ilogman *log;
@@ -37,6 +38,7 @@ int MM_clientset(int action, Imodman *mm_)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
+		mm->RegInterest(I_PLAYERDATA, &pd);
 		mm->RegInterest(I_NET, &net);
 		mm->RegInterest(I_CONFIG, &cfg);
 		mm->RegInterest(I_LOGMAN, &log);
@@ -45,7 +47,7 @@ int MM_clientset(int action, Imodman *mm_)
 
 		if (!net || !cfg || !log || !core) return MM_FAIL;
 
-		players = mm->players;
+		players = pd->players;
 		arenas = aman->data;
 
 		mm->RegInterface(I_XXX, &_int);

@@ -29,7 +29,7 @@ local void PMapRequest(int, byte *, int);
 /* arenaaction funcs */
 local int ArenaAction(int, int);
 
-local void CompressMap(int);
+local int CompressMap(int);
 
 /* newstxt management */
 local int RefreshNewsTxt(void *);
@@ -41,14 +41,16 @@ local i32 GetNewsChecksum();
 
 /* GLOBALS */
 
-local PlayerData *players;
-local ArenaData *arenas;
+local Iplayerdata *pd;
 local Iconfig *cfg;
 local Inet *net;
 local Imodman *mm;
 local Ilogman *log;
 local Iarenaman *aman;
 local Imainloop *ml;
+
+local PlayerData *players;
+local ArenaData *arenas;
 
 /* big static array */
 local MapData mapdata[MAXARENA];
@@ -69,12 +71,14 @@ int MM_mapnewsdl(int action, Imodman *mm_)
 	{
 		/* get interface pointers */
 		mm = mm_;
+		mm->RegInterest(I_PLAYERDATA, &pd);
 		mm->RegInterest(I_NET, &net);
 		mm->RegInterest(I_LOGMAN, &log);
 		mm->RegInterest(I_CONFIG, &cfg);
 		mm->RegInterest(I_MAINLOOP, &ml);
 		mm->RegInterest(I_ARENAMAN, &aman);
-		players = mm->players;
+
+		players = pd->players;
 
 		if (!net || !cfg || !log || !ml || !aman) return MM_FAIL;
 
@@ -142,22 +146,22 @@ char * GetMapFilename(int arena)
 
 int ArenaAction(int action, int arena)
 {
-	if (action == AA_LOAD)
+	if (action == AA_CREATE)
 	{
 		if (mapdata[arena].cmpmap)
 			afree(mapdata[arena].cmpmap);
-		CompressMap(arena);
+		return CompressMap(arena);
 	}
-	else if (action == AA_UNLOAD)
+	else if (action == AA_DESTROY)
 	{
 		afree(mapdata[arena].cmpmap);
 		mapdata[arena].cmpmaplen = 0;
 	}
-	return AA_OK;
+	return MM_OK;
 }
 
 
-void CompressMap(int arena)
+int CompressMap(int arena)
 {
 	byte *map, *cmap;
 	int mapfd, fsize;
@@ -187,7 +191,7 @@ void CompressMap(int arena)
 	if (map == (void*)-1)
 	{
 		log->Log(LOG_ERROR,"mmap failed in CreateArena");
-		return AA_FAIL;
+		return MM_FAIL;
 	}
 
 	/* calculate crc on mmap'd map */
@@ -207,12 +211,14 @@ void CompressMap(int arena)
 	if (mapdata[arena].cmpmap == NULL)
 	{
 		log->Log(LOG_ERROR,"realloc failed in CreateArena");
-		return AA_FAIL;
+		return MM_FAIL;
 	}
 	mapdata[arena].cmpmaplen = csize+17;
 
 	munmap(map, fsize);
 	close(mapfd);
+
+	return MM_OK;
 }
 
 

@@ -2,13 +2,12 @@
 #ifndef __DEFS_H
 #define __DEFS_H
 
-#include <linux/stddef.h>
-
+#include <stddef.h>
 
 /* do it upfront so we don't have to worry :) */
 #pragma pack(1)
 
-/* to keep most stuff local to modules */
+/* an alias to keep most stuff local to modules */
 #define local static
 
 
@@ -26,19 +25,20 @@
 
 
 /* interface ids, kept here to make sure they're unique */
-#define I_MODMAN		0
-#define I_MAINLOOP		1
-#define I_CONFIG		2
-#define I_NET			3
-#define I_LOGMAN		4
-#define I_CMDMAN		5
-#define I_CHAT			6
-#define I_ARENAMAN		7
-#define I_ASSIGNFREQ	8
-#define I_AUTH			9
-#define I_BILLCORE		10
-#define I_MAPNEWSDL		11
-#define I_ENCRYPTBASE	90
+#define I_MODMAN        0
+#define I_PLAYERDATA    1
+#define I_MAINLOOP      2
+#define I_CONFIG        3
+#define I_NET           4
+#define I_LOGMAN        5
+#define I_CMDMAN        6
+#define I_CHAT          7
+#define I_ARENAMAN      8
+#define I_ASSIGNFREQ    9
+#define I_AUTH          10
+#define I_BILLCORE      11
+#define I_MAPNEWSDL     12
+#define I_ENCRYPTBASE   90
 /*#define I_FLAG */
 /*#define I_BALL */
 /*#define I_DATABASE */
@@ -47,22 +47,92 @@
 
 
 /* action codes for module main functions */
-#define MM_LOAD 1
-#define MM_UNLOAD 2
-#define MM_GETDEPS 3
+#define MM_LOAD     1
+#define MM_UNLOAD   2
+#define MM_GETDEPS  3 /* not used yet, maybe some time */
 #define MM_DESCRIBE 4
 
 
 /* return values for the aforementioned */
 #define MM_FAIL 1
-#define MM_OK 0
+#define MM_OK   0
+
+
+/* player status codes */
+
+#define S_FREE                        0
+/* this player entry is free to be reused */
+
+#define S_CONNECTED                   1
+/* player is connected (key exchange completed)
+ * but has not logged in yet */
+
+#define S_NEED_AUTH                   2
+/* player sent login, auth request will be sent */
+
+#define S_WAIT_AUTH                   3
+/* waiting for auth response */
+
+#define S_NEED_GLOBAL_SYNC            4
+/* auth done, will request global sync */
+
+#define S_WAIT_GLOBAL_SYNC            5
+/* waiting for sync global persistant data to complete */
+
+#define S_DO_GLOBAL_CALLBACKS         6
+/* global sync done, will call global player connecting callbacks */
+
+#define S_SEND_LOGIN_RESPONSE         7
+/* callbacks done, will send arena response */
+
+#define S_LOGGEDIN                    8
+/* player is finished logging in but is not in an arena yet 
+ * status returns here after leaving an arena, also */
+
+#define S_ASSIGN_FREQ                 9
+/* player has requested entering an arena, needs to be assigned a freq */
+
+#define S_NEED_ARENA_SYNC             10
+/* assigned freq, needs to sync persistant arena data (scores) */
+
+#define S_WAIT_ARENA_SYNC             11
+/* waiting for scores sync */
+
+#define S_DO_ARENA_CALLBACKS          12
+/* scores sync complete, will call arena entering callbacks */
+
+#define S_SEND_ARENA_RESPONSE         13
+/* all done with initalizing, needs to send arena response */
+
+#define S_PLAYING                     14
+/* player is playing in an arena. typically the longest stage */
+
+#define S_LEAVING_ARENA               15
+/* player has left arena, callbacks need to be called
+ * will return to S_LOGGEDIN after this */
+
+#define S_LEAVING_ZONE                16
+/* player is leaving zone, call disconnecting callbacks, go to TIMEWAIT
+ * after this */
+
+#define S_TIMEWAIT                    17
+/* time-wait state for network to flush outgoing packets from the buffer */
+
+#define S_TIMEWAIT2                   18
+/* second part of time-wait state. goes to S_FREE after this */
+
+
+/* useful macros */
+
+#define PLAYER_IS_CONNECTED(pid) \
+	((players[pid].status > S_FREE) && (players[pid].status < S_TIMEWAIT2))
 
 
 /* hopefully useful exit codes */
-#define ERROR_NONE 0
-#define ERROR_NORMAL 5
-#define ERROR_CRITICAL 10
-#define ERROR_MEMORY 7
+#define ERROR_NONE      0
+#define ERROR_NORMAL    5
+#define ERROR_MEMORY    7
+#define ERROR_CRITICAL  10
 
 
 /* authentication return codes */
@@ -88,29 +158,33 @@
 
 
 /* weapon codes */
-#define W_NULL 0
-#define W_BULLET 1
-#define W_BOUNCEBULLET 2
-#define W_BOMB 3
-#define W_PROXBOMB 4
-#define W_REPEL 5
-#define W_DECOY 6
-#define W_BURST 7
-#define W_THOR 8
+#define W_NULL          0
+#define W_BULLET        1
+#define W_BOUNCEBULLET  2
+#define W_BOMB          3
+#define W_PROXBOMB      4
+#define W_REPEL         5
+#define W_DECOY         6
+#define W_BURST         7
+#define W_THOR          8
 
 
 /* some ship names */
-#define WARBIRD 0
-#define JAVELIN 1
-/* ... */
-#define SPEC 8
+#define WARBIRD   0
+#define JAVELIN   1
+#define SPIDER    2
+#define LEVIATHAN 3
+#define TERRIER   4
+#define WEASEL    5
+#define LANCASTER 6
+#define SHARK     7
+#define SPEC      8
 
 
-/* symbolic constant for freq assignemnt */
+/* symbolic constant for freq assignemnt
+ * FIXME: this probably shouldn't exist */
 #define BADFREQ (-423)
 
-/* size of 0x0F settings packet  FIXME: unnecesary */
-#define SETTINGSIZE 1428
 
 /* useful typedefs */
 typedef unsigned char byte;
@@ -124,6 +198,17 @@ typedef unsigned char byte;
 #include "packets/pdata.h"
 
 #include "packets/simple.h"
+
+/* FIXME: eventually, playerdata should look like this
+typedef struct PlayerData
+{
+	int status, arena, oplevel;
+	char name[24], squad[24];
+	i16 xres, yres;
+
+	struct SentPlayerData sent;
+} PlayerData;
+*/
 
 #endif
 

@@ -40,9 +40,6 @@ local void FreeLookupResult(LinkedList *);
 local int FindPlayer(char *);
 
 
-/* THIS IS THE GLOBAL PLAYER ARRAY!!! */
-local PlayerData players[MAXPLAYERS+EXTRA_PID_COUNT];
-
 local HashTable *callbacks;
 
 local LinkedList *mods;
@@ -56,7 +53,7 @@ local Imodman mmint =
 	LoadModule, UnloadModule, UnloadAllModules,
 	RegInterest, UnregInterest, RegInterface, UnregInterface,
 	RegCallback, UnregCallback, LookupCallback, FreeLookupResult,
-	FindPlayer, players, NULL
+	FindPlayer, NULL
 };
 
 
@@ -122,6 +119,7 @@ int LoadModule(char *filename)
 	{
 		if (log) log->Log(LOG_ERROR,"LoadModule: error in dlopen");
 		afree(mod);
+		modname--; *modname = DELIM;
 		return MM_FAIL;
 	}
 
@@ -133,6 +131,7 @@ int LoadModule(char *filename)
 		if (log) log->Log(LOG_ERROR,"LoadModule: error in dlsym");
 		if (!mod->myself) dlclose(mod->hand);
 		afree(mod);
+		modname--; *modname = DELIM;
 		return MM_FAIL;
 	}
 
@@ -273,11 +272,28 @@ void FreeLookupResult(LinkedList *lst)
 int FindPlayer(char *name)
 {
 	int i;
+	Iplayerdata *pd;
+	PlayerData *p;
 
-	for (i = 0; i < MAXPLAYERS; i++)
-		if (	players[i].status == S_CONNECTED &&
-				strcasecmp(name, players[i].name) == 0)
+	pd = ints[I_PLAYERDATA];
+
+	if (!pd)
+	{
+		Ilogman *log;
+		if (log) log->Log(LOG_ERROR,
+				"Can't FindPlayer when players module isn't loaded!");
+		return -1;
+	}
+
+	pd->LockStatus();
+	for (i = 0, p = pd->players; i < MAXPLAYERS; i++, p++)
+		if (	p->status == S_CONNECTED &&
+				strcasecmp(name, p->name) == 0)
+		{
+			pd->UnlockStatus();
 			return i;
+		}
+	pd->UnlockStatus();
 	return -1;
 }
 

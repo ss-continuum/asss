@@ -6,8 +6,6 @@
 #include "packets/login.h"
 
 
-/* FIXME: move these somewhere else, probably */
-
 typedef struct AuthData
 {
 	int demodata;

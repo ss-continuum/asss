@@ -32,5 +32,24 @@ outgoing packets:
 locks:
 	there's one lock for each of the big lists
 
-FIXME: think about locks a lot!
+
+LOCKING IN THE REST OF THE SERVER
+---------------------------------
+
+There are big locks for player status and arena status flags. You must hold
+these to read or write the status info. If you want to read only and can
+accept discrepencies (e.g. you're counting players), you can get away without
+locking.
+
+There's a lock for each player also, which you should have if you are reading
+or writing to the player's structure. Those locks are recursive, and they are
+already held during packet handler functions (the network layer does it).
+
+The big important locking order, from first aquired, is:
+
+individual player locks
+arena status
+player status
+(network hash tables)
+
 

@@ -115,12 +115,13 @@ local void ProcessDrop(Buffer *);
 
 /* GLOBAL DATA */
 
+local Iplayerdata *pd;
 local Ilogman *log;
 local Iconfig *cfg;
 
 local PlayerData *players;
 
-local Iencrypt *encrypt[MAXENCRYPT];
+local Iencrypt *crypters[MAXENCRYPT];
 
 local LinkedList *handlers[MAXTYPES];
 local int mysock, myothersock, mybillingsock;
@@ -133,6 +134,7 @@ volatile int killallthreads = 0;
 /* global clients struct!: */
 local ClientData clients[MAXPLAYERS+EXTRA_PID_COUNT];
 local int clienthash[HASHSIZE];
+local Mutex hashmtx;
 
 local struct
 {
@@ -183,15 +185,17 @@ int MM_net(int action, Imodman *mm)
 
 	if (action == MM_LOAD)
 	{
-		players = mm->players;
+		mm->RegInterest(I_PLAYERDATA, &pd);
 		mm->RegInterest(I_CONFIG, &cfg);
 		mm->RegInterest(I_LOGMAN, &log);
 		if (!cfg || !log) return MM_FAIL;
 
+		players = pd->players;
+
 		for (i = 0; i < MAXTYPES; i++)
 			handlers[i] = LLAlloc();
 		for (i = 0; i < MAXENCRYPT; i++)
-			mm->RegInterest(I_ENCRYPTBASE + i, encrypt + i);
+			mm->RegInterest(I_ENCRYPTBASE + i, crypters + i);
 
 		/* store configuration params */
 		config.port = cfg->GetInt(GLOBAL, "Net", "Port", 5000);
@@ -210,6 +214,7 @@ int MM_net(int action, Imodman *mm)
 			clienthash[i] = -1;
 		for (i = 0; i < MAXPLAYERS + EXTRA_PID_COUNT; i++)
 			clients[i].nextinbucket = -1;
+		InitMutex(&hashmtx);
 
 		/* init buffers */
 		InitCondition(&outcond); InitCondition(&relcond);
@@ -234,7 +239,7 @@ int MM_net(int action, Imodman *mm)
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_LOGMAN, &log);
 		for (i = 0; i < MAXENCRYPT; i++)
-			mm->UnregInterest(I_ENCRYPTBASE + i, encrypt + i);
+			mm->UnregInterest(I_ENCRYPTBASE + i, crypters + i);
 
 		/* let threads die */
 		killallthreads = 1;
@@ -339,7 +344,7 @@ void InitSockets()
 		/* set up billing client struct */
 		memset(players + PID_BILLER, 0, sizeof(PlayerData));
 		memset(clients + PID_BILLER, 0, sizeof(ClientData));
-		players[PID_BILLER].status = BNET_NOBILLING;
+		players[PID_BILLER].status = S_CONNECTED;
 		strcpy(players[PID_BILLER].name, "<<Billing Server>>");
 		clients[PID_BILLER].c2sn = -1;
 		clients[PID_BILLER].sin.sin_family = AF_INET;
@@ -384,7 +389,8 @@ void * RecvThread(void *dummy)
 
 			buf = GetBuffer();
 			sinsize = sizeof(sin);
-			len = recvfrom(mysock, buf->d.raw, MAXPACKET, 0, &sin, &sinsize);
+			len = recvfrom(mysock, buf->d.raw, MAXPACKET, 0,
+					(struct sockaddr*)&sin, &sinsize);
 
 			if (len < 1)
 			{
@@ -396,15 +402,18 @@ void * RecvThread(void *dummy)
 
 			/* search for an existing connection */
 			hashbucket = HashIP(sin);
+			/* LOCK: lock status here? */
+			LockMutex(&hashmtx);
 			pid = clienthash[hashbucket];
 			while (pid >= 0)
 			{
-				if (    players[pid].status == S_CONNECTED
+				if (    PLAYER_IS_CONNECTED(pid)
 					 && clients[pid].sin.sin_addr.s_addr == sin.sin_addr.s_addr
 					 && clients[pid].sin.sin_port == sin.sin_port)
 					break;
 				pid = clients[pid].nextinbucket;
 			}
+			UnlockMutex(&hashmtx);
 
 			if (pid == -1)
 			{	/* new client */
@@ -412,7 +421,7 @@ void * RecvThread(void *dummy)
 				if (pid == -1)
 				{
 					byte pk7[] = { 0x00, 0x07 };
-					sendto(mysock, pk7, 2, 0, &sin, sinsize);
+					sendto(mysock, pk7, 2, 0, (struct sockaddr*)&sin, sinsize);
 					log->Log(LOG_IMPORTANT,"Too many players! Dropping extra connections!");
 					goto donehere;
 				}
@@ -429,13 +438,13 @@ void * RecvThread(void *dummy)
 
 			/* decrypt the packet */
 			type = clients[pid].enctype;
-			if (type >= 0 && type < MAXENCRYPT && encrypt[type])
+			if (type >= 0 && type < MAXENCRYPT && crypters[type])
 			{
 				/*log->Log(LOG_DEBUG,"calling decrypt: %X %X", recvbuf[0], recvbuf[1]); */
 				if (buf->d.rel.t1 == 0x00)
-					encrypt[type]->Decrypt(pid, buf->d.raw+2, len-2);
+					crypters[type]->Decrypt(pid, buf->d.raw+2, len-2);
 				else
-					encrypt[type]->Decrypt(pid, buf->d.raw+1, len-1);
+					crypters[type]->Decrypt(pid, buf->d.raw+1, len-1);
 			}
 
 			/* hand it off to appropriate place */
@@ -449,16 +458,20 @@ donehere:
 			unsigned int data[2];
 
 			sinsize = sizeof(sin);
-			n = recvfrom(myothersock, (char*)data, 4, 0, &sin, &sinsize);
+			n = recvfrom(myothersock, (char*)data, 4, 0,
+					(struct sockaddr*)&sin, &sinsize);
 
 			if (n == 4)
 			{
 				data[1] = data[0];
 				data[0] = 0;
+				pd->LockStatus();
 				for (n = 0; n < MAXPLAYERS; n++)
-					if (players[n].status == S_CONNECTED)
+					if (players[n].status == S_PLAYING)
 						data[0]++;
-				sendto(myothersock, (char*)data, 8, 0, &sin, sinsize);
+				pd->UnlockStatus();
+				sendto(myothersock, (char*)data, 8, 0,
+						(struct sockaddr*)&sin, sinsize);
 				global_stats.pcountpings++;
 			}
 		}
@@ -469,7 +482,8 @@ donehere:
 
 			buf = GetBuffer();
 			sinsize = sizeof(sin);
-			n = recvfrom(mybillingsock, buf->d.raw, MAXPACKET, 0, &sin, &sinsize);
+			n = recvfrom(mybillingsock, buf->d.raw, MAXPACKET, 0,
+					(struct sockaddr*)&sin, &sinsize);
 			/*log->Log(LOG_DEBUG, "%i bytes from billing server", n); */
 			if (memcmp(&sin, &clients[PID_BILLER].sin, sinsize))
 				log->Log(LOG_BADDATA,
@@ -493,7 +507,7 @@ void * SendThread(void *dummy)
 	static unsigned pcount[MAXPLAYERS+EXTRA_PID_COUNT], bigcount[MAXPLAYERS+EXTRA_PID_COUNT];
 	static Buffer *order[MAXPLAYERS+EXTRA_PID_COUNT][MAXGROUPED];
 	Buffer *buf, *nbuf, *it;
-	unsigned int gtc = GTC(), i;
+	unsigned int gtc = GTC(), i, bucket;
 
 	while (!killallthreads)
 	{
@@ -517,7 +531,7 @@ void * SendThread(void *dummy)
 				buf->retries = 0;
 
 			/* check if the player still exists */
-			if (players[buf->pid].status != S_CONNECTED)
+			if (!PLAYER_IS_CONNECTED(buf->pid))
 				buf->retries = 0;
 
 			/* check if we can send it now */
@@ -588,7 +602,7 @@ void * SendThread(void *dummy)
 			}
 
 			/* process lagouts */
-			if (   players[i].status == S_CONNECTED
+			if (   players[i].status != S_FREE
 			    && (gtc - clients[i].lastpkt) > config.droptimeout)
 			{
 				byte pk7[] = { 0x00, 0x07 };
@@ -603,7 +617,34 @@ void * SendThread(void *dummy)
 			 * through the outgoing buffer before marking these pids as
 			 * free */
 			if (players[i].status == S_TIMEWAIT2)
+			{
+				/* remove from hash table. we do this now so that
+				 * packets that arrive after the connection is closed
+				 * (because of udp misorderings) don't cause a new
+				 * connection to be created (at least for a short while)
+				 */
+				LockMutex(&hashmtx);
+				bucket = HashIP(clients[i].sin);
+				if (clienthash[bucket] == i)
+					clienthash[bucket] = clients[i].nextinbucket;
+				else
+				{
+					int j = clienthash[bucket];
+					while (j >= 0 && clients[j].nextinbucket != i)
+						j = clients[j].nextinbucket;
+					if (j >= 0)
+						clients[j].nextinbucket = clients[i].nextinbucket;
+					else
+					{
+						log->Log(LOG_BADDATA, "Internal error: "
+							"established connection not in hash table");
+					}
+				}
+
 				players[i].status = S_FREE;
+
+				UnlockMutex(&hashmtx);
+			}
 			if (players[i].status == S_TIMEWAIT)
 				players[i].status = S_TIMEWAIT2;
 		}
@@ -632,7 +673,8 @@ void * RelThread(void *dummy)
 			nbuf = (Buffer*)buf->node.next;
 
 			/* if player is gone, free buffer */
-			if (players[buf->pid].status != S_CONNECTED)
+			if (   players[buf->pid].status == S_FREE
+			    || players[buf->pid].status >= S_TIMEWAIT )
 			{
 				DQRemove((DQNode*)buf);
 				FreeBuffer(buf);
@@ -689,8 +731,10 @@ void ProcessBuffer(Buffer *buf)
 		if (buf->pid == PID_BILLER)
 			lst = handlers[buf->d.rel.t1 + PKT_BILLBASE];
 
+		pd->LockPlayer(buf->pid);
 		for (l = LLGetHead(lst); l; l = l->next)
 			((PacketFunc)l->data)(buf->pid, buf->d.raw, buf->len);
+		pd->UnlockPlayer(buf->pid);
 
 		FreeBuffer(buf);
 	}
@@ -722,8 +766,10 @@ void ProcessPacket(int pid, byte *d, int len)
 		if (pid == PID_BILLER)
 			lst = handlers[d[0] + PKT_BILLBASE];
 
+		pd->LockPlayer(pid);
 		for (l = LLGetHead(lst); l; l = l->next)
 			((PacketFunc)l->data)(pid, d, len);
+		pd->UnlockPlayer(pid);
 	}
 }
 
@@ -732,7 +778,10 @@ int NewConnection(struct sockaddr_in *sin)
 {
 	int i = 0, bucket;
 
+	pd->LockStatus();
 	while (players[i].status != S_FREE && i < MAXPLAYERS) i++;
+	pd->UnlockStatus();
+
 	if (i == MAXPLAYERS) return -1;
 
 	/* set up clientdata */
@@ -740,10 +789,12 @@ int NewConnection(struct sockaddr_in *sin)
 	clients[i].c2sn = -1;
 	clients[i].enctype = -1;
 	clients[i].lastack = -1;
+
+	/* add him to his hash bucket */
+	LockMutex(&hashmtx);
 	if (sin)
 	{
 		memcpy(&clients[i].sin, sin, sizeof(struct sockaddr_in));
-		/* add him to his hash bucket */
 		bucket = HashIP(*sin);
 		clients[i].nextinbucket = clienthash[bucket];
 		clienthash[bucket] = i;
@@ -753,57 +804,63 @@ int NewConnection(struct sockaddr_in *sin)
 		clients[i].nextinbucket = -1;
 		clients[i].flags = NET_FAKE;
 	}
+	UnlockMutex(&hashmtx);
+
 	/* set up playerdata */
+	pd->LockPlayer(i);
+	pd->LockStatus();
 	memset(players + i, 0, sizeof(PlayerData));
 	players[i].type = S2C_PLAYERENTERING; /* restore type */
-	players[i].status = S_CONNECTED;
 	players[i].arena = -1;
 	players[i].pid = i;
 	players[i].shiptype = SPEC;
 	players[i].attachedto = -1;
+	players[i].status = S_CONNECTED;
+	pd->UnlockStatus();
+	pd->UnlockPlayer(i);
+
 	return i;
 }
 
 
 void KillConnection(int pid)
 {
-	int bucket, type;
+	int type;
 	byte leaving = C2S_LEAVING;
+
+	/* obtain locks */
+	pd->LockPlayer(pid);
+	pd->LockStatus();
 
 	/* leave arena again, just in case */
 	if (players[pid].arena >= 0)
 		ProcessPacket(pid, &leaving, 1);
 
 	/* set status */
-	players[pid].status = S_TIMEWAIT;
+	players[pid].status = S_LEAVING_ZONE;
 
 	if (pid == PID_BILLER)
 	{
 		log->Log(LOG_IMPORTANT, "Connection to billing server lost");
+		/* for normal players, ProcessLoginQueue runs and changes
+		 * S_LEAVING_ZONEs to S_TIMEWAITs after calling callback
+		 * functions. but it doesn't do that for biller, so we set
+		 * S_TIMEWAIT directly right here. */
+		players[pid].status = S_TIMEWAIT;
+		pd->UnlockStatus();
+		pd->UnlockPlayer(pid);
 		return;
 	}
+	else
+		players[pid].status = S_LEAVING_ZONE;
+
+	pd->UnlockStatus();
+	pd->UnlockPlayer(pid);
 
 	/* tell encryption to forget about him */
 	type = clients[pid].enctype;
 	if (type >= 0 && type < MAXENCRYPT)
-		encrypt[type]->Void(pid);
-
-	/* remove from hash table */
-	bucket = HashIP(clients[pid].sin);
-	if (clienthash[bucket] == pid)
-		clienthash[bucket] = clients[pid].nextinbucket;
-	else
-	{
-		int i = clienthash[bucket];
-		while (i >= 0 && clients[i].nextinbucket != pid)
-			i = clients[i].nextinbucket;
-		if (i >= 0)
-			clients[i].nextinbucket = clients[pid].nextinbucket;
-		else
-		{
-			log->Log(LOG_BADDATA, "Internal error: established connection not in hash table");
-		}
-	}
+		crypters[type]->Void(pid);
 
 	/* log message */
 	log->Log(LOG_INFO, "Player '%s' disconnected", players[pid].name);
@@ -821,12 +878,12 @@ void ProcessKey(Buffer *buf)
 	{
 		SendRaw(buf->pid, buf->d.raw, 6);
 	}
-	else if (type >= 0 && type < MAXENCRYPT && encrypt[type])
+	else if (type >= 0 && type < MAXENCRYPT && crypters[type])
 	{
-		key = encrypt[type]->Respond(key);
+		key = crypters[type]->Respond(key);
 		buf->d.rel.seqnum = key;
 		SendRaw(buf->pid, buf->d.raw, 6);
-		encrypt[type]->Init(buf->pid, key);
+		crypters[type]->Init(buf->pid, key);
 		clients[buf->pid].enctype = type;
 	}
 	else
@@ -1025,8 +1082,7 @@ void DropClient(int pid)
 {
 	byte pkt1[2] = {0x00, 0x07};
 
-	/* hack: should use a different constant for PID_BILLER */
-	if (players[pid].status == S_CONNECTED)
+	if (PLAYER_IS_CONNECTED(pid))
 	{
 		SendRaw(pid, pkt1, 2);
 		KillConnection(pid);
@@ -1043,21 +1099,23 @@ void SendRaw(int pid, byte *data, int len)
 
 	if (pid == PID_BILLER)
 	{
-		sendto(mybillingsock, data, len, 0, &clients[pid].sin, sizeof(struct sockaddr_in));
+		sendto(mybillingsock, data, len, 0,
+				(struct sockaddr*)&clients[pid].sin, sizeof(struct sockaddr_in));
 	}
 	else
 	{
 		memcpy(encbuf, data, len);
 
-		if (type >= 0 && encrypt[type])
+		if (type >= 0 && crypters[type])
 		{
 			if (data[0] == 0x00)
-				encrypt[type]->Encrypt(pid, encbuf+2, len-2);
+				crypters[type]->Encrypt(pid, encbuf+2, len-2);
 			else
-				encrypt[type]->Encrypt(pid, encbuf+1, len-1);
+				crypters[type]->Encrypt(pid, encbuf+1, len-1);
 		}
 
-		sendto(mysock, encbuf, len, 0, &clients[pid].sin, sizeof(struct sockaddr_in));
+		sendto(mysock, encbuf, len, 0,
+				(struct sockaddr*)&clients[pid].sin, sizeof(struct sockaddr_in));
 	}
 }
 
@@ -1129,9 +1187,11 @@ void SendToArena(int arena, int except, byte *data, int len, int reliable)
 {
 	int set[MAXPLAYERS+1], i, p = 0;
 	if (arena < 0) return;
+	pd->LockStatus();
 	for (i = 0; i < MAXPLAYERS; i++)
-		if (players[i].status == S_CONNECTED && players[i].arena == arena && i != except)
+		if (players[i].status == S_PLAYING && players[i].arena == arena && i != except)
 			set[p++] = i;
+	pd->UnlockStatus();
 	set[p] = -1;
 	SendToSet(set, data, len, reliable);
 }
@@ -1140,9 +1200,11 @@ void SendToArena(int arena, int except, byte *data, int len, int reliable)
 void SendToAll(byte *data, int len, int reliable)
 {
 	int set[MAXPLAYERS+1], i, p = 0;
+	pd->LockStatus();
 	for (i = 0; i < MAXPLAYERS; i++)
-		if (players[i].status == S_CONNECTED)
+		if (players[i].status == S_PLAYING)
 			set[p++] = i;
+	pd->UnlockStatus();
 	set[p] = -1;
 	SendToSet(set, data, len, reliable);
 }

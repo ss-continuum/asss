@@ -6,16 +6,20 @@
  * Iconfig - configuration manager
  *
  * modules get all of their settings from here and nowhere else. there
- * is a global configuration file whose settings apply to all areas and
- * then each arena has a configuration file with arena-specific
- * settings. think roughly the difference between server.ini and
- * server.cfg for VIE subgame.
+ * are two types of configuration files: global and arena. global ones
+ * apply to the whole zone, and are stored in the conf directory of the
+ * zone directory. arena ones are usually stored in arenas/<arenaname>,
+ * but this can be customized with the search path.
  *
- * the global configuration file is maintained internally to this
+ * the main global configuration file is maintained internally to this
  * moudule and you don't have to open or close it. just use GLOBAL as
  * your ConfigHandle. arena configuration files are also maintained for
  * you as arena[arenaid]->config. so typically you will only need to
  * call GetStr and GetInt.
+ *
+ * there can also be secondary global or arena config files, specified
+ * with the second parameter of OpenConfigFile. these will be used for
+ * oplevels and other things.
  *
  * setting configuration values is a little complicated. it doesn't work
  * right now. it might work at some time in the future, or it might not.
@@ -28,6 +32,14 @@
 #define MAXNAMELEN 32
 #define MAXKEYLEN 32
 #define MAXVALUELEN 256
+
+
+#define DEFAULTSEARCHPATH \
+	"arenas/%a/%n.conf" ":" \
+	"arenas/default/%n.conf" ":" \
+	"conf/%a-%n.conf" ":" \
+	"conf/default-%n.conf" ":" \
+	"conf/%n.conf"
 
 
 typedef struct ConfigFile *ConfigHandle;
@@ -43,7 +55,7 @@ typedef struct Iconfig
 /*	void (*SetConfigStr)(ConfigHandle, const char *, const char *, const char *); */
 /*	void (*SetConfigInt)(ConfigHandle, const char *, const char *, int); */
 
-	ConfigHandle (*OpenConfigFile)(const char *name);
+	ConfigHandle (*OpenConfigFile)(const char *arena, const char *name);
 	void (*CloseConfigFile)(ConfigHandle ch);
 } Iconfig;
 

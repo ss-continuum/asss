@@ -28,9 +28,16 @@
  * function will be called with a pid, a pointer to the packet data, and
  * the length of the data.
  *
+ * REALLY IMPORTANT: the player will be locked during the duration of
+ * the packet function. so you don't have to do it yourself. you do have
+ * to do it if you're modifying the player struct not in a packet
+ * handler, or if you're modifying other players in another player's
+ * handler.
+ *
  * NewConnection lets you make a fake entry in the network module's
  * client table. this can be used for running bots internally, or for
- * simulating clients.
+ * simulating clients. it's rather crude at the moment: you have to
+ * simulate just about everything including login packets, etc.
  *
  */
 
@@ -38,11 +45,6 @@
 /* included for struct sockaddr_in */
 #include <netinet/in.h>
 
-
-#define S_FREE 0
-#define S_CONNECTED 1
-#define S_TIMEWAIT 2
-#define S_TIMEWAIT2 3
 
 #define EXTRA_PID_COUNT 1
 #define EXTRA_PID(x) ((MAXPLAYERS)+x)

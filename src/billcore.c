@@ -40,6 +40,7 @@ local Imainloop *ml;
 local Ilogman *log;
 local Iconfig *cfg;
 local Icmdman *cmd;
+local Iplayerdata *pd;
 
 local int (*FindPlayer)(char *);
 local void (*CachedAuthDone)(int, AuthData*);
@@ -56,6 +57,7 @@ int MM_billcore(int action, Imodman *mm)
 {
 	if (action == MM_LOAD)
 	{
+		mm->RegInterest(I_PLAYERDATA, &pd);
 		mm->RegInterest(I_NET, &net);
 		mm->RegInterest(I_MAINLOOP, &ml);
 		mm->RegInterest(I_LOGMAN, &log);
@@ -64,7 +66,7 @@ int MM_billcore(int action, Imodman *mm)
 
 		if (!net || !ml || !cfg || !cmd) return MM_FAIL;
 
-		players = mm->players;
+		players = pd->players;
 		FindPlayer = mm->FindPlayer;
 
 		cfg_pingtime = cfg->GetInt(GLOBAL, "Billing", "PingTime", 3000);
@@ -286,10 +288,12 @@ void BMessage(int pid, byte *p, int len)
 			if (msg[1] == '#')
 			{	/* squad msg */
 				int set[MAXPLAYERS], setc = 0, i;
+				pd->LockStatus();
 				for (i = 0; i < MAXPLAYERS; i++)
 					if (	players[i].status == S_CONNECTED &&
 							strcasecmp(msg+2, players[i].squad) == 0)
 						set[setc++] = i;
+				pd->UnlockStatus();
 				set[setc] = -1;
 				net->SendToSet(set, (byte*)to, strlen(t+1)+6, NET_RELIABLE);
 			}

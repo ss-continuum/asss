@@ -4,7 +4,6 @@
 
 /* pdata.h - player data packet plus internal fields */
 
-
 typedef struct PlayerData
 {
 	i8 type;
@@ -20,12 +19,10 @@ typedef struct PlayerData
 	i16 losses;
 	i16 attachedto;
 	i8 unknown1[3];
-	// stuff below this point is not part of the recieved data
-	int status;
-	char name[21], squad[21];
-	int arena;
+	/* stuff below this point is not part of the recieved data */
+	int status, arena, oplevel;
+	char name[24], squad[24];
 	i16 xres, yres;
-	u8 oplevel;
 } PlayerData;
 
 

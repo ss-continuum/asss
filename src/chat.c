@@ -15,6 +15,7 @@ local void PChat(int, byte *, int);
 
 /* global data */
 
+local Iplayerdata *pd;
 local Inet *net;
 local Iconfig *cfg;
 local Ilogman *log;
@@ -37,6 +38,7 @@ int MM_chat(int action, Imodman *mm_)
 	{
 
 		mm = mm_;
+		mm->RegInterest(I_PLAYERDATA, &pd);
 		mm->RegInterest(I_NET, &net);
 		mm->RegInterest(I_CONFIG, &cfg);
 		mm->RegInterest(I_LOGMAN, &log);
@@ -45,7 +47,7 @@ int MM_chat(int action, Imodman *mm_)
 
 		if (!net || !cfg || !aman) return MM_FAIL;
 
-		players = mm->players;
+		players = pd->players;
 		arenas = aman->data;
 
 		cfg_msgrel = cfg->GetInt(GLOBAL, "Chat", "MessageReliable", 1);
@@ -112,11 +114,13 @@ void PChat(int pid, byte *p, int len)
 					arenas[arena].name, players[pid].name, from->text+1);
 				to->type = MSG_SYSOPWARNING;
 				sprintf(to->text, "%s> %s", players[pid].name, from->text+1);
+				pd->LockStatus();
 				for (i = 0; i < MAXPLAYERS; i++)
 					if (	players[i].status == S_CONNECTED &&
 							players[i].oplevel > 0 &&
 							i != pid)
 						set[setc++] = i;
+				pd->UnlockStatus();
 				set[setc] = -1;
 				net->SendToSet(set, (byte*)to, len+30, NET_RELIABLE);
 				/* ugliness: sending garbage after null terminator */
@@ -144,11 +148,13 @@ void PChat(int pid, byte *p, int len)
 			{
 				log->Log(LOG_DEBUG,"Freq message: (%s:%i) %s> %s",
 					arenas[arena].name, freq, players[pid].name, from->text);
+				pd->LockStatus();
 				for (i = 0; i < MAXPLAYERS; i++)
 					if (	players[i].freq == freq &&
 							players[i].arena == arena &&
 							i != pid)
 						set[setc++] = i;
+				pd->UnlockStatus();
 				set[setc] = -1;
 				net->SendToSet(set, (byte*)to, len, cfg_msgrel);
 			}
@@ -171,7 +177,9 @@ void PChat(int pid, byte *p, int len)
 			break;
 				
 		case MSG_INTERARENAPRIV:
-			/* FIXME */
+			/* FIXME
+			 * billcore handles these, but they need to be handled
+			 * within server too */
 			break;
 
 		case MSG_SYSOPWARNING:
@@ -182,7 +190,7 @@ void PChat(int pid, byte *p, int len)
 		case MSG_CHAT:
 			log->Log(LOG_DEBUG,"Chat message: (%s) %s> %s",
 				arenas[arena].name, players[pid].name, from->text);
-			/* FIXME */
+			/* the billcore module picks these up, so nothing more here */
 			break;
 	}
 }

@@ -1,6 +1,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <assert.h>
 
 #include "asss.h"
 
@@ -9,28 +10,39 @@
 
 #include "packets/mapfname.h"
 
+/* MACROS */
+
+#define LOCK_STATUS() \
+	LockMutex(&arenastatusmtx)
+
+#define UNLOCK_STATUS() \
+	UnlockMutex(&arenastatusmtx)
+
+
 /* PROTOTYPES */
 
 /* timers */
 local int ReapArenas(void *);
 
+/* main loop */
+local void ProcessArenaQueue();
 
 /* arena management funcs */
-local int FindArena(char *, int);
-local int CreateArena(char *, int);
-local void FreeArena(int);
+local int FindArena(char *, int, int);
+local int CreateArena(char *);
+local void LockStatus();
+local void UnlockStatus();
 
 local void PArena(int, byte *, int);
 local void PLeaving(int, byte *, int);
 
-local void SendMultipleArenaResponses(int);
-local void SendOneArenaResponse(int);
+local void SendArenaResponse(int);
 
 
 /* GLOBALS */
 
-local PlayerData *players;
 local Imainloop *ml;
+local Iplayerdata *pd;
 local Iconfig *cfg;
 local Inet *net;
 local Imodman *mm;
@@ -38,12 +50,15 @@ local Ilogman *log;
 local Imapnewsdl *map;
 local Iassignfreq *afreq;
 
+local PlayerData *players;
+
 /* big static arena data array */
 local ArenaData arenas[MAXARENA];
 
-local Iarenaman _int = { arenas };
+local Mutex arenastatusmtx;
 
-
+local Iarenaman _int =
+{ SendArenaResponse, LockStatus, UnlockStatus, arenas };
 
 
 
@@ -53,22 +68,27 @@ int MM_arenaman(int action, Imodman *mm_)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
+		mm->RegInterest(I_PLAYERDATA, &pd);
 		mm->RegInterest(I_NET, &net);
 		mm->RegInterest(I_LOGMAN, &log);
 		mm->RegInterest(I_CONFIG, &cfg);
 		mm->RegInterest(I_MAINLOOP, &ml);
 		mm->RegInterest(I_MAPNEWSDL, &map);
 		mm->RegInterest(I_ASSIGNFREQ, &afreq);
-		players = mm->players;
 
 		if (!net || !log || !ml) return MM_FAIL;
 
+		players = pd->players;
+
 		memset(arenas, 0, sizeof(ArenaData) * MAXARENA);
+
+		InitMutex(&arenastatusmtx);
+		mm->RegCallback(CALLBACK_MAINLOOP, ProcessArenaQueue);
 
 		net->AddPacket(C2S_GOTOARENA, PArena);
 		net->AddPacket(C2S_LEAVING, PLeaving);
 
-		ml->SetTimer(ReapArenas, 1000, 3000, NULL);
+		ml->SetTimer(ReapArenas, 1000, 1500, NULL);
 
 		mm->RegInterface(I_ARENAMAN, &_int);
 	}
@@ -77,6 +97,7 @@ int MM_arenaman(int action, Imodman *mm_)
 		mm->UnregInterface(I_ARENAMAN, &_int);
 		net->RemovePacket(C2S_GOTOARENA, PArena);
 		net->RemovePacket(C2S_LEAVING, PLeaving);
+		mm->UnregCallback(CALLBACK_MAINLOOP, ProcessArenaQueue);
 		ml->ClearTimer(ReapArenas);
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_LOGMAN, &log);
@@ -93,6 +114,16 @@ int MM_arenaman(int action, Imodman *mm_)
 }
 
 
+void LockStatus()
+{
+	LOCK_STATUS();
+}
+
+void UnlockStatus()
+{
+	UNLOCK_STATUS();
+}
+
 
 local void CallAA(int action, int arena)
 {
@@ -108,100 +139,114 @@ local void CallAA(int action, int arena)
 }
 
 
-local void DoLoadArena(int arena)
+void ProcessArenaQueue()
 {
-	char fname[64];
-	ConfigHandle config;
+	int i, j, nextstatus;
+	ArenaData *a;
 
-	arenas[arena].status = ARENA_LOADING;
+	LOCK_STATUS();
+	for (i = 0; i < MAXARENA; i++)
+	{
+		a = arenas + i;
 
-	/* this should go in another thread {{{ */
+		/* get the status */
+		nextstatus = a->status;
 
-	snprintf(fname, 64, "arena-%s", arenas[arena].name);
-	config = cfg->OpenConfigFile(fname);
-	/* if not, try default config */
-    if (!config)
-    {
-        log->Log(LOG_USELESSINFO,"Config file '%s' not found, using default", fname);
-        config = cfg->OpenConfigFile("arena-default");
-    }
-    if (!config)
-    {   /* if not, fail */
-        log->Log(LOG_ERROR,"Default config file not found");
-        return;
-    }
-	arenas[arena].cfg = config;
+		switch (nextstatus)
+		{
+			case ARENA_NONE:
+			case ARENA_RUNNING:
+				continue;
+		}
 
-	/* call module arena creating handlers */
-	CallAA(AA_LOAD, arena);
+		UNLOCK_STATUS();
 
-	/* }}} to here */
+		switch(nextstatus)
+		{
+			case ARENA_DO_LOAD_CONFIG:
+				a->cfg = cfg->OpenConfigFile(a->name, NULL);
+				nextstatus = ARENA_DO_CREATE_CALLBACKS;
+				break;
 
-	arenas[arena].status = ARENA_RUNNING;
-	SendMultipleArenaResponses(arena);
+			case ARENA_DO_CREATE_CALLBACKS:
+				/* do callbacks */
+				CallAA(i, AA_CREATE);
+
+				/* send responses to people */
+				pd->LockStatus();
+				for (j = 0; j < MAXPLAYERS; j++)
+					/* this player is waiting for this arena to be
+					 * created. increment status so that his entering
+					 * request can be processed. */
+					if (players[i].status == S_LOGGEDIN && players[i].arena == i)
+						players[i].status = S_ASSIGN_FREQ;
+				pd->UnlockStatus();
+
+				nextstatus = ARENA_RUNNING;
+				break;
+
+			case ARENA_DO_DESTROY_CALLBACKS:
+				/* ASSERT there is nobody in here */
+				for (j = 0; j < MAXPLAYERS; j++)
+					assert(players[j].arena != i);
+				CallAA(i, AA_DESTROY);
+				nextstatus = ARENA_DO_UNLOAD_CONFIG;
+				break;
+
+			case ARENA_DO_UNLOAD_CONFIG:
+				cfg->CloseConfigFile(a->cfg);
+				a->cfg = NULL;
+				nextstatus = ARENA_NONE;
+				break;
+		}
+		
+		LOCK_STATUS();
+		a->status = nextstatus;
+	}
+	UNLOCK_STATUS();
 }
 
 
-local void DoFreeArena(int arena)
-{
-	arenas[arena].status = ARENA_UNLOADING;
-
-	/* other thread: {{{ */
-	CallAA(AA_UNLOAD, arena);
-	cfg->CloseConfigFile(arenas[arena].cfg);
-	/* }}} to here */
-
-	arenas[arena].status = ARENA_NONE;
-}
-
-
-int CreateArena(char *name, int initialpid)
+int CreateArena(char *name)
 {
 	int i = 0;
 
-	if (FindArena(name, TRUE) != -1)
-	{
-		log->Log(LOG_ERROR,"Internal error in CreateArena: arena '%s' already exists!", name);
-		return -1;
-	}
-
+	LOCK_STATUS();
 	while (arenas[i].status != ARENA_NONE && i < MAXARENA) i++;
 
 	if (i == MAXARENA)
 	{
-		log->Log(LOG_IMPORTANT, "Arena limit exceeded!");
+		log->Log(LOG_IMPORTANT, "There are too many arenas, cannot create a new arena.");
+		UNLOCK_STATUS();
 		return -1;
 	}
 
 	astrncpy(arenas[i].name, name, 20);
+	arenas[i].status = ARENA_DO_LOAD_CONFIG;
+	UNLOCK_STATUS();
 
 	return i;
 }
 
-void FreeArena(int arena)
-{
-	/* eventually this will pass the message to another thread */
-	DoFreeArena(arena);
-}
 
-
-void SendOneArenaResponse(int pid)
+void SendArenaResponse(int pid)
 {
+	/* LOCK: maybe should lock more in here? */
 	struct SimplePacket whoami = { S2C_WHOAMI, 0 };
 	struct MapFilename mapfname;
 	int arena, i;
+	PlayerData *p;
 
-	arena = players[pid].arena;
+	p = players + pid;
+
+	arena = p->arena;
 
 	log->Log(LOG_USELESSINFO, "Player '%s' entering arena '%s' (S)",
-				players[pid].name, arenas[arena].name);
+				p->name, arenas[arena].name);
 
 	/* send whoami packet */
 	whoami.d1 = pid;
 	net->SendToOne(pid, (byte*)&whoami, 3, NET_RELIABLE);
-
-	/* figure out his freq */
-	players[pid].freq = afreq->AssignFreq(pid, BADFREQ, players[pid].shiptype);
 
 	/* send settings */
 	/* net->SendToOne(pid, (byte*)aset->GetSettingData(arena),         FIXME
@@ -209,10 +254,23 @@ void SendOneArenaResponse(int pid)
 	 */
 
 	/* send player list */
+	/* note: the current player's status should be S_SEND_ARENA_RESPONSE
+	 * at this point */
+
+	/* send info to himself first */
+	net->SendToOne(pid, (byte*)(players+pid), 64, NET_RELIABLE);
+	pd->LockStatus();
 	for (i = 0; i < MAXPLAYERS; i++)
-		if (	players[i].status == S_CONNECTED
-			 && players[i].arena  == arena )
+	{
+		if (	players[i].status == S_PLAYING
+		     && players[i].arena  == arena )
+		{
+			/* send each other info */
 			net->SendToOne(pid, (byte*)(players+i), 64, NET_RELIABLE);
+			net->SendToOne(i, (byte*)(players+pid), 64, NET_RELIABLE);
+		}
+	}
+	pd->UnlockStatus();
 
 	/* send mapfilename */
 	mapfname.type = S2C_MAPFILENAME;
@@ -225,12 +283,11 @@ void SendOneArenaResponse(int pid)
 	net->SendToOne(pid, (byte*)&mapfname, 1, NET_RELIABLE);
 	mapfname.type = S2C_ENTERINGARENA;
 	net->SendToOne(pid, (byte*)&mapfname, 1, NET_RELIABLE);
-
-	/* alert others */
-	net->SendToArena(players[pid].arena, pid,
-			(byte*)(players+pid), 64, NET_RELIABLE);
 }
 
+#if 0
+
+unused. all responses will be sent by the function above
 
 void SendMultipleArenaResponses(int arena)
 {
@@ -260,7 +317,7 @@ void SendMultipleArenaResponses(int arena)
 		/* assign freq */
 		players[pid].freq = afreq->AssignFreq(pid, BADFREQ, players[pid].shiptype);
 		/* send settings */
-		/* FIXME: see above */
+		/* FIxME: see above */
 	}
 
 	/* pass 2: player data */
@@ -285,25 +342,27 @@ void SendMultipleArenaResponses(int arena)
 	
 }
 
+#endif
 
-int FindArena(char *name, int acceptloading)
+int FindArena(char *name, int min, int max)
 {
 	int i;
-	/* lock arena status */
+	LOCK_STATUS();
 	for (i = 0; i < MAXARENA; i++)
-		if (	( arenas[i].status == ARENA_RUNNING ||
-				  ( acceptloading && arenas[i].status == ARENA_LOADING) )
-				&& !strcasecmp(arenas[i].name, name) )
+		if (    arenas[i].status >= min
+		     && arenas[i].status <= max
+		     && !strcasecmp(arenas[i].name, name) )
+		{
+			UNLOCK_STATUS();
 			return i;
-	/* unlock arena status */
+		}
+	LOCK_STATUS();
 	return -1;
 }
 
-
-
-
 void PArena(int pid, byte *p, int l)
 {
+	/* status should be S_LOGGEDIN at this point */
 	struct GoArenaPacket *go;
 	char *name, digit[2];
 	int arena;
@@ -312,6 +371,12 @@ void PArena(int pid, byte *p, int l)
 	if (l != sizeof(struct GoArenaPacket))
 	{
 		log->Log(LOG_BADDATA, "Wrong size arena packet recvd (%s)", players[pid].name);
+		return;
+	}
+
+	if (players[pid].arena != -1)
+	{
+		log->Log(LOG_BADDATA, "Player '%s' sent arena request but is already in an arena", players[pid].name);
 		return;
 	}
 
@@ -344,54 +409,50 @@ void PArena(int pid, byte *p, int l)
 		return;
 	}
 
-	if (players[pid].arena >= 0)
-	{
-		/* he was in another arena previously, send arena leaving
-		 * message to others
-		 */
-		PLeaving(pid, NULL, 0);
-	}
+	LOCK_STATUS();
 
 	/* try to locate an existing arena */
-	arena = FindArena(name, TRUE);
+	arena = FindArena(name, ARENA_DO_LOAD_CONFIG, ARENA_RUNNING);
 
 	if (arena == -1)
 	{
 		log->Log(LOG_INFO, "Arena '%s' doesn't exist, creating it", name);
-		arena = CreateArena(name, pid);
+		arena = CreateArena(name);
 		if (arena == -1)
 		{
 			/* if it fails, dump in first available */
 			arena = 0;
 			while (arenas[arena].status != ARENA_RUNNING && arena < MAXARENA) arena++;
-			if (arena == MAXARENA) return;
+			if (arena == MAXARENA)
+			{
+				log->Log(LOG_ERROR, "Internal error: no running arenas but cannot create new one!");
+				UNLOCK_STATUS();
+				return;
+			}
 		}
 		players[pid].arena = arena;
 		players[pid].shiptype = go->shiptype;
 		players[pid].xres = go->xres;
 		players[pid].yres = go->yres;
-		/* this will call SendMultipleArenaReponses, somehow */
-		DoLoadArena(arena);
+		/* don't mess with player status yet, let him stay in S_LOGGEDIN.
+		 * it will be incremented when the arena is ready. */
 	}
 	else
 	{
-		/* set this so other functions know he is in here */
 		players[pid].arena = arena;
 		players[pid].shiptype = go->shiptype;
 		players[pid].xres = go->xres;
 		players[pid].yres = go->yres;
 
-		if (arenas[arena].status == ARENA_LOADING)
+		if (arenas[arena].status == ARENA_RUNNING)
 		{
-			/* do nothing, entry will be send when loading is done */
+			pd->LockStatus();
+			players[pid].status = S_ASSIGN_FREQ;
+			pd->UnlockStatus();
 		}
-		else if (arenas[arena].status == ARENA_RUNNING)
-		{
-			SendOneArenaResponse(pid);
-		}
-		else
-			log->Log(LOG_ERROR,"Internal error in PArena: arena %d should be either loading or running", arena);
 	}
+
+	UNLOCK_STATUS();
 }
 
 
@@ -413,6 +474,10 @@ int ReapArenas(void *q)
 {
 	int i, j;
 
+	/* lock all status info. remember player after arena!! */
+	LOCK_STATUS();
+	pd->LockStatus();
+
 	for (i = 0; i < MAXARENA; i++)
 		if (arenas[i].status == ARENA_RUNNING)
 		{
@@ -420,12 +485,17 @@ int ReapArenas(void *q)
 				if (	players[j].status == S_CONNECTED &&
 						players[j].arena == i)
 					goto skip;
-			
+
 			log->Log(LOG_USELESSINFO, "Arena '%s' (%i) being reaped",
 					arenas[i].name, i);
-			FreeArena(i);
+			/* set its status so that the arena processor will do
+			 * appropriate things */
+			arenas[i].status = ARENA_DO_DESTROY_CALLBACKS;
 skip:
 		}
+	/* unlock all status info */
+	pd->UnlockStatus();
+	UNLOCK_STATUS();
 	return 1;
 }
 

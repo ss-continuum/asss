@@ -1,29 +1,32 @@
 
-CC = gcc -D_REENTRANT
 LDFLAGS = -fPIC
-
 
 OPT_CFLAGS = -O2 -fomit-frame-pointer -Wall -fpedantic
 DEBUG_CFLAGS = -g -Wall -fpedantic
 
-CFLAGS = -fPIC $(DEBUG_CFLAGS)
+CFLAGS = -D_REENTRANT -D_GNU_SOURCE -fPIC $(DEBUG_CFLAGS)
 
 ASSSLIBS = -ldl -lz -lpthread
 
-SCHEMEROOT = /usr/local/plt/collects/mzscheme
+SCHEMEROOT = /home/david/scheme/plt/collects/mzscheme
 SCHEMEINC = $(SCHEMEROOT)/include
 SCHEMELIB = $(SCHEMEROOT)/lib/i386-linux
 
+INCLUDE_ELDERD =
+#INCLUDE_ELDERD = elderd
 
+ALL_STUFF = asss $(EXTMODS) $(INCLUDE_ELDERD)
 
 
 INTMODS = config.o    \
+          player.o    \
           core.o      \
           logman.o    \
           mainloop.o  \
           net.o       \
           encrypt1.o  \
           arenaman.o  \
+          player.o    \
           mapnewsdl.o
 
 EXTMODS = loggers.so  \
@@ -34,8 +37,7 @@ EXTMODS = loggers.so  \
 
 
 
-all: asss $(EXTMODS) elderd install
-
+all: install
 
 
 loggers.so: log_file.o log_console.o
@@ -50,16 +52,16 @@ scheme.so: scheme.o ooputils.o
 
 
 
-asss: main.o module.o util.o $(INTMODS)
-	$(CC) -rdynamic -o $@ $^ $(ASSSLIBS)
+asss: main.o module.o util.o pathutil.o $(INTMODS)
+	$(CC) $(LDFLAGS) -rdynamic -o $@ $^ $(ASSSLIBS)
 
 
 elderd: elderd.c util-elderd.o ooputils.o
-	$(CC) $(OPT_CFLAGS) -L$(SCHEMELIB) -I $(SCHEMEINC) -o $@ $^ -lmzscheme -lgc -ldl
+	$(CC) $(CFLAGS) -L$(SCHEMELIB) -I $(SCHEMEINC) -o $@ $^ -lmzscheme -lgc -ldl
 
 
 util-elderd.o: util.c
-	$(CC) $(OPT_CFLAGS) -DNOTHREAD -DUSE_GC -DMALLOC=GC_malloc -c -o $@ $^
+	$(CC) $(CFLAGS) -DNOTHREAD -DUSE_GC -DMALLOC=GC_malloc -c -o $@ $^
 
 
 Makefile.deps: *.c *.h
@@ -72,9 +74,8 @@ include Makefile.deps
 %.so:
 	$(CC) $(LDFLAGS) -shared -o $@ $^
 
-install:
-	-cp -f asss $(EXTMODS) elderd ../bin
-	@echo -e "\nWoot! It compiled!"
+install: $(ALL_STUFF)
+	-cp -f $(ALL_STUFF) ../bin
 
 clean:
 	-rm -f asss *.o *.so elderd elderd.log core

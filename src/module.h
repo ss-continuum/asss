@@ -54,7 +54,6 @@ typedef struct Imodman
 
 	int (*FindPlayer)(char *name);
 
-	PlayerData *players;
 	char *desc;
 } Imodman;
 

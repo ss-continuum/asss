@@ -17,6 +17,7 @@ local void Cshutdown(const char *, int, int);
 
 /* global data */
 
+local Iplayerdata *pd;
 local Ichat *chat;
 local Ilogman *log;
 local Icmdman *cmd;
@@ -24,6 +25,7 @@ local Inet *net;
 local Iconfig *cfg;
 local Imainloop *ml;
 local Iarenaman *aman;
+
 local PlayerData *players;
 local ArenaData *arenas;
 
@@ -35,6 +37,7 @@ int MM_playercmd(int action, Imodman *mm)
 {
 	if (action == MM_LOAD)
 	{
+		mm->RegInterest(I_PLAYERDATA, &pd);
 		mm->RegInterest(I_CHAT, &chat);
 		mm->RegInterest(I_LOGMAN, &log);
 		mm->RegInterest(I_CMDMAN, &cmd);
@@ -42,11 +45,13 @@ int MM_playercmd(int action, Imodman *mm)
 		mm->RegInterest(I_CONFIG, &cfg);
 		mm->RegInterest(I_ARENAMAN, &aman);
 		mm->RegInterest(I_MAINLOOP, &ml);
+		
 		if (!cmd || !net || !cfg || !aman) return MM_FAIL;
-		players = mm->players;
+		
+		players = pd->players;
 		arenas = aman->data;
 
-		configops = cfg->OpenConfigFile("oplevels");
+		configops = cfg->OpenConfigFile(NULL, "oplevels");
 
 		cmd->AddCommand("arena", Carena, 0);
 		cmd->AddCommand("login", Clogin, 0);
@@ -88,6 +93,8 @@ void Carena(const char *params, int pid, int target)
 
 	memset(pcount, 0, MAXARENA * sizeof(int));
 
+	pd->LockStatus();
+
 	/* count up players */
 	for (i = 0; i < MAXPLAYERS; i++)
 		if (	players[i].status == S_CONNECTED &&
@@ -97,8 +104,11 @@ void Carena(const char *params, int pid, int target)
 	/* signify current arena */
 	if (players[pid].arena >= 0)
 		pcount[players[pid].arena] *= -1;
-		
+
+	pd->UnlockStatus();
+
 	/* build arena info packet */
+	aman->LockStatus();
 	for (i = 0; (pos-buf) < 480 && i < MAXARENA; i++)
 		if (arenas[i].status == ARENA_RUNNING)
 		{
@@ -108,6 +118,7 @@ void Carena(const char *params, int pid, int target)
 			*(short*)pos = pcount[i];
 			pos += 2;
 		}
+	aman->UnlockStatus();
 
 	/* send it */
 	net->SendToOne(pid, buf, (pos-buf), NET_RELIABLE);
@@ -154,9 +165,12 @@ void Csetop(const char *params, int pid, int target)
 
 	if (target < 0 || op < 0 || op > 255) return;
 	if (op > players[pid].oplevel) return;
+	pd->LockPlayer(target);
 	players[target].oplevel = op;
+	pd->UnlockPlayer(target);
 	chat->SendMessage(pid, "You have assigned oplevel %i to %s", op, players[target].name);
-	chat->SendMessage(target, "Your current oplevel is %i", op);
+	chat->SendMessage(target, "Your have been given oplevel %i by %s",
+			op, players[pid].name);
 	log->Log(LOG_INFO, "Player '%s' assigned oplevel %i to '%s'",
 			players[pid].name, op, players[target].name);
 }

@@ -411,6 +411,7 @@ void install_primitives()
 	ADD_PRIM(test, "test", 0, 0);
 	ADD_PRIM(findplayer, "find-player", 1, 1);
 	ADD_PRIM(sendmessage, "send-message", 2, 2);
+
 #undef ADD_PRIM
 }
 

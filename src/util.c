@@ -156,9 +156,7 @@ LinkedList * LLAlloc()
 #ifdef USE_GC
 	ret = amalloc(sizeof(Link));
 #else
-	/* HUGE HACK!!!
-	 * depends on LinkedList and Link being the same size!
-	 */
+	/* HACK: depends on LinkedList and Link being the same size */
 	if (!freelinks) GetSomeLinks();
 	ret = (LinkedList*) freelinks;
 	freelinks = freelinks->next;
@@ -186,9 +184,7 @@ void LLEmpty(LinkedList *l)
 
 void LLFree(LinkedList *lst)
 {
-	/* HUGE HACK!!!
-	 * see above
-	 */
+	/* HACK: see above */
 	LLEmpty(lst);
 #ifndef USE_GC
 	((Link*)lst)->next = freelinks;
