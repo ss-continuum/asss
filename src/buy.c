@@ -194,12 +194,10 @@ EXPORT int MM_buy(int action, Imodman *mm, Arena *arena)
 		stats = mm->GetInterface(I_STATS, ALLARENAS);
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
-		cmd->AddCommand("buy", Cbuy, ALLARENAS, NULL);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		cmd->RemoveCommand("buy", Cbuy, ALLARENAS);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);
@@ -209,6 +207,14 @@ EXPORT int MM_buy(int action, Imodman *mm, Arena *arena)
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(lm);
 		return MM_OK;
+	}
+	else if (action == MM_ATTACH)
+	{
+		cmd->AddCommand("buy", Cbuy, arena, NULL);
+	}
+	else if (action == MM_DETACH)
+	{
+		cmd->RemoveCommand("buy", Cbuy, arena);
 	}
 	return MM_FAIL;
 }
