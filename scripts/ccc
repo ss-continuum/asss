@@ -404,6 +404,7 @@ class Edit:
 
 	def curs_home(me):
 		me.i = 0
+
 	def curs_end(me):
 		me.i = len(me.line)
 
@@ -780,7 +781,7 @@ def process_cmd(cmd):
 		order = cmd[8:].strip()
 		if order == 'name':
 			views[0].players.set_sort(PlayerList.SORT_NAME)
-		elif order == 'team':
+		elif order == 'team' or order == 'freq':
 			views[0].players.set_sort(PlayerList.SORT_TEAM)
 		elif order == 'none':
 			views[0].players.set_sort(PlayerList.SORT_NONE)
@@ -822,6 +823,9 @@ def process_cmd(cmd):
 
 def process_typed(prefix, line):
 	def send_priv(dest, msg):
+		if not dest:
+			return
+		last_priv_list.add(dest)
 		send_line("SEND:PRIV:%s:%s" % (dest, msg))
 		txt = "%s to %s> %s" % (myname, dest, msg)
 		add_line(txt, colors.priv, find_priv_view(dest))
@@ -1151,6 +1155,11 @@ def process_key():
 		f = bindings.getbinding([ch])
 		if f:
 			f()
+		elif ch == 32 and len(views[0].edit.line) == 0:
+			# hardcoded page-down
+			views[0].scrollback -= wins.twin.getmaxyx()[0] - 1
+			if views[0].scrollback < 0:
+				views[0].scrollback = 0
 		elif ch >= 32 and ch < 127:
 			views[0].edit.insert(ch)
 
