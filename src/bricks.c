@@ -11,8 +11,6 @@
 /* structs */
 #include "packets/brick.h"
 
-#include "settings/game.h"
-
 typedef struct
 {
 	u16 cbrickid;
@@ -59,6 +57,9 @@ local Imainloop *ml;
 
 /* big arrays */
 local int brickkey;
+
+
+DEFINE_FROM_STRING(brickmode_val, BRICK_MODE_MAP)
 
 
 EXPORT int MM_bricks(int action, Imodman *mm_, Arena *arena)
@@ -134,15 +135,17 @@ void ArenaAction(Arena *arena, int action)
 		/* cfghelp: Brick:BrickSpan, arena, int, def: 10
 		 * The maximum length of a dropped brick. */
 		bd->brickspan = cfg->GetInt(arena->cfg, "Brick", "BrickSpan", 10);
-		/* cfghelp: Brick:BrickMode, arena, int, def: $BRICK_VIE
-		 * How bricks behave when they are dropped ($BRICK_VIE=improved
-		 * SubGame, $BRICK_AHEAD=drop in a line ahead of player,
-		 * $BRICK_LATERAL=drop laterally across player,
-		 * $BRICK_CAGE=drop 4 bricks simultaneously to create a cage) */
-		bd->brickmode = cfg->GetInt(arena->cfg, "Brick", "BrickMode", BRICK_VIE);
+		/* cfghelp: Brick:BrickMode, arena, enum, def: BRICK_VIE
+		 * How bricks behave when they are dropped (BRICK_VIE=improved
+		 * vie style, BRICK_AHEAD=drop in a line ahead of player,
+		 * BRICK_LATERAL=drop laterally across player,
+		 * BRICK_CAGE=drop 4 bricks simultaneously to create a cage) */
+		bd->brickmode =
+			brickmode_val(cfg->GetStr(arena->cfg, "Brick", "BrickMode"), BRICK_VIE);
 		/* cfghelp: Brick:BrickTime, arena, int, def: 6000
 		 * How long bricks last (in ticks). */
-		bd->bricktime = cfg->GetInt(arena->cfg, "Brick", "BrickTime", 6000) + 10; /* 100 ms added for lag */
+		bd->bricktime = cfg->GetInt(arena->cfg, "Brick", "BrickTime", 6000) + 10;
+		/* 100 ms added for lag */
 	}
 	else if (action == AA_DESTROY)
 	{

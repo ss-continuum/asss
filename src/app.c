@@ -28,7 +28,6 @@
 
 
 #define DIRECTIVECHAR '#'
-#define MACROCHAR '$'
 #define CONTINUECHAR '\\'
 #define COMMENTCHARS "/;"
 
@@ -272,69 +271,6 @@ static void switch_if(APPContext *ctx)
 }
 
 
-static void macro_expand(APPContext *ctx, char *dst, int destlen, const char *src)
-{
-	for (;;)
-	{
-		if (destlen == 1)
-		{
-			*dst = 0;
-			return;
-		}
-
-		if (*src == 0)
-		{
-			*dst = 0;
-			return;
-		}
-		else if (*src == MACROCHAR)
-		{
-			char key[64], *k = key;
-			const char *val;
-
-			src++;
-			if (*src == MACROCHAR)
-			{
-				*dst = MACROCHAR;
-				dst++, src++, destlen--;
-			}
-			else
-			{
-				/* skip initial ( */
-				if (*src == '(')
-					src++;
-					
-				/* copy until non-alnum char */
-				while ((isalnum(*src) || *src == '_') && (k-key) < 63)
-					*k++ = *src++;
-				*k = 0;
-				if (*src == ')') src++;
-
-				val = HashGetOne(ctx->defs, key);
-				if (val)
-				{
-					int len = strlen(val);
-					if (len < destlen)
-					{
-						strcpy(dst, val);
-						dst += len;
-						destlen -= len;
-					}
-				}
-				else
-					do_error(ctx, "Variable '%s' not found (%s:%d)",
-							key, ctx->file->fname, ctx->file->lineno);
-			}
-		}
-		else
-		{
-			*dst = *src;
-			dst++, src++, destlen--;
-		}
-	}
-}
-
-
 static void handle_directive(APPContext *ctx, char *buf)
 {
 	char *t;
@@ -351,7 +287,7 @@ static void handle_directive(APPContext *ctx, char *buf)
 		while (isspace(*t) || *t == '}' || *t == ')') *t-- = 0;
 		/* leading space, }, ), or $ */
 		t = buf + 6;
-		while (isspace(*t) || *t == '{' || *t == '(' || *t == MACROCHAR) t++;
+		while (isspace(*t) || *t == '{' || *t == '(') t++;
 		/* check it */
 		cond = (HashGetOne(ctx->defs, t) != NULL);
 		push_if(ctx, buf[2] == 'd' ? cond : !cond);
@@ -490,7 +426,7 @@ int APPGetLine(APPContext *ctx, char *buf, int buflen)
 		/* if we're not processing, skip it */
 		if (ctx->processing)
 		{
-			macro_expand(ctx, buf, buflen, mybuf);
+			astrncpy(buf, mybuf, buflen);
 			return 1;
 		}
 	}

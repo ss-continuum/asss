@@ -12,9 +12,6 @@
 #include "pathutil.h"
 #include "sparse.inc"
 
-/* brick mode constants */
-#include "settings/game.h"
-
 
 #define METADATA_MAGIC 0x6c766c65
 #define MAX_CHUNK_SIZE (128*1024)

@@ -1,9 +1,0 @@
-#!/bin/sh
-
-ASSSHOME=..
-ZONE=${1:-zone1}
-
-( cd $ASSSHOME/$ZONE/conf && ln -sf ../../src/settings/*.h . )
-
-# asss itself takes care of this now:
-# ( cd $ASSSHOME/$ZONE && ln -sf ../bin . )

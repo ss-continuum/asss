@@ -89,6 +89,15 @@ local Iflags _myint =
 };
 
 
+#define FLAGGAME_MAP(F) \
+	F(FLAGGAME_NONE)   /* no flag game */  \
+	F(FLAGGAME_BASIC)  /* the warzone-type game built in to the flags module */  \
+	F(FLAGGAME_TURF)   /* turf-style flags */  \
+	F(FLAGGAME_CUSTOM) /* let other modules define the flag game */
+
+DEFINE_ENUM(FLAGGAME_MAP)
+DEFINE_FROM_STRING(flaggame_val, FLAGGAME_MAP)
+
 
 EXPORT int MM_flags(int action, Imodman *mm_, Arena *arena)
 {
@@ -437,12 +446,13 @@ local void LoadFlagSettings(Arena *arena, int init)
 	ConfigHandle c = arena->cfg;
 
 	/* get flag game type, only the first time */
-	/* cfghelp: Flag:GameType, arena, enum, def: $FLAGGAME_NONE
-	 * The flag game type for this arena. $FLAGGAME_NONE means no flag
-	 * game, $FLAGGAME_BASIC is a standard warzone or running zone game,
-	 * and $FLAGGAME_TURF specifies immobile flags. */
+	/* cfghelp: Flag:GameType, arena, enum, def: FLAGGAME_NONE
+	 * The flag game type for this arena. FLAGGAME_NONE means no flag
+	 * game, FLAGGAME_BASIC is a standard warzone or running zone game,
+	 * and FLAGGAME_TURF specifies immobile flags. */
 	if (init)
-		pfd->gametype = cfg->GetInt(c, "Flag", "GameType", FLAGGAME_NONE);
+		pfd->gametype =
+			flaggame_val(cfg->GetStr(c, "Flag", "GameType"), FLAGGAME_NONE);
 
 	/* and initialize settings for that type */
 	if (pfd->gametype == FLAGGAME_BASIC)

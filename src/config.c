@@ -58,8 +58,41 @@ local Imainloop *ml;
 /* functions */
 
 
+/* escapes the config file syntactic characters. currently just = and \. */
+local void escape_string(char *dst, int dstlen, const char *src)
+{
+	char *t = dst;
+	while (*src && (t - dst + 2) < dstlen)
+	{
+		if (*src == '=' || *src == '\\')
+			*t++ = '\\';
+		*t++ = *src++;
+	}
+	*t = '\0';
+}
+
+local char * unescape_string(char *dst, int dstlen, char *src, char stopon)
+{
+	char *t = dst;
+	while((t-dst+1) < dstlen &&
+	      *src != '\0' &&
+	      *src != stopon)
+		if (*src == '\\')
+		{
+			src++;
+			if (*src != '\0')
+				*t++ = *src++;
+		}
+		else
+			*t++ = *src++;
+	*t = '\0';
+	return src;
+}
+
+
 local int write_dirty_values(void *dummy)
 {
+	char buf[CFG_MAX_LINE];
 	Link *l1, *l2;
 	ConfigHandle ch;
 	FILE *fp;
@@ -83,7 +116,13 @@ local int write_dirty_values(void *dummy)
 				{
 					struct Entry *e = l2->data;
 					if (e->info) fprintf(fp, "; %s\n", e->info);
-					fprintf(fp, "%s = %s\n\n", e->keystr, e->val);
+					/* escape keystr and val */
+					escape_string(buf, sizeof(buf), e->keystr);
+					fputs(buf, fp);
+					fputs(" = ", fp);
+					escape_string(buf, sizeof(buf), e->val);
+					fputs(buf, fp);
+					fputs("\n\n", fp);
 					afree(e->keystr);
 					afree(e->info);
 					afree(e);
@@ -144,16 +183,10 @@ local void do_load(ConfigHandle ch, const char *arena, const char *name)
 {
 	APPContext *ctx;
 	char line[LINESIZE], *buf, *t;
-	char key[MAXSECTIONLEN+MAXKEYLEN+3], *thespot = NULL;
+	char key[MAXSECTIONLEN+MAXKEYLEN+3], *thespot = key;
+	char val[LINESIZE];
 
 	ctx = APPInitContext(locate_config_file, report_error, arena);
-
-	/* set up some values */
-	APPAddDef(ctx, "VERSION", ASSSVERSION);
-	APPAddDef(ctx, "BUILDDATE", BUILDDATE);
-
-	/* always prepend this */
-	APPAddFile(ctx, "conf/defs.h");
 
 	/* the actual file */
 	APPAddFile(ctx, name);
@@ -162,7 +195,7 @@ local void do_load(ConfigHandle ch, const char *arena, const char *name)
 	{
 		buf = line;
 		/* kill leading spaces */
-		while (*buf && (*buf == ' ' || *buf == '\t')) buf++;
+		while (*buf != '\0' && isspace(*buf)) buf++;
 		/* kill trailing spaces */
 		t = buf + strlen(buf) - 1;
 		while (t >= buf && isspace(*t)) t--;
@@ -172,10 +205,10 @@ local void do_load(ConfigHandle ch, const char *arena, const char *name)
 		{
 			/* new section: copy to key name */
 			/* skip leading brackets/spaces */
-			while (*buf == '[' || *buf == ' ' || *buf == '\t') buf++;
+			while (*buf == '[' || isspace(*buf)) buf++;
 			/* get rid of trailing spaces or brackets */
 			t = buf + strlen(buf) - 1;
-			while (*t == ']' || *t == ' ' || *t == '\t') *t-- = 0;
+			while (*t == ']' || isspace(*t)) *t-- = 0;
 			/* copy section name into key */
 			strncpy(key, buf, MAXSECTIONLEN);
 			strcat(key, ":");
@@ -183,39 +216,42 @@ local void do_load(ConfigHandle ch, const char *arena, const char *name)
 		}
 		else
 		{
-			t = strchr(buf, '=');
-			if (t)
+			thespot[0] = '\0';
+			buf = unescape_string(thespot, MAXKEYLEN, buf, '=');
+
+			/* empty key */
+			if (thespot[0] == '\0')
+				continue;
+
+			if (*buf == '=')
 			{
-				char *t2 = t + 1;
 				const char *data;
 
-				/* kill = sign and spaces before it */
-				while (*t == ' ' || *t == '=' || *t == '\t') *t-- = 0;
-				/* kill spaces before value */
-				while (*t2 == ' ' || *t2 == '=' || *t2 == '\t') t2++;
+				/* kill trailing whitespace on the key */
+				t = thespot + strlen(thespot) - 1;
+				while (t >= thespot && isspace(*t)) *t-- = 0;
+				/* kill whitespace before value */
+				buf++;
+				while (isspace(*buf)) buf++;
 
-				data = SCAdd(ch->thestrings, t2);
-				
-				if (strchr(buf, ':'))
-				{
+				unescape_string(val, sizeof(val), buf, 0);
+
+				data = SCAdd(ch->thestrings, val);
+
+				if (strchr(thespot, ':'))
 					/* this syntax lets you specify a section and key on
 					 * one line. it does _not_ modify the "current
 					 * section" */
-					HashReplace(ch->thetable, buf, data);
-				}
-				else
-				{
-					astrncpy(thespot, buf, MAXKEYLEN); /* modifies key */
+					HashReplace(ch->thetable, thespot, data);
+				else if (thespot > key)
 					HashReplace(ch->thetable, key, data);
-				}
+				else
+					report_error("ignoring value not in any section");
 			}
 			else
-			{
 				/* there is no value for this key, so enter it with the
 				 * empty string. */
-				astrncpy(thespot, buf, MAXKEYLEN);
 				HashReplace(ch->thetable, key, "");
-			}
 		}
 	}
 

@@ -22,8 +22,6 @@
 #include "packets/shipchange.h"
 #include "packets/green.h"
 
-#include "settings/game.h"
-
 
 /* these are bit positions for the personalgreen field */
 enum { personal_thor, personal_burst, personal_brick };
@@ -85,6 +83,17 @@ local int cfg_bulletpix, cfg_wpnpix, cfg_pospix;
 local int cfg_sendanti, cfg_changelimit;
 local int wpnrange[WEAPONCOUNT]; /* there are 5 bits in the weapon type */
 local pthread_mutex_t specmtx = PTHREAD_MUTEX_INITIALIZER;
+
+
+#define SEE_ENERGY_MAP(F) \
+	F(SEE_NONE)   /* nobody can see energy */  \
+	F(SEE_ALL)    /* everyone can see everyone's */  \
+	F(SEE_TEAM)   /* you can see only energy for teammates */  \
+	F(SEE_SPEC)   /* can see energy/extra data only for who you are speccing */
+
+
+DEFINE_ENUM(SEE_ENERGY_MAP)
+DEFINE_FROM_STRING(see_nrg_val, SEE_ENERGY_MAP)
 
 
 
@@ -1151,17 +1160,17 @@ local void ArenaAction(Arena *arena, int action)
 		 * spectating. */
 		ad->spec_epd =
 			cfg->GetInt(arena->cfg, "Misc", "SpecSeeExtra", 1);
-		/* cfghelp: Misc:SpecSeeEnergy, arena, enum, def: $SEE_NONE
+		/* cfghelp: Misc:SpecSeeEnergy, arena, enum, def: SEE_NONE
 		 * Whose energy levels spectators can see. The options are the
-		 * same as for Misc:SeeEnergy, with one addition: $SEE_SPEC
+		 * same as for Misc:SeeEnergy, with one addition: SEE_SPEC
 		 * means only the player you're spectating. */
 		ad->spec_nrg =
-			cfg->GetInt(arena->cfg, "Misc", "SpecSeeEnergy", SEE_ALL);
-		/* cfghelp: Misc:SeeEnergy, arena, enum, def: $SEE_NONE
-		 * Whose energy levels everyone can see: $SEE_NONE means nobody
-		 * else's, $SEE_ALL is everyone's, $SEE_TEAM is only teammates. */
+			see_nrg_val(cfg->GetStr(arena->cfg, "Misc", "SpecSeeEnergy"), SEE_ALL);
+		/* cfghelp: Misc:SeeEnergy, arena, enum, def: SEE_NONE
+		 * Whose energy levels everyone can see: SEE_NONE means nobody
+		 * else's, SEE_ALL is everyone's, SEE_TEAM is only teammates. */
 		ad->all_nrg =
-			cfg->GetInt(arena->cfg, "Misc", "SeeEnergy", SEE_NONE);
+			see_nrg_val(cfg->GetStr(arena->cfg, "Misc", "SeeEnergy"), SEE_NONE);
 
 		/* cfghelp: Security:MaxDeathWithoutFiring, arena, int, def: 5
 		 * The number of times a player can die without firing a weapon

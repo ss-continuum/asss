@@ -117,7 +117,6 @@
 #include "asss.h"                /* necessary include to connect the module */
 #include "persist.h"
 #include "turf_reward.h"
-#include "settings/turfreward.h" /* bring in the settings for reward types */
 
 #define KEY_TR_OWNERS 1337       /* for persistant flag data */
 
@@ -270,6 +269,37 @@ typedef struct PersistentTurfRewardData
 	ticks_t tagTC;
 	ticks_t lastTC;
 } PersistentTurfRewardData;
+
+
+/* enumerated setting types */
+
+/* reward mode settings */
+#define TURF_REWARD_MAP(F) \
+	F(TR_STYLE_DISABLED)  /* disable rewards */  \
+	F(TR_STYLE_PERIODIC)  /* simple periodic scoring */  \
+	F(TR_STYLE_STANDARD)  /* standard weighted scoring method */  \
+	F(TR_STYLE_WEIGHTS)   /* # of weights = points awarded */  \
+	F(TR_STYLE_FIXED_PTS) /* each team gets a fixed # of points rank */
+
+DEFINE_ENUM(TURF_REWARD_MAP)
+DEFINE_FROM_STRING(turf_reward_val, TURF_REWARD_MAP)
+
+/* recovery system settings */
+#define TURF_RECOVERY_MAP(F) \
+	F(TR_RECOVERY_DINGS)          /* recovery cutoff based on RecoverDings */  \
+	F(TR_RECOVERY_TIME)           /* recovery cutoff based on RecoverTime */  \
+	F(TR_RECOVERY_DINGS_AND_TIME) /* recovery cutoff based on both RecoverDings and RecoverTime */
+
+DEFINE_ENUM(TURF_RECOVERY_MAP)
+DEFINE_FROM_STRING(turf_recovery_val, TURF_RECOVERY_MAP)
+
+/* weight calculation settings */
+#define TURF_WEIGHT_MAP(F) \
+	F(TR_WEIGHT_DINGS) /* weight calculation based on dings */  \
+	F(TR_WEIGHT_TIME)  /* weight calculation based on time */
+
+DEFINE_ENUM(TURF_WEIGHT_MAP)
+DEFINE_FROM_STRING(turf_weight_val, TURF_WEIGHT_MAP)
 
 
 EXPORT const char info_turf_reward[]
@@ -515,17 +545,19 @@ local void loadSettings(Arena *arena)
 	TurfArena *ta, **p_ta = P_ARENA_DATA(arena, trkey);
 	if (!arena || !*p_ta) return; else ta = *p_ta;
 
-	/* cfghelp: TurfReward:RewardStyle, arena, enum, def: $TR_STYLE_DISABLED
-	 * The reward algorithm to be used.  Default is $TR_STYLE_STANDARD for
-	 * standard weighted scoring. Other built in algorithms are:
-	 * $TR_STYLE_DISABLED: disable scoring, $TR_STYLE_PERIODIC: normal
-	 * periodic scoring but with the stats, $TR_STYLE_FIXED_PTS: each
+	/* cfghelp: TurfReward:RewardStyle, arena, enum, def: TR_STYLE_DISABLED
+	 * The reward algorithm to be used.  Default is TR_STYLE_STANDARD
+	 * for standard weighted scoring. Other built in algorithms are:
+	 * TR_STYLE_DISABLED: disable scoring, TR_STYLE_PERIODIC: normal
+	 * periodic scoring but with the stats, TR_STYLE_FIXED_PTS: each
 	 * team gets a fixed # of points based on 1st, 2nd, 3rd,... place
-	 * $TR_STYLE_WEIGHTS: number of points to award equals number of weights
-	 * owned.  Note: for points_turf_reward (default scoring module), currently 
-	 * only $TR_STYLE_STANDARD and $TR_STYLE_PERIODIC are implemented. */
-	ta->settings.reward_style 
-		= config->GetInt(c, "TurfReward", "RewardStyle", TR_STYLE_DISABLED);
+	 * TR_STYLE_WEIGHTS: number of points to award equals number of
+	 * weights owned.  Note: for points_turf_reward (default scoring
+	 * module), currently only TR_STYLE_STANDARD and TR_STYLE_PERIODIC
+	 * are implemented. */
+	ta->settings.reward_style =
+		turf_reward_val(config->GetStr(c, "TurfReward", "RewardStyle"),
+				TR_STYLE_DISABLED);
 
 	/* cfghelp: TurfReward:MinPlayersTeam, arena, int, def: 3
 	 * The minimum number of players needed on a team for players on that
@@ -581,7 +613,7 @@ local void loadSettings(Arena *arena)
 	/* cfghelp: TurfReward:RewardModifier, arena, int, def: 200
 	 * Modifies the number of points to award.  Meaning varies based on reward
 	 * algorithm being used.
-	 * For $REWARD_STD: jackpot = # players * RewardModifer */
+	 * For TR_STYLE_STANDARD: jackpot = # players * RewardModifer */
 	ta->settings.reward_modifier 
 		= config->GetInt(c, "TurfReward", "RewardModifier", 200);
 
@@ -606,20 +638,21 @@ local void loadSettings(Arena *arena)
 	 * Whether players in spectator mode recieve reward points. */
 	ta->settings.spec_recieve_points 
 		= config->GetInt(c, "TurfReward", "SpecRecievePoints", 0);
-	 
+
 	/* cfghelp: TurfReward:SafeRecievePoints, arena, bool, def: 0
 	 * Whether players in safe zones recieve reward points. */
 	ta->settings.safe_recieve_points 
 		= config->GetInt(c, "TurfReward", "SafeRecievePoints", 0);
 
-	/* cfghelp: TurfReward:RecoveryCutoff, arena, enum, def: $TR_RECOVERY_DINGS
+	/* cfghelp: TurfReward:RecoveryCutoff, arena, enum, def: TR_RECOVERY_DINGS
 	 * Style of recovery cutoff to be used.
-	 * $TR_RECOVERY_DINGS - recovery cutoff based on RecoverDings.
-	 * $TR_RECOVERY_TIME - recovery cutoff based on RecoverTime.
-	 * $TR_RECOVERY_DINGS_AND_TIME - recovery cutoff based on both RecoverDings
+	 * TR_RECOVERY_DINGS - recovery cutoff based on RecoverDings.
+	 * TR_RECOVERY_TIME - recovery cutoff based on RecoverTime.
+	 * TR_RECOVERY_DINGS_AND_TIME - recovery cutoff based on both RecoverDings
 	 * and RecoverTime. */
-	ta->settings.recovery_cutoff
-		= config->GetInt(c, "TurfReward", "RecoveryCutoff", TR_RECOVERY_DINGS);
+	ta->settings.recovery_cutoff =
+		turf_recovery_val(config->GetStr(c, "TurfReward", "RecoveryCutoff"),
+				TR_RECOVERY_DINGS);
 
 	/* cfghelp: TurfReward:RecoverDings, arena, int, def: 1
 	 * After losing a flag, the number of dings allowed to pass before a freq
@@ -641,14 +674,15 @@ local void loadSettings(Arena *arena)
 	ta->settings.recover_max 
 		= config->GetInt(c, "TurfReward", "RecoverMax", -1);
 
-	/* cfghelp: TurfReward:WeightCalc, arena, enum, def: $TR_WEIGHT_DINGS
-	 * The method weights are calculated.  $TR_WEIGHT_TIME means each weight
-	 * stands for one minute (ex: Weight004 is the weight for a flag owned for
-	 * 4 minutes).  $TR_WEIGHT_DINGS means each weight stands for one ding of
-	 * ownership (ex: Weight004 is the weight for a flag that was owned during
-	 * 4 dings). */
-	ta->settings.weight_calc
-		= config->GetInt(c, "TurfReward", "WeightCalc", TR_WEIGHT_DINGS);
+	/* cfghelp: TurfReward:WeightCalc, arena, enum, def: TR_WEIGHT_DINGS
+	 * The method weights are calculated.  TR_WEIGHT_TIME means each
+	 * weight stands for one minute (ex: Weight004 is the weight for a
+	 * flag owned for 4 minutes).  TR_WEIGHT_DINGS means each weight
+	 * stands for one ding of ownership (ex: Weight004 is the weight for
+	 * a flag that was owned during 4 dings). */
+	ta->settings.weight_calc =
+		turf_weight_val(config->GetStr(c, "TurfReward", "WeightCalc"),
+				TR_WEIGHT_DINGS);
 
 	/* cfghelp: TurfReward:SetWeights, arena, int, def: 0
 	 * How many weights to set from cfg (16 means you want to specify Weight0 to

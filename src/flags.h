@@ -10,8 +10,6 @@
  * extra modules.
  */
 
-#include "settings/flaggames.h"
-
 typedef enum
 {
 	FLAG_NONE,    /* the flag doesn't exist */

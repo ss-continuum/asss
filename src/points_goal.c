@@ -6,28 +6,35 @@
 
 #include "asss.h"
 
-#include "settings/soccer.h"
 
+/* Soccer modes:
+ * ALL - All goals are open for scoring by any freq.
+ * LEFTRIGHT - Two goals, scoring is even freqs vs odd freqs.
+ * TOPBOTTOM - Same as LEFTRIGHT but goals oriented vertically.
+ * CORNERS_3_1 - Each freq (0-3) has one goal to defend, and three to score on.
+ * CORNERS_1_3 -  Each freq (0-3) has three goals to defend, and one to score on.
+ * SIDES_3_1 - Same as CORNERS_3_1, but using left/right/top/bottom goals.
+ * SIDES_1_3 - Same as SIDES_3_1 (goal orientations), except uses mode 4 rules.
+ * 1_3 rules:  Birds(0) take pts from Levs(3)
+ *             Javs (1) take pts from Spid(2)
+ *             Spids(2) take pts from Javs(1)
+ *             Levs (3) take pts from Bird(0)
+ */
+
+#define GOALMODE_MAP(F) \
+	F(GOAL_ALL)  \
+	F(GOAL_LEFTRIGHT)  \
+	F(GOAL_TOPBOTTOM)  \
+	F(GOAL_CORNERS_3_1)  \
+	F(GOAL_CORNERS_1_3)  \
+	F(GOAL_SIDES_3_1)  \
+	F(GOAL_SIDES_1_3)
+
+DEFINE_ENUM(GOALMODE_MAP)
+DEFINE_FROM_STRING(goalmode_val, GOALMODE_MAP)
 
 #define MAXFREQ  CFG_SOCCER_MAXFREQ
 #define MAXGOALS CFG_SOCCER_MAXGOALS
-
-
-/*  Soccer modes:
- *  0 - All goals are open for scoring by any freq
- *  1 - Left/Right, two goals...Scoring is basically even freqs vs odd freqs
- *  2 - Top/Bottom, same as 1 but goals oriented vertically
- *  3 - Corners/3_1, Each freq (0-3) has one goal to defend, and three to score on
- *  4 - Corners/1_3, Each freq (0-3) has three goals to defend, and one to score on*
- *  5 - Sides/3_1, Same as mode 3, but using left/right/top/bottom goals
- *  6 - Sides/1_3, Same as mode 5 (goal orientations), except uses mode 4 rules*
- *  7 - Custom (asss only), not developed yet =)
- *  * 1_3 rules:  Birds(0) take pts from Levs(3)
- *                Javs (1) take pts from Spid(2)
- *                Spids(2) take pts from Javs(1)
- *                Levs (3) take pts from Bird(0)
- *    Games must be timed I guess, since no team can acquire all 4 pts as in modes 3,5
- */
 
 
 typedef struct GoalAreas
@@ -137,12 +144,17 @@ void MyAA(Arena *arena, int action)
 	{
 		int i, cpts;
 
-		/* cfghelp: Soccer:Mode, arena, int, def: 0
-		 * Goal configuration (0=any goal, 1=left-half/right-half,
-		 * 2=top-half/bottom-half, 3=quadrants-defend-one-goal,
-		 * 4=quadrants-defend-three-goals, 5=sides-defend-one-goal,
-		 * 6=sides-defend-three-goals */
-		scores->mode = cfg->GetInt(arena->cfg, "Soccer", "Mode",0);
+		/* cfghelp: Soccer:Mode, arena, enum, def: GOAL_ALL
+		 * Goal configuration:
+		 * GOAL_ALL = any goal,
+		 * GOAL_LEFTRIGHT = left-half/right-half,
+		 * GOAL_TOPBOTTOM = top-half/bottom-half,
+		 * GOAL_CORNERS_3_1 = quadrants-defend-one-goal,
+		 * GOAL_CORNERS_1_3 = quadrants-defend-three-goals,
+		 * GOAL_SIDES_3_1 = sides-defend-one-goal,
+		 * GOAL_SIDES_1_3 = sides-defend-three-goals */
+		scores->mode =
+			goalmode_val(cfg->GetStr(arena->cfg, "Soccer", "Mode"), GOAL_ALL);
 		/* cfghelp: Soccer:CapturePoints, arena, int, def: 1
 		 * If positive, these points are distributed to each goal/team.
 		 * When you make a goal, the points get transferred to your goal/team.

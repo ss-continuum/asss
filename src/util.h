@@ -383,5 +383,27 @@ void MapFlush(MMapData *mmd);
 
 #endif
 
+
+/* some macro-based stuff for making enum types in config files easier
+ * to deal with. */
+
+#define DEFINE_ENUM(MAP) \
+enum { MAP(DEFINE_ENUM_HELPER) };
+
+#define DEFINE_ENUM_HELPER(X) X,
+
+#define DEFINE_FROM_STRING(NAME, MAP) \
+static int NAME(const char *s, int def) \
+{ if (s == NULL) return def; if (*s == '$') s++; \
+  MAP(DEFINE_FROM_STRING_HELPER) return def; }
+
+#define DEFINE_FROM_STRING_HELPER(X) if (strcasecmp(#X, s) == 0) return X; else
+
+#define DEFINE_TO_STRING(NAME, MAP) \
+static const char * NAME(int v) \
+{ switch (v) { MAP(DEFINE_TO_STRING_HELPER) } return NULL; }
+
+#define DEFINE_TO_STRING_HELPER(X) case X: return #X;
+
 #endif
 

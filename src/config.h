@@ -39,11 +39,9 @@
 /* some defines for maximums */
 
 /** the maximum length of a section name */
-#define MAXSECTIONLEN 32
+#define MAXSECTIONLEN 64
 /** the maximum length of a key name */
-#define MAXKEYLEN 32
-/** the maximum length of a config value */
-#define MAXVALUELEN 512
+#define MAXKEYLEN 64
 
 
 /** other modules should manipulate config files through ConfigHandles. */
