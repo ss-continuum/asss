@@ -2,15 +2,15 @@
 
 EXE=$1
 PID=$2
-TMPFILE=gdbcmds.$$.tmp
+TMP=gdbcmds.$$.tmp
 
-exec 1>segv-$PID.bt 2>&1
+exec >segv-$PID.bt 2>&1
 
-cat <<EOF >$TMPFILE
+echo >$TMP '
 set height 0
 bt full
 quit
-EOF
+'
 
-gdb -batch -x $TMPFILE $EXE $PID </dev/null
-/bin/rm -f $TMPFILE
+gdb -batch -x $TMP $EXE $PID </dev/null
+rm -f $TMP
