@@ -504,6 +504,7 @@ EXPORT int MM_config(int action, Imodman *mm_, int arena)
 		if (!global) return MM_FAIL;
 	
 		lm = NULL;
+
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		if (!ml) return MM_FAIL;
 
@@ -527,6 +528,8 @@ EXPORT int MM_config(int action, Imodman *mm_, int arena)
 			return MM_FAIL;
 
 		ml->ClearTimer(write_dirty_values);
+		mm->ReleaseInterface(ml);
+
 		/* one last time... */
 		write_dirty_values(NULL);
 

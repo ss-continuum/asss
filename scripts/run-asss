@@ -1,4 +1,5 @@
 #!/bin/sh
+# vim: et sw=2 ts=2
 
 # change this to the root of your asss installation
 ASSSHOME=$HOME/src/asss
@@ -10,7 +11,8 @@ E_SHUTDOWN=0
 E_RECYCLE=1
 E_GENERAL=2
 E_OOM=3
-E_BIND=4
+E_MODCONF=4
+E_MODLOAD=5
 
 DATEFORM='+%Y.%m.%d %H:%M:%S'
 pdate () { date "$DATEFORM"; }
@@ -54,9 +56,12 @@ while $CONTINUE; do
     CONTINUE=false
   elif [ $EXIT -eq $E_OOM ]; then
     MSG="out of memory, restarting"
-  elif [ $EXIT -eq $E_BIND ]; then
-    MSG="cannot bind to port, waiting longer"
-    SLEEP=15
+  elif [ $EXIT -eq $E_MODCONF ]; then
+    MSG="error in modules.conf"
+    CONTINUE=false
+  elif [ $EXIT -eq $E_MODLOAD ]; then
+    MSG="error loading modules"
+    CONTINUE=false
   elif [ $EXIT -gt 128 ]; then
     MSG="due to signal `expr $EXIT - 128`, restarting"
   else

@@ -254,7 +254,7 @@ void ProcessArenaQueue(void)
 				nextstatus = ARENA_NONE;
 				break;
 		}
-		
+
 		LOCK_STATUS();
 		a->status = nextstatus;
 	}
@@ -331,6 +331,7 @@ void SendArenaResponse(int pid)
 			Iclientset *clientset = mm->GetInterface(I_CLIENTSET, arena);
 			if (clientset)
 				clientset->SendClientSettings(pid);
+			mm->ReleaseInterface(clientset);
 		}
 	}
 	else if (IS_CHAT(pid))

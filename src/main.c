@@ -18,6 +18,7 @@
 
 local Imodman *mm;
 local int dodaemonize;
+local volatile int syncflag;
 
 
 local void ProcessArgs(int argc, char *argv[])
@@ -80,7 +81,7 @@ local int finder(char *dest, int destlen, const char *ar, const char *name)
 
 local void error(const char *err)
 {
-	Error(ERROR_MODLOAD, "Error in modules.conf: %s", err);
+	Error(EXIT_MODLOAD, "Error in modules.conf: %s", err);
 }
 
 local void LoadModuleFile(char *fname)
@@ -96,7 +97,7 @@ local void LoadModuleFile(char *fname)
 	{
 		ret = mm->LoadModule(line);
 		if (ret == MM_FAIL)
-			Error(ERROR_MODLOAD, "Error in loading module '%s'", line);
+			Error(EXIT_MODLOAD, "Error in loading module '%s'", line);
 	}
 
 	FreeContext(ctx);
@@ -140,8 +141,15 @@ local int daemonize(int noclose)
 #endif
 
 
+local void syncdone(int dummy)
+{
+	syncflag = 1;
+}
+
+
 int main(int argc, char *argv[])
 {
+	int code;
 	Ilogman *lm;
 	Imainloop *ml;
 
@@ -169,13 +177,37 @@ int main(int argc, char *argv[])
 	ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 
 	if (!ml)
-		Error(ERROR_MODLOAD, "mainloop module missing");
+		Error(EXIT_MODLOAD, "mainloop module missing");
 
-	if (lm) lm->Log(L_DRIVEL,"<main> Entering main loop");
+	if (lm) lm->Log(L_DRIVEL, "<main> Entering main loop");
 
-	ml->RunLoop();
+	code = ml->RunLoop();
 
-	if (lm) lm->Log(L_DRIVEL,"<main> Exiting main loop");
+	if (lm) lm->Log(L_DRIVEL, "<main> Exiting main loop");
+
+	{
+		/* send a nice message */
+		Ichat *chat = mm->GetInterface(I_CHAT, ALLARENAS);
+		if (chat)
+		{
+			chat->SendArenaMessage(ALLARENAS, "The server is %s now!",
+					code == EXIT_RECYCLE ? "recycing" : "shutting down");
+			mm->ReleaseInterface(chat);
+		}
+	}
+
+	{
+		/* try to save scores */
+		Ipersist *persist = mm->GetInterface(I_PERSIST, ALLARENAS);
+		if (persist)
+		{
+			syncflag = 0;
+			persist->StabilizeScores(0, 1, syncdone);
+			/* hacky condition variable replacement */
+			do sleep(1); while (!syncflag);
+			mm->ReleaseInterface(persist);
+		}
+	}
 
 	mm->ReleaseInterface(lm);
 	mm->ReleaseInterface(ml);
@@ -185,7 +217,7 @@ int main(int argc, char *argv[])
 
 	DeInitModuleManager(mm);
 
-	return 0;
+	return code;
 }
 
 

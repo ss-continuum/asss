@@ -70,6 +70,7 @@ EXPORT int MM_log_sysop(int action, Imodman *mm, int arenas)
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(capman);
 		mm->ReleaseInterface(cmd);

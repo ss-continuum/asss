@@ -189,15 +189,19 @@ local void Carena(const char *params, int pid, const Target *target)
 
 local helptext_t shutdown_help =
 "Targets: none\n"
-"Args: none\n"
-"Immediately shuts down the server.\n";
+"Args: [{-r}]\n"
+"Immediately shuts down the server, exiting with {EXIT_NONE}.\n"
+"If {-r} is specified, exit with {EXIT_RECYCLE} instead. The {run-asss}\n"
+"script will notice {EXIT_RECYCLE} and restart the server.\n";
 
 local void Cshutdown(const char *params, int pid, const Target *target)
 {
-	byte drop[2] = {0x00, 0x07};
-	net->SendToAll(drop, 2, NET_PRI_P5);
-	net->SendToAll(drop, 2, NET_PRI_P5);
-	ml->Quit();
+	int code = EXIT_NONE;
+
+	if (!strcmp(params, "-r"))
+		code = EXIT_RECYCLE;
+
+	ml->Quit(code);
 }
 
 

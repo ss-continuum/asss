@@ -117,7 +117,7 @@ local int init_socket(void)
 #ifdef WIN32
 	WSADATA wsad;
 	if (WSAStartup(MAKEWORD(1,1),&wsad))
-		Error(ERROR_GENERAL, "net: WSAStartup");
+		return -1;
 #endif
 
 	port = cfg->GetInt(GLOBAL, "Net", "ChatPort", -1);
@@ -220,18 +220,25 @@ local void process_line(int pid, const char *line)
 
 
 /* call with lock held */
+local void clear_bufs(int pid)
+{
+	afree(clients[pid].inbuf);
+	clients[pid].inbuf = 0;
+	LLEnum(&clients[pid].outbufs, afree);
+	LLEmpty(&clients[pid].outbufs);
+}
+
+/* call with lock held */
 local void kill_connection(int pid)
 {
 	if (!IS_CHAT(pid))
 		return;
 
-	afree(clients[pid].inbuf);
-	clients[pid].inbuf = 0;
-	LLEnum(&clients[pid].outbufs, afree);
-	LLEmpty(&clients[pid].outbufs);
+	clear_bufs(pid);
 
 	pd->LockPlayer(pid);
 
+	/* will put in S_LEAVING_ARENA */
 	if (pd->players[pid].arena >= 0)
 		process_line(pid, "LEAVE");
 
@@ -344,7 +351,10 @@ local void do_write(int pid)
 
 		/* check if this buffer is done */
 		if (buf->cur[0] == 0)
+		{
+			afree(buf);
 			LLRemoveFirst(&clients[pid].outbufs);
+		}
 	}
 }
 
@@ -516,6 +526,8 @@ local Ichatnet _int =
 
 EXPORT int MM_chatnet(int action, Imodman *mm_, int arena)
 {
+	int i;
+
 	if (action == MM_LOAD)
 	{
 		pthread_mutexattr_t attr;
@@ -557,18 +569,31 @@ EXPORT int MM_chatnet(int action, Imodman *mm_, int arena)
 
 		ml->ClearTimer(main_loop);
 
+		/* clean up */
+		HashFree(handlers);
+
+		LOCK();
+		for (i = 0; i < MAXPLAYERS; i++)
+			if (pd->players[i].status > S_FREE &&
+			    IS_CHAT(i))
+			{
+				/* try to clean up as much memory as possible */
+				clear_bufs(i);
+				/* close all the connections also */
+				if (clients[i].socket > 2)
+					close(clients[i].socket);
+			}
+		UNLOCK();
+
+		pthread_mutex_destroy(&bigmtx);
+
+		close(mysock);
+
 		/* release these */
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(ml);
-
-		/* clean up */
-		HashFree(handlers);
-
-		pthread_mutex_destroy(&bigmtx);
-
-		close(mysock);
 
 		return MM_OK;
 	}

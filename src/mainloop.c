@@ -19,8 +19,8 @@ typedef struct TimerData
 local void StartTimer(TimerFunc, int, int, void *);
 local void ClearTimer(TimerFunc);
 
-local void RunLoop(void);
-local void KillML(void);
+local int RunLoop(void);
+local void KillML(int code);
 
 
 
@@ -31,7 +31,7 @@ local Imainloop _int =
 };
 
 local int privatequit;
-local LinkedList *timers;
+local LinkedList timers;
 local Imodman *mm;
 
 
@@ -41,13 +41,13 @@ EXPORT int MM_mainloop(int action, Imodman *mm_, int arena)
 	{
 		mm = mm_;
 		privatequit = 0;
-		timers = LLAlloc();
+		LLInit(&timers);
 		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		LLFree(timers);
+		LLEmpty(&timers);
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 		return MM_OK;
@@ -56,7 +56,7 @@ EXPORT int MM_mainloop(int action, Imodman *mm_, int arena)
 }
 
 
-void RunLoop(void)
+int RunLoop(void)
 {
 	TimerData *td;
 	LinkedList freelist;
@@ -73,7 +73,7 @@ void RunLoop(void)
 		gtc = GTC();
 
 		/* do timers */
-		for (l = LLGetHead(timers); l; l = l->next)
+		for (l = LLGetHead(&timers); l; l = l->next)
 		{
 			td = (TimerData*) l->data;
 			if (td->func && td->when <= gtc)
@@ -88,7 +88,7 @@ void RunLoop(void)
 		/* free timers */
 		for (l = LLGetHead(&freelist); l; l = l->next)
 		{
-			LLRemove(timers, l->data);
+			LLRemove(&timers, l->data);
 			afree(l->data);
 		}
 		LLEmpty(&freelist);
@@ -97,12 +97,14 @@ void RunLoop(void)
 		sched_yield();
 		usleep(10000); /* 1/100 sec */
 	}
+
+	return privatequit & 0xff;
 }
 
 
-void KillML(void)
+void KillML(int code)
 {
-	privatequit = 1;
+	privatequit = 0x100 | (code & 0xff);
 }
 
 
@@ -114,7 +116,7 @@ void StartTimer(TimerFunc f, int startint, int interval, void *param)
 	data->interval = interval;
 	data->when = GTC() + startint;
 	data->param = param;
-	LLAdd(timers, data);
+	LLAdd(&timers, data);
 }
 
 
@@ -122,10 +124,10 @@ void ClearTimer(TimerFunc f)
 {
 	Link *l;
 
-	for (l = LLGetHead(timers); l; l = l->next)
+	for (l = LLGetHead(&timers); l; l = l->next)
 		if (((TimerData*)l->data)->func == f)
 		{
-			LLRemove(timers, l->data);
+			LLRemove(&timers, l->data);
 			afree(l->data);
 			return;
 		}

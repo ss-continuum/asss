@@ -499,6 +499,7 @@ HashTable * LoadRegions(char *fname)
 				reg->isbase = 1;
 			}
 		}
+		fclose(f);
 	}
 	return hash;
 }

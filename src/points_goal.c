@@ -93,6 +93,7 @@ EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(balls);
 		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(cmd);
 		cmd->RemoveCommand("setscore",Csetscore);
 		cmd->RemoveCommand("score",Cscore);
 		cmd->RemoveCommand("resetgame",Cresetgame);

@@ -141,6 +141,7 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(ml);
 		mm->ReleaseInterface(map);
+		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(capman);
 		return MM_OK;
 	}

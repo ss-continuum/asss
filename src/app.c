@@ -139,6 +139,8 @@ void FreeContext(APPContext *ctx)
 		ifs = ifs->prev;
 		afree(oif);
 	}
+
+	afree(ctx);
 }
 
 

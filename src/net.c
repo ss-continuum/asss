@@ -148,7 +148,7 @@ local inline int LookupIP(struct sockaddr_in);
 local inline void SendRaw(int, byte *, int);
 local void KillConnection(int pid);
 local void ProcessBuffer(Buffer *);
-local void InitSockets(void);
+local int InitSockets(void);
 local Buffer * GetBuffer(void);
 local void BufferPacket(int pid, byte *data, int len, int flags,
 		RelCallback callback, void *clos);
@@ -271,16 +271,9 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
-		if (!cfg || !lm) return MM_FAIL;
+		if (!pd || !cfg || !lm || !ml) return MM_FAIL;
 
 		players = pd->players;
-
-		for (i = 0; i < MAXTYPES; i++)
-		{
-			LLInit(handlers + i);
-			LLInit(sizedhandlers + i);
-			LLInit(billhandlers + i);
-		}
 
 		/* store configuration params */
 		config.port = cfg->GetInt(GLOBAL, "Net", "Port", 5000);
@@ -292,6 +285,17 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		config.usebilling = cfg->GetInt(GLOBAL, "Billing", "UseBilling", 0);
 		config.billping = cfg->GetInt(GLOBAL, "Billing", "PingTime", 3000);
 		config.deflimit = cfg->GetInt(GLOBAL, "Net", "BandwidthLimit", 3500);
+
+		/* get the sockets */
+		if (InitSockets())
+			return MM_FAIL;
+
+		for (i = 0; i < MAXTYPES; i++)
+		{
+			LLInit(handlers + i);
+			LLInit(sizedhandlers + i);
+			LLInit(billhandlers + i);
+		}
 
 		/* init hash and outlists */
 		for (i = 0; i < CFG_HASHSIZE; i++)
@@ -309,9 +313,6 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		pthread_mutex_init(&freemtx, NULL);
 		pthread_mutex_init(&relmtx, NULL);
 		DQInit(&freelist); DQInit(&rellist);
-
-		/* get the sockets */
-		InitSockets();
 
 		/* start the threads */
 		pthread_create(&thd, NULL, RecvThread, NULL);
@@ -333,11 +334,15 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 
 		ml->ClearTimer(QueueMoreData);
 
-		/* release these */
-		mm->ReleaseInterface(pd);
-		mm->ReleaseInterface(cfg);
-		mm->ReleaseInterface(lm);
-		mm->ReleaseInterface(ml);
+		/* disconnect all clients nicely */
+		for (i = 0; i < MAXPLAYERS; i++)
+			if (players[i].status > S_FREE &&
+			    IS_OURS(i))
+			{
+				byte discon[2] = { 0x00, 0x07 };
+				SendRaw(i, discon, 2);
+				printf("sending discon to %d\n", i);
+			}
 
 		/* clean up */
 		for (i = 0; i < MAXTYPES; i++)
@@ -355,6 +360,12 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		close(mysock);
 		close(myothersock);
 		if (config.usebilling) close(mybillingsock);
+
+		/* release these */
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(lm);
+		mm->ReleaseInterface(ml);
 
 		return MM_OK;
 	}
@@ -509,14 +520,14 @@ void FreeBuffer(Buffer *dq)
 }
 
 
-void InitSockets(void)
+int InitSockets(void)
 {
 	struct sockaddr_in localsin;
 
 #ifdef WIN32
 	WSADATA wsad;
 	if (WSAStartup(MAKEWORD(1,1),&wsad))
-		Error(ERROR_GENERAL, "net: WSAStartup");
+		return -1;
 #endif
 
 	localsin.sin_family = AF_INET;
@@ -525,21 +536,36 @@ void InitSockets(void)
 	localsin.sin_port = htons(config.port);
 
 	if ((mysock = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
-		Error(ERROR_GENERAL, "net: socket");
+	{
+		perror("socket");
+		return -1;
+	}
 	if (bind(mysock, (struct sockaddr *) &localsin, sizeof(localsin)) == -1)
-		Error(ERROR_BIND, "net: bind");
+	{
+		perror("bind");
+		return -1;
+	}
 
 	localsin.sin_port = htons(config.port+1);
 	if ((myothersock = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
-		Error(ERROR_GENERAL, "net: socket");
+	{
+		perror("socket");
+		return -1;
+	}
 	if (bind(myothersock, (struct sockaddr *) &localsin, sizeof(localsin)) == -1)
-		Error(ERROR_BIND, "net: bind");
+	{
+		perror("bind");
+		return -1;
+	}
 
 	if (config.usebilling)
 	{
 		/* get socket */
 		if ((mybillingsock = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
-			Error(ERROR_GENERAL, "could not allocate billing socket");
+		{
+			perror("socket");
+			return -1;
+		}
 
 		/* set up billing client struct */
 		strcpy(players[PID_BILLER].name, "<<Billing Server>>");
@@ -552,11 +578,9 @@ void InitSockets(void)
 		clients[PID_BILLER].limit =
 			cfg->GetInt(GLOBAL, "Billing", "Limit", 15000);
 		clients[PID_BILLER].enc = NULL;
-
-		localsin.sin_port = htons(0);
-		if (bind(mybillingsock, (struct sockaddr *) &localsin, sizeof(localsin)) == -1)
-			Error(ERROR_BIND, "could not bind billing socket");
 	}
+	
+	return 0;
 }
 
 
@@ -1653,7 +1677,6 @@ void BufferPacket(int pid, byte *data, int len, int flags,
 		if (clients[pid].bytessince + len + IP_UDP_OVERHEAD <= limit)
 		{
 			SendRaw(pid, data, len);
-			pthread_mutex_unlock(outlistmtx + pid);
 			return;
 		}
 

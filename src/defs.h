@@ -124,13 +124,12 @@ enum
 
 
 /* hopefully useful exit codes */
-#define ERROR_NONE      0 /* an exit from *shutdown */
-#define ERROR_RECYCLE   1 /* an exit from *recycle */
-#define ERROR_GENERAL   2 /* a general 'something went wrong' error */
-#define ERROR_MEMORY    3 /* we ran out of memory */
-#define ERROR_BIND      4 /* we can't bind the port */
-#define ERROR_MODCONF   5 /* the initial module file is missing */
-#define ERROR_MODLOAD   6 /* an error loading initial modules */
+#define EXIT_NONE      0 /* an exit from *shutdown */
+#define EXIT_RECYCLE   1 /* an exit from *recycle */
+#define EXIT_GENERAL   2 /* a general 'something went wrong' error */
+#define EXIT_MEMORY    3 /* we ran out of memory */
+#define EXIT_MODCONF   4 /* the initial module file is missing */
+#define EXIT_MODLOAD   5 /* an error loading initial modules */
 
 
 /* authentication return codes */

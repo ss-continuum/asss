@@ -295,7 +295,8 @@ local ModuleData *GetModuleByName(const char *name)
 
 int UnloadModule(const char *name)
 {
-	return UnloadModuleByPtr(GetModuleByName(name));
+	ModuleData *mod = GetModuleByName(name);
+	return mod ? UnloadModuleByPtr(mod) : MM_FAIL;
 }
 
 
@@ -304,7 +305,9 @@ local void RecursiveUnload(Link *l)
 	if (l)
 	{
 		RecursiveUnload(l->next);
-		UnloadModuleByPtr((ModuleData*) l->data);
+		if (UnloadModuleByPtr((ModuleData*) l->data) == MM_FAIL)
+			fprintf(stderr, "E <module> Error unloading module %s\n",
+					((ModuleData*)(l->data))->name);
 	}
 }
 

@@ -127,7 +127,8 @@ local void get_arena_set(int *set, int arena)
 	int setc = 0, i;
 	pd->LockStatus();
 	for (i = 0; i < MAXPLAYERS; i++)
-		if (players[i].status == S_PLAYING && players[i].arena == arena)
+		if (players[i].status == S_PLAYING &&
+		    (arena == ALLARENAS || players[i].arena == arena))
 			set[setc++] = i;
 	pd->UnlockStatus();
 	set[setc] = -1;
@@ -203,7 +204,7 @@ local void handle_pub(int pid, const char *msg, int ismacro)
 {
 	int arena = players[pid].arena;
 	struct ChatPacket *to = alloca(strlen(msg) + 40);
-	
+
 	if (msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2 || msg[0] == CMD_CHAR_3)
 	{
 		Target target;
@@ -556,10 +557,11 @@ EXPORT int MM_chat(int action, Imodman *mm_, int arena)
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
+
 #ifdef CFG_PERSISTENT_CHAT_MASKS
 		persist = mm->GetInterface(I_PERSIST, ALLARENAS);
-
 		if (!persist) return MM_FAIL;
+		persist->RegPersistentData(&pdata);
 #endif
 
 		if (!cfg || !aman || !pd) return MM_FAIL;
@@ -567,9 +569,7 @@ EXPORT int MM_chat(int action, Imodman *mm_, int arena)
 		players = pd->players;
 		arenas = aman->arenas;
 
-#ifdef CFG_PERSISTENT_CHAT_MASKS
-		persist->RegPersistentData(&pdata);
-#else
+#ifndef CFG_PERSISTENT_CHAT_MASKS
 		mm->RegCallback(CB_PLAYERACTION, PAction, ALLARENAS);
 #endif
 		mm->RegCallback(CB_ARENAACTION, aaction, ALLARENAS);
@@ -593,12 +593,13 @@ EXPORT int MM_chat(int action, Imodman *mm_, int arena)
 			net->RemovePacket(C2S_CHAT, PChat);
 		if (chatnet)
 			chatnet->RemoveHandler("SEND", MChat);
+		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
 #ifdef CFG_PERSISTENT_CHAT_MASKS
 		persist->UnregPersistentData(&pdata);
+		mm->ReleaseInterface(persist);
 #else
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
 #endif
-		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(chatnet);

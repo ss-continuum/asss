@@ -80,14 +80,14 @@ local inline int good_arena(int scope, int arena)
 }
 
 
-local void fill_in_ag(char buf[16], int arena, int interval)
+local void fill_in_ag(char buf[MAXSGLEN], int arena, int interval)
 {
 	if (arena == PERSIST_GLOBAL)
-		strncpy(buf, SG_GLOBAL, sizeof(buf));
+		strncpy(buf, SG_GLOBAL, MAXSGLEN);
 	else if (INTERVAL_IS_SHARED(interval))
-		strncpy(buf, arena_data[arena].score_group, sizeof(buf));
+		strncpy(buf, arena_data[arena].score_group, MAXSGLEN);
 	else
-		strncpy(buf, arena_data[arena].name, sizeof(buf));
+		strncpy(buf, arena_data[arena].name, MAXSGLEN);
 }
 
 
@@ -456,13 +456,21 @@ local void EndInterval(int arena, int interval)
 }
 
 
-local void StabilizeScores(int seconds)
+local void StabilizeScores(int seconds, int query, void (*callback)(int dummy))
 {
 	DBMessage *msg = amalloc(sizeof(*msg));
 
+	if (query)
+	{
+		DBMessage *msg2 = amalloc(sizeof(*msg2));
+		msg2->command = DBCMD_PUTALL;
+		msg2->callback = NULL;
+		MPAdd(&dbq, msg2);
+	}
+
 	msg->command = DBCMD_SYNCWAIT;
 	msg->data1 = seconds;
-	msg->callback = NULL;
+	msg->callback = callback;
 
 	MPAdd(&dbq, msg);
 }
@@ -605,14 +613,15 @@ EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		ml->ClearTimer(SyncTimer);
 		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
+		ml->ClearTimer(SyncTimer);
 		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(ml);
 
 		MPAdd(&dbq, NULL);
 		pthread_join(dbthread, NULL);

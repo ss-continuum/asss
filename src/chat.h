@@ -49,6 +49,8 @@ typedef struct Ichat
 	void (*SendArenaSoundMessage)(int arena, char sound, const char *format, ...);
 	/* arpc: void(int, char, formatstr, etc) */
 
+	/* in the above two, use arena == ALLARENAS for zone. */
+
 	chat_mask_t (*GetArenaChatMask)(int arena);
 	/* arpc: ushort(int) */
 	void (*SetArenaChatMask)(int arena, chat_mask_t mask);

@@ -50,6 +50,8 @@ EXPORT int MM_encrypt1(int action, Imodman *mm, int arena)
 	{
 		mm->UnregCallback(CB_CONNINIT, ConnInit, ALLARENAS);
 		mm->ReleaseInterface(net);
+		/* don't destroy statmtx here, because we may be asked to
+		 * encrypt a few more packets. yes, it's ugly. */
 		return MM_OK;
 	}
 	return MM_FAIL;

@@ -70,7 +70,7 @@ typedef struct Ipersist
 	void (*SyncToFile)(int pid, int arena, void (*callback)(int pid));
 	void (*SyncFromFile)(int pid, int arena, void (*callback)(int pid));
 	void (*EndInterval)(int arena, int interval);
-	void (*StabilizeScores)(int seconds);
+	void (*StabilizeScores)(int seconds, int query, void (*callback)(int dummy));
 } Ipersist;
 
 

@@ -102,7 +102,7 @@ void *amalloc(size_t s)
 	void *ptr;
 	ptr = MALLOC(s);
 	if (!ptr)
-		Error(ERROR_MEMORY,"malloc error: requested %i bytes\n",s);
+		Error(EXIT_MEMORY,"malloc error: requested %i bytes\n",s);
 #ifndef USE_GC
 	memset(ptr, 0, s);
 #endif
@@ -116,7 +116,7 @@ char *astrdup(const char *s)
 		return NULL;
 	r = strdup(s);
 	if (!r)
-		Error(ERROR_MEMORY,"strdup error\n");
+		Error(EXIT_MEMORY,"strdup error\n");
 	return r;
 }
 

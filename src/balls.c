@@ -267,7 +267,13 @@ void SetBallCount(int arena, int ballcount)
 	 * balls into new memory. */
 	newbd = realloc(balldata[arena].balls, ballcount * sizeof(struct BallData));
 	if (!newbd && ballcount > 0)
-		Error(ERROR_MEMORY, "realloc failed!");
+	{
+		balldata[arena].ballcount = 0;
+		balldata[arena].balls = NULL;
+		logm->Log(L_ERROR, "<balls> realloc failed!");
+		UNLOCK_STATUS(arena);
+		return;
+	}
 	balldata[arena].ballcount = ballcount;
 	balldata[arena].balls = newbd;
 
