@@ -82,7 +82,8 @@ clean:
 	-rm -f asss *.o *.so elderd elderd.log core
 
 tags:
-	ctags *
+	flist -d *.c
+	flist -h *.c
 
 .PHONY: clean install all tags
 
