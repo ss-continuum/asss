@@ -775,6 +775,8 @@ void SendLoginResponse(Player *p)
 	{
 		if (AUTH_IS_OK(auth->code))
 			chatnet->SendToOne(p, "LOGINOK:%s", p->name);
+		else if (auth->code == AUTH_CUSTOMTEXT)
+			chatnet->SendToOne(p, "LOGINBAD:%s", auth->customtext);
 		else
 			chatnet->SendToOne(p, "LOGINBAD:%s", get_auth_code_msg(auth->code));
 	}
