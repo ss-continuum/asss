@@ -1,6 +1,8 @@
 ; conf/groups/default
 
+
 cmd_help
+cmd_go
 cmd_arena
 cmd_stats
 cmd_score

@@ -45,6 +45,7 @@ local Inet *net;
 local Ilogman *lm;
 local Iarenaman *aman;
 local Imainloop *ml;
+local Imapdata *mapdata;
 
 local int dlkey;
 
@@ -373,26 +374,6 @@ local void free_maps(Arena *arena)
 }
 
 
-#include "pathutil.h"
-
-local int real_get_filename(Arena *arena, const char *map, char *buffer, int bufferlen)
-{
-	struct replace_table repls[2] =
-	{
-		{'a', arena->basename},
-		{'m', map}
-	};
-
-	if (!map) return -1;
-
-	return find_file_on_path(
-			buffer,
-			bufferlen,
-			CFG_MAP_SEARCH_PATH,
-			repls,
-			2);
-}
-
 local void ArenaAction(Arena *arena, int action)
 {
 	LinkedList *dls = P_ARENA_DATA(arena, dlkey);
@@ -410,11 +391,7 @@ local void ArenaAction(Arena *arena, int action)
 		/* first add the map itself */
 		/* cfghelp: General:Map, arena, string
 		 * The name of the level file for this arena. */
-		if (real_get_filename(
-					arena,
-					cfg->GetStr(arena->cfg, "General", "Map"),
-					fname,
-					256) != -1)
+		if (mapdata->GetMapFilename(arena, fname, sizeof(fname), NULL))
 		{
 			data = compress_map(fname, 1);
 			if (data)
@@ -427,10 +404,10 @@ local void ArenaAction(Arena *arena, int action)
 		 * A '+' before any file means it's marked as optional. */
 		lvzs = cfg->GetStr(arena->cfg, "General", "LevelFiles");
 		if (!lvzs) lvzs = cfg->GetStr(arena->cfg, "Misc", "LevelFiles");
-		while (strsplit(lvzs, ",: ", lvzname, 256, &tmp))
+		while (strsplit(lvzs, ",: ", lvzname, sizeof(lvzname), &tmp))
 		{
 			char *real = lvzname[0] == '+' ? lvzname+1 : lvzname;
-			if (real_get_filename(arena, real, fname, 256) != -1)
+			if (mapdata->GetMapFilename(arena, fname, sizeof(fname), real))
 			{
 				data = compress_map(fname, 0);
 				if (data)
@@ -567,8 +544,9 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, Arena *arena)
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
 
-		if (!net || !cfg || !lm || !ml || !aman || !pd) return MM_FAIL;
+		if (!net || !cfg || !lm || !ml || !aman || !pd || !mapdata) return MM_FAIL;
 
 		dlkey = aman->AllocateArenaData(sizeof(LinkedList));
 		if (dlkey == -1) return MM_FAIL;
@@ -616,6 +594,7 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(ml);
 		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(mapdata);
 		return MM_OK;
 	}
 	return MM_FAIL;

@@ -27,7 +27,7 @@ local void load_pubnames(void)
 }
 
 
-local int Place(char *retname, int namelen, Player *pp)
+local int Place(char *retname, int namelen, int *x, int *y, Player *pp)
 {
 	LinkedList *trylist;
 	Link *l;

@@ -4,11 +4,12 @@
 
 
 /* the search path for config files */
-#define CFG_CONFIG_SEARCH_PATH "arenas/%a/%n:defaultarena/%n:conf/%n:%n"
+#define CFG_CONFIG_SEARCH_PATH "arenas/%a/%n:arenas/%b/%n:defaultarena/%n:conf/%n:%n"
 
 
 /* the search path for map files */
-#define CFG_MAP_SEARCH_PATH "arenas/%a/%m:defaultarena/%m:maps/%m:%m"
+#define CFG_LVL_SEARCH_PATH "arenas/%a/%m:arenas/%b/%m:arenas/%a.lvl:maps/%a.lvl:defaultarena/%m:maps/%m:%m"
+#define CFG_LVZ_SEARCH_PATH "arenas/%a/%m:arenas/%b/%m:defaultarena/%m:maps/%m:%m"
 
 
 /* whether to log private and chat messages */

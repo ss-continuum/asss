@@ -53,6 +53,7 @@ local int read_lvl(char *name, struct MapData *md);
 local HashTable * LoadRegions(char *fname);
 
 /* interface funcs */
+local int GetMapFilename(Arena *arena, char *buf, int buflen, const char *mapname);
 local int GetFlagCount(Arena *arena);
 local int GetTile(Arena *arena, int x, int y);
 local const char *GetRegion(Arena *arena, int x, int y);
@@ -77,6 +78,7 @@ local Ilogman *lm;
 local Imapdata _int =
 {
 	INTERFACE_HEAD_INIT(I_MAPDATA, "mapdata")
+	GetMapFilename,
 	GetFlagCount, GetTile,
 	GetRegion, InRegion,
 	FindFlagTile, FindBrickEndpoints,
@@ -189,22 +191,36 @@ local void FreeRegion(char *k, void *v, void *d)
 
 #include "pathutil.h"
 
-local int real_get_filename(Arena *arena, const char *map, char *buffer, int bufferlen)
+local int GetMapFilename(Arena *arena, char *buf, int buflen, const char *mapname)
 {
-	struct replace_table repls[2] =
+	int islvl;
+	const char *t;
+	struct replace_table repls[3] =
 	{
-		{'a', arena->basename},
-		{'m', map}
+		{'m', NULL},
+		{'a', arena->name},
+		{'b', arena->basename},
 	};
 
-	if (!map) return -1;
+	if (!buf)
+		return FALSE;
+	if (!mapname)
+		mapname = cfg->GetStr(arena->cfg, "General", "Map");
+	if (!mapname)
+		return FALSE;
+
+	repls[0].with = mapname;
+
+	t = strrchr(mapname, '.');
+	if (t && strcmp(t, ".lvl") == 0)
+		islvl = 1;
 
 	return find_file_on_path(
-			buffer,
-			bufferlen,
-			CFG_MAP_SEARCH_PATH,
+			buf,
+			buflen,
+			islvl ? CFG_LVL_SEARCH_PATH : CFG_LVZ_SEARCH_PATH,
 			repls,
-			2);
+			3) == 0;
 }
 
 void ArenaAction(Arena *arena, int action)
@@ -241,14 +257,7 @@ void ArenaAction(Arena *arena, int action)
 	{
 		char mapname[256];
 		pthread_mutex_lock(&md->mtx);
-		if (real_get_filename(
-					arena,
-					cfg->GetStr(arena->cfg, "General", "Map"),
-					mapname,
-					256) == -1)
-			lm->Log(L_ERROR, "<mapdata> {%s} Can't find map file for arena",
-					arena->name);
-		else
+		if (GetMapFilename(arena, mapname, sizeof(mapname), NULL))
 		{
 			char *t;
 
@@ -257,13 +266,16 @@ void ArenaAction(Arena *arena, int action)
 						arena->name, mapname);
 			/* if extension == .lvl */
 			t = strrchr(mapname, '.');
-			if (t && t[1] == 'l' && t[2] == 'v' && t[3] == 'l' && t[4] == 0)
+			if (t && strcmp(t, ".lvl") == 0)
 			{
 				/* change extension to rgn */
 				t[1] = 'r'; t[2] = 'g'; t[3] = 'n';
 				md->regions = LoadRegions(mapname);
 			}
 		}
+		else
+			lm->Log(L_ERROR, "<mapdata> {%s} Can't find map file for arena",
+					arena->name);
 		pthread_mutex_unlock(&md->mtx);
 	}
 }

@@ -24,6 +24,13 @@ typedef void (*ShipChangeFunc)(Player *p, int newship, int newfreq);
 #define CB_TIMESUP ("timesup")
 typedef void (*GameTimerFunc)(Arena *arena);
 
+
+/* this is called when someone enters or leaves a safe zone. x and y are
+ * in pixels. entering is true if entering, false if exiting. */
+#define CB_SAFEZONE ("safezone")
+typedef void (*SafeZoneFunc)(Player *p, int x, int y, int entering);
+
+
 /* these should be mostly self-explanatory. */
 
 #define I_GAME "game-3"

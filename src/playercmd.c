@@ -41,7 +41,6 @@ local Ichat *chat;
 local Ilogman *lm;
 local Icmdman *cmd;
 local Inet *net;
-local Ichatnet *chatnet;
 local Iconfig *cfg;
 local Icapman *capman;
 local Igroupman *groupman;
@@ -65,7 +64,7 @@ local void translate_arena_packet(Player *p, char *pkt, int len)
 	{
 		const char *next = pos + strlen(pos) + 3;
 		int count = ((byte)next[-1] << 8) | (byte)next[-2];
-		/* manually sign extend. yuck. */
+		/* manually two's complement. yuck. */
 		if (count & 0x8000)
 			chat->SendMessage(p, "  %-16s %3d (current)", pos, (count ^ 0xffff) + 1);
 		else
@@ -632,11 +631,16 @@ local void Cinfo(const char *params, Player *p, const Target *target)
 		}
 		else if (IS_CHAT(t))
 		{
-			struct chat_client_stats s;
-			chatnet->GetClientStats(t, &s);
-			chat->SendMessage(p,
-					"%s: ip=%s  port=%d",
-					prefix, s.ipaddr, s.port);
+			Ichatnet *chatnet = mm->GetInterface(I_CHATNET, ALLARENAS);
+			if (chatnet)
+			{
+				struct chat_client_stats s;
+				chatnet->GetClientStats(t, &s);
+				chat->SendMessage(p,
+						"%s: ip=%s  port=%d",
+						prefix, s.ipaddr, s.port);
+				mm->ReleaseInterface(chatnet);
+			}
 		}
 	}
 }
@@ -815,7 +819,7 @@ local void Cwarpto(const char *params, Player *p, const Target *target)
 local helptext_t send_help =
 "Targets: player\n"
 "Args: <arena name>\n"
-"Sends target player to the named arena. (Works on Continuum users only)\n";
+"Sends target player to the named arena. (Works on Continuum users only.)\n";
 
 local void Csend(const char *params, Player *p, const Target *target)
 {
@@ -1553,7 +1557,6 @@ local const struct interface_info core_requires[] =
 {
 	REQUIRE(aman, I_ARENAMAN)
 	REQUIRE(net, I_NET)
-	REQUIRE(chatnet, I_CHATNET)
 	REQUIRE(ml, I_MAINLOOP)
 	END()
 };
@@ -1584,7 +1587,6 @@ local const struct interface_info game_requires[] =
 	REQUIRE(net, I_NET)
 	REQUIRE(aman, I_ARENAMAN)
 	REQUIRE(game, I_GAME)
-	REQUIRE(jackpot, I_JACKPOT)
 	REQUIRE(cfg, I_CONFIG)
 	END()
 };
@@ -1596,6 +1598,18 @@ local const struct cmd_info game_commands[] =
 	CMD(warpto)
 	CMD(shipreset)
 	CMD(prize)
+	END()
+};
+
+
+local const struct interface_info jackpot_requires[] =
+{
+	REQUIRE(aman, I_ARENAMAN)
+	REQUIRE(jackpot, I_JACKPOT)
+	END()
+};
+local const struct cmd_info jackpot_commands[] =
+{
 	CMD(jackpot)
 	END()
 };
@@ -1687,6 +1701,7 @@ local struct cmd_group all_cmd_groups[] =
 {
 	CMD_GROUP(core)
 	CMD_GROUP(game)
+	CMD_GROUP(jackpot)
 	CMD_GROUP(config)
 	CMD_GROUP(flag)
 	CMD_GROUP(ball)

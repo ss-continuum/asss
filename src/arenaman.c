@@ -140,7 +140,7 @@ local int ProcessArenaStates(void *dummy)
 		{
 			case ARENA_DO_INIT:
 				/* config file */
-				a->cfg = cfg->OpenConfigFile(a->basename, NULL, arena_conf_changed, a);
+				a->cfg = cfg->OpenConfigFile(a->name, NULL, arena_conf_changed, a);
 				/* attach modules */
 				do_attach(a, MM_ATTACH);
 				/* now callbacks */
@@ -445,10 +445,21 @@ local void complete_go(Player *p, const char *reqname, int ship, int xres, int y
 }
 
 
+local int has_cap_go(Player *p)
+{
+	/* check capability to ?go anywhere */
+	Icapman *capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
+	int has = capman ? capman->HasCapability(p, "cmd_go") : TRUE;
+	mm->ReleaseInterface(capman);
+	return has;
+}
+
+
 local void PArena(Player *p, byte *pkt, int l)
 {
 	struct GoArenaPacket *go = (struct GoArenaPacket*)pkt;
 	char name[16];
+	int spx = 0, spy = 0;
 
 #ifdef CFG_RELAX_LENGTH_CHECKS
 	if (l != LEN_GOARENAPACKET_VIE && l != LEN_GOARENAPACKET_CONT)
@@ -472,6 +483,7 @@ local void PArena(Player *p, byte *pkt, int l)
 	/* make a name from the request */
 	if (go->arenatype == -3)
 	{
+		if (!has_cap_go(p)) return;
 		astrncpy(name, go->arenaname, 16);
 	}
 	else if (go->arenatype == -2 || go->arenatype == -1)
@@ -479,7 +491,7 @@ local void PArena(Player *p, byte *pkt, int l)
 		Iarenaplace *ap = mm->GetInterface(I_ARENAPLACE, ALLARENAS);
 		if (ap)
 		{
-			if (!ap->Place(name, sizeof(name), p))
+			if (!ap->Place(name, sizeof(name), &spx, &spy, p))
 				strcpy(name, "0");
 			mm->ReleaseInterface(ap);
 		}
@@ -488,6 +500,7 @@ local void PArena(Player *p, byte *pkt, int l)
 	}
 	else if (go->arenatype >= 0 && go->arenatype <= 9)
 	{
+		if (!has_cap_go(p)) return;
 		name[0] = go->arenatype + '0';
 		name[1] = 0;
 	}
@@ -497,7 +510,7 @@ local void PArena(Player *p, byte *pkt, int l)
 		return;
 	}
 
-	complete_go(p, name, go->shiptype, go->xres, go->yres, go->optionalgraphics, 0, 0);
+	complete_go(p, name, go->shiptype, go->xres, go->yres, go->optionalgraphics, spx, spy);
 }
 
 

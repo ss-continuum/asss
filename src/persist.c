@@ -376,7 +376,12 @@ local void do_put_player(Player *p, Arena *arena)
 
 	pd->LockPlayer(p);
 	for (l = LLGetHead(&playerpd); l; l = l->next)
-		put_one_player(l->data, p, arena, -1);
+	{
+		PlayerPersistentData *ppd = l->data;
+		if ((ppd->scope == PERSIST_GLOBAL && arena == NULL) ||
+		    (ppd->scope == PERSIST_ALLARENAS && arena != NULL))
+			put_one_player(ppd, p, arena, -1);
+	}
 	pd->UnlockPlayer(p);
 }
 
@@ -493,7 +498,12 @@ local void *DBThread(void *dummy)
 			case DBCMD_GET_PLAYER:
 				pd->LockPlayer(msg->p);
 				for (l = LLGetHead(&playerpd); l; l = l->next)
-					get_one_player(l->data, msg->p, msg->arena, -1);
+				{
+					PlayerPersistentData *ppd = l->data;
+					if ((ppd->scope == PERSIST_GLOBAL && msg->arena == NULL) ||
+					    (ppd->scope == PERSIST_ALLARENAS && msg->arena != NULL))
+						get_one_player(ppd, msg->p, msg->arena, -1);
+				}
 				pd->UnlockPlayer(msg->p);
 				break;
 

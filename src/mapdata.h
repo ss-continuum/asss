@@ -15,11 +15,16 @@
  */
 
 
-#define I_MAPDATA "mapdata-2"
+#define I_MAPDATA "mapdata-3"
 
 typedef struct Imapdata
 {
 	INTERFACE_HEAD_DECL
+
+	int (*GetMapFilename)(Arena *arena, char *buf, int buflen, const char *mapname);
+	/* returns true if it could find a map and put the filename in buf.
+	 * false if it couldn't find a map or buf wasn't big enough. mapname
+	 * should be null unless you're looking for lvzs or something. */
 
 	int (*GetFlagCount)(Arena *arena);
 	/* gets the number of turf flags on the map */

@@ -119,7 +119,7 @@ local void FlushDirtyValues(void)
 }
 
 
-local void ReportError(const char *error)
+local void report_error(const char *error)
 {
 	if (lm)
 		lm->Log(L_WARN, "<config> %s", error);
@@ -127,16 +127,28 @@ local void ReportError(const char *error)
 		fprintf(stderr, "W <config> %s\n", error);
 }
 
-local int LocateConfigFile(char *dest, int destlen, const char *arena, const char *name)
+local int locate_config_file(char *dest, int destlen, const char *arena, const char *name)
 {
 	const char *path = CFG_CONFIG_SEARCH_PATH;
+	char basename[32];
 	struct replace_table repls[] =
-		{ { 'n', name }, { 'a', arena } };
+		{ { 'n', name }, { 'a', arena }, { 'b', basename } };
 
 	if (!name)
 		repls[0].with = arena ? "arena.conf" : "global.conf";
 
-	return find_file_on_path(dest, destlen, path, repls, arena ? 2 : 1);
+	/* some uglyness: we duplicate the basename calculation here.
+	 * ideally, we'd do it only once (in arenaman). */
+	if (arena)
+	{
+		char *t;
+		astrncpy(basename, arena, sizeof(basename));
+		t = basename + strlen(basename) - 1;
+		while ((t > basename) && isdigit(*t))
+			*(t--) = 0;
+	}
+
+	return find_file_on_path(dest, destlen, path, repls, arena ? 3 : 1);
 }
 
 
@@ -148,7 +160,7 @@ local void do_load(ConfigHandle ch, const char *arena, const char *name)
 	char line[LINESIZE], *buf, *t;
 	char key[MAXSECTIONLEN+MAXKEYLEN+3], *thespot = NULL;
 
-	ctx = InitContext(LocateConfigFile, ReportError, arena);
+	ctx = InitContext(locate_config_file, report_error, arena);
 
 	/* set up some values */
 	AddDef(ctx, "VERSION", ASSSVERSION);
@@ -304,7 +316,7 @@ local ConfigHandle new_file()
 }
 
 
-local ConfigHandle LoadConfigFile(const char *arena, const char *name,
+local ConfigHandle OpenConfigFile(const char *arena, const char *name,
 		ConfigChangedFunc func, void *clos)
 {
 	ConfigHandle thefile;
@@ -312,7 +324,7 @@ local ConfigHandle LoadConfigFile(const char *arena, const char *name,
 	struct stat st;
 
 	/* make sure at least the base file exists */
-	if (LocateConfigFile(fname, PATH_MAX, arena, name) == -1)
+	if (locate_config_file(fname, PATH_MAX, arena, name) == -1)
 		return NULL;
 
 	/* first try to get it out of the table */
@@ -344,7 +356,7 @@ local ConfigHandle LoadConfigFile(const char *arena, const char *name,
 	return thefile;
 }
 
-local void FreeConfigFile(ConfigHandle ch)
+local void CloseConfigFile(ConfigHandle ch)
 {
 	if (!ch) return;
 
@@ -493,7 +505,7 @@ local Iconfig _int =
 {
 	INTERFACE_HEAD_INIT(I_CONFIG, "config-file")
 	GetStr, GetInt, SetStr, SetInt,
-	LoadConfigFile, FreeConfigFile, ReloadConfigFile,
+	OpenConfigFile, CloseConfigFile, ReloadConfigFile,
 	FlushDirtyValues, CheckModifiedFiles
 };
 
@@ -514,7 +526,7 @@ EXPORT int MM_config(int action, Imodman *mm_, Arena *arena)
 		pthread_mutex_init(&cfgmtx, &attr);
 		pthread_mutexattr_destroy(&attr);
 
-		global = LoadConfigFile(NULL, NULL, global_changed, NULL);
+		global = OpenConfigFile(NULL, NULL, global_changed, NULL);
 		if (!global) return MM_FAIL;
 	
 		lm = NULL;
@@ -553,7 +565,7 @@ EXPORT int MM_config(int action, Imodman *mm_, Arena *arena)
 			for (l = LLGetHead(&files); l; l = n)
 			{
 				n = l->next;
-				FreeConfigFile(l->data);
+				CloseConfigFile(l->data);
 			}
 		}
 

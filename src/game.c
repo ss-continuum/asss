@@ -454,6 +454,9 @@ void Pppk(Player *p, byte *p2, int n)
 	 * zeroed before data was recvd into it. */
 	memcpy(&data->pos, p2, sizeof(data->pos));
 
+	if ((pos->status & 0x20) != p->position.status)
+		DO_CBS(CB_SAFEZONE, arena, SafeZoneFunc, (p, pos->x, pos->y, pos->status & 0x20));
+
 	/* update position in global players array */
 	p->position.x = pos->x;
 	p->position.y = pos->y;

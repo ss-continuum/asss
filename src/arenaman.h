@@ -68,7 +68,7 @@ typedef struct Iarenaman
 	void (*LeaveArena)(Player *p);
 
 	void (*SendToArena)(Player *p, const char *aname, int spawnx, int spawny);
-	/* works on cont clients only. set spawnx/y to 0 for default spawn */
+	/* works on cont clients only. set spawnx/y to 0 for default spawn. */
 
 	Arena * (*FindArena)(const char *name, int *totalcount, int *playing);
 	/* this is a multi-purpose function. given a name, it returns either
@@ -108,12 +108,12 @@ typedef struct Iarenaman
 			          link = link->next) || 1); )
 
 
-#define I_ARENAPLACE "arenaplace-1"
+#define I_ARENAPLACE "arenaplace-2"
 
 typedef struct Iarenaplace
 {
 	INTERFACE_HEAD_DECL
-	int (*Place)(char *name, int namelen, Player *p);
+	int (*Place)(char *name, int namelen, int *spawnx, int *spawny, Player *p);
 	/* this should put an arena name in name, which has namelen space.
 	 * if it puts a name there, it should return true, if not (it failed
 	 * for some reason), return false. */
