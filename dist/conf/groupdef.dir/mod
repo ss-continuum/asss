@@ -78,3 +78,6 @@ privcmd_setcm
 ; prefix chars
 prefix_+
 
+; what groups can this group control
+higher_than_default
+
