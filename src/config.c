@@ -424,6 +424,7 @@ local void SetStr(ConfigHandle ch, const char *sec, const char *key,
 {
 	struct Entry *e;
 	char keystring[MAXSECTIONLEN+MAXKEYLEN+2], *data;
+	const char *res;
 
 	if (!ch || !val) return;
 	if (ch == GLOBAL) ch = global;
@@ -437,6 +438,16 @@ local void SetStr(ConfigHandle ch, const char *sec, const char *key,
 	else
 		return;
 
+	pthread_mutex_lock(&ch->mutex);
+
+	/* check it against the current value */
+	res = HashGetOne(ch->thetable, keystring);
+	if (res && !strcmp(res, val))
+	{
+		pthread_mutex_unlock(&ch->mutex);
+		return;
+	}
+
 	if (perm)
 	{
 		/* make a dirty list entry for it */
@@ -445,7 +456,6 @@ local void SetStr(ConfigHandle ch, const char *sec, const char *key,
 		e->info = astrdup(info);
 	}
 
-	pthread_mutex_lock(&ch->mutex);
 	data = SCAdd(ch->thestrings, val);
 	HashReplace(ch->thetable, keystring, data);
 	if (perm)
