@@ -154,6 +154,8 @@ typedef struct Igroupman
 #define CAP_CHANGESETTINGS        "changesettings"
 /** if a player shows up in ?listmod output */
 #define CAP_IS_STAFF              "isstaff"
+/** if a player can sees all non-group-default players even if they lack isstaff */
+#define CAP_SEE_ALL_STAFF         "seeallstaff"
 
 
 #endif

@@ -65,7 +65,7 @@ typedef void (*CommandFunc2)(const char *command, const char *params,
 typedef const char *helptext_t;
 
 /** the interface id for Icmdman */
-#define I_CMDMAN "cmdman-6"
+#define I_CMDMAN "cmdman-7"
 
 /** the interface struct for Icmdman */
 typedef struct Icmdman
@@ -111,7 +111,7 @@ typedef struct Icmdman
 	 * @param target how the command was issued
 	 */
 	void (*Command)(const char *typedline, Player *p, const Target *target);
-	helptext_t (*GetHelpText)(const char *cmdname);
+	helptext_t (*GetHelpText)(const char *cmdname, Arena *arena);
 } Icmdman;
 
 #endif

@@ -80,7 +80,7 @@ local void update_group(Player *p, Arena *arena)
 }
 
 
-local void PlayerAction(Player *p, int action, Arena *arena)
+local void paction(Player *p, int action, Arena *arena)
 {
 	char *group = ((pdata*)PPDATA(p, pdkey))->group;
 	if (action == PA_PREENTERARENA)
@@ -88,6 +88,13 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 	else if (action == PA_CONNECT)
 		update_group(p, NULL);
 	else if (action == PA_DISCONNECT || action == PA_LEAVEARENA)
+		astrncpy(group, "none", MAXGROUPLEN);
+}
+
+local void new_player(Player *p, int isnew)
+{
+	char *group = ((pdata*)PPDATA(p, pdkey))->group;
+	if (isnew)
 		astrncpy(group, "none", MAXGROUPLEN);
 }
 
@@ -231,7 +238,8 @@ EXPORT int MM_capman(int action, Imodman *mm_, Arena *arena)
 		pdkey = pd->AllocatePlayerData(sizeof(pdata));
 		if (pdkey == -1) return MM_FAIL;
 
-		mm->RegCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
+		mm->RegCallback(CB_PLAYERACTION, paction, ALLARENAS);
+		mm->RegCallback(CB_NEWPLAYER, new_player, ALLARENAS);
 
 		groupdef = cfg->OpenConfigFile(NULL, "groupdef.conf", NULL, NULL);
 		staff_conf = cfg->OpenConfigFile(NULL, "staff.conf", NULL, NULL);
@@ -248,7 +256,8 @@ EXPORT int MM_capman(int action, Imodman *mm_, Arena *arena)
 			return MM_FAIL;
 		cfg->CloseConfigFile(groupdef);
 		cfg->CloseConfigFile(staff_conf);
-		mm->UnregCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
+		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
+		mm->UnregCallback(CB_NEWPLAYER, new_player, ALLARENAS);
 		pd->FreePlayerData(pdkey);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(lm);

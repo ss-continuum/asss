@@ -375,12 +375,14 @@ local void handle_modchat(Player *p, const char *msg, int sound)
 		}
 		else
 		{
+			SendMessage_(p, "You aren't allowed to use the staff chat. "
+					"If you need to send a message to the zone staff, use ?cheater.");
 			lm->LogP(L_DRIVEL, "chat", p, "attempted mod chat "
 					"(missing cap or shutup): %s", msg);
 		}
 	}
 	else
-		SendMessage_(p, "Mod chat is currently disabled");
+		SendMessage_(p, "Staff chat is currently disabled");
 }
 
 

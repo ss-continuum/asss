@@ -636,19 +636,32 @@ local helptext_t listmod_help =
 
 local void Clistmod(const char *params, Player *p, const Target *target)
 {
+	int seehid = capman->HasCapability(p, CAP_SEEPRIVARENA);
+	int seeallstaff = capman->HasCapability(p, CAP_SEE_ALL_STAFF);
 	Player *i;
 	Link *link;
-	int seehid = capman->HasCapability(p, CAP_SEEPRIVARENA);
+	const char *grp, *fmt;
 
 	pd->Lock();
 	FOR_EACH_PLAYER(i)
-		if (i->status == S_PLAYING &&
-		    capman->HasCapability(i, CAP_IS_STAFF))
-			chat->SendMessage(p, ": %20s %10s %10s",
-					i->name,
+	{
+		if (i->status != S_PLAYING)
+			continue;
+
+		grp = groupman->GetGroup(i);
+
+		if (capman->HasCapability(i, CAP_IS_STAFF))
+			fmt = ": %20s %10s %10s";
+		else if (seeallstaff && strcmp(grp, "default") != 0)
+			fmt = ": %20s %10s (%8s)";
+		else
+			fmt = NULL;
+
+		if (fmt)
+			chat->SendMessage( p, fmt, i->name,
 					(i->arena->name[0] != '#' || seehid || p->arena == i->arena) ?
-						i->arena->name : "(private)",
-					groupman->GetGroup(i));
+						i->arena->name : "(private)", grp);
+	}
 	pd->Unlock();
 }
 
@@ -930,7 +943,7 @@ local void Ccheater(const char *params, Player *p, const Target *target)
 	Arena *arena = p->arena;
 	if (IS_ALLOWED(chat->GetPlayerChatMask(p), MSG_MODCHAT))
 	{
-		chat->SendModMessage("cheater {%s} %s> %s",
+		chat->SendModMessage("cheater {%s} %s: %s",
 				arena->name, p->name, params);
 		chat->SendMessage(p, "Message has been sent to online staff");
 	}
@@ -952,6 +965,8 @@ local void Cwarn(const char *params, Player *p, const Target *target)
 		LinkedList lst = { &link, &link };
 		chat->SendAnyMessage(&lst, MSG_SYSOPWARNING, SOUND_BEEP1, NULL,
 				"WARNING: %s  -%s", params, p->name);
+		chat->SendModMessage("warn {%s} %s to %s: %s",
+				p->arena->name, p->name, target->u.p->name, params);
 		chat->SendMessage(p, "Player warned");
 	}
 }

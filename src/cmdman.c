@@ -25,7 +25,7 @@ local void RemoveCommand(const char *, CommandFunc);
 local void AddCommand2(const char *, CommandFunc2, Arena *, helptext_t);
 local void RemoveCommand2(const char *, CommandFunc2, Arena *);
 local void Command(const char *, Player *, const Target *);
-local helptext_t GetHelpText(const char *);
+local helptext_t GetHelpText(const char *, Arena *);
 
 /* static data */
 local Iplayerdata *pd;
@@ -323,14 +323,20 @@ void Command(const char *line, Player *p, const Target *target)
 }
 
 
-helptext_t GetHelpText(const char *cmd)
+helptext_t GetHelpText(const char *cmd, Arena *a)
 {
-	cmddata_t *cd;
-	helptext_t ret;
+	helptext_t ret = NULL;
+	LinkedList lst = LL_INITIALIZER;
+	Link *l;
 
 	pthread_mutex_lock(&cmdmtx);
-	cd = HashGetOne(cmds, cmd);
-	ret = cd ? cd->helptext : NULL;
+	HashGetAppend(cmds, cmd, &lst);
+	for (l = LLGetHead(&lst); l; l = l->next)
+	{
+		cmddata_t *cd = l->data;
+		if (cd->arena == ALLARENAS || cd->arena == a)
+			ret = cd->helptext;
+	}
 	pthread_mutex_unlock(&cmdmtx);
 
 	return ret;

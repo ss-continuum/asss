@@ -16,8 +16,8 @@ local void do_cmd_help(Player *p, const char *cmd)
 	char buf[256], *t;
 	const char *temp = NULL;
 	helptext_t ht;
-	
-	ht = cmdman->GetHelpText(cmd);
+
+	ht = cmdman->GetHelpText(cmd, p->arena);
 
 	if (ht)
 	{
