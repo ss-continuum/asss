@@ -554,7 +554,7 @@ EXPORT int MM_chatnet(int action, Imodman *mm_, int arena)
 		handlers = HashAlloc(71);
 
 		/* install timer */
-		ml->SetTimer(main_loop, 10, 10, NULL);
+		ml->SetTimer(main_loop, 10, 10, NULL, -1);
 
 		/* install ourself */
 		mm->RegInterface(&_int, ALLARENAS);
@@ -567,7 +567,7 @@ EXPORT int MM_chatnet(int action, Imodman *mm_, int arena)
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 
-		ml->ClearTimer(main_loop);
+		ml->ClearTimer(main_loop, -1);
 
 		/* clean up */
 		HashFree(handlers);

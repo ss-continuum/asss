@@ -29,20 +29,31 @@
 
 
 typedef int (*TimerFunc)(void *param);
-
+typedef void (*CleanupFunc)(void *param);
 typedef void (*MainLoopFunc)(void);
 
 #define CB_MAINLOOP ("mainloop")
 
 
-#define I_MAINLOOP "mainloop-1"
+#define I_MAINLOOP "mainloop-2"
 
 typedef struct Imainloop
 {
 	INTERFACE_HEAD_DECL
 
-	void (*SetTimer)(TimerFunc func, int initialdelay, int interval, void *param);
-	void (*ClearTimer)(TimerFunc func);
+	void (*SetTimer)(TimerFunc func, int initialdelay, int interval,
+			void *param, int key);
+	/* key is a number that can be used to selectively clear timers.
+	 * setting key to an arena id makes a lot of sense. */
+
+	void (*ClearTimer)(TimerFunc func, int key);
+	/* clears all timers using the function with the given key. calling
+	 * this with a key of -1 means clear all timers using that function,
+	 * regardless of key */
+
+	void (*CleanupTimer)(TimerFunc func, int key, CleanupFunc cleanup);
+	/* does the same as ClearTimer, but calls a cleanup function with
+	 * the timer's parameter after it removes it */
 
 	int (*RunLoop)(void);
 	void (*Quit)(int code);

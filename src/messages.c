@@ -39,22 +39,22 @@ local int msg_timer(void *v)
 	int i;
 	periodic_msgs *pm = (periodic_msgs*)v;
 
-	if (!pm->die)
-	{
-		pm->count++;
-		for (i = 0; i < MAXMSGS; i++)
-			if (pm->msgs[i].msg && pm->msgs[i].interval > 0)
-				if ((pm->count % pm->msgs[i].interval) == 0)
-					chat->SendArenaMessage(pm->arena, "%s", pm->msgs[i].msg);
-		return TRUE;
-	}
-	else
-	{
-		for (i = 0; i < MAXARENA; i++)
-			afree(pm->msgs[i].msg);
-		afree(pm);
-		return FALSE;
-	}
+	pm->count++;
+	for (i = 0; i < MAXMSGS; i++)
+		if (pm->msgs[i].msg && pm->msgs[i].interval > 0)
+			if ((pm->count % pm->msgs[i].interval) == 0)
+				chat->SendArenaMessage(pm->arena, "%s", pm->msgs[i].msg);
+	return TRUE;
+}
+
+local void msg_cleanup(void *v)
+{
+	int i;
+	periodic_msgs *pm = (periodic_msgs*)v;
+
+	for (i = 0; i < MAXARENA; i++)
+		afree(pm->msgs[i].msg);
+	afree(pm);
 }
 
 
@@ -73,18 +73,6 @@ local void paction(int pid, int action, int arena)
 }
 
 
-/* call with lock */
-local void remove_msgs(int arena)
-{
-	periodic_msgs *pm = msgs[arena];
-
-	/* the timer will notice this and free the struct */
-	if (pm)
-		pm->die = 1;
-
-	msgs[arena] = NULL;
-}
-
 /* starts timer to handle periodmessages */
 local void aaction(int arena, int action)
 {
@@ -93,8 +81,6 @@ local void aaction(int arena, int action)
 	{
 		int i, c = 0;
 		periodic_msgs *pm;
-
-		remove_msgs(arena);
 
 		pm = amalloc(sizeof(*pm));
 		pm->die = 0;
@@ -138,7 +124,7 @@ local void aaction(int arena, int action)
 
 		if (c)
 		{
-			ml->SetTimer(msg_timer, 6000, 6000, pm);
+			ml->SetTimer(msg_timer, 6000, 6000, pm, arena);
 			msgs[arena] = pm;
 		}
 		else
@@ -146,7 +132,7 @@ local void aaction(int arena, int action)
 	}
 	else if (action == AA_DESTROY)
 	{
-		remove_msgs(arena);
+		ml->CleanupTimer(msg_timer, arena, msg_cleanup);
 	}
 	UNLOCK();
 }
@@ -175,7 +161,7 @@ EXPORT int MM_messages(int action, Imodman *mm, int arena)
 		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
 
-		ml->ClearTimer(msg_timer);
+		ml->CleanupTimer(msg_timer, -1, msg_cleanup);
 
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(pd);

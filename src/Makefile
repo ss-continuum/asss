@@ -69,7 +69,7 @@ database.so: mysql.o aliasdb.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(MYSQLLIB) -lmysqlclient_r -lz
 
 funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
-	fake.o autoturret.o chatnet.o md5.o auth_file.o
+	fake.o autoturret.o chatnet.o md5.o auth_file.o turf_reward.o
 
 
 

@@ -850,7 +850,7 @@ EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 		cfg_syncseconds = cfg ?
 				cfg->GetInt(GLOBAL, "Persist", "SyncSeconds", 180) : 180;
 
-		ml->SetTimer(SyncTimer, 12000, cfg_syncseconds * 100, NULL);
+		ml->SetTimer(SyncTimer, 12000, cfg_syncseconds * 100, NULL, -1);
 
 		return MM_OK;
 	}
@@ -858,7 +858,7 @@ EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 	{
 		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
-		ml->ClearTimer(SyncTimer);
+		ml->ClearTimer(SyncTimer, -1);
 		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);

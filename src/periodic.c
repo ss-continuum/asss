@@ -23,8 +23,6 @@ typedef struct periodic_settings
 	byte *pkt;
 } periodic_settings;
 
-local periodic_settings *settings[MAXARENA];
-
 
 typedef struct freq_data
 {
@@ -66,14 +64,6 @@ local int timer(void *set_)
 	int pid, totalplayers = 0, freqcount = 0;
 	TreapHead *fdata = NULL;
 	freq_data *fd;
-
-	if (set->delay == 0)
-	{
-		/* this is a signal that we should remove ourself */
-		mm->ReleaseInterface(set->pp);
-		afree(set);
-		return FALSE;
-	}
 
 	/* lock status here to avoid repeatedly locking and unlocking it,
 	 * and also to avoid deadlock. */
@@ -140,6 +130,14 @@ local int timer(void *set_)
 	return TRUE;
 }
 
+local void cleanup(void *set_)
+{
+	periodic_settings *set = set_;
+	mm->ReleaseInterface(set->pp);
+	afree(set);
+}
+
+
 
 local void aaction(int arena, int action)
 {
@@ -152,16 +150,11 @@ local void aaction(int arena, int action)
 	else
 		return;
 
-	/* if the setting is different... */
-	if (settings[arena] && settings[arena]->delay != delay)
-	{
-		/* first destroy old one */
-		settings[arena]->delay = 0;
-		settings[arena] = NULL;
-	}
+	/* cleanup any old timers */
+	ml->CleanupTimer(timer, arena, cleanup);
 
 	/* if we need a new one... */
-	if (delay && settings[arena] == NULL)
+	if (delay)
 	{
 		Iperiodicpoints *pp = mm->GetInterface(I_PERIODIC_POINTS, arena);
 		if (pp)
@@ -171,7 +164,7 @@ local void aaction(int arena, int action)
 			set->delay = delay;
 			set->minplayers = cfg->GetInt(aman->arenas[arena].cfg, "Periodic", "RewardMinimumPlayers", 0);
 			set->pp = pp;
-			ml->SetTimer(timer, delay, delay, set);
+			ml->SetTimer(timer, delay, delay, set, arena);
 		}
 	}
 }
@@ -198,6 +191,7 @@ EXPORT int MM_periodic(int action, Imodman *mm_, int arena)
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
+		ml->CleanupTimer(timer, -1, cleanup);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(ml);

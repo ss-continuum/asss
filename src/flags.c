@@ -119,8 +119,8 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 		}
 
 		/* timers */
-		ml->SetTimer(BasicFlagTimer, 500, 500, NULL);
-		ml->SetTimer(TurfFlagTimer, 1500, 1500, NULL);
+		ml->SetTimer(BasicFlagTimer, 500, 500, NULL, -1);
+		ml->SetTimer(TurfFlagTimer, 1500, 1500, NULL, -1);
 
 		mm->RegInterface(&_myint, ALLARENAS);
 
@@ -137,8 +137,8 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 		mm->UnregCallback(CB_KILL, FlagKill, ALLARENAS);
 		net->RemovePacket(C2S_PICKUPFLAG, PPickupFlag);
 		net->RemovePacket(C2S_DROPFLAGS, PDropFlag);
-		ml->ClearTimer(BasicFlagTimer);
-		ml->ClearTimer(TurfFlagTimer);
+		ml->ClearTimer(BasicFlagTimer, -1);
+		ml->ClearTimer(TurfFlagTimer, -1);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(logm);

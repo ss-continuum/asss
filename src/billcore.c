@@ -116,7 +116,7 @@ EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
 		cfg_groupid = cfg->GetInt(GLOBAL, "Billing", "GroupId", 1),
 		cfg_scoreid = cfg->GetInt(GLOBAL, "Billing", "ScoreId", 5000),
 
-		ml->SetTimer(SendPing, 300, 3000, NULL);
+		ml->SetTimer(SendPing, 300, 3000, NULL, -1);
 
 		/* packets from billing server */
 		AddPacket(0, SendLogin); /* sent from net when it's time to contact biller */
@@ -161,7 +161,7 @@ EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
 		net->RemovePacket(C2S_CHAT, PChat);
 		if (chatnet) chatnet->RemoveHandler("SEND", MChat);
 
-		ml->ClearTimer(SendPing);
+		ml->ClearTimer(SendPing, -1);
 
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
@@ -385,7 +385,7 @@ void BAuthResponse(int bpid, byte *p, int n)
 void BChatMsg(int pid, byte *p, int len)
 {
 	struct B2SChat *from = (struct B2SChat*)p;
-	int set[] = { from->uid, -1 };
+	int set[] = { from->pid, -1 };
 	chat->SendAnyMessage(set, MSG_CHAT, 0, "%i:%s", from->channel, from->text);
 }
 

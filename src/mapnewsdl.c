@@ -554,7 +554,7 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		/* reread news every 5 min */
 		ml->SetTimer(RefreshNewsTxt, 50,
 				cfg->GetInt(GLOBAL, "General", "NewsRefreshMinutes", 5)
-				* 60 * 100, NULL);
+				* 60 * 100, NULL, -1);
 
 		/* cache some config data */
 		cfg_newsfile = cfg->GetStr(GLOBAL, "General", "NewsFile");
@@ -577,7 +577,7 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 			free_maps(arena);
 
 		afree(cmpnews);
-		ml->ClearTimer(RefreshNewsTxt);
+		ml->ClearTimer(RefreshNewsTxt, -1);
 
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);

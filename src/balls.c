@@ -22,13 +22,15 @@
 /* internal structs */
 struct MyBallData
 {
-	int sendtime, lastsent;
 	/* these are in centiseconds. the timer event runs with a resolution
 	 * of 50 centiseconds, though, so that's the best resolution you're
 	 * going to get. */
+	int sendtime, lastsent;
 	int spawnx, spawny, spawnr;
-	int goaldelay;
 	/* this is the delay between a goal and the ball respawning. */
+	int goaldelay;
+	/* this controls whether a death on a goal tile scores or not */
+	int deathgoal;
 };
 
 /* prototypes */
@@ -120,7 +122,7 @@ EXPORT int MM_balls(int action, Imodman *_mm, int arena)
 		}
 
 		/* timers */
-		ml->SetTimer(BasicBallTimer, 300, 50, NULL);
+		ml->SetTimer(BasicBallTimer, 300, 50, NULL, -1);
 
 		mm->RegInterface(&_myint, ALLARENAS);
 
@@ -132,7 +134,7 @@ EXPORT int MM_balls(int action, Imodman *_mm, int arena)
 	{
 		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
-		ml->ClearTimer(BasicBallTimer);
+		ml->ClearTimer(BasicBallTimer, -1);
 		net->RemovePacket(C2S_GOAL, PGoal);
 		net->RemovePacket(C2S_SHOOTBALL, PFireBall);
 		net->RemovePacket(C2S_PICKUPBALL, PPickupBall);
@@ -356,6 +358,7 @@ local void LoadBallSettings(int arena, int spawnballs)
 		d->spawnr = cfg->GetInt(c, "Soccer", "SpawnRadius", 20);
 		d->sendtime = cfg->GetInt(c, "Soccer", "SendTime", 1000);
 		d->goaldelay = cfg->GetInt(c, "Soccer", "GoalDelay", 0);
+		d->deathgoal = cfg->GetInt(c, "Soccer", "AllowGoalByDeath", 0);
 
 		if (spawnballs)
 		{
@@ -458,7 +461,7 @@ void FreqChange(int pid, int newfreq)
 
 void BallKill(int arena, int killer, int killed, int bounty, int flags)
 {
-	CleanupAfter(arena, killed, 0);
+	CleanupAfter(arena, killed, !pballdata[arena].deathgoal);
 }
 
 

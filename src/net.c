@@ -329,7 +329,7 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		pthread_create(&thd, NULL, SendThread, NULL);
 		pthread_create(&thd, NULL, RelThread, NULL);
 
-		ml->SetTimer(QueueMoreData, 200, 150, NULL);
+		ml->SetTimer(QueueMoreData, 200, 150, NULL, -1);
 
 		/* install ourself */
 		mm->RegInterface(&_int, ALLARENAS);
@@ -342,7 +342,7 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 
-		ml->ClearTimer(QueueMoreData);
+		ml->ClearTimer(QueueMoreData, -1);
 
 		/* disconnect all clients nicely */
 		for (i = 0; i < MAXPLAYERS; i++)
@@ -1088,8 +1088,8 @@ local void process_lagouts(int pid, unsigned int gtc)
 			diff > config.droptimeout)
 	{
 		lm->Log(L_DRIVEL,
-				"<net> [%s] Player kicked for no data (lagged off)",
-				players[pid].name);
+				"<net> [%s] [pid=%d] Player kicked for no data (lagged off)",
+				players[pid].name, pid);
 		/* FIXME: send "you have been disconnected..." msg */
 		/* can't hold lock here for deadlock-related reasons */
 		pd->UnlockStatus();
@@ -1751,7 +1751,7 @@ void SendRaw(int pid, byte *data, int len)
 	byte encbuf[MAXPACKET];
 	Iencrypt *enc = clients[pid].enc;
 
-	if (!IS_OURS(pid)) return;
+	if (!IS_OURS(pid) && pid < MAXPLAYERS) return;
 
 	if (pid != PID_BILLER)
 	{
@@ -1794,7 +1794,7 @@ Buffer * BufferPacket(int pid, byte *data, int len, int flags,
 	Buffer *buf;
 	int limit;
 
-	if (!IS_OURS(pid))
+	if (!IS_OURS(pid) && pid < MAXPLAYERS)
 		return NULL;
 
 	assert(len < MAXPACKET);

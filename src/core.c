@@ -108,7 +108,7 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 		mm->RegInterface(&_iauth, ALLARENAS);
 
 		/* set up periodic events */
-		ml->SetTimer(SendKeepalive, 500, 500, NULL);
+		ml->SetTimer(SendKeepalive, 500, 500, NULL, -1);
 
 		return MM_OK;
 	}
@@ -126,6 +126,7 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 	{
 		if (mm->UnregInterface(&_iauth, ALLARENAS))
 			return MM_FAIL;
+		ml->ClearTimer(SendKeepalive, -1);
 		mm->UnregCallback(CB_MAINLOOP, ProcessLoginQueue, ALLARENAS);
 		if (net)
 		{

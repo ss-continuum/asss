@@ -227,7 +227,7 @@ EXPORT int MM_game_timer(int action, Imodman *mm_, int arena)
 
 		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
-		ml->SetTimer(TimerMaster, 100, 100, NULL);
+		ml->SetTimer(TimerMaster, 100, 100, NULL, -1);
 
 		cmd->AddCommand("timer", Ctimer, timer_help);
 		cmd->AddCommand("time", Ctime, time_help);
@@ -243,7 +243,7 @@ EXPORT int MM_game_timer(int action, Imodman *mm_, int arena)
 		cmd->RemoveCommand("timereset", Ctimereset);
 		cmd->RemoveCommand("pausetimer", Cpausetimer);
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
-		ml->ClearTimer(TimerMaster);
+		ml->ClearTimer(TimerMaster, -1);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);

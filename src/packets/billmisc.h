@@ -56,7 +56,7 @@ struct S2BLogMessage
 struct S2BWarning
 {
 	u8 type; /* S2B_WARNING */
-	i32 unknown;
+	i32 pid;
 	char text[0];
 };
 
@@ -131,21 +131,21 @@ struct B2SRecycle
 struct B2SKickUser
 {
 	u8 type; /* B2S_KICKUSER */
-	i32 uid;
+	i32 pid;
 	i32 reason;
 };
 
 struct B2SRemotePriv
 {
 	u8 type; /* B2S_SINGLEMESSAGE */
-	i32 uid;
+	i32 pid;
 	char text[0];
 };
 
 struct B2SChat
 {
 	u8 type; /* B2S_CHATMSG */
-	i32 uid;
+	i32 pid;
 	u8 channel;
 	char text[0];
 };

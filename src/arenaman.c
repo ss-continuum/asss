@@ -109,7 +109,7 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, int arena)
 		}
 
 
-		ml->SetTimer(ReapArenas, 1000, 1500, NULL);
+		ml->SetTimer(ReapArenas, 1000, 1500, NULL, -1);
 
 		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
@@ -137,7 +137,7 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, int arena)
 			chatnet->RemoveHandler("LEAVE", MLeaving);
 		}
 		mm->UnregCallback(CB_MAINLOOP, ProcessArenaQueue, ALLARENAS);
-		ml->ClearTimer(ReapArenas);
+		ml->ClearTimer(ReapArenas, -1);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(chatnet);
