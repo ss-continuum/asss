@@ -19,26 +19,27 @@
  * astrncpy should be used instead of strncpy. its interface makes
  * sense, as opposed to strncpy. the size is actually the length of the
  * destination buffer. at most length-1 characters will be copied and
- * the last byte will be null.
+ * the last byte will always be null.
  *
  * you can use Error to signal a really terrible horrible error
  * condition that should stop the server. this one will call abort().
  * don't use unnecessarily.
  *
  * LinkedList:
- * use LLAlloc to get a list. LLAdd to add stuff to it (in the form of
- * void pointers). LLRemove to remove at most one matching item (so you
- * can have duplicates and remove them one at a time). LLRewind to set
- * the current item pointer to the start, and then LLNext to get the
- * next item, until it returns NULL (so you can't store NULL in the
- * lists). LLFree to free it.
+ * use LLAlloc to get a list, or allocate it statically and call LLInit.
+ * LLAdd to add stuff to the end (in the form of void pointers), and
+ * LLAddFirst to insert stuff in the beginning.  LLRemove to remove at
+ * most one matching item (so you can have duplicates and remove them
+ * one at a time). LLRemoveFirst to remove the first item and return it
+ * directly.  LLEmpty to clear it, freeing all the links, and LLFree to
+ * free it.
  *
  * HashTable:
  * HashAlloc to get one. HashAdd and HashRemove to add and remove stuff.
- * HashGet will return a linked list with all the matching items. yes,
- * you can store duplicates in it and get them all out at once. the list
- * HashGet returns will be overwritten with ever call, so use it before
- * you call HashGet again.
+ * HashReplace to keep the table free of duplicates.  HashGet will
+ * return a linked list with all the matching items. yes, you can store
+ * duplicates in it and get them all out at once.  HashGetOne can be
+ * used when you only want the first match.
  *
  */
 
@@ -79,9 +80,13 @@ typedef struct LinkedList LinkedList;
 
 LinkedList * LLAlloc();
 void LLInit(LinkedList *lst);
+void LLEmpty(LinkedList *lst);
 void LLFree(LinkedList *lst);
 void LLAdd(LinkedList *lst, void *data);
+void LLAddFirst(LinkedList *lst, void *data);
 int LLRemove(LinkedList *lst, void *data);
+void *LLRemoveFirst(LinkedList *lst);
+int LLIsEmpty(LinkedList *lst);
 Link *LLGetHead(LinkedList *lst);
 
 
@@ -93,8 +98,10 @@ HashTable * HashAlloc();
 void HashFree(HashTable *ht);
 void HashEnum(HashTable *ht, void (*func)(void *));
 void HashAdd(HashTable *ht, const char *key, void *data);
+void HashReplace(HashTable *ht, const char *key, void *data);
 void HashRemove(HashTable *ht, const char *key, void *data);
 LinkedList *HashGet(HashTable *ht, const char *key);
+void *HashGetOne(HashTable *ht, const char *key);
 
 
 
@@ -118,8 +125,6 @@ void InitCondition(Condition *cond);
 void SignalCondition(Condition *cond, int all);
 void WaitCondition(Condition *cond, Mutex *mtx);
 
-#endif
-
 
 #ifndef NOMPQUEUE
 
@@ -137,8 +142,9 @@ void MPDestroy(MPQueue *mpq);
 void MPAdd(MPQueue *mpq, void *data); /* will not block  */
 void * MPRemove(MPQueue *mpq); /* WILL BLOCK */
 
-#endif
+#endif /* MPQUEUE */
+
+#endif /* THREAD */
 
 
 #endif
-

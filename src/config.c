@@ -76,8 +76,6 @@ static int ProcessConfigFile(HashTable *thetable, HashTable *defines, const char
 	FILE *f;
 	char _realbuf[LINESIZE], *buf = _realbuf, *t, *t2;
 	char key[MAXNAMELEN+MAXKEYLEN+3], *thespot = NULL, *data;
-	LinkedList *lst;
-	Link *lnk;
 
 	sprintf(buf, "conf/%s.conf", name);
 	f = fopen(buf, "r");
@@ -148,9 +146,7 @@ static int ProcessConfigFile(HashTable *thetable, HashTable *defines, const char
 			{
 				buf += 5;
 				while (*buf == ' ' || *buf == '\t') buf++;
-				lst = HashGet(defines, buf);
-				lnk = LLGetHead(lst);
-				if (lnk) ???
+				/* ... */
 			}
 			if (!strncmp(buf, "endif", 5))
 			{
@@ -167,6 +163,8 @@ static int ProcessConfigFile(HashTable *thetable, HashTable *defines, const char
 			t = strchr(buf, '=');
 			if (t)
 			{
+				char *trydef;
+
 				t2 = t + 1;
 				/* kill = sign and spaces before it */
 				while (*t == ' ' || *t == '=' || *t == '\t') t--;
@@ -177,9 +175,8 @@ static int ProcessConfigFile(HashTable *thetable, HashTable *defines, const char
 				astrncpy(thespot, buf, MAXKEYLEN); /* modifies key */
 
 				/* process #defines */
-				lst = HashGet(defines, t2);
-				if ((lnk = LLGetHead(lst)))
-					t2 = lnk->data;
+				trydef = HashGetOne(defines, t2);
+				if (trydef) t2 = trydef;
 
 				data = astrdup(t2);
 				HashAdd(thetable, key, data);
@@ -230,20 +227,13 @@ int GetInt(ConfigHandle ch, const char *sec, const char *key, int def)
 char *GetStr(ConfigHandle ch, const char *sec, const char *key)
 {
 	char keystring[MAXNAMELEN+MAXKEYLEN+3];
-	LinkedList *res;
-	Link *l;
 	HashTable *thetable = (HashTable*)ch;
 
 	if (!thetable) thetable = (HashTable*)global;
 
 	snprintf(keystring, MAXNAMELEN+MAXKEYLEN+1, "%s:%s", sec, key);
 
-	res = HashGet(thetable, keystring);
-
-	if ((l = LLGetHead(res)))
-		return (char*) l->data;
-	else
-		return NULL;
+	return HashGetOne(thetable, keystring);
 }
 
 

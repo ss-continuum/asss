@@ -10,6 +10,10 @@ CFLAGS = $(DEBUG_CFLAGS)
 
 ASSSLIBS = -ldl -lz -lpthread
 
+SCHEMEROOT = /usr/local/plt/collects/mzscheme
+SCHEMEINC = $(SCHEMEROOT)/include
+SCHEMELIB = $(SCHEMEROOT)/lib/i386-linux
+
 
 
 
@@ -29,7 +33,7 @@ EXTMODS = loggers.so  \
 
 
 
-all: asss $(EXTMODS) install
+all: asss $(EXTMODS) elderd install
 
 
 
@@ -47,9 +51,16 @@ asss: main.o module.o util.o $(INTMODS)
 	$(CC) -rdynamic -o $@ $^ $(ASSSLIBS)
 
 
+elderd: elderd.c util-nothread.o
+	$(CC) -L$(SCHEMELIB) -I $(SCHEMEINC) -o $@ $^ -lmzscheme -lgc -ldl
+
+
+util-nothread.o: util.c
+	$(CC) $(CFLAGS) -DNOTHREAD -c -o $@ $^
+
 
 Makefile.deps: *.c *.h
-	$(CC) -MM *.c > $@
+	$(CC) -I $(SCHEMEINC) -MM *.c > $@
 
 include Makefile.deps
 
@@ -59,11 +70,11 @@ include Makefile.deps
 	$(CC) $(LDFLAGS) -shared -o $@ $^
 
 install:
-	-cp -f asss $(EXTMODS) ../bin
+	-cp -f asss $(EXTMODS) elderd ../bin
 	@echo -e "\nWoot! It compiled!"
 
 clean:
-	-rm -f Makefile.deps asss *.o *.so core
+	-rm -f asss *.o *.so elderd elderd.log core
 
 tags:
 	ctags *

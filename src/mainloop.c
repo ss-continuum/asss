@@ -57,9 +57,11 @@ int MM_mainloop(int action, Imodman *mm_)
 void RunLoop()
 {
 	TimerData *td;
-	LinkedList *lst;
+	LinkedList *lst, freelist;
 	Link *l;
 	unsigned int gtc;
+
+	LLInit(&freelist);
 
 	while (!privatequit)
 	{
@@ -80,14 +82,20 @@ void RunLoop()
 				if ( td->func(td->param) )
 					td->when = gtc + td->interval;
 				else
-				{
-					LLRemove(timers, td);
-					afree(td);
-				}
+					LLAdd(&freelist, td);
 			}
 		}
+
+		/* free timers */
+		for (l = LLGetHead(&freelist); l; l = l->next)
+		{
+			LLRemove(timers, l->data);
+			afree(l->data);
+		}
+		LLEmpty(&freelist);
 	}
 }
+
 
 void KillML()
 {
@@ -116,6 +124,7 @@ void ClearTimer(TimerFunc f)
 		{
 			LLRemove(timers, l->data);
 			afree(l->data);
+			return;
 		}
 }
 

@@ -137,7 +137,7 @@ LinkedList * LLAlloc()
 	return ret;
 }
 
-local void LLEmpty(LinkedList *l)
+void LLEmpty(LinkedList *l)
 {
 	Link *n = l->start, *t;
 
@@ -186,6 +186,22 @@ void LLAdd(LinkedList *l, void *p)
 	}
 }
 
+void LLAddFirst(LinkedList *lst, void *data)
+{
+	Link *n;
+
+	if (!freelinks) GetSomeLinks();
+	n = freelinks;
+	freelinks = freelinks->next;
+
+	n->next = lst->start;
+	n->data = data;
+
+	lst->start = n;
+	if (lst->end == NULL)
+		lst->end = n;
+}
+
 int LLRemove(LinkedList *l, void *p)
 {
 	Link *n = l->start, *prev = NULL;
@@ -213,11 +229,37 @@ int LLRemove(LinkedList *l, void *p)
 	return 0;
 }
 
+void *LLRemoveFirst(LinkedList *lst)
+{
+	Link *lnk;
+	void *ret;
+
+	if (lst->start == NULL)
+		return NULL;
+
+	ret = lst->start->data;
+
+	lnk = lst->start;
+	lst->start = lst->start->next;
+
+	lnk->next = freelinks;
+	freelinks = lnk;
+
+	if (lst->start == NULL)
+		lst->end = NULL;
+
+	return ret;
+}
+
 Link * LLGetHead(LinkedList *l)
 {
 	return l->start;
 }
 
+int LLIsEmpty(LinkedList *lst)
+{
+	return lst->start == NULL;
+}
 
 /* HashTable data type */
 
@@ -302,6 +344,67 @@ void HashAdd(HashTable *h, const char *s, void *p)
 	}
 }
 
+void HashReplace(HashTable *h, const char *s, void *p)
+{
+	int slot;
+	HashEntry *e, *l;
+
+	slot = Hash(s, MAXHASHLEN, h->size);
+	l = h->lists[slot];
+
+	if (!l)
+	{	/* this is first hash entry for this key */
+
+		/* allocate entry */
+		if (freehashentries)
+		{
+			e = freehashentries;
+			freehashentries = e->next;
+		}
+		else
+			e = amalloc(sizeof(HashEntry));
+
+		/* init entry */
+		astrncpy(e->key, s, MAXHASHLEN+1);
+		e->p = p;
+		e->next = NULL;
+
+		/* install entry */
+		h->lists[slot] = e;
+	}
+	else
+	{	/* try to find it */
+		HashEntry *last;
+		do {
+			if (!strcasecmp(s, l->key))
+			{	/* found it, replace data and return */
+				l->p = p;
+				return;
+			}
+			last = l;
+			l = l->next;
+		} while (l);
+		/* it's not in the table, last should point to last entry */
+		
+		/* allocate entry */
+		if (freehashentries)
+		{
+			e = freehashentries;
+			freehashentries = e->next;
+		}
+		else
+			e = amalloc(sizeof(HashEntry));
+
+		/* init entry */
+		astrncpy(e->key, s, MAXHASHLEN+1);
+		e->p = p;
+		e->next = NULL;
+
+		/* install entry */
+		last->next = e;
+	}
+}
+
 void HashRemove(HashTable *h, const char *s, void *p)
 {
 	int slot;
@@ -346,11 +449,31 @@ LinkedList * HashGet(HashTable *h, const char *s)
 	return res;
 }
 
+void *HashGetOne(HashTable *h, const char *s)
+{
+	int slot;
+	HashEntry *l;
+
+	slot = Hash(s, MAXHASHLEN, h->size);
+	l = h->lists[slot];
+
+	while (l)
+	{
+		if (!strcasecmp(s, l->key))
+			return l->p;
+		l = l->next;
+	}
+	return NULL;
+}
 
 /*  int hashfunction(s) char *s; { int i; */
 /*  for( i=0; *s; s++ ) i = 131*i */
 /*  + *s; return( i % m ); */
 
+
+
+
+#ifndef NOTHREAD
 
 #ifndef NOMPQUEUE
 
@@ -380,21 +503,17 @@ void MPAdd(MPQueue *q, void *data)
 void * MPRemove(MPQueue *q)
 {
 	void *data;
-	Link *l;
 
 	LockMutex(&q->mtx);
-	while ( !(l = LLGetHead(&q->list)) )
+	while (LLIsEmpty(&q->list))
 		WaitCondition(&q->cond, &q->mtx);
-	data = l->data;
-	LLRemove(&q->list, data);
+	data = LLRemoveFirst(&q->list);
 	UnlockMutex(&q->mtx);
 	return data;
 }
 
 #endif /* MPQUEUE */
 
-
-#ifndef NOTHREAD
 
 Thread StartThread(ThreadFunc func, void *data)
 {
