@@ -1049,6 +1049,7 @@ local void handle_client_packet(void)
 				lm->Log(L_MALICIOUS, "<net> (client connection) "
 						"failure decrypting packet");
 			}
+			/* notice this: */
 			return;
 		}
 	}
@@ -1764,6 +1765,7 @@ void ProcessKeyResp(Buffer *buf)
 		conn->cc->i->Connected();
 	else if (conn->p)
 		lm->LogP(L_MALICIOUS, "net", conn->p, "got key response packet");
+	FreeBuffer(buf);
 }
 
 
@@ -1876,6 +1878,7 @@ void ProcessAck(Buffer *buf)
 		}
 	}
 	pthread_mutex_unlock(&conn->olmtx);
+	FreeBuffer(buf);
 }
 
 
@@ -2094,10 +2097,11 @@ void ProcessCancel(Buffer *req)
 
 
 /* passes packet to the appropriate nethandlers function */
-void ProcessSpecial(Buffer *req)
+void ProcessSpecial(Buffer *buf)
 {
-	if (nethandlers[(unsigned)req->d.rel.t2] && req->conn->p)
-		nethandlers[(unsigned)req->d.rel.t2](req->conn->p, req->d.raw, req->len);
+	if (nethandlers[(unsigned)buf->d.rel.t2] && buf->conn->p)
+		nethandlers[(unsigned)buf->d.rel.t2](buf->conn->p, buf->d.raw, buf->len);
+	FreeBuffer(buf);
 }
 
 
