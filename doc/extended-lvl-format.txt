@@ -1,6 +1,6 @@
 
 extended level file format
-version 0.2
+version 0.3
 grelminar@yahoo.com
 ------------------------
 
@@ -30,8 +30,7 @@ basic level format.
 
 the primary goal is to make it possible to embed more metadata in level
 files. this includes descriptive information about the creator of the
-file and its intended use, but also functional information such as the
-name of an external tileset file.
+file and its intended use, but also some functional information.
 
 the most important, and complicated, type of metadata that i'd like to
 embed are regions. a region is just a set of tiles, usually but not
@@ -171,7 +170,6 @@ there are several chunk types defined so far:
 
 "ATTR" - defines a textual attribute
 "REGN" - defines a region
-"ETST" - names an external tileset
 "TSET" - defines a tileset
 "TILE" - defines tile data
 
@@ -333,14 +331,7 @@ which is the player who entered the region. a function named "exit"
 works similarly, except of course it gets called when someone leaves.
 
 
-3.2.3. "ETST" chunks
-
-this chunk specifies an external tileset to use with this level. the
-data is the filename (not null-terminated) of a standard windows bmp
-file that will be the tileset. the file itself should be supplied by an
-lvz file.
-
-3.2.4. "TSET" and "TILE" chunks
+3.2.3. "TSET" and "TILE" chunks
 
 these chunk types are intented to be used only in the far future, when
 all lvl files use the extended format, and the backwards-compatible
@@ -377,6 +368,10 @@ at http://forums.minegoboom.com/
 
 
 5. history
+
+version 0.3:
+  - removed ETST chunks, since cont basically supports this
+    functionality already through tiles.bm2
 
 version 0.2:
   - better format for region tile data
