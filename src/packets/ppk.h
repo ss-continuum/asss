@@ -17,19 +17,19 @@ struct Weapons
 
 struct ExtraPosData
 {
-	unsigned energy : 16;
-	unsigned s2cping : 16;
-	unsigned timer : 16;
-	unsigned shields : 1;
-	unsigned super : 1;
-	unsigned bursts : 4;
-	unsigned repels : 4;
-	unsigned thors : 4;
-	unsigned bricks : 4;
-	unsigned decoys : 4;
-	unsigned rockets : 4;
-	unsigned portals : 4;
-	unsigned padding : 2;
+	unsigned int energy;
+	unsigned int s2cping;
+	unsigned int timer;
+	unsigned int shields : 1;
+	unsigned int super : 1;
+	unsigned int bursts : 4;
+	unsigned int repels : 4;
+	unsigned int thors : 4;
+	unsigned int bricks : 4;
+	unsigned int decoys : 4;
+	unsigned int rockets : 4;
+	unsigned int portals : 4;
+	unsigned int padding : 2;
 };
 
 struct S2CWeapons

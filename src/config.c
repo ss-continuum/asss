@@ -2,10 +2,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#ifndef WIN32
 #include <sys/types.h>
 #include <sys/stat.h>
+
+#ifndef WIN32
 #include <unistd.h>
 #else
 #include <malloc.h>

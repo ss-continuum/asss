@@ -912,6 +912,13 @@ mf_unlock:
 }
 
 
+local void Creloadconf(const char *params, int pid, Target *target)
+{
+	cfg->CheckModifiedFiles();
+	chat->SendMessage(pid, "Reloading all modified config files");
+}
+
+
 
 local struct
 {
@@ -942,6 +949,7 @@ const all_commands[] =
 	CMD(setg), CMD(getg), CMD(seta), CMD(geta),
 	CMD(prize),
 	CMD(flaginfo), CMD(neutflag), CMD(moveflag),
+	CMD(reloadconf),
 	{ NULL }
 #undef CMD
 };

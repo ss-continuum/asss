@@ -61,6 +61,9 @@ local int AddWatch(int pid, int target)
 
 local void RemoveWatch(int pid, int target)
 {
+	if (WATCHCOUNT(target) == 0)
+		return;
+
 	LLRemoveAll(watches + target, modwatch + pid);
 
 	/* check to see if need to send a packet */

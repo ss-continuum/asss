@@ -38,6 +38,7 @@ local void Creport(const char *params, int pid, const Target *target);
 local void Ctimer(const char *params, int pid, const Target *target);
 local void Ctime(const char *params, int pid, const Target *target);
 local void Ctimereset(const char *params, int pid, const Target *target);
+local void Cpausetimer(const char *params, int pid, const Target *target);
 
 local inline void DoChecksum(struct S2CWeapons *);
 local inline long lhypot (register long dx, register long dy);
@@ -150,6 +151,7 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		cmd->AddCommand("timer", Ctimer);
 		cmd->AddCommand("time", Ctime);
 		cmd->AddCommand("timereset", Ctimereset);
+		cmd->AddCommand("pausetimer", Cpausetimer);
 
 		mm->RegInterface(&_myint, ALLARENAS);
 
@@ -163,6 +165,7 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		cmd->RemoveCommand("timer", Ctimer);
 		cmd->RemoveCommand("time", Ctime);
 		cmd->RemoveCommand("timereset", Ctimereset);
+		cmd->RemoveCommand("pausetimer", Cpausetimer);
 		net->RemovePacket(C2S_POSITION, Pppk);
 		net->RemovePacket(C2S_SETSHIP, PSetShip);
 		net->RemovePacket(C2S_SETFREQ, PSetFreq);
@@ -665,7 +668,10 @@ int TimerMaster(void *nothing)
 			if (gamelen)
 				ar_tmr[i].timeout = tickcount+gamelen;
 			else
+			{
 				ar_tmr[i].enabled = 0;
+				ar_tmr[i].timeout = 0;
+			}
 		}
 	return 1;
 }
@@ -751,6 +757,12 @@ void Ctime(const char *params, int pid, const Target *target)
 		secs = (tout/100)%60;
 		chat->SendMessage(pid, "Time left: %d minutes %d seconds", mins, secs);
 	}
+	else if (ar_tmr[arena].timeout)
+	{
+		 mins = ar_tmr[arena].timeout/60/100;
+		 secs = (ar_tmr[arena].timeout/100)%60;
+		 chat->SendMessage(pid, "Timer paused at:  %d minutes %d seconds", mins, secs);
+	}
 	else
 		chat->SendMessage(pid, "Time left: 0 minutes 0 seconds");
 }
@@ -764,6 +776,28 @@ void Ctimereset(const char *params, int pid, const Target *target)
 	{
 		ar_tmr[arena].timeout = GTC() + gamelen;
 		Ctime(params, pid, target);
+	}
+}
+
+void Cpausetimer(const char *params, int pid, const Target *target)
+{
+	int arena = pd->players[pid].arena;
+
+	if (cfg->GetInt(arenas[arena].cfg, "Misc", "TimedGame", 0)) return;
+	
+	if (ar_tmr[arena].enabled) 
+	{
+		ar_tmr[arena].enabled = 0;
+		ar_tmr[arena].timeout -= GTC();
+		chat->SendMessage(pid,"Timer paused at:  %d minutes %d seconds",
+							ar_tmr[arena].timeout/60/100, (ar_tmr[arena].timeout/100)%60);
+	}
+	else if (ar_tmr[arena].timeout)
+	{
+		chat->SendMessage(pid,"Timer resumed at: %d minutes %d seconds",
+							ar_tmr[arena].timeout/60/100, (ar_tmr[arena].timeout/100)%60);
+		ar_tmr[arena].enabled = 1;
+		ar_tmr[arena].timeout += GTC();
 	}
 }
 
