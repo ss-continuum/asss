@@ -27,7 +27,7 @@ local Ireldb *db;
 
 
 #define CREATE_LOGIN_TABLE \
-"CREATE TABLE " TABLE_NAME " (" \
+"CREATE TABLE IF NOT EXISTS " TABLE_NAME " (" \
 "  name char(24) NOT NULL default ''," \
 "  ip int(10) unsigned NOT NULL default '0'," \
 "  macid int(10) unsigned NOT NULL default '0'," \
