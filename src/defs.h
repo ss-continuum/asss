@@ -8,8 +8,8 @@
 
 #include "util.h"
 
-#define ASSSVERSION "0.9.13"
-#define ASSSVERSION_NUM 0x0000090D
+#define ASSSVERSION "0.9.15"
+#define ASSSVERSION_NUM 0x0000090F
 #define BUILDDATE __DATE__ " " __TIME__
 
 

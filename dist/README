@@ -20,18 +20,15 @@ Don't remove any of them, the server needs them to be there to create
 files in.
 
 
-If you want to connect to a billing server: Since there are no existing
-billing servers that support the new billing protocol that I made,
-you'll have to use the bproxy thingy that translates between the new and
-old protocols. Set Billing:Proxy in global.conf to the path of the
-bproxy script (in the scripts dir). Set the rest of the settings (IP,
-Port, ServerName, Password) in Billing as appropriate. You'll need a
-relatively recent version of Python (2.1+ should work).
+If you want to connect to a billing server, you can either use the
+'billing_ssc' module or the 'billing' module with the proxy. The proxy
+requires a relatively recent (2.1+) version of Python. The billing_ssc
+module is slightly better tested than the alternative.
 
 
 
 Known bugs:
 
 billing server support isn't well tested.
-a few things are missing from the billing interface (like banners).
+greens that appear on death aren't randomized properly.
 

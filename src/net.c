@@ -21,6 +21,7 @@
 
 #include "asss.h"
 #include "encrypt.h"
+#include "net-client.h"
 
 
 /* defines */
@@ -47,7 +48,7 @@
 
 /* the limits on the bandwidth limit */
 #define LOW_LIMIT 1024
-#define HIGH_LIMIT 65536
+#define HIGH_LIMIT 102400
 #define CLIP(x, low, high) \
 	do { if ((x) > (high)) (x) = (high); else if ((x) < (low)) (x) = (low); } while (0)
 
@@ -91,6 +92,11 @@ struct sized_send_data
 
 typedef struct
 {
+	/* the player this connection is for, or NULL for a client
+	 * connection */
+	Player *p;
+	/* the client this is a part of, or NULL for a player connection */
+	ClientConnection *cc;
 	/* the address to send packets to */
 	struct sockaddr_in sin;
 	/* which of our sockets to use when sending */
@@ -110,19 +116,19 @@ typedef struct
 	int avgrtt, rttdev;
 	/* encryption type */
 	Iencrypt *enc;
-	/* stuff for recving sized packets, protected by player mtx */
+	/* stuff for recving sized packets, protected by bigmtx */
 	struct
 	{
 		int type;
 		int totallen, offset;
 	} sizedrecv;
-	/* stuff for recving big packets, protected by player mtx */
+	/* stuff for recving big packets, protected by bigmtx */
 	struct
 	{
 		int size, room;
 		byte *buf;
 	} bigrecv;
-	/* stuff for sending sized packets, protected by outlist mtx */
+	/* stuff for sending sized packets, protected by olmtx */
 	LinkedList sizedsends;
 	/* bandwidth control. sincetime is in millis, not ticks */
 	ticks_t sincetime;
@@ -130,7 +136,8 @@ typedef struct
 	/* the outlist */
 	DQNode outlist;
 	pthread_mutex_t olmtx;
-} ClientData; /* 136 bytes */
+	pthread_mutex_t bigmtx;
+} ConnData; /* 168 bytes? */
 
 
 
@@ -139,7 +146,7 @@ typedef struct Buffer
 	DQNode node;
 	/* p, len: valid for all buffers */
 	/* pri, lastretry: valid for buffers in outlist */
-	Player *p;
+	ConnData *conn;
 	short len, pri, retries, flags;
 	ticks_t lastretry; /* in millis, not ticks! */
 	/* used for reliable buffers in the outlist only { */
@@ -159,6 +166,15 @@ typedef struct ListenData
 	int gamesock, pingsock;
 	const char *connectas;
 } ListenData;
+
+
+struct ClientConnection
+{
+	ConnData c;
+	Iclientconn *i;
+	Iclientencrypt *enc;
+	ClientEncryptData *ced;
+};
 
 
 /* prototypes */
@@ -183,15 +199,21 @@ local void GetStats(struct net_stats *stats);
 local void GetClientStats(Player *p, struct net_client_stats *stats);
 local int GetLastPacketTime(Player *p);
 
+/* net-client interface */
+local ClientConnection *MakeClientConnection(const char *addr, int port,
+		Iclientconn *icc, Iclientencrypt *ice);
+local void SendPacket(ClientConnection *cc, byte *pkt, int len, int flags);
+local void DropClientConnection(ClientConnection *cc);
+
 /* internal: */
 local inline int HashIP(struct sockaddr_in);
 local inline Player * LookupIP(struct sockaddr_in);
-local inline void SendRaw(Player *, byte *, int);
+local inline void SendRaw(ConnData *, byte *, int);
 local void KillConnection(Player *p);
 local void ProcessBuffer(Buffer *);
 local int InitSockets(void);
 local Buffer * GetBuffer(void);
-local Buffer * BufferPacket(Player *p, byte *data, int len, int flags,
+local Buffer * BufferPacket(ConnData *conn, byte *data, int len, int flags,
 		RelCallback callback, void *clos);
 local void FreeBuffer(Buffer *);
 
@@ -203,6 +225,7 @@ local void * RelThread(void *);
 local int QueueMoreData(void *);
 
 /* network layer header handling: */
+local void ProcessKeyResp(Buffer *);
 local void ProcessReliable(Buffer *);
 local void ProcessGrouped(Buffer *);
 local void ProcessSpecial(Buffer *);
@@ -228,13 +251,17 @@ local LinkedList handlers[MAXTYPES];
 local LinkedList sizedhandlers[MAXTYPES];
 
 local LinkedList listening = LL_INITIALIZER;
+local int clientsock;
+
+local LinkedList clientconns = LL_INITIALIZER;
+local pthread_mutex_t ccmtx;
 
 local DQNode freelist, rellist;
 local pthread_mutex_t freemtx, relmtx;
 local pthread_cond_t relcond;
 volatile int killallthreads = 0;
 
-local int clikey;
+local int connkey;
 local Player * clienthash[CFG_HASHSIZE];
 local pthread_mutex_t hashmtx;
 
@@ -264,7 +291,7 @@ local void (*oohandlers[])(Buffer*) =
 {
 	NULL, /* 00 - nothing */
 	NULL, /* 01 - key initiation */
-	NULL, /* 02 - key response */
+	ProcessKeyResp, /* 02 - key response */
 	ProcessReliable, /* 03 - reliable */
 	ProcessAck, /* 04 - reliable response */
 	ProcessSyncRequest, /* 05 - time sync request */
@@ -305,6 +332,16 @@ local Inet netint =
 };
 
 
+local Inet_client netclientint =
+{
+	INTERFACE_HEAD_INIT(I_NET_CLIENT, "net-udp")
+
+	MakeClientConnection,
+	SendPacket,
+	DropClientConnection
+};
+
+
 
 /* start of functions */
 
@@ -324,8 +361,8 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		lagc = mm->GetInterface(I_LAGCOLLECT, ALLARENAS);
 		if (!pd || !cfg || !lm || !ml) return MM_FAIL;
 
-		clikey = pd->AllocatePlayerData(sizeof(ClientData));
-		if (clikey == -1) return MM_FAIL;
+		connkey = pd->AllocatePlayerData(sizeof(ConnData));
+		if (connkey == -1) return MM_FAIL;
 
 		/* store configuration params */
 		/* cfghelp: Net:DropTimeout, global, int, def: 3000
@@ -370,6 +407,7 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 
 		/* install ourself */
 		mm->RegInterface(&netint, ALLARENAS);
+		mm->RegInterface(&netclientint, ALLARENAS);
 
 		return MM_OK;
 	}
@@ -377,22 +415,25 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 	{
 		Link *link;
 		Player *p;
-		ClientData *cli;
+		ConnData *conn;
 
 		/* uninstall ourself */
 		if (mm->UnregInterface(&netint, ALLARENAS))
+			return MM_FAIL;
+
+		if (mm->UnregInterface(&netclientint, ALLARENAS))
 			return MM_FAIL;
 
 		ml->ClearTimer(QueueMoreData, NULL);
 
 		/* disconnect all clients nicely */
 		pd->Lock();
-		FOR_EACH_PLAYER_P(p, cli, clikey)
+		FOR_EACH_PLAYER_P(p, conn, connkey)
 			if (IS_OURS(p))
 			{
 				byte discon[2] = { 0x00, 0x07 };
-				cli->enc = NULL;
-				SendRaw(p, discon, 2);
+				conn->enc = NULL;
+				SendRaw(conn, discon, 2);
 			}
 		pd->Unlock();
 
@@ -418,8 +459,9 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		}
 		LLEnum(&listening, afree);
 		LLEmpty(&listening);
+		close(clientsock);
 
-		pd->FreePlayerData(clikey);
+		pd->FreePlayerData(connkey);
 
 		/* release these */
 		mm->ReleaseInterface(pd);
@@ -483,11 +525,11 @@ Player * LookupIP(struct sockaddr_in sin)
 	p = clienthash[hashbucket];
 	while (p)
 	{
-		ClientData *cli = PPDATA(p, clikey);
-		if (cli->sin.sin_addr.s_addr == sin.sin_addr.s_addr &&
-		    cli->sin.sin_port == sin.sin_port)
+		ConnData *conn = PPDATA(p, connkey);
+		if (conn->sin.sin_addr.s_addr == sin.sin_addr.s_addr &&
+		    conn->sin.sin_port == sin.sin_port)
 			break;
-		p = cli->nextinbucket;
+		p = conn->nextinbucket;
 	}
 	pthread_mutex_unlock(&hashmtx);
 	return p;
@@ -496,12 +538,12 @@ Player * LookupIP(struct sockaddr_in sin)
 
 local void ClearOutlist(Player *p)
 {
-	ClientData *cli = PPDATA(p, clikey);
-	DQNode *outlist = &cli->outlist;
+	ConnData *conn = PPDATA(p, connkey);
+	DQNode *outlist = &conn->outlist;
 	Buffer *buf, *nbuf;
 	Link *l;
 
-	pthread_mutex_lock(&cli->olmtx);
+	pthread_mutex_lock(&conn->olmtx);
 
 	for (buf = (Buffer*)outlist->next; (DQNode*)buf != outlist; buf = nbuf)
 	{
@@ -512,41 +554,42 @@ local void ClearOutlist(Player *p)
 			 * during these callbacks, because the callback might need
 			 * to acquire some mutexes of its own, and we want to avoid
 			 * deadlock. */
-			pthread_mutex_unlock(&cli->olmtx);
+			pthread_mutex_unlock(&conn->olmtx);
 			buf->callback(p, 0, buf->clos);
-			pthread_mutex_lock(&cli->olmtx);
+			pthread_mutex_lock(&conn->olmtx);
 		}
 		DQRemove((DQNode*)buf);
 		FreeBuffer(buf);
 	}
 
-	for (l = LLGetHead(&cli->sizedsends); l; l = l->next)
+	for (l = LLGetHead(&conn->sizedsends); l; l = l->next)
 	{
 		struct sized_send_data *sd = l->data;
 		sd->request_data(sd->clos, 0, NULL, 0);
 		afree(sd);
 	}
-	LLEmpty(&cli->sizedsends);
+	LLEmpty(&conn->sizedsends);
 
-	pthread_mutex_unlock(&cli->olmtx);
+	pthread_mutex_unlock(&conn->olmtx);
 }
 
 
-local void InitClient(ClientData *cli, Iencrypt *enc)
+local void InitConnData(ConnData *conn, Iencrypt *enc)
 {
 	/* set up clientdata */
-	memset(cli, 0, sizeof(ClientData));
-	pthread_mutex_init(&cli->olmtx, NULL);
-	cli->c2sn = -1;
-	cli->limit = LOW_LIMIT * 3; /* start slow */
-	cli->enc = enc;
-	cli->avgrtt = 100; /* an initial guess */
-	cli->rttdev = 100;
-	cli->bytessince = 0;
-	cli->sincetime = current_millis();
-	cli->lastpkt = current_ticks();
-	LLInit(&cli->sizedsends);
-	DQInit(&cli->outlist);
+	memset(conn, 0, sizeof(ConnData));
+	pthread_mutex_init(&conn->olmtx, NULL);
+	pthread_mutex_init(&conn->bigmtx, NULL);
+	conn->c2sn = -1;
+	conn->limit = LOW_LIMIT * 3; /* start slow */
+	conn->enc = enc;
+	conn->avgrtt = 100; /* an initial guess */
+	conn->rttdev = 100;
+	conn->bytessince = 0;
+	conn->sincetime = current_millis();
+	conn->lastpkt = current_ticks();
+	LLInit(&conn->sizedsends);
+	DQInit(&conn->outlist);
 }
 
 
@@ -589,6 +632,7 @@ void FreeBuffer(Buffer *dq)
 
 int InitSockets(void)
 {
+	struct sockaddr_in sin;
 	int i;
 
 #ifdef WIN32
@@ -606,7 +650,6 @@ int InitSockets(void)
 	 */
 	for (i = 0; i < 10; i++)
 	{
-		struct sockaddr_in sin;
 		unsigned short port;
 		ListenData *ld;
 		char secname[] = "Listen#";
@@ -697,6 +740,20 @@ int InitSockets(void)
 				i, inet_ntoa(sin.sin_addr), port);
 	}
 
+	/* now grab a socket for the client connections */
+	clientsock = socket(PF_INET, SOCK_DGRAM, 0);
+	if (clientsock == -1)
+		lm->Log(L_ERROR, "<net> can't create socket for client connections");
+	else
+	{
+		memset(&sin, 0, sizeof(sin));
+		sin.sin_family = AF_INET;
+		sin.sin_port = htons(0);
+		sin.sin_addr.s_addr = INADDR_ANY;
+		if (bind(clientsock, (struct sockaddr*)&sin, sizeof(sin)) == -1)
+			lm->Log(L_ERROR, "<net> can't bind socket for client connections");
+	}
+
 	return 0;
 }
 
@@ -722,7 +779,7 @@ local void handle_game_packet(ListenData *ld)
 	int len, sinsize, status;
 	struct sockaddr_in sin;
 	Player *p;
-	ClientData *cli;
+	ConnData *conn;
 
 	Buffer *buf;
 
@@ -761,7 +818,7 @@ local void handle_game_packet(ListenData *ld)
 
 	/* grab the status */
 	status = p->status;
-	cli = PPDATA(p, clikey);
+	conn = PPDATA(p, connkey);
 
 	if (IS_CONNINIT(buf))
 	{
@@ -800,15 +857,15 @@ local void handle_game_packet(ListenData *ld)
 		/* don't set lastpkt time here */
 	}
 
-	buf->p = p;
-	cli->lastpkt = current_ticks();
-	cli->byterecvd += len + IP_UDP_OVERHEAD;
-	cli->pktrecvd++;
+	buf->conn = conn;
+	conn->lastpkt = current_ticks();
+	conn->byterecvd += len + IP_UDP_OVERHEAD;
+	conn->pktrecvd++;
 	global_stats.pktrecvd++;
 
 	/* decrypt the packet */
 	{
-		Iencrypt *enc = cli->enc;
+		Iencrypt *enc = conn->enc;
 		if (enc)
 			len = enc->Decrypt(p, buf->d.raw, len);
 	}
@@ -870,11 +927,79 @@ local void handle_ping_packet(ListenData *ld)
 	}
 }
 
+
+local void handle_client_packet(void)
+{
+	int len, sinsize;
+	struct sockaddr_in sin;
+	Buffer *buf;
+	Link *l;
+
+	buf = GetBuffer();
+	sinsize = sizeof(sin);
+	memset(&sin, 0, sizeof(sin));
+	len = recvfrom(clientsock, buf->d.raw, MAXPACKET, 0,
+			(struct sockaddr*)&sin, &sinsize);
+
+	if (len < 1)
+	{
+		FreeBuffer(buf);
+		return;
+	}
+
+#ifdef CFG_DUMP_RAW_PACKETS
+	printf("RAW CLIENT DATA: %d bytes\n", len);
+	dump_pk(buf->d.raw, len);
+#endif
+
+	for (l = LLGetHead(&clientconns); l; l = l->next)
+	{
+		ClientConnection *cc = l->data;
+		ConnData *conn = &cc->c;
+		if (sin.sin_port == conn->sin.sin_port &&
+		    sin.sin_addr.s_addr == conn->sin.sin_addr.s_addr)
+		{
+			Iclientencrypt *enc = cc->enc;
+			if (enc)
+				len = enc->Decrypt(cc->ced, buf->d.raw, len);
+			if (len > 0)
+			{
+				buf->conn = conn;
+				buf->len = len;
+				conn->lastpkt = current_ticks();
+				conn->byterecvd += len + IP_UDP_OVERHEAD;
+				conn->pktrecvd++;
+#ifdef CFG_DUMP_RAW_PACKETS
+				printf("DECRYPTED CLIENT DATA: %d bytes\n", len);
+				dump_pk(buf->d.raw, len);
+#endif
+				ProcessBuffer(buf);
+			}
+			else
+			{
+				lm->Log(L_MALICIOUS, "<net> (client connection) "
+						"failure decrypting packet");
+				FreeBuffer(buf);
+			}
+			break;
+		}
+	}
+
+	if (!l)
+	{
+		FreeBuffer(buf);
+		lm->Log(L_WARN, "<net> got data on client port "
+				"not from any known connection: %s:%d",
+				inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
+	}
+}
+
+
 void * RecvThread(void *dummy)
 {
 	struct timeval tv;
 	fd_set myfds, selfds;
-	int maxfd;
+	int maxfd = 5;
 	Link *l;
 
 	/* set up the fd set we'll be using */
@@ -888,6 +1013,12 @@ void * RecvThread(void *dummy)
 		FD_SET(ld->gamesock, &myfds);
 		if (ld->gamesock > maxfd)
 			maxfd = ld->gamesock;
+		if (clientsock >= 0)
+		{
+			FD_SET(clientsock, &myfds);
+			if (clientsock > maxfd)
+				maxfd = clientsock;
+		}
 	}
 
 	while (!killallthreads)
@@ -908,6 +1039,9 @@ void * RecvThread(void *dummy)
 
 			if (FD_ISSET(ld->pingsock, &selfds))
 				handle_ping_packet(ld);
+
+			if (clientsock >= 0 && FD_ISSET(clientsock, &selfds))
+				handle_client_packet();
 		}
 	}
 	return NULL;
@@ -918,14 +1052,14 @@ local void submit_rel_stats(Player *p)
 {
 	if (lagc)
 	{
-		ClientData *cli = PPDATA(p, clikey);
+		ConnData *conn = PPDATA(p, connkey);
 		struct ReliableLagData rld;
-		rld.reldups = cli->reldups;
+		rld.reldups = conn->reldups;
 		/* the plus one is because c2sn is the rel id of the last packet
 		 * that we've seen, not the one we want to see. */
-		rld.c2sn = cli->c2sn + 1;
-		rld.retries = cli->retries;
-		rld.s2cn = cli->s2cn;
+		rld.c2sn = conn->c2sn + 1;
+		rld.retries = conn->retries;
+		rld.s2cn = conn->s2cn;
 		lagc->RelStats(p, &rld);
 	}
 }
@@ -933,19 +1067,19 @@ local void submit_rel_stats(Player *p)
 
 local void end_sized(Player *p, int success)
 {
-	ClientData *cli = PPDATA(p, clikey);
-	if (cli->sizedrecv.offset != 0)
+	ConnData *conn = PPDATA(p, connkey);
+	if (conn->sizedrecv.offset != 0)
 	{
 		Link *l;
-		u8 type = cli->sizedrecv.type;
-		int arg = success ? cli->sizedrecv.totallen : -1;
+		u8 type = conn->sizedrecv.type;
+		int arg = success ? conn->sizedrecv.totallen : -1;
 		/* tell listeners that they're cancelled */
 		if (type < MAXTYPES)
 			for (l = LLGetHead(sizedhandlers + type); l; l = l->next)
 				((SizedPacketFunc)(l->data))(p, NULL, 0, arg, arg);
-		cli->sizedrecv.type = 0;
-		cli->sizedrecv.totallen = 0;
-		cli->sizedrecv.offset = 0;
+		conn->sizedrecv.type = 0;
+		conn->sizedrecv.totallen = 0;
+		conn->sizedrecv.offset = 0;
 	}
 }
 
@@ -958,20 +1092,20 @@ int QueueMoreData(void *dummy)
 	int needed;
 	Link *link, *l;
 	Player *p;
-	ClientData *cli;
+	ConnData *conn;
 
-	FOR_EACH_PLAYER_P(p, cli, clikey)
+	FOR_EACH_PLAYER_P(p, conn, connkey)
 		if (IS_OURS(p) &&
 		    p->status < S_TIMEWAIT &&
-		    pthread_mutex_trylock(&cli->olmtx) == 0)
+		    pthread_mutex_trylock(&conn->olmtx) == 0)
 		{
-			if ((l = LLGetHead(&cli->sizedsends)) &&
-			    DQCount(&cli->outlist) < QUEUE_THRESHOLD)
+			if ((l = LLGetHead(&conn->sizedsends)) &&
+			    DQCount(&conn->outlist) < QUEUE_THRESHOLD)
 			{
 				struct sized_send_data *sd = l->data;
 
 				/* unlock while we get the data */
-				pthread_mutex_unlock(&cli->olmtx);
+				pthread_mutex_unlock(&conn->olmtx);
 
 				/* prepare packet */
 				packet.t1 = 0x00;
@@ -986,21 +1120,21 @@ int QueueMoreData(void *dummy)
 				sd->offset += needed;
 
 				/* now lock while we buffer it */
-				pthread_mutex_lock(&cli->olmtx);
+				pthread_mutex_lock(&conn->olmtx);
 
 				/* put data in outlist, in 480 byte chunks */
 				dp = buffer;
 				while (needed > 480)
 				{
 					memcpy(packet.data, dp, 480);
-					BufferPacket(p, (byte*)&packet, 486, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
+					BufferPacket(conn, (byte*)&packet, 486, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
 					dp += 480;
 					needed -= 480;
 				}
 				if (needed > 0)
 				{
 					memcpy(packet.data, dp, needed);
-					BufferPacket(p, (byte*)&packet, needed + 6, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
+					BufferPacket(conn, (byte*)&packet, needed + 6, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
 
 				}
 
@@ -1009,12 +1143,12 @@ int QueueMoreData(void *dummy)
 				{
 					/* notify sender that this is the end */
 					sd->request_data(sd->clos, sd->offset, NULL, 0);
-					LLRemove(&cli->sizedsends, sd);
+					LLRemove(&conn->sizedsends, sd);
 					afree(sd);
 				}
 
 			}
-			pthread_mutex_unlock(&cli->olmtx);
+			pthread_mutex_unlock(&conn->olmtx);
 		}
 
 	return TRUE;
@@ -1022,9 +1156,8 @@ int QueueMoreData(void *dummy)
 
 
 /* call with outlistmtx locked */
-local void send_outgoing(Player *p)
+local void send_outgoing(ConnData *conn)
 {
-	ClientData *cli = PPDATA(p, clikey);
 	byte gbuf[MAXPACKET] = { 0x00, 0x0E };
 	byte *gptr = gbuf + 2;
 
@@ -1034,21 +1167,21 @@ local void send_outgoing(Player *p)
 	DQNode *outlist;
 	/* use an estimate of the average round-trip time to figure out when
 	 * to resend a packet */
-	unsigned long timeout = cli->avgrtt + 4*cli->rttdev;
+	unsigned long timeout = conn->avgrtt + 4*conn->rttdev;
 
 	/* adjust the current idea of how many bytes have been sent in the
 	 * last second */
-	if ( TICK_DIFF(now, cli->sincetime) > (1000/7) )
+	if ( TICK_DIFF(now, conn->sincetime) > (1000/7) )
 	{
-		cli->bytessince = cli->bytessince * 7 / 8;
-		cli->sincetime = TICK_MAKE(cli->sincetime + (1000/7));
+		conn->bytessince = conn->bytessince * 7 / 8;
+		conn->sincetime = TICK_MAKE(conn->sincetime + (1000/7));
 	}
 
 	/* we keep a local copy of bytessince to account for the
 	 * sizes of stuff in grouped packets. */
-	bytessince = cli->bytessince;
+	bytessince = conn->bytessince;
 
-	outlist = &cli->outlist;
+	outlist = &conn->outlist;
 
 	/* find smallest seqnum remaining in outlist */
 	minseqnum = INT_MAX;
@@ -1060,7 +1193,7 @@ local void send_outgoing(Player *p)
 	/* process highest priority first */
 	for (pri = 7; pri > 0; pri--)
 	{
-		int limit = cli->limit * pri_limits[pri] / 100;
+		int limit = conn->limit * pri_limits[pri] / 100;
 
 		for (buf = (Buffer*)outlist->next; (DQNode*)buf != outlist; buf = nbuf)
 		{
@@ -1096,8 +1229,8 @@ local void send_outgoing(Player *p)
 				 * for lag stats and also halve bw limit (with
 				 * clipping) */
 				retries++;
-				cli->limit /= 2;
-				CLIP(cli->limit, LOW_LIMIT, HIGH_LIMIT);
+				conn->limit /= 2;
+				CLIP(conn->limit, LOW_LIMIT, HIGH_LIMIT);
 			}
 
 			/* try to group it */
@@ -1125,7 +1258,7 @@ local void send_outgoing(Player *p)
 			{
 				/* send immediately */
 				bytessince += buf->len + IP_UDP_OVERHEAD;
-				SendRaw(p, buf->d.raw, buf->len);
+				SendRaw(conn, buf->d.raw, buf->len);
 				if (IS_REL(buf))
 				{
 					buf->lastretry = now;
@@ -1148,28 +1281,28 @@ local void send_outgoing(Player *p)
 		/* there's only one in the group, so don't send it
 		 * in a group. +3 to skip past the 00 0E and size of
 		 * first packet */
-		SendRaw(p, gbuf + 3, (gptr - gbuf) - 3);
+		SendRaw(conn, gbuf + 3, (gptr - gbuf) - 3);
 	}
 	else if (gcount > 1)
 	{
 		/* send the whole thing as a group */
-		SendRaw(p, gbuf, gptr - gbuf);
+		SendRaw(conn, gbuf, gptr - gbuf);
 	}
 
-	cli->retries += retries;
+	conn->retries += retries;
 }
 
 
 /* call with player status locked */
 local void process_lagouts(Player *p, unsigned int gtc)
 {
-	ClientData *cli = PPDATA(p, clikey);
+	ConnData *conn = PPDATA(p, connkey);
 	/* this is used for lagouts and also for timewait */
-	int diff = TICK_DIFF(gtc, cli->lastpkt);
+	int diff = TICK_DIFF(gtc, conn->lastpkt);
 
 	/* process lagouts */
 	if (p->whenloggedin == 0 && /* acts as flag to prevent dups */
-	    cli->lastpkt != 0 && /* prevent race */
+	    conn->lastpkt != 0 && /* prevent race */
 	    diff > config.droptimeout)
 	{
 		lm->Log(L_DRIVEL,
@@ -1193,10 +1326,10 @@ local void process_lagouts(Player *p, unsigned int gtc)
 		SendToOne(p, drop, 2, NET_PRI_P5);
 
 		/* tell encryption to forget about him */
-		if (cli->enc)
+		if (conn->enc)
 		{
-			cli->enc->Void(p);
-			cli->enc = NULL;
+			conn->enc->Void(p);
+			conn->enc = NULL;
 		}
 
 		/* log message */
@@ -1204,18 +1337,18 @@ local void process_lagouts(Player *p, unsigned int gtc)
 				p->name, p->pid);
 
 		pthread_mutex_lock(&hashmtx);
-		bucket = HashIP(cli->sin);
+		bucket = HashIP(conn->sin);
 		if (clienthash[bucket] == p)
-			clienthash[bucket] = cli->nextinbucket;
+			clienthash[bucket] = conn->nextinbucket;
 		else
 		{
 			Player *j = clienthash[bucket];
-			ClientData *jcli = PPDATA(j, clikey);
+			ConnData *jcli = PPDATA(j, connkey);
 
 			while (j && jcli->nextinbucket != p)
 				j = jcli->nextinbucket;
 			if (j)
-				jcli->nextinbucket = cli->nextinbucket;
+				jcli->nextinbucket = conn->nextinbucket;
 			else
 			{
 				lm->Log(L_ERROR, "<net> Internal error: "
@@ -1226,7 +1359,7 @@ local void process_lagouts(Player *p, unsigned int gtc)
 
 		/* one more time, just to be sure */
 		ClearOutlist(p);
-		pthread_mutex_destroy(&cli->olmtx);
+		pthread_mutex_destroy(&conn->olmtx);
 
 		pd->FreePlayer(p);
 	}
@@ -1239,7 +1372,7 @@ void * SendThread(void *dummy)
 
 	while (!killallthreads)
 	{
-		ClientData *cli;
+		ConnData *conn;
 		Player *p;
 		Link *link;
 
@@ -1247,14 +1380,14 @@ void * SendThread(void *dummy)
 		usleep(10000); /* 1/100 second */
 
 		/* first send outgoing packets */
-		FOR_EACH_PLAYER_P(p, cli, clikey)
+		FOR_EACH_PLAYER_P(p, conn, connkey)
 			if (p->status < S_TIMEWAIT &&
 			    IS_OURS(p) &&
-			    pthread_mutex_trylock(&cli->olmtx) == 0)
+			    pthread_mutex_trylock(&conn->olmtx) == 0)
 			{
-				send_outgoing(p);
+				send_outgoing(PPDATA(p, connkey));
 				submit_rel_stats(p);
-				pthread_mutex_unlock(&cli->olmtx);
+				pthread_mutex_unlock(&conn->olmtx);
 			}
 
 		/* process lagouts and timewait
@@ -1266,6 +1399,16 @@ void * SendThread(void *dummy)
 			if (IS_OURS(p))
 				process_lagouts(p, gtc);
 		pd->Unlock();
+
+		pthread_mutex_lock(&ccmtx);
+		for (link = LLGetHead(&clientconns); link; link = link->next)
+		{
+			ClientConnection *cc = link->data;
+			pthread_mutex_lock(&cc->c.olmtx);
+			send_outgoing(&cc->c);
+			pthread_mutex_unlock(&cc->c.olmtx);
+		}
+		pthread_mutex_unlock(&ccmtx);
 	}
 
 	return NULL;
@@ -1276,7 +1419,7 @@ void * RelThread(void *dummy)
 {
 	Buffer *buf, *nbuf;
 	int worked = 0;
-	ClientData *cli;
+	ConnData *conn;
 
 	pthread_mutex_lock(&relmtx);
 	while (!killallthreads)
@@ -1289,10 +1432,10 @@ void * RelThread(void *dummy)
 		for (buf = (Buffer*)rellist.next; (DQNode*)buf != &rellist; buf = nbuf)
 		{
 			nbuf = (Buffer*)buf->node.next;
-			cli = PPDATA(buf->p, clikey);
+			conn = buf->conn;
 
 			/* if player is gone, free buffer */
-			if (buf->p->status >= S_TIMEWAIT)
+			if (conn->p && conn->p->status >= S_TIMEWAIT)
 			{
 				DQRemove((DQNode*)buf);
 				FreeBuffer(buf);
@@ -1314,10 +1457,10 @@ void * RelThread(void *dummy)
 				pthread_mutex_lock(&relmtx);
 			}
 #endif
-			else if (buf->d.rel.seqnum == (cli->c2sn + 1) )
+			else if (buf->d.rel.seqnum == (conn->c2sn + 1) )
 			{
 				/* else, if seqnum matches, process */
-				cli->c2sn++;
+				conn->c2sn++;
 				DQRemove((DQNode*)buf);
 				/* don't hold mutex while processing packet */
 				pthread_mutex_unlock(&relmtx);
@@ -1327,18 +1470,20 @@ void * RelThread(void *dummy)
 				memmove(buf->d.raw, buf->d.rel.data, buf->len);
 				ProcessBuffer(buf);
 
-				submit_rel_stats(buf->p);
+				if (conn->p)
+					submit_rel_stats(conn->p);
 				pthread_mutex_lock(&relmtx);
 				worked = 1;
 			}
-			else if (buf->d.rel.seqnum <= cli->c2sn)
+			else if (buf->d.rel.seqnum <= conn->c2sn)
 			{
 				/* this is a duplicated reliable packet */
 				DQRemove((DQNode*)buf);
 				FreeBuffer(buf);
 				/* lag data */
-				cli->reldups++;
-				submit_rel_stats(buf->p);
+				conn->reldups++;
+				if (conn->p)
+					submit_rel_stats(conn->p);
 			}
 		}
 	}
@@ -1354,6 +1499,7 @@ void * RelThread(void *dummy)
  */
 void ProcessBuffer(Buffer *buf)
 {
+	ConnData *conn = buf->conn;
 	if (buf->d.rel.t1 == 0x00)
 	{
 		if (buf->d.rel.t2 < (sizeof(oohandlers)/sizeof(*oohandlers)) &&
@@ -1361,27 +1507,41 @@ void ProcessBuffer(Buffer *buf)
 			(oohandlers[(unsigned)buf->d.rel.t2])(buf);
 		else
 		{
-			lm->Log(L_MALICIOUS, "<net> [%s] [pid=%d] unknown network subtype %d",
-					buf->p->name, buf->p->pid, buf->d.rel.t2);
+			if (conn->p)
+				lm->Log(L_MALICIOUS, "<net> [%s] [pid=%d] unknown network subtype %d",
+						conn->p->name, conn->p->pid, buf->d.rel.t2);
+			else
+				lm->Log(L_MALICIOUS, "<net> (client connection) unknown network subtype %d",
+						buf->d.rel.t2);
 			FreeBuffer(buf);
 		}
 	}
 	else if (buf->d.rel.t1 < MAXTYPES)
 	{
-		LinkedList *lst = handlers + (int)buf->d.rel.t1;
-		Link *l;
+		if (conn->p)
+		{
+			LinkedList *lst = handlers + (int)buf->d.rel.t1;
+			Link *l;
 
-		pd->LockPlayer(buf->p);
-		for (l = LLGetHead(lst); l; l = l->next)
-			((PacketFunc)(l->data))(buf->p, buf->d.raw, buf->len);
-		pd->UnlockPlayer(buf->p);
+			pd->LockPlayer(conn->p);
+			for (l = LLGetHead(lst); l; l = l->next)
+				((PacketFunc)(l->data))(conn->p, buf->d.raw, buf->len);
+			pd->UnlockPlayer(conn->p);
+		}
+		else if (conn->cc)
+			conn->cc->i->HandlePacket(buf->d.raw, buf->len);
 
 		FreeBuffer(buf);
 	}
 	else
 	{
-		lm->Log(L_MALICIOUS, "<net> [%s] [pid=%d] unknown packet type %d",
-				buf->p->name, buf->p->pid, buf->d.rel.t1);
+		if (conn->p)
+			lm->Log(L_MALICIOUS, "<net> [%s] [pid=%d] unknown packet type %d",
+					conn->p->name, conn->p->pid, buf->d.rel.t1);
+		else
+			lm->Log(L_MALICIOUS, "<net> (client connection) unknown packet type %d",
+					buf->d.rel.t1);
+		FreeBuffer(buf);
 	}
 }
 
@@ -1390,7 +1550,7 @@ Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v
 {
 	int bucket;
 	Player *p;
-	ClientData *cli;
+	ConnData *conn;
 	ListenData *ld = v_ld;
 
 	/* try to find this sin in the hash table */
@@ -1411,26 +1571,32 @@ Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v
 	}
 
 	p = pd->NewPlayer(type);
-	cli = PPDATA(p, clikey);
+	conn = PPDATA(p, connkey);
 
-	InitClient(cli, enc);
+	InitConnData(conn, enc);
+
+	conn->p = p;
 
 	/* copy info from ListenData */
-	cli->whichsock = ld->gamesock;
+	conn->whichsock = ld->gamesock;
 	p->connectas = ld->connectas;
+
+	/* set ip address in player struct */
+	/* RACE: inet_ntoa is not thread-safe */
+	astrncpy(p->ipaddr, inet_ntoa(sin->sin_addr), sizeof(p->ipaddr));
 
 	/* add him to his hash bucket */
 	pthread_mutex_lock(&hashmtx);
 	if (sin)
 	{
-		memcpy(&cli->sin, sin, sizeof(struct sockaddr_in));
+		memcpy(&conn->sin, sin, sizeof(struct sockaddr_in));
 		bucket = HashIP(*sin);
-		cli->nextinbucket = clienthash[bucket];
+		conn->nextinbucket = clienthash[bucket];
 		clienthash[bucket] = p;
 	}
 	else
 	{
-		cli->nextinbucket = NULL;
+		conn->nextinbucket = NULL;
 	}
 	pthread_mutex_unlock(&hashmtx);
 
@@ -1483,21 +1649,38 @@ void KillConnection(Player *p)
 }
 
 
+void ProcessKeyResp(Buffer *buf)
+{
+	ConnData *conn = buf->conn;
+
+	if (conn->cc)
+		conn->cc->i->Connected();
+	else if (conn->p)
+		lm->LogP(L_MALICIOUS, "net", conn->p, "got key response packet");
+}
+
+
 void ProcessReliable(Buffer *buf)
 {
 	/* calculate seqnum delta to decide if we want to ack it. relmtx
 	 * protects the c2sn values in the clients array. */
 	int sn = buf->d.rel.seqnum;
-	ClientData *cli = PPDATA(buf->p, clikey);
+	ConnData *conn = buf->conn;
 
 	pthread_mutex_lock(&relmtx);
 
-	if ((sn - cli->c2sn) > config.bufferdelta)
+	if ((sn - conn->c2sn) > config.bufferdelta)
 	{
 		/* just drop it */
 		pthread_mutex_unlock(&relmtx);
-		lm->Log(L_DRIVEL, "<net> [%s] [pid=%d] Reliable packet with too big delta (%d - %d)",
-				buf->p->name, buf->p->pid, sn, cli->c2sn);
+		if (conn->p)
+			lm->Log(L_DRIVEL, "<net> [%s] [pid=%d] reliable packet "
+					"with too big delta (%d - %d)",
+					conn->p->name, conn->p->pid, sn, conn->c2sn);
+		else
+			lm->Log(L_DRIVEL, "<net> (client connection) reliable packet "
+					"with too big delta (%d - %d)",
+					sn, conn->c2sn);
 		FreeBuffer(buf);
 	}
 	else
@@ -1517,10 +1700,10 @@ void ProcessReliable(Buffer *buf)
 		/* send the ack. use priority 3 so it gets sent as soon as
 		 * possible, but not urgent, because we want to combine multiple
 		 * ones into packets. */
-		pthread_mutex_lock(&cli->olmtx);
-		BufferPacket(buf->p, (byte*)&ack, sizeof(ack),
+		pthread_mutex_lock(&conn->olmtx);
+		BufferPacket(conn, (byte*)&ack, sizeof(ack),
 				NET_UNRELIABLE | NET_PRI_P3, NULL, NULL);
-		pthread_mutex_unlock(&cli->olmtx);
+		pthread_mutex_unlock(&conn->olmtx);
 	}
 }
 
@@ -1535,7 +1718,7 @@ void ProcessGrouped(Buffer *buf)
 		if (pos + len <= buf->len)
 		{
 			Buffer *b = GetBuffer();
-			b->p = buf->p;
+			b->conn = buf->conn;
 			b->len = len;
 			memcpy(b->d.raw, buf->d.raw + pos, len);
 			ProcessBuffer(b);
@@ -1548,12 +1731,12 @@ void ProcessGrouped(Buffer *buf)
 
 void ProcessAck(Buffer *buf)
 {
-	ClientData *cli = PPDATA(buf->p, clikey);
+	ConnData *conn = buf->conn;
 	Buffer *b, *nbuf;
 	DQNode *outlist;
 
-	pthread_mutex_lock(&cli->olmtx);
-	outlist = &cli->outlist;
+	pthread_mutex_lock(&conn->olmtx);
+	outlist = &conn->outlist;
 	for (b = (Buffer*)outlist->next; (DQNode*)b != outlist; b = nbuf)
 	{
 		nbuf = (Buffer*)b->node.next;
@@ -1561,54 +1744,54 @@ void ProcessAck(Buffer *buf)
 		    b->d.rel.seqnum == buf->d.rel.seqnum)
 		{
 			DQRemove((DQNode*)b);
-			pthread_mutex_unlock(&cli->olmtx);
+			pthread_mutex_unlock(&conn->olmtx);
 
 			if (b->callback)
-				b->callback(buf->p, 1, b->clos);
+				b->callback(conn->p, 1, b->clos);
 
 			if (b->retries == 1)
 			{
 				int rtt = TICK_DIFF(current_millis(), b->lastretry);
-				int dev = cli->avgrtt - rtt;
+				int dev = conn->avgrtt - rtt;
 				if (dev < 0) dev = -dev;
-				cli->rttdev = (cli->rttdev * 3 + dev) / 4;
-				cli->avgrtt = (cli->avgrtt * 7 + rtt) / 8;
-				if (lagc) lagc->RelDelay(buf->p, rtt);
+				conn->rttdev = (conn->rttdev * 3 + dev) / 4;
+				conn->avgrtt = (conn->avgrtt * 7 + rtt) / 8;
+				if (lagc && conn->p) lagc->RelDelay(conn->p, rtt);
 			}
 
 			/* handle limit adjustment */
-			cli->limit += 540*540/cli->limit;
-			CLIP(cli->limit, LOW_LIMIT, HIGH_LIMIT);
+			conn->limit += 540*540/conn->limit;
+			CLIP(conn->limit, LOW_LIMIT, HIGH_LIMIT);
 
 			FreeBuffer(b);
 			FreeBuffer(buf);
 			return;
 		}
 	}
-	pthread_mutex_unlock(&cli->olmtx);
+	pthread_mutex_unlock(&conn->olmtx);
 }
 
 
 void ProcessSyncRequest(Buffer *buf)
 {
-	ClientData *cli = PPDATA(buf->p, clikey);
+	ConnData *conn = buf->conn;
 	struct TimeSyncC2S *cts = (struct TimeSyncC2S*)(buf->d.raw);
 	struct TimeSyncS2C ts = { 0x00, 0x06, cts->time };
-	pthread_mutex_lock(&cli->olmtx);
+	pthread_mutex_lock(&conn->olmtx);
 	ts.servertime = current_ticks();
 	/* note: this bypasses bandwidth limits */
-	SendRaw(buf->p, (byte*)&ts, sizeof(ts));
-	pthread_mutex_unlock(&cli->olmtx);
+	SendRaw(conn, (byte*)&ts, sizeof(ts));
+	pthread_mutex_unlock(&conn->olmtx);
 
 	/* submit data to lagdata */
-	if (lagc)
+	if (lagc && conn->p)
 	{
 		struct ClientPLossData data;
-		data.s_pktrcvd = cli->pktrecvd;
-		data.s_pktsent = cli->pktsent;
+		data.s_pktrcvd = conn->pktrecvd;
+		data.s_pktsent = conn->pktsent;
 		data.c_pktrcvd = cts->pktrecvd;
 		data.c_pktsent = cts->pktsent;
-		lagc->ClientPLoss(buf->p, &data);
+		lagc->ClientPLoss(conn->p, &data);
 	}
 
 	FreeBuffer(buf);
@@ -1617,154 +1800,188 @@ void ProcessSyncRequest(Buffer *buf)
 
 void ProcessDrop(Buffer *buf)
 {
-	KillConnection(buf->p);
+	if (buf->conn->p)
+		KillConnection(buf->conn->p);
+	else if (buf->conn->cc)
+	{
+		buf->conn->cc->i->Disconnected();
+		/* FIXME: this sends an extra 0007 to the client. that should
+		 * probably go away. */
+		DropClientConnection(buf->conn->cc);
+	}
 	FreeBuffer(buf);
 }
 
 
 void ProcessBigData(Buffer *buf)
 {
-	ClientData *cli = PPDATA(buf->p, clikey);
+	ConnData *conn = buf->conn;
 	int newsize;
 	byte *newbuf;
 
-	pd->LockPlayer(buf->p);
+	pthread_mutex_lock(&conn->bigmtx);
 
-	newsize = cli->bigrecv.size + buf->len - 2;
+	newsize = conn->bigrecv.size + buf->len - 2;
 
 	if (newsize > MAXBIGPACKET)
 	{
-		lm->LogP(L_MALICIOUS, "net", buf->p, "Refusing to allocate more than %d bytes", MAXBIGPACKET);
+		if (conn->p)
+			lm->LogP(L_MALICIOUS, "net", conn->p,
+					"refusing to allocate %d bytes (> %d)", newsize, MAXBIGPACKET);
+		else
+			lm->Log(L_MALICIOUS, "<net> (client connection) "
+					"refusing to allocate %d bytes (> %d)", newsize, MAXBIGPACKET);
 		goto freebigbuf;
 	}
 
-	if (cli->bigrecv.room < newsize)
+	if (conn->bigrecv.room < newsize)
 	{
-		cli->bigrecv.room *= 2;
-		if (cli->bigrecv.room < newsize)
-			cli->bigrecv.room = newsize;
-		newbuf = realloc(cli->bigrecv.buf, cli->bigrecv.room);
+		conn->bigrecv.room *= 2;
+		if (conn->bigrecv.room < newsize)
+			conn->bigrecv.room = newsize;
+		newbuf = realloc(conn->bigrecv.buf, conn->bigrecv.room);
 		if (!newbuf)
 		{
-			lm->LogP(L_ERROR,"net", buf->p, "Cannot allocate %d bytes for bigpacket", newsize);
+			if (conn->p)
+				lm->LogP(L_ERROR, "net", conn->p, "cannot allocate %d bytes "
+						"for bigpacket", newsize);
+			else
+				lm->Log(L_ERROR, "<net> (client connection) cannot allocate %d bytes "
+						"for bigpacket", newsize);
 			goto freebigbuf;
 		}
-		cli->bigrecv.buf = newbuf;
+		conn->bigrecv.buf = newbuf;
 	}
 	else
-		newbuf = cli->bigrecv.buf;
+		newbuf = conn->bigrecv.buf;
 
-	memcpy(newbuf + cli->bigrecv.size, buf->d.raw + 2, buf->len - 2);
+	memcpy(newbuf + conn->bigrecv.size, buf->d.raw + 2, buf->len - 2);
 
-	cli->bigrecv.buf = newbuf;
-	cli->bigrecv.size = newsize;
+	conn->bigrecv.buf = newbuf;
+	conn->bigrecv.size = newsize;
 
 	if (buf->d.rel.t2 == 0x08) goto reallyexit;
 
 	if (newbuf[0] > 0 && newbuf[0] < MAXTYPES)
 	{
-		LinkedList *lst = handlers + (int)newbuf[0];
-		Link *l;
-		pd->LockPlayer(buf->p);
-		for (l = LLGetHead(lst); l; l = l->next)
-			((PacketFunc)(l->data))(buf->p, newbuf, newsize);
-		pd->UnlockPlayer(buf->p);
+		if (conn->p)
+		{
+			LinkedList *lst = handlers + (int)newbuf[0];
+			Link *l;
+			pd->LockPlayer(conn->p);
+			for (l = LLGetHead(lst); l; l = l->next)
+				((PacketFunc)(l->data))(conn->p, newbuf, newsize);
+			pd->UnlockPlayer(conn->p);
+		}
+		else
+			conn->cc->i->HandlePacket(newbuf, newsize);
 	}
 	else
-		lm->LogP(L_WARN, "net", buf->p, "bad type for bigpacket: %d", newbuf[0]);
+	{
+		if (conn->p)
+			lm->LogP(L_WARN, "net", conn->p, "bad type for bigpacket: %d", newbuf[0]);
+		else
+			lm->Log(L_WARN, "<net> (client connection) bad type for bigpacket: %d", newbuf[0]);
+	}
 
 freebigbuf:
-	afree(cli->bigrecv.buf);
-	cli->bigrecv.buf = NULL;
-	cli->bigrecv.size = 0;
-	cli->bigrecv.room = 0;
+	afree(conn->bigrecv.buf);
+	conn->bigrecv.buf = NULL;
+	conn->bigrecv.size = 0;
+	conn->bigrecv.room = 0;
 reallyexit:
-	pd->UnlockPlayer(buf->p);
+	pthread_mutex_unlock(&conn->bigmtx);
 	FreeBuffer(buf);
 }
 
 
 void ProcessPresize(Buffer *buf)
 {
-	ClientData *cli = PPDATA(buf->p, clikey);
+	ConnData *conn = buf->conn;
 	Link *l;
 	int size = buf->d.rel.seqnum;
 
-	pd->LockPlayer(buf->p);
+	pthread_mutex_lock(&conn->bigmtx);
 
-	if (cli->sizedrecv.offset == 0)
+	/* only handle presized packets for player connections, not client
+	 * connections. */
+	if (!conn->p)
+		goto presized_done;
+
+	if (conn->sizedrecv.offset == 0)
 	{
 		/* first packet */
 		if (buf->d.rel.data[0] < MAXTYPES)
 		{
-			cli->sizedrecv.type = buf->d.rel.data[0];
-			cli->sizedrecv.totallen = size;
+			conn->sizedrecv.type = buf->d.rel.data[0];
+			conn->sizedrecv.totallen = size;
 		}
 		else
 		{
-			end_sized(buf->p, 0);
+			end_sized(conn->p, 0);
 			goto presized_done;
 		}
 	}
 
-	if (cli->sizedrecv.totallen != size)
+	if (conn->sizedrecv.totallen != size)
 	{
-		lm->LogP(L_MALICIOUS, "net", buf->p, "Length mismatch in sized packet");
-		end_sized(buf->p, 0);
+		lm->LogP(L_MALICIOUS, "net", conn->p, "Length mismatch in sized packet");
+		end_sized(conn->p, 0);
 	}
-	else if ((cli->sizedrecv.offset + buf->len - 6) > size)
+	else if ((conn->sizedrecv.offset + buf->len - 6) > size)
 	{
-		lm->LogP(L_MALICIOUS, "net", buf->p, "Sized packet overflow");
-		end_sized(buf->p, 0);
+		lm->LogP(L_MALICIOUS, "net", conn->p, "Sized packet overflow");
+		end_sized(conn->p, 0);
 	}
 	else
 	{
-		for (l = LLGetHead(sizedhandlers + cli->sizedrecv.type); l; l = l->next)
+		for (l = LLGetHead(sizedhandlers + conn->sizedrecv.type); l; l = l->next)
 			((SizedPacketFunc)(l->data))
-				(buf->p, buf->d.rel.data, buf->len - 6, cli->sizedrecv.offset, size);
+				(conn->p, buf->d.rel.data, buf->len - 6, conn->sizedrecv.offset, size);
 
-		cli->sizedrecv.offset += buf->len - 6;
+		conn->sizedrecv.offset += buf->len - 6;
 
-		if (cli->sizedrecv.offset >= size)
-			end_sized(buf->p, 1);
+		if (conn->sizedrecv.offset >= size)
+			end_sized(conn->p, 1);
 	}
 
 presized_done:
-	pd->UnlockPlayer(buf->p);
+	pthread_mutex_unlock(&conn->bigmtx);
 	FreeBuffer(buf);
 }
 
 
-void ProcessCancelReq(Buffer *req)
+void ProcessCancelReq(Buffer *buf)
 {
 	byte pkt[] = {0x00, 0x0C};
 	/* the client has request a cancel for the file transfer */
-	ClientData *cli = PPDATA(req->p, clikey);
+	ConnData *conn = buf->conn;
 	struct sized_send_data *sd;
 	Link *l;
 
-	pthread_mutex_lock(&cli->olmtx);
+	pthread_mutex_lock(&conn->olmtx);
 
 	/* cancel current presized transfer */
-	if ((l = LLGetHead(&cli->sizedsends)) && (sd = l->data))
+	if ((l = LLGetHead(&conn->sizedsends)) && (sd = l->data))
 	{
 		sd->request_data(sd->clos, 0, NULL, 0);
 		afree(sd);
 	}
-	LLRemoveFirst(&cli->sizedsends);
+	LLRemoveFirst(&conn->sizedsends);
 
-	pthread_mutex_unlock(&cli->olmtx);
+	pthread_mutex_unlock(&conn->olmtx);
 
-	SendToOne(req->p, pkt, sizeof(pkt), NET_RELIABLE);
+	BufferPacket(buf->conn, pkt, sizeof(pkt), NET_RELIABLE, NULL, NULL);
 
-	FreeBuffer(req);
+	FreeBuffer(buf);
 }
 
 
 void ProcessCancel(Buffer *req)
 {
 	/* the client is cancelling its current file transfer */
-	end_sized(req->p, 0);
+	if (req->conn->p)
+		end_sized(req->conn->p, 0);
 	FreeBuffer(req);
 }
 
@@ -1772,8 +1989,8 @@ void ProcessCancel(Buffer *req)
 /* passes packet to the appropriate nethandlers function */
 void ProcessSpecial(Buffer *req)
 {
-	if (nethandlers[(unsigned)req->d.rel.t2])
-		nethandlers[(unsigned)req->d.rel.t2](req->p, req->d.raw, req->len);
+	if (nethandlers[(unsigned)req->d.rel.t2] && req->conn->p)
+		nethandlers[(unsigned)req->d.rel.t2](req->conn->p, req->d.raw, req->len);
 }
 
 
@@ -1792,21 +2009,22 @@ void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len, void *v_ld)
 /* IMPORTANT: anyone calling SendRaw MUST hold the outlistmtx for the
  * player that they're sending data to if you want bytessince to be
  * accurate. */
-void SendRaw(Player *p, byte *data, int len)
+void SendRaw(ConnData *conn, byte *data, int len)
 {
 	byte encbuf[MAXPACKET];
-	ClientData *cli = PPDATA(p, clikey);
-	Iencrypt *enc = cli->enc;
+	Player *p = conn->p;
 
 	memcpy(encbuf, data, len);
 
 #ifdef CFG_DUMP_RAW_PACKETS
-	printf("SEND: %d bytes to pid %d\n", len, p->pid);
+	printf("SEND: %d bytes to pid %d\n", len, p ? p->pid : -1);
 	dump_pk(encbuf, len);
 #endif
 
-	if (enc)
-		len = enc->Encrypt(p, encbuf, len);
+	if (conn->enc && p)
+		len = conn->enc->Encrypt(p, encbuf, len);
+	else if (conn->cc && conn->cc->enc)
+		len = conn->cc->enc->Encrypt(conn->cc->ced, encbuf, len);
 
 	if (len == 0)
 		return;
@@ -1816,42 +2034,39 @@ void SendRaw(Player *p, byte *data, int len)
 	dump_pk(encbuf, len);
 #endif
 
-	sendto(cli->whichsock, encbuf, len, 0,
-			(struct sockaddr*)&cli->sin,sizeof(struct sockaddr_in));
+	sendto(conn->whichsock, encbuf, len, 0,
+			(struct sockaddr*)&conn->sin,sizeof(struct sockaddr_in));
 
-	cli->bytessince += len + IP_UDP_OVERHEAD;
-	cli->bytesent += len + IP_UDP_OVERHEAD;
-	cli->pktsent++;
+	conn->bytessince += len + IP_UDP_OVERHEAD;
+	conn->bytesent += len + IP_UDP_OVERHEAD;
+	conn->pktsent++;
 	global_stats.pktsent++;
 }
 
 
 /* must be called with outlist mutex! */
-Buffer * BufferPacket(Player *p, byte *data, int len, int flags,
+Buffer * BufferPacket(ConnData *conn, byte *data, int len, int flags,
 		RelCallback callback, void *clos)
 {
-	ClientData *cli = PPDATA(p, clikey);
 	Buffer *buf;
 	int limit;
-
-	if (!IS_OURS(p)) return NULL;
 
 	assert(len < MAXPACKET);
 
 	/* handle default priority */
 	if (GET_PRI(flags) == 0) flags |= NET_PRI_DEFAULT;
-	limit = cli->limit * pri_limits[GET_PRI(flags)] / 100;
+	limit = conn->limit * pri_limits[GET_PRI(flags)] / 100;
 
 	/* try the fast path */
 	if (flags == NET_PRI_P4 || flags == NET_PRI_P5)
-		if ((int)cli->bytessince + len + IP_UDP_OVERHEAD <= limit)
+		if ((int)conn->bytessince + len + IP_UDP_OVERHEAD <= limit)
 		{
-			SendRaw(p, data, len);
+			SendRaw(conn, data, len);
 			return NULL;
 		}
 
 	buf = GetBuffer();
-	buf->p = p;
+	buf->conn = conn;
 	buf->lastretry = TICK_MAKE(current_millis() - 10000U);
 	buf->retries = 0;
 	buf->pri = GET_PRI(flags);
@@ -1867,7 +2082,7 @@ Buffer * BufferPacket(Player *p, byte *data, int len, int flags,
 		buf->d.rel.t2 = 0x03;
 		memcpy(buf->d.rel.data, data, len);
 		buf->len = len + 6;
-		buf->d.rel.seqnum = cli->s2cn++;
+		buf->d.rel.seqnum = conn->s2cn++;
 	}
 	else
 	{
@@ -1876,15 +2091,15 @@ Buffer * BufferPacket(Player *p, byte *data, int len, int flags,
 	}
 
 	/* add it to out list */
-	DQAdd(&cli->outlist, (DQNode*)buf);
+	DQAdd(&conn->outlist, (DQNode*)buf);
 
 	/* if it's urgent, do one retry now */
 	if (GET_PRI(flags) > 5)
-		if (((int)cli->bytessince + buf->len + IP_UDP_OVERHEAD) <= limit)
+		if (((int)conn->bytessince + buf->len + IP_UDP_OVERHEAD) <= limit)
 		{
 			buf->lastretry = current_millis();
 			buf->retries++;
-			SendRaw(p, buf->d.raw, buf->len);
+			SendRaw(conn, buf->d.raw, buf->len);
 		}
 
 	return buf;
@@ -1893,13 +2108,14 @@ Buffer * BufferPacket(Player *p, byte *data, int len, int flags,
 
 void SendToOne(Player *p, byte *data, int len, int flags)
 {
-	ClientData *cli = PPDATA(p, clikey);
+	ConnData *conn = PPDATA(p, connkey);
+	if (!IS_OURS(p)) return;
 	/* see if we can do it the quick way */
 	if (len < MAXPACKET)
 	{
-		pthread_mutex_lock(&cli->olmtx);
-		BufferPacket(p, data, len, flags, NULL, NULL);
-		pthread_mutex_unlock(&cli->olmtx);
+		pthread_mutex_lock(&conn->olmtx);
+		BufferPacket(conn, data, len, flags, NULL, NULL);
+		pthread_mutex_unlock(&conn->olmtx);
 	}
 	else
 	{
@@ -1921,7 +2137,8 @@ void SendToArena(Arena *arena, Player *except, byte *data, int len, int flags)
 	FOR_EACH_PLAYER(p)
 		if (p->status == S_PLAYING &&
 		    (p->arena == arena || !arena) &&
-		    p != except)
+		    p != except &&
+		    IS_OURS(p))
 			LLAdd(&set, p);
 	pd->Unlock();
 	SendToSet(&set, data, len, flags);
@@ -1963,10 +2180,11 @@ void SendToSet(LinkedList *set, byte *data, int len, int flags)
 		for (l = LLGetHead(set); l; l = l->next)
 		{
 			Player *p = l->data;
-			ClientData *cli = PPDATA(p, clikey);
-			pthread_mutex_lock(&cli->olmtx);
-			BufferPacket(p, data, len, flags, NULL, NULL);
-			pthread_mutex_unlock(&cli->olmtx);
+			ConnData *conn = PPDATA(p, connkey);
+			if (!IS_OURS(p)) continue;
+			pthread_mutex_lock(&conn->olmtx);
+			BufferPacket(conn, data, len, flags, NULL, NULL);
+			pthread_mutex_unlock(&conn->olmtx);
 		}
 	}
 }
@@ -1979,37 +2197,42 @@ void SendWithCallback(
 		RelCallback callback,
 		void *clos)
 {
-	ClientData *cli = PPDATA(p, clikey);
+	ConnData *conn = PPDATA(p, connkey);
 	/* we can't handle big packets here */
 	assert(len < MAXPACKET);
+	if (!IS_OURS(p)) return;
 
-	pthread_mutex_lock(&cli->olmtx);
-	BufferPacket(p, data, len, NET_RELIABLE, callback, clos);
-	pthread_mutex_unlock(&cli->olmtx);
+	pthread_mutex_lock(&conn->olmtx);
+	BufferPacket(conn, data, len, NET_RELIABLE, callback, clos);
+	pthread_mutex_unlock(&conn->olmtx);
 }
 
 
 void SendSized(Player *p, void *clos, int len,
 		void (*req)(void *clos, int offset, byte *buf, int needed))
 {
-	ClientData *cli = PPDATA(p, clikey);
+	ConnData *conn = PPDATA(p, connkey);
 	struct sized_send_data *sd = amalloc(sizeof(*sd));
+	if (!IS_OURS(p)) return;
 
 	sd->request_data = req;
 	sd->clos = clos;
 	sd->totallen = len;
 	sd->offset = 0;
 
-	pthread_mutex_lock(&cli->olmtx);
-	LLAdd(&cli->sizedsends, sd);
-	pthread_mutex_unlock(&cli->olmtx);
+	pthread_mutex_lock(&conn->olmtx);
+	LLAdd(&conn->sizedsends, sd);
+	pthread_mutex_unlock(&conn->olmtx);
 }
 
 
 i32 GetIP(Player *p)
 {
-	ClientData *cli = PPDATA(p, clikey);
-	return cli->sin.sin_addr.s_addr;
+	ConnData *conn = PPDATA(p, connkey);
+	if (IS_OURS(p))
+		return conn->sin.sin_addr.s_addr;
+	else
+		return -1;
 }
 
 
@@ -2021,29 +2244,98 @@ void GetStats(struct net_stats *stats)
 
 void GetClientStats(Player *p, struct net_client_stats *stats)
 {
-	ClientData *cli = PPDATA(p, clikey);
+	ConnData *conn = PPDATA(p, connkey);
 
 	if (!stats || !p) return;
 
-#define ASSIGN(field) stats->field = cli->field
+#define ASSIGN(field) stats->field = conn->field
 	ASSIGN(s2cn); ASSIGN(c2sn);
 	ASSIGN(pktsent); ASSIGN(pktrecvd); ASSIGN(bytesent); ASSIGN(byterecvd);
 #undef ASSIGN
 	/* encryption */
-	if (cli->enc)
-		stats->encname = cli->enc->head.name;
+	if (conn->enc)
+		stats->encname = conn->enc->head.name;
 	else
 		stats->encname = "none";
 	/* convert to bytes per second */
-	stats->limit = cli->limit;
+	stats->limit = conn->limit;
 	/* RACE: inet_ntoa is not thread-safe */
-	astrncpy(stats->ipaddr, inet_ntoa(cli->sin.sin_addr), 16);
-	stats->port = cli->sin.sin_port;
+	astrncpy(stats->ipaddr, inet_ntoa(conn->sin.sin_addr), sizeof(stats->ipaddr));
+	stats->port = conn->sin.sin_port;
 }
 
 int GetLastPacketTime(Player *p)
 {
-	ClientData *cli = PPDATA(p, clikey);
-	return TICK_DIFF(current_ticks(), cli->lastpkt);
+	ConnData *conn = PPDATA(p, connkey);
+	return TICK_DIFF(current_ticks(), conn->lastpkt);
+}
+
+
+/* client connection stuff */
+
+ClientConnection *MakeClientConnection(const char *addr, int port,
+		Iclientconn *icc, Iclientencrypt *ice)
+{
+	struct
+	{
+		u8 t1, t2;
+		u32 key;
+		u16 type;
+	} pkt;
+	ClientConnection *cc = amalloc(sizeof(*cc));
+
+	if (!icc || !addr) goto fail;
+
+	cc->i = icc;
+	cc->enc = ice;
+	if (ice)
+		cc->ced = ice->Init();
+
+	InitConnData(&cc->c, NULL);
+
+	cc->c.cc = cc; /* confusingly cryptic c code :) */
+
+	cc->c.sin.sin_family = AF_INET;
+	if (inet_aton(addr, &cc->c.sin.sin_addr) == 0)
+		goto fail;
+	cc->c.sin.sin_port = htons(port);
+	cc->c.whichsock = clientsock;
+
+	pthread_mutex_lock(&ccmtx);
+	LLAdd(&clientconns, cc);
+	pthread_mutex_unlock(&ccmtx);
+
+	pkt.t1 = 0x00;
+	pkt.t2 = 0x07;
+	SendRaw(&cc->c, (byte*)&pkt, 2);
+	pkt.key = random() | 0x80000000UL;
+	pkt.t2 = 0x01;
+	pkt.type = 0x0001;
+	SendRaw(&cc->c, (byte*)&pkt, sizeof(pkt));
+
+	return cc;
+
+fail:
+	afree(cc);
+	return NULL;
+}
+
+void SendPacket(ClientConnection *cc, byte *pkt, int len, int flags)
+{
+	BufferPacket(&cc->c, pkt, len, flags, NULL, NULL);
+}
+
+void DropClientConnection(ClientConnection *cc)
+{
+	byte pkt[] = { 0x00, 0x07 };
+	SendRaw(&cc->c, pkt, sizeof(pkt));
+
+	if (cc->enc)
+		cc->enc->Void(cc->ced);
+
+	pthread_mutex_lock(&ccmtx);
+	LLRemove(&clientconns, cc);
+	pthread_mutex_unlock(&ccmtx);
+	afree(cc);
 }
 

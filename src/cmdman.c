@@ -35,7 +35,8 @@ local Imodman *mm;
 
 local pthread_mutex_t cmdmtx;
 local HashTable *cmds;
-local CommandFunc2 defaultfunc;
+local CommandFunc defaultfunc;
+local CommandFunc2 defaultfunc2;
 
 local Icmdman _int =
 {
@@ -88,20 +89,25 @@ EXPORT int MM_cmdman(int action, Imodman *mm_, Arena *arena)
 
 void AddCommand(const char *cmd, CommandFunc f, helptext_t helptext)
 {
-	CommandData *data = amalloc(sizeof(*data));
-	data->func = f;
-	data->func2 = NULL;
-	data->helptext = helptext;
-	pthread_mutex_lock(&cmdmtx);
-	HashAdd(cmds, cmd, data);
-	pthread_mutex_unlock(&cmdmtx);
+	if (!cmd)
+		defaultfunc = f;
+	else
+	{
+		CommandData *data = amalloc(sizeof(*data));
+		data->func = f;
+		data->func2 = NULL;
+		data->helptext = helptext;
+		pthread_mutex_lock(&cmdmtx);
+		HashAdd(cmds, cmd, data);
+		pthread_mutex_unlock(&cmdmtx);
+	}
 }
 
 
 void AddCommand2(const char *cmd, CommandFunc2 f2, helptext_t helptext)
 {
 	if (!cmd)
-		defaultfunc = f2;
+		defaultfunc2 = f2;
 	else
 	{
 		CommandData *data = amalloc(sizeof(*data));
@@ -117,25 +123,33 @@ void AddCommand2(const char *cmd, CommandFunc2 f2, helptext_t helptext)
 
 void RemoveCommand(const char *cmd, CommandFunc f)
 {
-	LinkedList lst = LL_INITIALIZER;
-	Link *l;
-
-	pthread_mutex_lock(&cmdmtx);
-	HashGetAppend(cmds, cmd, &lst);
-	for (l = LLGetHead(&lst); l; l = l->next)
+	if (!cmd)
 	{
-		CommandData *data = l->data;
-		if (data->func == f)
-		{
-			HashRemove(cmds, cmd, data);
-			LLEmpty(&lst);
-			afree(data);
-			pthread_mutex_unlock(&cmdmtx);
-			return;
-		}
+		if (defaultfunc == f)
+			defaultfunc = NULL;
 	}
-	LLEmpty(&lst);
-	pthread_mutex_unlock(&cmdmtx);
+	else
+	{
+		LinkedList lst = LL_INITIALIZER;
+		Link *l;
+
+		pthread_mutex_lock(&cmdmtx);
+		HashGetAppend(cmds, cmd, &lst);
+		for (l = LLGetHead(&lst); l; l = l->next)
+		{
+			CommandData *data = l->data;
+			if (data->func == f)
+			{
+				HashRemove(cmds, cmd, data);
+				LLEmpty(&lst);
+				afree(data);
+				pthread_mutex_unlock(&cmdmtx);
+				return;
+			}
+		}
+		LLEmpty(&lst);
+		pthread_mutex_unlock(&cmdmtx);
+	}
 }
 
 
@@ -143,8 +157,8 @@ void RemoveCommand2(const char *cmd, CommandFunc2 f2)
 {
 	if (!cmd)
 	{
-		if (defaultfunc == f2)
-			defaultfunc = NULL;
+		if (defaultfunc2 == f2)
+			defaultfunc2 = NULL;
 	}
 	else
 	{
@@ -269,6 +283,7 @@ void Command(const char *line, Player *p, const Target *target)
 	Link *l;
 	char cmd[40], *t, found = 0;
 	int check;
+	const char *origline = line;
 
 	/* find end of command */
 	t = cmd;
@@ -308,8 +323,13 @@ void Command(const char *line, Player *p, const Target *target)
 				p->name, cmd);
 #endif
 
-	if (!found && defaultfunc)
-		defaultfunc(cmd, line, p, target);
+	if (!found)
+	{
+		if (defaultfunc2)
+			defaultfunc2(cmd, line, p, target);
+		else if (defaultfunc)
+			defaultfunc(origline, p, target);
+	}
 }
 
 

@@ -2,16 +2,10 @@
 /* dist: public */
 
 #include "asss.h"
+#include "banners.h"
 #include "packets/banners.h"
-#if 0
-#include "billcore.h"
-#include "packets/billmisc.h"
-#endif
 
 local Imodman *mm;
-#if 0
-local Ibillcore *bnet;
-#endif
 local Inet *net;
 local Iplayerdata *pd;
 local Ilogman *lm;
@@ -35,24 +29,10 @@ typedef struct
 } bdata;
 
 local int bdkey;
+local pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+#define LOCK() pthread_mutex_lock(&mtx)
+#define UNLOCK() pthread_mutex_unlock(&mtx)
 
-
-/* sends pid's banner to arena he's in. you probably want to be holding
- * the player status lock when calling this. */
-local void BannerToArena(Player *p)
-{
-	bdata *bd = PPDATA(p, bdkey);
-	struct S2CBanner send;
-
-	if (bd->status != 2 || !p->arena)
-		return;
-	send.type = S2C_BANNER;
-	send.pid = p->pid;
-	send.banner = bd->banner;
-
-	net->SendToArena(p->arena, NULL, (byte*)&send, sizeof(send),
-			NET_RELIABLE | NET_PRI_N1);
-}
 
 /* return true to allow banner */
 local int CheckBanner(Player *p)
@@ -64,114 +44,131 @@ local int CheckBanner(Player *p)
 }
 
 
-local void PBanner(Player *p, byte *pkt, int len)
+local void check_and_send_banner(Player *p, int callothers)
 {
 	bdata *bd = PPDATA(p, bdkey);
+
+	if (bd->status == 0)
+		return;
+	else if (bd->status == 1)
+	{
+		if (CheckBanner(p))
+			bd->status = 2;
+		else
+			if (lm) lm->LogP(L_DRIVEL, "banners", p, "denied permission to use a banner");
+	}
+
+	if (bd->status == 2)
+	{
+		/* send to everyone */
+		struct S2CBanner send;
+
+		if (bd->status != 2 || !p->arena)
+			return;
+		send.type = S2C_BANNER;
+		send.pid = p->pid;
+		send.banner = bd->banner;
+
+		net->SendToArena(p->arena, NULL, (byte*)&send, sizeof(send),
+				NET_RELIABLE | NET_PRI_N1);
+
+		/* notify other modules */
+		if (callothers)
+			DO_CBS(CB_SET_BANNER,
+					p->arena,
+					SetBannerFunc,
+					(p, &bd->banner));
+	}
+}
+
+
+local void SetBanner(Player *p, Banner *bnr)
+{
+	bdata *bd = PPDATA(p, bdkey);
+
+	LOCK();
+
+	bd->banner = *bnr;
+	bd->status = 1;
+
+	/* if he's not in the playing state yet, just hold the banner and
+	 * status at 1. we'll check it when he enters the arena.
+	 * if he is playing, though, do the check and send now. */
+	if (p->status == S_PLAYING)
+		check_and_send_banner(p, TRUE);
+
+	UNLOCK();
+}
+
+
+local void PBanner(Player *p, byte *pkt, int len)
+{
 	struct C2SBanner *b = (struct C2SBanner*)pkt;
-#if 0
-	static unsigned lastbsend = 0;
-	ticks_t gtc = current_ticks();
-#endif
 
 	if (len != sizeof(*b))
 	{
-		if (lm) lm->LogP(L_MALICIOUS, "banners", p, "Bad size for banner packet");
+		if (lm) lm->LogP(L_MALICIOUS, "banners", p, "bad size for banner packet");
 		return;
 	}
 
-	/* grab the banner */
-	bd->banner = b->banner;
-	bd->status = 1;
-	/* check if he can have one */
-	if (CheckBanner(p))
+	/* this implicitly catches setting from pre-playing states */
+	if (p->arena == NULL)
 	{
-		bd->status = 2;
-
-		/* send to everyone */
-		BannerToArena(p);
-#if 0
-		/* send to biller */
-		/* only allow 1 banner every .2 seconds to get sent to biller.
-		 * any more get dropped */
-		if (bnet && TICK_DIFF(gtc, lastbsend) > 20)
-		{
-			struct S2BBanner bsend;
-			bsend.type = S2B_BANNER;
-			bsend.pid = p->pid;
-			bsend.banner = b->banner;
-			bnet->SendToBiller((byte*)&bsend, sizeof(bsend),
-					NET_RELIABLE | NET_PRI_N1);
-			lastbsend = gtc;
-		}
-#endif
-
-		if (lm) lm->Log(L_DRIVEL, "<banners> [%s] Recvd banner", p->name);
-	}
-	else
-	{
-		if (lm) lm->LogP(L_INFO, "banners", p, "denied permission to use a banner");
-	}
-}
-
-
-#if 0
-local void BBanner(int bpid, byte *p, int len)
-{
-	struct B2SPlayerResponse *r = (struct B2SPlayerResponse *)p;
-	Player *p = r->pid;
-
-	if (len != sizeof(*r))
-	{
-		if (lm) lm->Log(L_MALICIOUS, "banners", pid, "Bad size for billing player data packet");
+		if (lm) lm->LogP(L_MALICIOUS, "banners", p, "tried to set a banner from outside an arena");
 		return;
 	}
 
-	/* grab the banner */
-	pd->LockStatus();
-	bd->banner = r->banner;
-	bd->status = 1;
-	pd->UnlockStatus();
+	if (p->p_ship != SPEC)
+	{
+		Ichat *chat = mm->GetInterface(I_CHAT, ALLARENAS);
+		if (chat) chat->SendMessage(p, "You must be in spectator mode to set a banner.");
+		mm->ReleaseInterface(chat);
+		if (lm) lm->LogP(L_INFO, "banners", p, "tried to set a banner while in a ship");
+		return;
+	}
 
-	/* don't bother sending it here because the player isn't in an arena
-	 * yet */
+	SetBanner(p, &b->banner);
+	if (lm) lm->LogP(L_DRIVEL, "banners", p, "set banner");
 }
-#endif
 
 
 local void PA(Player *p, int action, Arena *arena)
 {
-	bdata *bd = PPDATA(p, bdkey), *ibd;
-
-	if (action == PA_CONNECT || action == PA_DISCONNECT)
-		/* reset banner */
-		bd->status = 0;
-	else if (action == PA_ENTERARENA)
+	if (action == PA_ENTERARENA)
 	{
+		bdata *ibd;
 		Link *link;
 		Player *i;
 
+		LOCK();
+
 		/* first check permissions on a stored banner from the biller
 		 * and send it to the arena. */
-		if (bd->status == 1 && CheckBanner(p))
-		{
-			bd->status = 2;
-			BannerToArena(p);
-		}
+		check_and_send_banner(p, FALSE);
 
 		/* then send everyone's banner to him */
 		pd->Lock();
 		FOR_EACH_PLAYER_P(i, ibd, bdkey)
 			if (i->status == S_PLAYING &&
 			    i->arena == arena &&
-			    ibd->status == 2)
+			    ibd->status == 2 &&
+			    i != p)
 			{
 				struct S2CBanner send = { S2C_BANNER, i->pid };
 				send.banner = ibd->banner;
 				net->SendToOne(p, (byte*)&send, sizeof(send), NET_RELIABLE | NET_PRI_N1);
 			}
 		pd->Unlock();
+		UNLOCK();
 	}
 }
+
+
+local Ibanners myint =
+{
+	INTERFACE_HEAD_INIT(I_BANNERS, "banners")
+	SetBanner
+};
 
 
 EXPORT int MM_banners(int action, Imodman *mm_, Arena *arena)
@@ -179,10 +176,6 @@ EXPORT int MM_banners(int action, Imodman *mm_, Arena *arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-#if 0
-		bnet = mm->GetInterface(I_BILLCORE, ALLARENAS);
-		if (bnet) bnet->AddPacket(B2S_PLAYERDATA, BBanner);
-#endif
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
@@ -193,17 +186,16 @@ EXPORT int MM_banners(int action, Imodman *mm_, Arena *arena)
 
 		mm->RegCallback(CB_PLAYERACTION, PA, ALLARENAS);
 		net->AddPacket(C2S_BANNER, PBanner);
+		mm->RegInterface(&myint, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
+		if (mm->UnregInterface(&myint, ALLARENAS))
+			return MM_FAIL;
 		net->RemovePacket(C2S_BANNER, PBanner);
 		mm->UnregCallback(CB_PLAYERACTION, PA, ALLARENAS);
 		pd->FreePlayerData(bdkey);
-#if 0
-		if (bnet) bnet->RemovePacket(B2S_PLAYERDATA, BBanner);
-		mm->ReleaseInterface(bnet);
-#endif
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(lm);

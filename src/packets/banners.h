@@ -35,13 +35,4 @@ struct C2SBanner
 	Banner banner;
 };
 
-/* telling billing the player's new banner */
-struct S2BBanner
-{
-	u8 type; /* 0x10 */
-	i32 pid;
-	Banner banner;
-};
-
-
 #endif

@@ -60,7 +60,7 @@ game.so: game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
 command.so: cmdman.o playercmd.o admincmd.o watchdamage.o buy.o help.o \
 	cfghelp.o
 
-external.so: directory.o billing.o
+external.so: directory.o billing.o billing_ssc.o
 
 scoring.so: persist.o stats.o statcodes.o points_kill.o points_flag.o \
 	points_goal.o jackpot.o periodic.o points_periodic.o basicstats.o
@@ -72,7 +72,7 @@ admin.so: filetrans.o quickfix.o
 database.so: mysql.o aliasdb.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(MYSQLLIB) -lmysqlclient_r -lz
 
-turf.so: turf_reward.o points_turf_reward.o #turf_stats.o
+turf.so: turf_reward.o points_turf_reward.o turf_stats.o
 
 funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
 	fake.o autoturret.o chatnet.o md5.o auth_file.o ap_multipub.o sendfile.o

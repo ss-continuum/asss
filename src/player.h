@@ -127,6 +127,7 @@ struct Player
 	unsigned int ignoreweapons;
 	struct PlayerPosition position;
 	u32 macid, permid;
+	char ipaddr[16];
 	/* if the player has connected through a port that sets a default
 	 * arena, that will be stored here. */
 	const char *connectas;

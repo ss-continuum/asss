@@ -479,11 +479,11 @@ local helptext_t turfstats_help =
 "Gets stats to previous dings.\n";
 local void C_turfStats(const char *params, Player *p, const Target *target)
 {
+	int histNum = 0;
 	Arena *arena = p->arena;
 	if (!arena) return;
 	
 	// TODO: give more functionality using args to get history # so and so, right now only displays last ding
-	int histNum = 0;
 	
 	LOCK_STATUS(arena);
 	PDisplay(arena, p, histNum);
@@ -500,11 +500,11 @@ local void C_forceStats(const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	struct TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
+	int histNum = 0;
 
 	if (!arena || !*p_ts) return; else ts = *p_ts;
 
 	// TODO: give more functionality using args to get history # so and so, right now only displays last ding
-	int histNum = 0;
 	
 	LOCK_STATUS(arena);
 	if( (histNum+1) > ts->numStats )

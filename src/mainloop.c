@@ -67,7 +67,6 @@ EXPORT int MM_mainloop(int action, Imodman *mm_, Arena *arena)
 int RunLoop(void)
 {
 	TimerData *td;
-	LinkedList freelist = LL_INITIALIZER;
 	Link *l;
 	ticks_t gtc;
 
@@ -76,31 +75,29 @@ int RunLoop(void)
 		/* call all funcs */
 		DO_CBS(CB_MAINLOOP, ALLARENAS, MainLoopFunc, ());
 
-		gtc = current_ticks();
-
 		/* do timers */
 		LOCK();
+startover:
+		gtc = current_ticks();
 		for (l = LLGetHead(&timers); l; l = l->next)
 		{
 			td = (TimerData*) l->data;
-			if (td->func && TICK_DIFF(gtc, td->when) >= 0)
+			if (td->func && TICK_GT(gtc, td->when))
 			{
+				int ret;
 				UNLOCK();
-				if ( td->func(td->param) )
+				ret = td->func(td->param);
+				LOCK();
+				if (ret)
 					td->when = gtc + td->interval;
 				else
-					LLAdd(&freelist, td);
-				LOCK();
+				{
+					LLRemove(&timers, td);
+					afree(td);
+				}
+				goto startover;
 			}
 		}
-
-		/* free timers */
-		for (l = LLGetHead(&freelist); l; l = l->next)
-		{
-			LLRemove(&timers, l->data);
-			afree(l->data);
-		}
-		LLEmpty(&freelist);
 		UNLOCK();
 
 		/* rest a bit: 1/100 sec */

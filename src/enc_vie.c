@@ -4,6 +4,8 @@
 #include "asss.h"
 #include "encrypt.h"
 
+#define BAD_KEY (-1) /* valid keys must be positive */
+
 /* structs */
 
 typedef struct EncData
@@ -18,9 +20,16 @@ typedef struct EncData
 local void ConnInit(struct sockaddr_in *sin, byte *pkt, int len, void *v);
 
 local void Init(Player *p, int k);
+
 local int Encrypt(Player *p, byte *, int);
 local int Decrypt(Player *p, byte *, int);
 local void Void(Player *p);
+
+local ClientEncryptData * ClientInit(void);
+local int ClientEncrypt(ClientEncryptData *ced, byte *, int);
+local int ClientDecrypt(ClientEncryptData *ced, byte *, int);
+local void ClientVoid(ClientEncryptData *ced);
+
 
 /* globals */
 
@@ -30,10 +39,16 @@ local pthread_mutex_t mtx;
 local Inet *net;
 local Iplayerdata *pd;
 
-local Iencrypt _int =
+local Iencrypt ienc =
 {
 	INTERFACE_HEAD_INIT("__unused__", "vieenc")
-	Encrypt, Decrypt, Void,
+	Encrypt, Decrypt, Void
+};
+
+local Iclientencrypt iclienc =
+{
+	INTERFACE_HEAD_INIT("__unused__", "vieenc-client")
+	ClientInit, ClientEncrypt, ClientDecrypt, ClientVoid
 };
 
 
@@ -48,12 +63,15 @@ EXPORT int MM_encrypt1(int action, Imodman *mm, Arena *arena)
 		if (enckey == -1) return MM_FAIL;
 		mm->RegCallback(CB_CONNINIT, ConnInit, ALLARENAS);
 		pthread_mutex_init(&mtx, NULL);
-		mm->RegInterface(&_int, ALLARENAS);
+		mm->RegInterface(&ienc, ALLARENAS);
+		mm->RegInterface(&iclienc, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(&_int, ALLARENAS))
+		if (mm->UnregInterface(&ienc, ALLARENAS))
+			return MM_FAIL;
+		if (mm->UnregInterface(&iclienc, ALLARENAS))
 			return MM_FAIL;
 		mm->UnregCallback(CB_CONNINIT, ConnInit, ALLARENAS);
 		pd->FreePlayerData(enckey);
@@ -77,7 +95,7 @@ void ConnInit(struct sockaddr_in *sin, byte *pkt, int len, void *v)
 		return;
 
 	/* ok, it fits. get connection. */
-	p = net->NewConnection(T_VIE, sin, &_int, v);
+	p = net->NewConnection(T_VIE, sin, &ienc, v);
 
 	if (!p)
 	{
@@ -233,4 +251,53 @@ void Void(Player *p)
 	*p_ed = NULL;
 	pthread_mutex_unlock(&mtx);
 }
+
+
+ClientEncryptData * ClientInit(void)
+{
+	EncData *ed = amalloc(sizeof(*ed));
+	ed->key = BAD_KEY;
+	return (ClientEncryptData*)ed;
+}
+
+int ClientEncrypt(ClientEncryptData *ced, byte *d, int n)
+{
+	EncData *ed = (EncData*)ced;
+	if (d[1] == 0x01 && d[0] == 0x00)
+	{
+		/* sending key init */
+		/* temporarily overload the key field to be what _we_ sent */
+		ed->key = *(int*)(d+2);
+		return n;
+	}
+	else if (ed->key != BAD_KEY)
+		return do_enc(ed, d, n);
+	else
+		return n;
+}
+
+int ClientDecrypt(ClientEncryptData *ced, byte *d, int n)
+{
+	EncData *ed = (EncData*)ced;
+	if (d[1] == 0x02 && d[0] == 0x00)
+	{
+		/* got key response */
+		int gotkey = *(int*)(d+2);
+		if (gotkey == ed->key) /* signal for no encryption */
+			ed->key = BAD_KEY;
+		else
+			do_init(ed, gotkey);
+		return n;
+	}
+	else if (ed->key != BAD_KEY)
+		return do_dec(ed, d, n);
+	else
+		return n;
+}
+
+void ClientVoid(ClientEncryptData *ced)
+{
+	afree(ced);
+}
+
 

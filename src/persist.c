@@ -467,7 +467,7 @@ local void do_end_interval(Arena *arena, int interval)
 		    (arena == PERSIST_GLOBAL || p->arena == arena))
 			for (l = LLGetHead(&playerpd); l; l = l->next)
 			{
-				PlayerPersistentData *data = (PlayerPersistentData*)l->data;
+				PlayerPersistentData *data = l->data;
 				if (good_arena(data->scope, arena) &&
 				    data->interval == interval)
 				{
@@ -486,8 +486,7 @@ local void do_end_interval(Arena *arena, int interval)
 	/* now get/clear all data for this arena/interval itself */
 	for (l = LLGetHead(&arenapd); l; l = l->next)
 	{
-		
-		ArenaPersistentData *data = (ArenaPersistentData*)l->data;
+		ArenaPersistentData *data = l->data;
 		if (good_arena(data->scope, arena) &&
 		    data->interval == interval)
 		{
@@ -589,7 +588,22 @@ local void *DBThread(void *dummy)
 				break;
 
 			case DBCMD_ENDINTERVAL:
-				do_end_interval(msg->arena, msg->data);
+				if (msg->arena == PERSIST_ALLARENAS)
+				{
+					Arena *arena;
+					aman->Lock();
+					FOR_EACH_ARENA(arena)
+					{
+						if (arena->status == ARENA_RUNNING)
+							do_end_interval(arena, msg->data);
+						pthread_mutex_unlock(&dbmtx);
+						sched_yield();
+						pthread_mutex_lock(&dbmtx);
+					}
+					aman->Unlock();
+				}
+				else
+					do_end_interval(msg->arena, msg->data);
 				break;
 		}
 

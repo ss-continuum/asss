@@ -28,6 +28,12 @@ lines in bproxy:
     657 total
 
 
+=== update:
+adding back client functionality to net:
+ + 176 lines for net.c, 36 lines in net-client.h, which describes the
+ new interface. + 56 lines in encrypy1.c and + 13 in encrypt.h to do
+ client encryption.
+
 
 how to handle disconnects, what are the problems?
 

@@ -75,7 +75,7 @@ local int write_dirty_values(void *dummy)
 		if (l2)
 		{
 			if (lm)
-				lm->Log(L_INFO, "<config> Writing dirty settings to '%s'",
+				lm->Log(L_INFO, "<config> writing dirty settings to '%s'",
 						ch->filename);
 
 			if ((fp = fopen(ch->filename, "a")))
@@ -97,7 +97,7 @@ local int write_dirty_values(void *dummy)
 			}
 			else
 				if (lm)
-					lm->Log(L_WARN, "<config> Failed to write dirty values to '%s'",
+					lm->Log(L_WARN, "<config> failed to write dirty values to '%s'",
 							ch->filename);
 
 			LLEmpty(&ch->dirty);
@@ -266,12 +266,10 @@ local int check_modified_files(void *dummy)
 			if (st.st_mtime != ch->lastmod)
 			{
 				if (lm)
-					lm->Log(L_INFO, "<config> Reloading modified file from disk '%s'",
+					lm->Log(L_INFO, "<config> reloading modified file from disk: %s",
 							ch->filename);
+				/* this calls changed callback */
 				ReloadConfigFile(ch);
-				/* call changed callback */
-				if (ch->changed)
-					ch->changed(ch->clos);
 			}
 	}
 	pthread_mutex_unlock(&cfgmtx);
@@ -478,7 +476,13 @@ local void set_timers()
 local void global_changed(void *dummy)
 {
 	DO_CBS(CB_GLOBALCONFIGCHANGED, ALLARENAS, GlobalConfigChangedFunc, ());
-	set_timers(); /* in case these changed */
+	/* we'd like to call this, in case this setting change changed these
+	 * timers, but unfortunately we can't, because we're getting called
+	 * _from_ one of these timer events, and you can't cancel a timer
+	 * from inside of it, at least with the current timer interface. if
+	 * it changes, this might be re-enabled:
+	 * set_timers();
+	 */
 }
 
 

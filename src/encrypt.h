@@ -54,5 +54,23 @@ typedef struct Iencrypt
 	/* this is called when the player disconnects */
 } Iencrypt;
 
+
+/* an opaque struct holding client encryption state information */
+typedef struct ClientEncryptData ClientEncryptData;
+
+typedef struct Iclientencrypt
+{
+	INTERFACE_HEAD_DECL
+
+	/* FIXME: this probably isn't flexible enough for other encryption
+	 * types. sorry. */
+	ClientEncryptData * (*Init)(void);
+
+	int (*Encrypt)(ClientEncryptData *ced, byte *pkt, int len);
+	int (*Decrypt)(ClientEncryptData *ced, byte *pkt, int len);
+	void (*Void)(ClientEncryptData *ced);
+	/* this frees ced! */
+} Iclientencrypt;
+
 #endif
 

@@ -257,7 +257,7 @@ int LoadMod(const char *_spec)
 
 	if (ret != MM_OK)
 	{
-		LOG1(L_ERROR, "<module> Error loading module '%s'", modname);
+		LOG2(L_ERROR, "<module> Error loading module '%s': %s", modname, dlerror());
 		if (!mod->myself) dlclose(mod->hand);
 		goto die;
 	}

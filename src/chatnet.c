@@ -122,6 +122,8 @@ local Player * try_accept(int s)
 	cli->inbuf = NULL;
 	LLInit(&cli->outbufs);
 
+	astrncpy(p->ipaddr, inet_ntoa(sin.sin_addr), sizeof(p->ipaddr));
+
 	return p;
 }
 
@@ -375,7 +377,7 @@ local void GetClientStats(Player *p, struct chat_client_stats *stats)
 	sp_conn *cli = PPDATA(p, cdkey);
 	if (!stats || !p) return;
 	/* RACE: inet_ntoa is not thread-safe */
-	astrncpy(stats->ipaddr, inet_ntoa(cli->sin.sin_addr), 16);
+	astrncpy(stats->ipaddr, inet_ntoa(cli->sin.sin_addr), sizeof(stats->ipaddr));
 	stats->port = cli->sin.sin_port;
 }
 

@@ -69,10 +69,7 @@ local int SendUpdates(void *dummy)
 	n = sizeof(data) - sizeof(data.description) + strlen(data.description) + 1;
 
 	for (l = LLGetHead(&servers); l; l = l->next)
-	{
-		struct sockaddr_in *sin = l->data;
-		sendto(sock, (byte*)&data, n, 0, (const struct sockaddr *)sin, n);
-	}
+		sendto(sock, (byte*)&data, n, 0, (const struct sockaddr *)l->data, n);
 
 	return TRUE;
 }
@@ -95,7 +92,7 @@ local void init_data()
 		astrncpy(data.servername, t, sizeof(data.servername));
 	else
 		astrncpy(data.servername, "<no name provided>", sizeof(data.servername));
-	/* cfghelp: Directory:Password, global, string
+	/* cfghelp: Directory:Password, global, string, def: cane
 	 * The password used to send information to the directory server. */
 	if ((t = cfg->GetStr(GLOBAL, "Directory", "Password")))
 		astrncpy(data.password, t, sizeof(data.password));
@@ -173,6 +170,16 @@ EXPORT int MM_directory(int action, Imodman *mm, Arena *arena)
 		sock = socket(PF_INET, SOCK_DGRAM, 0);
 		if (sock == -1)
 			return MM_FAIL;
+
+		{
+			struct sockaddr_in sin;
+			memset(&sin, 0, sizeof(sin));
+			sin.sin_family = AF_INET;
+			sin.sin_port = htons(0);
+			sin.sin_addr.s_addr = INADDR_ANY;
+			if (bind(sock, (struct sockaddr*)&sin, sizeof(sin)) == -1)
+				return MM_FAIL;
+		}
 
 		init_data();
 		init_servers();
