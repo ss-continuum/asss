@@ -346,7 +346,7 @@ local void LoadBallSettings(int arena, int spawnballs)
 		d->spawny = cfg->GetInt(c, "Soccer", "SpawnY", 512);
 		d->spawnr = cfg->GetInt(c, "Soccer", "SpawnRadius", 20);
 		d->sendtime = cfg->GetInt(c, "Soccer", "SendTime", 1000);
-		d->goaldelay = cfg->GetInt(c, "Soccer", "GoalDelay", 50);
+		d->goaldelay = cfg->GetInt(c, "Soccer", "GoalDelay", 0);
 
 		if (spawnballs)
 		{
@@ -443,12 +443,13 @@ void BallKill(int arena, int killer, int killed, int bounty, int flags)
 
 void PPickupBall(int pid, byte *p, int len)
 {
-	int arena, i;
+	static const char shipnames[8][12] =
+	{ "Warbird", "Javelin", "Spider", "Leviathan",
+	  "Weasel", "Terrier", "Lancaster", "Shark" };
+	int arena = pd->players[pid].arena, i;
 	struct BallData *bd;
 	struct C2SPickupBall *bp = (struct C2SPickupBall*)p;
-
-	arena = pd->players[pid].arena;
-
+	
 	if (len != sizeof(struct C2SPickupBall))
 	{
 		logm->Log(L_MALICIOUS, "<balls> [%s] Bad size for ball pickup packet", pd->players[pid].name);
@@ -458,6 +459,12 @@ void PPickupBall(int pid, byte *p, int len)
 	if (ARENA_BAD(arena) || pd->players[pid].status != S_PLAYING)
 	{
 		logm->Log(L_WARN, "<balls> [%s] Ball pickup packet from bad arena or status", pd->players[pid].name);
+		return;
+	}
+
+	if (pd->players[pid].shiptype >= SPEC)
+	{
+		logm->LogP(L_MALICIOUS, "balls", pid, "Ball pickup packet from spec");
 		return;
 	}
 
@@ -482,9 +489,32 @@ void PPickupBall(int pid, byte *p, int len)
 		return;
 	}
 
+	/* whenever ball is stationary, check if player is within prox x2 */
+	if (bd->xspeed == 0 && bd->yspeed == 0)
+	{
+		int prox2, dist2, dx, dy;
+
+		prox2 = cfg->GetInt(aman->arenas[arena].cfg,
+				shipnames[pd->players[pid].shiptype],
+				"SoccerBallProximity", 0) * 2;
+		prox2 = prox2 * prox2;
+
+		dx = abs(pd->players[pid].position.x - bd->x);
+		dy = abs(pd->players[pid].position.y - bd->y);
+		dist2 = dx*dx + dy*dy;
+
+		if (prox2 && dist2 > prox2)
+		{
+			logm->LogP(L_MALICIOUS, "balls", pid, "Tried to pick up a ball from outside ball proximity");
+			UNLOCK_STATUS(arena);
+			return;
+		}
+	}
+
 	/* make sure player doesnt carry more than one ball */
-	for (i=0; i < balldata[arena].ballcount; i++)
-		if (balldata[arena].balls[i].carrier == pid && balldata[arena].balls[i].state == BALL_CARRIED)
+	for (i = 0; i < balldata[arena].ballcount; i++)
+		if (balldata[arena].balls[i].carrier == pid &&
+		    balldata[arena].balls[i].state == BALL_CARRIED)
 		{
 			UNLOCK_STATUS(arena);
 			return;

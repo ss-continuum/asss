@@ -912,7 +912,7 @@ mf_unlock:
 }
 
 
-local void Creloadconf(const char *params, int pid, Target *target)
+local void Creloadconf(const char *params, int pid, const Target *target)
 {
 	cfg->CheckModifiedFiles();
 	chat->SendMessage(pid, "Reloading all modified config files");

@@ -13,6 +13,7 @@ cmd_listmods
 cmd_a
 cmd_timer
 cmd_timereset
+cmd_pausetimer
 
 cmd_flaginfo
 cmd_neutflag
