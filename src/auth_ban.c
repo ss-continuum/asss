@@ -133,7 +133,7 @@ local helptext_t listmidbans_help =
 
 local void Clistmidbans(const char *tc, const char *params, Player *p, const Target *target)
 {
-	char data[MAXDATA+6];
+	char data[MAXDATA+6] = "";
 	pthread_mutex_lock(&banmtx);
 	TrEnum(banroot, add_mid_ban, data);
 	pthread_mutex_unlock(&banmtx);
