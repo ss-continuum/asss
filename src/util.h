@@ -212,4 +212,24 @@ void MPClearOne(MPQueue *mpq, void *data);
 #endif /* MPQUEUE */
 
 
+#ifndef NOMMAP
+
+/* memory mapped files stuff */
+
+typedef struct MMapData
+{
+	void *data;
+	int len;
+	time_t lastmod;
+	/* note that this might not really be the number of seconds since
+	 * the epoch. but it will change when the file is modified. */
+} MMapData;
+
+MMapData * MapFile(const char *filename, int writeable);
+int UnmapFile(MMapData *mmd);
+void MapFlush(MMapData *mmd);
+
 #endif
+
+#endif
+

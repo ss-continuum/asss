@@ -8,13 +8,6 @@
 #include <sys/types.h>
 #include <fcntl.h>
 
-#ifndef WIN32
-#include <unistd.h>
-#include <sys/mman.h>
-#else
-#include <io.h>
-#endif
-
 #include "zlib.h"
 
 #include "asss.h"
@@ -59,109 +52,55 @@ local time_t newstime;
 
 local int RefreshNewsTxt(void *dummy)
 {
-	int fd, fsize;
-	time_t newtime;
+	MMapData *mmd;
 	uLong csize;
-	byte *news, *cnews;
-	struct stat st;
+	byte *cnews;
 
-	fd = open(cfg_newsfile, O_RDONLY);
-	if (fd == -1)
+	mmd = MapFile(cfg_newsfile, FALSE);
+
+	if (!mmd)
 	{
 		lm->Log(L_WARN,"<mapnewsdl> news file '%s' not found in current directory", cfg_newsfile);
-		return 1; /* let's get called again in case the file's been replaced */
+		goto done1;
 	}
 
-	/* find it's size */
-	fstat(fd, &st);
-	newtime = st.st_mtime + st.st_ctime;
-	if (newtime != newstime)
+	/* don't read if it hasn't been modified */
+	if (mmd->lastmod == newstime)
+		goto done2;
+
+	newstime = mmd->lastmod;
+	csize = (uLong)(1.0011 * mmd->len + 35);
+
+	/* calculate crc on mmap'd map */
+	newschecksum = crc32(crc32(0, Z_NULL, 0), mmd->data, mmd->len);
+
+	/* allocate space for compressed version */
+	cnews = amalloc(csize);
+
+	/* set up packet header */
+	cnews[0] = S2C_INCOMINGFILE;
+	/* 16 bytes of zero for the name */
+
+	/* compress the stuff! */
+	compress(cnews+17, &csize, mmd->data, mmd->len);
+
+	/* shrink the allocated memory */
+	cnews = realloc(cnews, csize+17);
+	if (!cnews)
 	{
-#ifdef WIN32
-		HANDLE hfile, hnews;
-#endif
-		newstime = newtime;
-		fsize = st.st_size;
-		csize = (uLong)(1.0011 * fsize + 35);
-
-		/* mmap it */
-#ifndef WIN32
-		news = mmap(NULL, fsize, PROT_READ, MAP_SHARED, fd, 0);
-		if (news == (void*)-1)
-		{
-			lm->Log(L_ERROR,"<mapnewsdl> mmap failed in RefreshNewsTxt");
-			close(fd);
-			return 1;
-		}
-#else
-		hfile = CreateFile(cfg_newsfile,
-				GENERIC_READ,
-				FILE_SHARE_READ,
-				NULL,
-				OPEN_EXISTING,
-				FILE_ATTRIBUTE_NORMAL | FILE_FLAG_RANDOM_ACCESS,
-				0);
-		if (hfile == INVALID_HANDLE_VALUE)
-		{
-			lm->Log(L_ERROR,"<mapnewsdl> CreateFile failed in RefreshNewsTxt, error %d",
-					GetLastError());
-			return 1;
-		}
-		hnews = CreateFileMapping(hfile,NULL,PAGE_READONLY,0,0,0);
-		if (!hnews)
-		{
-			CloseHandle(hfile);
-			lm->Log(L_ERROR,"<mapnewsdl> CreateFileMapping failed in RefreshNewsTxt, error %d",
-					GetLastError());
-			return 1;
-		}
-		news = MapViewOfFile(hnews,FILE_MAP_READ,0,0,0);
-		if (!news)
-		{
-			CloseHandle(hnews);
-			CloseHandle(hfile);
-			lm->Log(L_ERROR,"<mapnewsdl> mapviewoffile failed in RefreshNewsTxt, error %d", GetLastError());
-			return 1;
-		}
-#endif
-
-		/* calculate crc on mmap'd map */
-		newschecksum = crc32(crc32(0, Z_NULL, 0), news, fsize);
-
-		/* allocate space for compressed version */
-		cnews = amalloc(csize);
-
-		/* set up packet header */
-		cnews[0] = S2C_INCOMINGFILE;
-		/* 16 bytes of zero for the name */
-
-		/* compress the stuff! */
-		compress(cnews+17, &csize, news, fsize);
-
-		/* shrink the allocated memory */
-		cnews = realloc(cnews, csize+17);
-		if (!cnews)
-		{
-			lm->Log(L_ERROR,"<mapnewsdl> realloc failed in RefreshNewsTxt");
-			close(fd);
-			return 1;
-		}
-		cmpnewssize = csize+17;
-
-#ifndef WIN32
-		munmap(news, fsize);
-#else
-		UnmapViewOfFile(news);
-		CloseHandle(hnews);
-		CloseHandle(hfile);
-#endif
-
-		if (cmpnews) afree(cmpnews);
-		cmpnews = cnews;
-		lm->Log(L_DRIVEL,"<mapnewsdl> news file '%s' reread", cfg_newsfile);
+		lm->Log(L_ERROR,"<mapnewsdl> realloc failed in RefreshNewsTxt");
+		goto done2;
 	}
-	close(fd);
-	return 1;
+	cmpnewssize = csize+17;
+
+	if (cmpnews) afree(cmpnews);
+	cmpnews = cnews;
+	lm->Log(L_DRIVEL,"<mapnewsdl> news file '%s' reread", cfg_newsfile);
+
+done2:
+	UnmapFile(mmd);
+done1:
+	return TRUE;
 }
 
 
@@ -232,15 +171,11 @@ local void SendMapFilename(Player *p)
 
 local struct MapDownloadData * compress_map(const char *fname, int docomp)
 {
-	byte *map, *cmap;
-	int mapfd, fsize;
+	byte *cmap;
 	uLong csize;
-	struct stat st;
 	const char *mapname;
-#ifdef WIN32
-	HANDLE hfile, hmap;
-#endif
 	struct MapDownloadData *data;
+	MMapData *mmd;
 
 	data = amalloc(sizeof(*data));
 
@@ -252,65 +187,26 @@ local struct MapDownloadData * compress_map(const char *fname, int docomp)
 		mapname++;
 	astrncpy(data->filename, mapname, 20);
 
-	mapfd = open(fname, O_RDONLY);
-	if (mapfd == -1)
+	mmd = MapFile(fname, FALSE);
+	if (!mmd)
 		goto fail1;
-
-	/* find it's size */
-	fstat(mapfd, &st);
-	fsize = st.st_size;
-	if (docomp)
-		csize = (uLong)(1.0011 * fsize + 35);
-	else
-		csize = fsize + 17;
-
-	/* mmap it */
-#ifndef WIN32
-	map = mmap(NULL, fsize, PROT_READ, MAP_SHARED, mapfd, 0);
-	if (map == (void*)-1)
-	{
-		lm->Log(L_ERROR,"<mapnewsdl> mmap failed for map '%s'", fname);
-		close(mapfd);
-		goto fail1;
-	}
-#else
-	hfile = CreateFile(fname,
-			GENERIC_READ,
-			FILE_SHARE_READ,
-			NULL,
-			OPEN_EXISTING,
-			FILE_ATTRIBUTE_NORMAL | FILE_FLAG_RANDOM_ACCESS,
-			0);
-	if (hfile == INVALID_HANDLE_VALUE)
-	{
-		lm->Log(L_ERROR,"<mapnewsdl> CreateFile failed for map '%s', error %d",
-				fname, GetLastError());
-		goto fail1;
-	}
-	hmap = CreateFileMapping(hfile,NULL,PAGE_READONLY,0,0,0);
-	if (!hmap)
-	{
-		CloseHandle(hfile);
-		lm->Log(L_ERROR,"<mapnewsdl> CreateFileMapping failed for map '%s', error %d",
-				fname, GetLastError());
-		goto fail1;
-	}
-	map = MapViewOfFile(hmap,FILE_MAP_READ,0,0,0);
-	if (!map)
-	{
-		CloseHandle(hmap);
-		CloseHandle(hfile);
-		lm->Log(L_ERROR,"<mapnewsdl> MapViewOfFile failed for map '%s'", fname);
-		goto fail1;
-	}
-#endif
 
 	/* calculate crc on mmap'd map */
-	data->checksum = crc32(crc32(0, Z_NULL, 0), map, fsize);
-	data->uncmplen = fsize;
+	data->checksum = crc32(crc32(0, Z_NULL, 0), mmd->data, mmd->len);
+	data->uncmplen = mmd->len;
 
 	/* allocate space for compressed version */
-	cmap = amalloc(csize);
+	if (docomp)
+		csize = (uLong)(1.0011 * mmd->len + 35);
+	else
+		csize = mmd->len + 17;
+
+	cmap = malloc(csize);
+	if (!cmap)
+	{
+		lm->Log(L_ERROR, "<mapnewsdl> malloc failed in compress_map for %s", fname);
+		goto fail2;
+	}
 
 	/* set up packet header */
 	cmap[0] = S2C_MAPDATA;
@@ -319,38 +215,37 @@ local struct MapDownloadData * compress_map(const char *fname, int docomp)
 	if (docomp)
 	{
 		/* compress the stuff! */
-		compress(cmap+17, &csize, map, fsize);
+		compress(cmap+17, &csize, mmd->data, mmd->len);
 		csize += 17;
 
 		/* shrink the allocated memory */
 		data->cmpmap = realloc(cmap, csize);
 		if (data->cmpmap == NULL)
 		{
-			lm->Log(L_ERROR,"<mapnewsdl> realloc failed in compress_map");
-			free(cmap);
-			goto fail1;
+			lm->Log(L_ERROR, "<mapnewsdl> realloc failed in compress_map for %s", fname);
+			goto fail3;
 		}
 	}
 	else
 	{
 		/* just copy */
-		memcpy(cmap+17, map, fsize);
+		memcpy(cmap+17, mmd->data, mmd->len);
 		data->cmpmap = cmap;
 	}
 
 	data->cmplen = csize;
 
-#ifndef WIN32
-	munmap(map, fsize);
-#else
-	UnmapViewOfFile(map);
-	CloseHandle(hmap);
-	CloseHandle(hfile);
-#endif
-	close(mapfd);
+	if (csize > 256*1024)
+		lm->Log(L_WARN, "<mapnewsdl> compressed map/lvz is bigger than 256k: %s", fname);
+
+	UnmapFile(mmd);
 
 	return data;
 
+fail3:
+	free(cmap);
+fail2:
+	UnmapFile(mmd);
 fail1:
 	afree(data);
 	return NULL;

@@ -10,12 +10,13 @@
 
 #ifndef WIN32
 #include <sys/time.h>
-#else
-/* for GetTickCount() */
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <io.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
 #endif
+
+#include "pthread.h"
 
 /* make sure to get the prototypes for thread functions instead of macros */
 #define USE_PROTOTYPES
@@ -230,8 +231,6 @@ void wrap_text(const char *txt, int mlen, char delim,
 static Link *freelinks = NULL;
 
 #ifdef _REENTRANT
-
-#include <pthread.h>
 
 local pthread_mutex_t freelinkmtx = PTHREAD_MUTEX_INITIALIZER;
 
@@ -992,8 +991,6 @@ void SCFree(StringChunk *chunk)
 
 #ifndef NOMPQUEUE
 
-#include "pthread.h"
-
 void MPInit(MPQueue *q)
 {
 	LLInit(&q->list);
@@ -1056,4 +1053,117 @@ void MPClearOne(MPQueue *q, void *data)
 
 #endif /* MPQUEUE */
 
+
+#ifndef NOMMAP
+
+typedef struct PrivMMD
+{
+#ifdef WIN32
+	void *hFile, *hMapping;
+#endif
+} PrivMMD;
+
+
+MMapData * MapFile(const char *filename, int writable)
+{
+	MMapData *mmd = amalloc(sizeof(MMapData) + sizeof(PrivMMD));
+
+#ifdef WIN32
+	PrivMMD *pmmd = (PrivMMD*)(mmd+1);
+	FILETIME mtime;
+
+	pmmd->hFile = CreateFile(
+			filename,
+			GENERIC_READ | (writable ? GENERIC_WRITE : 0),
+			FILE_SHARE_READ | (writable ? FILE_SHARE_WRITE : 0),
+			NULL,
+			OPEN_EXISTING,
+			FILE_ATTRIBUTE_NORMAL | FILE_FLAG_RANDOM_ACCESS,
+			0);
+	if (pmmd->hFile == INVALID_HANDLE_VALUE)
+		goto fail1;
+
+	mmd->len = GetFileSize(pmmd->hFile, NULL);
+	if (mmd->len == -1)
+		goto fail1;
+
+	if (GetFileTime(pmmd->hFile, NULL, NULL, &mtime) == 0)
+		goto fail1;
+	mmd->lastmod = (time_t)mtime.dwLowDateTime;
+
+	pmmd->hMapping = CreateFileMapping(
+			pmmd->hFile,
+			NULL,
+			writable ? PAGE_READWRITE : PAGE_READONLY,
+			0, 0, 0);
+	if (!pmmd->hMapping)
+		goto fail2;
+
+	mmd->data = MapViewOfFile(
+			pmmd->hMapping,
+			writable ? FILE_MAP_READ : FILE_MAP_ALL_ACCESS,
+			0, 0, 0);
+	if (!mmd->data)
+		goto fail3;
+
+	return mmd;
+
+fail3:
+	CloseHandle(pmmd->hMapping);
+fail2:
+	CloseHandle(pmmd->hFile);
+#else
+
+	int fd;
+	struct stat st;
+
+	fd = open(filename, writable ? O_RDWR : O_RDONLY);
+	if (fd == -1)
+		goto fail1;
+
+	if (fstat(fd, &st) < 0)
+		goto fail1;
+
+	mmd->len = st.st_size;
+	mmd->lastmod = st.st_mtime;
+
+	mmd->data = mmap(NULL, mmd->len, PROT_READ | (writable ? PROT_WRITE : 0), MAP_SHARED, fd, 0);
+	close(fd);
+	if (mmd->data == MAP_FAILED)
+		goto fail1;
+
+	return mmd;
+#endif
+
+fail1:
+	afree(mmd);
+	return NULL;
+}
+
+int UnmapFile(MMapData *mmd)
+{
+#ifdef WIN32
+	PrivMMD *pmmd = (PrivMMD*)(mmd+1);
+	UnmapViewOfFile(mmd->data);
+	CloseHandle(pmmd->hMapping);
+	CloseHandle(ppmd->hFile);
+#else
+	munmap(mmd->data, mmd->len);
+#endif
+
+	afree(mmd);
+
+	return 0;
+}
+
+void MapFlush(MMapData *mmd)
+{
+#ifdef WIN32
+	FlushViewOfFile(mmd->data, 0);
+#else
+	msync(mmd->data, mmd->len, MS_ASYNC);
+#endif
+}
+
+#endif /* NOMMAP */
 
