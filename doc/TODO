@@ -74,6 +74,9 @@ multiple-point goals based on distance
 
 treat nme bricks as tiles for the purposes of dropping bricks
 
+bandwidth:
+prioritized position/weapons based on distance
+
 
 discarded ideas
 ---------------
