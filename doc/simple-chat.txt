@@ -127,7 +127,7 @@ document history:
 	added PUBM message type.
 
 1.4 and before:
-	detailed history unavailble
+	detailed history unavailable
 
 
 # dist: public
