@@ -703,16 +703,10 @@ local void Cinfo(const char *params, Player *p, const Target *target)
 		chat->SendMessage(p, "info: must use on a player");
 	else
 	{
-		static const char *type_names[] =
-		{
-			"unknown", "fake", "vie", "cont", "chat"
-		};
-		const char *type, *prefix;
+		const char *prefix;
 		int tm;
 		Player *t = target->u.p;
 
-		type = t->type >= 0 && t->type < (sizeof(type_names)/sizeof(type_names[0])) ?
-			type_names[t->type] : "really_unknown";
 		prefix = params[0] ? params : "info";
 		tm = TICK_DIFF(current_ticks(), t->connecttime);
 
@@ -721,8 +715,8 @@ local void Cinfo(const char *params, Player *p, const Target *target)
 				prefix, t->pid, t->name, t->squad, t->flags.authenticated ? 'y' : 'n',
 				t->p_ship, t->p_freq);
 		chat->SendMessage(p,
-				"%s: arena=%s  type=%s  res=%dx%d  onfor=%d  connectas=%s",
-				prefix, t->arena ? t->arena->name : "(none)", type, t->xres,
+				"%s: arena=%s  client=%s  res=%dx%d  onfor=%d  connectas=%s",
+				prefix, t->arena ? t->arena->name : "(none)", t->clientname, t->xres,
 				t->yres, tm / 100, p->connectas ? p->connectas : "<default>");
 		if (IS_STANDARD(t))
 		{

@@ -26,6 +26,7 @@ local Player * CreateFakePlayer(const char *name, Arena *arena, int ship, int fr
 	astrncpy(p->pkt.name, name, 20);
 	astrncpy(p->squad, "", 20);
 	astrncpy(p->pkt.squad, "", 20);
+	astrncpy(p->clientname, "<internal fake player>", sizeof(p->clientname));
 	p->p_ship = ship;
 	p->p_freq = freq;
 	p->arena = arena;

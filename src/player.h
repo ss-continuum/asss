@@ -196,6 +196,8 @@ struct Player
 	/** if the player has connected through a port that sets a default
 	 ** arena, that will be stored here. */
 	const char *connectas;
+	/** a text representation of the client connecting */
+	char clientname[32];
 	/** some extra flags that don't have a better place to go */
 	struct
 	{

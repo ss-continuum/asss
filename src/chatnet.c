@@ -123,6 +123,7 @@ local Player * try_accept(int s)
 	LLInit(&cli->outbufs);
 
 	astrncpy(p->ipaddr, inet_ntoa(sin.sin_addr), sizeof(p->ipaddr));
+	astrncpy(p->clientname, "<unknown chat client>", sizeof(p->clientname));
 
 	return p;
 }

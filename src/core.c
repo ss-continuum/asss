@@ -484,7 +484,8 @@ void PLogin(Player *p, byte *opkt, int l)
 #endif
 
 		/* copy into storage for use by authenticator */
-		lp = d->loginpkt = amalloc(sizeof(*lp));
+		if (l > 512) l = 512;
+		lp = d->loginpkt = amalloc(l);
 		memcpy(lp, pkt, l);
 		d->lplen = l;
 
@@ -539,6 +540,12 @@ void PLogin(Player *p, byte *opkt, int l)
 		/* fill misc data */
 		p->macid = pkt->macid;
 		p->permid = pkt->D2;
+		if (p->type == T_VIE)
+			snprintf(p->clientname, sizeof(p->clientname),
+					"<subspace or other vie client, v. %d>", pkt->cversion);
+		else if (p->type == T_CONT)
+			snprintf(p->clientname, sizeof(p->clientname),
+					"<continuum, v. %d>", pkt->cversion);
 
 		/* set up status */
 		pd->WriteLock();
@@ -553,7 +560,7 @@ void MLogin(Player *p, const char *line)
 {
 	pdata *d = PPDATA(p, pdkey);
 	const char *t;
-	char vers[16];
+	char vers[64];
 	struct LoginPacket *lp;
 	int c, l;
 
@@ -567,9 +574,12 @@ void MLogin(Player *p, const char *line)
 	d->lplen = LEN_LOGINPACKET_VIE;
 
 	/* extract fields */
-	t = delimcpy(vers, line, 16, ':');
+	t = delimcpy(vers, line, sizeof(vers), ':');
 	if (!t) return;
 	lp->cversion = atoi(vers);
+	if (strchr(vers, ';') != NULL)
+		snprintf(p->clientname, sizeof(p->clientname),
+				"chat: %s", strchr(vers, ';') + 1);
 	t = delimcpy(lp->name, t, sizeof(lp->name), ':');
 	/* replace nonprintables with underscores */
 	l = strlen(lp->name);
