@@ -52,8 +52,6 @@ def handle_s2b_connect(line):
 		vie_bprot.disconnect()
 		util.exit(1)
 
-	gotconnect = 1
-
 	if network:
 		sendname = network + ' ' + zonename
 	else:
@@ -61,11 +59,19 @@ def handle_s2b_connect(line):
 
 	log("local zone %s running on %s" % (sendname, swname))
 
+	args = [serverid, groupid, scoreid, sendname, password]
+	def do_send_stuff(args=args):
+		log("logging in to remote biller")
+		vie_bprot.send_s2b_login(*args)
+		send_b2s_connectok('bproxy %s' % util.version)
+
 	# this is a little messy. we check to see if we've contacted the vie
 	# server yet. if so, just send the connectok. if not, wait until we
 	# do.
 	if vie_bprot.stage == vie_bprot.s_connected:
-		send_connected()
+		do_send_stuff()
+	else:
+		gotconnect = do_send_stuff
 
 
 def handle_s2b_plogin(line):
@@ -93,8 +99,7 @@ def handle_s2b_pleave(line):
 	pid = line
 	pid = int(pid)
 	if pidmap.has_key(pid):
-		secs = (util.ticks() - pidmap[pid].connected + 50) / 100
-		vie_bprot.send_s2b_playerleave(pid, secs)
+		vie_bprot.send_s2b_playerleave(pid)
 		del pidmap[pid]
 	else:
 		log("leaving pid %d not in pidmap" % pid)
@@ -163,19 +168,6 @@ s2b_dispatch = \
 }
 
 
-def send_line(line):
-	sock.sendall(line + '\n')
-
-
-def send_connected():
-	global gotconnect
-	if gotconnect == 1:
-		log("logging in to remote biller")
-		vie_bprot.send_s2b_login(serverid, groupid, scoreid, sendname, password)
-		send_b2s_connectok('bproxy %s' % util.version)
-		gotconnect = 0
-
-
 def process_incoming(line):
 	type, rest = line.split(':', 1)
 	if s2b_dispatch.has_key(type):
@@ -187,6 +179,17 @@ def process_incoming(line):
 			traceback.print_exc()
 	else:
 		log("bad message type from game server: '%s'" % type)
+
+
+def send_line(line):
+	sock.sendall(line + '\n')
+
+
+def send_connected():
+	global gotconnect
+	if gotconnect:
+		gotconnect()
+		gotconnect = None
 
 
 inbuf = ''

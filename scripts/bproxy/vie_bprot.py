@@ -325,11 +325,8 @@ def send_s2b_playerlogin(flag, ipaddy, name, pw, pid, macid, timezone, contid = 
 		pkt = pkt + contid
 	queue_pkt(pkt)
 
-def send_s2b_playerleave(pid, secs):
-	# why in the world is this a two-byte field!?
-	if secs > 65535:
-		secs = 65535
-	pkt = struct.pack('< B i 4x 4x H', S2B_PLAYERLEAVING, pid, secs)
+def send_s2b_playerleave(pid):
+	pkt = struct.pack('< B i 4x 4x 2x', S2B_PLAYERLEAVING, pid)
 	queue_pkt(pkt)
 
 def send_s2b_remotepriv(pid, text):

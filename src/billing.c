@@ -295,10 +295,12 @@ local void Cusage(const char *params, Player *p, const Target *target)
 		mins = secs / 60;
 
 		if (t != p) chat->SendMessage(p, "usage: %s:", t->name);
-		chat->SendMessage(p, "session: %5d:%02d:%02d", mins / 60, mins % 60, secs % 60);
-		mins += tdata->usage / 60;
-		chat->SendMessage(p, "  total: %5d:%02d",
-				mins / 60, mins % 60);
+		chat->SendMessage(p, "session: %5d:%02d:%02d",
+				mins / 60, mins % 60, secs % 60);
+		secs += tdata->usage;
+		mins = secs / 60;
+		chat->SendMessage(p, "  total: %5d:%02d:%02d",
+				mins / 60, mins % 60, secs % 60);
 		chat->SendMessage(p, "first played: %s", tdata->firstused);
 	}
 	else
