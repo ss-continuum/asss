@@ -561,6 +561,24 @@ local PyObject *Arena_get_cfg(PyObject *obj, void *v)
 	return cvt_c2p_config(a->cfg);
 }
 
+local PyObject *Arena_get_specfreq(PyObject *obj, void *v)
+{
+	Arena *a = ((ArenaObject*)obj)->a;
+	return PyInt_FromLong(a->specfreq);
+}
+
+local PyObject *Arena_get_playing(PyObject *obj, void *v)
+{
+	Arena *a = ((ArenaObject*)obj)->a;
+	return PyInt_FromLong(a->playing);
+}
+
+local PyObject *Arena_get_total(PyObject *obj, void *v)
+{
+	Arena *a = ((ArenaObject*)obj)->a;
+	return PyInt_FromLong(a->total);
+}
+
 
 local PyGetSetDef Arena_getseters[] =
 {
@@ -569,6 +587,9 @@ local PyGetSetDef Arena_getseters[] =
 	SIMPLE_GETTER(name, "arena name")
 	SIMPLE_GETTER(basename, "arena basename (without a number at the end)")
 	SIMPLE_GETTER(cfg, "arena config file handle")
+	SIMPLE_GETTER(specfreq, "the arena's spectator frequency")
+	SIMPLE_GETTER(playing, "how many players are in ships in this arena")
+	SIMPLE_GETTER(total, "how many players total are in this arena")
 #undef SIMPLE_GETTER
 	{NULL}
 };
@@ -729,7 +750,7 @@ local void py_aaction(Arena *a, int action)
 	adata *d = P_ARENA_DATA(a, adkey);
 	PyObject *args;
 
-	if (action == AA_CREATE)
+	if (action == AA_PRECREATE)
 	{
 		d->obj = PyObject_New(ArenaObject, &ArenaType);
 		d->obj->a = a;
@@ -743,7 +764,7 @@ local void py_aaction(Arena *a, int action)
 		Py_DECREF(args);
 	}
 
-	if (action == AA_DESTROY && d->obj)
+	if (action == AA_POSTDESTROY && d->obj)
 	{
 		if (d->obj->ob_refcnt != 1)
 			lm->Log(L_ERROR, "<pymod> there are %d remaining references to an arena object!",
@@ -1400,6 +1421,68 @@ local PyObject * mthd_reg_apd(PyObject *self, PyObject *args)
 }
 
 
+local PyObject * mthd_for_each_player(PyObject *self, PyObject *args)
+{
+	PyObject *func;
+	Link *link;
+	Player *p;
+
+	if (!PyArg_ParseTuple(args, "O", &func))
+		return NULL;
+
+	if (!PyCallable_Check(func))
+	{
+		PyErr_SetString(PyExc_TypeError, "func isn't callable");
+		return NULL;
+	}
+
+	pd->Lock();
+	FOR_EACH_PLAYER(p)
+	{
+		PyObject *ret = PyObject_CallFunction(func, "(O&)",
+				cvt_c2p_player, p);
+		Py_XDECREF(ret);
+	}
+	pd->Unlock();
+
+	log_py_exception(L_ERROR, "error in a for_each_player callback");
+
+	Py_INCREF(Py_None);
+	return Py_None;
+}
+
+
+local PyObject * mthd_for_each_arena(PyObject *self, PyObject *args)
+{
+	PyObject *func;
+	Link *link;
+	Arena *a;
+
+	if (!PyArg_ParseTuple(args, "O", &func))
+		return NULL;
+
+	if (!PyCallable_Check(func))
+	{
+		PyErr_SetString(PyExc_TypeError, "func isn't callable");
+		return NULL;
+	}
+
+	aman->Lock();
+	FOR_EACH_PLAYER(a)
+	{
+		PyObject *ret = PyObject_CallFunction(func, "(O&)",
+				cvt_c2p_arena, a);
+		Py_XDECREF(ret);
+	}
+	aman->Unlock();
+
+	log_py_exception(L_ERROR, "error in a for_each_arena callback");
+
+	Py_INCREF(Py_None);
+	return Py_None;
+}
+
+
 local PyMethodDef asss_module_methods[] =
 {
 	{"reg_callback", mthd_reg_callback, METH_VARARGS,
@@ -1419,6 +1502,10 @@ local PyMethodDef asss_module_methods[] =
 		"registers a per-arena persistent data handler"},
 	{"set_timer", mthd_set_timer, METH_VARARGS,
 		"registers a timer"},
+	{"for_each_player", mthd_for_each_player, METH_VARARGS,
+		"runs a function for each player"},
+	{"for_each_arena", mthd_for_each_arena, METH_VARARGS,
+		"runs a function for each arena"},
 	{NULL}
 };
 
@@ -1622,7 +1709,7 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 		aman->Lock();
 		mm->RegCallback(CB_ARENAACTION, py_aaction, ALLARENAS);
 		FOR_EACH_ARENA(arena)
-			py_aaction(arena, AA_CREATE);
+			py_aaction(arena, AA_PRECREATE);
 		aman->Unlock();
 
 		mm->RegModuleLoader("py", pyloader);
@@ -1647,7 +1734,7 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 
 		aman->Lock();
 		FOR_EACH_ARENA(arena)
-			py_aaction(arena, AA_DESTROY);
+			py_aaction(arena, AA_POSTDESTROY);
 		mm->UnregCallback(CB_ARENAACTION, py_aaction, ALLARENAS);
 		aman->Unlock();
 

@@ -47,7 +47,11 @@ enum
 	/** when config file changes */
 	AA_CONFCHANGED,
 	/** when the arena is destroyed */
-	AA_DESTROY
+	AA_DESTROY,
+	/** really really early */
+	AA_PRECREATE,
+	/** really really late */
+	AA_POSTDESTROY
 };
 
 

@@ -115,6 +115,8 @@ local int ProcessArenaStates(void *dummy)
 		switch (status)
 		{
 			case ARENA_DO_INIT:
+				/* some callbacks */
+				DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_PRECREATE));
 				/* config file */
 				a->cfg = cfg->OpenConfigFile(a->basename, NULL, arena_conf_changed, a);
 				/* cfghelp: Team:SpectatorFrequency, arena, int, range: 0-9999, def: 8025
@@ -122,7 +124,7 @@ local int ProcessArenaStates(void *dummy)
 				a->specfreq = cfg->GetInt(a->cfg, "Team", "SpectatorFrequency", CFG_DEF_SPEC_FREQ);
 				/* attach modules */
 				do_attach(a);
-				/* now callbacks */
+				/* more callbacks */
 				DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_CREATE));
 				/* finally, persistant stuff */
 				if (persist)
@@ -165,6 +167,7 @@ local int ProcessArenaStates(void *dummy)
 				mm->DetachAllFromArena(a);
 				cfg->CloseConfigFile(a->cfg);
 				a->cfg = NULL;
+				DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_POSTDESTROY));
 
 				if (ad->resurrect)
 				{
