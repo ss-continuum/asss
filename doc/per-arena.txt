@@ -106,3 +106,49 @@ aman will generate a fake ship change event. the handler will call
   send a packet because .... well, we'll think of something.
 aman will then read those values.
 
+-----
+
+this is done, mostly. some new thoughts below:
+
+
+
+we need something resembling interfaces, where there can only be one
+active at once, but where that one can be chosen dynamically from some
+present alternatives, based on priorities and other factors (such as
+arenas).
+
+situations:
+
+the auth thing:
+when a billing server is present, we want authentication to go through
+it. when it's not, we want to fall back to the default auth (which will
+let everyone through, perhaps adding a ^ to their names).
+
+we also might want to load a custom auth for filtering by ip, or such
+things. it might be good to allow them to be chained, but that's getting
+too far ahead.
+
+
+the assignfreq thing:
+there should be multiple versions of this floating around, and it should
+be dependant on arena. (it should handle all ship/freq changes, but
+that's another issue.)
+
+
+options:
+
+special-case these. add a module for each one that all authenticators
+and freq managers will have to register with. let the module choose.
+
+add prioritizing to the existing mm interface interface. but this won't
+help with assignfreq.
+
+for assignfreq: do it with callbacks. let each request generate
+callbacks, and have each arena attach a module to handle them. what
+happens if two modules end up handling them? there should be a way to
+avoid that.
+
+
+-----
+
+

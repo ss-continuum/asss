@@ -135,7 +135,6 @@ void PChat(int pid, byte *p, int len)
 				}
 				else
 					SendMessage(pid, "Mod chat is currently disabled");
-				/* FIXME: sending garbage after null terminator */
 			}
 			else /* normal pub message */
 			{

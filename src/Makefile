@@ -50,8 +50,9 @@ EXTMODS = loggers.so  \
 
 
 
-all: install
+all: pre install
 
+pre: sparse.inc letters.inc Makefile.deps
 
 loggers.so: log_file.o log_console.o
 
@@ -67,7 +68,7 @@ scoring.so: persist.o stats.o points_kill.o points_flag.o points_goal.o
 
 scheme.so: scheme.o ooputils.o
 
-funky.so: autowarp.o
+funky.so: autowarp.o bricklayer.o
 
 
 asss: main.o $(INTMODS) $(EXTRAOBJS)
@@ -82,14 +83,15 @@ util-elderd.o: util.c
 	$(CC) $(CFLAGS) -DNOTHREAD -DUSE_GC -DMALLOC=GC_malloc -c -o $@ $^
 
 sparse.inc: $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py
-	$(SCRIPTS)/gensparse.py sparse.inc $(SCRIPTS)/sparse_params.py
+	$(SCRIPTS)/gensparse.py $@ $(SCRIPTS)/sparse_params.py
+
+letters.inc: $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font
+	$(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font > $@
 
 
-Makefile.deps: *.c *.h
+Makefile.deps: # *.c *.h
 	$(CC) -I $(SCHEMEINC) -MM *.c > $@
 
-# gcc -MM is too dumb to figure this one out
-mapdata.o: sparse.inc
 
 include Makefile.deps
 

@@ -1,5 +1,4 @@
 
-
 #include <stdlib.h>
 
 #include "asss.h"
@@ -150,8 +149,6 @@ int MM_game(int action, Imodman *mm_, int arena)
 		mm->UnregInterest(I_FLAGS, &flags);
 		mm->UnregInterest(I_CAPMAN, &capman);
 		mm->UnregInterest(I_MAPDATA, &mapdata);
-		/* do this last so we don't get prevented from unloading because
-		 * of ourself */
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)

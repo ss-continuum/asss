@@ -7,6 +7,10 @@ have any suggestions of any kind, please let me know.
 
 
 Recent updates:
+    * cleanups in the freq management. it was split off into a separate
+        module, and can now be replaced per-arena. also added hooks for
+        setting freqs/ships.
+
     * bricks!
 
     * energy/inventory info (including energy-viewing for team only)
@@ -14,7 +18,7 @@ Recent updates:
     * capability manager that uses user-definable groups to allow access
         to commands and other things.
 
-    * balls! (no goals, though)
+    * balls! (preliminary goal handling)
 
     * flags! (with correct flag-kill handling, and victories)
 

@@ -10,6 +10,9 @@ cmd_ballcount
 cmd_flagreset
 privcmd_report
 
+; fun stuff
+cmd_brickwrite
+
 ; not implemented
 cmd_a
 cmd_shipreset
