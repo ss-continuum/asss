@@ -49,6 +49,26 @@ local int pdkey;
 
 /* functions */
 
+local void newplayer(Player *p, int new)
+{
+	pdata *stats = PPDATA(p, pdkey);
+	if (new)
+	{
+		pthread_mutex_init(&stats->mtx, NULL);
+		stats->forever = NULL;
+		stats->reset = NULL;
+		stats->game = NULL;
+	}
+	else
+	{
+		pthread_mutex_destroy(&stats->mtx);
+		TrEnum((TreapHead*)stats->forever, tr_enum_afree, NULL);
+		TrEnum((TreapHead*)stats->reset, tr_enum_afree, NULL);
+		TrEnum((TreapHead*)stats->game, tr_enum_afree, NULL);
+	}
+}
+
+
 local stat_info **get_array(pdata *stats, int interval)
 {
 	switch (interval)
@@ -216,6 +236,29 @@ local int GetStat(Player *p, int stat, int iv)
 }
 
 
+local void scorereset_enum(TreapHead *node, void *clos)
+{
+	stat_info *si = (stat_info*)node;
+	/* keep timers running. if the timer was running while this happens,
+	 * only the time from this point will be counted. the time from the
+	 * timer start up to this point will be discarded. */
+	update_timer(si, *(time_t*)clos);
+	si->value = 0;
+	si->dirty = 1;
+}
+
+local void ScoreReset(Player *p, int iv)
+{
+	pdata *stats = PPDATA(p, pdkey);
+	stat_info **arr = get_array(stats, iv);
+	time_t tm = time(NULL);
+	if (!arr) return;
+	LOCK_PLAYER(stats);
+	TrEnum((TreapHead*)(*arr), scorereset_enum, (void*)&tm);
+	UNLOCK_PLAYER(stats);
+}
+
+
 /* utility functions for doing stuff to stat treaps */
 
 #ifdef this_wont_be_necessary_until_new_protocol
@@ -230,6 +273,8 @@ local void update_timers(stat_info *si, time_t now)
 }
 #endif
 
+
+/* stuff dealing with stat protocol */
 
 local void dirty_count_work(TreapHead *node, void *clos)
 {
@@ -249,12 +294,9 @@ local int dirty_count(stat_info *si)
 	return c;
 }
 
-
-/* stuff dealing with stat protocol */
-
 #include "packets/scoreupd.h"
 
-void SendUpdates(void)
+local void SendUpdates(void)
 {
 	pdata *stats;
 	struct ScorePacket sp = { S2C_SCOREUPDATE };
@@ -309,7 +351,7 @@ local void get_stats_enum(TreapHead *node, void *clos_)
 {
 	struct get_stats_clos *clos = (struct get_stats_clos*)clos_;
 	struct stat_info *si = (stat_info*)node;
-	if (clos->left > 0)
+	if (si->value != 0 && clos->left > 0)
 	{
 		update_timer(si, clos->tm);
 		clos->ss->stat = node->key;
@@ -402,9 +444,10 @@ local ArenaPersistentData my_game_end_time_data =
 
 local helptext_t stats_help =
 "Targets: player or none\n"
-"Args: none\n"
+"Args: [{forever}|{game}|{reset}]\n"
 "Prints out some basic statistics about the target player, or if no\n"
-"target, yourself.\n";
+"target, yourself. An interval name can be specified as an argument.\n"
+"By default, the per-reset interval is used.\n";
 
 local void enum_send_msg(TreapHead *node, void *clos)
 {
@@ -441,7 +484,8 @@ local Istats _myint =
 {
 	INTERFACE_HEAD_INIT(I_STATS, "stats")
 	IncrementStat, StartTimer, StopTimer,
-	SetStat, GetStat, SendUpdates
+	SetStat, GetStat, SendUpdates,
+	ScoreReset
 };
 
 
@@ -469,6 +513,7 @@ EXPORT int MM_stats(int action, Imodman *mm_, Arena *arena)
 		persist->RegArenaPD(&my_game_end_time_data);
 
 		mm->RegCallback(CB_INTERVAL_ENDED, SendUpdates, ALLARENAS);
+		mm->RegCallback(CB_NEWPLAYER, newplayer, ALLARENAS);
 
 		mm->RegInterface(&_myint, ALLARENAS);
 		return MM_OK;
@@ -478,6 +523,7 @@ EXPORT int MM_stats(int action, Imodman *mm_, Arena *arena)
 		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
 		mm->UnregCallback(CB_INTERVAL_ENDED, SendUpdates, ALLARENAS);
+		mm->UnregCallback(CB_NEWPLAYER, newplayer, ALLARENAS);
 		persist->UnregPlayerPD(&my_forever_data);
 		persist->UnregPlayerPD(&my_reset_data);
 		persist->UnregPlayerPD(&my_game_data);

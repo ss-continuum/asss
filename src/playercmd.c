@@ -1780,13 +1780,33 @@ local void Cendinterval(const char *params, Player *p, const Target *target)
 
 
 local helptext_t scorereset_help =
-"Targets: ...\n"
-"Args: ...\n"
-"\n";
+"Targets: none or player\n"
+"Args: none\n"
+"Resets your own score, or the target player's score.\n";
 
 local void Cscorereset(const char *params, Player *p, const Target *target)
 {
-	/* FIXME */
+	/* for now, only reset INTERVAL_RESET scores, since those are
+	 * the only ones that cont sees. */
+	if (target->type == T_ARENA)
+	{
+		/* cfghelp: Misc:SelfScoreReset, arena, bool, def: 0
+		 * Whether players can reset their own scores using ?scorereset.
+		 */
+		if (cfg->GetInt(p->arena->cfg, "Misc", "SelfScoreReset", 0))
+		{
+			stats->ScoreReset(p, INTERVAL_RESET);
+			stats->SendUpdates();
+		}
+		else
+			chat->SendMessage(p,
+					"This arena doesn't allow you to reset your own scores.");
+	}
+	else if (target->type == T_PLAYER)
+	{
+		stats->ScoreReset(target->u.p, INTERVAL_RESET);
+		stats->SendUpdates();
+	}
 }
 
 

@@ -44,6 +44,11 @@ typedef struct Istats
 	void (*SendUpdates)(void);
 	/* sends out score updates for everyone that needs to be updated */
 	/* pyint: void -> void */
+
+	void (*ScoreReset)(Player *p, int interval);
+	/* this basically resets all of a player's stats to 0, but doesn't
+	 * stop running timers. */
+	/* pyint: player, int -> void */
 } Istats;
 
 #endif
