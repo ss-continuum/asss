@@ -64,8 +64,15 @@ enum map_tile_t
 typedef struct Region Region;
 
 
+struct mapdata_memory_stats_t
+{
+	long lvlbytes, lvlblocks, rgnbytes, rgnblocks;
+	long reserved[8];
+};
+
+
 /** interface id for Imapdata */
-#define I_MAPDATA "mapdata-6"
+#define I_MAPDATA "mapdata-7"
 
 /** interface struct for Imapdata
  * you should use this to figure out what's going on in the map in a
@@ -125,6 +132,7 @@ typedef struct Imapdata
 	/* don't use this. */
 	void (*DoBrick)(Arena *arena, int drop, int x1, int y1, int x2, int y2);
 
+	void (*GetMemoryStats)(Arena *arena, struct mapdata_memory_stats_t *stats);
 
 	/* new region interface */
 

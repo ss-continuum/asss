@@ -1824,6 +1824,7 @@ local void mapinfo_count_rgns(void *clos, Region *reg)
 
 local void Cmapinfo(const char *params, Player *p, const Target *target)
 {
+	struct mapdata_memory_stats_t stats;
 	const char *name, *vers, *mapc, *tsetc, *prog;
 	char fname[128];
 	int regs = 0;
@@ -1852,6 +1853,10 @@ local void Cmapinfo(const char *params, Player *p, const Target *target)
 
 	mapdata->EnumContaining(p->arena, -1, -1, mapinfo_count_rgns, &regs);
 	chat->SendMessage(p, "regions: %d", regs);
+
+	mapdata->GetMemoryStats(p->arena, &stats);
+	chat->SendMessage(p, "memory: lvl=%ld/%ld  rgn=%ld/%ld",
+			stats.lvlbytes, stats.lvlblocks, stats.rgnbytes, stats.rgnblocks);
 }
 
 

@@ -901,6 +901,21 @@ local void DoBrick(Arena *arena, int drop, int x1, int y1, int x2, int y2)
 }
 
 
+local void GetMemoryStats(Arena *arena, struct mapdata_memory_stats_t *stats)
+{
+	int bts = 0, blks = 0;
+	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
+
+	pthread_mutex_lock(&lvl->mtx);
+	sparse_allocated(lvl->tiles, &bts, &blks);
+	pthread_mutex_unlock(&lvl->mtx);
+
+	memset(stats, 0, sizeof(*stats));
+	stats->lvlbytes = bts;
+	stats->lvlblocks = blks;
+}
+
+
 local Region * FindRegionByName(Arena *arena, const char *name)
 {
 	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
@@ -1039,6 +1054,7 @@ local Imapdata mapdataint =
 	GetFlagCount, GetTile,
 	FindEmptyTileNear, FindBrickEndpoints,
 	GetChecksum, DoBrick,
+	GetMemoryStats,
 	FindRegionByName, RegionName,
 	RegionChunk, Contains,
 	EnumContaining, GetOneContaining
