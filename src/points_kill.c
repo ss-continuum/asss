@@ -14,7 +14,7 @@ local Imodman *mm;
 local Iplayerdata *pd;
 local Istats *stats;
 
-int MM_basicpoints(int action, Imodman *mm_, int arena)
+int MM_points_kill(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
