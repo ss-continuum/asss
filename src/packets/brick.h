@@ -18,13 +18,5 @@ struct S2CBrickPacket
 };
 
 
-struct C2SBrickPacket
-{
-	u8 type; /* 0x1C */
-	i16 x;
-	i16 y;
-};
-
-
 #endif
 

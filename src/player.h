@@ -4,16 +4,6 @@
 #ifndef __PLAYER_H
 #define __PLAYER_H
 
-#include "packets/pdata.h"
-
-
-#define PID_OK(pid) \
-	((pid) >= 0 && (pid) < MAXPLAYERS)
-
-#define PID_BAD(pid) \
-	((pid) < 0 || (pid) >= MAXPLAYERS)
-
-
 
 /* client types */
 
@@ -33,24 +23,18 @@ enum
 
 	T_CHAT,
 	/* simple chat client */
-
-	T_OUTGOING,
-	/* an outgoing connection from the server (e.g. to the biller) */
 };
 
 /* macros for testing types */
-#define IS_STANDARD(pid) (pd->players[(pid)].type == T_CONT || pd->players[(pid)].type == T_VIE)
-#define IS_CHAT(pid) (pd->players[(pid)].type == T_CHAT)
-#define IS_HUMAN(pid) (IS_STANDARD(pid) || IS_CHAT(pid))
+#define IS_STANDARD(p) (p->type == T_CONT || p->type == T_VIE)
+#define IS_CHAT(p) (p->type == T_CHAT)
+#define IS_HUMAN(p) (IS_STANDARD(p) || IS_CHAT(p))
 
 
 /* player status codes */
 
 enum
 {
-	S_FREE,
-	/* this player entry is free to be reused */
-
 	S_CONNECTED,
 	/* player is connected (key exchange completed) but has not logged
 	 * in yet */
@@ -107,29 +91,132 @@ enum
 };
 
 
+#include "packets/pdata.h"
+#include "packets/ppk.h"
+#include "packets/login.h"
 
-#define I_PLAYERDATA "playerdata-1"
+struct Arena;
+
+struct PlayerPosition
+{
+	int x, y, xspeed, yspeed, rotation;
+	int bounty, status;
+};
+
+
+struct Player
+{
+	/* this is the packet that gets sent to clients. some info is kept
+	 * in here */
+	PlayerData pkt;
+
+	/* these are some macros that make accessing fields in pkt look like
+	 * regular fields. */
+#define p_ship pkt.ship
+#define p_freq pkt.freq
+#define p_attached pkt.attachedto
+
+	int pid, status, type, pflags, whenloggedin;
+	Arena *arena, *oldarena;
+	char name[24], squad[24];
+	i16 xres, yres;
+	unsigned int connecttime;
+	/* this is a number between 0 and RAND_MAX. for each incoming
+	 * weapon, if rand() is less than this, it's ignored. this really
+	 * shouldn't be here, i know. */
+	unsigned int ignoreweapons;
+	struct PlayerPosition position;
+	u32 macid, permid;
+	byte playerextradata[0];
+};
+
+
+/* flag bits for the pflags field */
+
+/* set when the player has changed freqs or ships, but before he has
+ * acknowleged it */
+#define F_DURING_CHANGE 0x01
+#define SET_DURING_CHANGE(p) ((p)->pflags |= F_DURING_CHANGE)
+#define RESET_DURING_CHANGE(p) ((p)->pflags &= ~F_DURING_CHANGE)
+#define IS_DURING_CHANGE(p) ((p)->pflags & F_DURING_CHANGE)
+
+/* if player wants optional .lvz files */
+#define F_ALL_LVZ 0x02
+#define SET_ALL_LVZ(p) ((p)->pflags |= F_ALL_LVZ)
+#define UNSET_ALL_LVZ(p) ((p)->pflags &= ~F_ALL_LVZ)
+#define WANT_ALL_LVZ(p) ((p)->pflags & F_ALL_LVZ)
+
+/* if player is waiting for db query results */
+#define F_DURING_QUERY 0x04
+#define SET_DURING_QUERY(p) ((p)->pflags |= F_DURING_QUERY)
+#define UNSET_DURING_QUERY(p) ((p)->pflags &= ~F_DURING_QUERY)
+#define IS_DURING_QUERY(p) ((p)->pflags & F_DURING_QUERY)
+
+/* if the player's lag is too high to let him have flags or balls */
+#define F_NO_FLAGS_BALLS 0x08
+#define SET_NO_FLAGS_BALLS(p) ((p)->pflags |= F_NO_FLAGS_BALLS)
+#define UNSET_NO_FLAGS_BALLS(p) ((p)->pflags &= ~F_NO_FLAGS_BALLS)
+#define IS_NO_FLAGS_BALLS(p) ((p)->pflags & F_NO_FLAGS_BALLS)
+
+/* if the player has sent a position packet since entering the arena */
+#define F_SENT_PPK 0x10
+#define SET_SENT_PPK(p) ((p)->pflags |= F_SENT_PPK)
+#define UNSET_SENT_PPK(p) ((p)->pflags &= ~F_SENT_PPK)
+#define HAS_SENT_PPK(p) ((p)->pflags & F_SENT_PPK)
+
+
+#define I_PLAYERDATA "playerdata-2"
 
 typedef struct Iplayerdata
 {
 	INTERFACE_HEAD_DECL
 
-	PlayerData *players;
+	Player * (*NewPlayer)(int type);
+	void (*FreePlayer)(Player *p);
+	void (*KickPlayer)(Player *p);
 
-	int (*NewPlayer)(int type);
-	void (*FreePlayer)(int pid);
-	void (*KickPlayer)(int pid);
+	void (*LockPlayer)(Player *p);
+	void (*UnlockPlayer)(Player *p);
 
-	void (*LockPlayer)(int pid);
-	void (*UnlockPlayer)(int pid);
+	Player * (*PidToPlayer)(int pid);
+	Player * (*FindPlayer)(const char *name);
 
-	void (*LockStatus)(void);
-	void (*UnlockStatus)(void);
+	void (*TargetToSet)(const Target *target, LinkedList *set);
 
-	int (*FindPlayer)(const char *name);
+	int (*AllocatePlayerData)(size_t bytes);
+	/* returns -1 on failure */
+	void (*FreePlayerData)(int key);
 
-	void (*TargetToSet)(const Target *target, int set[MAXPLAYERS+1]);
+	void (*Lock)(void);
+	void (*WriteLock)(void);
+	void (*Unlock)(void);
+	/* these must always be used to iterate over all the players
+	 * (with the FOR_EACH_PLAYER macro). you can usually use the reguar
+	 * (read-only) lock. you need the write lock if you're going to be
+	 * changing player status values. */
+
+	LinkedList playerlist;
 } Iplayerdata;
+
+
+/* use this to access per-player data */
+#define PPDATA(p, mykey) ((void*)((p)->playerextradata+mykey))
+
+/* these assume you have a Link * named 'link' and that 'pd' points to
+ * the player data interface. don't forget to use pd->Lock() first. */
+#define FOR_EACH_PLAYER(p) \
+	for ( \
+			link = LLGetHead(&pd->playerlist); \
+			link && ((p = link->data) || 1); \
+			link = link->next)
+
+#define FOR_EACH_PLAYER_P(p, d, key) \
+	for ( \
+			link = LLGetHead(&pd->playerlist); \
+			link && (((p = link->data), \
+			          (d = PPDATA(p, key))) || 1); \
+			link = link->next)
+
 
 #endif
 

@@ -9,8 +9,8 @@
 #include "watchdamage.h"
 
 
-#define WATCHCOUNT(pid) \
-	( LLCount(watches + pid) + modwatch[pid] )
+#define WATCHCOUNT(wd) \
+	( LLCount(&wd->watches) + wd->modwatch )
 
 
 /* global data */
@@ -22,83 +22,95 @@ local Icmdman *cmd;
 local Inet *net;
 local Imodman *mm;
 
-local LinkedList watches[MAXPLAYERS];
-local short modwatch[MAXPLAYERS];
+typedef struct
+{
+	LinkedList watches;
+	short modwatch;
+} watchdata;
+
+local int wdkey;
 
 
 /* functions to send packets */
 
-local void ToggleWatch(int pid, byte on)
+local void ToggleWatch(Player *p, byte on)
 {
 	byte pk[2] = { S2C_TOGGLEDAMAGE, on };
 
-	if (pd->players[pid].type == T_CONT)
+	if (p->type == T_CONT)
 	{
-		net->SendToOne(pid, pk, 2, NET_RELIABLE | NET_PRI_N1);
+		net->SendToOne(p, pk, 2, NET_RELIABLE | NET_PRI_N1);
 
 		/* for temp debugging to make sure we arn't sending more of these packets than we need */
-		chat->SendMessage(pid, "(Your damage watching turned %s)", on ? "on" : "off");
+		chat->SendMessage(p, "(Your damage watching turned %s)", on ? "on" : "off");
 	}
 }
 
-/* functions to handle increase/decreasing sizes */
 
-local int AddWatch(int pid, int target)
+local int AddWatch(Player *p, Player *target)
 {
+	watchdata *wd = PPDATA(target, wdkey);
 	Link *l;
 
 	/* check to see if already on */
-	for (l = LLGetHead(watches + target); l; l = l->next)
-		if ((short*)l->data - modwatch == pid)
+	for (l = LLGetHead(&wd->watches); l; l = l->next)
+		if (l->data == p)
 			return -1;
 
 	/* add new int to end of list */
-	LLAdd(watches + target, modwatch + pid);
+	LLAdd(&wd->watches, p);
 
 	/* check to see if need to send a packet */
-	if (WATCHCOUNT(target) == 1)
+	if (WATCHCOUNT(wd) == 1)
 		ToggleWatch(target, 1);
 
 	return 1;
 }
 
-local void RemoveWatch(int pid, int target)
+local void RemoveWatch(Player *p, Player *target)
 {
-	if (WATCHCOUNT(target) == 0)
+	watchdata *wd = PPDATA(target, wdkey);
+
+	if (WATCHCOUNT(wd) == 0)
 		return;
 
-	LLRemoveAll(watches + target, modwatch + pid);
+	LLRemoveAll(&wd->watches, p);
 
 	/* check to see if need to send a packet */
-	if (WATCHCOUNT(target) == 0)
+	if (WATCHCOUNT(wd) == 0)
 		ToggleWatch(target, 0);
 }
 
-local void ClearWatch(int pid)
+local void ClearWatch(Player *p, int himtoo)
 {
-	int i;
+	watchdata *wd = PPDATA(p, wdkey);
+	Player *i;
+	Link *link;
 
 	/* remove his watches on others */
-	for (i = 0; i < MAXPLAYERS; i++)
-	{
-		RemoveWatch(pid, i);
-	}
+	pd->Lock();
+	FOR_EACH_PLAYER(i)
+		RemoveWatch(p, i);
+	pd->Unlock();
 
 	/* remove people watching him */
-	LLEmpty(watches + pid);
+	if (himtoo)
+		LLEmpty(&wd->watches);
 }
 
-local void ModuleWatch(int pid, int on)
+local void ModuleWatch(Player *p, int on)
 {
+	watchdata *wd = PPDATA(p, wdkey);
 	if (on)
-		modwatch[pid]++;
+		wd->modwatch++;
 	else
-		modwatch[pid] -= modwatch[pid] > 0 ? 1 : 0;
+		wd->modwatch -= wd->modwatch > 0 ? 1 : 0;
 }
 
-local int WatchCount(int pid)
+local int WatchCount(Player *p)
 {
-	return WATCHCOUNT(pid);
+	watchdata *wd = PPDATA(p, wdkey);
+	return WATCHCOUNT(wd);
 }
 
 
@@ -110,13 +122,11 @@ local helptext_t watchdamage_help =
 "public command, only {?watchdamage 0} is meaningful, and it turns off\n"
 "damage watching on all players.\n";
 
-local void Cwatchdamage(const char *params, int pid, const Target *target)
+local void Cwatchdamage(const char *params, Player *p, const Target *target)
 {
-	int c;
-
-	if (pd->players[pid].type != T_CONT)
+	if (p->type != T_CONT)
 	{
-		if (chat) chat->SendMessage(pid, "This command requires you to use Continuum");
+		if (chat) chat->SendMessage(p, "This command requires you to use Continuum");
 		return;
 	}
 
@@ -125,19 +135,17 @@ local void Cwatchdamage(const char *params, int pid, const Target *target)
 		if (params[0] == '0' && params[1] == 0)
 		{
 			/* if sent publicly, turns off all their watches */
-			for (c = 0; c < MAXPLAYERS; c++)
-				RemoveWatch(pid, c);
-
-			if (chat) chat->SendMessage(pid, "All damage watching turned off");
+			ClearWatch(p, 0);
+			if (chat) chat->SendMessage(p, "All damage watching turned off");
 		}
 	}
-	else if (target->type == T_PID)
+	else if (target->type == T_PLAYER)
 	{
-		int t = target->u.pid;
+		Player *t = target->u.p;
 
-		if (pd->players[t].type != T_CONT)
+		if (t->type != T_CONT)
 		{
-			if (chat) chat->SendMessage(pid, "watchdamage requires %s to use Continuum", pd->players[t].name);
+			if (chat) chat->SendMessage(p, "watchdamage requires %s to use Continuum", t->name);
 			return;
 		}
 
@@ -146,37 +154,25 @@ local void Cwatchdamage(const char *params, int pid, const Target *target)
 			/* force either on or off */
 			if (params[0] == '0')
 			{
-				RemoveWatch(pid, t);
-				if (chat) chat->SendMessage(pid, "Damage watching on %s turned off", pd->players[t].name);
+				RemoveWatch(p, t);
+				if (chat) chat->SendMessage(p, "Damage watching on %s turned off", t->name);
 			}
 			else
 			{
-				AddWatch(pid, t);
-				if (chat) chat->SendMessage(pid, "Damage watching on %s turned on", pd->players[t].name);
+				AddWatch(p, t);
+				if (chat) chat->SendMessage(p, "Damage watching on %s turned on", t->name);
 			}
 		}
 		else
 		{
 			/* toggle */
-			if (AddWatch(pid, t) == -1)
+			if (AddWatch(p, t) == -1)
 			{
-				RemoveWatch(pid, t);
-				if (chat) chat->SendMessage(pid, "Damage watching on %s turned off", pd->players[t].name);
+				RemoveWatch(p, t);
+				if (chat) chat->SendMessage(p, "Damage watching on %s turned off", t->name);
 			}
 			else
-				if (chat) chat->SendMessage(pid, "Damage watching on %s turned on", pd->players[t].name);
-		}
-	}
-	else
-	{
-		int set[MAXPLAYERS+1], *p;
-		Target newtarg = { T_PID };
-
-		pd->TargetToSet(target, set);
-		for (p = set; *p != -1; p++)
-		{
-			newtarg.u.pid = *p;
-			Cwatchdamage(params, pid, &newtarg);
+				if (chat) chat->SendMessage(p, "Damage watching on %s turned on", t->name);
 		}
 	}
 }
@@ -184,73 +180,86 @@ local void Cwatchdamage(const char *params, int pid, const Target *target)
 
 local helptext_t watchwatchdamage_help = NULL;
 
-local void Cwatchwatchdamage(const char *params, int pid, const Target *target)
+local void Cwatchwatchdamage(const char *params, Player *p, const Target *target)
 {
-	int i, mw = 0, tot = 0;
-	Link *l;
-	int on[MAXPLAYERS];
+	int mw = 0, tot = 0;
+	Link *link, *l;
+	Player *i;
+	watchdata *wd;
+	int onkey = pd->AllocatePlayerData(sizeof(int));
+#define ON(p) (*(int*)PPDATA(p, onkey))
 
-	memset(on, 0, sizeof(on));
+	if (onkey == -1) return;
 
-	for (i = 0; i < MAXPLAYERS; i++)
+	pd->Lock();
+
+	FOR_EACH_PLAYER(i)
+		ON(p) = 0;
+
+	FOR_EACH_PLAYER_P(i, wd, wdkey)
 	{
-		if (modwatch[i])
+		if (wd->modwatch)
 			mw++;
 
-		if (modwatch[i] || !LLIsEmpty(watches + i))
+		if (wd->modwatch || !LLIsEmpty(&wd->watches))
 			tot++;
 
-		for (l = LLGetHead(watches + i); l; l = l->next)
-			on[((short*)l->data) - modwatch]++;
+		for (l = LLGetHead(&wd->watches); l; l = l->next)
+			ON((Player*)l->data)++;
 	}
 
-	chat->SendMessage(pid, "wwd: total players reporting damage: %d", tot);
-	chat->SendMessage(pid, "wwd: players reporting damage to modules: %d", mw);
-	for (i = 0; i < MAXPLAYERS; i++)
-		if (on[i])
-			chat->SendMessage(pid, "wwd: %s is watching damage on %d players",
-					pd->players[i].name, on[i]);
+	chat->SendMessage(p, "wwd: total players reporting damage: %d", tot);
+	chat->SendMessage(p, "wwd: players reporting damage to modules: %d", mw);
+	FOR_EACH_PLAYER(i)
+		if (ON(i))
+			chat->SendMessage(p, "wwd: %s is watching damage on %d players",
+					i->name, ON(i));
+
+	pd->Unlock();
+
+	pd->FreePlayerData(onkey);
 }
 
 
-local void PAWatch(int pid, int action, int arena)
+local void PAWatch(Player *p, int action, Arena *arena)
 {
 	/* if he leaves arena, clear all watches on him and his watches */
 	if (action == PA_LEAVEARENA)
-		ClearWatch(pid);
+		ClearWatch(p, 1);
 }
 
-local void PDamage(int pid, byte *p, int len)
+local void PDamage(Player *p, byte *pkt, int len)
 {
-	struct C2SWatchDamage *wd = (struct C2SWatchDamage *)p;
+	watchdata *wd = PPDATA(p, wdkey);
+	struct C2SWatchDamage *c2swd = (struct C2SWatchDamage *)pkt;
 	struct S2CWatchDamage s2cwd;
-	Arena *arena = pd->players[pid].arena;
+	Arena *arena = p->arena;
 	Link *l;
 
 	if (sizeof(struct C2SWatchDamage) != len)
 	{
-		if (lm) lm->Log(L_MALICIOUS, "<watchdamage> [pid=%d] Bad size for damage", pid);
+		if (lm) lm->LogP(L_MALICIOUS, "watchdamage", p, "bad size for damage");
 		return;
 	}
 
 	if (!arena) return;
 
 	s2cwd.type = S2C_DAMAGE;
-	s2cwd.damageuid = pid;
-	s2cwd.tick = wd->tick;
-	s2cwd.shooteruid = wd->shooteruid;
-	s2cwd.weapon = wd->weapon;
-	s2cwd.energy = wd->energy;
-	s2cwd.damage = wd->damage;
-	s2cwd.unknown = wd->unknown;
+	s2cwd.damageuid = p->pid;
+	s2cwd.tick = c2swd->tick;
+	s2cwd.shooteruid = c2swd->shooteruid;
+	s2cwd.weapon = c2swd->weapon;
+	s2cwd.energy = c2swd->energy;
+	s2cwd.damage = c2swd->damage;
+	s2cwd.unknown = c2swd->unknown;
 
 	/* forward all damage packets to those watching */
-	for (l = LLGetHead(watches + pid); l; l = l->next)
-		net->SendToOne((short*)l->data - modwatch, (byte*)&s2cwd, sizeof(struct S2CWatchDamage), NET_RELIABLE | NET_PRI_N1);
+	for (l = LLGetHead(&wd->watches); l; l = l->next)
+		net->SendToOne(l->data, (byte*)&s2cwd, sizeof(s2cwd), NET_RELIABLE | NET_PRI_N1);
 
 	/* do callbacks only if a module is watching, since these can go in mass spamming sometimes */
-	if (modwatch[pid] > 0)
-		DO_CBS(CB_PLAYERDAMAGE, arena, PlayerDamage, (arena, pid, &s2cwd));
+	if (wd->modwatch > 0)
+		DO_CBS(CB_PLAYERDAMAGE, arena, PlayerDamage, (arena, p, &s2cwd));
 }
 
 
@@ -261,9 +270,8 @@ local Iwatchdamage _int =
 };
 
 
-EXPORT int MM_watchdamage(int action, Imodman *_mm, int arena)
+EXPORT int MM_watchdamage(int action, Imodman *_mm, Arena *arena)
 {
-	int c;
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
@@ -272,8 +280,10 @@ EXPORT int MM_watchdamage(int action, Imodman *_mm, int arena)
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		net = mm->GetInterface(I_NET, ALLARENAS);
+		if (!pd || !cmd || !net) return MM_FAIL;
 
-		if (!cmd || !net) return MM_FAIL;
+		wdkey = pd->AllocatePlayerData(sizeof(watchdata));
+		if (wdkey == -1) return MM_FAIL;
 
 		mm->RegCallback(CB_PLAYERACTION, PAWatch, ALLARENAS);
 
@@ -283,12 +293,6 @@ EXPORT int MM_watchdamage(int action, Imodman *_mm, int arena)
 		cmd->AddCommand("watchwatchdamage", Cwatchwatchdamage, watchwatchdamage_help);
 
 		mm->RegInterface(&_int, ALLARENAS);
-
-		for (c = 0; c < MAXPLAYERS; c++)
-		{
-			LLInit(watches + c);
-			modwatch[c] = 0;
-		}
 
 		return MM_OK;
 	}
@@ -304,14 +308,12 @@ EXPORT int MM_watchdamage(int action, Imodman *_mm, int arena)
 
 		mm->UnregCallback(CB_PLAYERACTION, PAWatch, ALLARENAS);
 
+		pd->FreePlayerData(wdkey);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(net);
-
-		for (c = 0; c < MAXPLAYERS; c++)
-			LLEmpty(watches + c);
 
 		return MM_OK;
 	}

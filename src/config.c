@@ -494,7 +494,7 @@ local Iconfig _int =
 };
 
 
-EXPORT int MM_config(int action, Imodman *mm_, int arena)
+EXPORT int MM_config(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{

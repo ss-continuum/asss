@@ -5,7 +5,7 @@
 #define __CHATNET_H
 
 
-typedef void (*MessageFunc)(int pid, const char *line);
+typedef void (*MessageFunc)(Player *p, const char *line);
 /* a func of this type is responsible for one message type. the line
  * passed in will be the line sent by the client, minus the message type
  * field. */
@@ -28,13 +28,13 @@ typedef struct Ichatnet
 	void (*AddHandler)(const char *type, MessageFunc func);
 	void (*RemoveHandler)(const char *type, MessageFunc func);
 
-	void (*SendToOne)(int pid, const char *line, ...);
-	void (*SendToArena)(Arena *a, int except, const char *line, ...);
-	void (*SendToSet)(int *set, const char *line, ...);
+	void (*SendToOne)(Player *p, const char *line, ...);
+	void (*SendToArena)(Arena *a, Player *except, const char *line, ...);
+	void (*SendToSet)(LinkedList *set, const char *line, ...);
 
-	void (*DropClient)(int pid);
+	void (*DropClient)(Player *p);
 
-	void (*GetClientStats)(int pid, struct chat_client_stats *stats);
+	void (*GetClientStats)(Player *p, struct chat_client_stats *stats);
 
 } Ichatnet;
 

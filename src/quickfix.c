@@ -82,7 +82,7 @@ local void try_section(const char *limit, const struct section_help *sh,
 	}
 }
 
-local void do_quickfix(int pid, const char *limit)
+local void do_quickfix(Player *p, const char *limit)
 {
 	int i, fd;
 	Arena *arena;
@@ -91,7 +91,7 @@ local void do_quickfix(int pid, const char *limit)
 	char name[] = "tmp/quickfix-XXXXXX";
 	FILE *f;
 
-	arena = pd->players[pid].arena;
+	arena = p->arena;
 	if (!arena) return;
 	ch = arena->cfg;
 
@@ -101,7 +101,7 @@ local void do_quickfix(int pid, const char *limit)
 	if (fd == -1)
 	{
 		lm->Log(L_WARN, "<quickfix> Can't create temp file. Make sure tmp/ exists.");
-		chat->SendMessage(pid, "Error: can't create temporary file.");
+		chat->SendMessage(p, "Error: can't create temporary file.");
 		return;
 	}
 
@@ -110,7 +110,7 @@ local void do_quickfix(int pid, const char *limit)
 	if (!mktemp(name))
 	{
 		lm->Log(L_WARN, "<quickfix> Can't create temp file. Make sure tmp/ exists.");
-		chat->SendMessage(pid, "Error: can't create temporary file.");
+		chat->SendMessage(p, "Error: can't create temporary file.");
 		return;
 	}
 
@@ -139,8 +139,8 @@ local void do_quickfix(int pid, const char *limit)
 	fclose(f);
 
 	/* send and delete file */
-	chat->SendMessage(pid, "Sending settings...");
-	filetrans->SendFile(pid, name, "server.set", TRUE);
+	chat->SendMessage(p, "Sending settings...");
+	filetrans->SendFile(p, name, "server.set", TRUE);
 }
 
 
@@ -153,52 +153,52 @@ local helptext_t quickfix_help =
 "argument to this command can be used to limit the list of settings\n"
 "displayed.\n";
 
-local void Cquickfix(const char *params, int pid, const Target *target)
+local void Cquickfix(const char *params, Player *p, const Target *target)
 {
-	do_quickfix(pid, params[0] ? params : NULL);
+	do_quickfix(p, params[0] ? params : NULL);
 }
 
 
-local void p_settingchange(int pid, byte *pkt, int len)
+local void p_settingchange(Player *p, byte *pkt, int len)
 {
 	Arena *arena;
 	ConfigHandle ch;
 	time_t tm = time(NULL);
-	const char *p = (const char*)pkt + 1;
+	const char *pos = (const char*)pkt + 1;
 	char sec[MAXSECTIONLEN], key[MAXKEYLEN], info[128];
 
-	arena = pd->players[pid].arena;
+	arena = p->arena;
 	if (!arena) return;
 	ch = arena->cfg;
 
 #define CHECK(n) \
 	if (!n) { \
-		lm->LogP(L_MALICIOUS, "quickfix", pid, \
+		lm->LogP(L_MALICIOUS, "quickfix", p, \
 				"Badly formatted setting change"); \
 		return; \
 	}
 
-	snprintf(info, 100, "set by %s with ?quickfix on ", pd->players[pid].name);
+	snprintf(info, 100, "set by %s with ?quickfix on ", p->name);
 	ctime_r(&tm, info + strlen(info));
 	RemoveCRLF(info);
 
-	while ((p-(char*)pkt) < len)
+	while ((pos-(char*)pkt) < len)
 	{
-		printf("quickfix: setting: '%s'\n", p);
-		p = delimcpy(sec, p, MAXSECTIONLEN, ':');
-		CHECK(p)
-		p = delimcpy(key, p, MAXKEYLEN, ':');
-		CHECK(p)
-		lm->LogP(L_INFO, "quickfix", pid, "Setting %s:%s = %s",
-				sec, key, p);
-		cfg->SetStr(ch, sec, key, p, info);
-		p = p + strlen(p) + 1;
-		if (p[0] == '\0') break;
+		printf("quickfix: setting: '%s'\n", pos);
+		pos = delimcpy(sec, pos, MAXSECTIONLEN, ':');
+		CHECK(pos)
+		pos = delimcpy(key, pos, MAXKEYLEN, ':');
+		CHECK(pos)
+		lm->LogP(L_INFO, "quickfix", p, "Setting %s:%s = %s",
+				sec, key, pos);
+		cfg->SetStr(ch, sec, key, pos, info);
+		pos = pos + strlen(pos) + 1;
+		if (pos[0] == '\0') break;
 	}
 }
 
 
-EXPORT int MM_quickfix(int action, Imodman *mm, int arena)
+EXPORT int MM_quickfix(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{

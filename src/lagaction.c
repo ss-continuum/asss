@@ -39,8 +39,8 @@ typedef struct
 } laglimits_t;
 
 local int cfg_checkinterval;
-local int limkey;
-local unsigned lastchecked[MAXPLAYERS];
+local int limkey, lcheckkey;
+#define LASTCHECKED(p) (*(unsigned*)(PPDATA(p, lcheckkey)))
 
 local Iplayerdata *pd;
 local Iarenaman *aman;
@@ -53,13 +53,13 @@ local Ilogman *lm;
 
 
 
-local int Spec(int pid, laglimits_t *ll, const char *why)
+local int Spec(Player *p, laglimits_t *ll, const char *why)
 {
-	if (pd->players[pid].shiptype != SPEC)
+	if (p->p_ship != SPEC)
 	{
-		game->SetFreqAndShip(pid, SPEC, ll->specfreq);
+		game->SetFreqAndShip(p, SPEC, ll->specfreq);
 		if (lm)
-			lm->LogP(L_INFO, "lagaction", pid, "specced for: %s", why);
+			lm->LogP(L_INFO, "lagaction", p, "specced for: %s", why);
 		return 1;
 	}
 	else
@@ -67,7 +67,7 @@ local int Spec(int pid, laglimits_t *ll, const char *why)
 }
 
 
-local void check_lag(int pid, laglimits_t *ll)
+local void check_lag(Player *p, laglimits_t *ll)
 {
 	struct PingSummary pping, cping, rping;
 	struct PLossSummary ploss;
@@ -75,10 +75,10 @@ local void check_lag(int pid, laglimits_t *ll)
 	double ign1, ign2, ign3;
 
 	/* gather all data */
-	lag->QueryPPing(pid, &pping);
-	lag->QueryCPing(pid, &cping);
-	lag->QueryRPing(pid, &rping);
-	lag->QueryPLoss(pid, &ploss);
+	lag->QueryPPing(p, &pping);
+	lag->QueryCPing(p, &cping);
+	lag->QueryRPing(p, &rping);
+	lag->QueryPLoss(p, &ploss);
 
 	/* weight reliable ping twice the s2c and c2s */
 	avg = (pping.avg + cping.avg + 2*rping.avg) / 4;
@@ -86,29 +86,29 @@ local void check_lag(int pid, laglimits_t *ll)
 	/* try to spec people */
 	if (avg > ll->ping.tospec)
 	{
-		if (Spec(pid, ll, "ping") && chat)
-			chat->SendMessage(pid,
+		if (Spec(p, ll, "ping") && chat)
+			chat->SendMessage(p,
 					"You have been specced for excessive ping (%d > %d)",
 					avg, ll->ping.tospec);
 	}
 	if (ploss.s2c > ll->s2closs.tospec)
 	{
-		if (Spec(pid, ll, "s2c ploss") && chat)
-			chat->SendMessage(pid,
+		if (Spec(p, ll, "s2c ploss") && chat)
+			chat->SendMessage(p,
 					"You have been specced for excessive S2C packetloss (%.2f > %.2f)",
 					100.0 * ploss.s2c, 100.0 * ll->s2closs.tospec);
 	}
 	if (ploss.s2cwpn > ll->wpnloss.tospec)
 	{
-		if (Spec(pid, ll, "s2cwpn ploss") && chat)
-			chat->SendMessage(pid,
+		if (Spec(p, ll, "s2cwpn ploss") && chat)
+			chat->SendMessage(p,
 					"You have been specced for excessive S2C weapon packetloss (%.2f > %.2f)",
 					100.0 * ploss.s2cwpn, 100.0 * ll->wpnloss.tospec);
 	}
 	if (ploss.c2s > ll->c2sloss.tospec)
 	{
-		if (Spec(pid, ll, "c2s ploss") && chat)
-			chat->SendMessage(pid,
+		if (Spec(p, ll, "c2s ploss") && chat)
+			chat->SendMessage(p,
 					"You have been specced for excessive C2S packetloss (%.2f > %.2f)",
 					100.0 * ploss.c2s, 100.0 * ll->c2sloss.tospec);
 	}
@@ -118,9 +118,9 @@ local void check_lag(int pid, laglimits_t *ll)
 	    ploss.s2c > ll->s2closs.noflags ||
 	    ploss.s2cwpn > ll->wpnloss.noflags ||
 	    ploss.c2s > ll->c2sloss.noflags)
-		SET_NO_FLAGS_BALLS(pid);
+		SET_NO_FLAGS_BALLS(p);
 	else
-		UNSET_NO_FLAGS_BALLS(pid);
+		UNSET_NO_FLAGS_BALLS(p);
 
 	/* calculate weapon ignore percent */
 	ign1 =
@@ -139,16 +139,16 @@ local void check_lag(int pid, laglimits_t *ll)
 	if (ign1 < 0.0) ign1 = 0.0;
 	if (ign1 > 1.0) ign1 = 1.0;
 
-	pd->players[pid].ignoreweapons = (unsigned)((double)RAND_MAX * ign1);
+	p->ignoreweapons = (unsigned)((double)RAND_MAX * ign1);
 }
 
 
-local void check_spike(int pid, laglimits_t *ll)
+local void check_spike(Player *p, laglimits_t *ll)
 {
-	int spike = net->GetLastPacketTime(pid) * 10;
+	int spike = net->GetLastPacketTime(p) * 10;
 	if (spike > ll->spiketospec)
-		if (Spec(pid, ll, "spike") && chat)
-			chat->SendMessage(pid,
+		if (Spec(p, ll, "spike") && chat)
+			chat->SendMessage(p,
 					"You have been specced for a %dms spike",
 					spike);
 }
@@ -156,23 +156,22 @@ local void check_spike(int pid, laglimits_t *ll)
 
 local void mainloop()
 {
-	int pid;
-	Arena *arena;
+	Player *p;
+	Link *link;
 	laglimits_t *ll;
 	unsigned now = GTC();
 
-	for (pid = 0; pid < MAXPLAYERS; pid++)
-		if (pd->players[pid].status == S_PLAYING &&
-		    (now - lastchecked[pid]) > cfg_checkinterval)
+	FOR_EACH_PLAYER(p)
+		if (p->status == S_PLAYING &&
+		    (now - LASTCHECKED(p)) > cfg_checkinterval)
 		{
-			lastchecked[pid] = now;
+			LASTCHECKED(p) = now;
 
-			arena = pd->players[pid].arena;
-			if (!arena) continue;
+			if (!p->arena) continue;
 
-			ll = P_ARENA_DATA(arena, limkey);
-			check_spike(pid, ll);
-			check_lag(pid, ll);
+			ll = P_ARENA_DATA(p->arena, limkey);
+			check_spike(p, ll);
+			check_lag(p, ll);
 		}
 }
 
@@ -256,7 +255,7 @@ local void arenaaction(Arena *arena, int action)
 }
 
 
-EXPORT int MM_lagaction(int action, Imodman *mm, int arena)
+EXPORT int MM_lagaction(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -272,6 +271,8 @@ EXPORT int MM_lagaction(int action, Imodman *mm, int arena)
 
 		limkey = aman->AllocateArenaData(sizeof(laglimits_t));
 		if (limkey == -1) return MM_FAIL;
+		lcheckkey = pd->AllocatePlayerData(sizeof(unsigned));
+		if (lcheckkey == -1) return MM_FAIL;
 
 		/* cfghelp: Lag:CheckInterval, global, int, def: 300
 		 * How often to check each player for out-of-bounds lag values
@@ -285,13 +286,14 @@ EXPORT int MM_lagaction(int action, Imodman *mm, int arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		int i;
+		Link *link;
+		Player *p;
 
 		/* don't leave stuff like this lying around */
-		for (i = 0; i < MAXPLAYERS; i++)
+		FOR_EACH_PLAYER(p)
 		{
-			UNSET_NO_FLAGS_BALLS(i);
-			pd->players[i].ignoreweapons = 0;
+			UNSET_NO_FLAGS_BALLS(p);
+			p->ignoreweapons = 0;
 		}
 
 		mm->UnregCallback(CB_MAINLOOP, mainloop, ALLARENAS);

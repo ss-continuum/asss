@@ -37,25 +37,25 @@ typedef struct MyArenaData
 /* prototypes */
 local void SpawnFlag(Arena *arena, int fid);
 local void AAFlag(Arena *arena, int action);
-local void PAFlag(int pid, int action, Arena *arena);
-local void ShipChange(int, int, int);
-local void FreqChange(int, int);
-local void FlagKill(Arena *, int, int, int, int);
+local void PAFlag(Player *p, int action, Arena *arena);
+local void ShipChange(Player *, int, int);
+local void FreqChange(Player *, int);
+local void FlagKill(Arena *, Player *, Player *, int, int);
 
 /* timers */
 local int BasicFlagTimer(void *);
 local int TurfFlagTimer(void *);
 
 /* packet funcs */
-local void PPickupFlag(int, byte *, int);
-local void PDropFlag(int, byte *, int);
+local void PPickupFlag(Player *, byte *, int);
+local void PDropFlag(Player *, byte *, int);
 
 /* interface funcs */
 local void MoveFlag(Arena *arena, int fid, int x, int y, int freq);
 local void FlagVictory(Arena *arena, int freq, int points);
 local struct ArenaFlagData * GetFlagData(Arena *arena);
 local void ReleaseFlagData(Arena *arena);
-local int GetCarriedFlags(int pid);
+local int GetCarriedFlags(Player *p);
 local int GetFreqFlags(Arena *arena, int freq);
 
 
@@ -177,9 +177,9 @@ void SpawnFlag(Arena *arena, int fid)
 	else if (f->state == FLAG_CARRIED)
 	{
 		/* player dropped a flag */
-		int pid = f->carrier;
-		cx = pd->players[pid].position.x>>4;
-		cy = pd->players[pid].position.y>>4;
+		Player *p = f->carrier;
+		cx = p->position.x>>4;
+		cy = p->position.y>>4;
 		rad = pfd->dropr;
 		if (pfd->dropowned)
 			freq = f->freq;
@@ -263,7 +263,7 @@ void MoveFlag(Arena *arena, int fid, int x, int y, int freq)
 {
 	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
 	struct S2CFlagLocation fl = { S2C_FLAGLOC, fid, x, y, freq };
-	int oldp;
+	Player *oldp;
 
 	LOCK_STATUS(arena);
 	afd->flags[fid].state = FLAG_ONMAP;
@@ -271,14 +271,14 @@ void MoveFlag(Arena *arena, int fid, int x, int y, int freq)
 	afd->flags[fid].y = y;
 	afd->flags[fid].freq = freq;
 	oldp = afd->flags[fid].carrier;
-	if (PID_OK(oldp) &&
-	    pd->players[oldp].status == S_PLAYING &&
-	    pd->players[oldp].flagscarried > 0)
-		pd->players[oldp].flagscarried--;
-	afd->flags[fid].carrier = -1;
+	if (oldp &&
+	    oldp->status == S_PLAYING &&
+	    oldp->pkt.flagscarried > 0)
+		oldp->pkt.flagscarried--;
+	afd->flags[fid].carrier = NULL;
 	UNLOCK_STATUS(arena);
 
-	net->SendToArena(arena, -1, (byte*)&fl, sizeof(fl), NET_RELIABLE);
+	net->SendToArena(arena, NULL, (byte*)&fl, sizeof(fl), NET_RELIABLE);
 	DO_CBS(CB_FLAGPOS, arena, FlagPosFunc,
 			(arena, fid, x, y, freq));
 	logm->Log(L_DRIVEL, "<flags> {%s} Flag %d is at (%d, %d) owned by %d",
@@ -300,7 +300,7 @@ void FlagVictory(Arena *arena, int freq, int points)
 		afd->flags[i].state = FLAG_NONE;
 	UNLOCK_STATUS(arena);
 
-	net->SendToArena(arena, -1, (byte*)&fv, sizeof(fv), NET_RELIABLE);
+	net->SendToArena(arena, NULL, (byte*)&fv, sizeof(fv), NET_RELIABLE);
 }
 
 
@@ -315,9 +315,9 @@ void ReleaseFlagData(Arena *arena)
 	UNLOCK_STATUS(arena);
 }
 
-int GetCarriedFlags(int pid)
+int GetCarriedFlags(Player *p)
 {
-	Arena *arena = pd->players[pid].arena;
+	Arena *arena = p->arena;
 	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
 	int tot = 0, i, fc;
 	struct FlagData *f;
@@ -329,7 +329,7 @@ int GetCarriedFlags(int pid)
 	fc = afd->flagcount;
 	for (i = 0; i < fc; i++, f++)
 		if (f->state == FLAG_CARRIED &&
-		    f->carrier == pid)
+		    f->carrier == p)
 			tot++;
 	UNLOCK_STATUS(arena);
 	return tot;
@@ -350,8 +350,8 @@ int GetFreqFlags(Arena *arena, int freq)
 		if ( ( f->state == FLAG_ONMAP &&
 		       f->freq == freq ) ||
 		     ( f->state == FLAG_CARRIED &&
-		       PID_OK(f->carrier) &&
-		       pd->players[f->carrier].freq == freq ) )
+		       f->carrier &&
+		       f->carrier->p_freq == freq ) )
 			tot++;
 	UNLOCK_STATUS(arena);
 	return tot;
@@ -558,7 +558,7 @@ local void CheckWin(Arena *arena)
 }
 
 
-local void CleanupAfter(Arena *arena, int pid)
+local void CleanupAfter(Arena *arena, Player *p)
 {
 	/* make sure that if someone leaves, his flags respawn */
 	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
@@ -566,29 +566,29 @@ local void CleanupAfter(Arena *arena, int pid)
 	int i, fc, dropped = 0;
 	struct FlagData *f = afd->flags;
 
-	pd->players[pid].flagscarried = 0;
+	p->pkt.flagscarried = 0;
 
 	LOCK_STATUS(arena);
 	fc = pfd->maxflags;
 	if (pfd->gametype != FLAGGAME_NONE)
 		for (i = 0; i < fc; i++, f++)
 			if (f->state == FLAG_CARRIED &&
-				f->carrier == pid)
+				f->carrier == p)
 			{
 				f->state = FLAG_NEUTED;
-				f->x = pd->players[pid].position.x>>4;
-				f->y = pd->players[pid].position.y>>4;
+				f->x = p->position.x>>4;
+				f->y = p->position.y>>4;
 				/* the freq field will be set here. leave it as is. */
 				dropped++;
 			}
 	UNLOCK_STATUS(arena);
 
 	if (dropped)
-		DO_CBS(CB_FLAGDROP, arena, FlagDropFunc, (arena, pid, dropped, 1));
+		DO_CBS(CB_FLAGDROP, arena, FlagDropFunc, (arena, p, dropped, 1));
 }
 
 
-void PAFlag(int pid, int action, Arena *arena)
+void PAFlag(Player *p, int action, Arena *arena)
 {
 	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
 	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
@@ -607,33 +607,33 @@ void PAFlag(int pid, int action, Arena *arena)
 				if (f->state == FLAG_ONMAP)
 				{
 					struct S2CFlagLocation fl = { S2C_FLAGLOC, i, f->x, f->y, f->freq };
-					net->SendToOne(pid, (byte*)&fl, sizeof(fl), NET_RELIABLE);
+					net->SendToOne(p, (byte*)&fl, sizeof(fl), NET_RELIABLE);
 				}
-				else if (f->state == FLAG_CARRIED)
+				else if (f->state == FLAG_CARRIED && f->carrier)
 				{
-					struct S2CFlagPickup fp = { S2C_FLAGPICKUP, i, f->carrier};
-					net->SendToOne(pid, (byte*)&fp, sizeof(fp), NET_RELIABLE);
+					struct S2CFlagPickup fp = { S2C_FLAGPICKUP, i, f->carrier->pid};
+					net->SendToOne(p, (byte*)&fp, sizeof(fp), NET_RELIABLE);
 				}
 			}
 		UNLOCK_STATUS(arena);
-		pd->players[pid].flagscarried = 0;
+		p->pkt.flagscarried = 0;
 	}
 	else if (action == PA_LEAVEARENA)
-		CleanupAfter(arena, pid);
+		CleanupAfter(arena, p);
 }
 
 
-void ShipChange(int pid, int ship, int newfreq)
+void ShipChange(Player *p, int ship, int newfreq)
 {
-	CleanupAfter(pd->players[pid].arena, pid);
+	CleanupAfter(p->arena, p);
 }
 
-void FreqChange(int pid, int newfreq)
+void FreqChange(Player *p, int newfreq)
 {
-	CleanupAfter(pd->players[pid].arena, pid);
+	CleanupAfter(p->arena, p);
 }
 
-void FlagKill(Arena *arena, int killer, int killed, int bounty, int flags)
+void FlagKill(Arena *arena, Player *killer, Player *killed, int bounty, int flags)
 {
 	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
 	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
@@ -643,10 +643,10 @@ void FlagKill(Arena *arena, int killer, int killed, int bounty, int flags)
 	if (flags < 1) return;
 
 	f = afd->flags;
-	newfreq = pd->players[killer].freq;
+	newfreq = killer->p_freq;
 	LOCK_STATUS(arena);
 	fc = pfd->maxflags;
-	if (pd->players[killer].freq != pd->players[killed].freq ||
+	if (killer->p_freq != killed->p_freq ||
 	    pfd->friendlytransfer)
 	{
 		for (i = 0; i < fc; i++, f++)
@@ -656,7 +656,7 @@ void FlagKill(Arena *arena, int killer, int killed, int bounty, int flags)
 			{
 				f->carrier = killer;
 				f->freq = newfreq;
-				pd->players[killer].flagscarried++;
+				killer->pkt.flagscarried++;
 			}
 		}
 	}
@@ -664,8 +664,8 @@ void FlagKill(Arena *arena, int killer, int killed, int bounty, int flags)
 	{
 		/* friendlytransfer is off. we have to drop the flags from the
 		 * killer and spawn them. */
-		struct S2CFlagDrop sfd = { S2C_FLAGDROP, killer };
-		net->SendToArena(arena, -1, (byte*)&sfd, sizeof(sfd), NET_RELIABLE);
+		struct S2CFlagDrop sfd = { S2C_FLAGDROP, killer->pid };
+		net->SendToArena(arena, NULL, (byte*)&sfd, sizeof(sfd), NET_RELIABLE);
 
 		for (i = 0; i < fc; i++, f++)
 		{
@@ -675,55 +675,55 @@ void FlagKill(Arena *arena, int killer, int killed, int bounty, int flags)
 		}
 	}
 	UNLOCK_STATUS(arena);
-	pd->players[killed].flagscarried = 0;
+	killed->pkt.flagscarried = 0;
 	/* logm->Log(L_DRIVEL, "<flags> [%s] by [%s] Flag kill: %d flags transferred",
-			pd->players[killed].name,
-			pd->players[killer].name,
+			killed->name,
+			killer->name,
 			tot); */
 }
 
 
-void PPickupFlag(int pid, byte *p, int len)
+void PPickupFlag(Player *p, byte *pkt, int len)
 {
-	Arena *arena = pd->players[pid].arena;
+	Arena *arena = p->arena;
 	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
 	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
 	int oldfreq, carried;
 	struct S2CFlagPickup sfp = { S2C_FLAGPICKUP };
 	struct FlagData fd;
-	struct C2SFlagPickup *cfp = (struct C2SFlagPickup*)p;
+	struct C2SFlagPickup *cfp = (struct C2SFlagPickup*)pkt;
 
 	if (!arena)
 	{
 		logm->Log(L_MALICIOUS, "<flags> [%s] Flag pickup from bad arena",
-				pd->players[pid].name);
+				p->name);
 		return;
 	}
 
 #define ERR(msg) \
 	{ \
-		logm->LogP(L_MALICIOUS, "flags", pid, msg); \
+		logm->LogP(L_MALICIOUS, "flags", p, msg); \
 		return; \
 	}
 
-	if (pd->players[pid].status != S_PLAYING)
+	if (p->status != S_PLAYING)
 		ERR("Flag pickup from bad arena or status")
 
 	if (len != sizeof(struct C2SFlagPickup))
 		ERR("Bad size for flag pickup packet")
 
-	if (pd->players[pid].shiptype >= SPEC)
+	if (p->p_ship >= SPEC)
 		ERR("Flag pickup packet from spec")
 
-	if (IS_DURING_CHANGE(pid))
+	if (IS_DURING_CHANGE(p))
 		ERR("Flag pickup before ship/freq change ack")
 
 #undef ERR
 
 	/* this player is too lagged to have a flag */
-	if (IS_NO_FLAGS_BALLS(pid))
+	if (IS_NO_FLAGS_BALLS(p))
 	{
-		logm->LogP(L_INFO, "flags", pid, "too lagged to pick up flag %d", cfp->fid);
+		logm->LogP(L_INFO, "flags", p, "too lagged to pick up flag %d", cfp->fid);
 		return;
 	}
 
@@ -737,7 +737,7 @@ void PPickupFlag(int pid, byte *p, int len)
 	{
 		logm->Log(L_MALICIOUS, "<flags> {%s} [%s] Tried to pick up a carried flag",
 				arena->name,
-				pd->players[pid].name);
+				p->name);
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -750,9 +750,9 @@ void PPickupFlag(int pid, byte *p, int len)
 			fd.x = -1; fd.y = -1;
 			/* we set freq because in case the flag is neuted, that
 			 * information is hard to regain */
-			fd.freq = pd->players[pid].freq;
-			fd.carrier = pid;
-			pd->players[pid].flagscarried++;
+			fd.freq = p->p_freq;
+			fd.carrier = p;
+			p->pkt.flagscarried++;
 
 			afd->flags[cfp->fid] = fd;
 			break;
@@ -761,7 +761,7 @@ void PPickupFlag(int pid, byte *p, int len)
 			/* in this game, flags aren't carried. we just have to
 			 * change ownership */
 			fd.state = FLAG_ONMAP;
-			fd.freq = pd->players[pid].freq;
+			fd.freq = p->p_freq;
 
 			afd->flags[cfp->fid] = fd;
 			break;
@@ -775,45 +775,45 @@ void PPickupFlag(int pid, byte *p, int len)
 
 	/* send packet */
 	sfp.fid = cfp->fid;
-	sfp.pid = pid;
-	net->SendToArena(arena, -1, (byte*)&sfp, sizeof(sfp), NET_RELIABLE);
+	sfp.pid = p->pid;
+	net->SendToArena(arena, NULL, (byte*)&sfp, sizeof(sfp), NET_RELIABLE);
 
 	/* now call callbacks */
 	carried = (afd->flags[cfp->fid].state == FLAG_CARRIED);
 	DO_CBS(CB_FLAGPICKUP, arena, FlagPickupFunc,
-			(arena, pid, cfp->fid, oldfreq, carried));
+			(arena, p, cfp->fid, oldfreq, carried));
 
 	logm->Log(L_DRIVEL, "<flags> {%s} [%s] Player picked up flag %d",
 			arena->name,
-			pd->players[pid].name,
+			p->name,
 			cfp->fid);
 }
 
 
-void PDropFlag(int pid, byte *p, int len)
+void PDropFlag(Player *p, byte *pkt, int len)
 {
-	Arena *arena = pd->players[pid].arena;
+	Arena *arena = p->arena;
 	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
 	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
 	int fid, fc, dropped = 0;
 	struct S2CFlagDrop sfd = { S2C_FLAGDROP };
 	struct FlagData *fd;
 
-	if (!arena || pd->players[pid].status != S_PLAYING)
+	if (!arena || p->status != S_PLAYING)
 	{
-		logm->Log(L_MALICIOUS, "<flags> [%s] Flag drop packet from bad arena or status", pd->players[pid].name);
+		logm->Log(L_MALICIOUS, "<flags> [%s] Flag drop packet from bad arena or status", p->name);
 		return;
 	}
 
-	if (pd->players[pid].shiptype >= SPEC)
+	if (p->p_ship >= SPEC)
 	{
-		logm->Log(L_MALICIOUS, "<flags> [%s] Flag drop packet from spec", pd->players[pid].name);
+		logm->Log(L_MALICIOUS, "<flags> [%s] Flag drop packet from spec", p->name);
 		return;
 	}
 
 	/* send drop packet */
-	sfd.pid = pid;
-	net->SendToArena(arena, -1, (byte*)&sfd, sizeof(sfd), NET_RELIABLE);
+	sfd.pid = p->pid;
+	net->SendToArena(arena, NULL, (byte*)&sfd, sizeof(sfd), NET_RELIABLE);
 
 	LOCK_STATUS(arena);
 	fc = pfd->maxflags;
@@ -825,7 +825,7 @@ void PDropFlag(int pid, byte *p, int len)
 			/* here, we have to place carried flags */
 			for (fid = 0, fd = afd->flags; fid < fc; fid++, fd++)
 				if (fd->state == FLAG_CARRIED &&
-				    fd->carrier == pid)
+				    fd->carrier == p)
 				{
 					SpawnFlag(arena, fid);
 					dropped++;
@@ -836,7 +836,7 @@ void PDropFlag(int pid, byte *p, int len)
 			/* clients shouldn't send this packet in turf games */
 			logm->Log(L_MALICIOUS, "<flags> {%s} [%s] Recvd flag drop packet in turf game",
 					arena->name,
-					pd->players[pid].name);
+					p->name);
 			break;
 
 		case FLAGGAME_NONE:
@@ -848,11 +848,11 @@ void PDropFlag(int pid, byte *p, int len)
 	UNLOCK_STATUS(arena);
 
 	/* finally call callbacks */
-	DO_CBS(CB_FLAGDROP, arena, FlagDropFunc, (arena, pid, dropped, 0));
+	DO_CBS(CB_FLAGDROP, arena, FlagDropFunc, (arena, p, dropped, 0));
 
 	logm->Log(L_DRIVEL, "<flags> {%s} [%s] Player dropped flags",
 			arena->name,
-			pd->players[pid].name);
+			p->name);
 
 	/* do this after the drop callbacks have been called because this
 	 * has the potential to call the win callbacks and we don't want the
@@ -929,7 +929,7 @@ int TurfFlagTimer(void *dummy)
 			pkt->type = S2C_TURFFLAGS;
 			for (i = 0; i < fc; i++)
 				pkt->d[i] = afd->flags[i].freq;
-			net->SendToArena(arena, -1, (byte*)pkt, 1 + fc * 2, NET_UNRELIABLE);
+			net->SendToArena(arena, NULL, (byte*)pkt, 1 + fc * 2, NET_UNRELIABLE);
 		}
 		UNLOCK_STATUS(arena);
 	}

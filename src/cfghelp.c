@@ -35,7 +35,7 @@ local Icfghelp cfghelpint =
 	find_sec, find_key
 };
 
-EXPORT int MM_cfghelp(int action, Imodman *mm, int arena)
+EXPORT int MM_cfghelp(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{

@@ -6,7 +6,7 @@
 
 /* prototypes */
 
-local void MyKillFunc(Arena *, int, int, int, int);
+local void MyKillFunc(Arena *, Player *, Player *, int, int);
 
 /* global data */
 
@@ -51,11 +51,11 @@ EXPORT int MM_points_kill(int action, Imodman *mm_, Arena *arena)
 }
 
 
-void MyKillFunc(Arena *arena, int killer, int killed, int bounty, int flags)
+void MyKillFunc(Arena *arena, Player *killer, Player *killed, int bounty, int flags)
 {
 	int tk, pts;
 
-	tk = pd->players[killer].freq == pd->players[killed].freq;
+	tk = killer->p_freq == killed->p_freq;
 	pts = bounty;
 
 	/* cfghelp: Kill:FlagValue, arena, int, def: 100

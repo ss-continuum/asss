@@ -27,7 +27,7 @@ local void load_pubnames(void)
 }
 
 
-local int Place(char *retname, int namelen, int ppid)
+local int Place(char *retname, int namelen, Player *pp)
 {
 	Link *l;
 	char buf[20];

@@ -50,7 +50,7 @@ items[] =
 };
 
 
-local void print_costs(ConfigHandle ch, int pid)
+local void print_costs(ConfigHandle ch, Player *p)
 {
 	int i, avail = 0;
 
@@ -59,19 +59,19 @@ local void print_costs(ConfigHandle ch, int pid)
 		int cost = cfg->GetInt(ch, "Cost", items[i].setting, 0);
 		if (cost)
 		{
-			chat->SendMessage(pid, "buy: %-9s %6d", items[i].setting, cost);
+			chat->SendMessage(p, "buy: %-9s %6d", items[i].setting, cost);
 			avail++;
 		}
 	}
 
 	if (avail == 0)
-		chat->SendMessage(pid, "buy: There are no items available in this arena.");
+		chat->SendMessage(p, "buy: There are no items available in this arena.");
 }
 
 
-local void Cbuy(const char *params, int pid, const Target *target)
+local void Cbuy(const char *params, Player *p, const Target *target)
 {
-	Arena *arena = pd->players[pid].arena;
+	Arena *arena = p->arena;
 	ConfigHandle ch = arena->cfg;
 	int anywhere;
 
@@ -81,20 +81,20 @@ local void Cbuy(const char *params, int pid, const Target *target)
 	 * Whether players can buy items outside a safe zone. */
 	anywhere = cfg->GetInt(ch, "Cost", "PurchaseAnytime", 0);
 
-	if (pd->players[pid].shiptype == SPEC)
+	if (p->p_ship == SPEC)
 	{
-		chat->SendMessage(pid, "Spectators cannot purchase items.");
+		chat->SendMessage(p, "Spectators cannot purchase items.");
 		return;
 	}
 
-	if (!anywhere && !(pd->players[pid].position.status & 0x20))
+	if (!anywhere && !(p->position.status & 0x20))
 	{
-		chat->SendMessage(pid, "You must be in a safe zone to purchase items.");
+		chat->SendMessage(p, "You must be in a safe zone to purchase items.");
 		return;
 	}
 
 	if (params[0] == 0)
-		print_costs(ch, pid);
+		print_costs(ch, p);
 	else
 	{
 		int i, item = -1;
@@ -103,28 +103,28 @@ local void Cbuy(const char *params, int pid, const Target *target)
 				item = i;
 
 		if (item == -1)
-			chat->SendMessage(pid, "Invalid item specified for purchase.");
+			chat->SendMessage(p, "Invalid item specified for purchase.");
 		else
 		{
 			int cost = cfg->GetInt(ch, "Cost", items[item].setting, 0);
 			if (cost == 0)
-				chat->SendMessage(pid, "That item isn't available for purchase.");
+				chat->SendMessage(p, "That item isn't available for purchase.");
 			else
 			{
-				int pts = stats->GetStat(pid, STAT_KILL_POINTS, INTERVAL_RESET) +
-				          stats->GetStat(pid, STAT_FLAG_POINTS, INTERVAL_RESET);
+				int pts = stats->GetStat(p, STAT_KILL_POINTS, INTERVAL_RESET) +
+				          stats->GetStat(p, STAT_FLAG_POINTS, INTERVAL_RESET);
 				if (pts < cost)
-					chat->SendMessage(pid, "You don't have enough points to purchase that item.");
+					chat->SendMessage(p, "You don't have enough points to purchase that item.");
 				else
 				{
 					Target t;
-					t.type = T_PID;
-					t.u.pid = pid;
+					t.type = T_PLAYER;
+					t.u.p = p;
 					/* deduct from flag points to keep kill average the same. */
-					stats->IncrementStat(pid, STAT_FLAG_POINTS, -cost);
+					stats->IncrementStat(p, STAT_FLAG_POINTS, -cost);
 					game->GivePrize(&t, items[item].type, 1);
-					chat->SendMessage(pid, "Bought %s.", items[item].setting);
-					lm->LogP(L_DRIVEL, "buy", pid, "bought %s", items[item].setting);
+					chat->SendMessage(p, "Bought %s.", items[item].setting);
+					lm->LogP(L_DRIVEL, "buy", p, "bought %s", items[item].setting);
 				}
 			}
 		}

@@ -64,11 +64,8 @@ local Iconfig *cfg;
 
 local HashTable *handlers;
 local int mysock;
-
 local int cfg_msgdelay;
-
-/* global clients struct! */
-local cdata clients[MAXPLAYERS];
+local int cdkey;
 local pthread_mutex_t bigmtx;
 #define LOCK() pthread_mutex_lock(&bigmtx)
 #define UNLOCK() pthread_mutex_unlock(&bigmtx)
@@ -178,9 +175,12 @@ local int init_socket(void)
 
 
 /* call with big lock */
-local int try_accept(int s)
+local Player * try_accept(int s)
 {
-	int a, pid;
+	Player *p;
+	cdata *cli;
+
+	int a;
 	socklen_t sinsize;
 	struct sockaddr_in sin;
 
@@ -190,36 +190,37 @@ local int try_accept(int s)
 	if (a == -1)
 	{
 		if (lm) lm->Log(L_WARN, "<chatnet> accept() failed");
-		return -1;
+		return NULL;
 	}
 
 	if (set_nonblock(a) == -1)
 	{
 		if (lm) lm->Log(L_WARN, "<chatnet> set_nonblock() failed");
 		close(a);
-		return -1;
+		return NULL;
 	}
 
-	pid = pd->NewPlayer(T_CHAT);
+	p = pd->NewPlayer(T_CHAT);
 
 	lm->Log(L_DRIVEL, "<chatnet> [pid=%d] New connection from %s:%i",
-			pid, inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
+			p->pid, inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
 
-	clients[pid].socket = a;
-	clients[pid].sin = sin;
-	clients[pid].lastmsgtime = 0;
-	clients[pid].inbuf = NULL;
-	LLInit(&clients[pid].outbufs);
+	cli = PPDATA(p, cdkey);
+	cli->socket = a;
+	cli->sin = sin;
+	cli->lastmsgtime = 0;
+	cli->inbuf = NULL;
+	LLInit(&cli->outbufs);
 
-	return pid;
+	return p;
 }
 
 
-local void process_line(int pid, const char *line)
+local void process_line(Player *p, const char *line)
 {
 	char cmd[MAXCMDNAME + 1], *t;
 	Link *l;
-	LinkedList *lst;
+	LinkedList lst = LL_INITIALIZER;
 
 	for (t = cmd; *line && *line != ':'; line++)
 		if ((t - cmd) < MAXCMDNAME)
@@ -227,68 +228,71 @@ local void process_line(int pid, const char *line)
 	*t = 0; /* terminate command name */
 	if (*line == ':') line++; /* pass colon */
 
-	lst = HashGet(handlers, cmd);
+	HashGetAppend(handlers, cmd, &lst);
 
-	for (l = LLGetHead(lst); l; l = l->next)
-		((MessageFunc)(l->data))(pid, line);
+	for (l = LLGetHead(&lst); l; l = l->next)
+		((MessageFunc)(l->data))(p, line);
+
+	LLEmpty(&lst);
 }
 
 
 /* call with lock held */
-local void clear_bufs(int pid)
+local void clear_bufs(Player *p)
 {
-	afree(clients[pid].inbuf);
-	clients[pid].inbuf = 0;
-	LLEnum(&clients[pid].outbufs, afree);
-	LLEmpty(&clients[pid].outbufs);
+	cdata *cli = PPDATA(p, cdkey);
+	afree(cli->inbuf);
+	cli->inbuf = 0;
+	LLEnum(&cli->outbufs, afree);
+	LLEmpty(&cli->outbufs);
 }
 
 /* call with lock held */
-local void kill_connection(int pid)
+local void kill_connection(Player *p)
 {
-	if (!IS_CHAT(pid))
-		return;
+	if (!IS_CHAT(p)) return;
 
-	clear_bufs(pid);
+	clear_bufs(p);
 
-	pd->LockPlayer(pid);
+	pd->LockPlayer(p);
 
 	/* will put in S_LEAVING_ARENA */
-	if (pd->players[pid].arena)
-		process_line(pid, "LEAVE");
+	if (p->arena)
+		process_line(p, "LEAVE");
 
-	pd->LockStatus();
+	pd->WriteLock();
 
 	/* make sure that he's on his way out, in case he was kicked before
 	 * fully logging in. */
-	if (pd->players[pid].status < S_LEAVING_ARENA)
-		pd->players[pid].status = S_LEAVING_ZONE;
+	if (p->status < S_LEAVING_ARENA)
+		p->status = S_LEAVING_ZONE;
 
 	/* set this special flag so that the player will be set to leave
 	 * the zone when the S_LEAVING_ARENA-initiated actions are
 	 * completed. */
-	pd->players[pid].whenloggedin = S_LEAVING_ZONE;
+	p->whenloggedin = S_LEAVING_ZONE;
 
-	pd->UnlockStatus();
-	pd->UnlockPlayer(pid);
+	pd->Unlock();
+	pd->UnlockPlayer(p);
 }
 
 
 /* call with big lock */
-local void do_read(int pid)
+local void do_read(Player *p)
 {
+	cdata *cli = PPDATA(p, cdkey);
+	buffer *buf = cli->inbuf;
 	int n;
-	buffer *buf = clients[pid].inbuf;
 
 	if (!buf)
 		buf = get_in_buffer();
 
-	n = read(clients[pid].socket, buf->cur, LEFT(buf));
+	n = read(cli->socket, buf->cur, LEFT(buf));
 
 	if (n == 0)
 	{
 		/* client disconnected */
-		kill_connection(pid);
+		kill_connection(p);
 		return;
 	}
 	else if (n > 0)
@@ -297,20 +301,21 @@ local void do_read(int pid)
 	/* if the line is too long... */
 	if (LEFT(buf) <= 0)
 	{
-		lm->LogP(L_MALICIOUS, "chatnet", pid, "Line too long");
+		lm->LogP(L_MALICIOUS, "chatnet", p, "Line too long");
 		afree(buf);
 		buf = NULL;
 	}
 
 	/* replace the buffer */
-	clients[pid].inbuf = buf;
+	cli->inbuf = buf;
 }
 
 
 /* call w/big lock */
-local void try_process(int pid)
+local void try_process(Player *p)
 {
-	buffer *buf = clients[pid].inbuf;
+	cdata *cli = PPDATA(p, cdkey);
+	buffer *buf = cli->inbuf;
 	char *src = buf->data;
 
 	/* if there is a complete message */
@@ -325,7 +330,7 @@ local void try_process(int pid)
 		*dst = 0;
 
 		/* process it */
-		process_line(pid, line);
+		process_line(p, line);
 
 		/* skip terminators in input */
 		while (*src == CR || *src == LF) src++;
@@ -341,17 +346,19 @@ local void try_process(int pid)
 		/* free the old one */
 		afree(buf);
 		/* put the new one in place */
-		clients[pid].inbuf = buf2;
+		cli->inbuf = buf2;
 		/* reset message time */
-		clients[pid].lastmsgtime = GTC();
+		cli->lastmsgtime = GTC();
 	}
 }
 
 
 /* call with big lock */
-local void do_write(int pid)
+local void do_write(Player *p)
 {
-	Link *l = LLGetHead(&clients[pid].outbufs);
+	cdata *cli = PPDATA(p, cdkey);
+	Link *l = LLGetHead(&cli->outbufs);
+
 	if (l && l->data)
 	{
 		buffer *buf = l->data;
@@ -359,7 +366,7 @@ local void do_write(int pid)
 
 		len = strlen(buf->data) - (buf->cur - buf->data);
 
-		n = write(clients[pid].socket, buf->cur, len);
+		n = write(cli->socket, buf->cur, len);
 
 		if (n > 0)
 			buf->cur += n;
@@ -368,7 +375,7 @@ local void do_write(int pid)
 		if (buf->cur[0] == 0)
 		{
 			afree(buf);
-			LLRemoveFirst(&clients[pid].outbufs);
+			LLRemoveFirst(&cli->outbufs);
 		}
 	}
 }
@@ -376,9 +383,13 @@ local void do_write(int pid)
 
 local int main_loop(void *dummy)
 {
-	int pid, max, ret, gtc = GTC();
+	Player *p;
+	cdata *cli;
+	Link *link;
+	int max, ret, gtc = GTC();
 	fd_set readset, writeset;
 	struct timeval tv = { 0, 0 };
+	LinkedList toremove = LL_INITIALIZER;
 
 	FD_ZERO(&readset);
 	FD_ZERO(&writeset);
@@ -389,31 +400,35 @@ local int main_loop(void *dummy)
 
 	LOCK();
 
-	for (pid = 0; pid < MAXPLAYERS; pid++)
-		if (IS_CHAT(pid) &&
-		    pd->players[pid].status >= S_CONNECTED &&
-		    clients[pid].socket > 2)
+	pd->Lock();
+	FOR_EACH_PLAYER_P(p, cli, cdkey)
+		if (IS_CHAT(p) &&
+		    p->status >= S_CONNECTED &&
+		    cli->socket > 2)
 		{
-			if (pd->players[pid].status != S_TIMEWAIT)
+			if (p->status != S_TIMEWAIT)
 			{
 				/* always check for incoming data */
-				FD_SET(clients[pid].socket, &readset);
+				FD_SET(cli->socket, &readset);
 				/* maybe for writing too */
-				if (LLCount(&clients[pid].outbufs) > 0)
-					FD_SET(clients[pid].socket, &writeset);
+				if (LLCount(&cli->outbufs) > 0)
+					FD_SET(cli->socket, &writeset);
 				/* update max */
-				if (clients[pid].socket > max)
-					max = clients[pid].socket;
+				if (cli->socket > max)
+					max = cli->socket;
 			}
 			else
 			{
 				/* handle disconnects */
-				lm->LogP(L_INFO, "chatnet", pid, "Disconnected");
-				close(clients[pid].socket);
-				clients[pid].socket = -1;
-				pd->FreePlayer(pid);
+				lm->LogP(L_INFO, "chatnet", p, "Disconnected");
+				close(cli->socket);
+				cli->socket = -1;
+				/* we can't remove players while we're iterating through
+				 * the list, so add them and do them later. */
+				LLAdd(&toremove, p);
 			}
 		}
+	pd->Unlock();
 
 	ret = select(max + 1, &readset, &writeset, NULL, &tv);
 
@@ -421,25 +436,31 @@ local int main_loop(void *dummy)
 	if (FD_ISSET(mysock, &readset))
 		try_accept(mysock);
 
-	for (pid = 0; pid < MAXPLAYERS; pid++)
-		if (IS_CHAT(pid) &&
-		    pd->players[pid].status >= S_CONNECTED &&
-		    pd->players[pid].status < S_TIMEWAIT &&
-		    clients[pid].socket > 2)
+	pd->Lock();
+	FOR_EACH_PLAYER_P(p, cli, cdkey)
+		if (IS_CHAT(p) &&
+		    p->status < S_TIMEWAIT &&
+		    cli->socket > 2)
 		{
 			/* data to read? */
-			if (FD_ISSET(clients[pid].socket, &readset))
-				do_read(pid);
+			if (FD_ISSET(cli->socket, &readset))
+				do_read(p);
 			/* or write? */
-			if (FD_ISSET(clients[pid].socket, &writeset))
-				do_write(pid);
+			if (FD_ISSET(cli->socket, &writeset))
+				do_write(p);
 			/* or process? */
-			if (clients[pid].inbuf &&
-			    (gtc - clients[pid].lastmsgtime) > cfg_msgdelay)
-				try_process(pid);
+			if (cli->inbuf &&
+			    (gtc - cli->lastmsgtime) > cfg_msgdelay)
+				try_process(p);
 		}
+	pd->Unlock();
 
 	UNLOCK();
+
+	/* remove players that disconnected above */
+	for (link = LLGetHead(&toremove); link; link = link->next)
+		pd->FreePlayer(link->data);
+	LLEmpty(&toremove);
 
 	return TRUE;
 }
@@ -461,24 +482,27 @@ local void RemoveHandler(const char *type, MessageFunc f)
 
 
 
-local void real_send(int *set, const char *line, va_list ap)
+local void real_send(LinkedList *lst, const char *line, va_list ap)
 {
+	Link *l;
 	char buf[MAXMSGSIZE+1];
 
 	vsnprintf(buf, MAXMSGSIZE - 2, line, ap);
 	strcat(buf, "\x0D\x0A");
 
 	LOCK();
-
-	for ( ; *set != -1; set++)
-		if (IS_CHAT(*set))
-			LLAdd(&clients[*set].outbufs, get_out_buffer(buf));
-
+	for (l = LLGetHead(lst); l; l = l->next)
+	{
+		Player *p = l->data;
+		cdata *cli = PPDATA(p, cdkey);
+		if (IS_CHAT(p))
+			LLAdd(&cli->outbufs, get_out_buffer(buf));
+	}
 	UNLOCK();
 }
 
 
-local void SendToSet(int *set, const char *line, ...)
+local void SendToSet(LinkedList *set, const char *line, ...)
 {
 	va_list args;
 	va_start(args, line);
@@ -487,46 +511,73 @@ local void SendToSet(int *set, const char *line, ...)
 }
 
 
-local void SendToOne(int pid, const char *line, ...)
+local void SendToOne(Player *p, const char *line, ...)
 {
 	va_list args;
-	int set[] = { pid, -1 };
+
+	/* this feels a bit wrong */
+	Link l = { NULL, p };
+	LinkedList lst = { &l, &l };
+
 	va_start(args, line);
-	real_send(set, line, args);
+	real_send(&lst, line, args);
 	va_end(args);
 }
 
 
-local void SendToArena(Arena *arena, int except, const char *line, ...)
+local void SendToArena(Arena *arena, Player *except, const char *line, ...)
 {
 	va_list args;
-	int set[MAXPLAYERS+1], i, p = 0;
+	LinkedList lst = LL_INITIALIZER;
+	Link *link;
+	Player *p;
 
 	if (!arena) return;
 
-	pd->LockStatus();
-	for (i = 0; i < MAXPLAYERS; i++)
-		if (pd->players[i].status == S_PLAYING &&
-		    pd->players[i].arena == arena &&
-		    i != except)
-			set[p++] = i;
-	pd->UnlockStatus();
-	set[p] = -1;
+	pd->Lock();
+	FOR_EACH_PLAYER(p)
+		if (p->status == S_PLAYING && p->arena == arena && p != except)
+			LLAdd(&lst, p);
+	pd->Unlock();
 
 	va_start(args, line);
-	real_send(set, line, args);
+	real_send(&lst, line, args);
 	va_end(args);
+
+	LLEmpty(&lst);
 }
 
 
-local void GetClientStats(int pid, struct chat_client_stats *stats)
+local void GetClientStats(Player *p, struct chat_client_stats *stats)
 {
-	if (!stats || PID_BAD(pid)) return;
+	cdata *cli = PPDATA(p, cdkey);
+	if (!stats || !p) return;
 	/* RACE: inet_ntoa is not thread-safe */
-	astrncpy(stats->ipaddr, inet_ntoa(clients[pid].sin.sin_addr), 16);
-	stats->port = clients[pid].sin.sin_port;
+	astrncpy(stats->ipaddr, inet_ntoa(cli->sin.sin_addr), 16);
+	stats->port = cli->sin.sin_port;
 }
 
+
+local void do_final_shutdown(void)
+{
+	Link *link;
+	Player *p;
+	cdata *cli;
+
+	LOCK();
+	pd->Lock();
+	FOR_EACH_PLAYER_P(p, cli, cdkey)
+		if (IS_CHAT(p))
+		{
+			/* try to clean up as much memory as possible */
+			clear_bufs(p);
+			/* close all the connections also */
+			if (cli->socket > 2)
+				close(cli->socket);
+		}
+	pd->Unlock();
+	UNLOCK();
+}
 
 
 local Ichatnet _int =
@@ -541,8 +592,6 @@ local Ichatnet _int =
 
 EXPORT int MM_chatnet(int action, Imodman *mm_, Arena *a)
 {
-	int i;
-
 	if (action == MM_LOAD)
 	{
 		pthread_mutexattr_t attr;
@@ -552,11 +601,14 @@ EXPORT int MM_chatnet(int action, Imodman *mm_, Arena *a)
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
+		if (!pd || !cfg || !lm || !ml) return MM_FAIL;
+
+		cdkey = pd->AllocatePlayerData(sizeof(cdata));
+		if (cdkey == -1) return MM_FAIL;
 
 		/* get the sockets */
 		mysock = init_socket();
-		if (mysock == -1)
-			return MM_FAIL;
+		if (mysock == -1) return MM_FAIL;
 
 		/* cfghelp: Net:ChatMessageDelay, global, int, def: 20 \
 		 * mod: chatnet
@@ -565,7 +617,7 @@ EXPORT int MM_chatnet(int action, Imodman *mm_, Arena *a)
 		 * non-playing cilents.) */
 		cfg_msgdelay = cfg->GetInt(GLOBAL, "Net", "ChatMessageDelay", 20);
 
-		/* init mutx */
+		/* init mutex */
 		pthread_mutexattr_init(&attr);
 		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 		pthread_mutex_init(&bigmtx, &attr);
@@ -590,24 +642,11 @@ EXPORT int MM_chatnet(int action, Imodman *mm_, Arena *a)
 		ml->ClearTimer(main_loop, NULL);
 
 		/* clean up */
+		do_final_shutdown();
 		HashFree(handlers);
-
-		LOCK();
-		for (i = 0; i < MAXPLAYERS; i++)
-			if (pd->players[i].status > S_FREE &&
-			    IS_CHAT(i))
-			{
-				/* try to clean up as much memory as possible */
-				clear_bufs(i);
-				/* close all the connections also */
-				if (clients[i].socket > 2)
-					close(clients[i].socket);
-			}
-		UNLOCK();
-
 		pthread_mutex_destroy(&bigmtx);
-
 		close(mysock);
+		pd->FreePlayerData(cdkey);
 
 		/* release these */
 		mm->ReleaseInterface(pd);

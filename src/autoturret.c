@@ -5,7 +5,8 @@
 
 struct TurretData
 {
-	int pid, endtime, interval, tofire, tosend, weapon;
+	Player *p;
+	int endtime, interval, tofire, tosend, weapon;
 	struct C2SPosition pos;
 };
 
@@ -19,13 +20,13 @@ local Icmdman *cmd;
 local Ifake *fake;
 
 
-local struct TurretData * new_turret(int pid, int timeout, int interval, int pid_for_position)
+local struct TurretData * new_turret(Player *p, int timeout, int interval, Player *p_for_position)
 {
 	struct C2SPosition *pos;
-	struct PlayerPosition *src = &pd->players[pid_for_position].position;
+	struct PlayerPosition *src = &p_for_position->position;
 	struct TurretData *td = amalloc(sizeof(*td));
 
-	td->pid = pid;
+	td->p = p;
 	td->endtime = GTC() + timeout;
 	td->interval = interval;
 	td->tosend = 0;
@@ -63,16 +64,16 @@ local helptext_t dropturret_help =
 "Drops a turret right where your ship is. The turret will fire 10 level 1\n"
 "bombs, 1.5 seconds apart, and then disappear.\n";
 
-local void Cdropturret(const char *params, int pid, const Target *target)
+local void Cdropturret(const char *params, Player *p, const Target *target)
 {
-	int tpid;
+	Player *turret;
 
-	tpid = fake->CreateFakePlayer(
+	turret = fake->CreateFakePlayer(
 			"<autoturret>",
-			pd->players[pid].arena,
+			p->arena,
 			WARBIRD,
-			pd->players[pid].freq);
-	new_turret(tpid, 1500, 150, pid);
+			p->p_freq);
+	new_turret(turret, 1500, 150, p);
 }
 
 
@@ -103,7 +104,7 @@ local void mlfunc()
 			/* remove it from the list, kill the turret, and free the
 			 * memory */
 			LLRemove(&turrets, td);
-			fake->EndFaked(td->pid);
+			fake->EndFaked(td->p);
 			afree(td);
 		}
 		else if (now > td->tofire)
@@ -134,7 +135,7 @@ local void mlfunc()
 }
 
 
-EXPORT int MM_autoturret(int action, Imodman *mm_, int arena)
+EXPORT int MM_autoturret(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{

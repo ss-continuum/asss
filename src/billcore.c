@@ -1,5 +1,5 @@
 
-/* dist: public */
+/* CURRENTLY BROKEN */
 
 #include <stdio.h>
 #include <string.h>
@@ -93,7 +93,7 @@ local Ibillcore _ibillcore =
 
 
 
-EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
+EXPORT int MM_billcore(int action, Imodman *_mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -162,7 +162,8 @@ EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
 
 		/* send logoff packet (immediate so it gets there before */
 		/* connection drop) */
-		SendToBiller(&dis, 1, NET_RELIABLE | NET_PRI_P5);
+		SendToBiller(&dis, 1, NET_PRI_P5);
+		SendToBiller(&dis, 1, NET_RELIABLE);
 		net->DropClient(mypid);
 		mypid = -1;
 
@@ -482,14 +483,8 @@ void BMessage(int pid, byte *p, int len)
 	else
 	{
 		/* ** or *szone message, send to all */
-		int set[MAXPLAYERS+1];
-		Target target;
-		target.type = T_ZONE;
-
 		lm->Log(L_WARN, "<billcore> Broadcast message from biller: %s", msg);
-
-		pd->TargetToSet(&target, set);
-		chat->SendSetMessage(set, 0, msg);
+		chat->SendArenaMessage(ALLARENAS, "%s", msg);
 	}
 }
 

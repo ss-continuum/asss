@@ -41,19 +41,19 @@ typedef struct Ilagquery
 {
 	INTERFACE_HEAD_DECL
 
-	void (*QueryPPing)(int pid, struct PingSummary *p);
-	void (*QueryCPing)(int pid, struct PingSummary *p);
-	void (*QueryRPing)(int pid, struct PingSummary *p);
+	void (*QueryPPing)(Player *p, struct PingSummary *ping);
+	void (*QueryCPing)(Player *p, struct PingSummary *ping);
+	void (*QueryRPing)(Player *p, struct PingSummary *ping);
 
-	void (*QueryPLoss)(int pid, struct PLossSummary *d);
-	void (*QueryRelLag)(int pid, struct ReliableLagData *d);
+	void (*QueryPLoss)(Player *p, struct PLossSummary *d);
+	void (*QueryRelLag)(Player *p, struct ReliableLagData *d);
 
-	void (*DoPHistogram)(int pid,
-			void (*callback)(int pid, int bucket, int count, int maxcount, void *clos),
+	void (*DoPHistogram)(Player *p,
+			void (*callback)(Player *p, int bucket, int count, int maxcount, void *clos),
 			void *clos);
 
-	void (*DoRHistogram)(int pid,
-			void (*callback)(int pid, int bucket, int count, int maxcount, void *clos),
+	void (*DoRHistogram)(Player *p,
+			void (*callback)(Player *p, int bucket, int count, int maxcount, void *clos),
 			void *clos);
 } Ilagquery;
 
@@ -91,13 +91,13 @@ typedef struct Ilagcollect
 {
 	INTERFACE_HEAD_DECL
 
-	void (*Position)(int pid, int ms, unsigned int wpnsent);
-	void (*RelDelay)(int pid, int ms);
-	void (*ClientLatency)(int pid, struct ClientLatencyData *data);
-	void (*ClientPLoss)(int pid, struct ClientPLossData *data);
-	void (*RelStats)(int pid, struct ReliableLagData *data);
+	void (*Position)(Player *p, int ms, unsigned int wpnsent);
+	void (*RelDelay)(Player *p, int ms);
+	void (*ClientLatency)(Player *p, struct ClientLatencyData *data);
+	void (*ClientPLoss)(Player *p, struct ClientPLossData *data);
+	void (*RelStats)(Player *p, struct ReliableLagData *data);
 
-	void (*Clear)(int pid);
+	void (*Clear)(Player *p);
 
 } Ilagcollect;
 

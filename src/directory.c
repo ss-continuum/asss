@@ -52,17 +52,17 @@ local int sock;
 local int SendUpdates(void *dummy)
 {
 	int n, count = 0;
-	Link *l;
+	Link *link, *l;
+	Player *p;
 
 	lm->Log(L_DRIVEL, "<directory> Sending information to directory servers");
 
 	/* figure out player count */
-	pd->LockStatus();
-	for (n = 0; n < MAXPLAYERS; n++)
-		if (pd->players[n].status == S_PLAYING &&
-		    pd->players[n].type != T_FAKE)
+	pd->Lock();
+	FOR_EACH_PLAYER(p)
+		if (p->status == S_PLAYING && p->type != T_FAKE)
 			count++;
-	pd->UnlockStatus();
+	pd->Unlock();
 
 	data.players = count;
 
@@ -158,7 +158,7 @@ local void deinit_servers()
 
 
 
-EXPORT int MM_directory(int action, Imodman *mm, int arena)
+EXPORT int MM_directory(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{

@@ -30,7 +30,7 @@ typedef struct Icapman
 {
 	INTERFACE_HEAD_DECL
 
-	int (*HasCapability)(int pid, const char *cap);
+	int (*HasCapability)(Player *p, const char *cap);
 	/* returns true if the given player has the given capability. */
 
 	int (*HasCapabilityByName)(const char *name, const char *cap);
@@ -47,9 +47,9 @@ typedef struct Igroupman
 {
 	INTERFACE_HEAD_DECL
 
-	const char *(*GetGroup)(int pid);
-	void (*SetPermGroup)(int pid, const char *group, int global, const char *info);
-	void (*SetTempGroup)(int pid, const char *group);
+	const char *(*GetGroup)(Player *p);
+	void (*SetPermGroup)(Player *p, const char *group, int global, const char *info);
+	void (*SetTempGroup)(Player *p, const char *group);
 
 	int (*CheckGroupPassword)(const char *group, const char *pwd);
 	/* true if the password is correct */

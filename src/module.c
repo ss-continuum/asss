@@ -35,7 +35,6 @@ typedef struct ModuleData
 } ModuleData;
 
 
-
 local int LoadMod(const char *);
 local int UnloadModule(const char *);
 local void EnumModules(void (*)(const char *, const char *, void *), void *);
@@ -55,12 +54,13 @@ local void FreeLookupResult(LinkedList *);
 
 local void DoStage(int);
 local void UnloadAllModules(void);
+local void NoMoreModules(void);
 
 
 local HashTable *arenacallbacks, *globalcallbacks;
 local HashTable *arenaints, *globalints, *intsbyname;
-
 local LinkedList *mods;
+local int nomoremods;
 
 local pthread_mutex_t modmtx = PTHREAD_MUTEX_INITIALIZER;
 local pthread_mutex_t intmtx = PTHREAD_MUTEX_INITIALIZER;
@@ -74,7 +74,7 @@ local Imodman mmint =
 	AttachModule, DetachModule,
 	RegInterface, UnregInterface, GetInterface, GetInterfaceByName, ReleaseInterface,
 	RegCallback, UnregCallback, LookupCallback, FreeLookupResult,
-	{ DoStage, UnloadAllModules }
+	{ DoStage, UnloadAllModules, NoMoreModules }
 };
 
 
@@ -91,6 +91,7 @@ Imodman * InitModuleManager(void)
 	globalints = HashAlloc(53);
 	intsbyname = HashAlloc(23);
 	mmint.head.refcount = 1;
+	nomoremods = 0;
 	return &mmint;
 }
 
@@ -111,19 +112,21 @@ void DeInitModuleManager(Imodman *mm)
 
 /* module management stuff */
 
-#define DELIM ':'
-
 int LoadMod(const char *_spec)
 {
 	char buf[PATH_MAX], spec[PATH_MAX], *modname, *filename, *path;
 	int ret;
 	ModuleData *mod;
-	Ilogman *lm = GetInterface(I_LOGMAN, ALLARENAS);
+	Ilogman *lm;
+
+	if (nomoremods) return MM_FAIL;
+
+	lm = GetInterface(I_LOGMAN, ALLARENAS);
 
 	/* make copy of specifier */
 	astrncpy(spec, _spec, PATH_MAX);
 
-	if ((modname = strchr(spec, DELIM)))
+	if ((modname = strchr(spec, ':')))
 	{
 		filename = spec;
 		*modname = 0;
@@ -156,21 +159,36 @@ int LoadMod(const char *_spec)
 #endif
 		mod->myself = 1;
 	}
+#ifdef CFG_RESTRICT_MODULE_PATH
+	else if (strstr(filename, "..") || filename[0] == '/')
+	{
+		if (lm)
+			lm->Log(L_ERROR, "<module> refusing to load filename: %s",
+					filename);
+		else
+			fprintf(stderr, "%c <module> refusing to load filename: %s",
+					L_ERROR, filename);
+		goto die;
+	}
+#else
 	else if (filename[0] == '/')
 	{
 		/* filename is an absolute path */
 		path = filename;
 	}
+#endif
 	else
 	{
 		char cwd[PATH_MAX];
 		getcwd(cwd, PATH_MAX);
 		path = buf;
+		if (snprintf(path, sizeof(buf), "%s/bin/%s"
 #ifndef WIN32
-		if (snprintf(path, 256, "%s/bin/%s.so", cwd, filename) > 256)
+					".so"
 #else
-		if (snprintf(path, 256, "%s/bin/%s.dll", cwd, filename) > 256)
+					".dll"
 #endif
+					, cwd, filename) > sizeof(buf))
 			goto die;
 	}
 
@@ -203,7 +221,7 @@ int LoadMod(const char *_spec)
 	}
 
 	snprintf(buf, PATH_MAX, "MM_%s", modname);
-	mod->mm = dlsym(mod->hand, buf);
+	mod->mm = (ModMain)dlsym(mod->hand, buf);
 	if (!mod->mm)
 	{
 #ifndef WIN32
@@ -336,6 +354,12 @@ void UnloadAllModules(void)
 }
 
 
+void NoMoreModules(void)
+{
+	nomoremods = 1;
+}
+
+
 void EnumModules(void (*func)(const char *, const char *, void *), void *clos)
 {
 	ModuleData *mod;
@@ -434,17 +458,17 @@ local inline InterfaceHead *get_int(HashTable *hash, const char *id)
 		/* ok, we can't use the fast path. we have to try to find
 		 * the best one now. */
 		int bestpri = -1;
-		LinkedList *lst;
+		LinkedList lst = LL_INITIALIZER;
 		Link *l;
 
-		lst = HashGet(hash, id);
-		for (l = LLGetHead(lst); l; l = l->next)
+		HashGetAppend(hash, id, &lst);
+		for (l = LLGetHead(&lst); l; l = l->next)
 			if (((InterfaceHead*)l->data)->priority > bestpri)
 			{
 				head = l->data;
 				bestpri = head->priority;
 			}
-		LLFree(lst);
+		LLEmpty(&lst);
 	}
 	return head;
 }

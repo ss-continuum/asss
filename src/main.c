@@ -19,7 +19,7 @@
 
 
 local Imodman *mm;
-local int dodaemonize;
+local int dodaemonize, dochroot;
 local volatile int syncflag;
 
 
@@ -30,6 +30,8 @@ local void ProcessArgs(int argc, char *argv[])
 	{
 		if (!strcmp(argv[i], "--daemonize") || !strcmp(argv[i], "-d"))
 			dodaemonize = 1;
+		if (!strcmp(argv[i], "--chroot") || !strcmp(argv[i], "-c"))
+			dochroot = 1;
 	}
 }
 
@@ -110,6 +112,8 @@ local int daemonize(int noclose)
 {
 	int fd;
 
+	printf("forking into the background\n");
+
 	switch (fork())
 	{
 		case -1:
@@ -142,7 +146,68 @@ local int daemonize(int noclose)
 #endif
 
 
-local void syncdone(int dummy)
+#ifndef WIN32
+
+#include <pwd.h>
+
+local int do_chroot(void)
+{
+	int r;
+	struct passwd *pwd;
+	const char *user;
+	uid_t uid;
+
+	/* first get uid to set to */
+	user = getenv("USER");
+	if (!user)
+	{
+		fprintf(stderr, "$USER isn't set, can't chroot\n");
+		return -1;
+	}
+
+	pwd = getpwnam(user);
+	if (!pwd)
+	{
+		fprintf(stderr, "Can't get passwd entry for %s\n", user);
+		return -1;
+	}
+
+	uid = pwd->pw_uid;
+
+	r = chroot(".");
+	if (r != 0)
+	{
+		perror("can't chroot to '.'");
+		return r;
+	}
+
+	r = chdir("/");
+	if (r != 0)
+	{
+		perror("can't chdir to '/'");
+		return r;
+	}
+
+	r = setuid(uid);
+	if (r != 0)
+	{
+		perror("can't setuid");
+		return r;
+	}
+
+	printf("Changed root directory and set user to %s\n", user);
+	return 0;
+}
+#else
+local int do_chroot(void)
+{
+	printf("chroot isn't supported on windows\n");
+	return 0;
+}
+#endif
+
+
+local void syncdone(Player *dummy)
 {
 	syncflag = 1;
 }
@@ -154,23 +219,32 @@ int main(int argc, char *argv[])
 	Ilogman *lm;
 	Imainloop *ml;
 
-	/* seed random number generator */
+	/* seed random number generators */
 	srand(GTC());
+	srandom(GTC());
 
-	ProcessArgs(argc,argv);
+	ProcessArgs(argc, argv);
 
 	CheckBin(argv[0]);
 
-	mm = InitModuleManager();
-
 	printf("asss %s built at %s\n", ASSSVERSION, BUILDDATE);
+
+	if (dochroot)
+		if (do_chroot() != 0)
+			Error(EXIT_CHROOT, "error changing root directory or dropping privileges");
 
 	if (dodaemonize)
 		daemonize(0);
 
+	mm = InitModuleManager();
+
 	printf("Loading modules...\n");
 
 	LoadModuleFile("conf/modules.conf");
+
+#ifdef CFG_NO_RUNTIME_LOAD
+	mm->frommain.NoMoreModules();
+#endif
 
 	mm->frommain.DoStage(MM_POSTLOAD);
 

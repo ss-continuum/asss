@@ -60,7 +60,7 @@ typedef struct AuthData
 /* these two do involve arenas, so callbacks can be registered either
  * globally or for a specific arena. */
 
-typedef void (*PlayerActionFunc)(int pid, int action, Arena *arena);
+typedef void (*PlayerActionFunc)(Player *p, int action, Arena *arena);
 
 
 /* freq management
@@ -77,9 +77,9 @@ typedef void (*PlayerActionFunc)(int pid, int action, Arena *arena);
 typedef struct Ifreqman
 {
 	INTERFACE_HEAD_DECL
-	void (*InitialFreq)(int pid, int *ship, int *freq);
-	void (*ShipChange)(int pid, int *ship, int *freq);
-	void (*FreqChange)(int pid, int *ship, int *freq);
+	void (*InitialFreq)(Player *p, int *ship, int *freq);
+	void (*ShipChange)(Player *p, int *ship, int *freq);
+	void (*FreqChange)(Player *p, int *ship, int *freq);
 } Ifreqman;
 
 
@@ -97,8 +97,8 @@ typedef struct Iauth
 {
 	INTERFACE_HEAD_DECL
 
-	void (*Authenticate)(int pid, struct LoginPacket *lp, int lplen,
-			void (*Done)(int pid, AuthData *data));
+	void (*Authenticate)(Player *p, struct LoginPacket *lp, int lplen,
+			void (*Done)(Player *p, AuthData *data));
 	/* aprc: null */
 } Iauth;
 

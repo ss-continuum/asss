@@ -28,7 +28,7 @@ local Ilog_file _lfint =
 };
 
 
-EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
+EXPORT int MM_log_file(int action, Imodman *mm, Arena *arenas)
 {
 	if (action == MM_LOAD)
 	{

@@ -25,11 +25,11 @@ typedef enum
 /* called when a player picks up a flag (in turf games, this means he
  * claimed the flag) */
 #define CB_FLAGPICKUP ("flagpickup")
-typedef void (*FlagPickupFunc)(Arena *arena, int pid, int fid, int oldfreq, int carried);
+typedef void (*FlagPickupFunc)(Arena *arena, Player *p, int fid, int oldfreq, int carried);
 
 /* called when a player drops his flags (regular games only) */
 #define CB_FLAGDROP ("flagdrop")
-typedef void (*FlagDropFunc)(Arena *arena, int pid, int count, int neut);
+typedef void (*FlagDropFunc)(Arena *arena, Player *p, int count, int neut);
 
 /* called when a flag is positioned on the map */
 #define CB_FLAGPOS ("flagpos")
@@ -46,7 +46,7 @@ struct FlagData
 	flagstate_t state; /* the state of this flag */
 	int x, y; /* the coordinates of the flag */
 	int freq; /* the freq owning the flag, or -1 if neutral */
-	int carrier; /* the pid carrying the flag, or -1 if down */
+	Player *carrier; /* the pid carrying the flag, or NULL if down */
 };
 
 typedef struct ArenaFlagData
@@ -58,7 +58,7 @@ typedef struct ArenaFlagData
 } ArenaFlagData;
 
 
-#define I_FLAGS "flags-2"
+#define I_FLAGS "flags-3"
 
 typedef struct Iflags
 {
@@ -70,7 +70,7 @@ typedef struct Iflags
 	void (*FlagVictory)(Arena *arena, int freq, int points);
 	/* ends the flag game (freq=-1 to reset flags with no winner) */
 
-	int (*GetCarriedFlags)(int pid);
+	int (*GetCarriedFlags)(Player *p);
 	/* a utility function to get the number of flags carried by a player */
 
 	int (*GetFreqFlags)(Arena *arena, int freq);

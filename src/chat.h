@@ -26,11 +26,11 @@
 #define MSG_BCOMMAND 12
 
 
-/* called for most types of chat msg. type is one of the above codes. if
- * type == MSG_PRIV, target will be a pid. if type == MSG_FREQ or
- * MSG_NMEFREQ, target will be a freq. otherwise unused. */
+/* called for most types of chat msg. type is one of the above codes.
+ * target is only valid for MSG_PRIV; freq is only valid for MSG_FREQ
+ * and MSG_NMEFREQ. */
 #define CB_CHATMSG "chatmsg"
-typedef void (*ChatMsgFunc)(int pid, int type, int target, const char *text);
+typedef void (*ChatMsgFunc)(Player *p, int type, Player *target, int freq, const char *text);
 
 
 /* the bits of one of these represent those types above. only use the
@@ -42,17 +42,17 @@ typedef unsigned short chat_mask_t;
 #define SET_ALLOWED(mask, type) (mask) &= ~(1<<(type))
 
 
-#define I_CHAT "chat-3"
+#define I_CHAT "chat-4"
 
 typedef struct Ichat
 {
 	INTERFACE_HEAD_DECL
 
-	void (*SendMessage)(int pid, const char *format, ...);
-	void (*SendSetMessage)(int *set, const char *format, ...);
-	void (*SendSoundMessage)(int pid, char sound, const char *format, ...);
-	void (*SendSetSoundMessage)(int *set, char sound, const char *format, ...);
-	void (*SendAnyMessage)(int *set, char type, char sound, const char *format, ...);
+	void (*SendMessage)(Player *p, const char *format, ...);
+	void (*SendSetMessage)(LinkedList *set, const char *format, ...);
+	void (*SendSoundMessage)(Player *p, char sound, const char *format, ...);
+	void (*SendSetSoundMessage)(LinkedList *set, char sound, const char *format, ...);
+	void (*SendAnyMessage)(LinkedList *set, char type, char sound, const char *format, ...);
 	void (*SendArenaMessage)(Arena *arena, const char *format, ...);
 	void (*SendArenaSoundMessage)(Arena *arena, char sound, const char *format, ...);
 	/* in the above two, use arena == ALLARENAS for zone. */
@@ -60,8 +60,8 @@ typedef struct Ichat
 
 	chat_mask_t (*GetArenaChatMask)(Arena *arena);
 	void (*SetArenaChatMask)(Arena *arena, chat_mask_t mask);
-	chat_mask_t (*GetPlayerChatMask)(int pid);
-	void (*SetPlayerChatMask)(int pid, chat_mask_t mask, int timeout);
+	chat_mask_t (*GetPlayerChatMask)(Player *p);
+	void (*SetPlayerChatMask)(Player *p, chat_mask_t mask, int timeout);
 	/* (timeout is 0 to mean 'for a session' mask, or a number of seconds) */
 } Ichat;
 

@@ -6,7 +6,7 @@
 
 
 #define CB_UPLOADEDFILE ("uploadedfile")
-typedef void (*UploadedFileFunc)(int pid, const char *filename);
+typedef void (*UploadedFileFunc)(Player *p, const char *filename);
 
 
 #define I_FILETRANS "filetrans-1"
@@ -15,8 +15,8 @@ typedef struct Ifiletrans
 {
 	INTERFACE_HEAD_DECL
 
-	int (*SendFile)(int pid, const char *path, const char *fname, int delafter);
-	void (*RequestFile)(int pid, const char *path, const char *fname);
+	int (*SendFile)(Player *p, const char *path, const char *fname, int delafter);
+	void (*RequestFile)(Player *p, const char *path, const char *fname);
 } Ifiletrans;
 
 

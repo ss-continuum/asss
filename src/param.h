@@ -18,6 +18,14 @@
 #define CFG_LOG_PRIVATE
 
 
+/* whether to disallow allow loading modules from anywhere other than ./bin/ */
+/* #define CFG_RESTRICT_MODULE_PATH */
+
+
+/* whether to disallow module loading after the server has been initalized */
+/* #define CFG_NO_RUNTIME_LOAD */
+
+
 /* whether to enable persistent chat masks. this is normally a good
  * idea. the only downside is that it introduces a dependence of chat on
  * persist (i.e. you can't enable chatting without also loading the
@@ -95,7 +103,7 @@
 #define CFG_HASHSIZE 256
 
 
-/* the sampling resolution for bandwidth measurement, in centiseconds */
+/* the sampling resolution for bandwidth measurement, in ticks */
 #define CFG_BANDWIDTH_RES 100
 
 
@@ -117,9 +125,9 @@
 /* #define CFG_USE_FREE_LINK_LIST */
 
 
-/* whether to enable a few locks that may decrease performance (and
- * increase lag), but are relatively safe to leave off. you might want
- * to consider enabling this on a multiprocessor box. */
+/* whether to enable a few locks for unimportant data that may decrease
+ * performance (and increase lag), but are relatively safe to leave off.
+ * you might want to consider enabling this on a multiprocessor box. */
 /* #define CFG_PEDANTIC_LOCKING */
 
 

@@ -20,7 +20,7 @@ typedef struct CommandData
 
 local void AddCommand(const char *, CommandFunc, helptext_t helptext);
 local void RemoveCommand(const char *, CommandFunc);
-local void Command(const char *, int, const Target *);
+local void Command(const char *, Player *, const Target *);
 local helptext_t GetHelpText(const char *);
 
 /* static data */
@@ -41,7 +41,7 @@ local Icmdman _int =
 };
 
 
-EXPORT int MM_cmdman(int action, Imodman *mm_, int arena)
+EXPORT int MM_cmdman(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -107,30 +107,30 @@ void RemoveCommand(const char *cmd, CommandFunc f)
 	else
 	{
 		CommandData *data;
-		LinkedList *lst;
+		LinkedList lst = LL_INITIALIZER;
 		Link *l;
 
 		pthread_mutex_lock(&cmdmtx);
-		lst = HashGet(cmds, cmd);
-		for (l = LLGetHead(lst); l; l = l->next)
+		HashGetAppend(cmds, cmd, &lst);
+		for (l = LLGetHead(&lst); l; l = l->next)
 		{
 			data = (CommandData*) l->data;
 			if (data->func == f)
 			{
 				HashRemove(cmds, cmd, data);
-				LLFree(lst);
+				LLEmpty(&lst);
 				afree(data);
 				pthread_mutex_unlock(&cmdmtx);
 				return;
 			}
 		}
-		LLFree(lst);
+		LLEmpty(&lst);
 		pthread_mutex_unlock(&cmdmtx);
 	}
 }
 
 
-local void log_command(int pid, const Target *target, const char *cmd, const char *params)
+local void log_command(Player *p, const Target *target, const char *cmd, const char *params)
 {
 	char t[32];
 
@@ -145,16 +145,16 @@ local void log_command(int pid, const Target *target, const char *cmd, const cha
 		astrncpy(t, "(arena)", 32);
 	else if (target->type == T_FREQ)
 		snprintf(t, 32, "(freq %d)", target->u.freq.freq);
-	else if (target->type == T_PID)
-		snprintf(t, 32, "to [%s]", pd->players[target->u.pid].name);
+	else if (target->type == T_PLAYER)
+		snprintf(t, 32, "to [%s]", target->u.p->name);
 	else
 		astrncpy(t, "(other)", 32);
 
 	if (*params)
-		lm->LogP(L_INFO, "cmdman", pid, "Command %s '%s' '%s'",
+		lm->LogP(L_INFO, "cmdman", p, "Command %s '%s' '%s'",
 				t, cmd, params);
 	else
-		lm->LogP(L_INFO, "cmdman", pid, "Command %s '%s'",
+		lm->LogP(L_INFO, "cmdman", p, "Command %s '%s'",
 				t, cmd);
 }
 
@@ -166,7 +166,7 @@ enum
 	check_either
 };
 
-local int allowed(int pid, const char *cmd, int check)
+local int allowed(Player *p, const char *cmd, int check)
 {
 	char cap[40];
 	
@@ -185,29 +185,29 @@ local int allowed(int pid, const char *cmd, int check)
 	{
 		strcpy(cap, "privcmd_");
 		strncat(cap, cmd, 30);
-		return capman->HasCapability(pid, cap);
+		return capman->HasCapability(p, cap);
 	}
 	else if (check == check_public)
 	{
 		strcpy(cap, "cmd_");
 		strncat(cap, cmd, 30);
-		return capman->HasCapability(pid, cap);
+		return capman->HasCapability(p, cap);
 	}
 	else if (check == check_either)
 	{
 		strcpy(cap, "privcmd_");
 		strncat(cap, cmd, 30);
-		return capman->HasCapability(pid, cap) ||
-		       capman->HasCapability(pid, cap+4);
+		return capman->HasCapability(p, cap) ||
+		       capman->HasCapability(p, cap+4);
 	}
 	else
 		return FALSE;
 }
 
 
-void Command(const char *line, int pid, const Target *target)
+void Command(const char *line, Player *p, const Target *target)
 {
-	LinkedList *lst;
+	LinkedList lst = LL_INITIALIZER;
 	Link *l;
 	const char *saveline = line;
 	char cmd[40], *t, found = 0;
@@ -228,25 +228,25 @@ void Command(const char *line, int pid, const Target *target)
 	else
 		check = check_private;
 
-	if (allowed(pid, cmd, check))
+	if (allowed(p, cmd, check))
 	{
 		pthread_mutex_lock(&cmdmtx);
-		lst = HashGet(cmds, cmd);
-		for (l = LLGetHead(lst); l; l = l->next)
+		HashGetAppend(cmds, cmd, &lst);
+		for (l = LLGetHead(&lst); l; l = l->next)
 		{
-			((CommandData*)l->data)->func(line, pid, target);
+			((CommandData*)l->data)->func(line, p, target);
 			found = 1;
 		}
-		LLFree(lst);
+		LLEmpty(&lst);
 		pthread_mutex_unlock(&cmdmtx);
-		log_command(pid, target, cmd, line);
+		log_command(p, target, cmd, line);
 	}
 	else
 		lm->Log(L_DRIVEL, "<cmdman> [%s] Permission denied for %s",
-				pd->players[pid].name, cmd);
+				p->name, cmd);
 
 	if (!found && defaultfunc)
-		defaultfunc(saveline, pid, target); /* give whole thing, not just params */
+		defaultfunc(saveline, p, target); /* give whole thing, not just params */
 }
 
 

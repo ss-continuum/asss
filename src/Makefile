@@ -58,7 +58,7 @@ game.so: game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
 
 command.so: cmdman.o playercmd.o watchdamage.o buy.o help.o cfghelp.o
 
-external.so: billcore.o directory.o
+external.so: directory.o # billcore.so
 
 scoring.so: persist.o stats.o statcodes.o points_kill.o points_flag.o \
 	points_goal.o jackpot.o periodic.o points_periodic.o basicstats.o

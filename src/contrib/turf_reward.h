@@ -21,7 +21,7 @@ struct Iturfrewardpoints;
 
 // called for all turf flag tags
 #define CB_TURFTAG ("turftag")
-typedef void (*TurfTagFunc)(Arena *arena, int pid, int fid);
+typedef void (*TurfTagFunc)(Arena *arena, Player *p, int fid);
 
 // called when a flag is 'recovered' (note: CB_TURFTAG will still be called)
 // possible use would be to have a module that manipulates lvz objects telling player that the flag tagged was recovered
@@ -113,7 +113,6 @@ struct TurfArena
 	// int min_tags_freq;           // todo: minimum # of tags needed by a freq for that freq to recieve rewards
 
 	// data for timer
-	Arena *arena;                      // data for the timer to know which arena to award
 	unsigned int dingTime;          // time of last ding
 	int timer_initial;              // initial timer delay
 	int timer_interval;             // interval for timer to repeat

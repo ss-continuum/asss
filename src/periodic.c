@@ -63,9 +63,11 @@ local void reward_enum(TreapHead *node, void *clos)
 local int timer(void *set_)
 {
 	periodic_settings *set = set_;
-	int pid, totalplayers = 0, freqcount = 0;
+	int totalplayers = 0, freqcount = 0;
 	TreapHead *fdata = NULL;
 	freq_data *fd;
+	Player *p;
+	Link *link;
 
 	/* lock status here to avoid repeatedly locking and unlocking it,
 	 * and also to avoid deadlock. */
@@ -73,12 +75,12 @@ local int timer(void *set_)
 
 	/* figure out what freqs we have in this arena, how many players
 	 * each has, and how many flags each owns. */
-	pd->LockStatus();
-	for (pid = 0; pid < MAXPLAYERS; pid++)
-		if (pd->players[pid].status == S_PLAYING &&
-		    pd->players[pid].arena == set->arena)
+	pd->Lock();
+	FOR_EACH_PLAYER(p)
+		if (p->status == S_PLAYING &&
+		    p->arena == set->arena)
 		{
-			int freq = pd->players[pid].freq;
+			int freq = p->p_freq;
 			fd = (freq_data*)TrGet(fdata, freq);
 			if (fd == NULL)
 			{
@@ -92,7 +94,7 @@ local int timer(void *set_)
 			fd->players++;
 			totalplayers++;
 		}
-	pd->UnlockStatus();
+	pd->Unlock();
 
 	flags->ReleaseFlagData(set->arena);
 
@@ -107,18 +109,18 @@ local int timer(void *set_)
 		/* now calculate points for each freq, filling in packet as we go */
 		TrEnum(fdata, reward_enum, set);
 
-		net->SendToArena(set->arena, -1, pkt, freqcount*4+1, NET_RELIABLE);
+		net->SendToArena(set->arena, NULL, pkt, freqcount*4+1, NET_RELIABLE);
 		afree(pkt);
 		set->pkt = NULL; /* just to be safe */
 
 		/* now reward points to all */
-		pd->LockStatus();
-		for (pid = 0; pid < MAXPLAYERS; pid++)
-			if (pd->players[pid].status == S_PLAYING &&
-				pd->players[pid].arena == set->arena)
-				if ((fd = (freq_data*)TrGet(fdata, pd->players[pid].freq)))
-					stats->IncrementStat(pid, STAT_FLAG_POINTS, fd->points);
-		pd->UnlockStatus();
+		pd->Lock();
+		FOR_EACH_PLAYER(p)
+			if (p->status == S_PLAYING &&
+				p->arena == set->arena)
+				if ((fd = (freq_data*)TrGet(fdata, p->p_freq)))
+					stats->IncrementStat(p, STAT_FLAG_POINTS, fd->points);
+		pd->Unlock();
 
 		/* i think the client is smart enough that we don't need to do
 		 * this:

@@ -8,14 +8,14 @@
 #include "letters.inc"
 
 
-local void Cbrickwrite(const char *params, int pid, const Target *target);
+local void Cbrickwrite(const char *params, Player *p, const Target *target);
 
 local Iplayerdata *pd;
 local Igame *game;
 local Icmdman *cmd;
 
 
-EXPORT int MM_bricklayer(int action, Imodman *mm, int arena)
+EXPORT int MM_bricklayer(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -37,13 +37,13 @@ EXPORT int MM_bricklayer(int action, Imodman *mm, int arena)
 }
 
 
-void Cbrickwrite(const char *params, int pid, const Target *target)
+void Cbrickwrite(const char *params, Player *p, const Target *target)
 {
 	int i, wid;
-	Arena *arena = pd->players[pid].arena;
-	int freq = pd->players[pid].freq;
-	int x = pd->players[pid].position.x >> 4;
-	int y = pd->players[pid].position.y >> 4;
+	Arena *arena = p->arena;
+	int freq = p->p_freq;
+	int x = p->position.x >> 4;
+	int y = p->position.y >> 4;
 
 	if (!game) return;
 

@@ -40,24 +40,18 @@
  * with GetInterface.
  */
 
+
 typedef struct Iencrypt
 {
 	INTERFACE_HEAD_DECL
 
-	int (*Encrypt)(int pid, byte *pkt, int len);
-	int (*Decrypt)(int pid, byte *pkt, int len);
+	int (*Encrypt)(Player *p, byte *pkt, int len);
+	int (*Decrypt)(Player *p, byte *pkt, int len);
 	/* these are obvious. the return value is the length of the
 	 * resulting data. it should be encrypted/decrypted in place. */
 
-	void (*Void)(int pid);
+	void (*Void)(Player *p);
 	/* this is called when the player disconnects */
-
-	void (*Initiate)(int pid);
-	/* this is called to initiate a connection to another server */
-	int (*HandleResponse)(int pid, byte *pkt, int len);
-	/* this is called when the server gets a key exchange response from
-	 * another server. it should return true if the connection is
-	 * established. */
 } Iencrypt;
 
 #endif

@@ -122,9 +122,9 @@ local helptext_t time_help =
 "Args: none\n"
 "Returns amount of time left in current game.\n";
 
-local void Ctime(const char *params, int pid, const Target *target)
+local void Ctime(const char *params, Player *p, const Target *target)
 {
-	Arena *arena = pd->players[pid].arena;
+	Arena *arena = p->arena;
 	int mins, secs;
 	unsigned tout;
 	timerdata *td = P_ARENA_DATA(arena, tdkey);
@@ -134,16 +134,16 @@ local void Ctime(const char *params, int pid, const Target *target)
 		tout = td->timeout - GTC();
 		mins = tout/60/100;
 		secs = (tout/100)%60;
-		chat->SendMessage(pid, "Time left: %d minutes %d seconds", mins, secs);
+		chat->SendMessage(p, "Time left: %d minutes %d seconds", mins, secs);
 	}
 	else if (td->timeout)
 	{
 		 mins = td->timeout/60/100;
 		 secs = (td->timeout/100)%60;
-		 chat->SendMessage(pid, "Timer paused at:  %d minutes %d seconds", mins, secs);
+		 chat->SendMessage(p, "Timer paused at:  %d minutes %d seconds", mins, secs);
 	}
 	else
-		chat->SendMessage(pid, "Time left: 0 minutes 0 seconds");
+		chat->SendMessage(p, "Time left: 0 minutes 0 seconds");
 }
 
 
@@ -154,9 +154,9 @@ local helptext_t timer_help =
 "off. Note, that the seconds part is optional, but minutes must always\n"
 "be defined (even if zero). If successful, server replies with ?time response.\n";
 
-local void Ctimer(const char *params, int pid, const Target *target)
+local void Ctimer(const char *params, Player *p, const Target *target)
 {
-	Arena *arena = pd->players[pid].arena;
+	Arena *arena = p->arena;
 	int mins = 0, secs = 0;
 	timerdata *td = P_ARENA_DATA(arena, tdkey);
 
@@ -170,11 +170,11 @@ local void Ctimer(const char *params, int pid, const Target *target)
 				secs = strtol(end+1, NULL, 10);
 			td->enabled = 1;
 			td->timeout = GTC()+(60*100*mins)+(100*secs);
-			Ctime(params, pid, target);
+			Ctime(params, p, target);
 		}
-		else chat->SendMessage(pid, "timer format is: '?timer mins[:secs]'");
+		else chat->SendMessage(p, "timer format is: '?timer mins[:secs]'");
 	}
-	else chat->SendMessage(pid, "Timer is fixed to Misc:TimedGame setting.");
+	else chat->SendMessage(p, "Timer is fixed to Misc:TimedGame setting.");
 }
 
 
@@ -183,16 +183,16 @@ local helptext_t timereset_help =
 "Args: none\n"
 "Reset a timed game, but only in arenas with Misc:TimedGame in use.\n";
 
-local void Ctimereset(const char *params, int pid, const Target *target)
+local void Ctimereset(const char *params, Player *p, const Target *target)
 {
-	Arena *arena = pd->players[pid].arena;
+	Arena *arena = p->arena;
 	timerdata *td = P_ARENA_DATA(arena, tdkey);
 	long gamelen = td->gamelen;
 
 	if (gamelen)
 	{
 		td->timeout = GTC() + gamelen;
-		Ctime(params, pid, target);
+		Ctime(params, p, target);
 	}
 }
 
@@ -202,9 +202,9 @@ local helptext_t pausetimer_help =
 "Args: none\n"
 "Pauses the timer. The timer must have been created with ?timer.\n";
 
-local void Cpausetimer(const char *params, int pid, const Target *target)
+local void Cpausetimer(const char *params, Player *p, const Target *target)
 {
-	Arena *arena = pd->players[pid].arena;
+	Arena *arena = p->arena;
 	timerdata *td = P_ARENA_DATA(arena, tdkey);
 
 	if (td->gamelen) return;
@@ -213,12 +213,12 @@ local void Cpausetimer(const char *params, int pid, const Target *target)
 	{
 		td->enabled = 0;
 		td->timeout -= GTC();
-		chat->SendMessage(pid,"Timer paused at:  %d minutes %d seconds",
+		chat->SendMessage(p,"Timer paused at:  %d minutes %d seconds",
 							td->timeout/60/100, (td->timeout/100)%60);
 	}
 	else if (td->timeout)
 	{
-		chat->SendMessage(pid,"Timer resumed at: %d minutes %d seconds",
+		chat->SendMessage(p,"Timer resumed at: %d minutes %d seconds",
 							td->timeout/60/100, (td->timeout/100)%60);
 		td->enabled = 1;
 		td->timeout += GTC();
@@ -227,7 +227,7 @@ local void Cpausetimer(const char *params, int pid, const Target *target)
 
 
 
-EXPORT int MM_game_timer(int action, Imodman *mm_, int arena)
+EXPORT int MM_game_timer(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{

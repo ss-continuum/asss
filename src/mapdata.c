@@ -85,7 +85,7 @@ local Imapdata _int =
 
 
 
-EXPORT int MM_mapdata(int action, Imodman *_mm, int arenas)
+EXPORT int MM_mapdata(int action, Imodman *_mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -128,6 +128,7 @@ int read_lvl(char *name, struct MapData *md)
 	struct TileData td;
 	int flags = 0, errors = 0;
 	sparse_arr arr;
+
 	FILE *f = fopen(name,"r");
 	if (!f) return 1;
 

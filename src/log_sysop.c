@@ -12,12 +12,12 @@
 
 
 local void LogSysop(const char *);
-local void PA(int pid, int action, int arena);
-local void Clastlog(const char *params, int pid, const Target *target);
+local void PA(Player *p, int action, Arena *arena);
+local void Clastlog(const char *params, Player *p, const Target *target);
 local helptext_t lastlog_help;
 
 enum { SEE_NONE, SEE_ARENA, SEE_ALL };
-local byte seewhat[MAXPLAYERS];
+local int seewhatkey;
 
 /* stuff for lastlog */
 #define MAXLAST CFG_LAST_LINES
@@ -32,7 +32,6 @@ local pthread_mutex_t ll_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 
 local Iplayerdata *pd;
-local Iarenaman *aman;
 local Iconfig *cfg;
 local Ilogman *lm;
 local Ichat *chat;
@@ -40,19 +39,20 @@ local Icapman *capman;
 local Icmdman *cmd;
 
 
-EXPORT int MM_log_sysop(int action, Imodman *mm, int arenas)
+EXPORT int MM_log_sysop(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
-		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
-
 		if (!cfg || !lm || !chat) return MM_FAIL;
+
+		seewhatkey = pd->AllocatePlayerData(sizeof(int));
+		if (seewhatkey == -1) return MM_FAIL;
 
 		memset(ll_data, 0, sizeof(ll_data));
 		ll_pos = 0;
@@ -70,7 +70,6 @@ EXPORT int MM_log_sysop(int action, Imodman *mm, int arenas)
 		mm->UnregCallback(CB_PLAYERACTION, PA, ALLARENAS);
 		mm->UnregCallback(CB_LOGFUNC, LogSysop, ALLARENAS);
 		mm->ReleaseInterface(pd);
-		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(chat);
@@ -86,18 +85,22 @@ void LogSysop(const char *s)
 {
 	if (lm->FilterLog(s, "log_sysop"))
 	{
-		int set[MAXPLAYERS], setc = 0, pid;
+		LinkedList set = LL_INITIALIZER;
+		Player *p;
+		Link *link;
+		int *seewhat;
 
-		for (pid = 0; pid < MAXPLAYERS; pid++)
+		pd->Lock();
+		FOR_EACH_PLAYER_P(p, seewhat, seewhatkey)
 		{
-			if (seewhat[pid] == SEE_ALL)
-				set[setc++] = pid;
-			else if (seewhat[pid] == SEE_ARENA)
+			if (*seewhat == SEE_ALL)
+				LLAdd(&set, p);
+			else if (*seewhat == SEE_ARENA)
 			{
 				/* now we have to check if the arena matches. it kinda
 				 * sucks that it has to be done this way, but to do it
 				 * the "right" way would require undesirable changes. */
-				Arena *arena = pd->players[pid].arena;
+				Arena *arena = p->arena;
 				if (arena)
 				{
 					char *carena = arena->name;
@@ -107,14 +110,13 @@ void LogSysop(const char *s)
 						while (*carena && *t && *t == *carena)
 							t++, carena++;
 						if (*carena == '\0' && *t == '}')
-							set[setc++] = pid;
+							LLAdd(&set, p);
 					}
 				}
 			}
 		}
-		set[setc] = -1;
-		if (setc)
-			chat->SendAnyMessage(set, MSG_SYSOPWARNING, 0, "%s", s);
+		pd->Unlock();
+		chat->SendAnyMessage(&set, MSG_SYSOPWARNING, 0, "%s", s);
 	}
 
 	/* always add to lastlog */
@@ -125,19 +127,20 @@ void LogSysop(const char *s)
 }
 
 
-void PA(int pid, int action, int arena)
+void PA(Player *p, int action, Arena *arena)
 {
+	int seewhat = *(int*)PPDATA(p, seewhatkey);
 	if (action == PA_CONNECT || action == PA_ENTERARENA)
 	{
-		if (capman->HasCapability(pid, CAP_SEESYSOPLOGALL))
-			seewhat[pid] = SEE_ALL;
-		else if (capman->HasCapability(pid, CAP_SEESYSOPLOGARENA))
-			seewhat[pid] = SEE_ARENA;
+		if (capman->HasCapability(p, CAP_SEESYSOPLOGALL))
+			seewhat = SEE_ALL;
+		else if (capman->HasCapability(p, CAP_SEESYSOPLOGARENA))
+			seewhat = SEE_ARENA;
 		else
-			seewhat[pid] = SEE_NONE;
+			seewhat = SEE_NONE;
 	}
 	else
-		seewhat[pid] = SEE_NONE;
+		seewhat = SEE_NONE;
 }
 
 
@@ -151,10 +154,12 @@ local helptext_t lastlog_help =
 "limited to lines that contain that text. You can specify both a number\n"
 "and limiting text, just put the number first.\n";
 
-void Clastlog(const char *params, int pid, const Target *target)
+void Clastlog(const char *params, Player *p, const Target *target)
 {
-	int count, c, set[2] = {pid, -1};
+	int count, c;
 	char *end;
+	Link link = { NULL, p };
+	LinkedList lst = { &link, &link };
 
 	count = strtol(params, &end, 0);
 	if (count < 1) count = 10;
@@ -170,7 +175,7 @@ void Clastlog(const char *params, int pid, const Target *target)
 	{
 		if (ll_data[c][0])
 			if (*end == '\0' || strstr(ll_data[c], end))
-				chat->SendAnyMessage(set, MSG_SYSOPWARNING, 0, "%s", ll_data[c]);
+				chat->SendAnyMessage(&lst, MSG_SYSOPWARNING, 0, "%s", ll_data[c]);
 		c = (c+1) % MAXLAST;
 	}
 	UNLOCK_LL();

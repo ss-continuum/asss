@@ -244,7 +244,7 @@ local Ireldb my_int =
 };
 
 
-EXPORT int MM_mysql(int action, Imodman *mm, int arena)
+EXPORT int MM_mysql(int action, Imodman *mm, Arena *arena)
 {
 	/* static sighandler_t oldh; */
 

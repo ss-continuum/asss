@@ -10,16 +10,16 @@
 #include "packets/objects.h"
 
 /* command funcs */
-local void Cobjon(const char *params, int pid, const Target *target);
-local void Cobjoff(const char *params, int pid, const Target *target);
-local void Cobjset(const char *params, int pid, const Target *target);
+local void Cobjon(const char *params, Player *p, const Target *target);
+local void Cobjoff(const char *params, Player *p, const Target *target);
+local void Cobjset(const char *params, Player *p, const Target *target);
 
 /* interface funcs */
 local void ToggleArenaMultiObjects(Arena *arena, short *objs, char *ons, int size);
-local void TogglePidSetMultiObjects(int *pidset, short *objs, char *ons, int size);
-local void ToggleMultiObjects(int pid, short *objs, char *ons, int size);
+local void TogglePidSetMultiObjects(LinkedList *set, short *objs, char *ons, int size);
+local void ToggleMultiObjects(Player *p, short *objs, char *ons, int size);
 local void ToggleArenaObject(Arena *arena, short obj, char on);
-local void ToggleObject(int pid, short obj, char on);
+local void ToggleObject(Player *p, short obj, char on);
 
 /* local data */
 local Imodman *mm;
@@ -73,27 +73,29 @@ EXPORT int MM_objects(int action, Imodman *_mm, Arena *arena)
 	return MM_FAIL;
 }
 
-void Cobjon(const char *params, int pid, const Target *target)
+void Cobjon(const char *params, Player *p, const Target *target)
 {
-	int set[MAXPLAYERS+1];
+	LinkedList set = LL_INITIALIZER;
 	short obj = atoi(params);
 	char on = 1;
 
-	pd->TargetToSet(target, set);
-	TogglePidSetMultiObjects(set, &obj, &on, 1);
+	pd->TargetToSet(target, &set);
+	TogglePidSetMultiObjects(&set, &obj, &on, 1);
+	LLEmpty(&set);
 }
 
-void Cobjoff(const char *params, int pid, const Target *target)
+void Cobjoff(const char *params, Player *p, const Target *target)
 {
-	int set[MAXPLAYERS+1];
+	LinkedList set = LL_INITIALIZER;
 	short obj = atoi(params);
 	char on = 0;
 
-	pd->TargetToSet(target, set);
-	TogglePidSetMultiObjects(set, &obj, &on, 1);
+	pd->TargetToSet(target, &set);
+	TogglePidSetMultiObjects(&set, &obj, &on, 1);
+	LLEmpty(&set);
 }
 
-void Cobjset(const char *params, int pid, const Target *target)
+void Cobjset(const char *params, Player *p, const Target *target)
 {
 	int l = strlen(params) + 1;
 	const char *c = params;
@@ -121,9 +123,10 @@ void Cobjset(const char *params, int pid, const Target *target)
 
 	if (l)
 	{
-		int set[MAXPLAYERS+1];
-		pd->TargetToSet(target, set);
-		TogglePidSetMultiObjects(set, objs, ons, l);
+		LinkedList set = LL_INITIALIZER;
+		pd->TargetToSet(target, &set);
+		TogglePidSetMultiObjects(&set, objs, ons, l);
+		LLEmpty(&set);
 	}
 }
 
@@ -132,27 +135,29 @@ void ToggleArenaObject(Arena *arena, short obj, char on)
 	ToggleArenaMultiObjects(arena, &obj, &on, 1);
 }
 
-void ToggleObject(int pid, short obj, char on)
+void ToggleObject(Player *p, short obj, char on)
 {
-	ToggleMultiObjects(pid, &obj, &on, 1);
+	ToggleMultiObjects(p, &obj, &on, 1);
 }
 
 void ToggleArenaMultiObjects(Arena *arena, short *objs, char *ons, int size)
 {
-	int set[MAXPLAYERS+1];
+	LinkedList set = LL_INITIALIZER;
 	Target targ = { T_ARENA };
 	targ.u.arena = arena;
-	pd->TargetToSet(&targ, set);
-	TogglePidSetMultiObjects(set, objs, ons, size);
+	pd->TargetToSet(&targ, &set);
+	TogglePidSetMultiObjects(&set, objs, ons, size);
+	LLEmpty(&set);
 }
 
-void ToggleMultiObjects(int pid, short *objs, char *ons, int size)
+void ToggleMultiObjects(Player *p, short *objs, char *ons, int size)
 {
-	int set[2] = { pid, -1 };
-	TogglePidSetMultiObjects(set, objs, ons, size);
+	Link l = { NULL, p };
+	LinkedList set = { &l, &l };
+	TogglePidSetMultiObjects(&set, objs, ons, size);
 }
 
-void TogglePidSetMultiObjects(int *pidset, short *objs, char *ons, int size)
+void TogglePidSetMultiObjects(LinkedList *set, short *objs, char *ons, int size)
 {
 	struct ObjectToggling *pkt;
 	int c;
@@ -166,6 +171,6 @@ void TogglePidSetMultiObjects(int *pidset, short *objs, char *ons, int size)
 	for (c = 0; c < size; c++)
 		pkt->objs[c] = ons[c] ? objs[c] | 0xF000 : objs[c];
 
-	net->SendToSet(pidset, (byte*)pkt, 1 + 2 * size, NET_RELIABLE);
+	net->SendToSet(set, (byte*)pkt, 1 + 2 * size, NET_RELIABLE);
 }
 

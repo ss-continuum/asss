@@ -20,19 +20,19 @@ typedef struct Istats
 {
 	INTERFACE_HEAD_DECL
 
-	void (*IncrementStat)(int pid, int stat, int amount);
+	void (*IncrementStat)(Player *p, int stat, int amount);
 	/* increments a particular statistic in _all_ intervals */
 
-	void (*StartTimer)(int pid, int stat);
-	void (*StopTimer)(int pid, int stat);
+	void (*StartTimer)(Player *p, int stat);
+	void (*StopTimer)(Player *p, int stat);
 	/* "timer" stats can be managed just like other stats, using
 	 * IncrementStat, or you can use these functions, which take care of
 	 * tracking the start time and updating the database periodically. */
 
-	void (*SetStat)(int pid, int stat, int interval, int value);
+	void (*SetStat)(Player *p, int stat, int interval, int value);
 	/* sets a statistic to a given value */
 
-	int (*GetStat)(int pid, int stat, int interval);
+	int (*GetStat)(Player *p, int stat, int interval);
 	/* gets the value of one statistic */
 
 	void (*SendUpdates)(void);

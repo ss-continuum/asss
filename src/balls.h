@@ -20,22 +20,22 @@ typedef enum
 
 /* called when a player picks up a ball */
 #define CB_BALLPICKUP ("ballpickup")
-typedef void (*BallPickupFunc)(Arena *arena, int pid, int bid);
+typedef void (*BallPickupFunc)(Arena *arena, Player *p, int bid);
 
 /* called when a player fires a ball */
 #define CB_BALLFIRE ("ballfire")
-typedef void (*BallFireFunc)(Arena *arena, int pid, int bid);
+typedef void (*BallFireFunc)(Arena *arena, Player *p, int bid);
 
 /* called when a player scores a goal */
 #define CB_GOAL ("goal")
-typedef void (*GoalFunc)(Arena *arena, int pid, int bid, int x, int y);
+typedef void (*GoalFunc)(Arena *arena, Player *p, int bid, int x, int y);
 
 
 struct BallData
 {
 	ballstate_t state; /* the state of this ball */
 	int x, y, xspeed, yspeed; /* the coordinates of the ball */
-	int carrier; /* the pid that is carrying or last touched the ball */
+	Player *carrier; /* the player that is carrying or last touched the ball */
 	int freq; /* freq of carrier */
 	u32 time; /* the time that the ball was last fired (will be 0 for
 	             balls being held). for BALL_WAITING, this time is the

@@ -156,6 +156,7 @@ struct Imodman
 	{
 		void (*DoStage)(int stage);
 		void (*UnloadAllModules)(void);
+		void (*NoMoreModules)(void);
 	} frommain;
 };
 

@@ -44,7 +44,7 @@ typedef struct Ilogman
 
 	void (*LogA)(char level, const char *mod, Arena *a, const char *format, ...);
 
-	void (*LogP)(char level, const char *mod, int pid, const char *format, ...);
+	void (*LogP)(char level, const char *mod, Player *p, const char *format, ...);
 
 
 	/* log modules can optionally call this function for help filtering

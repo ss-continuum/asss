@@ -173,15 +173,15 @@ local u32 GetNewsChecksum(void)
 
 #include "packets/mapfname.h"
 
-local void SendMapFilename(int pid)
+local void SendMapFilename(Player *p)
 {
 	struct MapFilename *mf;
 	LinkedList *dls;
 	struct MapDownloadData *data;
-	int len, wantopt = WANT_ALL_LVZ(pid);
+	int len, wantopt = WANT_ALL_LVZ(p);
 	Arena *arena;
 
-	arena = pd->players[pid].arena;
+	arena = p->arena;
 	if (!arena) return;
 
 	dls = P_ARENA_DATA(arena, dlkey);
@@ -191,7 +191,7 @@ local void SendMapFilename(int pid)
 		return;
 	}
 
-	if (pd->players[pid].type != T_CONT)
+	if (p->type != T_CONT)
 	{
 		data = LLGetHead(dls)->data;
 		mf = alloca(21);
@@ -223,7 +223,7 @@ local void SendMapFilename(int pid)
 	}
 
 	mf->type = S2C_MAPFILENAME;
-	net->SendToOne(pid, (byte*)mf, len, NET_RELIABLE);
+	net->SendToOne(p, (byte*)mf, len, NET_RELIABLE);
 }
 
 
@@ -477,21 +477,21 @@ local void get_data(void *clos, int offset, byte *buf, int needed)
 }
 
 
-local void PMapRequest(int pid, byte *p, int len)
+local void PMapRequest(Player *p, byte *pkt, int len)
 {
 	struct data_locator *dl;
-	Arena *arena = pd->players[pid].arena;
-	int wantopt = WANT_ALL_LVZ(pid);
+	Arena *arena = p->arena;
+	int wantopt = WANT_ALL_LVZ(p);
 
-	if (p[0] == C2S_MAPREQUEST)
+	if (pkt[0] == C2S_MAPREQUEST)
 	{
 		struct MapDownloadData *data;
-		unsigned short lvznum = (len == 3) ? p[1] | p[2]<<8 : 0;
+		unsigned short lvznum = (len == 3) ? pkt[1] | pkt[2]<<8 : 0;
 
 		if (!arena)
 		{
 			lm->Log(L_MALICIOUS, "<mapnewsdl> [%s] Map request before entering arena",
-					pd->players[pid].name);
+					p->name);
 			return;
 		}
 
@@ -499,7 +499,7 @@ local void PMapRequest(int pid, byte *p, int len)
 
 		if (!data)
 		{
-			lm->LogP(L_WARN, "mapnewsdl", pid, "Can't find lvl/lvz %d", lvznum);
+			lm->LogP(L_WARN, "mapnewsdl", p, "Can't find lvl/lvz %d", lvznum);
 			return;
 		}
 
@@ -510,19 +510,19 @@ local void PMapRequest(int pid, byte *p, int len)
 		dl->wantopt = wantopt;
 		dl->len = data->cmplen;
 
-		net->SendSized(pid, dl, data->cmplen, get_data);
-		lm->LogP(L_DRIVEL, "mapnewsdl", pid, "Sending map/lvz %d (%d bytes)",
+		net->SendSized(p, dl, data->cmplen, get_data);
+		lm->LogP(L_DRIVEL, "mapnewsdl", p, "Sending map/lvz %d (%d bytes)",
 				lvznum, data->cmplen);
 	}
-	else if (p[0] == C2S_NEWSREQUEST)
+	else if (pkt[0] == C2S_NEWSREQUEST)
 	{
 		if (cmpnews)
 		{
 			dl = amalloc(sizeof(*dl));
 			dl->arena = NULL;
 			dl->len = cmpnewssize;
-			net->SendSized(pid, dl, cmpnewssize, get_data);
-			lm->Log(L_DRIVEL,"<mapnewsdl> [%s] Sending news.txt", pd->players[pid].name);
+			net->SendSized(p, dl, cmpnewssize, get_data);
+			lm->Log(L_DRIVEL,"<mapnewsdl> [%s] Sending news.txt", p->name);
 		}
 		else
 			lm->Log(L_WARN, "<mapnewsdl> News request, but compressed news doesn't exist");
@@ -540,7 +540,7 @@ local Imapnewsdl _int =
 };
 
 
-EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
+EXPORT int MM_mapnewsdl(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{

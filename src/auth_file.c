@@ -27,6 +27,7 @@ someone = any
 
 #include "md5.h"
 
+local Imodman *mm;
 local Iplayerdata *pd;
 local Iconfig *cfg;
 local Icmdman *cmd;
@@ -59,8 +60,8 @@ local void hash_password(const char *name, const char *pwd, char out[33])
 }
 
 
-local void authenticate(int pid, struct LoginPacket *lp, int lplen,
-		void (*done)(int pid, AuthData *data))
+local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
+		void (*done)(Player *p, AuthData *data))
 {
 	AuthData ad;
 	const char *line;
@@ -112,7 +113,7 @@ local void authenticate(int pid, struct LoginPacket *lp, int lplen,
 			ad.code = AUTH_NOPERMISSION;
 	}
 
-	done(pid, &ad);
+	done(p, &ad);
 }
 
 
@@ -123,16 +124,20 @@ local helptext_t passwd_help =
 "the password used by the auth_file authentication mechanism. The billing\n"
 "server is not involved at all.\n";
 
-local void Cpasswd(const char *params, int pid, const Target *target)
+local void Cpasswd(const char *params, Player *p, const Target *target)
 {
+	Ichat *chat = mm->GetInterface(I_CHAT, ALLARENAS);
 	char hex[33];
 
 	if (!*params)
 		return;
 
-	hash_password(pd->players[pid].name, params, hex);
+	hash_password(p->name, params, hex);
 
-	cfg->SetStr(pwdfile, "users", pd->players[pid].name, hex, NULL);
+	cfg->SetStr(pwdfile, "users", p->name, hex, NULL);
+
+	if (chat) chat->SendMessage(p, "Password set");
+	mm->ReleaseInterface(chat);
 }
 
 
@@ -144,10 +149,11 @@ local Iauth myauth =
 };
 
 
-EXPORT int MM_auth_file(int action, Imodman *mm, int arena)
+EXPORT int MM_auth_file(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
+		mm = mm_;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);

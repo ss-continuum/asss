@@ -22,9 +22,9 @@
 #define MAXPLAYING(ch) cfg->GetInt(ch, "General", "MaxPlaying", 100)
 
 
-local void Initial(int pid, int *ship, int *freq);
-local void Ship(int pid, int *ship, int *freq);
-local void Freq(int pid, int *ship, int *freq);
+local void Initial(Player *p, int *ship, int *freq);
+local void Ship(Player *p, int *ship, int *freq);
+local void Freq(Player *p, int *ship, int *freq);
 
 local Ifreqman _fm =
 {
@@ -72,29 +72,33 @@ EXPORT int MM_fm_normal(int action, Imodman *_mm, Arena *arena)
 
 local int count_current_playing(Arena *arena)
 {
-	int playing = 0, pid;
-	pd->LockStatus();
-	for (pid = 0; pid < MAXPLAYERS; pid++)
-		if (pd->players[pid].status == S_PLAYING &&
-		    pd->players[pid].arena == arena &&
-		    pd->players[pid].shiptype != SPEC)
+	Player *p;
+	Link *link;
+	int playing = 0;
+	pd->Lock();
+	FOR_EACH_PLAYER(p)
+		if (p->status == S_PLAYING &&
+		    p->arena == arena &&
+		    p->p_ship != SPEC)
 			playing++;
-	pd->UnlockStatus();
+	pd->Unlock();
 	return playing;
 }
 
 
-local int count_freq(Arena *arena, int freq, int excl, int inclspec)
+local int count_freq(Arena *arena, int freq, Player *excl, int inclspec)
 {
-	int t = 0, i;
-	pd->LockStatus();
-	for (i = 0; i < MAXPLAYERS; i++)
-		if (pd->players[i].arena == arena &&
-		    pd->players[i].freq == freq &&
-		    i != excl &&
-		    ( pd->players[i].shiptype < SPEC || inclspec ) )
+	Player *p;
+	Link *link;
+	int t = 0;
+	pd->Lock();
+	FOR_EACH_PLAYER(p)
+		if (p->arena == arena &&
+		    p->p_freq == freq &&
+		    p != excl &&
+		    ( p->p_ship < SPEC || inclspec ) )
 			t++;
-	pd->UnlockStatus();
+	pd->Unlock();
 	return t;
 }
 
@@ -123,9 +127,11 @@ local int FindLegalShip(Arena *arena, int freq, int ship)
 }
 
 
-local int BalanceFreqs(Arena *arena, int excl, int inclspec)
+local int BalanceFreqs(Arena *arena, Player *excl, int inclspec)
 {
-	int counts[CFG_MAX_DESIRED] = { 0 }, i, desired, min = MAXPLAYERS, best = -1, max;
+	Player *i;
+	Link *link;
+	int counts[CFG_MAX_DESIRED] = { 0 }, desired, min = MAXPLAYERS, best = -1, max, j;
 
 	max = MAXTEAM(arena->cfg);
 	/* cfghelp: Team:DesiredTeams, arena, int, def: 2
@@ -138,20 +144,20 @@ local int BalanceFreqs(Arena *arena, int excl, int inclspec)
 	if (desired > CFG_MAX_DESIRED) desired = CFG_MAX_DESIRED;
 
 	/* get counts */
-	pd->LockStatus();
-	for (i = 0; i < MAXPLAYERS; i++)
-		if (pd->players[i].arena == arena &&
-		    pd->players[i].freq < desired &&
+	pd->Lock();
+	FOR_EACH_PLAYER(i)
+		if (i->arena == arena &&
+		    i->p_freq < desired &&
 		    i != excl &&
-		    ( pd->players[i].shiptype < SPEC || inclspec ) )
-			counts[pd->players[i].freq]++;
-	pd->UnlockStatus();
+		    ( i->p_ship < SPEC || inclspec ) )
+			counts[i->p_freq]++;
+	pd->Unlock();
 
-	for (i = 0; i < desired; i++)
-		if (counts[i] < min)
+	for (j = 0; j < desired; j++)
+		if (counts[j] < min)
 		{
-			min = counts[i];
-			best = i;
+			min = counts[j];
+			best = j;
 		}
 
 	if (best == -1) /* shouldn't happen */
@@ -161,21 +167,21 @@ local int BalanceFreqs(Arena *arena, int excl, int inclspec)
 	else /* no spots within desired freqs */
 	{
 		/* try incrementing freqs until we find one with < max players */
-		i = desired;
-		while (count_freq(arena, i, excl, inclspec) >= max)
-			i++;
-		return i;
+		j = desired;
+		while (count_freq(arena, j, excl, inclspec) >= max)
+			j++;
+		return j;
 	}
 }
 
 
-void Initial(int pid, int *ship, int *freq)
+void Initial(Player *p, int *ship, int *freq)
 {
 	Arena *arena;
 	int f, s = *ship;
 	ConfigHandle ch;
 
-	arena = pd->players[pid].arena;
+	arena = p->arena;
 
 	if (!arena) return;
 
@@ -192,7 +198,7 @@ void Initial(int pid, int *ship, int *freq)
 	{
 		/* we have to assign him to a freq */
 		int inclspec = INCLSPEC(ch);
-		f = BalanceFreqs(arena, pid, inclspec);
+		f = BalanceFreqs(arena, p, inclspec);
 		/* and make sure the ship is still legal */
 		s = FindLegalShip(arena, f, s);
 	}
@@ -201,13 +207,13 @@ void Initial(int pid, int *ship, int *freq)
 }
 
 
-void Ship(int pid, int *ship, int *freq)
+void Ship(Player *p, int *ship, int *freq)
 {
 	Arena *arena;
 	int specfreq, f = *freq, s = *ship;
 	ConfigHandle ch;
 
-	arena = pd->players[pid].arena;
+	arena = p->arena;
 
 	if (!arena) return;
 
@@ -225,21 +231,21 @@ void Ship(int pid, int *ship, int *freq)
 		if (count_current_playing(arena) >= MAXPLAYING(ch))
 		{
 			/* too many playing, cancel request */
-			s = pd->players[pid].shiptype;
-			f = pd->players[pid].freq;
+			s = p->p_ship;
+			f = p->p_freq;
 			if (chat)
-				chat->SendMessage(pid,
+				chat->SendMessage(p,
 						"There are too many people playing in this arena.");
 		}
 		else
 		{
 			/* check if he's changing from spec */
-			int oldfreq = pd->players[pid].freq;
+			int oldfreq = p->p_freq;
 			if (oldfreq == specfreq)
 			{
 				/* we have to assign him to a freq */
 				int inclspec = INCLSPEC(ch);
-				f = BalanceFreqs(arena, pid, inclspec);
+				f = BalanceFreqs(arena, p, inclspec);
 				/* and make sure the ship is still legal */
 				s = FindLegalShip(arena, f, s);
 			}
@@ -255,14 +261,14 @@ void Ship(int pid, int *ship, int *freq)
 }
 
 
-void Freq(int pid, int *ship, int *freq)
+void Freq(Player *p, int *ship, int *freq)
 {
 	Arena *arena;
 	int specfreq, f = *freq, s = *ship;
 	int count, max, inclspec, maxfreq, privlimit;
 	ConfigHandle ch;
 
-	arena = pd->players[pid].arena;
+	arena = p->arena;
 
 	if (!arena) return;
 
@@ -291,14 +297,14 @@ void Freq(int pid, int *ship, int *freq)
 
 	if (f < 0 || f > maxfreq)
 		/* he requested a bad freq. drop him elsewhere. */
-		f = BalanceFreqs(arena, pid, inclspec);
+		f = BalanceFreqs(arena, p, inclspec);
 	else
 	{
 		/* check to make sure the new freq is ok */
-		count = count_freq(arena, f, pid, inclspec);
+		count = count_freq(arena, f, p, inclspec);
 		if (max > 0 && count >= max)
 			/* the freq has too many people, assign him to another */
-			f = BalanceFreqs(arena, pid, inclspec);
+			f = BalanceFreqs(arena, p, inclspec);
 	}
 
 	/* make sure he has an appropriate ship for this freq */
@@ -307,13 +313,13 @@ void Freq(int pid, int *ship, int *freq)
 	/* check if this change brought him out of spec and there are too
 	 * many people playing. */
 	if (s != SPEC &&
-	    pd->players[pid].shiptype == SPEC &&
+	    p->p_ship == SPEC &&
 	    count_current_playing(arena) >= MAXPLAYING(ch))
 	{
-		s = pd->players[pid].shiptype;
-		f = pd->players[pid].freq;
+		s = p->p_ship;
+		f = p->p_freq;
 		if (chat)
-			chat->SendMessage(pid,
+			chat->SendMessage(p,
 					"There are too many people playing in this arena.");
 	}
 

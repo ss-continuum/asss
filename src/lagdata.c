@@ -8,10 +8,6 @@
 #define MAX_PING 10000
 #define PLOSS_MIN_PACKETS 20
 
-local pthread_mutex_t mtx;
-#define LOCK() pthread_mutex_lock(&mtx)
-#define UNLOCK() pthread_mutex_unlock(&mtx)
-
 #ifdef CFG_PEDANTIC_LOCKING
 #define PEDANTIC_LOCK() LOCK()
 #define PEDANTIC_UNLOCK() UNLOCK()
@@ -19,6 +15,12 @@ local pthread_mutex_t mtx;
 #define PEDANTIC_LOCK()
 #define PEDANTIC_UNLOCK()
 #endif
+
+local pthread_mutex_t mtx;
+#define LOCK() pthread_mutex_lock(&mtx)
+#define UNLOCK() pthread_mutex_unlock(&mtx)
+
+local Iplayerdata *pd;
 
 
 /* we're going to keep track of ppk pings and rel delay pings
@@ -63,32 +65,14 @@ typedef struct
 
 
 /* an array of pointers to lagdata */
-local LagData *data[MAXPLAYERS];
+local int lagkey;
 
-
-
-local void clear_lagdata(LagData *ld)
-{
-	memset(ld, 0, sizeof(*ld));
-}
-
-local LagData * new_lagdata()
-{
-	LagData *ld = amalloc(sizeof(*ld));
-	clear_lagdata(ld);
-	return ld;
-}
-
-local void free_lagdata(LagData *ld)
-{
-	afree(ld);
-}
 
 
 local void add_ping(struct PingData *pd, int ping)
 {
 	/* prevent horribly incorrect pings from messing up stats */
-	if (ping > MAX_PING)
+	if (ping > MAX_PING || ping < -MAX_PING)
 		ping = MAX_PING;
 
 	pd->current = ping;
@@ -101,154 +85,133 @@ local void add_ping(struct PingData *pd, int ping)
 }
 
 
-local void Position(int pid, int ping, unsigned int wpnsent)
+local void Position(Player *p, int ping, unsigned int wpnsent)
 {
+	LagData *ld = PPDATA(p, lagkey);
 	PEDANTIC_LOCK();
-	if (data[pid])
-	{
-		add_ping(&data[pid]->pping, ping);
-		data[pid]->lastwpnsent = wpnsent;
-	}
+	add_ping(&ld->pping, ping);
+	ld->lastwpnsent = wpnsent;
 	PEDANTIC_UNLOCK();
 }
 
 
-local void RelDelay(int pid, int ping)
+local void RelDelay(Player *p, int ping)
 {
+	LagData *ld = PPDATA(p, lagkey);
 	PEDANTIC_LOCK();
-	if (data[pid])
-		add_ping(&data[pid]->rping, ping/2);
+	add_ping(&ld->rping, ping/2);
 	PEDANTIC_UNLOCK();
 }
 
 
-local void ClientLatency(int pid, struct ClientLatencyData *d)
+local void ClientLatency(Player *p, struct ClientLatencyData *d)
 {
+	LagData *ld = PPDATA(p, lagkey);
 	PEDANTIC_LOCK();
-	if (data[pid])
-	{
-		data[pid]->cping = *d;
-		data[pid]->wpnrcvd = d->weaponcount;
-		data[pid]->wpnsent = data[pid]->lastwpnsent;
-	}
+	ld->cping = *d;
+	ld->wpnrcvd = d->weaponcount;
+	ld->wpnsent = ld->lastwpnsent;
 	PEDANTIC_UNLOCK();
 }
 
 
-local void ClientPLoss(int pid, struct ClientPLossData *d)
+local void ClientPLoss(Player *p, struct ClientPLossData *d)
 {
+	LagData *ld = PPDATA(p, lagkey);
 	PEDANTIC_LOCK();
-	if (data[pid])
-		data[pid]->ploss = *d;
+	ld->ploss = *d;
 	PEDANTIC_UNLOCK();
 }
 
 
-local void RelStats(int pid, struct ReliableLagData *d)
+local void RelStats(Player *p, struct ReliableLagData *d)
 {
+	LagData *ld = PPDATA(p, lagkey);
 	PEDANTIC_LOCK();
-	if (data[pid])
-		data[pid]->reldata = *d;
-	PEDANTIC_UNLOCK();
-}
-
-
-
-local void QueryPPing(int pid, struct PingSummary *p)
-{
-	PEDANTIC_LOCK();
-	if (data[pid])
-	{
-		struct PingData *pd = &data[pid]->pping;
-		p->cur = pd->current;
-		p->avg = pd->avg;
-		p->min = pd->min;
-		p->max = pd->max;
-	}
-	else
-		memset(p, 0, sizeof(*p));
-	PEDANTIC_UNLOCK();
-}
-
-
-local void QueryCPing(int pid, struct PingSummary *p)
-{
-	PEDANTIC_LOCK();
-	if (data[pid])
-	{
-		p->cur = data[pid]->cping.lastping;
-		p->avg = data[pid]->cping.averageping;
-		p->min = data[pid]->cping.lowestping;
-		p->max = data[pid]->cping.highestping;
-		/* special stuff for client ping: */
-		p->s2cslowtotal = data[pid]->cping.s2cslowtotal;
-		p->s2cfasttotal = data[pid]->cping.s2cfasttotal;
-		p->s2cslowcurrent = data[pid]->cping.s2cslowcurrent;
-		p->s2cfastcurrent = data[pid]->cping.s2cfastcurrent;
-	}
-	else
-		memset(p, 0, sizeof(*p));
-	PEDANTIC_UNLOCK();
-}
-
-
-local void QueryRPing(int pid, struct PingSummary *p)
-{
-	PEDANTIC_LOCK();
-	if (data[pid])
-	{
-		struct PingData *pd = &data[pid]->rping;
-		p->cur = pd->current;
-		p->avg = pd->avg;
-		p->min = pd->min;
-		p->max = pd->max;
-	}
-	else
-		memset(p, 0, sizeof(*p));
+	ld->reldata = *d;
 	PEDANTIC_UNLOCK();
 }
 
 
 
-local void QueryPLoss(int pid, struct PLossSummary *d)
+local void QueryPPing(Player *p, struct PingSummary *ping)
 {
+	LagData *ld = PPDATA(p, lagkey);
+	struct PingData *pd = &ld->pping;
+
 	PEDANTIC_LOCK();
-	if (data[pid])
-	{
-		int s, r;
-		s = data[pid]->ploss.s_pktsent;
-		r = data[pid]->ploss.c_pktrcvd;
-		d->s2c = s > PLOSS_MIN_PACKETS ? (double)(s - r) / (double)s : 0.0;
-
-		s = data[pid]->ploss.c_pktsent;
-		r = data[pid]->ploss.s_pktrcvd;
-		d->c2s = s > PLOSS_MIN_PACKETS ? (double)(s - r) / (double)s : 0.0;
-
-		s = data[pid]->wpnsent;
-		r = data[pid]->wpnrcvd;
-		d->s2cwpn = s > PLOSS_MIN_PACKETS ? (double)(s - r) / (double)s : 0.0;
-	}
-	else
-		memset(d, 0, sizeof(*d));
+	ping->cur = pd->current;
+	ping->avg = pd->avg;
+	ping->min = pd->min;
+	ping->max = pd->max;
 	PEDANTIC_UNLOCK();
 }
 
 
-local void QueryRelLag(int pid, struct ReliableLagData *d)
+local void QueryCPing(Player *p, struct PingSummary *ping)
 {
+	LagData *ld = PPDATA(p, lagkey);
 	PEDANTIC_LOCK();
-	if (data[pid])
-		*d = data[pid]->reldata;
-	else
-		memset(d, 0, sizeof(*d));
+	ping->cur = ld->cping.lastping;
+	ping->avg = ld->cping.averageping;
+	ping->min = ld->cping.lowestping;
+	ping->max = ld->cping.highestping;
+	/* special stuff for client ping: */
+	ping->s2cslowtotal = ld->cping.s2cslowtotal;
+	ping->s2cfasttotal = ld->cping.s2cfasttotal;
+	ping->s2cslowcurrent = ld->cping.s2cslowcurrent;
+	ping->s2cfastcurrent = ld->cping.s2cfastcurrent;
+	PEDANTIC_UNLOCK();
+}
+
+
+local void QueryRPing(Player *p, struct PingSummary *ping)
+{
+	LagData *ld = PPDATA(p, lagkey);
+	struct PingData *pd = &ld->rping;
+	PEDANTIC_LOCK();
+	ping->cur = pd->current;
+	ping->avg = pd->avg;
+	ping->min = pd->min;
+	ping->max = pd->max;
+	PEDANTIC_UNLOCK();
+}
+
+
+
+local void QueryPLoss(Player *p, struct PLossSummary *d)
+{
+	LagData *ld = PPDATA(p, lagkey);
+	int s, r;
+	PEDANTIC_LOCK();
+	s = ld->ploss.s_pktsent;
+	r = ld->ploss.c_pktrcvd;
+	d->s2c = s > PLOSS_MIN_PACKETS ? (double)(s - r) / (double)s : 0.0;
+
+	s = ld->ploss.c_pktsent;
+	r = ld->ploss.s_pktrcvd;
+	d->c2s = s > PLOSS_MIN_PACKETS ? (double)(s - r) / (double)s : 0.0;
+
+	s = ld->wpnsent;
+	r = ld->wpnrcvd;
+	d->s2cwpn = s > PLOSS_MIN_PACKETS ? (double)(s - r) / (double)s : 0.0;
+	PEDANTIC_UNLOCK();
+}
+
+
+local void QueryRelLag(Player *p, struct ReliableLagData *d)
+{
+	LagData *ld = PPDATA(p, lagkey);
+	PEDANTIC_LOCK();
+	*d = ld->reldata;
 	PEDANTIC_UNLOCK();
 }
 
 
 local void do_hist(
-		int pid,
+		Player *p,
 		struct PingData *pd,
-		void (*callback)(int pid, int bucket, int count, int maxcount, void *clos),
+		void (*callback)(Player *p, int bucket, int count, int maxcount, void *clos),
 		void *clos)
 {
 	int i, max = 0;
@@ -258,61 +221,35 @@ local void do_hist(
 			max = pd->buckets[i];
 
 	for (i = 0; i < MAX_BUCKET; i++)
-		callback(pid, i, pd->buckets[i], max, clos);
+		callback(p, i, pd->buckets[i], max, clos);
 }
 
-local void DoPHistogram(int pid,
-		void (*callback)(int pid, int bucket, int count, int maxcount, void *clos),
+local void DoPHistogram(Player *p,
+		void (*callback)(Player *p, int bucket, int count, int maxcount, void *clos),
 		void *clos)
 {
+	LagData *ld = PPDATA(p, lagkey);
 	PEDANTIC_LOCK();
-	if (data[pid])
-		do_hist(pid, &data[pid]->pping, callback, clos);
+	do_hist(p, &ld->pping, callback, clos);
 	PEDANTIC_UNLOCK();
 }
 
-local void DoRHistogram(int pid,
-		void (*callback)(int pid, int bucket, int count, int maxcount, void *clos),
+local void DoRHistogram(Player *p,
+		void (*callback)(Player *p, int bucket, int count, int maxcount, void *clos),
 		void *clos)
 {
+	LagData *ld = PPDATA(p, lagkey);
 	PEDANTIC_LOCK();
-	if (data[pid])
-		do_hist(pid, &data[pid]->rping, callback, clos);
+	do_hist(p, &ld->rping, callback, clos);
 	PEDANTIC_UNLOCK();
 }
 
 
-local void paction(int pid, int action, int arena)
+local void paction(Player *p, int action, Arena *arena)
 {
+	LagData *ld = PPDATA(p, lagkey);
 	if (action == PA_CONNECT)
-	{
-		LOCK();
-
-		if (data[pid])
-		{
-			/* lm->LogP(L_WARN, "lagdata", pid, "LagData struct already exists"); */
-			free_lagdata(data[pid]);
-		}
-
-		data[pid] = new_lagdata();
-
-		UNLOCK();
-	}
-	else if (action == PA_DISCONNECT)
-	{
-		LOCK();
-
-		if (!data[pid])
-		{
-			/* lm->LogP(L_WARN, "lagdata", pid, "No LagData struct exists"); */
-		}
-		else
-			free_lagdata(data[pid]);
-
-		data[pid] = NULL;
-
-		UNLOCK();
-	}
+		memset(ld, 0, sizeof(*ld));
 }
 
 
@@ -334,10 +271,15 @@ local Ilagquery lqint =
 };
 
 
-EXPORT int MM_lagdata(int action, Imodman *mm, int arena)
+EXPORT int MM_lagdata(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		if (!pd) return MM_FAIL;
+		lagkey = pd->AllocatePlayerData(sizeof(LagData));
+		if (lagkey == -1) return MM_FAIL;
+
 		pthread_mutex_init(&mtx, NULL);
 
 		mm->RegCallback(CB_PLAYERACTION, paction, ALLARENAS);
@@ -355,6 +297,8 @@ EXPORT int MM_lagdata(int action, Imodman *mm, int arena)
 			return MM_FAIL;
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
 		pthread_mutex_destroy(&mtx);
+		pd->FreePlayerData(lagkey);
+		mm->ReleaseInterface(pd);
 		return MM_OK;
 	}
 	return MM_FAIL;

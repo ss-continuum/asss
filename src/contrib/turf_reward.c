@@ -91,6 +91,7 @@
 // interfaces to various other modules I will probably have to use
 local Imodman     *mm;                  // to get interfaces
 local Iplayerdata *playerdata;          // player data
+#define pd playerdata
 local Iarenaman   *arenaman;            // arena manager, to get conf handle for arena
 local Iflags      *flagsman;            // to access flag tags and info
 local Iconfig     *config;              // conf (for arena .conf) services
@@ -111,7 +112,7 @@ local int mtxkey; // to keep things thread safe when accessing tr
 /* function prototypes */
 // connected to callbacks
 local void arenaAction(Arena *arena, int action);                 // arena creation and destruction, or conf changed
-local void flagTag(Arena *arena, int pid, int fid, int oldfreq);  // does everything necessary when a flag is claimed
+local void flagTag(Arena *arena, Player *p, int fid, int oldfreq);  // does everything necessary when a flag is claimed
 local int turfRewardTimer(void *v);                     // called when a reward is due to be processed
 
 // connected to interface
@@ -139,13 +140,13 @@ local void scorePkt(LinkedList freqs, byte *pkt);
 
 /* functions for commands */
 // standard user commands
-local void C_turfTime(const char *, int, const Target *);       // to find out how much time till next ding
-local void C_turfInfo(const char *, int, const Target *);       // to get settings info on minimum requirements, etc
+local void C_turfTime(const char *, Player *, const Target *);       // to find out how much time till next ding
+local void C_turfInfo(const char *, Player *, const Target *);       // to get settings info on minimum requirements, etc
 
 // mod commands
-local void C_turfResetFlags(const char *, int, const Target *); // to reset the flag data on all flags
-local void C_forceDing(const char *, int, const Target *);      // to force a ding to occur, does not change the timer
-local void C_turfResetTimer(const char *, int, const Target *); // to reset the timer
+local void C_turfResetFlags(const char *, Player *, const Target *); // to reset the flag data on all flags
+local void C_forceDing(const char *, Player *, const Target *);      // to force a ding to occur, does not change the timer
+local void C_turfResetTimer(const char *, Player *, const Target *); // to reset the timer
 
 local helptext_t turftime_help, turfinfo_help, turfresetflags_help, turfresettimer_help, forceding_help;
 
@@ -283,7 +284,6 @@ local void arenaAction(Arena *arena, int action)
 		tr->set_weights          = 0;
 		tr->weights              = NULL;
 
-		tr->arena          = NULL;
 		tr->dingTime       = 0;
 		tr->timer_initial  = 0;
 		tr->timer_interval = 0;
@@ -315,6 +315,7 @@ local void arenaAction(Arena *arena, int action)
 		tr->trp = mm->GetInterface(I_TURFREWARD_POINTS, arena);
 
 		// set up the timer for arena
+#if 0
 		if(tr->multi_arena_id)
 		{
 			// multi arena enabled, use the id as the key for the timer
@@ -323,11 +324,11 @@ local void arenaAction(Arena *arena, int action)
 			mainloop->SetTimer(turfRewardTimer, tr->timer_initial, tr->timer_interval, &tr->arena, tr->multi_arena_id);
 		}
 		else
+#endif
 		{
 			// single arena only
-			tr->arena = arena;
 			tr->dingTime = GTC();
-			mainloop->SetTimer(turfRewardTimer, tr->timer_initial, tr->timer_interval, &tr->arena, arena);
+			mainloop->SetTimer(turfRewardTimer, tr->timer_initial, tr->timer_interval, arena, arena);
 		}
 	}
 	else if (action == AA_DESTROY)
@@ -369,6 +370,13 @@ local void arenaAction(Arena *arena, int action)
 	}
 
 	UNLOCK_STATUS(arena);
+
+	if (action == AA_DESTROY)
+	{
+		afree(tr);
+		*p_tr = NULL;
+		pthread_mutex_destroy((pthread_mutex_t*)P_ARENA_DATA(arena, mtxkey));
+	}
 }
 
 
@@ -494,7 +502,7 @@ local void clearFlagData(Arena *arena, int init)
 }
 
 
-local void flagTag(Arena *arena, int pid, int fid, int oldfreq)
+local void flagTag(Arena *arena, Player *p, int fid, int oldfreq)
 {
 	struct TurfArena *tr, **p_tr = P_ARENA_DATA(arena, trkey);
 	int freq=-1;
@@ -510,7 +518,7 @@ local void flagTag(Arena *arena, int pid, int fid, int oldfreq)
 
 	if(fid < 0 || fid >= tr->numFlags)
 	{
-		logman->LogP(L_MALICIOUS, "turf_reward", pid,
+		logman->LogP(L_MALICIOUS, "turf_reward", p,
 			"nonexistent flag tagged: %d not in 0..%d",
 			fid, tr->numFlags-1);
 		return;
@@ -518,14 +526,14 @@ local void flagTag(Arena *arena, int pid, int fid, int oldfreq)
 
 	LOCK_STATUS(arena);
 
-	freq = playerdata->players[pid].freq;
+	freq = p->p_freq;
 	pTF = &tr->flags[fid];
 
 	if(pTF->freq==freq)
 	{
 		// flag was already owned by that team
 		UNLOCK_STATUS(arena);
-		logman->LogP(L_MALICIOUS, "turf_reward", pid, "Flag tagged was already owned by player's team.");
+		logman->LogP(L_MALICIOUS, "turf_reward", p, "Flag tagged was already owned by player's team.");
 		return;
 	}
 
@@ -568,7 +576,7 @@ local void flagTag(Arena *arena, int pid, int fid, int oldfreq)
 			r_freq   = pTF->freq      = freq;
 			r_dings  = pTF->dings     = oPtr->dings;
 			r_weight = pTF->weight    = oPtr->weight;
-			r_pid    = pTF->taggerPID = pid;  // pid of player who recovered flag now gets taggerPID
+			r_pid    = pTF->taggerPID = p->pid;  // pid of player who recovered flag now gets taggerPID
 
 			// remove node from linked list
 			LLRemove(&pTF->old, oPtr);
@@ -588,15 +596,15 @@ local void flagTag(Arena *arena, int pid, int fid, int oldfreq)
 		pTF->dings     = 0;
 		pTF->weight    = calculateWeight(pTF->dings);
 		//pTF->weight    = calcWeight(arena, pTF->dings);
-		pTF->taggerPID = pid;
+		pTF->taggerPID = p->pid;
 	}
 
 	UNLOCK_STATUS(arena);
 
-	logman->LogP(L_DRIVEL, "turf_reward", pid, "Flag was tagged");
+	logman->LogP(L_DRIVEL, "turf_reward", p, "Flag was tagged");
 
 	// finally do whatever callbacks are necessary
-	DO_CBS(CB_TURFTAG, arena, TurfTagFunc, (arena, pid, fid));
+	DO_CBS(CB_TURFTAG, arena, TurfTagFunc, (arena, p, fid));
 	if(r_freq!=-1)
 		DO_CBS(CB_TURFRECOVER, arena, TurfRecoverFunc, (arena, fid, r_pid, r_freq, r_dings, r_weight));
 	if(l_freq!=-1)
@@ -704,7 +712,7 @@ local void doReward(Arena *arena)
 
 			// fill in packet data and send it to the arena
 			scorePkt(tr->freqs, pkt + 1);
-			net->SendToArena(arena, -1, pkt, freqcount*4+1, NET_RELIABLE);
+			net->SendToArena(arena, NULL, pkt, freqcount*4+1, NET_RELIABLE);
 
 			afree(pkt);
 			pkt = NULL; /* just to be safe */
@@ -752,8 +760,10 @@ local void scorePkt(LinkedList freqs, byte *pkt)
 
 local void preCalc(Arena *arena, struct TurfArena *tr)
 {
-	int x;
 	struct FreqInfo *pFreq;
+	Player *pdPtr;
+	Link *link;
+	int x;
 
 	// make sure these are clear (they should be already)
 	tr->numPlayers    = 0;
@@ -783,41 +793,40 @@ local void preCalc(Arena *arena, struct TurfArena *tr)
 	}
 
 	// go through all players and update freq info on numPlayers
-	playerdata->LockStatus();
-	for(x=0 ; x<MAXPLAYERS ; x++)
+	playerdata->Lock();
+	FOR_EACH_PLAYER(pdPtr)
 	{
-		struct PlayerData *pdPtr = &playerdata->players[x];
-		if ( (pdPtr->arena==arena) && (pdPtr->shiptype!=SPEC) && (pdPtr->status==S_PLAYING) )
+		if ( (pdPtr->arena==arena) && (pdPtr->p_ship!=SPEC) && (pdPtr->status==S_PLAYING) )
 		{
-			pFreq = getFreqPtr(arena, pdPtr->freq);
+			pFreq = getFreqPtr(arena, pdPtr->p_freq);
 			pFreq->numPlayers++;
 			tr->numPlayers++;
 		}
 	}
-	playerdata->UnlockStatus();
+	playerdata->Unlock();
 }
 
 
 local void awardPts(Arena *arena)
 {
-	int x;
+	Link *link;
+	Player *x;
 
 	// this is where we award each player that deserves points
-	playerdata->LockStatus();
-	for(x=0 ; x<MAXPLAYERS ; x++)
+	playerdata->Lock();
+	FOR_EACH_PLAYER(x)
 	{
-		if (playerdata->players[x].arena == arena)
+		if (x->arena == arena)
 		{
 			unsigned int points;
-			struct FreqInfo *pFreq;
 
 			// player is in arena
-			if ((playerdata->players[x].shiptype == SPEC) || (playerdata->players[x].status!=S_PLAYING))
+			if ((x->p_ship == SPEC) || (x->status!=S_PLAYING))
 			{
 				// player is in spec/not playing
 				chat->SendSoundMessage(x, SOUND_DING, "Reward: 0 (not playing)");
 			}
-			else if ( (points = (pFreq = getFreqPtr(arena, playerdata->players[x].freq))->numPoints) )
+			else if ( (points = (getFreqPtr(arena, x->p_freq))->numPoints) )
 			{
 				// player is on a freq that recieved points
 				stats->IncrementStat(x, STAT_FLAG_POINTS, points);            // award player
@@ -830,7 +839,7 @@ local void awardPts(Arena *arena)
 			}
 		}
 	}
-	playerdata->UnlockStatus();
+	playerdata->Unlock();
 }
 
 
@@ -881,9 +890,9 @@ local helptext_t turftime_help =
 "Targets: none\n"
 "Args: none\n"
 "Displays the amount of time till next ding.\n";
-local void C_turfTime(const char *params, int pid, const Target *target)
+local void C_turfTime(const char *params, Player *p, const Target *target)
 {
-	Arena *arena = playerdata->players[pid].arena;
+	Arena *arena = p->arena;
 	unsigned int time;
 	struct TurfArena *tr, **p_tr = P_ARENA_DATA(arena, trkey);
 	if (!arena || !*p_tr) return; else tr = *p_tr;
@@ -895,7 +904,7 @@ local void C_turfTime(const char *params, int pid, const Target *target)
 	UNLOCK_STATUS(arena);
 
 	if(time!=0)
-		chat->SendMessage(pid, "Next ding in: %d seconds.", time);
+		chat->SendMessage(p, "Next ding in: %d seconds.", time);
 }
 
 
@@ -904,26 +913,26 @@ local helptext_t turfinfo_help =
 "Targets: none\n"
 "Args: none\n"
 "Displays the current settings / requirements to recieve awards.\n";
-local void C_turfInfo(const char *params, int pid, const Target *target)
+local void C_turfInfo(const char *params, Player *p, const Target *target)
 {
-	Arena *arena = playerdata->players[pid].arena;
+	Arena *arena = p->arena;
 	struct TurfArena *tr, **p_tr = P_ARENA_DATA(arena, trkey);
 	if (!arena || !*p_tr) return; else tr = *p_tr;
 
 	LOCK_STATUS(arena);
-	chat->SendMessage(pid, "+---- Arena Requirements ----+");
-	chat->SendMessage(pid, "   Minimum players: %d", tr->min_players_in_arena);
-	chat->SendMessage(pid, "     Minimum teams: %d", tr->min_teams);
-	chat->SendMessage(pid, "+---- Team Requirements  ----+");
-	chat->SendMessage(pid, "   Minimum players: %d", tr->min_players_on_freq);
-	chat->SendMessage(pid, "   Minimum # flags: %d", tr->min_flags);
-	chat->SendMessage(pid, "   Minimum %% flags: %d", tr->min_percent_flags);
-	chat->SendMessage(pid, " Minimum # weights: %d", tr->min_weights);
-	chat->SendMessage(pid, " Minimum %% weights: %d", tr->min_percent_weights);
-	chat->SendMessage(pid, "  Jackpot modifier: %d", tr->jackpot_modifier);
-	chat->SendMessage(pid, "+---- Misc. Useful Info  ----+");
-	chat->SendMessage(pid, "        Ding every: %d seconds", tr->timer_interval/100);
-	chat->SendMessage(pid, "   Recovery cutoff: %d dings", tr->recover_dings);
+	chat->SendMessage(p, "+---- Arena Requirements ----+");
+	chat->SendMessage(p, "   Minimum players: %d", tr->min_players_in_arena);
+	chat->SendMessage(p, "     Minimum teams: %d", tr->min_teams);
+	chat->SendMessage(p, "+---- Team Requirements  ----+");
+	chat->SendMessage(p, "   Minimum players: %d", tr->min_players_on_freq);
+	chat->SendMessage(p, "   Minimum # flags: %d", tr->min_flags);
+	chat->SendMessage(p, "   Minimum %% flags: %d", tr->min_percent_flags);
+	chat->SendMessage(p, " Minimum # weights: %d", tr->min_weights);
+	chat->SendMessage(p, " Minimum %% weights: %d", tr->min_percent_weights);
+	chat->SendMessage(p, "  Jackpot modifier: %d", tr->jackpot_modifier);
+	chat->SendMessage(p, "+---- Misc. Useful Info  ----+");
+	chat->SendMessage(p, "        Ding every: %d seconds", tr->timer_interval/100);
+	chat->SendMessage(p, "   Recovery cutoff: %d dings", tr->recover_dings);
 	UNLOCK_STATUS(arena);
 }
 
@@ -933,9 +942,9 @@ local helptext_t turfresetflags_help =
 "Targets: none\n"
 "Args: none\n"
 "Resets the turf_reward module's and flags module's flag data in your current arena.\n";
-local void C_turfResetFlags(const char *params, int pid, const Target *target)
+local void C_turfResetFlags(const char *params, Player *p, const Target *target)
 {
-	Arena *arena = playerdata->players[pid].arena;
+	Arena *arena = p->arena;
 	if (!arena) return;
 	flagGameReset(arena);  // does the locking for us already
 }
@@ -946,9 +955,9 @@ local helptext_t forceding_help =
 "Targets: none\n"
 "Args: none\n"
 "Forces a reward to take place immediately in your current arena.\n";
-local void C_forceDing(const char *params, int pid, const Target *target)
+local void C_forceDing(const char *params, Player *p, const Target *target)
 {
-	Arena *arena = playerdata->players[pid].arena;
+	Arena *arena = p->arena;
 	if (!arena) return;
 	doReward(arena);  // does the locking for us already
 }
@@ -959,9 +968,9 @@ local helptext_t turfresettimer_help =
 "Targets: none\n"
 "Args: none\n"
 "Resets the ding timer in your current arena.\n";
-local void C_turfResetTimer(const char *params, int pid, const Target *target)
+local void C_turfResetTimer(const char *params, Player *p, const Target *target)
 {
-	Arena *arena = playerdata->players[pid].arena;
+	Arena *arena = p->arena;
 	if (!arena) return;
 	dingTimerReset(arena);  // does the locking for us already
 }
@@ -987,7 +996,7 @@ local void flagGameReset(Arena *arena)
 		struct FlagData *flagPtr = &afd->flags[x];
 		flagPtr->state    = FLAG_ONMAP;
 		flagPtr->freq     = -1;
-		flagPtr->carrier  = -1;
+		flagPtr->carrier  = NULL;
 	}
 	flagsman->ReleaseFlagData(arena);
 
@@ -1007,9 +1016,8 @@ local void dingTimerReset(Arena *arena)
 		mainloop->ClearTimer(turfRewardTimer, arena);
 
 		// now create a new timer
-		tr->arena = arena;
 		tr->dingTime = GTC();
-		mainloop->SetTimer(turfRewardTimer, tr->timer_initial, tr->timer_interval, &tr->arena, arena);
+		mainloop->SetTimer(turfRewardTimer, tr->timer_initial, tr->timer_interval, arena, arena);
 
 		chat->SendArenaSoundMessage(arena, SOUND_BEEP1, "Notice: Reward timer reset. Initial:%i Interval:%i", tr->timer_initial, tr->timer_interval);
 	}

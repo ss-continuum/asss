@@ -8,20 +8,20 @@ local Iplayerdata *pd;
 local Istats *stats;
 
 
-local void mypa(int pid, int action, int arena)
+local void mypa(Player *p, int action, Arena *arena)
 {
 	if (action == PA_ENTERARENA)
-		stats->StartTimer(pid, STAT_ARENA_TOTAL_TIME);
+		stats->StartTimer(p, STAT_ARENA_TOTAL_TIME);
 	else if (action == PA_LEAVEARENA)
-		stats->StopTimer(pid, STAT_ARENA_TOTAL_TIME);
+		stats->StopTimer(p, STAT_ARENA_TOTAL_TIME);
 }
 
-local void mykill(int arena, int killer, int killed, int bounty, int flags)
+local void mykill(Arena *arena, Player *killer, Player *killed, int bounty, int flags)
 {
 	stats->IncrementStat(killer, STAT_KILLS, 1);
 	stats->IncrementStat(killed, STAT_DEATHS, 1);
 
-	if (pd->players[killer].freq == pd->players[killed].freq)
+	if (killer->p_freq == killed->p_freq)
 	{
 		stats->IncrementStat(killer, STAT_TEAM_KILLS, 1);
 		stats->IncrementStat(killed, STAT_TEAM_DEATHS, 1);
@@ -35,43 +35,43 @@ local void mykill(int arena, int killer, int killed, int bounty, int flags)
 }
 
 
-local void myfpickup(int arena, int pid, int fid, int of, int carried)
+local void myfpickup(Arena *arena, Player *p, int fid, int of, int carried)
 {
 	if (carried)
 	{
-		stats->StartTimer(pid, STAT_FLAG_CARRY_TIME);
-		stats->IncrementStat(pid, STAT_FLAG_PICKUPS, 1);
+		stats->StartTimer(p, STAT_FLAG_CARRY_TIME);
+		stats->IncrementStat(p, STAT_FLAG_PICKUPS, 1);
 	}
 }
 
-local void mydrop(int arena, int pid, int count, int neut)
+local void mydrop(Arena *arena, Player *p, int count, int neut)
 {
-	stats->StopTimer(pid, STAT_FLAG_CARRY_TIME);
+	stats->StopTimer(p, STAT_FLAG_CARRY_TIME);
 	if (!neut)
-		stats->IncrementStat(pid, STAT_FLAG_DROPS, count);
+		stats->IncrementStat(p, STAT_FLAG_DROPS, count);
 	else
-		stats->IncrementStat(pid, STAT_FLAG_NEUT_DROPS, count);
+		stats->IncrementStat(p, STAT_FLAG_NEUT_DROPS, count);
 }
 
 
-local void mybpickup(int arena, int pid, int bid)
+local void mybpickup(Arena *arena, Player *p, int bid)
 {
-	stats->StartTimer(pid, STAT_BALL_CARRY_TIME);
-	stats->IncrementStat(pid, STAT_BALL_CARRIES, 1);
+	stats->StartTimer(p, STAT_BALL_CARRY_TIME);
+	stats->IncrementStat(p, STAT_BALL_CARRIES, 1);
 }
 
-local void mybfire(int arena, int pid, int bid)
+local void mybfire(Arena *arena, Player *p, int bid)
 {
-	stats->StopTimer(pid, STAT_BALL_CARRY_TIME);
+	stats->StopTimer(p, STAT_BALL_CARRY_TIME);
 }
 
-local void mygoal(int arena, int pid, int bid, int x, int y)
+local void mygoal(Arena *arena, Player *p, int bid, int x, int y)
 {
-	stats->IncrementStat(pid, STAT_BALL_GOALS, 1);
+	stats->IncrementStat(p, STAT_BALL_GOALS, 1);
 }
 
 
-EXPORT int MM_basicstats(int action, Imodman *mm, int arena)
+EXPORT int MM_basicstats(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{

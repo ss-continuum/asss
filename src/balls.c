@@ -38,18 +38,18 @@ typedef struct MyBallData
 /* prototypes */
 local void SpawnBall(Arena *arena, int bid);
 local void AABall(Arena *arena, int action);
-local void PABall(int pid, int action, Arena *arena);
-local void ShipChange(int, int, int);
-local void FreqChange(int, int);
-local void BallKill(Arena *, int, int, int, int);
+local void PABall(Player *p, int action, Arena *arena);
+local void ShipChange(Player *, int, int);
+local void FreqChange(Player *, int);
+local void BallKill(Arena *, Player *, Player *, int, int);
 
 /* timers */
 local int BasicBallTimer(void *);
 
 /* packet funcs */
-local void PPickupBall(int, byte *, int);
-local void PFireBall(int, byte *, int);
-local void PGoal(int, byte *, int);
+local void PPickupBall(Player *, byte *, int);
+local void PFireBall(Player *, byte *, int);
+local void PGoal(Player *, byte *, int);
 
 /* interface funcs */
 local void SetBallCount(Arena *arena, int ballcount);
@@ -160,7 +160,7 @@ local void send_ball_packet(Arena *arena, int bid, int rel)
 	bp.y = bd->y;
 	bp.xspeed = bd->xspeed;
 	bp.yspeed = bd->yspeed;
-	bp.player = bd->carrier;
+	bp.player = bd->carrier ? bd->carrier->pid : -1;
 	if (bd->state == BALL_CARRIED)
 		bp.time = 0;
 	else if (bd->state == BALL_ONMAP)
@@ -172,7 +172,7 @@ local void send_ball_packet(Arena *arena, int bid, int rel)
 	}
 	UNLOCK_STATUS(arena);
 
-	net->SendToArena(arena, -1, (byte*)&bp, sizeof(bp), rel);
+	net->SendToArena(arena, NULL, (byte*)&bp, sizeof(bp), rel);
 }
 
 
@@ -186,7 +186,7 @@ local void phase_ball(Arena *arena, int bid, int relflags)
 	bd->x = bd->y = 30000;
 	bd->xspeed = bd->yspeed = 0;
 	bd->time = 0xFFFFFFFF; /* this is the key for making it phased */
-	bd->carrier = -1;
+	bd->carrier = NULL;
 	send_ball_packet(arena, bid, relflags);
 	UNLOCK_STATUS(arena);
 }
@@ -201,7 +201,7 @@ void SpawnBall(Arena *arena, int bid)
 
 	d.state = BALL_ONMAP;
 	d.xspeed = d.yspeed = 0;
-	d.carrier = -1;
+	d.carrier = NULL;
 	d.time = GTC();
 
 	cx = pbd->spawnx;
@@ -315,7 +315,7 @@ void EndGame(Arena *arena)
 	{
 		phase_ball(arena, i, NET_RELIABLE);
 		abd->balls[i].state = BALL_WAITING;
-		abd->balls[i].carrier = -1;
+		abd->balls[i].carrier = NULL;
 	}
 
 	/* cfghelp: Soccer:NewGameDelay, arena, int, def: -3000
@@ -442,7 +442,7 @@ void AABall(Arena *arena, int action)
 }
 
 
-local void CleanupAfter(Arena *arena, int pid, int neut)
+local void CleanupAfter(Arena *arena, Player *p, int neut)
 {
 	/* make sure that if someone leaves, his ball drops */
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
@@ -452,86 +452,86 @@ local void CleanupAfter(Arena *arena, int pid, int neut)
 	LOCK_STATUS(arena);
 	for (i = 0; i < abd->ballcount; i++, b++)
 		if (b->state == BALL_CARRIED &&
-			b->carrier == pid)
+			b->carrier == p)
 		{
 			b->state = BALL_ONMAP;
-			b->x = pd->players[pid].position.x;
-			b->y = pd->players[pid].position.y;
+			b->x = p->position.x;
+			b->y = p->position.y;
 			b->xspeed = b->yspeed = 0;
-			if (neut) b->carrier = -1;
+			if (neut) b->carrier = NULL;
 			b->time = GTC();
 			send_ball_packet(arena, i, NET_UNRELIABLE);
 			/* don't forget fire callbacks */
 			DO_CBS(CB_BALLFIRE, arena, BallFireFunc,
-					(arena, pid, i));
+					(arena, p, i));
 		}
-		else if (neut && b->carrier == pid)
+		else if (neut && b->carrier == p)
 		{
 			/* if it's on the map, but last touched by the person, reset
 			 * it's last touched pid to -1 so that the last touched pid
 			 * always refers to a valid player. */
-			b->carrier = -1;
+			b->carrier = NULL;
 			send_ball_packet(arena, i, NET_UNRELIABLE);
 		}
 	UNLOCK_STATUS(arena);
 }
 
-void PABall(int pid, int action, Arena *arena)
+void PABall(Player *p, int action, Arena *arena)
 {
 	/* if he's entering arena, the timer event will send him the ball
 	 * info. */
 	if (action == PA_LEAVEARENA)
-		CleanupAfter(arena, pid, 1);
+		CleanupAfter(arena, p, 1);
 }
 
-void ShipChange(int pid, int ship, int newfreq)
+void ShipChange(Player *p, int ship, int newfreq)
 {
-	CleanupAfter(pd->players[pid].arena, pid, 1);
+	CleanupAfter(p->arena, p, 1);
 }
 
-void FreqChange(int pid, int newfreq)
+void FreqChange(Player *p, int newfreq)
 {
-	CleanupAfter(pd->players[pid].arena, pid, 1);
+	CleanupAfter(p->arena, p, 1);
 }
 
-void BallKill(Arena *arena, int killer, int killed, int bounty, int flags)
+void BallKill(Arena *arena, Player *killer, Player *killed, int bounty, int flags)
 {
 	MyBallData *pbd = P_ARENA_DATA(arena, pbdkey);
 	CleanupAfter(arena, killed, !pbd->deathgoal);
 }
 
 
-void PPickupBall(int pid, byte *p, int len)
+void PPickupBall(Player *p, byte *pkt, int len)
 {
-	Arena *arena = pd->players[pid].arena;
+	Arena *arena = p->arena;
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
 
 	int i;
 	struct BallData *bd;
-	struct C2SPickupBall *bp = (struct C2SPickupBall*)p;
+	struct C2SPickupBall *bp = (struct C2SPickupBall*)pkt;
 	
 	if (len != sizeof(struct C2SPickupBall))
 	{
-		logm->Log(L_MALICIOUS, "<balls> [%s] Bad size for ball pickup packet", pd->players[pid].name);
+		logm->Log(L_MALICIOUS, "<balls> [%s] Bad size for ball pickup packet", p->name);
 		return;
 	}
 
-	if (!arena || pd->players[pid].status != S_PLAYING)
+	if (!arena || p->status != S_PLAYING)
 	{
-		logm->Log(L_WARN, "<balls> [%s] Ball pickup packet from bad arena or status", pd->players[pid].name);
+		logm->Log(L_WARN, "<balls> [%s] Ball pickup packet from bad arena or status", p->name);
 		return;
 	}
 
-	if (pd->players[pid].shiptype >= SPEC)
+	if (p->p_ship >= SPEC)
 	{
-		logm->LogP(L_MALICIOUS, "balls", pid, "Ball pickup packet from spec");
+		logm->LogP(L_MALICIOUS, "balls", p, "Ball pickup packet from spec");
 		return;
 	}
 
 	/* this player is too lagged to have a ball */
-	if (IS_NO_FLAGS_BALLS(pid))
+	if (IS_NO_FLAGS_BALLS(p))
 	{
-		logm->LogP(L_INFO, "balls", pid, "too lagged to pick up ball %d", bp->ballid);
+		logm->LogP(L_INFO, "balls", p, "too lagged to pick up ball %d", bp->ballid);
 		return;
 	}
 
@@ -539,7 +539,7 @@ void PPickupBall(int pid, byte *p, int len)
 
 	if (bp->ballid >= abd->ballcount)
 	{
-		logm->LogP(L_MALICIOUS, "balls", pid, "Tried to pick up a nonexistent ball");
+		logm->LogP(L_MALICIOUS, "balls", p, "Tried to pick up a nonexistent ball");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -549,21 +549,21 @@ void PPickupBall(int pid, byte *p, int len)
 	/* make sure someone else didn't get it first */
 	if (bd->state != BALL_ONMAP)
 	{
-		logm->LogP(L_MALICIOUS, "balls", pid, "Tried to pick up a carried ball");
+		logm->LogP(L_MALICIOUS, "balls", p, "Tried to pick up a carried ball");
 		UNLOCK_STATUS(arena);
 		return;
 	}
 
 	if (bp->time != bd->time)
 	{
-		logm->LogP(L_MALICIOUS, "balls", pid, "Tried to pick up a ball from stale coords");
+		logm->LogP(L_MALICIOUS, "balls", p, "Tried to pick up a ball from stale coords");
 		UNLOCK_STATUS(arena);
 		return;
 	}
 
 	/* make sure player doesnt carry more than one ball */
 	for (i = 0; i < abd->ballcount; i++)
-		if (abd->balls[i].carrier == pid &&
+		if (abd->balls[i].carrier == p &&
 		    abd->balls[i].state == BALL_CARRIED)
 		{
 			UNLOCK_STATUS(arena);
@@ -571,12 +571,12 @@ void PPickupBall(int pid, byte *p, int len)
 		}
 
 	bd->state = BALL_CARRIED;
-	bd->x = pd->players[pid].position.x;
-	bd->y = pd->players[pid].position.y;
+	bd->x = p->position.x;
+	bd->y = p->position.y;
 	bd->xspeed = 0;
 	bd->yspeed = 0;
-	bd->carrier = pid;
-	bd->freq = pd->players[pid].freq;
+	bd->carrier = p;
+	bd->freq = p->p_freq;
 	bd->time = 0;
 	send_ball_packet(arena, bp->ballid, NET_UNRELIABLE | BALL_SEND_PRI);
 
@@ -584,39 +584,39 @@ void PPickupBall(int pid, byte *p, int len)
 
 	/* now call callbacks */
 	DO_CBS(CB_BALLPICKUP, arena, BallPickupFunc,
-			(arena, pid, bp->ballid));
+			(arena, p, bp->ballid));
 
 	logm->Log(L_DRIVEL, "<balls> {%s} [%s] Player picked up ball %d",
 			arena->name,
-			pd->players[pid].name,
+			p->name,
 			bp->ballid);
 }
 
 
-void PFireBall(int pid, byte *p, int len)
+void PFireBall(Player *p, byte *pkt, int len)
 {
-	Arena *arena = pd->players[pid].arena;
+	Arena *arena = p->arena;
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
 
 	struct BallData *bd;
-	struct BallPacket *fb = (struct BallPacket *)p;
+	struct BallPacket *fb = (struct BallPacket *)pkt;
 	int bid = fb->ballid;
 
 	if (len != sizeof(struct BallPacket))
 	{
-		logm->Log(L_MALICIOUS, "<balls> [%s] Bad size for ball fire packet", pd->players[pid].name);
+		logm->Log(L_MALICIOUS, "<balls> [%s] Bad size for ball fire packet", p->name);
 		return;
 	}
 
-	if (!arena || pd->players[pid].status != S_PLAYING)
+	if (!arena || p->status != S_PLAYING)
 	{
-		logm->Log(L_WARN, "<balls> [%s] Ball fire packet from bad arena or status", pd->players[pid].name);
+		logm->Log(L_WARN, "<balls> [%s] Ball fire packet from bad arena or status", p->name);
 		return;
 	}
 
-	if (pd->players[pid].shiptype >= SPEC)
+	if (p->p_ship >= SPEC)
 	{
-		logm->Log(L_MALICIOUS, "<balls> [%s] Ball fire packet from spec", pd->players[pid].name);
+		logm->Log(L_MALICIOUS, "<balls> [%s] Ball fire packet from spec", p->name);
 		return;
 	}
 
@@ -624,16 +624,16 @@ void PFireBall(int pid, byte *p, int len)
 
 	if (bid < 0 || bid >= abd->ballcount)
 	{
-		logm->Log(L_MALICIOUS, "<balls> [%s] Tried to fire up a nonexistent ball", pd->players[pid].name);
+		logm->Log(L_MALICIOUS, "<balls> [%s] Tried to fire up a nonexistent ball", p->name);
 		UNLOCK_STATUS(arena);
 		return;
 	}
 
 	bd = abd->balls + bid;
 
-	if (bd->state != BALL_CARRIED || bd->carrier != pid)
+	if (bd->state != BALL_CARRIED || bd->carrier != p)
 	{
-		logm->Log(L_MALICIOUS, "<balls> [%s] Player tried to fire ball he wasn't carrying", pd->players[pid].name);
+		logm->Log(L_MALICIOUS, "<balls> [%s] Player tried to fire ball he wasn't carrying", p->name);
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -643,40 +643,40 @@ void PFireBall(int pid, byte *p, int len)
 	bd->y = fb->y;
 	bd->xspeed = fb->xspeed;
 	bd->yspeed = fb->yspeed;
-	bd->freq = pd->players[pid].freq;
+	bd->freq = p->p_freq;
 	bd->time = fb->time;
 	send_ball_packet(arena, bid, NET_UNRELIABLE | BALL_SEND_PRI);
 
 	UNLOCK_STATUS(arena);
 
 	/* finally call callbacks */
-	DO_CBS(CB_BALLFIRE, arena, BallFireFunc, (arena, pid, bid));
+	DO_CBS(CB_BALLFIRE, arena, BallFireFunc, (arena, p, bid));
 
 	logm->Log(L_DRIVEL, "<balls> {%s} [%s] Player fired ball %d",
 			arena->name,
-			pd->players[pid].name,
+			p->name,
 			bid);
 }
 
 
-void PGoal(int pid, byte *p, int len)
+void PGoal(Player *p, byte *pkt, int len)
 {
-	Arena *arena = pd->players[pid].arena;
+	Arena *arena = p->arena;
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
 	MyBallData *pbd = P_ARENA_DATA(arena, pbdkey);
 	int bid;
-	struct C2SGoal *g = (struct C2SGoal*)p;
+	struct C2SGoal *g = (struct C2SGoal*)pkt;
 	struct BallData *bd;
 
 	if (len != sizeof(struct C2SGoal))
 	{
-		logm->Log(L_MALICIOUS, "<balls> [%s] Bad size for goal packet", pd->players[pid].name);
+		logm->Log(L_MALICIOUS, "<balls> [%s] Bad size for goal packet", p->name);
 		return;
 	}
 
-	if (!arena || pd->players[pid].status != S_PLAYING)
+	if (!arena || p->status != S_PLAYING)
 	{
-		logm->Log(L_WARN, "<balls> [%s] Goal packet from bad arena or status", pd->players[pid].name);
+		logm->Log(L_WARN, "<balls> [%s] Goal packet from bad arena or status", p->name);
 		return;
 	}
 
@@ -686,7 +686,7 @@ void PGoal(int pid, byte *p, int len)
 
 	if (bid < 0 || bid >= abd->ballcount)
 	{
-		logm->LogP(L_MALICIOUS, "balls", pid, "Sent a goal for a nonexistent ball");
+		logm->LogP(L_MALICIOUS, "balls", p, "Sent a goal for a nonexistent ball");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -694,7 +694,7 @@ void PGoal(int pid, byte *p, int len)
 	bd = abd->balls + bid;
 
 	/* we use this as a flag to check for dupilicated goals */
-	if (bd->carrier == -1)
+	if (bd->carrier == NULL)
 	{
 		UNLOCK_STATUS(arena);
 		return;
@@ -702,29 +702,14 @@ void PGoal(int pid, byte *p, int len)
 
 	if (bd->state != BALL_ONMAP)
 	{
-		logm->LogP(L_MALICIOUS, "balls", pid, "Sent goal for carried ball");
+		logm->LogP(L_MALICIOUS, "balls", p, "Sent goal for carried ball");
 		UNLOCK_STATUS(arena);
 		return;
 	}
 
-	if (pid != bd->carrier)
+	if (p != bd->carrier)
 	{
-		logm->LogP(L_MALICIOUS, "balls", pid, "Sent goal for ball he didn't fire");
-		UNLOCK_STATUS(arena);
-		return;
-	}
-
-	if (pd->players[bd->carrier].status != S_PLAYING)
-	{
-		logm->Log(L_MALICIOUS, "<balls> {%s} Bad scorer for ball %d",
-				arena->name, bid);
-		UNLOCK_STATUS(arena);
-		return;
-	}
-
-	if (pid != bd->carrier)
-	{
-		logm->LogP(L_MALICIOUS, "balls", pid, "Sent goal for ball he didn't fire");
+		logm->LogP(L_MALICIOUS, "balls", p, "Sent goal for ball he didn't fire");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -747,7 +732,7 @@ void PGoal(int pid, byte *p, int len)
 		/* phase it, then set it to waiting */
 		phase_ball(arena, bid, NET_UNRELIABLE);
 		bd->state = BALL_WAITING;
-		bd->carrier = -1;
+		bd->carrier = NULL;
 		bd->time = GTC() + pbd->goaldelay;
 	}
 
@@ -755,7 +740,7 @@ void PGoal(int pid, byte *p, int len)
 
 	logm->Log(L_DRIVEL, "<balls> {%s} [%s] Goal with ball %d",
 			arena->name,
-			pd->players[pid].name,
+			p->name,
 			g->ballid);
 }
 
@@ -790,11 +775,10 @@ int BasicBallTimer(void *dummy)
 						 * update */
 						send_ball_packet(arena, bid, NET_UNRELIABLE);
 					}
-					else if (b->state == BALL_CARRIED)
+					else if (b->state == BALL_CARRIED && b->carrier)
 					{
 						/* it's being carried, update it's x,y coords */
-						struct PlayerPosition *pos =
-							&pd->players[b->carrier].position;
+						struct PlayerPosition *pos = &b->carrier->position;
 						b->x = pos->x;
 						b->y = pos->y;
 						send_ball_packet(arena, bid, NET_UNRELIABLE);

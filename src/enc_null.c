@@ -14,7 +14,7 @@ local void ConnInit(struct sockaddr_in *sin, byte *pkt, int len);
 local Inet *net;
 
 
-EXPORT int MM_nullenc(int action, Imodman *mm, int arena)
+EXPORT int MM_nullenc(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -34,7 +34,8 @@ EXPORT int MM_nullenc(int action, Imodman *mm, int arena)
 
 void ConnInit(struct sockaddr_in *sin, byte *pkt, int len)
 {
-	int key, pid, type;
+	int key, type;
+	Player *p;
 
 	/* make sure the packet fits */
 	if (len != 8 || pkt[0] != 0x00 || pkt[1] != 0x01 || pkt[7] != 0x00)
@@ -50,9 +51,9 @@ void ConnInit(struct sockaddr_in *sin, byte *pkt, int len)
 		return;
 
 	/* get connection. NULL encryption means none. */
-	pid = net->NewConnection(type, sin, NULL);
+	p = net->NewConnection(type, sin, NULL);
 
-	if (pid == -1)
+	if (!p)
 	{
 		/* no slots left? */
 		byte pkt[2] = { 0x00, 0x07 };

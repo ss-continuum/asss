@@ -12,7 +12,7 @@
 
 local void Log(char, const char *, ...);
 local void LogA(char level, const char *mod, Arena *arena, const char *format, ...);
-local void LogP(char level, const char *mod, int pid, const char *format, ...);
+local void LogP(char level, const char *mod, Player *p, const char *format, ...);
 local int FilterLog(const char *, const char *);
 
 local void * LoggingThread(void *);
@@ -37,7 +37,7 @@ local Ilogman _int =
 };
 
 
-EXPORT int MM_logman(int action, Imodman *mm_, int arena)
+EXPORT int MM_logman(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -130,28 +130,28 @@ void LogA(char level, const char *mod, Arena *a, const char *format, ...)
 		MPAdd(&queue, astrdup(buf));
 }
 
-void LogP(char level, const char *mod, int pid, const char *format, ...)
+void LogP(char level, const char *mod, Player *p, const char *format, ...)
 {
 	int len;
 	Arena *arena;
 	va_list argptr;
 	char buf[1024], buf2[16];
 
-	if (!pd || !aman || PID_BAD(pid))
-		len = snprintf(buf, 1024, "%c <%s> {???} [???] ",
+	if (!pd || !aman || !p)
+		len = snprintf(buf, 1024, "%c <%s> [(bad player)] ",
 				level,
 				mod);
 	else
 	{
-		char *name = pd->players[pid].name;
+		char *name = p->name;
 
 		if (name[0] == '\0')
 		{
 			name = buf2;
-			snprintf(name, 16, "pid=%d", pid);
+			snprintf(name, 16, "pid=%d", p->pid);
 		}
 
-		arena = pd->players[pid].arena;
+		arena = p->arena;
 		if (arena)
 			len = snprintf(buf, 1024, "%c <%s> {%s} [%s] ",
 					level,

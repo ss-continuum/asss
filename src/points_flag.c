@@ -54,26 +54,28 @@ EXPORT int MM_points_flag(int action, Imodman *mm_, Arena *arena)
 
 void MyFlagWin(Arena *arena, int freq)
 {
-	int awardto[MAXPLAYERS];
-	int players, ponfreq, reward, splitpts, points, i;
+	LinkedList set = LL_INITIALIZER;
+	int players, ponfreq, reward, splitpts, points;
+	Player *i;
+	Link *link;
 
 	players = ponfreq = 0;
-	pd->LockStatus();
-	for (i = 0; i < MAXPLAYERS; i++)
-		if (pd->players[i].status == S_PLAYING &&
-		    pd->players[i].arena == arena &&
-		    pd->players[i].shiptype != SPEC)
+	pd->Lock();
+	FOR_EACH_PLAYER(i)
+		if (i->status == S_PLAYING &&
+		    i->arena == arena &&
+		    i->p_ship != SPEC)
 		{
 			players++;
-			if (pd->players[i].freq == freq)
+			if (i->p_freq == freq)
 			{
-				awardto[ponfreq++] = i;
+				LLAdd(&set, i);
 				stats->IncrementStat(i, STAT_FLAG_GAMES_WON, 1);
 			}
 			else
 				stats->IncrementStat(i, STAT_FLAG_GAMES_LOST, 1);
 		}
-	pd->UnlockStatus();
+	pd->Unlock();
 
 	/* cfghelp: Flag:FlagReward, arena, int, def: 5000, mod: points_flag
 	 * The basic flag reward is calculated as (players in arena)^2 *
@@ -91,7 +93,10 @@ void MyFlagWin(Arena *arena, int freq)
 	if (splitpts)
 		points /= ponfreq;
 
-	for (i = 0; i < ponfreq; i++)
-		stats->IncrementStat(awardto[i], STAT_FLAG_POINTS, points);
+	for (link = LLGetHead(&set); link; link = link->next)
+		stats->IncrementStat(link->data, STAT_FLAG_POINTS, points);
+	LLEmpty(&set);
+
+	stats->SendUpdates();
 }
 

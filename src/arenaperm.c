@@ -5,7 +5,7 @@
 
 
 /* callbacks */
-local void MyPA(int pid, int action, Arena *arena);
+local void MyPA(Player *p, int action, Arena *arena);
 
 /* local data */
 local Imodman *mm;
@@ -48,7 +48,7 @@ EXPORT int MM_arenaperm(int action, Imodman *_mm, Arena *arena)
 }
 
 
-local int HasPermission(int pid, Arena *arena)
+local int HasPermission(Player *p, Arena *arena)
 {
 	if (arena && arena->status == ARENA_RUNNING)
 	{
@@ -59,18 +59,18 @@ local int HasPermission(int pid, Arena *arena)
 		 * This can be used to restrict arenas to certain groups of
 		 * players. */
 		const char *capname = cfg->GetStr(c, "General", "NeedCap");
-		return capname ? capman->HasCapability(pid, capname) : 1;
+		return capname ? capman->HasCapability(p, capname) : 1;
 	}
 	else
 		return 0;
 }
 
 
-void MyPA(int pid, int action, Arena *arena)
+void MyPA(Player *p, int action, Arena *arena)
 {
 	if (action == PA_PREENTERARENA)
 	{
-		if (! HasPermission(pid, arena))
+		if (! HasPermission(p, arena))
 		{
 			/* try to find a place for him */
 			Arena *a = NULL;
@@ -78,17 +78,17 @@ void MyPA(int pid, int action, Arena *arena)
 
 			aman->Lock();
 			FOR_EACH_ARENA(a)
-				if (HasPermission(pid, a))
+				if (HasPermission(p, a))
 					break;
 			aman->Unlock();
 
 			if (!link || !a)
 				lm->Log(L_WARN, "<arenaperm> [%s] Can't find any unrestricted arena!",
-						pd->players[pid].name);
+						p->name);
 			else
 			{
-				pd->players[pid].arena = a; /* redirect him to new arena! */
-				chat->SendMessage(pid, "You don't have permission to enter arena %s!",
+				p->arena = a; /* redirect him to new arena! */
+				chat->SendMessage(p, "You don't have permission to enter arena %s!",
 						arena->name);
 				lm->Log(L_INFO, "<arenaperm> [%s] Redirected from arena {%s} to {%s}",
 						arena->name, a->name);

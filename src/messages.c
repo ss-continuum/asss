@@ -55,18 +55,18 @@ local void msg_cleanup(void *v)
 
 
 /* handles only greetmessages */
-local void paction(int pid, int action, Arena *arena)
+local void paction(Player *p, int action, Arena *arena)
 {
 	if (action == PA_ENTERARENA)
 	{
-		Arena *arena = pd->players[pid].arena;
+		Arena *arena = p->arena;
 		ConfigHandle ch = arena ? arena->cfg : NULL;
 		/* cfghelp: Misc:GreetMessage, arena, string
 		 * The message to send to each player on entering the arena. */
 		const char *msg = ch ? cfg->GetStr(ch, "Misc", "GreetMessage") : NULL;
 
 		if (msg)
-			chat->SendMessage(pid, "%s", msg);
+			chat->SendMessage(p, "%s", msg);
 	}
 }
 

@@ -60,9 +60,9 @@ typedef struct PlayerPersistentData
 {
 	int key, interval;
 	Arena *scope;
-	int (*GetData)(int pid, void *data, int len);
-	void (*SetData)(int pid, void *data, int len);
-	void (*ClearData)(int pid);
+	int (*GetData)(Player *p, void *data, int len);
+	void (*SetData)(Player *p, void *data, int len);
+	void (*ClearData)(Player *p);
 } PlayerPersistentData;
 
 typedef struct ArenaPersistentData
@@ -97,15 +97,15 @@ typedef struct Ipersist
 	void (*RegArenaPD)(const ArenaPersistentData *pd);
 	void (*UnregArenaPD)(const ArenaPersistentData *pd);
 
-	void (*PutPlayer)(int pid, Arena *a, void (*callback)(int pid));
-	void (*GetPlayer)(int pid, Arena *a, void (*callback)(int pid));
+	void (*PutPlayer)(Player *p, Arena *a, void (*callback)(Player *p));
+	void (*GetPlayer)(Player *p, Arena *a, void (*callback)(Player *p));
 
 	void (*PutArena)(Arena *a, void (*callback)(Arena *a));
 	void (*GetArena)(Arena *a, void (*callback)(Arena *a));
 
 	void (*EndInterval)(Arena *a, int interval);
 
-	void (*StabilizeScores)(int seconds, int query, void (*callback)(int dummy));
+	void (*StabilizeScores)(int seconds, int query, void (*callback)(Player *dummy));
 } Ipersist;
 
 

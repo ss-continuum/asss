@@ -18,7 +18,7 @@ typedef struct Iclientset
 {
 	INTERFACE_HEAD_DECL
 
-	void (*SendClientSettings)(int pid);
+	void (*SendClientSettings)(Player *p);
 
 	void (*Reconfigure)(Arena *arena);
 

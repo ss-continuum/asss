@@ -6,6 +6,7 @@
 
 #include <stddef.h>
 
+#include "util.h"
 
 #define ASSSVERSION "0.7.6"
 #define ASSSVERSION_NUM 0x00000706
@@ -31,7 +32,6 @@
 
 /* really important constants */
 #define MAXPLAYERS CFG_MAX_PLAYERS
-#define MAXARENA CFG_MAX_ARENAS
 
 #define MAXPACKET 512
 #define MAXBIGPACKET CFG_MAX_BIG_PACKET
@@ -44,6 +44,7 @@
 #define EXIT_MEMORY    3 /* we ran out of memory */
 #define EXIT_MODCONF   4 /* the initial module file is missing */
 #define EXIT_MODLOAD   5 /* an error loading initial modules */
+#define EXIT_CHROOT    6 /* can't chroot or setuid */
 
 
 /* some ship names */
@@ -130,7 +131,7 @@ enum
 
 
 typedef struct Arena Arena;
-
+typedef struct Player Player;
 
 /* this struct/union thing will be used to refer to a set of players */
 typedef struct
@@ -138,18 +139,18 @@ typedef struct
 	enum
 	{
 		T_NONE,
-		T_PID,
+		T_PLAYER,
 		T_ARENA,
 		T_FREQ,
 		T_ZONE,
-		T_SET
+		T_LIST
 	} type;
 	union
 	{
-		int pid;
+		Player *p;
 		Arena *arena;
 		struct { Arena *arena; int freq; } freq;
-		int *set;
+		LinkedList list;
 	} u;
 } Target;
 

@@ -29,7 +29,7 @@ struct upload_data
 {
 	FILE *fp;
 	char *fname;
-} uploads[MAXPLAYERS];
+};
 
 struct download_data
 {
@@ -44,15 +44,17 @@ local Imodman *mm;
 local Inet *net;
 local Ilogman *lm;
 local Icapman *capman;
+local Iplayerdata *pd;
+
+local int udkey;
 
 
-
-local void p_inc_file(int pid, byte *data, int len)
+local void p_inc_file(Player *p, byte *data, int len)
 {
 	FILE *fp;
 	char fname[32];
 
-	if (capman && !capman->HasCapability(pid, CAP_UPLOADFILE))
+	if (capman && !capman->HasCapability(p, CAP_UPLOADFILE))
 		return;
 
 	astrncpy(fname, "tmp/", sizeof(fname));
@@ -60,27 +62,27 @@ local void p_inc_file(int pid, byte *data, int len)
 
 	if (strstr(fname, ".."))
 	{
-		lm->LogP(L_MALICIOUS, "filetrans", pid, "Sent a file with '..' in the filename");
+		lm->LogP(L_MALICIOUS, "filetrans", p, "Sent a file with '..' in the filename");
 		return;
 	}
 
 	fp = fopen(fname, "wb");
 	if (!fp)
 	{
-		lm->LogP(L_WARN, "filetrans", pid, "Can't open '%s' for writing", fname);
+		lm->LogP(L_WARN, "filetrans", p, "Can't open '%s' for writing", fname);
 		return;
 	}
 
 	fwrite(data+17, len-17, 1, fp);
 	fclose(fp);
 
-	DO_CBS(CB_UPLOADEDFILE, ALLARENAS, UploadedFileFunc, (pid, fname));
+	DO_CBS(CB_UPLOADEDFILE, ALLARENAS, UploadedFileFunc, (p, fname));
 }
 
 
-local void cleanup_ud(int pid, int success)
+local void cleanup_ud(Player *p, int success)
 {
-	struct upload_data *ud = uploads + pid;
+	struct upload_data *ud = PPDATA(p, udkey);
 
 	if (ud->fp)
 	{
@@ -90,7 +92,7 @@ local void cleanup_ud(int pid, int success)
 
 	if (success)
 	{
-		DO_CBS(CB_UPLOADEDFILE, ALLARENAS, UploadedFileFunc, (pid, ud->fname));
+		DO_CBS(CB_UPLOADEDFILE, ALLARENAS, UploadedFileFunc, (p, ud->fname));
 	}
 	else
 	{
@@ -103,18 +105,18 @@ local void cleanup_ud(int pid, int success)
 }
 
 
-local void sized_p_inc_file(int pid, byte *data, int len, int offset, int totallen)
+local void sized_p_inc_file(Player *p, byte *data, int len, int offset, int totallen)
 {
-	struct upload_data *ud = uploads + pid;
+	struct upload_data *ud = PPDATA(p, udkey);
 
 	if (offset == -1)
 	{
 		/* canceled */
-		cleanup_ud(pid, 0);
+		cleanup_ud(p, 0);
 	}
 	else if (offset == 0 && ud->fp == NULL && len > 17)
 	{
-		if (!capman || capman->HasCapability(pid, CAP_UPLOADFILE))
+		if (!capman || capman->HasCapability(p, CAP_UPLOADFILE))
 		{
 			char fname[32];
 			astrncpy(fname, "tmp/", sizeof(fname));
@@ -122,11 +124,11 @@ local void sized_p_inc_file(int pid, byte *data, int len, int offset, int totall
 
 			if (strstr(fname, ".."))
 			{
-				lm->LogP(L_MALICIOUS, "filetrans", pid, "Sent a file with '..' in the filename");
+				lm->LogP(L_MALICIOUS, "filetrans", p, "Sent a file with '..' in the filename");
 				return;
 			}
 
-			lm->LogP(L_INFO, "filetrans", pid, "Accepted '%s' for upload", fname+4);
+			lm->LogP(L_INFO, "filetrans", p, "Accepted '%s' for upload", fname+4);
 
 			ud->fname = astrdup(fname);
 			ud->fp = fopen(fname, "wb");
@@ -136,7 +138,7 @@ local void sized_p_inc_file(int pid, byte *data, int len, int offset, int totall
 				lm->Log(L_WARN, "<filetrans> Can't open '%s' for writing", fname);
 		}
 		else
-			lm->LogP(L_INFO, "filetrans", pid, "Denied file upload");
+			lm->LogP(L_INFO, "filetrans", p, "Denied file upload");
 	}
 	else if (offset > 0 && ud->fp)
 	{
@@ -144,8 +146,8 @@ local void sized_p_inc_file(int pid, byte *data, int len, int offset, int totall
 			fwrite(data, len, 1, ud->fp);
 		else
 		{
-			lm->LogP(L_INFO, "filetrans", pid, "Completed upload of '%s'", ud->fname);
-			cleanup_ud(pid, 1);
+			lm->LogP(L_INFO, "filetrans", p, "Completed upload of '%s'", ud->fname);
+			cleanup_ud(p, 1);
 		}
 	}
 }
@@ -182,7 +184,7 @@ local void get_data(void *clos, int offset, byte *buf, int needed)
 }
 
 
-local int SendFile(int pid, const char *path, const char *fname, int delafter)
+local int SendFile(Player *p, const char *path, const char *fname, int delafter)
 {
 	struct download_data *dd;
 	struct stat st;
@@ -208,8 +210,8 @@ local int SendFile(int pid, const char *path, const char *fname, int delafter)
 	dd->fname = astrdup(fname);
 	dd->path = NULL;
 
-	net->SendSized(pid, dd, st.st_size + 17, get_data);
-	lm->LogP(L_INFO, "filetrans", pid, "Sending '%s' (as '%s')", path, fname);
+	net->SendSized(p, dd, st.st_size + 17, get_data);
+	lm->LogP(L_INFO, "filetrans", p, "Sending '%s' (as '%s')", path, fname);
 
 	if (delafter)
 #ifdef WIN32
@@ -221,7 +223,7 @@ local int SendFile(int pid, const char *path, const char *fname, int delafter)
 	return MM_OK;
 }
 
-local void RequestFile(int pid, const char *path, const char *fname)
+local void RequestFile(Player *p, const char *path, const char *fname)
 {
 	struct S2CRequestFile
 	{
@@ -236,11 +238,11 @@ local void RequestFile(int pid, const char *path, const char *fname)
 	astrncpy(pkt.path, path, 256);
 	astrncpy(pkt.fname, fname, 16);
 
-	net->SendToOne(pid, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
-	lm->LogP(L_INFO, "filetrans", pid, "Requesting file '%s' (as '%s')",
+	net->SendToOne(p, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
+	lm->LogP(L_INFO, "filetrans", p, "Requesting file '%s' (as '%s')",
 			path, fname);
 	if (strstr(fname, ".."))
-		lm->LogP(L_WARN, "filetrans", pid, "Sent file request with '..'");
+		lm->LogP(L_WARN, "filetrans", p, "Sent file request with '..'");
 }
 
 
@@ -253,7 +255,7 @@ local Ifiletrans _int =
 };
 
 
-EXPORT int MM_filetrans(int action, Imodman *mm_, int arena)
+EXPORT int MM_filetrans(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -261,8 +263,11 @@ EXPORT int MM_filetrans(int action, Imodman *mm_, int arena)
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
-
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		if (!net || !lm) return MM_FAIL;
+
+		udkey = pd->AllocatePlayerData(sizeof(struct upload_data));
+		if (udkey == -1) return MM_FAIL;
 
 		net->AddPacket(C2S_UPLOADFILE, p_inc_file);
 		net->AddSizedPacket(C2S_UPLOADFILE, sized_p_inc_file);
@@ -278,9 +283,11 @@ EXPORT int MM_filetrans(int action, Imodman *mm_, int arena)
 		net->RemovePacket(C2S_UPLOADFILE, p_inc_file);
 		net->RemoveSizedPacket(C2S_UPLOADFILE, sized_p_inc_file);
 
+		pd->FreePlayerData(udkey);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(capman);
+		mm->ReleaseInterface(pd);
 		return MM_OK;
 	}
 	return MM_FAIL;

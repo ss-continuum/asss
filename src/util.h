@@ -58,6 +58,7 @@ char *RemoveCRLF(char *str);
 char *ToLowerStr(char *str);
 
 void *amalloc(size_t bytes);
+void *arealloc(void *p, size_t bytes);
 char *astrdup(const char *str);
 void afree(const void *ptr);
 
@@ -89,12 +90,15 @@ struct LinkedList
 
 typedef struct LinkedList LinkedList;
 
+#define LL_INITIALIZER { NULL, NULL }
+
 LinkedList * LLAlloc(void);
 void LLInit(LinkedList *lst);
 void LLEmpty(LinkedList *lst);
 void LLFree(LinkedList *lst);
 void LLAdd(LinkedList *lst, void *data);
 void LLAddFirst(LinkedList *lst, void *data);
+void LLInsertAfter(LinkedList *lst, Link *link, void *data);
 int LLRemove(LinkedList *lst, void *data);
 int LLRemoveAll(LinkedList *lst, void *data);
 void *LLRemoveFirst(LinkedList *lst);

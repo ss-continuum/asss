@@ -11,7 +11,7 @@
 
 struct transfer_data
 {
-	int frompid, topid;
+	Player *from, *to;
 	char clientpath[256];
 	char fname[16];
 };
@@ -30,35 +30,35 @@ local Iplayerdata *pd;
 local Ilogman *lm;
 
 
-local int is_sending(int pid)
+local int is_sending(Player *p)
 {
 	Link *l;
 	LOCK();
 	for (l = LLGetHead(&offers); l; l = l->next)
-		if (((struct transfer_data*)(l->data))->frompid == pid)
+		if (((struct transfer_data*)(l->data))->from == p)
 			{ UNLOCK(); return 1; }
 	for (l = LLGetHead(&transfers); l; l = l->next)
-		if (((struct transfer_data*)(l->data))->frompid == pid)
+		if (((struct transfer_data*)(l->data))->from == p)
 			{ UNLOCK(); return 1; }
 	UNLOCK();
 	return 0;
 }
 
-local int is_recving(int pid)
+local int is_recving(Player *p)
 {
 	Link *l;
 	LOCK();
 	for (l = LLGetHead(&offers); l; l = l->next)
-		if (((struct transfer_data*)(l->data))->topid == pid)
+		if (((struct transfer_data*)(l->data))->to == p)
 			{ UNLOCK(); return 1; }
 	for (l = LLGetHead(&transfers); l; l = l->next)
-		if (((struct transfer_data*)(l->data))->topid == pid)
+		if (((struct transfer_data*)(l->data))->to == p)
 			{ UNLOCK(); return 1; }
 	UNLOCK();
 	return 0;
 }
 
-local void cancel_files(int pid)
+local void cancel_files(Player *p)
 {
 	Link *l, *n;
 	LOCK();
@@ -66,7 +66,7 @@ local void cancel_files(int pid)
 	{
 		struct transfer_data *td = l->data;
 		n = l->next;
-		if (td->frompid == pid || td->topid == pid)
+		if (td->from == p || td->to == p)
 		{
 			afree(td);
 			LLRemove(&offers, td);
@@ -76,7 +76,7 @@ local void cancel_files(int pid)
 	{
 		struct transfer_data *td = l->data;
 		n = l->next;
-		if (td->frompid == pid || td->topid == pid)
+		if (td->from == p || td->to == p)
 		{
 			afree(td);
 			LLRemove(&transfers, td);
@@ -86,7 +86,7 @@ local void cancel_files(int pid)
 }
 
 
-local void uploaded(int pid, const char *path)
+local void uploaded(Player *p, const char *path)
 {
 	Link *l;
 	const char *t1, *t2;
@@ -95,11 +95,11 @@ local void uploaded(int pid, const char *path)
 	{
 		struct transfer_data *td = l->data;
 
-		if (td->frompid == pid)
+		if (td->from == p)
 		{
 			LLRemove(&transfers, td);
 
-			if (pd->players[td->topid].status != S_PLAYING || !IS_STANDARD(td->topid))
+			if (td->to->status != S_PLAYING || !IS_STANDARD(td->to))
 			{
 				lm->Log(L_WARN,
 						"<sendfile> bad state or client type for recipient of received file");
@@ -113,7 +113,7 @@ local void uploaded(int pid, const char *path)
 			if (t2 > t1) t1 = t2;
 			t1 = t1 ? t1 + 1 : td->clientpath;
 
-			if (ft->SendFile(td->topid, path, t1, 1) != MM_OK)
+			if (ft->SendFile(td->to, path, t1, 1) != MM_OK)
 				remove(path);
 
 			afree(td);
@@ -129,62 +129,62 @@ done:
 }
 
 
-local void Csendfile(const char *params, int pid, const Target *target)
+local void Csendfile(const char *params, Player *p, const Target *target)
 {
 	struct transfer_data *td;
-	int t = target->u.pid;
+	Player *t = target->u.p;
 
-	if (target->type != T_PID) return;
+	if (target->type != T_PLAYER) return;
 
 	if (!*params) return;
 
-	if (is_sending(pid))
+	if (is_sending(p))
 	{
-		chat->SendMessage(pid, "You are currently sending a file");
+		chat->SendMessage(p, "You are currently sending a file");
 		return;
 	}
 
 	if (is_recving(t))
 	{
-		chat->SendMessage(pid, "That player is currently receiving a file");
+		chat->SendMessage(p, "That player is currently receiving a file");
 		return;
 	}
 
-	if (pd->players[pid].shiptype != SPEC)
+	if (p->p_ship != SPEC)
 	{
-		chat->SendMessage(pid, "You must be in spectator mode to offer files");
+		chat->SendMessage(p, "You must be in spectator mode to offer files");
 		return;
 	}
 
-	if (pd->players[t].shiptype != SPEC)
+	if (t->p_ship != SPEC)
 	{
-		chat->SendMessage(pid, "You must offer files to another player in spectator mode");
+		chat->SendMessage(p, "You must offer files to another player in spectator mode");
 		return;
 	}
 
 	td = amalloc(sizeof(*td));
-	td->frompid = pid;
-	td->topid = t;
+	td->from = p;
+	td->to = t;
 	astrncpy(td->clientpath, params, sizeof(td->clientpath));
 	astrncpy(td->fname, "c2c-XXXXXX", sizeof(td->fname));
 	mktemp(td->fname);
 
 	chat->SendMessage(t, "%s wants to send you the file \"%s\". To accept type ?acceptfile.",
-			pd->players[pid].name, params);
+			p->name, params);
 	LOCK();
 	LLAdd(&offers, td);
 	UNLOCK();
 }
 
 
-local void Ccancelfile(const char *params, int pid, const Target *target)
+local void Ccancelfile(const char *params, Player *p, const Target *target)
 {
-	cancel_files(pid);
-	chat->SendMessage(pid, "Your file offers have been cancelled");
+	cancel_files(p);
+	chat->SendMessage(p, "Your file offers have been cancelled");
 }
 
 
-local void Cacceptfile(const char *params, int pid, const Target *t)
+local void Cacceptfile(const char *params, Player *p, const Target *t)
 {
 	Link *l;
 
@@ -192,28 +192,28 @@ local void Cacceptfile(const char *params, int pid, const Target *t)
 	for (l = LLGetHead(&offers); l; l = l->next)
 	{
 		struct transfer_data *td = l->data;
-		if (td->topid == pid)
+		if (td->to == p)
 		{
-			ft->RequestFile(td->frompid, td->clientpath, td->fname);
+			ft->RequestFile(td->from, td->clientpath, td->fname);
 			LLRemove(&offers, td);
 			LLAdd(&transfers, td);
 			goto done;
 		}
 	}
-	chat->SendMessage(pid, "Nobody has offered any files to you.");
+	chat->SendMessage(p, "Nobody has offered any files to you.");
 done:
 	UNLOCK();
 }
 
 
-local void paction(int pid, int action, int arena)
+local void paction(Player *p, int action, Arena *arena)
 {
 	if (action == PA_CONNECT || action == PA_DISCONNECT)
-		cancel_files(pid);
+		cancel_files(p);
 }
 
 
-EXPORT int MM_sendfile(int action, Imodman *mm, int arena)
+EXPORT int MM_sendfile(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{

@@ -35,7 +35,7 @@
 #define CAP_SEEPRIVARENA "seeprivarena"
 
 #define REQUIRE_MOD(m) \
-	if (!m) { chat->SendMessage(pid, "Module '" #m "' not loaded"); return; }
+	if (!m) { chat->SendMessage(p, "Module '" #m "' not loaded"); return; }
 
 
 /* global data */
@@ -60,8 +60,6 @@ local Ifiletrans *filetrans;
 local Ilagquery *lagq;
 local Imodman *mm;
 
-local PlayerData *players;
-
 
 /* returns 0 if found, 1 if not */
 local int check_arena(char *pkt, int len, char *check)
@@ -83,16 +81,16 @@ local helptext_t arena_help =
 "Lists the available arenas. Specifying {all} will also include\n"
 "empty arenas that the server knows about.\n";
 
-local void Carena(const char *params, int pid, const Target *target)
+local void Carena(const char *params, Player *p, const Target *target)
 {
 	byte buf[MAXPACKET];
 	byte *pos = buf;
-	int i = 0, l, seehid;
-	int key, *count;
-	Arena *arena = players[pid].arena, *a;
+	int l, seehid, *count;
+	Arena *arena = p->arena, *a;
+	Player *i;
 	Link *link;
+	int key = aman->AllocateArenaData(sizeof(int));
 
-	key = aman->AllocateArenaData(sizeof(int));
 	if (key == -1) return;
 
 	*pos++ = S2C_ARENA;
@@ -103,21 +101,20 @@ local void Carena(const char *params, int pid, const Target *target)
 	FOR_EACH_ARENA_P(a, count, key)
 		*count = 0;
 
-	pd->LockStatus();
-
+	pd->Lock();
 	/* count up players */
-	for (i = 0; i < MAXPLAYERS; i++)
-		if (players[i].status == S_PLAYING &&
-		    players[i].arena)
-			(*(int*)P_ARENA_DATA(players[i].arena, key))++;
-	pd->UnlockStatus();
+	FOR_EACH_PLAYER(i)
+		if (i->status == S_PLAYING &&
+		    i->arena != NULL)
+			(*(int*)P_ARENA_DATA(i->arena, key))++;
+	pd->Unlock();
 
 	/* signify current arena */
 	if (arena)
 		*(int*)P_ARENA_DATA(arena, key) *= -1;
 
 	/* build arena info packet */
-	seehid = capman && capman->HasCapability(pid, CAP_SEEPRIVARENA);
+	seehid = capman && capman->HasCapability(p, CAP_SEEPRIVARENA);
 	FOR_EACH_ARENA_P(a, count, key)
 	{
 		if ((pos-buf) > 480) break;
@@ -204,7 +201,7 @@ local void Carena(const char *params, int pid, const Target *target)
 #endif
 
 	/* send it */
-	net->SendToOne(pid, buf, (pos-buf), NET_RELIABLE);
+	net->SendToOne(p, buf, (pos-buf), NET_RELIABLE);
 }
 
 
@@ -215,7 +212,7 @@ local helptext_t shutdown_help =
 "If {-r} is specified, exit with {EXIT_RECYCLE} instead. The {run-asss}\n"
 "script will notice {EXIT_RECYCLE} and restart the server.\n";
 
-local void Cshutdown(const char *params, int pid, const Target *target)
+local void Cshutdown(const char *params, Player *p, const Target *target)
 {
 	int code = EXIT_NONE;
 
@@ -234,7 +231,7 @@ local helptext_t admlogfile_help =
 "copying it, for example), and {reopen} tells the server to close and\n"
 "re-open the log file (to rotate the log while the server is running).\n";
 
-local void Cadmlogfile(const char *params, int pid, const Target *target)
+local void Cadmlogfile(const char *params, Player *p, const Target *target)
 {
 	REQUIRE_MOD(logfile)
 
@@ -250,11 +247,11 @@ local helptext_t flagreset_help =
 "Args: none\n"
 "Causes the flag game to immediately reset.\n";
 
-local void Cflagreset(const char *params, int pid, const Target *target)
+local void Cflagreset(const char *params, Player *p, const Target *target)
 {
 	REQUIRE_MOD(flags)
 
-	flags->FlagVictory(players[pid].arena, -1, 0);
+	flags->FlagVictory(p->arena, -1, 0);
 }
 
 
@@ -265,9 +262,9 @@ local helptext_t ballcount_help =
 "argument that is a positive or negative number, which is the number of\n"
 "balls to add (or, if negative, to remove).\n";
 
-local void Cballcount(const char *params, int pid, const Target *target)
+local void Cballcount(const char *params, Player *p, const Target *target)
 {
-	Arena *arena = players[pid].arena;
+	Arena *arena = p->arena;
 	REQUIRE_MOD(balls)
 	if (arena)
 	{
@@ -283,19 +280,23 @@ local helptext_t setfreq_help =
 "Args: <freq number>\n"
 "Moves the target player to the specified freq.\n";
 
-local void Csetfreq(const char *params, int pid, const Target *target)
+local void Csetfreq(const char *params, Player *p, const Target *target)
 {
 	if (!*params)
 		return;
 
-	if (target->type == T_PID)
-		game->SetFreq(target->u.pid, atoi(params));
+	if (target->type == T_PLAYER)
+		game->SetFreq(target->u.p, atoi(params));
 	else
 	{
-		int set[MAXPLAYERS+1], *p, freq = atoi(params);
-		pd->TargetToSet(target, set);
-		for (p = set; *p != -1; p++)
-			game->SetFreq(*p, freq);
+		int freq = atoi(params);
+		LinkedList set = LL_INITIALIZER;
+		Link *l;
+
+		pd->TargetToSet(target, &set);
+		for (l = LLGetHead(&set); l; l = l->next)
+			game->SetFreq(l->data, freq);
+		LLEmpty(&set);
 	}
 }
 
@@ -306,19 +307,23 @@ local helptext_t setship_help =
 "Sets the target player to the specified ship. The argument must be a\n"
 "number from 1 (Warbird) to 8 (Shark), or 9 (Spec).\n";
 
-local void Csetship(const char *params, int pid, const Target *target)
+local void Csetship(const char *params, Player *p, const Target *target)
 {
 	if (!*params)
 		return;
 
-	if (target->type == T_PID)
-		game->SetShip(target->u.pid, atoi(params) - 1);
+	if (target->type == T_PLAYER)
+		game->SetShip(target->u.p, atoi(params) - 1);
 	else
 	{
-		int set[MAXPLAYERS+1], *p, ship = atoi(params) - 1;
-		pd->TargetToSet(target, set);
-		for (p = set; *p != -1; p++)
-			game->SetShip(*p, ship);
+		int ship = atoi(params) - 1;
+		LinkedList set = LL_INITIALIZER;
+		Link *l;
+
+		pd->TargetToSet(target, &set);
+		for (l = LLGetHead(&set); l; l = l->next)
+			game->SetShip(l->data, ship);
+		LLEmpty(&set);
 	}
 }
 
@@ -329,15 +334,15 @@ local helptext_t version_help =
 "Prints out the version and compilation date of the server. It might also\n"
 "print out some information about the machine that it's running on.\n";
 
-local void Cversion(const char *params, int pid, const Target *target)
+local void Cversion(const char *params, Player *p, const Target *target)
 {
-	chat->SendMessage(pid, "asss %s built at %s", ASSSVERSION, BUILDDATE);
+	chat->SendMessage(p, "asss %s built at %s", ASSSVERSION, BUILDDATE);
 #ifdef CFG_EXTRA_VERSION_INFO
 #ifndef WIN32
 	{
 		struct utsname un;
 		uname(&un);
-		chat->SendMessage(pid, "running on %s %s, host: %s, machine: %s",
+		chat->SendMessage(p, "running on %s %s, host: %s, machine: %s",
 				un.sysname, un.release, un.nodename, un.machine);
 	}
 #else
@@ -352,7 +357,7 @@ local void Cversion(const char *params, int pid, const Target *target)
 		len = MAX_COMPUTERNAME_LENGTH + 1;
 		GetComputerName(name, &len);
 
-		chat->SendMessage(pid, "running on %s %s (version %d.%d.%d), host: %s",
+		chat->SendMessage(p, "running on %s %s (version %d.%d.%d), host: %s",
 			vi.dwPlatformId == VER_PLATFORM_WIN32s ? "Windows 3.11" : 
 				vi.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS ? 
 					(vi.dwMinorVersion == 0 ? "Windows 95" : "Windows 98") :
@@ -366,7 +371,7 @@ local void Cversion(const char *params, int pid, const Target *target)
 #endif
 
 #ifdef CFG_LOG_PRIVATE
-	chat->SendMessage(pid, "This server IS logging private and chat messages.");
+	chat->SendMessage(p, "This server IS logging private and chat messages.");
 #endif
 }
 
@@ -387,7 +392,7 @@ local void add_mod(const char *name, const char *info, void *buf)
 
 local void send_msg_cb(const char *line, void *clos)
 {
-	chat->SendMessage(*(int*)clos, "  %s", line);
+	chat->SendMessage((Player*)clos, "  %s", line);
 }
 
 local helptext_t lsmod_help =
@@ -395,46 +400,47 @@ local helptext_t lsmod_help =
 "Args: none\n"
 "Lists all the modules currently loaded into the server.\n";
 
-local void Clsmod(const char *params, int pid, const Target *target)
+local void Clsmod(const char *params, Player *p, const Target *target)
 {
 	char data[MAXDATA+6];
 	memset(data, 0, sizeof(data));
 	mm->EnumModules(add_mod, (void*)data);
 	data[strlen(data)-2] = 0; /* kill last ', ' */
-	chat->SendMessage(pid, "Loaded modules:");
-	wrap_text(data, 80, ' ', send_msg_cb, &pid);
+	chat->SendMessage(p, "Loaded modules:");
+	wrap_text(data, 80, ' ', send_msg_cb, p);
 }
 
 
+#ifndef CFG_NO_RUNTIME_LOAD
 local helptext_t insmod_help =
 "Targets: none\n"
 "Args: <module specifier>\n"
 "Immediately loads the specified module into the server.\n";
 
-local void Cinsmod(const char *params, int pid, const Target *target)
+local void Cinsmod(const char *params, Player *p, const Target *target)
 {
 	int ret;
 	ret = mm->LoadModule(params);
 	if (ret == MM_OK)
-		chat->SendMessage(pid, "Module %s loaded successfully", params);
+		chat->SendMessage(p, "Module %s loaded successfully", params);
 	else
-		chat->SendMessage(pid, "Loading module %s failed", params);
+		chat->SendMessage(p, "Loading module %s failed", params);
 }
-
+#endif
 
 local helptext_t rmmod_help =
 "Targets: none\n"
 "Args: <module name>\n"
 "Attempts to unload the specified module from the server.\n";
 
-local void Crmmod(const char *params, int pid, const Target *target)
+local void Crmmod(const char *params, Player *p, const Target *target)
 {
 	int ret;
 	ret = mm->UnloadModule(params);
 	if (ret == MM_OK)
-		chat->SendMessage(pid, "Module %s unloaded successfully", params);
+		chat->SendMessage(p, "Module %s unloaded successfully", params);
 	else
-		chat->SendMessage(pid, "Unloading module %s failed", params);
+		chat->SendMessage(p, "Unloading module %s failed", params);
 }
 
 
@@ -443,19 +449,19 @@ local helptext_t getgroup_help =
 "Args: none\n"
 "Prints out the group of the target player.\n";
 
-local void Cgetgroup(const char *params, int pid, const Target *target)
+local void Cgetgroup(const char *params, Player *p, const Target *target)
 {
 	REQUIRE_MOD(groupman)
 
-	if (target->type == T_PID)
-		chat->SendMessage(pid, "getgroup: %s is in group %s",
-				players[target->u.pid].name,
-				groupman->GetGroup(target->u.pid));
+	if (target->type == T_PLAYER)
+		chat->SendMessage(p, "getgroup: %s is in group %s",
+				target->u.p->name,
+				groupman->GetGroup(target->u.p));
 	else if (target->type == T_ARENA)
-		chat->SendMessage(pid, "getgroup: You are in group %s",
-				groupman->GetGroup(pid));
+		chat->SendMessage(p, "getgroup: You are in group %s",
+				groupman->GetGroup(p));
 	else
-		chat->SendMessage(pid, "getgroup: Bad target");
+		chat->SendMessage(p, "getgroup: Bad target");
 }
 
 
@@ -475,16 +481,17 @@ local helptext_t setgroup_help =
 "The optional {-a} means to make the assignment local to the current\n"
 "arena, rather than being valid in the entire zone.\n";
 
-local void Csetgroup(const char *params, int pid, const Target *target)
+local void Csetgroup(const char *params, Player *p, const Target *target)
 {
-	int perm = 1, global = 1, t = target->u.pid;
+	int perm = 1, global = 1;
+	Player *t = target->u.p;
 	char cap[MAXGROUPLEN+10];
 
 	REQUIRE_MOD(capman)
 	REQUIRE_MOD(groupman)
 
 	if (!*params) return;
-	if (target->type != T_PID) return;
+	if (target->type != T_PLAYER) return;
 
 	while (*params && strchr(params, ' '))
 	{
@@ -498,10 +505,10 @@ local void Csetgroup(const char *params, int pid, const Target *target)
 
 	/* make sure the setter has permissions to set people to this group */
 	snprintf(cap, MAXGROUPLEN+10, "setgroup_%s", params);
-	if (!capman->HasCapability(pid, cap))
+	if (!capman->HasCapability(p, cap))
 	{
 		lm->Log(L_WARN, "<playercmd> [%s] doesn't have permission to set to group '%s'",
-				players[pid].name, params);
+				p->name, params);
 		return;
 	}
 
@@ -510,7 +517,7 @@ local void Csetgroup(const char *params, int pid, const Target *target)
 	{
 		lm->Log(L_WARN, "<playercmd> [%s] tried to set the group of [%s],"
 				"who is in '%s' already, to '%s'",
-				players[pid].name, players[t].name,
+				p->name, t->name,
 				groupman->GetGroup(t), params);
 		return;
 	}
@@ -520,23 +527,23 @@ local void Csetgroup(const char *params, int pid, const Target *target)
 		time_t tm = time(NULL);
 		char info[128];
 
-		snprintf(info, 128, "set by %s on ", players[pid].name);
+		snprintf(info, 128, "set by %s on ", p->name);
 		ctime_r(&tm, info + strlen(info));
 		RemoveCRLF(info);
 
 		groupman->SetPermGroup(t, params, global, info);
-		chat->SendMessage(pid, "%s is now in group %s",
-				players[t].name, params);
+		chat->SendMessage(p, "%s is now in group %s",
+				t->name, params);
 		chat->SendMessage(t, "You have been assigned to group %s by %s",
-				params, players[pid].name);
+				params, p->name);
 	}
 	else
 	{
 		groupman->SetTempGroup(t, params);
-		chat->SendMessage(pid, "%s is now temporarily in group %s",
-				players[t].name, params);
+		chat->SendMessage(p, "%s is now temporarily in group %s",
+				t->name, params);
 		chat->SendMessage(t, "You have temporarily been assigned to group %s by %s",
-				params, players[pid].name);
+				params, p->name);
 	}
 }
 
@@ -545,21 +552,21 @@ local helptext_t grplogin_help =
 "Args: <group name> <password>\n"
 "Logs you in to the specified group, if the password is correct.\n";
 
-local void Cgrplogin(const char *params, int pid, const Target *target)
+local void Cgrplogin(const char *params, Player *p, const Target *target)
 {
 	char grp[MAXGROUPLEN+1];
 	const char *pw;
 
 	pw = delimcpy(grp, params, MAXGROUPLEN, ' ');
 	if (grp[0] == '\0' || pw == NULL)
-		chat->SendMessage(pid, "You must specify a group name and password");
+		chat->SendMessage(p, "You must specify a group name and password");
 	else if (groupman->CheckGroupPassword(grp, pw))
 	{
-		groupman->SetTempGroup(pid, grp);
-		chat->SendMessage(pid, "You are now in group %s", grp);
+		groupman->SetTempGroup(p, grp);
+		chat->SendMessage(p, "You are now in group %s", grp);
 	}
 	else
-		chat->SendMessage(pid, "Bad password for group %s", grp);
+		chat->SendMessage(p, "Bad password for group %s", grp);
 }
 
 
@@ -569,20 +576,23 @@ local helptext_t listmods_help =
 "Lists all staff members logged on, which arena they are in, and\n"
 "which group they belong to.\n";
 
-local void Clistmods(const char *params, int pid, const Target *target)
+local void Clistmods(const char *params, Player *p, const Target *target)
 {
-	int i;
 	const char *group;
+	Player *i;
+	Link *link;
 
 	if (!capman) return;
 
-	for (i = 0; i < MAXPLAYERS; i++)
-		if (players[i].status == S_PLAYING &&
+	pd->Lock();
+	FOR_EACH_PLAYER(i)
+		if (i->status == S_PLAYING &&
 		    strcmp(group = groupman->GetGroup(i), "default"))
-			chat->SendMessage(pid, "listmods: %20s %10s %10s",
-					players[i].name,
-					players[i].arena->name,
+			chat->SendMessage(p, "listmods: %20s %10s %10s",
+					i->name,
+					i->arena->name,
 					group);
+	pd->Unlock();
 }
 
 
@@ -594,16 +604,16 @@ local helptext_t netstats_help =
 "it has sent and received, and the number of buffers currently in use\n"
 "versus the number allocated.\n";
 
-local void Cnetstats(const char *params, int pid, const Target *target)
+local void Cnetstats(const char *params, Player *p, const Target *target)
 {
 	struct net_stats stats;
 	net->GetStats(&stats);
-	chat->SendMessage(pid, "netstats: pings=%d  pkts sent=%d  pkts recvd=%d",
+	chat->SendMessage(p, "netstats: pings=%d  pkts sent=%d  pkts recvd=%d",
 			stats.pcountpings, stats.pktsent, stats.pktrecvd);
-	chat->SendMessage(pid, "netstats: buffers used=%d/%d (%.1f%%)",
+	chat->SendMessage(p, "netstats: buffers used=%d/%d (%.1f%%)",
 			stats.buffersused, stats.buffercount,
 			(double)stats.buffersused/(double)stats.buffercount*100.0);
-	chat->SendMessage(pid, "netstats: priority counts=%d/%d/%d/%d/%d/%d/%d",
+	chat->SendMessage(p, "netstats: priority counts=%d/%d/%d/%d/%d/%d/%d",
 			stats.pri_stats[1], stats.pri_stats[2], stats.pri_stats[3],
 			stats.pri_stats[4], stats.pri_stats[5], stats.pri_stats[6],
 			stats.pri_stats[7]);
@@ -617,10 +627,10 @@ local helptext_t info_help =
 "client they are using, their resolution, ip address, how long they have\n"
 "been connected, and bandwidth usage information.\n";
 
-local void Cinfo(const char *params, int pid, const Target *target)
+local void Cinfo(const char *params, Player *p, const Target *target)
 {
-	if (target->type != T_PID)
-		chat->SendMessage(pid, "info: must use on a player");
+	if (target->type != T_PLAYER)
+		chat->SendMessage(p, "info: must use on a player");
 	else
 	{
 		static const char *type_names[] =
@@ -629,31 +639,30 @@ local void Cinfo(const char *params, int pid, const Target *target)
 		};
 		const char *type, *prefix;
 		unsigned int tm;
-		int t = target->u.pid;
-		struct PlayerData *p = players + t;
+		Player *t = target->u.p;
 
-		type = p->type < (sizeof(type_names)/sizeof(type_names[0])) ?
-			type_names[p->type] : "really_unknown";
+		type = t->type < (sizeof(type_names)/sizeof(type_names[0])) ?
+			type_names[t->type] : "really_unknown";
 		prefix = params[0] ? params : "info";
-		tm = GTC() - p->connecttime;
+		tm = GTC() - t->connecttime;
 
-		chat->SendMessage(pid,
+		chat->SendMessage(p,
 				"%s: pid=%d  status=%d  name='%s'  squad='%s'",
-				prefix, t, p->status, p->name, p->squad);
-		chat->SendMessage(pid,
+				prefix, t, t->status, t->name, t->squad);
+		chat->SendMessage(p,
 				"%s: arena=%s  type=%s  res=%dx%d  seconds=%d",
-				prefix, p->arena ? p->arena : "(none)", type, p->xres,
-				p->yres, tm / 100);
+				prefix, t->arena ? t->arena->name : "(none)", type, t->xres,
+				t->yres, tm / 100);
 		if (IS_STANDARD(t))
 		{
 			struct net_client_stats s;
 			int ignoring;
 			net->GetClientStats(t, &s);
-			chat->SendMessage(pid,
+			chat->SendMessage(p,
 					"%s: ip=%s  port=%d  encname=%s",
 					prefix, s.ipaddr, s.port, s.encname);
 			ignoring = 100.0 * (double)p->ignoreweapons / (double)RAND_MAX;
-			chat->SendMessage(pid,
+			chat->SendMessage(p,
 					"%s: limit=%d  avg bandwidth in/out=%d/%d  ignoringwpns=%d%%",
 					prefix, s.limit, s.byterecvd*100/tm, s.bytesent*100/tm,
 					ignoring);
@@ -662,7 +671,7 @@ local void Cinfo(const char *params, int pid, const Target *target)
 		{
 			struct chat_client_stats s;
 			chatnet->GetClientStats(t, &s);
-			chat->SendMessage(pid,
+			chat->SendMessage(p,
 					"%s: ip=%s  port=%d",
 					prefix, s.ipaddr, s.port);
 		}
@@ -691,7 +700,7 @@ local helptext_t setcm_help =
 "frequency. Leaving and entering an arena will remove a player's chat\n"
 "mask.\n";
 
-local void Csetcm(const char *params, int pid, const Target *target)
+local void Csetcm(const char *params, Player *p, const Target *target)
 {
 	chat_mask_t mask;
 	int timeout = 0;
@@ -700,11 +709,11 @@ local void Csetcm(const char *params, int pid, const Target *target)
 	/* grab the original mask */
 	if (target->type == T_ARENA)
 		mask = chat->GetArenaChatMask(target->u.arena);
-	else if (target->type == T_PID)
-		mask = chat->GetPlayerChatMask(target->u.pid);
+	else if (target->type == T_PLAYER)
+		mask = chat->GetPlayerChatMask(target->u.p);
 	else
 	{
-		chat->SendMessage(pid, "setcm: Bad target");
+		chat->SendMessage(p, "setcm: Bad target");
 		return;
 	}
 
@@ -753,7 +762,7 @@ local void Csetcm(const char *params, int pid, const Target *target)
 	if (target->type == T_ARENA)
 		chat->SetArenaChatMask(target->u.arena, mask);
 	else
-		chat->SetPlayerChatMask(target->u.pid, mask, timeout);
+		chat->SetPlayerChatMask(target->u.p, mask, timeout);
 }
 
 local helptext_t getcm_help =
@@ -763,21 +772,21 @@ local helptext_t getcm_help =
 "current arena. The chat mask specifies which types of chat messages are\n"
 "allowed.\n";
 
-local void Cgetcm(const char *params, int pid, const Target *target)
+local void Cgetcm(const char *params, Player *p, const Target *target)
 {
 	chat_mask_t mask;
 
 	if (target->type == T_ARENA)
 		mask = chat->GetArenaChatMask(target->u.arena);
-	else if (target->type == T_PID)
-		mask = chat->GetPlayerChatMask(target->u.pid);
+	else if (target->type == T_PLAYER)
+		mask = chat->GetPlayerChatMask(target->u.p);
 	else
 	{
-		chat->SendMessage(pid, "getcm: Bad target");
+		chat->SendMessage(p, "getcm: Bad target");
 		return;
 	}
 
-	chat->SendMessage(pid,
+	chat->SendMessage(p,
 			"getcm: %cpub %cpubmacro %cfreq %cnmefreq %cpriv %cchat %cmodchat",
 			IS_RESTRICTED(mask, MSG_PUB) ? '-' : '+',
 			IS_RESTRICTED(mask, MSG_PUBMACRO) ? '-' : '+',
@@ -795,11 +804,12 @@ local helptext_t a_help =
 "Args: <text>\n"
 "Displays the text as an arena (green) message to the targets.\n";
 
-local void Ca(const char *params, int pid, const Target *target)
+local void Ca(const char *params, Player *p, const Target *target)
 {
-	int set[MAXPLAYERS+1];
-	pd->TargetToSet(target, set);
-	chat->SendSetMessage(set, "%s  -%s", params, players[pid].name);
+	LinkedList set = LL_INITIALIZER;
+	pd->TargetToSet(target, &set);
+	chat->SendSetMessage(&set, "%s  -%s", params, p->name);
+	LLEmpty(&set);
 }
 
 
@@ -808,14 +818,14 @@ local helptext_t cheater_help =
 "Args: <message>\n"
 "Sends the message to all online staff members.\n";
 
-local void Ccheater(const char *params, int pid, const Target *target)
+local void Ccheater(const char *params, Player *p, const Target *target)
 {
-	Arena *arena = pd->players[pid].arena;
-	if (IS_ALLOWED(chat->GetPlayerChatMask(pid), MSG_MODCHAT))
+	Arena *arena = p->arena;
+	if (IS_ALLOWED(chat->GetPlayerChatMask(p), MSG_MODCHAT))
 	{
 		chat->SendModMessage("cheater {%s} %s> %s",
-				arena->name, pd->players[pid].name, params);
-		chat->SendMessage(pid, "Message has been sent to online staff");
+				arena->name, p->name, params);
+		chat->SendMessage(p, "Message has been sent to online staff");
 	}
 }
 
@@ -825,7 +835,7 @@ local helptext_t warpto_help =
 "Args: <x coord> <y coord>\n"
 "Warps target player to coordinate x,y.\n";
 
-local void Cwarpto(const char *params, int pid, const Target *target)
+local void Cwarpto(const char *params, Player *p, const Target *target)
 {
 	char *next;
 	int x, y;
@@ -844,15 +854,15 @@ local helptext_t send_help =
 "Args: <arena name>\n"
 "Sends target player to the named arena. (Works on Continuum users only)\n";
 
-local void Csend(const char *params, int pid, const Target *target)
+local void Csend(const char *params, Player *p, const Target *target)
 {
-	int t = target->u.pid;
-	if (target->type != T_PID)
+	Player *t = target->u.p;
+	if (target->type != T_PLAYER)
 		return;
-	if (players[t].type == T_CONT)
+	if (t->type == T_CONT)
 		aman->SendToArena(t, params, 0, 0);
 	else
-		chat->SendMessage(pid, "You can only use ?send on players using Continuum");
+		chat->SendMessage(p, "You can only use ?send on players using Continuum");
 }
 
 
@@ -861,21 +871,18 @@ local helptext_t shipreset_help =
 "Args: none\n"
 "Resets the target players' ship(s).\n";
 
-local void Cshipreset(const char *params, int pid, const Target *target)
+local void Cshipreset(const char *params, Player *p, const Target *target)
 {
 	byte pkt = S2C_SHIPRESET;
-	int set[MAXPLAYERS+1];
-
-	pd->TargetToSet(target, set);
-	net->SendToSet(set, &pkt, 1, NET_RELIABLE);
+	net->SendToTarget(target, &pkt, 1, NET_RELIABLE);
 }
 
 
 local helptext_t sheep_help = NULL;
 
-local void Csheep(const char *params, int pid, const Target *target)
+local void Csheep(const char *params, Player *p, const Target *target)
 {
-	Arena *arena = players[pid].arena;
+	Arena *arena = p->arena;
 	const char *sheepmsg = NULL;
 
 	if (target->type != T_ARENA)
@@ -887,9 +894,9 @@ local void Csheep(const char *params, int pid, const Target *target)
 		sheepmsg = cfg->GetStr(arena->cfg, "Misc", "SheepMessage");
 
 	if (sheepmsg)
-		chat->SendSoundMessage(pid, 24, sheepmsg);
+		chat->SendSoundMessage(p, 24, sheepmsg);
 	else
-		chat->SendSoundMessage(pid, 24, "Sheep successfully cloned -- hello Dolly");
+		chat->SendSoundMessage(p, 24, "Sheep successfully cloned -- hello Dolly");
 }
 
 
@@ -898,19 +905,20 @@ local helptext_t specall_help =
 "Args: none\n"
 "Sends all of the targets to spectator mode.\n";
 
-local void Cspecall(const char *params, int pid, const Target *target)
+local void Cspecall(const char *params, Player *p, const Target *target)
 {
-	int set[MAXPLAYERS+1], *p, freq;
-	Arena *arena;
+	int freq;
+	Arena *arena = p->arena;
+	LinkedList set = LL_INITIALIZER;
+	Link *l;
 
-	arena = players[pid].arena;
 	if (!arena) return;
 
 	freq = cfg->GetInt(arena->cfg, "Team", "SpectatorFrequency", 8025);
-
-	pd->TargetToSet(target, set);
-	for (p = set; *p != -1; p++)
-		game->SetFreqAndShip(*p, SPEC, freq);
+	pd->TargetToSet(target, &set);
+	for (l = LLGetHead(&set); l; l = l->next)
+		game->SetFreqAndShip(l->data, SPEC, freq);
+	LLEmpty(&set);
 }
 
 
@@ -920,13 +928,13 @@ local helptext_t getg_help =
 "Displays the value of a global setting. Make sure there are no\n"
 "spaces around the colon.\n";
 
-local void Cgetg(const char *params, int pid, const Target *target)
+local void Cgetg(const char *params, Player *p, const Target *target)
 {
 	const char *res = cfg->GetStr(GLOBAL, params, NULL);
 	if (res)
-		chat->SendMessage(pid, "%s=%s", params, res);
+		chat->SendMessage(p, "%s=%s", params, res);
 	else
-		chat->SendMessage(pid, "%s not found", params);
+		chat->SendMessage(p, "%s not found", params);
 }
 
 
@@ -936,13 +944,13 @@ local helptext_t setg_help =
 "Sets the value of a global setting. Make sure there are no\n"
 "spaces around either the colon or the equals sign.\n";
 
-local void Csetg(const char *params, int pid, const Target *target)
+local void Csetg(const char *params, Player *p, const Target *target)
 {
 	time_t tm = time(NULL);
 	char info[128], key[MAXSECTIONLEN+MAXKEYLEN+2], *k = key;
 	const char *t = params;
 
-	snprintf(info, 128, "set by %s on ", players[pid].name);
+	snprintf(info, 128, "set by %s on ", p->name);
 	ctime_r(&tm, info + strlen(info));
 	RemoveCRLF(info);
 
@@ -961,18 +969,18 @@ local helptext_t geta_help =
 "Displays the value of an arena setting. Make sure there are no\n"
 "spaces around the colon.\n";
 
-local void Cgeta(const char *params, int pid, const Target *target)
+local void Cgeta(const char *params, Player *p, const Target *target)
 {
-	Arena *arena = players[pid].arena;
+	Arena *arena = p->arena;
 	const char *res;
 
 	if (!arena) return;
 
 	res = cfg->GetStr(arena->cfg, params, NULL);
 	if (res)
-		chat->SendMessage(pid, "%s=%s", params, res);
+		chat->SendMessage(p, "%s=%s", params, res);
 	else
-		chat->SendMessage(pid, "%s not found", params);
+		chat->SendMessage(p, "%s not found", params);
 }
 
 local helptext_t seta_help =
@@ -981,16 +989,16 @@ local helptext_t seta_help =
 "Sets the value of an arena setting. Make sure there are no\n"
 "spaces around either the colon or the equals sign.\n";
 
-local void Cseta(const char *params, int pid, const Target *target)
+local void Cseta(const char *params, Player *p, const Target *target)
 {
-	Arena *arena = players[pid].arena;
+	Arena *arena = p->arena;
 	time_t tm = time(NULL);
 	char info[128], key[MAXSECTIONLEN+MAXKEYLEN+2], *k = key;
 	const char *t = params;
 
 	if (!arena) return;
 
-	snprintf(info, 128, "set by %s on ", players[pid].name);
+	snprintf(info, 128, "set by %s on ", p->name);
 	ctime_r(&tm, info + strlen(info));
 	RemoveCRLF(info);
 
@@ -1016,7 +1024,7 @@ local helptext_t prize_help =
 "name means {random}. For compatability, numerical prize ids with {#} are\n"
 "supported.\n";
 
-local void Cprize(const char *params, int pid, const Target *target)
+local void Cprize(const char *params, Player *p, const Target *target)
 {
 #define BAD_TYPE 10000
 	const char *tmp = NULL;
@@ -1116,7 +1124,7 @@ local helptext_t flaginfo_help =
 "Displays information (status, location, carrier) about all the flags in\n"
 "the arena.\n";
 
-local void Cflaginfo(const char *params, int pid, const Target *target)
+local void Cflaginfo(const char *params, Player *p, const Target *target)
 {
 	ArenaFlagData *fd;
 	Arena *arena;
@@ -1124,10 +1132,10 @@ local void Cflaginfo(const char *params, int pid, const Target *target)
 
 	REQUIRE_MOD(flags)
 
-	if (PID_BAD(pid) || !players[pid].arena || target->type != T_ARENA)
+	if (!p->arena || target->type != T_ARENA)
 		return;
 
-	arena = players[pid].arena;
+	arena = p->arena;
 
 	fd = flags->GetFlagData(arena);
 
@@ -1135,25 +1143,26 @@ local void Cflaginfo(const char *params, int pid, const Target *target)
 		switch (fd->flags[i].state)
 		{
 			case FLAG_NONE:
-				chat->SendMessage(pid,
+				chat->SendMessage(p,
 						"flaginfo: Flag %d doesn't exist",
 						i);
 				break;
 
 			case FLAG_ONMAP:
-				chat->SendMessage(pid,
+				chat->SendMessage(p,
 						"flaginfo: Flag %d is on the map at (%d,%d), owned by freq %d",
 						i, fd->flags[i].x, fd->flags[i].y, fd->flags[i].freq);
 				break;
 
 			case FLAG_CARRIED:
-				chat->SendMessage(pid,
-						"flaginfo: Flag %d is carried by %s",
-						i, players[fd->flags[i].carrier].name);
+				if (fd->flags[i].carrier)
+					chat->SendMessage(p,
+							"flaginfo: Flag %d is carried by %s",
+							i, fd->flags[i].carrier->name);
 				break;
 
 			case FLAG_NEUTED:
-				chat->SendMessage(pid,
+				chat->SendMessage(p,
 						"flaginfo: Flag %d was neuted and has not reappeared yet",
 						i);
 				break;
@@ -1168,10 +1177,10 @@ local helptext_t neutflag_help =
 "Args: <flag id>\n"
 "Neuts the specified flag in the middle of the arena.\n";
 
-local void Cneutflag(const char *params, int pid, const Target *target)
+local void Cneutflag(const char *params, Player *p, const Target *target)
 {
 	ArenaFlagData *fd;
-	Arena *arena = players[pid].arena;
+	Arena *arena = p->arena;
 	int flagid;
 	char *next;
 
@@ -1181,7 +1190,7 @@ local void Cneutflag(const char *params, int pid, const Target *target)
 
 	flagid = strtol(params, &next, 0);
 	if (next == params || flagid < 0 || flagid >= fd->flagcount)
-		chat->SendMessage(pid, "neutflag: Bad flag id");
+		chat->SendMessage(p, "neutflag: Bad flag id");
 	else
 		/* set flag state to none, so that the flag timer will neut it
 		 * next time it runs. */
@@ -1198,9 +1207,9 @@ local helptext_t moveflag_help =
 "the flag. The coordinates are optional: if they are specified, the flag\n"
 "will be moved there, otherwise it will remain where it is.\n";
 
-local void Cmoveflag(const char *params, int pid, const Target *target)
+local void Cmoveflag(const char *params, Player *p, const Target *target)
 {
-	Arena *arena = players[pid].arena;
+	Arena *arena = p->arena;
 	ArenaFlagData *fd;
 	char *next, *next2;
 	int flagid, x, y, freq;
@@ -1214,7 +1223,7 @@ local void Cmoveflag(const char *params, int pid, const Target *target)
 	flagid = strtol(params, &next, 0);
 	if (next == params || flagid < 0 || flagid >= fd->flagcount)
 	{
-		chat->SendMessage(pid, "moveflag: Bad flag id");
+		chat->SendMessage(p, "moveflag: Bad flag id");
 		goto mf_unlock;
 	}
 
@@ -1222,7 +1231,7 @@ local void Cmoveflag(const char *params, int pid, const Target *target)
 	if (next == next2)
 	{
 		/* bad freq */
-		chat->SendMessage(pid, "moveflag: Bad freq");
+		chat->SendMessage(p, "moveflag: Bad freq");
 		goto mf_unlock;
 	}
 
@@ -1249,17 +1258,17 @@ local helptext_t reloadconf_help =
 "Causes the server to check all config files for modifications since\n"
 "they were last loaded, and reload any modified files.\n";
 
-local void Creloadconf(const char *params, int pid, const Target *target)
+local void Creloadconf(const char *params, Player *p, const Target *target)
 {
 	cfg->CheckModifiedFiles();
-	chat->SendMessage(pid, "Reloading all modified config files");
+	chat->SendMessage(p, "Reloading all modified config files");
 }
 
 
 
 local helptext_t getfile_help = NULL;
 
-local void Cgetfile(const char *params, int pid, const Target *target)
+local void Cgetfile(const char *params, Player *p, const Target *target)
 {
 	const char *t1 = strrchr(params, '/');
 	const char *t2 = strrchr(params, '\\');
@@ -1267,21 +1276,21 @@ local void Cgetfile(const char *params, int pid, const Target *target)
 	t1 = t1 ? t1 + 1 : params;
 
 	if (params[0] == '/' || strstr(params, ".."))
-		lm->LogP(L_MALICIOUS, "playercmd", pid, "Attempted ?getfile with bad path: '%s'", params);
+		lm->LogP(L_MALICIOUS, "playercmd", p, "Attempted ?getfile with bad path: '%s'", params);
 	else
-		filetrans->SendFile(pid, params, t1, 0);
+		filetrans->SendFile(p, params, t1, 0);
 }
 
 
 local helptext_t putfile_help = NULL;
 
-local void Cputfile(const char *params, int pid, const Target *target)
+local void Cputfile(const char *params, Player *p, const Target *target)
 {
 	const char *t1 = strrchr(params, '/');
 	const char *t2 = strrchr(params, '\\');
 	if (t2 > t1) t1 = t2;
 	t1 = t1 ? t1 + 1 : params;
-	filetrans->RequestFile(pid, params, t1);
+	filetrans->RequestFile(p, params, t1);
 }
 
 
@@ -1290,9 +1299,9 @@ local helptext_t jackpot_help =
 "Args: none\n"
 "Displays the current jackpot for this arena.\n";
 
-local void Cjackpot(const char *params, int pid, const Target *target)
+local void Cjackpot(const char *params, Player *p, const Target *target)
 {
-	chat->SendMessage(pid, "jackpot: %d", jackpot->GetJP(players[pid].arena));
+	chat->SendMessage(p, "jackpot: %d", jackpot->GetJP(p->arena));
 }
 
 
@@ -1303,7 +1312,7 @@ local helptext_t uptime_help =
 "Args: none\n"
 "Displays how long the server has been running.\n";
 
-local void Cuptime(const char *params, int pid, const Target *target)
+local void Cuptime(const char *params, Player *p, const Target *target)
 {
 	unsigned int secs = (GTC() - startedat) / 100;
 	int days, hours, mins;
@@ -1315,7 +1324,7 @@ local void Cuptime(const char *params, int pid, const Target *target)
 	mins = secs / 60;
 	secs %= 60;
 
-	chat->SendMessage(pid, "uptime: %d days %d hours %d minutes %d seconds",
+	chat->SendMessage(p, "uptime: %d days %d hours %d minutes %d seconds",
 			days, hours, mins, secs);
 }
 
@@ -1327,26 +1336,26 @@ local helptext_t lag_help =
 "Args: none\n"
 "Displays basic lag information about you or a target player.\n";
 
-local void Clag(const char *params, int pid, const Target *target)
+local void Clag(const char *params, Player *p, const Target *target)
 {
 	struct PingSummary pping, cping;
 	struct PLossSummary ploss;
-	int t = (target->type) == T_PID ? target->u.pid : pid;
+	Player *t = (target->type) == T_PLAYER ? target->u.p : p;
 
 	lagq->QueryPPing(t, &pping);
 	lagq->QueryCPing(t, &cping);
 	lagq->QueryPLoss(t, &ploss);
 
-	if (t == pid)
-		chat->SendMessage(pid,
+	if (t == p)
+		chat->SendMessage(p,
 			"ping: s2c: %d (%d-%d) c2s: %d (%d-%d)  ploss: s2c: %.2f c2s: %.2f",
 			cping.avg, cping.min, cping.max,
 			pping.avg, pping.min, pping.max,
 			100.0*ploss.s2c, 100.0*ploss.c2s);
 	else
-		chat->SendMessage(pid,
+		chat->SendMessage(p,
 			"%s: ping: s2c: %d (%d-%d) c2s: %d (%d-%d)  ploss: s2c: %.2f c2s: %.2f",
-			players[t].name,
+			t->name,
 			cping.avg, cping.min, cping.max,
 			pping.avg, pping.min, pping.max,
 			100.0*ploss.s2c, 100.0*ploss.c2s);
@@ -1358,12 +1367,12 @@ local helptext_t laginfo_help =
 "Args: none\n"
 "Displays tons of lag information about a player.\n";
 
-local void Claginfo(const char *params, int pid, const Target *target)
+local void Claginfo(const char *params, Player *p, const Target *target)
 {
 	struct PingSummary pping, cping, rping;
 	struct PLossSummary ploss;
 	struct ReliableLagData rlag;
-	int t = (target->type) == T_PID ? target->u.pid : pid;
+	Player *t = (target->type) == T_PLAYER ? target->u.p : p;
 
 	lagq->QueryPPing(t, &pping);
 	lagq->QueryCPing(t, &cping);
@@ -1371,19 +1380,19 @@ local void Claginfo(const char *params, int pid, const Target *target)
 	lagq->QueryPLoss(t, &ploss);
 	lagq->QueryRelLag(t, &rlag);
 
-	chat->SendMessage(pid, "%s: s2c ping: %d %d (%d-%d)",
-		players[t].name, cping.cur, cping.avg, cping.min, cping.max);
-	chat->SendMessage(pid, "%s: c2s ping: %d %d (%d-%d)",
-		players[t].name, pping.cur, pping.avg, pping.min, pping.max);
-	chat->SendMessage(pid, "%s: rel ping: %d %d (%d-%d)",
-		players[t].name, rping.cur, rping.avg, rping.min, rping.max);
-	chat->SendMessage(pid, "%s: ploss: s2c: %.2f c2s: %.2f s2cwpn: %.2f",
-		players[t].name, 100.0*ploss.s2c, 100.0*ploss.c2s, 100.0*ploss.s2cwpn);
-	chat->SendMessage(pid, "%s: reliable dups: %.2f  reliable resends: %.2f",
-		players[t].name, 100.0*(double)rlag.reldups/(double)rlag.c2sn,
+	chat->SendMessage(p, "%s: s2c ping: %d %d (%d-%d)",
+		t->name, cping.cur, cping.avg, cping.min, cping.max);
+	chat->SendMessage(p, "%s: c2s ping: %d %d (%d-%d)",
+		t->name, pping.cur, pping.avg, pping.min, pping.max);
+	chat->SendMessage(p, "%s: rel ping: %d %d (%d-%d)",
+		t->name, rping.cur, rping.avg, rping.min, rping.max);
+	chat->SendMessage(p, "%s: ploss: s2c: %.2f c2s: %.2f s2cwpn: %.2f",
+		t->name, 100.0*ploss.s2c, 100.0*ploss.c2s, 100.0*ploss.s2cwpn);
+	chat->SendMessage(p, "%s: reliable dups: %.2f  reliable resends: %.2f",
+		t->name, 100.0*(double)rlag.reldups/(double)rlag.c2sn,
 		100.0*(double)rlag.retries/(double)rlag.s2cn);
-	chat->SendMessage(pid, "%s: s2c slow: %d/%d  s2c fast: %d/%d",
-		players[t].name, cping.s2cslowcurrent, cping.s2cslowtotal,
+	chat->SendMessage(p, "%s: s2c slow: %d/%d  s2c fast: %d/%d",
+		t->name, cping.s2cslowcurrent, cping.s2cslowtotal,
 		cping.s2cfastcurrent, cping.s2cfasttotal);
 }
 
@@ -1394,7 +1403,7 @@ local helptext_t laghist_help =
 "Displays lag histograms. If a {-r} is given, do this histogram for\n"
 "\"reliable\" latency instead of c2s pings.\n";
 
-local void Claghist(const char *params, int pid, const Target *target)
+local void Claghist(const char *params, Player *p, const Target *target)
 {
 	/* FIXME: write this */
 }
@@ -1480,20 +1489,20 @@ local helptext_t enablecmdgroup_help =
 "Enables all the commands in the specified command group. This is only\n"
 "useful after using ?disablecmdgroup.\n";
 
-local void Cenablecmdgroup(const char *params, int pid, const Target *target)
+local void Cenablecmdgroup(const char *params, Player *p, const Target *target)
 {
 	struct cmd_group *grp = find_group(params);
 	if (grp)
 	{
 		if (grp->loaded)
-			chat->SendMessage(pid, "Command group %s already enabled", params);
+			chat->SendMessage(p, "Command group %s already enabled", params);
 		else if (load_cmd_group(grp) == MM_OK)
-			chat->SendMessage(pid, "Command group %s enabled", params);
+			chat->SendMessage(p, "Command group %s enabled", params);
 		else
-			chat->SendMessage(pid, "Error enabling command group %s", params);
+			chat->SendMessage(p, "Error enabling command group %s", params);
 	}
 	else
-		chat->SendMessage(pid, "Command group %s not found");
+		chat->SendMessage(p, "Command group %s not found");
 }
 
 local helptext_t disablecmdgroup_help =
@@ -1504,7 +1513,7 @@ local helptext_t disablecmdgroup_help =
 "modules can be unloaded or upgraded without unloading playercmd (which would\n"
 "be irreversable).\n";
 
-local void Cdisablecmdgroup(const char *params, int pid, const Target *target)
+local void Cdisablecmdgroup(const char *params, Player *p, const Target *target)
 {
 	struct cmd_group *grp = find_group(params);
 	if (grp)
@@ -1512,13 +1521,13 @@ local void Cdisablecmdgroup(const char *params, int pid, const Target *target)
 		if (grp->loaded)
 		{
 			unload_cmd_group(grp);
-			chat->SendMessage(pid, "Command group %s disabled", params);
+			chat->SendMessage(p, "Command group %s disabled", params);
 		}
 		else
-			chat->SendMessage(pid, "Command group %s not loaded", params);
+			chat->SendMessage(p, "Command group %s not loaded", params);
 	}
 	else
-		chat->SendMessage(pid, "Command group %s not found", params);
+		chat->SendMessage(p, "Command group %s not found", params);
 }
 
 
@@ -1546,7 +1555,9 @@ local const struct cmd_info core_commands[] =
 	CMD(version)
 	CMD(uptime)
 	CMD(lsmod)
+#ifndef CFG_NO_RUNTIME_LOAD
 	CMD(insmod)
+#endif
 	CMD(rmmod)
 	CMD(info)
 	CMD(a)
@@ -1718,8 +1729,6 @@ EXPORT int MM_playercmd(int action, Imodman *_mm, Arena *arena)
 		if (!pd || !chat || !cmd) return MM_FAIL;
 
 		startedat = GTC();
-
-		players = pd->players;
 
 		for (grp = all_cmd_groups; grp->groupname; grp++)
 			load_cmd_group(grp);

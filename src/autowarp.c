@@ -12,7 +12,7 @@ struct adata
 };
 
 /* packet funcs */
-local void Pppk(int, byte *, int);
+local void Pppk(Player *, byte *, int);
 
 /* global data */
 local int adkey;
@@ -79,10 +79,10 @@ local void DoChecksum(struct S2CWeapons *pkt)
 }
 
 
-void Pppk(int pid, byte *p2, int n)
+void Pppk(Player *p, byte *p2, int n)
 {
-	struct C2SPosition *p = (struct C2SPosition *)p2;
-	Arena *arena = pd->players[pid].arena;
+	struct C2SPosition *pos = (struct C2SPosition *)p2;
+	Arena *arena = p->arena;
 	struct adata *ad = P_ARENA_DATA(arena, adkey);
 	int warpy = 0;
 
@@ -90,25 +90,25 @@ void Pppk(int pid, byte *p2, int n)
 	if (!arena || !ad->on) return;
 
 	/* speccers don't get their position sent to anyone */
-	if (pd->players[pid].shiptype == SPEC)
+	if (p->p_ship == SPEC)
 		return;
 
-	if (p->yspeed < 0 &&
-	    mapdata->InRegion(arena, "warpup", p->x>>4, p->y>>4))
+	if (pos->yspeed < 0 &&
+	    mapdata->InRegion(arena, "warpup", pos->x>>4, pos->y>>4))
 		warpy = -WARPDIST;
-	else if (p->yspeed > 0 &&
-	         mapdata->InRegion(arena, "warpdown", p->x>>4, p->y>>4))
+	else if (pos->yspeed > 0 &&
+	         mapdata->InRegion(arena, "warpdown", pos->x>>4, pos->y>>4))
 		warpy = WARPDIST;
 
 	if (warpy)
 	{
 		struct S2CWeapons wpn = {
-			S2C_WEAPON, p->rotation, p->time & 0xFFFF, p->x, p->yspeed,
-			pid, p->xspeed, 0, p->status, 0, p->y + warpy, p->bounty
+			S2C_WEAPON, pos->rotation, pos->time & 0xFFFF, pos->x, pos->yspeed,
+			p->pid, pos->xspeed, 0, pos->status, 0, pos->y + warpy, pos->bounty
 		};
 
 		DoChecksum(&wpn);
-		net->SendToOne(pid, (byte*)&wpn, sizeof(wpn), NET_PRI_P4);
+		net->SendToOne(p, (byte*)&wpn, sizeof(wpn), NET_PRI_P4);
 	}
 }
 

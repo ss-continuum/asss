@@ -218,6 +218,41 @@ The file \verb/news.txt/ should be located in the base of the zone
 directory as well, unless another location is specified in
 \verb/global.conf/.
 
+
+\subsection{Running \asss{} in a chroot jail}
+
+If you want to increase the security of your host a bit, you can run
+\asss{} in a chroot jail. This means that it will run with its root
+directory set to the zone directory, and it won't be able to access any
+files outside of that directory.
+
+You need to do a bit of preperatory work before chroot can work. You'll
+need to make a \verb/lib/ directory in the zone directory containing all
+the shared libraries needed by any modules you'll be loading. On my
+machine, I needed to put the following files from \verb+/lib+ and
+\verb+/usr/lib+ in there:
+\verb/ld-linux.so.2,/,
+\verb/libc.so.6/,
+\verb/libpthread.so.0/,
+\verb/libz.so.1/,
+\verb/libm.so.6/, and
+\verb/libdb-4.0.so/.
+You'll also have to make sure that nothing within the zone directory is
+a symlink pointing outside of the zone directory. So you'll need a
+separate copy of the \verb/bin/ directory and shared settings files for
+each separate zone. It's also a good idea (although not strictly
+necessary) to create an \verb/etc/ directory with limited \verb/passwd/
+and \verb/group/ files, and also things like \verb/ld.so.conf/,
+\verb/hosts/, and \verb/nsswitch.conf/.
+
+In order to do a chroot, \asss{} needs to be run as root. It won't
+continue running as root, of course: as soon as it successfully chroots,
+it drops its priviliges and runs as a normal user. To control what user
+it switches to, you can use the \verb/USER/ environment variable. If you
+use \verb/su/ to become root, \verb/USER/ will be set to the user who
+ran \verb/su/, which should be what you want.
+
+
 \section{Modules}
 
 Almost all of the functionality of \asss{} is split into many small

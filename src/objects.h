@@ -16,10 +16,10 @@ typedef struct Iobjects
 	INTERFACE_HEAD_DECL
 
 	void (*ToggleArenaMultiObjects)(Arena *arena, short *objs, char *ons, int size);
-	void (*TogglePidSetMultiObjects)(int *pidset, short *objs, char *ons, int size);
-	void (*ToggleMultiObjects)(int pid, short *objs, char *ons, int size);
+	void (*TogglePidSetMultiObjects)(LinkedList *set, short *objs, char *ons, int size);
+	void (*ToggleMultiObjects)(Player *p, short *objs, char *ons, int size);
 	void (*ToggleArenaObject)(Arena *arena, short obj, char on);
-	void (*ToggleObject)(int pid, short obj, char on);
+	void (*ToggleObject)(Player *p, short obj, char on);
 } Iobjects;
 
 

@@ -10,7 +10,7 @@ typedef struct Imapnewsdl
 {
 	INTERFACE_HEAD_DECL
 
-	void (*SendMapFilename)(int pid);
+	void (*SendMapFilename)(Player *p);
 	u32 (*GetNewsChecksum)();
 } Imapnewsdl;
 

@@ -33,8 +33,7 @@ struct koth_player_data
 };
 
 
-local struct koth_player_data pdata[MAXPLAYERS];
-local int akey;
+local int akey, pkey;
 
 local pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK() pthread_mutex_lock(&mtx)
@@ -58,38 +57,42 @@ local Istats *stats;
 local void start_koth(Arena *arena)
 {
 	struct koth_arena_data *adata = P_ARENA_DATA(arena, akey);
+	struct koth_player_data *pdata;
 	struct S2CKoth pkt =
 		{ S2C_KOTH, 1, adata->expiretime, -1 };
 
-	int set[MAXPLAYERS+1], setc = 0, pid;
+	LinkedList set = LL_INITIALIZER;
+	Link *link;
+	Player *p;
 
-	pd->LockStatus();
-	for (pid = 0; pid < MAXPLAYERS; pid++)
-		if (pd->players[pid].status == S_PLAYING &&
-		    pd->players[pid].arena == arena)
+	pd->Lock();
+	FOR_EACH_PLAYER_P(p, pdata, pkey)
+		if (p->status == S_PLAYING &&
+		    p->arena == arena)
 		{
-			if (pd->players[pid].shiptype != SPEC)
+			if (p->p_ship != SPEC)
 			{
-				set[setc++] = pid;
-				pdata[pid].crown = 1;
-				SET_HAS_CROWN(pid);
-				pdata[pid].hadcrown = 1;
-				pdata[pid].deaths = 0;
-				pdata[pid].crownkills = 0;
+				LLAdd(&set, p);
+				pdata->crown = 1;
+				SET_HAS_CROWN(p);
+				pdata->hadcrown = 1;
+				pdata->deaths = 0;
+				pdata->crownkills = 0;
 			}
 			else
 			{
-				pdata[pid].crown = 0;
-				UNSET_HAS_CROWN(pid);
-				pdata[pid].hadcrown = 0;
+				pdata->crown = 0;
+				UNSET_HAS_CROWN(p);
+				pdata->hadcrown = 0;
 			}
 		}
-	pd->UnlockStatus();
-	set[setc] = -1;
+	pd->Unlock();
 
-	net->SendToSet(set, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
+	net->SendToSet(&set, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
 	chat->SendArenaMessage(arena, "King of the Hill game starting");
 	lm->LogA(L_DRIVEL, "koth", arena, "game starting");
+
+	LLEmpty(&set);
 }
 
 
@@ -97,47 +100,51 @@ local void start_koth(Arena *arena)
 local void check_koth(Arena *arena)
 {
 	struct koth_arena_data *adata = P_ARENA_DATA(arena, akey);
-	int pid, crowncount = 0;
-	int playing = 0;
-	int hadset[MAXPLAYERS+1], setc = 0;
+	struct koth_player_data *pdata;
+	Player *p;
+	int crowncount = 0, playing = 0, count;
+	LinkedList hadset = LL_INITIALIZER;
+	Link *link;
 
 	/* first count crowns and previous crowns. also count total playing
 	 * players. also keep track of who had a crown. */
-	for (pid = 0; pid < MAXPLAYERS; pid++)
-		if (pd->players[pid].status == S_PLAYING &&
-		    pd->players[pid].arena == arena &&
-		    pd->players[pid].shiptype != SPEC)
+	pd->Lock();
+	FOR_EACH_PLAYER_P(p, pdata, pkey)
+		if (p->status == S_PLAYING &&
+		    p->arena == arena &&
+		    p->p_ship != SPEC)
 		{
 			playing++;
-			if (pdata[pid].crown)
+			if (pdata->crown)
 				crowncount++;
-			if (pdata[pid].hadcrown)
-				hadset[setc++] = pid;
+			if (pdata->hadcrown)
+				LLAdd(&hadset, p);
 		}
-	hadset[setc] = -1;
+	pd->Unlock();
 
 	/* figure out if there was a win */
-	if (crowncount == 0 && setc > 0)
+	count = LLCount(&hadset);
+	if (crowncount == 0 && count > 0)
 	{
 		/* a bunch of people expired at once. reward them and then
 		 * restart */
-
-		int pts, *p;
+		int pts;
 		Ipoints_koth *pk = mm->GetInterface(I_POINTS_KOTH, arena);
 
 		if (pk)
-			pts = pk->GetPoints(arena, playing, setc);
+			pts = pk->GetPoints(arena, playing, count);
 		else
-			pts = 1000 / setc;
+			pts = 1000 / count;
 		mm->ReleaseInterface(pk);
 
-		for (p = hadset; *p != -1; p++)
+		for (link = LLGetHead(&hadset); link; link = link->next)
 		{
-			stats->IncrementStat(*p, STAT_FLAG_POINTS, pts);
-			stats->IncrementStat(*p, STAT_KOTH_GAMES_WON, 1);
+			p = link->data;
+			stats->IncrementStat(p, STAT_FLAG_POINTS, pts);
+			stats->IncrementStat(p, STAT_KOTH_GAMES_WON, 1);
 			chat->SendArenaMessage(arena, "King of the Hill: %s awarded %d points",
-					pd->players[*p].name, pts);
-			lm->LogP(L_DRIVEL, "koth", *p, "won koth game");
+					p->name, pts);
+			lm->LogP(L_DRIVEL, "koth", p, "won koth game");
 		}
 		stats->SendUpdates();
 
@@ -151,11 +158,13 @@ local void check_koth(Arena *arena)
 	}
 
 	/* now mark anyone without a crown as not having had a crown */
-	for (pid = 0; pid < MAXPLAYERS; pid++)
-		if (pd->players[pid].status == S_PLAYING &&
-		    pd->players[pid].arena == arena &&
-		    pd->players[pid].shiptype != SPEC)
-			pdata[pid].hadcrown = pdata[pid].crown;
+	pd->Lock();
+	FOR_EACH_PLAYER_P(p, pdata, pkey)
+		if (p->status == S_PLAYING &&
+		    p->arena == arena &&
+		    p->p_ship != SPEC)
+			pdata->hadcrown = pdata->crown;
+	pd->Unlock();
 }
 
 
@@ -169,31 +178,33 @@ local int timer(void *v)
 }
 
 /* needs lock */
-local void set_crown_time(int pid, int time)
+local void set_crown_time(Player *p, int time)
 {
+	struct koth_player_data *pdata = PPDATA(p, pkey);
 	struct S2CKoth pkt =
 		{ S2C_KOTH, 1, time, -1 };
-	pdata[pid].crown = 1;
+	pdata->crown = 1;
 	SET_HAS_CROWN(pid);
-	pdata[pid].hadcrown = 1;
-	net->SendToOne(pid, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
+	pdata->hadcrown = 1;
+	net->SendToOne(p, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
 }
 
 /* needs lock */
-local void remove_crown(int pid)
+local void remove_crown(Player *p)
 {
-	Arena *arena = pd->players[pid].arena;
+	Arena *arena = p->arena;
 	struct koth_arena_data *adata = P_ARENA_DATA(arena, akey);
+	struct koth_player_data *pdata = PPDATA(p, pkey);
 	struct S2CKoth pkt =
-		{ S2C_KOTH, 0, 0, pid };
+		{ S2C_KOTH, 0, 0, p->pid };
 
 	if (adata->expiretime == 0)
 		return;
 
-	pdata[pid].crown = 0;
+	pdata->crown = 0;
 	UNSET_HAS_CROWN(pid);
-	net->SendToArena(arena, -1, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
-	lm->LogP(L_DRIVEL, "koth", pid, "lost crown");
+	net->SendToArena(arena, NULL, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
+	lm->LogP(L_DRIVEL, "koth", p, "lost crown");
 }
 
 
@@ -215,39 +226,42 @@ local void load_settings(Arena *arena)
 }
 
 
-local void paction(int pid, int action, Arena *arena)
+local void paction(Player *p, int action, Arena *arena)
 {
+	struct koth_player_data *pdata = PPDATA(p, pkey);
 	LOCK();
-	pdata[pid].crown = pdata[pid].hadcrown = 0;
+	pdata->crown = pdata->hadcrown = 0;
 	UNSET_HAS_CROWN(pid);
 	UNLOCK();
 }
 
 
-local void shipchange(int pid, int ship, int freq)
+local void shipchange(Player *p, int ship, int freq)
 {
 	if (ship == SPEC)
-		paction(pid, 0, 0);
+		paction(p, 0, 0);
 }
 
 
-local void kill(Arena *arena, int killer, int killed, int bounty, int flags)
+local void kill(Arena *arena, Player *killer, Player *killed, int bounty, int flags)
 {
 	struct koth_arena_data *adata = P_ARENA_DATA(arena, akey);
+	struct koth_player_data *erdata = PPDATA(killer, pkey);
+	struct koth_player_data *eddata = PPDATA(killed, pkey);
 
 	LOCK();
 
-	if (pdata[killed].crown)
+	if (eddata->crown)
 	{
-		pdata[killed].deaths++;
-		if (pdata[killed].deaths > adata->deathcount)
+		eddata->deaths++;
+		if (eddata->deaths > adata->deathcount)
 			remove_crown(killed);
 	}
 
-	if (pdata[killer].crown)
+	if (erdata->crown)
 	{
 		/* doesn't work now:
-		if (!pdata[killed].crown && bounty >= adata->killminbty)
+		if (!eddata->crown && bounty >= adata->killminbty)
 			add_crown_time(killer, adata->killadjusttime);
 			 */
 		set_crown_time(killer, adata->expiretime);
@@ -255,17 +269,17 @@ local void kill(Arena *arena, int killer, int killed, int bounty, int flags)
 	else
 	{
 		/* no crown. if the killed does, count this one */
-		if (pdata[killed].crown && adata->recoverkills > 0)
+		if (eddata->crown && adata->recoverkills > 0)
 		{
 			int left;
 
-			pdata[killer].crownkills++;
-			left = adata->recoverkills - pdata[killer].crownkills;
+			erdata->crownkills++;
+			left = adata->recoverkills - erdata->crownkills;
 
 			if (left <= 0)
 			{
-				pdata[killer].crownkills = 0;
-				pdata[killer].deaths = 0;
+				erdata->crownkills = 0;
+				erdata->deaths = 0;
 				set_crown_time(killer, adata->expiretime);
 				chat->SendMessage(killer, "You earned back a crown");
 				lm->LogP(L_DRIVEL, "koth", killer, "earned back a crown");
@@ -280,17 +294,17 @@ local void kill(Arena *arena, int killer, int killed, int bounty, int flags)
 }
 
 
-local void p_kothexired(int pid, byte *p, int l)
+local void p_kothexired(Player *p, byte *pkt, int l)
 {
 	LOCK();
-	remove_crown(pid);
+	remove_crown(p);
 	UNLOCK();
 }
 
 
-local void Cresetkoth(const char *params, int pid, const Target *t)
+local void Cresetkoth(const char *params, Player *p, const Target *t)
 {
-	Arena *arena = pd->players[pid].arena;
+	Arena *arena = p->arena;
 	struct koth_arena_data *adata = P_ARENA_DATA(arena, akey);
 	/* check to be sure koth is even running in this arena */
 	LOCK();
@@ -320,7 +334,8 @@ EXPORT int MM_koth(int action, Imodman *mm_, Arena *arena)
 			return MM_FAIL;
 
 		akey = aman->AllocateArenaData(sizeof(struct koth_arena_data));
-		if (akey == -1) return MM_FAIL;
+		pkey = pd->AllocatePlayerData(sizeof(struct koth_player_data));
+		if (akey == -1 || pkey == -1) return MM_FAIL;
 
 		cmd->AddCommand("resetkoth", Cresetkoth, NULL);
 
@@ -335,6 +350,7 @@ EXPORT int MM_koth(int action, Imodman *mm_, Arena *arena)
 		ml->ClearTimer(timer, NULL);
 
 		aman->FreeArenaData(akey);
+		pd->FreePlayerData(pkey);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(pd);

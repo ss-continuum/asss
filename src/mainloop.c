@@ -43,7 +43,7 @@ local pthread_mutex_t tmrmtx = PTHREAD_MUTEX_INITIALIZER;
 #define UNLOCK() pthread_mutex_unlock(&tmrmtx)
 
 
-EXPORT int MM_mainloop(int action, Imodman *mm_, int arena)
+EXPORT int MM_mainloop(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -67,11 +67,9 @@ EXPORT int MM_mainloop(int action, Imodman *mm_, int arena)
 int RunLoop(void)
 {
 	TimerData *td;
-	LinkedList freelist;
+	LinkedList freelist = LL_INITIALIZER;
 	Link *l;
 	unsigned int gtc;
-
-	LLInit(&freelist);
 
 	while (!privatequit)
 	{

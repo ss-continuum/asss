@@ -80,6 +80,15 @@ void *amalloc(size_t s)
 	return ptr;
 }
 
+void *arealloc(void *p, size_t s)
+{
+	void *n;
+	n = realloc(p, s);
+	if (!n)
+		Error(EXIT_MEMORY,"realloc error: requested %i bytes\n",s);
+	return n;
+}
+
 char *astrdup(const char *s)
 {
 	char *r;
@@ -319,9 +328,7 @@ void LLFree(LinkedList *lst)
 
 void LLAdd(LinkedList *l, void *p)
 {
-	Link *n;
-
-	n = GetALink();
+	Link *n = GetALink();
 
 	n->next = NULL;
 	n->data = p;
@@ -339,9 +346,7 @@ void LLAdd(LinkedList *l, void *p)
 
 void LLAddFirst(LinkedList *lst, void *data)
 {
-	Link *n;
-
-	n = GetALink();
+	Link *n = GetALink();
 
 	n->next = lst->start;
 	n->data = data;
@@ -349,6 +354,23 @@ void LLAddFirst(LinkedList *lst, void *data)
 	lst->start = n;
 	if (lst->end == NULL)
 		lst->end = n;
+}
+
+void LLInsertAfter(LinkedList *lst, Link *link, void *data)
+{
+	Link *n;
+
+	if (link)
+	{
+		n = GetALink();
+		n->next = link->next;
+		n->data = data;
+		link->next = n;
+		if (lst->end == link)
+			lst->end = n;
+	}
+	else
+		LLAddFirst(lst, data);
 }
 
 int LLRemove(LinkedList *l, void *p)

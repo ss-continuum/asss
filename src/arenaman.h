@@ -14,7 +14,7 @@ struct Arena
 	ConfigHandle cfg;
 	/* if this isn't going to be dynamic, might as well allocate it
 	 * right here in the struct to make things a bit faster. */
-	byte extradata[0];
+	byte arenaextradata[0];
 };
 
 
@@ -66,10 +66,10 @@ typedef struct Iarenaman
 {
 	INTERFACE_HEAD_DECL
 
-	void (*SendArenaResponse)(int pid);
-	void (*LeaveArena)(int pid);
+	void (*SendArenaResponse)(Player *p);
+	void (*LeaveArena)(Player *p);
 
-	void (*SendToArena)(int pid, const char *aname, int spawnx, int spawny);
+	void (*SendToArena)(Player *p, const char *aname, int spawnx, int spawny);
 	/* works on cont clients only. set spawnx/y to 0 for default spawn */
 
 	Arena * (*FindArena)(const char *name, int *totalcount, int *playing);
@@ -93,7 +93,7 @@ typedef struct Iarenaman
 
 
 /* use this to access per-arena data */
-#define P_ARENA_DATA(a, mykey) ((void*)((a)->extradata+mykey))
+#define P_ARENA_DATA(a, mykey) ((void*)((a)->arenaextradata+mykey))
 
 /* these assume you have a Link * named 'link' and that 'aman' points to
  * the arena manager interface. don't forget to use aman->Lock() first. */
@@ -116,7 +116,7 @@ typedef struct Iarenaman
 typedef struct Iarenaplace
 {
 	INTERFACE_HEAD_DECL
-	int (*Place)(char *name, int namelen, int pid);
+	int (*Place)(char *name, int namelen, Player *p);
 	/* this should put an arena name in name, which has namelen space.
 	 * if it puts a name there, it should return true, if not (it failed
 	 * for some reason), return false. */

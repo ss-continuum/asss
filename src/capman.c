@@ -5,10 +5,14 @@
 
 #include "asss.h"
 
+typedef struct
+{
+	char group[MAXGROUPLEN];
+} pdata;
 
 /* data */
 local ConfigHandle groupdef, gstaff;
-local char groups[MAXPLAYERS][MAXGROUPLEN];
+local int pdkey;
 
 local Imodman *mm;
 local Iplayerdata *pd;
@@ -17,33 +21,35 @@ local Ilogman *lm;
 local Iconfig *cfg;
 
 
-local void UpdateGroup(int pid, Arena *arena)
+local void UpdateGroup(Player *p, Arena *arena)
 {
 #define LOGIT(from) \
 	lm->Log(L_DRIVEL, "<capman> {%s} [%s] Player assigned to group '%s' from %s", \
 			arena->name, \
-			pd->players[pid].name, \
-			groups[pid], \
+			p->name, \
+			group, \
 			from)
+
+	char *group = ((pdata*)PPDATA(p, pdkey))->group;
 
 	if (!arena)
 	{
 		/* only global groups available for now */
-		const char *gg = cfg->GetStr(gstaff, "Staff", pd->players[pid].name);
+		const char *gg = cfg->GetStr(gstaff, "Staff", p->name);
 		if (gg)
 		{
-			astrncpy(groups[pid], gg, MAXGROUPLEN);
+			astrncpy(group, gg, MAXGROUPLEN);
 			lm->Log(L_DRIVEL, "<capman> [%s] Player assigned to group '%s' from global staff list",
-					pd->players[pid].name,
-					groups[pid]);
+					p->name,
+					group);
 		}
 		else
-			astrncpy(groups[pid], "default", MAXGROUPLEN);
+			astrncpy(group, "default", MAXGROUPLEN);
 	}
 	else
 	{
-		const char *gg = cfg->GetStr(gstaff, "Staff", pd->players[pid].name);
-		const char *ag = cfg->GetStr(arena->cfg, "Staff", pd->players[pid].name);
+		const char *gg = cfg->GetStr(gstaff, "Staff", p->name);
+		const char *ag = cfg->GetStr(arena->cfg, "Staff", p->name);
 
 		if (gg)
 		{
@@ -58,14 +64,14 @@ local void UpdateGroup(int pid, Arena *arena)
 					int pos = 0;
 					t++; /* skip ':' */
 					while (pos < MAXGROUPLEN && *t && *t != ' ' && *t != ',')
-						groups[pid][pos++] = *t++;
+						group[pos++] = *t++;
 					LOGIT("global staff list (arena)");
 				}
 				else
 				{
 					/* it must not be 'arena:group', so use the whole
 					 * thing */
-					astrncpy(groups[pid], gg, MAXGROUPLEN);
+					astrncpy(group, gg, MAXGROUPLEN);
 					LOGIT("global staff list (global)");
 				}
 			}
@@ -73,61 +79,64 @@ local void UpdateGroup(int pid, Arena *arena)
 			{
 				/* this must be a group valid everywhere, so it takes
 				 * precedence */
-				astrncpy(groups[pid], gg, MAXGROUPLEN);
+				astrncpy(group, gg, MAXGROUPLEN);
 				LOGIT("global staff list (global)");
 			}
 		}
 		else if (ag)
 		{
 			/* use arena-assigned group */
-			astrncpy(groups[pid], ag, MAXGROUPLEN);
+			astrncpy(group, ag, MAXGROUPLEN);
 			LOGIT("arena staff list");
 		}
 		else /* just give him the default */
-			astrncpy(groups[pid], "default", MAXGROUPLEN);
+			astrncpy(group, "default", MAXGROUPLEN);
 	}
 #undef LOGIT
 }
 
 
-local void PlayerAction(int pid, int action, Arena *arena)
+local void PlayerAction(Player *p, int action, Arena *arena)
 {
+	char *group = ((pdata*)PPDATA(p, pdkey))->group;
 	if (action == PA_PREENTERARENA)
-		UpdateGroup(pid, arena);
+		UpdateGroup(p, arena);
 	else if (action == PA_CONNECT)
-		UpdateGroup(pid, NULL);
+		UpdateGroup(p, NULL);
 	else if (action == PA_DISCONNECT || action == PA_LEAVEARENA)
-		astrncpy(groups[pid], "none", MAXGROUPLEN);
+		astrncpy(group, "none", MAXGROUPLEN);
 }
 
 
-local const char *GetGroup(int pid)
+local const char *GetGroup(Player *p)
 {
-	return groups[pid];
+	char *group = ((pdata*)PPDATA(p, pdkey))->group;
+	return group;
 }
 
 
-local void SetTempGroup(int pid, const char *group)
+local void SetTempGroup(Player *p, const char *newgroup)
 {
-	if (group)
-		astrncpy(groups[pid], group, MAXGROUPLEN);
+	char *group = ((pdata*)PPDATA(p, pdkey))->group;
+	if (newgroup)
+		astrncpy(group, newgroup, MAXGROUPLEN);
 }
 
 
-local void SetPermGroup(int pid, const char *group, int global, const char *info)
+local void SetPermGroup(Player *p, const char *group, int global, const char *info)
 {
 	ConfigHandle ch;
-	Arena *arena = pd->players[pid].arena;
+	Arena *arena = p->arena;
 
 	/* figure out where to set it */
 	ch = global ? gstaff : (arena ? arena->cfg : NULL);
 	if (!ch) return;
 
 	/* first set it for the current session */
-	SetTempGroup(pid, group);
+	SetTempGroup(p, group);
 
 	/* now set it permanently */
-	cfg->SetStr(ch, "Staff", pd->players[pid].name, group, info);
+	cfg->SetStr(ch, "Staff", p->name, group, info);
 }
 
 local int CheckGroupPassword(const char *group, const char *pw)
@@ -138,9 +147,10 @@ local int CheckGroupPassword(const char *group, const char *pw)
 }
 
 
-local int HasCapability(int pid, const char *cap)
+local int HasCapability(Player *p, const char *cap)
 {
-	if (cfg->GetStr(groupdef, groups[pid], cap))
+	char *group = ((pdata*)PPDATA(p, pdkey))->group;
+	if (cfg->GetStr(groupdef, group, cap))
 		return 1;
 	else
 		return 0;
@@ -179,7 +189,7 @@ local Igroupman grpint =
 };
 
 
-EXPORT int MM_capman(int action, Imodman *_mm, int arena)
+EXPORT int MM_capman(int action, Imodman *_mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -188,8 +198,10 @@ EXPORT int MM_capman(int action, Imodman *_mm, int arena)
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		if (!pd || !aman || !lm || !cfg) return MM_FAIL;
 
-		if (!cfg) return MM_FAIL;
+		pdkey = pd->AllocatePlayerData(sizeof(pdata));
+		if (pdkey == -1) return MM_FAIL;
 
 		mm->RegCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
 
@@ -209,6 +221,7 @@ EXPORT int MM_capman(int action, Imodman *_mm, int arena)
 		cfg->CloseConfigFile(groupdef);
 		cfg->CloseConfigFile(gstaff);
 		mm->UnregCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
+		pd->FreePlayerData(pdkey);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(aman);

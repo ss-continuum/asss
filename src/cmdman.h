@@ -45,7 +45,7 @@
  */
 
 
-typedef void (*CommandFunc)(const char *params, int pid, const Target *target);
+typedef void (*CommandFunc)(const char *params, Player *p, const Target *target);
 
 
 typedef const char *helptext_t;
@@ -58,7 +58,7 @@ typedef struct Icmdman
 
 	void (*AddCommand)(const char *cmdname, CommandFunc func, helptext_t ht);
 	void (*RemoveCommand)(const char *cmdname, CommandFunc func);
-	void (*Command)(const char *typedline, int pid, const Target *target);
+	void (*Command)(const char *typedline, Player *p, const Target *target);
 	helptext_t (*GetHelpText)(const char *cmdname);
 } Icmdman;
 

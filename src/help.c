@@ -11,7 +11,7 @@ local Icmdman *cmdman;
 local Icfghelp *cfghelp;
 
 
-local void do_cmd_help(int pid, const char *cmd)
+local void do_cmd_help(Player *p, const char *cmd)
 {
 	char buf[256], *t;
 	const char *temp = NULL;
@@ -21,44 +21,44 @@ local void do_cmd_help(int pid, const char *cmd)
 
 	if (ht)
 	{
-		chat->SendMessage(pid, "Help on '?%s':", cmd);
+		chat->SendMessage(p, "Help on '?%s':", cmd);
 		while (strsplit(ht, "\n", buf, 256, &temp))
 		{
 			for (t = buf; *t; t++)
 				if (*t == '{' || *t == '}')
 					*t = '\'';
-			chat->SendMessage(pid, "  %s", buf);
+			chat->SendMessage(p, "  %s", buf);
 		}
 	}
 	else
-		chat->SendMessage(pid, "Sorry, I don't know anything about ?%s", cmd);
+		chat->SendMessage(p, "Sorry, I don't know anything about ?%s", cmd);
 }
 
 
 local void send_msg_cb(const char *line, void *clos)
 {
-	chat->SendMessage(*(int*)clos, "  %s", line);
+	chat->SendMessage((Player*)clos, "  %s", line);
 }
 
-local void do_list_sections(int pid)
+local void do_list_sections(Player *p)
 {
-	chat->SendMessage(pid, "Known config file sections:");
-	wrap_text(cfghelp->all_section_names, 80, ' ', send_msg_cb, &pid);
+	chat->SendMessage(p, "Known config file sections:");
+	wrap_text(cfghelp->all_section_names, 80, ' ', send_msg_cb, p);
 }
 
-local void do_list_keys(int pid, const char *sec)
+local void do_list_keys(Player *p, const char *sec)
 {
 	const struct section_help *sh = cfghelp->find_sec(sec);
 	if (sh)
 	{
-		chat->SendMessage(pid, "Known keys in section %s:", sec);
-		wrap_text(sh->all_key_names, 80, ' ', send_msg_cb, &pid);
+		chat->SendMessage(p, "Known keys in section %s:", sec);
+		wrap_text(sh->all_key_names, 80, ' ', send_msg_cb, p);
 	}
 	else
-		chat->SendMessage(pid, "I don't know anything about section %s", sec);
+		chat->SendMessage(p, "I don't know anything about section %s", sec);
 }
 
-local void do_setting_help(int pid, const char *sec, const char *key)
+local void do_setting_help(Player *p, const char *sec, const char *key)
 {
 	const struct section_help *sh = cfghelp->find_sec(sec);
 	if (sh)
@@ -66,23 +66,23 @@ local void do_setting_help(int pid, const char *sec, const char *key)
 		const struct key_help *kh = cfghelp->find_key(sh, key);
 		if (kh)
 		{
-			chat->SendMessage(pid, "Help on setting %s:%s",
+			chat->SendMessage(p, "Help on setting %s:%s",
 					sh->name, kh->name);
 			if (kh->mod)
-				chat->SendMessage(pid, "  Requires module: %s", kh->mod);
-			chat->SendMessage(pid, "  Location: %s", kh->loc);
-			chat->SendMessage(pid, "  Type: %s", kh->type);
+				chat->SendMessage(p, "  Requires module: %s", kh->mod);
+			chat->SendMessage(p, "  Location: %s", kh->loc);
+			chat->SendMessage(p, "  Type: %s", kh->type);
 			if (kh->range)
-				chat->SendMessage(pid, "  Range: %s", kh->range);
+				chat->SendMessage(p, "  Range: %s", kh->range);
 			if (kh->def)
-				chat->SendMessage(pid, "  Default: %s", kh->def);
-			wrap_text(kh->helptext, 80, ' ', send_msg_cb, &pid);
+				chat->SendMessage(p, "  Default: %s", kh->def);
+			wrap_text(kh->helptext, 80, ' ', send_msg_cb, p);
 		}
 		else
-			chat->SendMessage(pid, "I don't know anything about key %s", key);
+			chat->SendMessage(p, "I don't know anything about key %s", key);
 	}
 	else
-		chat->SendMessage(pid, "I don't know anything about section %s", sec);
+		chat->SendMessage(p, "I don't know anything about section %s", sec);
 }
 
 
@@ -93,7 +93,7 @@ local helptext_t help_help =
 "to list known keys in that section. Use {?help :} to list known section\n"
 "names.\n";
 
-local void Chelp(const char *params, int pid, const Target *target)
+local void Chelp(const char *params, Player *p, const Target *target)
 {
 
 	if (params[0] == '?' || params[0] == '*' || params[0] == '!')
@@ -110,26 +110,26 @@ local void Chelp(const char *params, int pid, const Target *target)
 
 		if (!cfghelp)
 		{
-			chat->SendMessage(pid, "Config file settings help isn't loaded.");
+			chat->SendMessage(p, "Config file settings help isn't loaded.");
 			return;
 		}
 
 		keyname = delimcpy(secname, params, MAXSECTIONLEN, ':');
 
 		if (secname[0] == '\0')
-			do_list_sections(pid);
+			do_list_sections(p);
 		else if (keyname[0] == '\0')
-			do_list_keys(pid, secname);
+			do_list_keys(p, secname);
 		else
-			do_setting_help(pid, secname, keyname);
+			do_setting_help(p, secname, keyname);
 	}
 	else
 		/* command */
-		do_cmd_help(pid, params);
+		do_cmd_help(p, params);
 }
 
 
-EXPORT int MM_help(int action, Imodman *mm, int arena)
+EXPORT int MM_help(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{

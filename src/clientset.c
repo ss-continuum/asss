@@ -17,7 +17,7 @@
 
 /* prototypes */
 local void ActionFunc(Arena *arena, int action);
-local void SendClientSettings(int pid);
+local void SendClientSettings(Player *p);
 local void Reconfigure(Arena *arena);
 local u32 GetChecksum(Arena *arena, u32 key);
 
@@ -47,7 +47,7 @@ local Iclientset _myint =
 #include "clientset.def"
 
 
-EXPORT int MM_clientset(int action, Imodman *mm_, int arena)
+EXPORT int MM_clientset(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -189,7 +189,7 @@ void ActionFunc(Arena *arena, int action)
 	{
 		byte *data = P_ARENA_DATA(arena, csetkey);
 		LoadSettings(arena);
-		net->SendToArena(arena, -1, data, sizeof(struct ClientSettings), NET_RELIABLE);
+		net->SendToArena(arena, NULL, data, sizeof(struct ClientSettings), NET_RELIABLE);
 		lm->LogA(L_INFO, "clientset", arena, "Sending modified settings");
 	}
 	else if (action == AA_DESTROY)
@@ -202,12 +202,12 @@ void ActionFunc(Arena *arena, int action)
 }
 
 
-void SendClientSettings(int pid)
+void SendClientSettings(Player *p)
 {
-	byte *data = P_ARENA_DATA(pd->players[pid].arena, csetkey);
+	byte *data = P_ARENA_DATA(p->arena, csetkey);
 	LOCK();
-	if (pd->players[pid].arena && data[0] == S2C_SETTINGS)
-		net->SendToOne(pid, data, sizeof(struct ClientSettings), NET_RELIABLE);
+	if (p->arena && data[0] == S2C_SETTINGS)
+		net->SendToOne(p, data, sizeof(struct ClientSettings), NET_RELIABLE);
 	UNLOCK();
 }
 
@@ -217,7 +217,7 @@ void Reconfigure(Arena *arena)
 	byte *data = P_ARENA_DATA(arena, csetkey);
 	LOCK();
 	LoadSettings(arena);
-	net->SendToArena(arena, -1, data, sizeof(struct ClientSettings), NET_RELIABLE);
+	net->SendToArena(arena, NULL, data, sizeof(struct ClientSettings), NET_RELIABLE);
 	UNLOCK();
 }
 

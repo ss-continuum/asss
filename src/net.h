@@ -25,11 +25,6 @@
 #endif
 
 
-#include "encrypt.h"
-
-
-#define PKT_BILLER_OFFSET 0x100
-
 /* bits in the flags parameter to the SendX functions */
 #define NET_UNRELIABLE 0x00
 #define NET_RELIABLE 0x01
@@ -62,18 +57,15 @@
 #define GET_PRI(flags) (((flags) & 0x1C) >> 2)
 
 
-typedef void (*PacketFunc)(int pid, byte *data, int length);
 
+typedef void (*PacketFunc)(Player *p, byte *data, int length);
 typedef void (*SizedPacketFunc)
-	(int pid, byte *data, int len, int offset, int totallen);
+	(Player *p, byte *data, int len, int offset, int totallen);
 
-typedef void (*RelCallback)(int pid, int success, void *clos);
+typedef void (*RelCallback)(Player *p, int success, void *clos);
 
 #define CB_CONNINIT ("conninit")
 typedef void (*ConnectionInitFunc)(struct sockaddr_in *sin, byte *pkt, int len);
-
-#define CB_CLIENTCONNECTED ("clientconnected")
-typedef void (*ClientConnectedFunc)(int pid);
 
 
 struct net_stats
@@ -98,43 +90,41 @@ struct net_client_stats
 };
 
 
-#define I_NET "net-3"
+#include "encrypt.h"
+
+
+#define I_NET "net-4"
 
 typedef struct Inet
 {
 	INTERFACE_HEAD_DECL
 
-	void (*SendToOne)(int pid, byte *data, int length, int flags);
-	void (*SendToArena)(Arena *a, int exception, byte *data, int length, int flags);
-	void (*SendToSet)(int *pidset, byte *data, int length, int flags);
+	void (*SendToOne)(Player *p, byte *data, int length, int flags);
+	void (*SendToArena)(Arena *a, Player *except, byte *data, int length, int flags);
+	void (*SendToSet)(LinkedList *set, byte *data, int length, int flags);
 	void (*SendToTarget)(const Target *target, byte *data, int length, int flags);
-	void (*SendToAll)(byte *data, int length, int flags);
-	void (*SendWithCallback)(int *pidset, byte *data, int length,
+	void (*SendWithCallback)(Player *p, byte *data, int length,
 			RelCallback callback, void *clos);
-	void (*SendSized)(int pid, void *clos, int len,
+	void (*SendSized)(Player *p, void *clos, int len,
 			void (*request_data)(void *clos, int offset, byte *buf, int needed));
 
-	/* only to be used by encryption modules! */
-	void (*ReallyRawSend)(struct sockaddr_in *sin, byte *pkt, int len);
-
-	void (*DropClient)(int pid);
+	void (*DropClient)(Player *p);
 
 	void (*AddPacket)(int pktype, PacketFunc func);
 	void (*RemovePacket)(int pktype, PacketFunc func);
 	void (*AddSizedPacket)(int pktype, SizedPacketFunc func);
 	void (*RemoveSizedPacket)(int pktype, SizedPacketFunc func);
 
-	int (*NewConnection)(int type, struct sockaddr_in *sin, Iencrypt *enc);
+	/* only to be used by encryption modules! */
+	void (*ReallyRawSend)(struct sockaddr_in *sin, byte *pkt, int len);
+	Player * (*NewConnection)(int type, struct sockaddr_in *sin, Iencrypt *enc);
 
 	/* bandwidth limits. the units on these parameters are bytes/second */
-	void (*SetLimit)(int pid, int limit);
+	void (*SetLimit)(Player *p, int limit);
 
 	void (*GetStats)(struct net_stats *stats);
-	void (*GetClientStats)(int pid, struct net_client_stats *stats);
-	int (*GetLastPacketTime)(int pid);
-
-	int (*ConnectToClient)(const char *name, const char *ipaddr,
-			unsigned short port, int initlimit, Iencrypt *enc);
+	void (*GetClientStats)(Player *p, struct net_client_stats *stats);
+	int (*GetLastPacketTime)(Player *p);
 } Inet;
 
 

@@ -27,30 +27,33 @@
 
 #include "packets/loginresp.h"
 
+typedef struct
+{
+	AuthData *authdata;
+	struct LoginPacket *loginpkt;
+	int lplen;
+} pdata;
+
 
 /* PROTOTYPES */
 
 /* packet funcs */
-local void PLogin(int, byte *, int);
-local void MLogin(int, const char *);
+local void PLogin(Player *, byte *, int);
+local void MLogin(Player *, const char *);
 
-local void AuthDone(int, AuthData *);
-local void GSyncDone(int);
-local void ASyncDone(int);
+local void AuthDone(Player *, AuthData *);
+local void GSyncDone(Player *);
+local void ASyncDone(Player *);
 
 local int SendKeepalive(void *);
 local void ProcessLoginQueue(void);
-local void SendLoginResponse(int);
+local void SendLoginResponse(Player *);
 
 /* default auth, can be replaced */
-local void DefaultAuth(int, struct LoginPacket *, int, void (*)(int, AuthData *));
+local void DefaultAuth(Player *, struct LoginPacket *, int, void (*)(Player *, AuthData *));
 
 
 /* GLOBALS */
-
-local AuthData *authdata[MAXPLAYERS];
-local struct LoginPacket *loginpkt[MAXPLAYERS];
-local int lplen[MAXPLAYERS];
 
 local Imodman *mm;
 local Iplayerdata *pd;
@@ -65,7 +68,7 @@ local Icapman *capman;
 local Ipersist *persist;
 local Istats *stats;
 
-local PlayerData *players;
+local int pdkey;
 
 local Iauth _iauth =
 {
@@ -76,7 +79,7 @@ local Iauth _iauth =
 
 /* FUNCTIONS */
 
-EXPORT int MM_core(int action, Imodman *mm_, int arena)
+EXPORT int MM_core(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -91,10 +94,10 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 		map = mm->GetInterface(I_MAPNEWSDL, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
-
-		players = pd->players;
-
 		if (!pd || !lm || !cfg || !map || !aman || !ml) return MM_FAIL;
+
+		pdkey = pd->AllocatePlayerData(sizeof(pdata));
+		if (pdkey == -1) return MM_FAIL;
 
 		/* set up callbacks */
 		if (net)
@@ -138,6 +141,7 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 		}
 		if (chatnet)
 			chatnet->RemoveHandler("LOGIN", MLogin);
+		pd->FreePlayerData(pdkey);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(chatnet);
@@ -155,18 +159,18 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 
 void ProcessLoginQueue(void)
 {
-	int pid, ns, oldstatus;
-	PlayerData *player;
+	int ns, oldstatus;
+	Player *player;
+	Link *link;
 
-	pd->LockStatus();
-	for (pid = 0, player = players; pid < MAXPLAYERS; pid++, player++)
+	pd->WriteLock();
+	FOR_EACH_PLAYER(player)
 	{
 		oldstatus = player->status;
 		switch (oldstatus)
 		{
 			/* for all of these states, there's nothing to do in this
 			 * loop */
-			case S_FREE:
 			case S_CONNECTED:
 			case S_WAIT_AUTH:
 			case S_WAIT_GLOBAL_SYNC:
@@ -213,7 +217,8 @@ void ProcessLoginQueue(void)
 				continue;
 
 			default:
-				lm->Log(L_ERROR,"<core> [pid=%d] Internal error: unknown player status %d", pid, oldstatus);
+				lm->Log(L_ERROR,"<core> [pid=%d] Internal error: unknown player status %d",
+						player->pid, oldstatus);
 				continue;
 		}
 
@@ -222,47 +227,48 @@ void ProcessLoginQueue(void)
 		/* now unlock status, lock player (because we might be calling
 		 * callbacks and we want to have player locked already), and
 		 * finally perform the actual action */
-		pd->UnlockStatus();
-		pd->LockPlayer(pid);
+		pd->Unlock();
+		pd->LockPlayer(player);
 
 		switch (oldstatus)
 		{
 			case S_NEED_AUTH:
 				{
+					pdata *d = PPDATA(player, pdkey);
 					Iauth *auth = mm->GetInterface(I_AUTH, ALLARENAS);
 
-					if (auth)
+					if (auth && d->loginpkt != NULL && d->lplen > 0)
 					{
-						auth->Authenticate(pid, loginpkt[pid], lplen[pid], AuthDone);
+						auth->Authenticate(player, d->loginpkt, d->lplen, AuthDone);
 						mm->ReleaseInterface(auth);
 					}
 					else
-						lm->Log(L_ERROR, "<core> Missing auth module!");
+						lm->Log(L_WARN, "<core> Can't authenticate player!");
 
-					afree(loginpkt[pid]);
-					loginpkt[pid] = NULL;
-					lplen[pid] = 0;
+					afree(d->loginpkt);
+					d->loginpkt = NULL;
+					d->lplen = 0;
 				}
 				break;
 
 			case S_NEED_GLOBAL_SYNC:
 				if (persist)
-					persist->GetPlayer(pid, PERSIST_GLOBAL, GSyncDone);
+					persist->GetPlayer(player, PERSIST_GLOBAL, GSyncDone);
 				else
-					GSyncDone(pid);
+					GSyncDone(player);
 				break;
 
 			case S_DO_GLOBAL_CALLBACKS:
 				DO_CBS(CB_PLAYERACTION,
 				       ALLARENAS,
 				       PlayerActionFunc,
-					   (pid, PA_CONNECT, NULL));
+					   (player, PA_CONNECT, NULL));
 				break;
 
 			case S_SEND_LOGIN_RESPONSE:
-				SendLoginResponse(pid);
+				SendLoginResponse(player);
 				lm->Log(L_INFO, "<core> [%s] [pid=%d] Player logged in",
-						player->name, pid);
+						player->name, player->pid);
 				break;
 
 			case S_DO_FREQ_AND_ARENA_SYNC:
@@ -271,131 +277,141 @@ void ProcessLoginQueue(void)
 				DO_CBS(CB_PLAYERACTION,
 				       player->arena,
 				       PlayerActionFunc,
-				       (pid, PA_PREENTERARENA, player->arena));
+				       (player, PA_PREENTERARENA, player->arena));
 				/* then, get a freq (player->shiptype will be set here
 				 * because it's done in PArena) */
 				{
 					Ifreqman *fm = mm->GetInterface(I_FREQMAN, player->arena);
-					int freq = 0, ship = player->shiptype;
+					int freq = 0, ship = player->p_ship;
 
 					/* if this arena has a manager, use it */
 					if (fm)
-						fm->InitialFreq(pid, &ship, &freq);
+						fm->InitialFreq(player, &ship, &freq);
 
 					/* set the results back */
-					player->shiptype = ship;
-					player->freq = freq;
+					player->p_ship = ship;
+					player->p_freq = freq;
 				}
 				/* then, sync scores */
 				if (persist)
-					persist->GetPlayer(pid, player->arena, ASyncDone);
+					persist->GetPlayer(player, player->arena, ASyncDone);
 				else
-					ASyncDone(pid);
+					ASyncDone(player);
 				break;
 
 			case S_SEND_ARENA_RESPONSE:
 				/* try to get scores in pdata packet */
 				if (stats)
 				{
-					player->killpoints = stats->GetStat(pid, STAT_KILL_POINTS, INTERVAL_RESET);
-					player->flagpoints = stats->GetStat(pid, STAT_FLAG_POINTS, INTERVAL_RESET);
-					player->wins = stats->GetStat(pid, STAT_KILLS, INTERVAL_RESET);
-					player->losses = stats->GetStat(pid, STAT_DEATHS, INTERVAL_RESET);
+					player->pkt.killpoints = stats->GetStat(player, STAT_KILL_POINTS, INTERVAL_RESET);
+					player->pkt.flagpoints = stats->GetStat(player, STAT_FLAG_POINTS, INTERVAL_RESET);
+					player->pkt.wins = stats->GetStat(player, STAT_KILLS, INTERVAL_RESET);
+					player->pkt.losses = stats->GetStat(player, STAT_DEATHS, INTERVAL_RESET);
 				}
-				aman->SendArenaResponse(pid);
-				UNSET_SENT_PPK(pid);
+				aman->SendArenaResponse(player);
+				UNSET_SENT_PPK(player);
 				break;
 
 			case S_DO_ARENA_CALLBACKS:
 				DO_CBS(CB_PLAYERACTION,
 				       player->arena,
 				       PlayerActionFunc,
-				       (pid, PA_ENTERARENA, player->arena));
+				       (player, PA_ENTERARENA, player->arena));
 				break;
 
 			case S_LEAVING_ARENA:
 				DO_CBS(CB_PLAYERACTION,
 				       player->oldarena,
 				       PlayerActionFunc,
-				       (pid, PA_LEAVEARENA, player->oldarena));
+				       (player, PA_LEAVEARENA, player->oldarena));
 				if (persist)
-					persist->PutPlayer(pid, player->oldarena, NULL);
+					persist->PutPlayer(player, player->oldarena, NULL);
 				break;
 
 			case S_LEAVING_ZONE:
 				DO_CBS(CB_PLAYERACTION,
 				       ALLARENAS,
 				       PlayerActionFunc,
-					   (pid, PA_DISCONNECT, NULL));
+					   (player, PA_DISCONNECT, NULL));
 				if (persist)
-					persist->PutPlayer(pid, PERSIST_GLOBAL, NULL);
+					persist->PutPlayer(player, PERSIST_GLOBAL, NULL);
 				break;
 		}
 
 		/* now we release player and take back status */
-		pd->UnlockPlayer(pid);
-		pd->LockStatus();
+		pd->UnlockPlayer(player);
+		pd->WriteLock();
 	}
-	pd->UnlockStatus();
+	pd->Unlock();
 }
 
 
-
-void PLogin(int pid, byte *p, int l)
+void PLogin(Player *p, byte *pkt, int l)
 {
-	int type = players[pid].type;
+	pdata *d = PPDATA(p, pdkey);
+	int type = p->type;
 
 	if (type != T_VIE && type != T_CONT)
 		lm->Log(L_MALICIOUS, "<core> [pid=%d] Login packet from wrong client type (%d)",
-				pid, type);
+				p->pid, type);
 #ifdef CFG_RELAX_LENGTH_CHECKS
 	else if (l != LEN_LOGINPACKET_VIE && l != LEN_LOGINPACKET_CONT)
 #else
 	else if ( (type == T_VIE && l != LEN_LOGINPACKET_VIE) ||
 	          (type == T_CONT && l != LEN_LOGINPACKET_CONT) )
 #endif
-		lm->Log(L_MALICIOUS, "<core> [pid=%d] Bad login packet length (%d)", pid, l);
-	else if (players[pid].status != S_CONNECTED)
-		lm->Log(L_MALICIOUS, "<core> [pid=%d] Login request from wrong stage: %d", pid, players[pid].status);
+		lm->Log(L_MALICIOUS, "<core> [pid=%d] Bad login packet length (%d)", p->pid, l);
+	else if (p->status != S_CONNECTED)
+		lm->Log(L_MALICIOUS, "<core> [pid=%d] Login request from wrong stage: %d", p->pid, p->status);
 	else
 	{
-		struct LoginPacket *pkt = (struct LoginPacket*)p, *lp;
-		int oldpid = pd->FindPlayer(pkt->name), c;
+		struct LoginPacket *pkt = (struct LoginPacket*)pkt, *lp;
+		Player *oldp = pd->FindPlayer(pkt->name);
+		int c;
 
-		if (oldpid != -1 && oldpid != pid)
+		if (oldp != NULL && oldp != p)
 		{
 			lm->Log(L_DRIVEL,"<core> [%s] Player already on, kicking him off "
 					"(pid %d replacing %d)",
-					pkt->name, pid, oldpid);
-			pd->KickPlayer(oldpid);
+					pkt->name, p->pid, oldp->pid);
+			pd->KickPlayer(oldp);
 		}
 
 		/* copy into storage for use by authenticator */
-		lp = loginpkt[pid] = amalloc(sizeof(*lp));
-		lplen[pid] = l;
-		memcpy(lp, p, l);
-		pd->players[pid].macid = pkt->macid;
-		pd->players[pid].permid = pkt->D2;
+		lp = d->loginpkt = amalloc(sizeof(*lp));
+		d->lplen = l;
+		memcpy(lp, pkt, l);
+		p->macid = pkt->macid;
+		p->permid = pkt->D2;
 		/* replace colons with underscores */
 		for (c = 0; c < sizeof(lp->name); c++)
 			if (lp->name[c] == ':')
 				lp->name[c] = '_';
 		/* set up status */
-		players[pid].status = S_NEED_AUTH;
-		lm->Log(L_DRIVEL, "<core> [pid=%d] Login request: '%s'", pid, pkt->name);
+		/* pd->WriteLock(); */
+		p->status = S_NEED_AUTH;
+		/* pd->Unlock(); */
+		lm->Log(L_DRIVEL, "<core> [pid=%d] Login request: '%s'", p->pid, pkt->name);
 	}
 }
 
 
-void MLogin(int pid, const char *line)
+void MLogin(Player *p, const char *line)
 {
+	pdata *d = PPDATA(p, pdkey);
 	const char *t;
 	char vers[16];
 	struct LoginPacket *lp;
-	int oldpid;
+	Player *oldp;
 
-	lp = loginpkt[pid] = amalloc(LEN_LOGINPACKET_VIE);
-	lplen[pid] = LEN_LOGINPACKET_VIE;
+	if (p->status != S_CONNECTED)
+	{
+		lm->Log(L_MALICIOUS, "<core> [pid=%d] Login request from wrong stage: %d", p->pid, p->status);
+		return;
+	}
+
+	lp = d->loginpkt = amalloc(LEN_LOGINPACKET_VIE);
+	d->lplen = LEN_LOGINPACKET_VIE;
 
 	/* extract fields */
 	t = delimcpy(vers, line, 16, ':');
@@ -405,83 +421,86 @@ void MLogin(int pid, const char *line)
 	if (!t) return;
 	astrncpy(lp->password, t, sizeof(lp->password));
 
-	oldpid = pd->FindPlayer(lp->name);
+	oldp = pd->FindPlayer(lp->name);
 
-	if (oldpid != -1 && oldpid != pid)
+	if (oldp != NULL && oldp != p)
 	{
 		lm->Log(L_DRIVEL,"<core> [%s] Player already on, kicking him off "
 				"(pid %d replacing %d)",
-				lp->name, pid, oldpid);
-		pd->KickPlayer(oldpid);
+				lp->name, p->pid, oldp->pid);
+		pd->KickPlayer(oldp);
 	}
 
-	pd->players[pid].macid = pd->players[pid].permid = 101;
+	p->macid = p->permid = 101;
 	/* set up status */
-	players[pid].status = S_NEED_AUTH;
-	lm->Log(L_DRIVEL, "<core> [pid=%d] Login request: '%s'", pid, lp->name);
+	/* pd->WriteLock(); */
+	p->status = S_NEED_AUTH;
+	/* pd->Unlock(); */
+	lm->Log(L_DRIVEL, "<core> [pid=%d] Login request: '%s'", p->pid, lp->name);
 }
 
 
-void AuthDone(int pid, AuthData *auth)
+void AuthDone(Player *p, AuthData *auth)
 {
-	PlayerData *player = players + pid;
+	pdata *d = PPDATA(p, pdkey);
 
-	if (player->status != S_WAIT_AUTH)
+	if (p->status != S_WAIT_AUTH)
 	{
-		lm->Log(L_WARN, "<core> [pid=%d] AuthDone called from wrong stage: %d", pid, player->status);
+		lm->Log(L_WARN, "<core> [pid=%d] AuthDone called from wrong stage: %d",
+				p->pid, p->status);
 		return;
 	}
 
 	/* copy the authdata */
-	authdata[pid] = amalloc(sizeof(AuthData));
-	memcpy(authdata[pid], auth, sizeof(AuthData));
+	d->authdata = amalloc(sizeof(AuthData));
+	memcpy(d->authdata, auth, sizeof(AuthData));
 
 	if (AUTH_IS_OK(auth->code))
 	{
 		/* login suceeded */
 		/* also copy to player struct */
-		strncpy(player->sendname, auth->sendname, 20);
-		astrncpy(player->name, auth->name, 21);
-		strncpy(player->sendsquad, auth->squad, 20);
-		astrncpy(player->squad, auth->squad, 21);
+		strncpy(p->pkt.name, auth->sendname, 20);
+		astrncpy(p->name, auth->name, 21);
+		strncpy(p->pkt.squad, auth->squad, 20);
+		astrncpy(p->squad, auth->squad, 21);
 
 		/* increment stage */
-		pd->LockStatus();
-		player->status = S_NEED_GLOBAL_SYNC;
-		pd->UnlockStatus();
+		pd->WriteLock();
+		p->status = S_NEED_GLOBAL_SYNC;
+		pd->Unlock();
 	}
 	else
 	{
 		/* if the login didn't succeed status should go to S_CONNECTED
 		 * instead of moving forward, and send the login response now,
 		 * since we won't do it later. */
-		SendLoginResponse(pid);
-		pd->LockStatus();
-		player->status = S_CONNECTED;
-		pd->UnlockStatus();
+		SendLoginResponse(p);
+		pd->WriteLock();
+		p->status = S_CONNECTED;
+		pd->Unlock();
 	}
 }
 
 
-void GSyncDone(int pid)
+void GSyncDone(Player *p)
 {
-	pd->LockStatus();
-	if (players[pid].status != S_WAIT_GLOBAL_SYNC)
-		lm->Log(L_WARN, "<core> [pid=%s] GSyncDone called from wrong stage", pid, players[pid].status);
+	pd->WriteLock();
+	if (p->status != S_WAIT_GLOBAL_SYNC)
+		lm->Log(L_WARN, "<core> [pid=%s] GSyncDone called from wrong stage", p->pid, p->status);
 	else
-		players[pid].status = S_DO_GLOBAL_CALLBACKS;
-	pd->UnlockStatus();
+		p->status = S_DO_GLOBAL_CALLBACKS;
+	pd->Unlock();
 }
 
 
-void ASyncDone(int pid)
+void ASyncDone(Player *p)
 {
-	pd->LockStatus();
-	if (players[pid].status != S_WAIT_ARENA_SYNC)
-		lm->Log(L_WARN, "<core> [pid=%s] ASyncDone called from wrong stage", pid, players[pid].status);
+	pd->WriteLock();
+	if (p->status != S_WAIT_ARENA_SYNC)
+		lm->Log(L_WARN, "<core> [pid=%s] ASyncDone called from wrong stage", p->pid, p->status);
 	else
-		players[pid].status = S_SEND_ARENA_RESPONSE;
-	pd->UnlockStatus();
+		p->status = S_SEND_ARENA_RESPONSE;
+	pd->Unlock();
 }
 
 
@@ -513,16 +532,17 @@ local const char *get_auth_code_msg(int code)
 }
 
 
-void SendLoginResponse(int pid)
+void SendLoginResponse(Player *p)
 {
-	AuthData *auth = authdata[pid];
+	pdata *d = PPDATA(p, pdkey);
+	AuthData *auth = d->authdata;
 
 	if (!auth)
 	{
-		lm->Log(L_ERROR, "<core> Missing authdata for pid %d", pid);
-		pd->KickPlayer(pid);
+		lm->Log(L_ERROR, "<core> missing authdata for pid %d", p->pid);
+		pd->KickPlayer(p);
 	}
-	else if (IS_STANDARD(pid))
+	else if (IS_STANDARD(p))
 	{
 		struct LoginResponse lr =
 			{ S2C_LOGINRESPONSE, 0, 134, 0, EXECHECKSUM, {0, 0},
@@ -532,7 +552,7 @@ void SendLoginResponse(int pid)
 		lr.newschecksum = map->GetNewsChecksum();
 
 #ifndef CFG_IGNORE_CHECKSUMS
-		if (capman && capman->HasCapability(pid, "seeprivfreq"))
+		if (capman && capman->HasCapability(p, "seeprivfreq"))
 #endif
 		{
 			/* to make the client think it's a mod, set these checksums to -1 */
@@ -540,33 +560,33 @@ void SendLoginResponse(int pid)
 			lr.blah3 = -1;
 		}
 
-		net->SendToOne(pid, (char*)&lr, sizeof(lr), NET_RELIABLE);
+		net->SendToOne(p, (char*)&lr, sizeof(lr), NET_RELIABLE);
 	}
-	else if (IS_CHAT(pid))
+	else if (IS_CHAT(p))
 	{
 		if (AUTH_IS_OK(auth->code))
-			chatnet->SendToOne(pid, "LOGINOK:%s", players[pid].name);
+			chatnet->SendToOne(p, "LOGINOK:%s", p->name);
 		else
-			chatnet->SendToOne(pid, "LOGINBAD:%s", get_auth_code_msg(auth->code));
+			chatnet->SendToOne(p, "LOGINBAD:%s", get_auth_code_msg(auth->code));
 	}
 
 	afree(auth);
-	authdata[pid] = NULL;
+	d->authdata = NULL;
 }
 
 
-void DefaultAuth(int pid, struct LoginPacket *p, int lplen,
-		void (*Done)(int, AuthData *))
+void DefaultAuth(Player *p, struct LoginPacket *pkt, int lplen,
+		void (*Done)(Player *p, AuthData *auth))
 {
 	AuthData auth;
 
 	auth.demodata = 0;
 	auth.code = AUTH_OK;
-	astrncpy(auth.name, p->name, 24);
-	strncpy(auth.sendname, p->name, 20);
+	astrncpy(auth.name, pkt->name, 24);
+	strncpy(auth.sendname, pkt->name, 20);
 	memset(auth.squad, 0, sizeof(auth.squad));
 
-	Done(pid, &auth);
+	Done(p, &auth);
 }
 
 
@@ -574,7 +594,7 @@ int SendKeepalive(void *q)
 {
 	byte keepalive = S2C_KEEPALIVE;
 	if (net)
-		net->SendToAll(&keepalive, 1, NET_UNRELIABLE);
+		net->SendToArena(ALLARENAS, NULL, &keepalive, 1, NET_UNRELIABLE);
 	return 1;
 }
 

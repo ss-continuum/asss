@@ -17,33 +17,35 @@ typedef struct EncData
 
 local void ConnInit(struct sockaddr_in *sin, byte *pkt, int len);
 
-local void Init(int pid, int k);
-local int Encrypt(int, byte *, int);
-local int Decrypt(int, byte *, int);
-local void Void(int);
-local void Initiate(int);
-local int HandleResponse(int pid, byte *pkt, int len);
-
+local void Init(Player *p, int k);
+local int Encrypt(Player *p, byte *, int);
+local int Decrypt(Player *p, byte *, int);
+local void Void(Player *p);
 
 /* globals */
 
-local EncData *enc[MAXPLAYERS+1]; /* plus one for the biller */
+local int enckey;
 local pthread_mutex_t mtx;
 
 local Inet *net;
+local Iplayerdata *pd;
 
 local Iencrypt _int =
 {
 	INTERFACE_HEAD_INIT("__unused__", "vieenc")
-	Encrypt, Decrypt, Void, Initiate, HandleResponse
+	Encrypt, Decrypt, Void,
 };
 
 
-EXPORT int MM_encrypt1(int action, Imodman *mm, int arena)
+EXPORT int MM_encrypt1(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
 		net = mm->GetInterface(I_NET, ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		if (!net || !pd) return MM_FAIL;
+		enckey = pd->AllocatePlayerData(sizeof(EncData*));
+		if (enckey == -1) return MM_FAIL;
 		mm->RegCallback(CB_CONNINIT, ConnInit, ALLARENAS);
 		pthread_mutex_init(&mtx, NULL);
 		mm->RegInterface(&_int, ALLARENAS);
@@ -54,17 +56,20 @@ EXPORT int MM_encrypt1(int action, Imodman *mm, int arena)
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 		mm->UnregCallback(CB_CONNINIT, ConnInit, ALLARENAS);
+		pd->FreePlayerData(enckey);
 		mm->ReleaseInterface(net);
-		/* don't destroy mtx here, because we may be asked to
-		 * encrypt a few more packets. yes, it's ugly. */
+		mm->ReleaseInterface(pd);
+		pthread_mutex_destroy(&mtx);
 		return MM_OK;
 	}
 	return MM_FAIL;
 }
 
+
 void ConnInit(struct sockaddr_in *sin, byte *pkt, int len)
 {
-	int key, pid;
+	int key;
+	Player *p;
 
 	/* make sure the packet fits */
 	if (len != 8 || pkt[0] != 0x00 || pkt[1] != 0x01 ||
@@ -72,9 +77,9 @@ void ConnInit(struct sockaddr_in *sin, byte *pkt, int len)
 		return;
 
 	/* ok, it fits. get connection. */
-	pid = net->NewConnection(T_VIE, sin, &_int);
+	p = net->NewConnection(T_VIE, sin, &_int);
 
-	if (pid == -1)
+	if (!p)
 	{
 		/* no slots left? */
 		byte pkt[2] = { 0x00, 0x07 };
@@ -97,21 +102,14 @@ void ConnInit(struct sockaddr_in *sin, byte *pkt, int len)
 	}
 
 	/* init encryption tables */
-	Init(pid, key);
+	Init(p, key);
 }
 
 
-void Init(int pid, int k)
+local void do_init(EncData *ed, int k)
 {
 	int t, loop;
 	short *mytable;
-	EncData *ed;
-	
-	pthread_mutex_lock(&mtx);
-	if (!enc[pid])
-		enc[pid] = amalloc(sizeof(*ed));
-	ed = enc[pid];
-	pthread_mutex_unlock(&mtx);
 
 	ed->key = k;
 
@@ -141,20 +139,23 @@ void Init(int pid, int k)
 	}
 }
 
-
-int Encrypt(int pid, byte *data, int len)
+void Init(Player *p, int k)
 {
-	int *mytable = NULL, *mydata;
-	int work = 0, loop, until;
-
+	EncData *ed, **p_ed = PPDATA(p, enckey);
+	
 	pthread_mutex_lock(&mtx);
-	if (enc[pid])
-	{
-		work = enc[pid]->key;
-		mytable = (int*)enc[pid]->table;
-	}
+	if (!(ed = *p_ed)) ed = *p_ed = amalloc(sizeof(*ed));
 	pthread_mutex_unlock(&mtx);
 
+	do_init(ed, k);
+}
+
+
+local int do_enc(EncData *ed, byte *data, int len)
+{
+	int work = ed->key, *mytable = (int*)ed->table;
+	int loop, until, *mydata;
+	
 	if (work == 0 || mytable == NULL) return len;
 
 	if (data[0] == 0)
@@ -176,19 +177,20 @@ int Encrypt(int pid, byte *data, int len)
 	return len;
 }
 
-
-int Decrypt(int pid, byte *data, int len)
+int Encrypt(Player *p, byte *data, int len)
 {
-	int *mytable = NULL, *mydata;
-	int work = 0, loop, until, esi, edx;
-
+	EncData *ed, **p_ed = PPDATA(p, enckey);
 	pthread_mutex_lock(&mtx);
-	if (enc[pid])
-	{
-		work = enc[pid]->key;
-		mytable = (int*)enc[pid]->table;
-	}
+	ed = *p_ed;
 	pthread_mutex_unlock(&mtx);
+	return ed ? do_enc(ed, data, len) : len;
+}
+
+
+int do_dec(EncData *ed, byte *data, int len)
+{
+	int work = ed->key, *mytable = (int*)ed->table;
+	int *mydata, loop, until, esi, edx;
 
 	if (work == 0 || mytable == NULL) return len;
 
@@ -215,55 +217,23 @@ int Decrypt(int pid, byte *data, int len)
 	return len;
 }
 
-
-void Void(int pid)
+int Decrypt(Player *p, byte *data, int len)
 {
+	EncData *ed, **p_ed = PPDATA(p, enckey);
 	pthread_mutex_lock(&mtx);
-	afree(enc[pid]);
-	enc[pid] = NULL;
+	ed = *p_ed;
 	pthread_mutex_unlock(&mtx);
+	return ed ? do_dec(ed, data, len) : len;
 }
 
 
-void Initiate(int pid)
+void Void(Player *p)
 {
-	struct
-	{
-		u8 t1, t2;
-		int key;
-	}
-	pkt = { 0x00, 0x01, GTC() };
-
-	if (pkt.key > 0) pkt.key = -pkt.key;
-	net->SendToOne(pid, (byte*)&pkt, 6, NET_UNRELIABLE | NET_PRI_P5);
-
+	EncData *ed, **p_ed = PPDATA(p, enckey);
 	pthread_mutex_lock(&mtx);
-	if (!enc[pid])
-		enc[pid] = amalloc(sizeof(EncData));
-	enc[pid]->key = pkt.key;
+	ed = *p_ed;
+	afree(ed);
+	*p_ed = NULL;
 	pthread_mutex_unlock(&mtx);
-}
-
-int HandleResponse(int pid, byte *pkt, int len)
-{
-	int mykey, rkey = *(int*)(pkt+2);
-	EncData *ed;
-
-	pthread_mutex_lock(&mtx);
-	ed = enc[pid];
-	pthread_mutex_unlock(&mtx);
-
-	if (!ed) return FALSE;
-
-	mykey = ed->key;
-
-	if (mykey == rkey)
-		/* no encryption */
-		Init(pid, 0);
-	else
-		/* regular encryption */
-		Init(pid, rkey);
-
-	return TRUE;
 }
 

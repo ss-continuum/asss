@@ -1,5 +1,5 @@
 
-/* dist: public */
+/* CURRENTLY BROKEN */
 
 #ifndef __ASSS_H
 #define __ASSS_H

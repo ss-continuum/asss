@@ -13,83 +13,81 @@ local Icmdman *cmd;
 local Ilogman *lm;
 
 
-local int CreateFakePlayer(const char *name, Arena *arena, int ship, int freq)
+local Player * CreateFakePlayer(const char *name, Arena *arena, int ship, int freq)
 {
-	int pid;
-	PlayerData *player;
+	Player *p;
 
 	/* create pid */
-	pid = pd->NewPlayer(T_FAKE);
-	if (PID_BAD(pid))
-		return pid;
-	player = pd->players + pid;
+	p = pd->NewPlayer(T_FAKE);
+	if (!p) return NULL;
 
-	/* set up playerdata struct and pretend he's logged in */
-	astrncpy(player->name, name, 20);
-	astrncpy(player->sendname, name, 20);
-	astrncpy(player->squad, "", 20);
-	astrncpy(player->sendsquad, "", 20);
-	player->shiptype = ship;
-	player->freq = freq;
-	player->arena = player->oldarena = arena;
+	/* set up pdata struct and pretend he's logged in */
+	astrncpy(p->name, name, 20);
+	astrncpy(p->pkt.name, name, 20);
+	astrncpy(p->squad, "", 20);
+	astrncpy(p->pkt.squad, "", 20);
+	p->p_ship = ship;
+	p->p_freq = freq;
+	p->arena = p->oldarena = arena;
+	SET_SEND_DAMAGE(p);
 
 	/* enter arena */
-	if (net) net->SendToArena(arena, pid, (byte*)player, 64, NET_RELIABLE);
-	if (chatnet) chatnet->SendToArena(arena, pid,
+	if (net) net->SendToArena(arena, p, (byte*)&p->pkt, 64, NET_RELIABLE);
+	if (chatnet) chatnet->SendToArena(arena, p,
 			"ENTERING:%s:%d:%d", name, ship, freq);
-	player->status = S_PLAYING;
+	p->status = S_PLAYING;
 
 	if (lm)
-		lm->Log(L_INFO, "<fake> {%s} [%s] Fake player created",
+		lm->Log(L_INFO, "<fake> {%s} [%s] Fake p created",
 				arena->name,
 				name);
 
-	return pid;
+	return p;
 }
 
 
-local int EndFaked(int pid)
+local int EndFaked(Player *p)
 {
 	Arena *arena;
 	struct SimplePacket pk = { S2C_PLAYERLEAVING };
 
-	if (PID_BAD(pid))
+	if (!p)
 		return 0;
-	if (pd->players[pid].type != T_FAKE || pd->players[pid].status != S_PLAYING)
+	if (p->type != T_FAKE || p->status != S_PLAYING)
 		return 0;
 
-	arena = pd->players[pid].arena;
-	pd->players[pid].arena = NULL;
+	arena = p->arena;
+	p->arena = NULL;
 
 	/* leave arena */
-	pk.d1 = pid;
-	if (net) net->SendToArena(arena, pid, (byte*)&pk, 3, NET_RELIABLE);
-	if (chatnet) chatnet->SendToArena(arena, pid,
-			"LEAVING:%s", pd->players[pid].name);
+	pk.d1 = p->pid;
+	if (net) net->SendToArena(arena, p, (byte*)&pk, 3, NET_RELIABLE);
+	if (chatnet) chatnet->SendToArena(arena, p,
+			"LEAVING:%s", p->name);
 
 	/* log before freeing pid to avoid races */
 	if (lm)
 		lm->Log(L_INFO, "<fake> {%s} [%s] Fake player destroyed",
 				arena->name,
-				pd->players[pid].name);
+				p->name);
 
 	/* leave game */
-	pd->players[pid].status = S_FREE;
+	pd->FreePlayer(p);
 
 	return 1;
 }
 
 
-local void Cmakefake(const char *params, int pid, const Target *target)
+local void Cmakefake(const char *params, Player *p, const Target *target)
 {
-	CreateFakePlayer(params, pd->players[pid].arena, SPEC, 9999);
+	CreateFakePlayer(params, p->arena, SPEC, 9999);
 }
 
 
-local void Ckillfake(const char *params, int pid, const Target *target)
+local void Ckillfake(const char *params, Player *p, const Target *target)
 {
-	if (target->type == T_PID)
-		EndFaked(target->u.pid);
+	if (target->type == T_PLAYER)
+		EndFaked(target->u.p);
 }
 
 
