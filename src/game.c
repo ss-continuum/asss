@@ -414,6 +414,8 @@ void Pppk(int pid, byte *p2, int n)
 	position.bounty = p->bounty;
 	position.status = p->status;
 	players[pid].position = position;
+
+	SET_SENT_PPK(pid);
 }
 
 

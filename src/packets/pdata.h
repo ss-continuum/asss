@@ -74,6 +74,12 @@ typedef struct PlayerData
 #define UNSET_NO_FLAGS_BALLS(pid) (pd->players[pid].pflags &= ~F_NO_FLAGS_BALLS)
 #define IS_NO_FLAGS_BALLS(pid) (pd->players[pid].pflags & F_NO_FLAGS_BALLS)
 
+/* if the player has sent a position packet since entering the arena */
+#define F_SENT_PPK 0x10
+#define SET_SENT_PPK(pid) (pd->players[pid].pflags |= F_SENT_PPK)
+#define UNSET_SENT_PPK(pid) (pd->players[pid].pflags &= ~F_SENT_PPK)
+#define HAS_SENT_PPK(pid) (pd->players[pid].pflags & F_SENT_PPK)
+
 #endif
 
 

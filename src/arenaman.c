@@ -250,7 +250,7 @@ void ProcessArenaQueue(void)
 		{
 			case ARENA_DO_INIT:
 				/* config file */
-				a->cfg = cfg->OpenConfigFile(a->name, NULL, arena_conf_changed, a);
+				a->cfg = cfg->OpenConfigFile(a->basename, NULL, arena_conf_changed, a);
 				/* attach modules */
 				DoAttach(i, MM_ATTACH);
 				/* now callbacks */
@@ -308,6 +308,8 @@ void ProcessArenaQueue(void)
 local int CreateArena(const char *name)
 {
 	int i = 0;
+	char *t;
+	ArenaData *a;
 
 	LOCK_STATUS();
 	while (arenas[i].status != ARENA_NONE && i < MAXARENA) i++;
@@ -319,12 +321,18 @@ local int CreateArena(const char *name)
 		return -1;
 	}
 
-	astrncpy(arenas[i].name, name, 20);
-	arenas[i].status = ARENA_DO_INIT;
-	if (name[1] == '\0' && name[0] >= '0' && name[0] <= '9')
-		arenas[i].ispublic = 1;
-	else
-		arenas[i].ispublic = 0;
+	a = arenas + i;
+
+	astrncpy(a->name, name, 20);
+
+	astrncpy(a->basename, name, 20);
+	t = a->basename + strlen(a->basename) - 1;
+	while (t > a->basename && isdigit(*t))
+		*(t--) = 0;
+
+	a->status = ARENA_DO_INIT;
+	a->ispublic = (name[1] == '\0' && name[0] >= '0' && name[0] <= '9');
+
 	UNLOCK_STATUS();
 
 	return i;
@@ -526,8 +534,15 @@ void PArena(int pid, byte *p, int l)
 	}
 	else if (go->arenatype == -2 || go->arenatype == -1)
 	{
-		name[0] = '0';
-		name[1] = 0;
+		Iarenaplace *ap = mm->GetInterface(I_ARENAPLACE, ALLARENAS);
+		if (ap)
+		{
+			if (!ap->Place(name, sizeof(name), pid))
+				strcpy(name, "0");
+			mm->ReleaseInterface(ap);
+		}
+		else
+			strcpy(name, "0");
 	}
 	else if (go->arenatype >= 0 && go->arenatype <= 9)
 	{

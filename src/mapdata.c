@@ -183,7 +183,7 @@ local int real_get_filename(int arena, const char *map, char *buffer, int buffer
 {
 	struct replace_table repls[2] =
 	{
-		{'a', aman->arenas[arena].name},
+		{'a', aman->arenas[arena].basename},
 		{'m', map}
 	};
 

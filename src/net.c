@@ -115,9 +115,8 @@ typedef struct Buffer
 {
 	DQNode node;
 	/* pid, len: valid for all buffers */
-	int pid, len;
-	unsigned char pri, reliable, unused1, unused2;
-	/* lastretry: only valid for buffers in outlist */
+	/* pri, lastretry: valid for buffers in outlist */
+	int pid, len, pri;
 	unsigned int lastretry;
 	/* used for reliable buffers in the outlist only { */
 	RelCallback callback;
@@ -903,6 +902,7 @@ local void end_sized(int pid, int success)
 	}
 }
 
+
 int QueueMoreData(void *dummy)
 {
 #define REQUESTATONCE (QUEUE_PACKETS*480)
@@ -912,9 +912,9 @@ int QueueMoreData(void *dummy)
 	Link *l;
 
 	for (pid = 0; pid < MAXPLAYERS; pid++)
-		if (players[pid].status > S_FREE &&
+		if (IS_OURS(pid) &&
+		    players[pid].status > S_FREE &&
 		    players[pid].status < S_TIMEWAIT &&
-		    IS_OURS(pid) &&
 		    pthread_mutex_trylock(outlistmtx + pid) == 0)
 		{
 			if ((l = LLGetHead(&clients[pid].sizedsends)) &&
@@ -945,14 +945,14 @@ int QueueMoreData(void *dummy)
 				while (needed > 480)
 				{
 					memcpy(packet.data, dp, 480);
-					BufferPacket(pid, (byte*)&packet, 486, NET_PRI_N1 | NET_REALRELIABLE, NULL, NULL);
+					BufferPacket(pid, (byte*)&packet, 486, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
 					dp += 480;
 					needed -= 480;
 				}
 				if (needed > 0)
 				{
 					memcpy(packet.data, dp, needed);
-					BufferPacket(pid, (byte*)&packet, needed + 6, NET_PRI_N1 | NET_REALRELIABLE, NULL, NULL);
+					BufferPacket(pid, (byte*)&packet, needed + 6, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
 
 				}
 
@@ -976,15 +976,12 @@ int QueueMoreData(void *dummy)
 /* call with outlistmtx locked */
 local void send_outgoing(int pid)
 {
-	byte ubuf[MAXPACKET] = { 0x00, 0x0E };
-	byte rbuf[MAXPACKET] = { 0x00, 0x0E };
+	byte gbuf[MAXPACKET] = { 0x00, 0x0E };
 
 	unsigned int gtc = GTC();
-	int ucount = 0, rcount = 0, bytessince, pri;
-	int retries = 0, rgok = 1;
-	Buffer *buf, *nbuf, *rebuf;
-	byte *uptr = ubuf + 2;
-	byte *rptr = rbuf + 2;
+	int gcount = 0, bytessince, pri, retries = 0;
+	Buffer *buf, *nbuf;
+	byte *gptr = gbuf + 2;
 	DQNode *outlist;
 
 	/* check if it's time to clear the bytessent */
@@ -1006,11 +1003,10 @@ local void send_outgoing(int pid)
 	{
 		int limit = clients[pid].limit * pri_limits[pri] / 100;
 
-		for (buf = (Buffer*)outlist->next;
-		     (DQNode*)buf != outlist;
-		     buf = nbuf)
+		for (buf = (Buffer*)outlist->next; (DQNode*)buf != outlist; buf = nbuf)
 		{
 			nbuf = (Buffer*)buf->node.next;
+
 			if (buf->pri == pri &&
 			    (gtc - buf->lastretry) > config.timeout &&
 			    (bytessince + buf->len + IP_UDP_OVERHEAD) <= limit)
@@ -1019,131 +1015,53 @@ local void send_outgoing(int pid)
 					/* this is a retry, not an initial send */
 					retries++;
 
-				/* sometimes, we have to not group a packet:
-				 *   if it's len > 240
-				 *   if it's reliable with a callback
-				 */
-				if (buf->len > 240 ||
-				    (buf->reliable && buf->callback))
+				/* try to group it */
+				if (buf->len <= 255 &&
+				    buf->callback == NULL &&
+				    ((gptr - gbuf) + buf->len) < (MAXPACKET-10))
 				{
-					/* send immediately */
-					/* check if it needs rebuffering */
-					if (buf->reliable)
+					*gptr++ = buf->len;
+					memcpy(gptr, buf->d.raw, buf->len);
+					gptr += buf->len;
+					buf->lastretry = gtc;
+					bytessince += buf->len + 1;
+					gcount++;
+					if (! IS_REL(buf))
 					{
-						/* we should only rebuffer this if there are no
-						 * reliable packets waiting in rbuf. if there
-						 * are, we can wait until the next time around.
-						 */
-						if (rcount == 0)
-						{
-							/* now rebuffer it */
-							rebuf = BufferPacket(pid, buf->d.raw, buf->len,
-									NET_REALRELIABLE,
-									buf->callback, buf->clos);
-
-							/* send the rebuffered one once */
-							bytessince += rebuf->len + IP_UDP_OVERHEAD;
-							SendRaw(rebuf->pid, rebuf->d.raw, rebuf->len);
-							rebuf->lastretry = gtc;
-
-							DQRemove((DQNode*)buf);
-							FreeBuffer(buf);
-						}
-					}
-					else
-					{
-						/* just send it as is */
-						bytessince += buf->len + IP_UDP_OVERHEAD;
-						SendRaw(buf->pid, buf->d.raw, buf->len);
-						buf->lastretry = gtc;
-						if (! IS_REL(buf))
-						{
-							/* if we just sent an unreliable packet,
-							 * free it so we don't send it again. */
-							DQRemove((DQNode*)buf);
-							FreeBuffer(buf);
-						}
-					}
-				}
-				/* now we have two cases for whether this is reliable or
-				 * not (reliable packets that already have a seqnum are
-				 * treated as unreliable here) */
-				else if (buf->reliable)
-				{
-					if (((rptr - rbuf) + buf->len) < (MAXPACKET-16) && rgok)
-					{
-						/* add to current reliable grouped packet, if
-						 * there is room */
-						*rptr++ = buf->len;
-						memcpy(rptr, buf->d.raw, buf->len);
-						rptr += buf->len;
-						bytessince += buf->len + 1;
-						rcount++;
-						/* always remove these since we will re-buffer
-						 * them below. */
 						DQRemove((DQNode*)buf);
 						FreeBuffer(buf);
 					}
-					else
-						/* we've found a reliable packet that's too big
-						 * to fit in this reliable group. fine, wait
-						 * until next time. but we need to make sure to
-						 * put any more reliable packets in this group
-						 * also. */
-						rgok = 0;
 				}
 				else
 				{
-					if (((uptr - ubuf) + buf->len) < (MAXPACKET-10))
+					/* send immediately */
+					bytessince += buf->len + IP_UDP_OVERHEAD;
+					SendRaw(buf->pid, buf->d.raw, buf->len);
+					buf->lastretry = gtc;
+					if (! IS_REL(buf))
 					{
-						/* add to current unreliable grouped packet, if there is room */
-						*uptr++ = buf->len;
-						memcpy(uptr, buf->d.raw, buf->len);
-						uptr += buf->len;
-						buf->lastretry = gtc;
-						bytessince += buf->len + 1;
-						ucount++;
-						if (! IS_REL(buf))
-						{
-							DQRemove((DQNode*)buf);
-							FreeBuffer(buf);
-						}
+						/* if we just sent an unreliable packet,
+						 * free it so we don't send it again. */
+						DQRemove((DQNode*)buf);
+						FreeBuffer(buf);
 					}
 				}
 			}
 		}
 	}
 
-	/* try sending the unreliable grouped packet */
-	if (ucount == 1)
+	/* try sending the grouped packet */
+	if (gcount == 1)
 	{
 		/* there's only one in the group, so don't send it
 		 * in a group. +3 to skip past the 00 0E and size of
 		 * first packet */
-		SendRaw(pid, ubuf + 3, (uptr - ubuf) - 3);
+		SendRaw(pid, gbuf + 3, (gptr - gbuf) - 3);
 	}
-	else if (ucount > 1)
+	else if (gcount > 1)
 	{
 		/* send the whole thing as a group */
-		SendRaw(pid, ubuf, uptr - ubuf);
-	}
-
-	/* now try the reliable grouped packet */
-	if (rcount == 1)
-	{
-		/* only one in this group, just rebuffer it without grouped
-		 * header */
-		rebuf = BufferPacket(pid, rbuf + 3, (rptr - rbuf) - 3,
-				NET_REALRELIABLE | NET_PRI_P1, NULL, NULL);
-		SendRaw(pid, rebuf->d.raw, rebuf->len);
-		rebuf->lastretry = gtc;
-	}
-	else if (rcount > 1)
-	{
-		rebuf = BufferPacket(pid, rbuf, rptr - rbuf,
-				NET_REALRELIABLE | NET_PRI_P1, NULL, NULL);
-		SendRaw(pid, rebuf->d.raw, rebuf->len);
-		rebuf->lastretry = gtc;
+		SendRaw(pid, gbuf, gptr - gbuf);
 	}
 
 	clients[pid].retries += retries;
@@ -1896,16 +1814,12 @@ Buffer * BufferPacket(int pid, byte *data, int len, int flags,
 	buf->pid = pid;
 	buf->lastretry = 0;
 	buf->pri = GET_PRI(flags);
-	buf->reliable = 0;
 	buf->callback = callback;
 	buf->clos = clos;
 	global_stats.pri_stats[buf->pri]++;
 
 	/* get data into packet */
-	if ((flags & NET_REALRELIABLE) ||
-	    ((flags & NET_RELIABLE) &&
-	     ((GET_PRI(flags) > 5) || players[pid].type == T_VIE)))
-	      /* 1.34 doesn't like grouped rel packets */
+	if (flags & NET_RELIABLE)
 	{
 		buf->d.rel.t1 = 0x00;
 		buf->d.rel.t2 = 0x03;
@@ -1917,8 +1831,6 @@ Buffer * BufferPacket(int pid, byte *data, int len, int flags,
 	{
 		memcpy(buf->d.raw, data, len);
 		buf->len = len;
-		if (flags & NET_RELIABLE)
-			buf->reliable = 1;
 	}
 
 	/* add it to out list */

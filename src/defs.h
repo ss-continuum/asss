@@ -5,8 +5,8 @@
 #include <stddef.h>
 
 
-#define ASSSVERSION "0.7.4"
-#define ASSSVERSION_NUM 0x00000704
+#define ASSSVERSION "0.7.5"
+#define ASSSVERSION_NUM 0x00000705
 #define BUILDDATE __DATE__ " " __TIME__
 
 

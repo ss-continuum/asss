@@ -59,7 +59,7 @@ enum
 typedef struct ArenaData
 {
 	int status, ispublic;
-	char name[20];
+	char name[20], basename[20];
 	ConfigHandle cfg;
 } ArenaData;
 
@@ -81,6 +81,15 @@ typedef struct Iarenaman
 	ArenaData *arenas;
 	/* arpc: null */
 } Iarenaman;
+
+
+#define I_ARENAPLACE "arenaplace-1"
+
+typedef struct Iarenaplace
+{
+	INTERFACE_HEAD_DECL
+	int (*Place)(char *name, int namelen, int pid);
+} Iarenaplace;
 
 
 #endif

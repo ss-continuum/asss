@@ -2,6 +2,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#ifdef WIN32
+#include <io.h> /* mktemp */
+#endif
 
 #include "asss.h"
 #include "cfghelp.h"
@@ -89,6 +92,7 @@ local void do_quickfix(int pid, const char *limit)
 	if (ARENA_BAD(arena)) return;
 	ch = aman->arenas[arena].cfg;
 
+#ifndef WIN32
 	fd = mkstemp(name);
 
 	if (fd == -1)
@@ -99,6 +103,16 @@ local void do_quickfix(int pid, const char *limit)
 	}
 
 	f = fdopen(fd, "wb");
+#else
+	if (!mktemp(name))
+	{
+		lm->Log(L_WARN, "<quickfix> Can't create temp file. Make sure tmp/ exists.");
+		chat->SendMessage(pid, "Error: can't create temporary file.");
+		return;
+	}
+
+	f = fopen(name, "wb");
+#endif
 
 	/* construct server.set */
 	for (i = 0; i < cfghelp->section_count; i++)

@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 0.7.4.
+Welcome to asss (a small subspace server) 0.7.5.
 
 This news.txt will be used for updates about new features and other
 important information. If you have any suggestions of any kind, please
@@ -10,19 +10,11 @@ see it eventually (it all gets logged).
 
 
 Recent updates:
+    * ?help supports config settings and ?quickfix works.
+
     * a new kick-ass turf reward module from GiGaKiLLeR. ?go turf with
-      some friends to try it.
-
-    * lag actions - spec on spikes, high ping, high ploss. gradual
-      weapons disabling for high ping/ploss also.
-
-    * more stats - team kills/deaths, flag pickups/drops/neuts/kills/
-      deaths/time, carry time, ball pickups/goals/time/goals, flag games
-      won/lost, ball games won/lost.
-
-      use ?stats to see them.
-
-    * ?last - shows you last 10 people to log in
+      some friends to try it. (this is undergoing heavy development and
+      might not work right at all times)
 
 
 Lots more detail at:

@@ -742,18 +742,14 @@ local void aaction(int arena, int action)
 
 	if (action == AA_CREATE)
 	{
-		/* cfghelp: General:ScoreGroup, arena, string, def: (arena name)
-		 * If multiple arenas share the same value for this setting,
-		 * they will share scores for intervals that allow shared
-		 * scores. */
-		const char *sg;
-		
+		/* score_group is used for shared intervals */
 		if (aman->arenas[arena].ispublic)
-			sg = "public";
+			astrncpy(arena_data[arena].score_group, SG_PUBLIC, MAXSGLEN);
 		else
-			sg = cfg->GetStr(aman->arenas[arena].cfg, "General", "ScoreGroup");
-		snprintf(arena_data[arena].score_group, MAXSGLEN, "<%s>", sg ? sg : aman->arenas[arena].name);
-		strncpy(arena_data[arena].name, aman->arenas[arena].name, MAXSGLEN);
+			astrncpy(arena_data[arena].score_group, aman->arenas[arena].basename, MAXSGLEN);
+
+		/* name is used for non-shared intervals */
+		astrncpy(arena_data[arena].name, aman->arenas[arena].name, MAXSGLEN);
 	}
 
 	pthread_mutex_unlock(&dbmtx);

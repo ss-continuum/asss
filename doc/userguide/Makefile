@@ -15,7 +15,8 @@ PSTARGETS = userguide.ps
 PDFTARGETS = userguide.pdf
 HTMLTARGETS = userguide.html
 TEXTARGETS = commands.tex settings.tex
-ALLTARGETS = $(DVITARGETS) $(PSTARGETS) $(PDFTARGETS) $(HTMLTARGETS) $(TEXTARGETS)
+TXTTARGETS = userguide.txt
+ALLTARGETS = $(DVITARGETS) $(PSTARGETS) $(PDFTARGETS) $(HTMLTARGETS) $(TEXTARGETS) $(TXTTARGETS)
 
 ### Dummy targets
 
@@ -29,7 +30,9 @@ pdf: $(PDFTARGETS)
 
 html: $(HTMLTARGETS)
 
-all: dvi ps pdf html
+txt: $(TXTTARGETS)
+
+all: dvi ps pdf html txt
 
 view: dvi
 	( for a in $(DVITARGETS) ; do $(XDVI) $$a & done ) > /dev/null
@@ -60,4 +63,7 @@ userguide.pdf: userguide.tex commands.tex
 
 userguide.html: userguide.tex commands.tex
 	tex2page userguide.tex
+
+userguide.txt: userguide.html
+	( echo "(converted from userguide.html with lynx -dump)" ; lynx -dump userguide.html ) | sed -e 's/\s\+$$//' | sed '/Last modified:/q' > $@
 

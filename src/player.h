@@ -37,7 +37,7 @@ enum
 };
 
 /* macros for testing types */
-#define IS_STANDARD(pid) (pd->players[(pid)].type == T_VIE || pd->players[(pid)].type == T_CONT)
+#define IS_STANDARD(pid) (pd->players[(pid)].type == T_CONT || pd->players[(pid)].type == T_VIE)
 #define IS_CHAT(pid) (pd->players[(pid)].type == T_CHAT)
 #define IS_HUMAN(pid) (IS_STANDARD(pid) || IS_CHAT(pid))
 

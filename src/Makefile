@@ -20,7 +20,7 @@ OPT_CFLAGS = -O2 -fomit-frame-pointer -Wall -fpedantic
 DEBUG_CFLAGS = -g -Wall -fpedantic
 ALL_CFLAGS = -D_REENTRANT -D_GNU_SOURCE -fPIC $(DBINC) $(MYSQLINC)
 
-CFLAGS = $(ALL_CFLAGS) $(DEBUG_CFLAGS) $(PROF_FLAGS) # $(OPT_CFLAGS)
+CFLAGS = $(ALL_CFLAGS) $(DEBUG_CFLAGS) $(PROF_FLAGS) $(OPT_CFLAGS)
 
 ALL_STUFF = asss         \
             core.so      \
@@ -31,6 +31,7 @@ ALL_STUFF = asss         \
             scoring.so   \
             admin.so     \
             database.so  \
+            turf.so      \
             funky.so
 
 
@@ -69,8 +70,10 @@ admin.so: filetrans.o quickfix.o
 database.so: mysql.o aliasdb.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(MYSQLLIB) -lmysqlclient_r -lz
 
+turf.so: turf_reward.o turf_stats.o points_turf_reward.o
+
 funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
-	fake.o autoturret.o chatnet.o md5.o auth_file.o turf_reward.o
+	fake.o autoturret.o chatnet.o md5.o auth_file.o
 
 stablefunky.so: bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
 	chatnet.o md5.o auth_file.o

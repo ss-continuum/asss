@@ -221,20 +221,20 @@ local void arenaaction(int arena, int action)
 		/* cfghelp: Lag:WeaponLossToSpec, arena, int, def: 150
 		 * The weapon packetloss at which to force a player to spec.
 		 * Units 0.1%. */
-		DODBL(s2closs.tospec, "WeaponLossToSpec", 150);
+		DODBL(wpnloss.tospec, "WeaponLossToSpec", 150);
 		/* cfghelp: Lag:WeaponLossToStartIgnoringWeapons, arena, int, \
 		 * def: 40
 		 * The weapon packetloss to start ignoring weapons at. Units
 		 * 0.1%. */
-		DODBL(s2closs.wpnstart, "WeaponLossToStartIgnoringWeapons", 40);
+		DODBL(wpnloss.wpnstart, "WeaponLossToStartIgnoringWeapons", 40);
 		/* cfghelp: Lag:WeaponLossToIgnoreAllWeapons, arena, int, def: 500
 		 * The weapon packetloss when all weapons should be ignored.
 		 * Units 0.1%. */
-		DODBL(s2closs.wpnall, "WeaponLossToIgnoreAllWeapons", 500);
+		DODBL(wpnloss.wpnall, "WeaponLossToIgnoreAllWeapons", 500);
 		/* cfghelp: Lag:WeaponLossToDisallowFlags, arena, int, def: 50
 		 * The weapon packetloss when a player isn't allowed to pick up
 		 * flags or balls. Units 0.1%. */
-		DODBL(s2closs.noflags, "WeaponLossToDisallowFlags", 50);
+		DODBL(wpnloss.noflags, "WeaponLossToDisallowFlags", 50);
 
 		/* cfghelp: Lag:C2SLossToSpec, arena, int, def: 150
 		 * The C2S packetloss at which to force a player to spec.

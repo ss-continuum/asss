@@ -304,6 +304,7 @@ void ProcessLoginQueue(void)
 					player->losses = stats->GetStat(pid, STAT_DEATHS, INTERVAL_RESET);
 				}
 				aman->SendArenaResponse(pid);
+				UNSET_SENT_PPK(pid);
 				break;
 
 			case S_DO_ARENA_CALLBACKS:

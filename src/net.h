@@ -31,7 +31,6 @@
 /* bits in the flags parameter to the SendX functions */
 #define NET_UNRELIABLE 0x00
 #define NET_RELIABLE 0x01
-#define NET_REALRELIABLE 0x02
 
 /* priority levels are encoded using bits 3-5 of the flags parameter
  * (0x04, 0x08, 0x10). priority is unrelated to reliable-ness.

@@ -133,11 +133,6 @@ local int LocateConfigFile(char *dest, int destlen, const char *arena, const cha
 	if (!name)
 		repls[0].with = arena ? "arena.conf" : "global.conf";
 
-	/* no changing config search path without recompiling
-	if (global)
-		path = GetStr(global, "General", "ConfigSearchPath");
-	*/
-
 	return find_file_on_path(dest, destlen, path, repls, arena ? 2 : 1);
 }
 
