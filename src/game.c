@@ -645,6 +645,50 @@ local void Cspec(const char *cmd, const char *params, Player *p, const Target *t
 }
 
 
+/* ?energy command */
+
+local helptext_t energy_help =
+"Targets: arena or player\n"
+"Args: [-t] [-n] [-s]\n"
+"If sent as a priv message, turns energy viewing on for that player.\n"
+"If sent as a pub message, turns energy viewing on for the whole arena\n"
+"(note that this will only affect new players entering the arena).\n"
+"If {-t} is given, turns energy viewing on for teammates only.\n"
+"If {-n} is given, turns energy viewing off.\n"
+"If {-s} is given, turns energy viewing on/off for spectator mode.\n";
+
+local void Cenergy(const char *cmd, const char *params, Player *p, const Target *target)
+{
+	Player *t = target->type == T_PLAYER ? target->u.p : NULL;
+	int nval = SEE_ALL;
+	int spec = FALSE;
+
+	if (strstr(params, "-t"))
+		nval = SEE_TEAM;
+	if (strstr(params, "-n"))
+		nval = SEE_NONE;
+	if (strstr(params, "-s"))
+		spec = TRUE;
+
+	if (t)
+	{
+		pdata *data = PPDATA(t, pdkey);
+		if (spec)
+			data->pl_epd.seenrgspec = nval;
+		else
+			data->pl_epd.seenrg = nval;
+	}
+	else
+	{
+		adata *ad = P_ARENA_DATA(p->arena, adkey);
+		if (spec)
+			ad->spec_nrg = nval;
+		else
+			ad->all_nrg = nval;
+	}
+}
+
+
 local void expire_lock(Player *p)
 {
 	pdata *data = PPDATA(p, pdkey);
@@ -1424,7 +1468,10 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 			chatnet->AddHandler("CHANGEFREQ", MChangeFreq);
 
 		if (cmd)
+		{
 			cmd->AddCommand("spec", Cspec, ALLARENAS, spec_help);
+			cmd->AddCommand("energy", Cenergy, ALLARENAS, energy_help);
+		}
 
 		mm->RegInterface(&_myint, ALLARENAS);
 
@@ -1437,7 +1484,10 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		if (chatnet)
 			chatnet->RemoveHandler("CHANGEFREQ", MChangeFreq);
 		if (cmd)
+		{
 			cmd->RemoveCommand("spec", Cspec, ALLARENAS);
+			cmd->RemoveCommand("energy", Cenergy, ALLARENAS);
+		}
 		net->RemovePacket(C2S_SPECREQUEST, PSpecRequest);
 		net->RemovePacket(C2S_POSITION, Pppk);
 		net->RemovePacket(C2S_SETSHIP, PSetShip);

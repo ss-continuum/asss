@@ -266,6 +266,31 @@ local void Csetship(const char *tc, const char *params, Player *p, const Target 
 }
 
 
+local helptext_t owner_help =
+"Targets: none\n"
+"Args: none\n"
+"Displays the arena owner.\n";
+
+local void Cowner(const char *tc, const char *params, Player *p, const Target *target)
+{
+	const char *owner = cfg->GetStr(p->arena->cfg, "Owner", "Name");
+
+	chat->SendMessage(p, "arena owner: %s", owner ? owner : "(none)");
+}
+
+
+local helptext_t zone_help =
+"Targets: none\n"
+"Args: none\n"
+"Displays the name of this zone.\n";
+
+local void Czone(const char *tc, const char *params, Player *p, const Target *target)
+{
+	const char *zone = cfg->GetStr(GLOBAL, "Billing", "ServerName");
+	chat->SendMessage(p, "zone: %s", zone ? zone : "(none)");
+}
+
+
 local helptext_t version_help =
 "Targets: none\n"
 "Args: none\n"
@@ -784,6 +809,28 @@ local void Cinfo(const char *tc, const char *params, Player *p, const Target *ta
 }
 
 
+local helptext_t where_help =
+"Targets: player\n"
+"Args: none\n"
+"Displays the current location (on the map) of the target player.\n";
+
+local void Cwhere(const char *tc, const char *params, Player *p, const Target *target)
+{
+	Player *t = target->type == T_PLAYER ? target->u.p : p;
+	const char *name = t == p ? "You" : t->name;
+	const char *verb = t == p ? "are" : "is";
+	if (IS_STANDARD(t))
+	{
+		int x = t->position.x << 4;
+		int y = t->position.y << 4;
+		chat->SendMessage(p, "%s %s at %c%d (%d,%d)",
+				name, verb, 'A' + (x * 20 / 1024), (y * 20 / 1024) + 1, x, y);
+	}
+	else
+		chat->SendMessage(p, "%s %s not using a playable client.", name, verb);
+}
+
+
 local helptext_t setcm_help =
 "Targets: player or arena\n"
 "Args: see description\n"
@@ -1082,8 +1129,6 @@ local void Cspecall(const char *tc, const char *params, Player *p, const Target 
 	Arena *arena = p->arena;
 	LinkedList set = LL_INITIALIZER;
 	Link *l;
-
-	if (!arena) return;
 
 	pd->TargetToSet(target, &set);
 	for (l = LLGetHead(&set); l; l = l->next)
@@ -1576,7 +1621,7 @@ local void Clag(const char *tc, const char *params, Player *p, const Target *tar
 {
 	struct PingSummary pping, cping;
 	struct PLossSummary ploss;
-	Player *t = (target->type) == T_PLAYER ? target->u.p : p;
+	Player *t = target->type == T_PLAYER ? target->u.p : p;
 
 	lagq->QueryPPing(t, &pping);
 	lagq->QueryCPing(t, &cping);
@@ -1785,6 +1830,30 @@ local void Cscorereset(const char *tc, const char *params, Player *p, const Targ
 }
 
 
+local helptext_t points_help =
+"Targets: any\n"
+"Args: <points to add>"
+"Adds the specified number of points to the targets' flag points.\n";
+
+local void Cpoints(const char *tc, const char *params, Player *p, const Target *target)
+{
+	char *next;
+	long n = strtol(params, &next, 0);
+
+	if (next != params)
+	{
+		LinkedList set = LL_INITIALIZER;
+		Link *l;
+
+		pd->TargetToSet(target, &set);
+		for (l = LLGetHead(&set); l; l = l->next)
+			stats->IncrementStat(l->data, STAT_FLAG_POINTS, n);
+		LLEmpty(&set);
+		stats->SendUpdates();
+	}
+}
+
+
 local helptext_t mapinfo_help =
 "Targets: none\n"
 "Args: none\n"
@@ -1956,22 +2025,6 @@ local void Cdisablecmdgroup(const char *tc, const char *params, Player *p, const
 }
 
 
-local helptext_t owner_help =
-"Targets: none\n"
-"Args: none\n"
-"Displays the arena owner.\n";
-
-local void Cowner(const char *tc, const char *params, Player *p, const Target *target)
-{
-	const char *owner_str;
-
-	/* get the name from the arena conf that this player is in */
-	owner_str = cfg->GetStr(p->arena->cfg, "Owner", "Name");
-
-	chat->SendMessage(p, "arena owner: %s", owner_str ? owner_str : "none");
-}
-
-
 /* actual group definitions */
 
 #define CMD(x) {#x, C ## x, & x ## _help},
@@ -1994,6 +2047,7 @@ local const struct cmd_info core_commands[] =
 	CMD(arena)
 	CMD(shutdown)
 	CMD(owner)
+	CMD(zone)
 	CMD(version)
 	CMD(uptime)
 	CMD(lsmod)
@@ -2013,6 +2067,7 @@ local const struct cmd_info core_commands[] =
 	CMD(netstats)
 	CMD(send)
 	CMD(recyclearena)
+	CMD(where)
 	END()
 };
 
@@ -2126,6 +2181,7 @@ local const struct cmd_info stats_commands[] =
 {
 	CMD(scorereset)
 	CMD(endinterval)
+	CMD(points)
 	END()
 };
 

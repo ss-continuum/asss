@@ -376,7 +376,7 @@ typedef struct Iplayerdata
 	 * Use this whenever you used Iplayerdata::Lock.
 	 */
 	void (*Unlock)(void);
-	/** Unlocks the global player lock (shared/read-only).
+	/** Unlocks the global player lock (exclusive/read-write).
 	 * Use this whenever you used Iplayerdata::WriteLock.
 	 */
 	void (*WriteUnlock)(void);

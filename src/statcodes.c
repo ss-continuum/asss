@@ -26,6 +26,7 @@ const char *get_stat_name(int st)
 		case STAT_FLAG_DEATHS: return "flag deaths";
 		case STAT_FLAG_GAMES_WON: return "flag games won";
 		case STAT_FLAG_GAMES_LOST: return "flag games lost";
+		case STAT_TURF_TAGS: return "turf flags tagged";
 		case STAT_BALL_CARRIES: return "ball carries";
 		case STAT_BALL_CARRY_TIME: return "ball time";
 		case STAT_BALL_GOALS: return "goals";

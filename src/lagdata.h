@@ -37,8 +37,16 @@ struct ReliableLagData
 	unsigned int retries, s2cn;
 };
 
+struct TimeSyncHistory
+{
+#define TIME_SYNC_SAMPLES 10
+	unsigned int servertime[TIME_SYNC_SAMPLES];
+	unsigned int clienttime[TIME_SYNC_SAMPLES];
+	int next, drift;
+};
 
-#define I_LAGQUERY "lagquery-1"
+
+#define I_LAGQUERY "lagquery-2"
 
 typedef struct Ilagquery
 {
@@ -56,6 +64,8 @@ typedef struct Ilagquery
 	/* pyint: player, plosssummary out -> void */
 	void (*QueryRelLag)(Player *p, struct ReliableLagData *d);
 	/* pyint: player, reliablelagdata out -> void */
+
+	void (*QueryTimeSyncHistory)(Player *p, struct TimeSyncHistory *d);
 
 	void (*DoPHistogram)(Player *p,
 			void (*callback)(Player *p, int bucket, int count, int maxcount, void *clos),
@@ -87,16 +97,18 @@ struct ClientLatencyData
 	short highestping;
 };
 
-struct ClientPLossData
+struct TimeSyncData
 {
 	/* what the server thinks */
 	unsigned int s_pktrcvd, s_pktsent;
 	/* what the client reports */
 	unsigned int c_pktrcvd, c_pktsent;
+	/* time sync */
+	unsigned int s_time, c_time;
 };
 
 
-#define I_LAGCOLLECT "lagcollect-2"
+#define I_LAGCOLLECT "lagcollect-3"
 
 typedef struct Ilagcollect
 {
@@ -105,7 +117,7 @@ typedef struct Ilagcollect
 	void (*Position)(Player *p, int ms, int cliping, unsigned int wpnsent);
 	void (*RelDelay)(Player *p, int ms);
 	void (*ClientLatency)(Player *p, struct ClientLatencyData *data);
-	void (*ClientPLoss)(Player *p, struct ClientPLossData *data);
+	void (*TimeSync)(Player *p, struct TimeSyncData *data);
 	void (*RelStats)(Player *p, struct ReliableLagData *data);
 
 	void (*Clear)(Player *p);

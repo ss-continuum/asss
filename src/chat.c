@@ -294,7 +294,7 @@ local void SendRemotePrivMessage(LinkedList *set, int sound,
 local void run_commands(const char *text, Player *p, Target *target)
 {
 	char buf[512], *b;
-	int count = 0;
+	int count = 0, initial = 0;
 
 	if (!cmd) return;
 
@@ -302,7 +302,11 @@ local void run_commands(const char *text, Player *p, Target *target)
 	{
 		/* skip over *, ?, and | */
 		while (*text == CMD_CHAR_1 || *text == CMD_CHAR_2 || *text == '|')
+		{
+			if (*text != '|')
+				initial = *text;
 			text++;
+		}
 
 		if (*text == '\0' || count++ >= cfg_cmdlimit)
 			break;
@@ -311,6 +315,9 @@ local void run_commands(const char *text, Player *p, Target *target)
 		while (*text && *text != '|' && (b-buf) < sizeof(buf))
 			*b++ = *text++;
 		*b = '\0';
+		/* give modules a chance to rewrite the command */
+		DO_CBS(CB_REWRITECOMMAND, ALLARENAS, CommandRewriterFunc, (initial, buf, sizeof(buf)));
+		/* now run it */
 		cmd->Command(buf, p, target);
 	}
 }

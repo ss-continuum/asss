@@ -25,6 +25,7 @@
 #include "reldb.h"
 #include "fg_wz.h"
 #include "fg_turf.h"
+#include "idle.h"
 
 #include "contrib/turf_reward.h"
 
@@ -1450,6 +1451,28 @@ local PyObject * mthd_for_each_arena(PyObject *self, PyObject *args)
 }
 
 
+local PyObject * mthd_is_standard(PyObject *self, PyObject *args)
+{
+	Player *p;
+	if (!PyArg_ParseTuple(args, "O&", cvt_p2c_player, &p)) return NULL;
+	return PyInt_FromLong(IS_STANDARD(p));
+}
+
+local PyObject * mthd_is_chat(PyObject *self, PyObject *args)
+{
+	Player *p;
+	if (!PyArg_ParseTuple(args, "O&", cvt_p2c_player, &p)) return NULL;
+	return PyInt_FromLong(IS_CHAT(p));
+}
+
+local PyObject * mthd_is_human(PyObject *self, PyObject *args)
+{
+	Player *p;
+	if (!PyArg_ParseTuple(args, "O&", cvt_p2c_player, &p)) return NULL;
+	return PyInt_FromLong(IS_HUMAN(p));
+}
+
+
 local PyMethodDef asss_module_methods[] =
 {
 	{"reg_callback", mthd_reg_callback, METH_VARARGS,
@@ -1473,6 +1496,12 @@ local PyMethodDef asss_module_methods[] =
 		"runs a function for each player"},
 	{"for_each_arena", mthd_for_each_arena, METH_VARARGS,
 		"runs a function for each arena"},
+	{"is_standard", mthd_is_standard, METH_VARARGS,
+		"is this player using a regular game client?"},
+	{"is_chat", mthd_is_chat, METH_VARARGS,
+		"is this player using a chat-only client?"},
+	{"is_human", mthd_is_human, METH_VARARGS,
+		"is this player a human (as opposed to an internal fake player)?"},
 	{NULL}
 };
 

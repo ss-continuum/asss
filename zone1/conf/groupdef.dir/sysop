@@ -23,6 +23,7 @@ cmd_attmod
 
 cmd_setscore
 cmd_resetgame
+privcmd_points
 
 cmd_setg
 cmd_getg

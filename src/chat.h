@@ -45,6 +45,11 @@ typedef void (*ChatMsgFunc)(Player *p, int type, int sound, Player *target,
 /* pycb: player, int, int, player, int, string */
 
 
+/* this isn't for general use */
+#define CB_REWRITECOMMAND "rewritecommand"
+typedef void (*CommandRewriterFunc)(int initial, char *buf, int len);
+
+
 /** this type is used to represent chat masks, which can be used to
  ** restrict certain types of chat per-player or per-arena. */
 typedef unsigned short chat_mask_t;

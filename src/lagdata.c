@@ -66,7 +66,8 @@ typedef struct
 	struct PingData pping; /* position packet ping */
 	struct PingData rping; /* reliable ping */
 	struct ClientLatencyData cping; /* client-reported ping */
-	struct ClientPLossData ploss; /* basic ploss info */
+	struct TimeSyncData ploss; /* basic ploss info */
+	struct TimeSyncHistory timesync; /* time sync data */
 	struct ReliableLagData reldata; /* reliable layer data */
 	unsigned int wpnsent, wpnrcvd, lastwpnsent;
 } LagData;
@@ -127,11 +128,17 @@ local void ClientLatency(Player *p, struct ClientLatencyData *d)
 }
 
 
-local void ClientPLoss(Player *p, struct ClientPLossData *d)
+local void TimeSync(Player *p, struct TimeSyncData *d)
 {
+	int this;
 	LagData *ld = PPDATA(p, lagkey);
 	PEDANTIC_LOCK();
 	ld->ploss = *d;
+	this = ld->timesync.next;
+	ld->timesync.servertime[this] = d->s_time;
+	ld->timesync.clienttime[this] = d->c_time;
+	ld->timesync.next = (this + 1) % TIME_SYNC_SAMPLES;
+	/* TODO: calculate drift here */
 	PEDANTIC_UNLOCK();
 }
 
@@ -220,6 +227,15 @@ local void QueryRelLag(Player *p, struct ReliableLagData *d)
 }
 
 
+local void QueryTimeSyncHistory(Player *p, struct TimeSyncHistory *d)
+{
+	LagData *ld = PPDATA(p, lagkey);
+	PEDANTIC_LOCK();
+	*d = ld->timesync;
+	PEDANTIC_UNLOCK();
+}
+
+
 local void do_hist(
 		Player *p,
 		struct PingData *pd,
@@ -272,7 +288,7 @@ local Ilagcollect lcint =
 {
 	INTERFACE_HEAD_INIT(I_LAGCOLLECT, "lagdata")
 	Position, RelDelay, ClientLatency,
-	ClientPLoss, RelStats
+	TimeSync, RelStats
 };
 
 
@@ -281,6 +297,7 @@ local Ilagquery lqint =
 	INTERFACE_HEAD_INIT(I_LAGQUERY, "lagdata")
 	QueryPPing, QueryCPing, QueryRPing,
 	QueryPLoss, QueryRelLag,
+	QueryTimeSyncHistory,
 	DoPHistogram, DoRHistogram
 };
 

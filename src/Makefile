@@ -163,7 +163,7 @@ UTIL_OBJS = util.o pathutil.o protutil.o rwlock.o app.o md5.o $(W32COMPAT)
 INTERNAL_MODULES = config.o prng.o md5.o player.o core.o logman.o \
 	mainloop.o net.o enc_null.o enc_vie.o arenaman.o mapdata.o \
 	mapnewsdl.o clientset.o capman.o lagdata.o lagaction.o unixsignal.o \
-	deadlock.o \
+	deadlock.o idle.o \
 	log_file.o log_console.o log_sysop.o log_staff.o \
 	game.o game_timer.o chat.o flagcore.o balls.o fm_normal.o \
 	banners.o bricks.o objects.o messages.o koth.o fm_lockspec.o \
@@ -198,7 +198,7 @@ pymod.$(SO): LIBS=$(PYTHON_LDFLAGS)
 
 include */*.mk
 
-funky.$(SO): bricklayer.o autowarp.o autoturret.o record.o $(EXTRA_FUNKY_OBJS)
+funky.$(SO): bricklayer.o autowarp.o autoturret.o record.o sgcompat.o $(EXTRA_FUNKY_OBJS)
 funky.$(SO): LIBS=$(ZLIB_LIB) -lm
 
 

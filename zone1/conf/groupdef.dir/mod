@@ -34,6 +34,7 @@ privcmd_kick
 cmd_listmidbans
 cmd_delmidban
 cmd_setjackpot
+privcmd_where
 
 privcmd_scorereset
 cmd_endinterval

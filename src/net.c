@@ -2182,12 +2182,14 @@ void ProcessSyncRequest(Buffer *buf)
 	/* submit data to lagdata */
 	if (lagc && conn->p)
 	{
-		struct ClientPLossData data;
+		struct TimeSyncData data;
 		data.s_pktrcvd = conn->pktrecvd;
 		data.s_pktsent = conn->pktsent;
 		data.c_pktrcvd = cts->pktrecvd;
 		data.c_pktsent = cts->pktsent;
-		lagc->ClientPLoss(conn->p, &data);
+		data.s_time = ts.servertime;
+		data.c_time = ts.clienttime;
+		lagc->TimeSync(conn->p, &data);
 	}
 
 	FreeBuffer(buf);
