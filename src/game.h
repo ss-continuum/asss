@@ -14,7 +14,6 @@
 
 /** this callback is be called whenever a kill occurs */
 #define CB_KILL "kill-2"
-#define CB_KILL_POST_NOTIFY "killpostnotify-2"
 /** the type of CB_KILL.
  * @param arena the arena the kill took place in
  * @param killer the player who made the kill
@@ -30,6 +29,10 @@
 typedef void (*KillFunc)(Arena *arena, Player *killer, Player *killed,
 		int bounty, int flags, int *pts, int *green);
 /* pycb: arena, player, player, int, int, int inout, int inout */
+
+/** this is called when a kill occurs, after the kill notification has
+ ** been sent to clients. in general, you shouldn't need to use this. */
+#define CB_KILL_POST_NOTIFY "killpostnotify-2"
 
 
 /** this callback is called when a player changes his freq (but stays in
