@@ -240,6 +240,7 @@ void ProcessLoginQueue(void)
 
 					if (auth && d->loginpkt != NULL && d->lplen > 0)
 					{
+						lm->Log(L_DRIVEL, "<core> authenticating with '%s'", auth->head.name);
 						auth->Authenticate(player, d->loginpkt, d->lplen, AuthDone);
 						mm->ReleaseInterface(auth);
 					}

@@ -23,13 +23,15 @@ import vie_bprot, asss_bprot, util
 
 
 def main():
+	sys.stdout = sys.stderr
+
 	# grab params from cmd line
 	ip = sys.argv[1]
 	port = int(sys.argv[2])
 
 	# log file
 	util.open_logfile('log/bproxy.log')
-	util.log('bproxy 0.1 started')
+	util.log('bproxy %s started' % util.version)
 
 	# set up socket for remote biller
 	rsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

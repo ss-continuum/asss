@@ -32,7 +32,7 @@ privcmd_freqkick
 privcmd_giveowner
 
 cmd_usage
-cmd_userid
+cmd_billingid
 privcmd_usage
 privcmd_userid
 

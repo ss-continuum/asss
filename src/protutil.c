@@ -212,8 +212,8 @@ int do_sp_process(sp_conn *conn, void (*process)(const char *line, const char *r
 			char *rest = strchr(line, ':');
 			if (rest)
 			{
-				*rest++ = 0;
-				process(line, rest, v);
+				*rest = '\0';
+				process(line, rest+1, v);
 			}
 			else
 				process(line, NULL, v);

@@ -31,6 +31,9 @@ privcmd_shipreset
 
 privcmd_laginfo
 
+privcmd_usage
+privcmd_billingid
+
 ; turf commands
 cmd_turfresetflags
 cmd_turfresettimer
@@ -44,6 +47,7 @@ cmd_resetkoth
 cmd_brickwrite
 privcmd_warpto
 
+; shutup, etc.
 cmd_getcm
 cmd_setcm
 privcmd_getcm

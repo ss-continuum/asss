@@ -4,14 +4,16 @@
 
 import sys, struct, re
 
-import asss_bprot
-from util import ticks, log
+import asss_bprot, util
+
+log = util.log
 
 
 # constants
-reliable_retry = 100 # ticks
+reliable_retry = 100 # 1 second
 max_bigpkt = 512 * 1024
-pinginterval = 3000 # 30 seconds
+pinginterval = 500 # 5 seconds
+timeoutinterval = pinginterval * 2 + 300
 
 s_nothing = 0
 s_sentkey = 1
@@ -21,10 +23,18 @@ s_connected = 2
 # globals
 c2sn = 0
 s2cn = 0
+
 sock = None
-lastping = ticks()
+
+lastping = util.ticks()
+lastrecv = util.ticks()
+
+outq = []
+inq = []
 
 stage = s_nothing
+sentconnect = 0
+
 
 
 def set_sock(s):
@@ -35,7 +45,8 @@ def set_sock(s):
 class Pkt:
 	def __init__(me, data, seqnum = None):
 		me.data = data
-		me.lastretry = ticks()
+		me.lastretry = 0
+		me.reliable = (ord(data[0]) == 0 and ord(data[0]) == 3)
 		if seqnum != None:
 			me.seqnum = seqnum
 		else:
@@ -51,10 +62,12 @@ def raw_send(d):
 
 
 def try_read():
-	global sock
+	global sock, lastrecv
+
 	try:
 		r = sock.recv(512)
 		if r:
+			lastrecv = util.ticks()
 			try:
 				process_pkt(r)
 			except:
@@ -70,20 +83,29 @@ def try_read():
 
 
 def try_sending_outqueue():
-	global outq
+	global outq, stage, lastping, lastrecv
+
+	now = util.ticks()
+
+	# check for disconnect
+	if (now - lastrecv) > timeoutinterval:
+		log("no packets from biller in %s seconds, assuming down" %
+			((now-lastrecv)/100))
+		util.exit(1)
 
 	# only send stuff once we're connected
 	if stage != s_connected:
 		return
 
-	now = ticks()
-
 	for p in outq:
-		if (ticks - p.lastretry) > reliable_retry:
+		if (now - p.lastretry) > reliable_retry:
 			raw_send(p.data)
+			if p.reliable:
+				p.lastretry = now
+			else:
+				outq.remove(p)
 
-	# do pings here. slightly hackish.
-	now = ticks()
+	# check for pings
 	if (now - lastping) > pinginterval:
 		lastping = now
 		queue_pkt('\x01')
@@ -91,7 +113,7 @@ def try_sending_outqueue():
 
 
 def queue_pkt(data):
-	global outq
+	global outq, c2sn
 
 	pkt = Pkt(struct.pack('<BBI', 0, 3, c2sn) + data, c2sn)
 	c2sn = c2sn + 1
@@ -100,20 +122,21 @@ def queue_pkt(data):
 
 
 def handle_ack(sn):
+	global outq
 	for p in outq:
 		if sn == p.seqnum:
 			outq.remove(p)
 
 
-def handle_b2s_authresponse(flag, pid, name, pwd, usage, year,
+def handle_b2s_authresponse(flag, pid, name, squad, usage, year,
 			month, day, hour, minute, second, billerid):
 
 	first = '%d-%d-%d %d:%2d:%2d' % (day, month, year, hour, minute, second)
-	# more...
 	if flag == 0:
-		send_b2s_pok(pid, '', name, squad, billerid, usage, first)
+		asss_bprot.send_b2s_pok(pid, '', name, squad, billerid, usage, first)
 	else:
-		send_b2s_pbad(pid, 'error in login')
+		# yuck.
+		asss_bprot.send_b2s_pbad(pid, 'CODE%d' % flag)
 
 
 re_msg = re.compile(  r':#([^:]*):\((.*?)\)>(.*)'  )
@@ -158,7 +181,7 @@ B2S_CHAT                   = 0x0A
 curchunk = ''
 
 def process_pkt(p):
-	global curchunk
+	global curchunk, inq
 
 	t1 = ord(p[0])
 
@@ -166,8 +189,10 @@ def process_pkt(p):
 		t2 = ord(p[1])
 		if t2 == 2:
 			# key response
+			global stage
 			stage = s_connected
 			log("remote server responded")
+			asss_bprot.send_connected()
 		elif t2 == 3:
 			# reliable
 			pkt = Pkt(p)
@@ -176,14 +201,14 @@ def process_pkt(p):
 			raw_send(ack)
 		elif t2 == 4:
 			# ack
-			(sn,) = struct.unpack('<I', p.data[2:6])
+			(sn,) = struct.unpack('<I', p[2:6])
 			handle_ack(sn)
 		elif t2 == 7:
 			# disconnect
 			# close our sockets and die
 			log("got disconnect from server, exiting")
 			sock.close()
-			sys.exit(0)
+			util.exit(0)
 		elif t2 == 8:
 			# chunk
 			curchunk = curchunk + p[2:]
@@ -205,11 +230,18 @@ def process_pkt(p):
 			log("unknown network subtype: %d" % t2)
 
 	elif t1 == B2S_AUTHRESPONSE:
-		flag, pid, name, pwd, bnr, usage, year, month, day, hour, \
+		flag, pid, name, squad, bnr, usage, year, month, day, hour, \
 			minute, second, billerid = \
 			struct.unpack('< x B i 24s 24s 96s i 6h 4x i 4x', p)
-		handle_b2s_authresponse(flag, pid, name, pwd, usage, year,
-			month, day, hour, minute, second, billerid)
+		name = util.snull(name)
+		squad = util.snull(squad)
+		try:
+			handle_b2s_authresponse(flag, pid, name, squad, usage, year,
+				month, day, hour, minute, second, billerid)
+		except:
+			import traceback
+			traceback.print_exc()
+			raise
 
 	elif t1 == B2S_SHUTDOWN:
 		# '< B x 4x 4x'
@@ -217,7 +249,7 @@ def process_pkt(p):
 
 	elif t1 == B2S_GENMESSAGE:
 		# '< B 4x 2x' # string
-		str = p[7:]
+		str = util.snull(p[7:])
 		handle_b2s_genmessage(str)
 
 	elif t1 == B2S_RECYCLE:
@@ -231,13 +263,13 @@ def process_pkt(p):
 	elif t1 == B2S_SINGLEMSG:
 		# '< B i' # string
 		(pid,) = struct.unpack('< x i', p[0:5])
-		str = p[5:]
+		str = util.snull(p[5:])
 		handle_b2s_singlemsg(pid, str)
 
 	elif t1 == B2S_CHAT:
 		# '< B i B' # string
 		pid, chan = struct.unpack('< x i B', p[0:6])
-		str = p[6:]
+		str = util.snull(p[6:])
 		handle_b2s_chat(pid, chan, str)
 
 	else:
@@ -245,23 +277,24 @@ def process_pkt(p):
 
 
 def try_process_inqueue():
-	global inq
+	global inq, s2cn
 
 	for p in inq:
 		if p.seqnum == s2cn:
 			s2cn = s2cn + 1
-			try:
-				process_pkt(p.data)
-			except:
-				log("error processing packet from inqueue, type %x" % p.data[0])
+			d = p.data[6:]
 			inq.remove(p)
+			try:
+				process_pkt(d)
+			except:
+				log("error processing packet from inqueue, type %x" % d[0])
 
 
 # sending stuff
 
 S2B_KEEPALIVE              = 0x01
 S2B_LOGIN                  = 0x02
-S2B_LOGOFF                 = 0x03
+S2B_LOGOUT                 = 0x03
 S2B_PLAYERLOGIN            = 0x04
 S2B_PLAYERLEAVING          = 0x05
 S2B_REMOTEPRIV             = 0x07
@@ -275,8 +308,9 @@ S2B_COMMAND                = 0x13
 S2B_CHATMSG                = 0x14
 
 def send_s2b_login(serverid, groupid, scoreid, name, pw):
+	global sentconnect
 	pkt = struct.pack('< B i i i 128s 32s', S2B_LOGIN, serverid,
-	groupid, scoreid, name, pw)
+		groupid, scoreid, name, pw)
 	queue_pkt(pkt)
 	sentconnect = 1
 
@@ -285,14 +319,17 @@ def send_s2b_logout():
 	queue_pkt(pkt)
 
 def send_s2b_playerlogin(flag, ipaddy, name, pw, pid, macid, timezone, contid = None):
-	pkt = struct.pack('< B B I 32s 32s i i h i', S2B_PLAYERLOGIN, flag,
-	ipaddy, name, pw, pid, macid, timezone)
+	pkt = struct.pack('< B B 4s 32s 32s i i h 4x', S2B_PLAYERLOGIN, flag,
+		ipaddy, name, pw, pid, macid, timezone)
 	if contid:
 		pkt = pkt + contid
 	queue_pkt(pkt)
 
-def send_s2b_playerleave(pid):
-	pkt = struct.pack('< B i', S2B_PLAYERLEAVING, pid)
+def send_s2b_playerleave(pid, secs):
+	# why in the world is this a two-byte field!?
+	if secs > 65535:
+		secs = 65535
+	pkt = struct.pack('< B i 4x 4x H', S2B_PLAYERLEAVING, pid, secs)
 	queue_pkt(pkt)
 
 def send_s2b_remotepriv(pid, text):
@@ -339,6 +376,8 @@ def connect():
 
 
 def disconnect():
+	global sentconnect
+
 	# first send the nice log off packet
 	if sentconnect:
 		send_s2b_logout()

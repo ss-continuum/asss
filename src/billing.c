@@ -25,10 +25,11 @@
 
 typedef struct pdata
 {
-	long billerid;
+	long billingid;
 	unsigned long usage;
 	char firstused[32];
 	void (*Done)(Player *p, AuthData *data);
+	int knowntobiller;
 } pdata;
 
 
@@ -116,6 +117,26 @@ local void send_line(const char *line)
 }
 
 
+local void drop_connection(int newstate)
+{
+	Player *p;
+	Link *link;
+	pdata *data;
+
+	/* clear knowntobiller values */
+	pd->Lock();
+	FOR_EACH_PLAYER_P(p, data, pdkey)
+		data->knowntobiller = 0;
+	pd->Unlock();
+
+	/* then close socket */
+	if (conn.socket > 0)
+		close(conn.socket);
+	conn.socket = -1;
+	state = newstate;
+
+}
+
 /* the auth interface */
 
 local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
@@ -137,11 +158,17 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 			memtohex(buf + strlen(buf), lp->contid, 64);
 
 		sp_send(&conn, buf);
+
+		data->knowntobiller = TRUE;
 	}
 	else
 	{
 		/* biller isn't connected, fall back to next highest priority */
+		lm->Log(L_DRIVEL,
+				"<billing> biller not connected; falling back to '%s'",
+				oldauth->head.name);
 		oldauth->Authenticate(p, lp, lplen, Done);
+		data->knowntobiller = FALSE;
 	}
 
 	pthread_mutex_unlock(&mtx);
@@ -158,7 +185,8 @@ local struct Iauth myauth =
 
 local void paction(Player *p, int action, Arena *arena)
 {
-	if (action == PA_DISCONNECT)
+	pdata *data = PPDATA(p, pdkey);
+	if (action == PA_DISCONNECT && data->knowntobiller)
 	{
 		char buf[128];
 		snprintf(buf, sizeof(buf), "PLEAVE:%d", p->pid);
@@ -171,6 +199,11 @@ local void paction(Player *p, int action, Arena *arena)
 
 local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, const char *text)
 {
+	pdata *data = PPDATA(p, pdkey);
+
+	if (!data->knowntobiller)
+		return;
+
 	if (type == MSG_CHAT)
 	{
 		char buf[MAXMSGSIZE], chan[16];
@@ -214,9 +247,13 @@ local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, c
 
 local void Cdefault(const char *line, Player *p, const Target *target)
 {
+	pdata *data = PPDATA(p, pdkey);
 	char buf[MAXMSGSIZE];
 	char cmd[32], *c;
 	const char *t;
+
+	if (!data->knowntobiller)
+		return;
 
 	if (target->type != T_ARENA)
 	{
@@ -249,44 +286,52 @@ local helptext_t usage_help =
 local void Cusage(const char *params, Player *p, const Target *target)
 {
 	Player *t = target->type == T_PLAYER ? target->u.p : p;
-	pdata *data = PPDATA(t, pdkey);
+	pdata *tdata = PPDATA(t, pdkey);
 	unsigned int mins, secs;
 
-	secs = (GTC() - t->connecttime) / 100;
-	mins = secs / 60;
+	if (tdata->knowntobiller)
+	{
+		secs = (GTC() - t->connecttime) / 100;
+		mins = secs / 60;
 
-	if (t != p) chat->SendMessage(p, "usage: %s:", t->name);
-	chat->SendMessage(p, "session: %5d:%02d:%02d", mins / 60, mins % 60, secs % 60);
-	mins += data->usage / 60;
-	chat->SendMessage(p, "  total: %5d:%02d",
-			mins / 60, mins % 60);
-	chat->SendMessage(p, "first played: %s", data->firstused);
+		if (t != p) chat->SendMessage(p, "usage: %s:", t->name);
+		chat->SendMessage(p, "session: %5d:%02d:%02d", mins / 60, mins % 60, secs % 60);
+		mins += tdata->usage / 60;
+		chat->SendMessage(p, "  total: %5d:%02d",
+				mins / 60, mins % 60);
+		chat->SendMessage(p, "first played: %s", tdata->firstused);
+	}
+	else
+		chat->SendMessage(p, "usage unknown for %s", t->name);
 }
 
 
-local helptext_t billerid_help =
+local helptext_t billingid_help =
 "Targets: player or none\n"
 "Args: none\n"
 "Displays the billing server id of the target player, or yours if no\n"
 "target.\n";
 
-local void Cbillerid(const char *params, Player *p, const Target *target)
+local void Cbillingid(const char *params, Player *p, const Target *target)
 {
 	Player *t = target->type == T_PLAYER ? target->u.p : p;
-	pdata *data = PPDATA(t, pdkey);
-	chat->SendMessage(p, "%s has biller id %d",
-			t->name, data->billerid);
+	pdata *tdata = PPDATA(t, pdkey);
+	if (tdata->knowntobiller)
+		chat->SendMessage(p, "%s has billing id %d",
+				t->name, tdata->billingid);
+	else
+		chat->SendMessage(p, "billing id unknown for %s", t->name);
 }
 
 
-local helptext_t billeradm_help =
+local helptext_t billingadm_help =
 "Targets: none\n"
 "Args: status|drop|connect\n"
 "The subcommand 'status' reports the status of the billing server\n"
 "connection. 'drop' disconnects the connection if it's up, and 'connect'\n"
 "reconnects after dropping or failed login.\n";
 
-local void Cbilleradm(const char *params, Player *p, const Target *target)
+local void Cbillingadm(const char *params, Player *p, const Target *target)
 {
 	pthread_mutex_lock(&mtx);
 
@@ -294,10 +339,9 @@ local void Cbilleradm(const char *params, Player *p, const Target *target)
 	{
 		/* if we're up, drop the socket */
 		if (conn.socket > 0)
-		{
-			close(conn.socket);
-			conn.socket = -1;
-		}
+			drop_connection(s_disabled);
+		else
+			state = s_disabled;
 		state = s_disabled;
 		chat->SendMessage(p, "billing connection disabled");
 	}
@@ -360,14 +404,12 @@ local void process_connectbad(const char *line)
 			billername, reason);
 
 	/* now close it and don't try again */
-	close(conn.socket);
-	conn.socket = -1;
-	state = s_loginfailed;
+	drop_connection(s_loginfailed);
 }
 
 local void process_pok(const char *line)
 {
-	/* b->g: "POK:pid:rtext:name:squad:billerid:usage:firstused" */
+	/* b->g: "POK:pid:rtext:name:squad:billingid:usage:firstused" */
 	AuthData ad;
 	char pidstr[16], rtext[256], bidstr[16], usagestr[16];
 	const char *t = line;
@@ -393,7 +435,7 @@ local void process_pok(const char *line)
 		pdata *data = PPDATA(p, pdkey);
 		astrncpy(data->firstused, t, sizeof(data->firstused));
 		data->usage = atol(usagestr);
-		data->billerid = atol(bidstr);
+		data->billingid = atol(bidstr);
 		ad.demodata = 0;
 		ad.code = AUTH_OK;
 		ad.authenticated = TRUE;
@@ -419,8 +461,14 @@ local void process_pbad(const char *line)
 	{
 		pdata *data = PPDATA(p, pdkey);
 		memset(&ad, 0, sizeof(ad));
-		ad.code = AUTH_CUSTOMTEXT;
-		astrncpy(ad.customtext, t, sizeof(ad.customtext));
+		/* ew.. i really wish i didn't have to do this */
+		if (!strncmp(t, "CODE", 4))
+			ad.code = atoi(t+4);
+		else
+		{
+			ad.code = AUTH_CUSTOMTEXT;
+			astrncpy(ad.customtext, t, sizeof(ad.customtext));
+		}
 		data->Done(p, &ad);
 	}
 	else
@@ -670,7 +718,7 @@ local void remote_connect(const char *ipaddr, int port)
 	}
 
 	lm->Log(L_INFO, "<billing> trying to connect to billing server at %s:%d",
-			port, ipaddr);
+			ipaddr, port);
 
 	lastretry = time(NULL);
 
@@ -773,9 +821,7 @@ local void check_connected(void)
 		lm->Log(L_WARN, "<billing> unexpected error from select: %s",
 				strerror(errno));
 		/* abort and retry in a while */
-		close(conn.socket);
-		conn.socket = -1;
-		state = s_retry;
+		drop_connection(s_retry);
 	}
 }
 
@@ -795,9 +841,12 @@ local void try_login(void)
 	 * The password to log in to the billing server with. */
 	const char *pwd = cfg->GetStr(GLOBAL, "Billing", "Password");
 
+	if (!zonename) zonename = "";
+	if (!net) net = "";
+	if (!pwd) pwd = "";
+
 	snprintf(buf, sizeof(buf), "CONNECT:1:asss "ASSSVERSION":%s:%s:%s",
 			zonename, net, pwd);
-
 	sp_send(&conn, buf);
 
 	state = s_waitlogin;
@@ -810,6 +859,8 @@ local void try_send_recv(void)
 {
 	fd_set rfds, wfds;
 	struct timeval tv = { 0, 0 };
+
+	if (conn.socket < 0) return;
 
 	FD_ZERO(&rfds);
 	FD_SET(conn.socket, &rfds);
@@ -824,9 +875,8 @@ local void try_send_recv(void)
 		{
 			/* lost connection */
 			lm->Log(L_INFO, "<billing> lost connection to billing server (read eof)");
-			close(conn.socket);
-			conn.socket = -1;
-			state = s_retry;
+			drop_connection(s_retry);
+			return;
 		}
 
 	if (FD_ISSET(conn.socket, &wfds))
@@ -846,7 +896,7 @@ local int do_one_iter(void *v)
 		check_connected();
 	else if (state == s_connected)
 		try_login();
-	else if (state == s_waitlogin || state == s_connected)
+	else if (state == s_waitlogin || state == s_loggedin)
 		try_send_recv();
 	else if (state == s_retry)
 		if ( (time(NULL) - lastretry) > cfg_retryseconds)
@@ -858,7 +908,7 @@ local int do_one_iter(void *v)
 
 
 
-EXPORT int MM_biller(int action, Imodman *mm, Arena *arena)
+EXPORT int MM_billing(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -875,7 +925,7 @@ EXPORT int MM_biller(int action, Imodman *mm, Arena *arena)
 		if (pdkey == -1) return MM_FAIL;
 
 		conn.socket = -1;
-		state = s_no_socket;
+		drop_connection(s_no_socket);
 
 		/* cfghelp: Billing:RetryInterval, global, int, def: 30
 		 * How many seconds to wait between tries to connect to the
@@ -890,8 +940,8 @@ EXPORT int MM_biller(int action, Imodman *mm, Arena *arena)
 		mm->RegCallback(CB_CHATMSG, onchatmsg, ALLARENAS);
 
 		cmd->AddCommand("usage", Cusage, usage_help);
-		cmd->AddCommand("billerid", Cbillerid, billerid_help);
-		cmd->AddCommand("billeradm", Cbilleradm, billeradm_help);
+		cmd->AddCommand("billingid", Cbillingid, billingid_help);
+		cmd->AddCommand("billingadm", Cbillingadm, billingadm_help);
 		cmd->AddCommand(NULL, Cdefault, NULL);
 
 		mm->RegInterface(&myauth, ALLARENAS);
@@ -904,8 +954,8 @@ EXPORT int MM_biller(int action, Imodman *mm, Arena *arena)
 			return MM_FAIL;
 
 		cmd->RemoveCommand("usage", Cusage);
-		cmd->RemoveCommand("billerid", Cbillerid);
-		cmd->RemoveCommand("billeradm", Cbilleradm);
+		cmd->RemoveCommand("billingid", Cbillingid);
+		cmd->RemoveCommand("billingadm", Cbillingadm);
 		cmd->RemoveCommand(NULL, Cdefault);
 		mm->UnregCallback(CB_CHATMSG, onchatmsg, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);

@@ -3,9 +3,11 @@
 # asss biller server protocol
 
 import sys
+from socket import inet_aton
 
-import vie_bprot
-from util import log
+import vie_bprot, util
+
+log = util.log
 
 # globals
 sock = None
@@ -14,8 +16,16 @@ serverid = 5000
 groupid = 0
 scoreid = 5000
 
-# maps pids to names
+# maps pids to Players
 pidmap = {}
+# whether we got a connect command from the server
+gotconnect = 0
+
+
+class Player:
+	def __init__(me, name):
+		me.name = name
+		me.connected = util.ticks()
 
 
 def set_sock(s):
@@ -32,7 +42,7 @@ def handle_s2b_setids(line):
 
 
 def handle_s2b_connect(line):
-	global serverid, groupid, scoreid
+	global serverid, groupid, scoreid, gotconnect
 
 	version, swname, zonename, network, password = line.split(':', 4)
 
@@ -40,13 +50,22 @@ def handle_s2b_connect(line):
 	if version != 1:
 		log("local server specified wrong protocol version!")
 		vie_bprot.disconnect()
-		sys.exit(1)
+		util.exit(1)
 
-	log("local zone %s %s running on %s" % (network, zonename, swname))
-	log("logging in to remote biller")
+	gotconnect = 1
 
-	vie_bprot.send_s2b_login(serverid, groupid, scoreid, '%s %s' %
-		(network, zonename), password)
+	if network:
+		sendname = network + ' ' + zonename
+	else:
+		sendname = zonename
+
+	log("local zone %s running on %s" % (sendname, swname))
+
+	# this is a little messy. we check to see if we've contacted the vie
+	# server yet. if so, just send the connectok. if not, wait until we
+	# do.
+	if vie_bprot.stage == vie_bprot.s_connected:
+		send_connected()
 
 
 def handle_s2b_plogin(line):
@@ -57,7 +76,9 @@ def handle_s2b_plogin(line):
 	macid = long(macid)
 
 	if contid:
-		contid = asc_to_hex(contid)
+		contid = util.hex_to_bin(contid)
+
+	log("player login: " + name)
 
 	vie_bprot.send_s2b_playerlogin(flag, inet_aton(ip), name, pw, pid,
 		macid, 0, contid)
@@ -71,8 +92,12 @@ def handle_s2b_bnr(line):
 def handle_s2b_pleave(line):
 	pid = line
 	pid = int(pid)
-	del pidmap[pid]
-	vie_bprot.send_s2b_playerleave(pid)
+	if pidmap.has_key(pid):
+		secs = (util.ticks() - pidmap[pid].connected + 50) / 100
+		vie_bprot.send_s2b_playerleave(pid, secs)
+		del pidmap[pid]
+	else:
+		log("leaving pid %d not in pidmap" % pid)
 
 
 def handle_s2b_chat(line):
@@ -89,9 +114,12 @@ def handle_s2b_rmt(line):
 	sound = int(sound)
 
 	# grab the sender's name from our local map. this is pretty hacky.
-	sendername = pidmap[pid]
-
-	vie_bprot.send_s2b_remotepriv(pid, ':%s:(%s)>%s' % (dest, sendername, text))
+	if pidmap.has_key(pid):
+		sendername = pidmap[pid].name
+		vie_bprot.send_s2b_remotepriv(pid, ':%s:(%s)>%s' %
+			(dest, sendername, text))
+	else:
+		log("pid %d not found in pidmap for remote priv message" % pid)
 
 
 def handle_s2b_rmtsqd(line):
@@ -100,9 +128,12 @@ def handle_s2b_rmtsqd(line):
 	sound = int(sound)
 
 	# grab the sender's name from our local map. this is pretty hacky.
-	sendername = pidmap[pid]
-
-	vie_bprot.send_s2b_remotepriv(pid, ':#%s:(%s)>%s' % (destsqd, sendername, text))
+	if pidmap.has_key(pid):
+		sendername = pidmap[pid].name
+		vie_bprot.send_s2b_remotepriv(pid, ':#%s:(%s)>%s' %
+			(destsqd, sendername, text))
+	else:
+		log("pid %d not found in pidmap for remote squad message" % pid)
 
 
 def handle_s2b_cmd(line):
@@ -136,14 +167,24 @@ def send_line(line):
 	sock.sendall(line + '\n')
 
 
+def send_connected():
+	global gotconnect
+	if gotconnect == 1:
+		log("logging in to remote biller")
+		vie_bprot.send_s2b_login(serverid, groupid, scoreid, sendname, password)
+		send_b2s_connectok('bproxy %s' % util.version)
+		gotconnect = 0
+
+
 def process_incoming(line):
 	type, rest = line.split(':', 1)
-	if dispatch.has_key(type):
+	if s2b_dispatch.has_key(type):
 		try:
-			dispatch[type](rest)
+			s2b_dispatch[type](rest)
 		except:
+			import traceback
 			log("error while processing message from local server")
-			log("line was: %s" % line)
+			traceback.print_exc()
 	else:
 		log("bad message type from game server: '%s'" % type)
 
@@ -154,26 +195,24 @@ def try_read():
 
 	try:
 		r = sock.recv(1024)
-		if r:
-			inbuf = inbuf + r
-		else:
-			log("lost connection to local game server")
-			vie_bprot.disconnect()
-			sys.exit(1)
-
-		lines = inbuf.splitlines(1)
-		inbuf = ''
-		for l in lines:
-			if l.endswith('\n') or l.endswith('\r'):
-				process_incoming(l.strip())
-			else:
-				inbuf = l
-		del lines
-
 	except:
 		# probably ewouldblock
-		pass
+		return
 
+	if r:
+		inbuf = inbuf + r
+	else:
+		log("lost connection to local game server")
+		vie_bprot.disconnect()
+		util.exit(1)
+
+	lines = inbuf.splitlines(1)
+	inbuf = ''
+	for l in lines:
+		if l.endswith('\n') or l.endswith('\r'):
+			process_incoming(l.strip())
+		else:
+			inbuf = l
 
 
 # sending
@@ -185,8 +224,9 @@ def send_b2s_connectbad(billername, reason):
 	send_line('CONNECTBAD:%s:%s' % (billername, reason))
 
 def send_b2s_pok(pid, rtext, name, squad, billerid, usage, firstused):
+	global pidmap
 	pid = int(pid)
-	pidmap[pid] = name
+	pidmap[pid] = Player(name)
 	send_line('POK:%s:%s:%s:%s:%s:%s:%s' %
 		(pid, rtext, name, squad, billerid, usage, firstused))
 
@@ -216,5 +256,4 @@ def send_b2s_staffmsg(sender, sound, text):
 
 def send_b2s_broadcast(sender, sound, text):
 	send_line('BROADCAST:%s:%s:%s' % (sender, sound, text))
-
 
