@@ -19,7 +19,7 @@ struct S2BPlayerEntering
 {
 	u8 type;
 	i8 loginflag;
-	i32 ipaddy;
+	u32 ipaddy;
 	char name[32];
 	char pw[32];
 	i32 pid;
