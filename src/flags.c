@@ -164,6 +164,12 @@ EXPORT int MM_flags(int action, Imodman *mm_, Arena *arena)
 }
 
 
+local void spawnflag_rgn_cb(void *clos, Region *rgn)
+{
+	int *goodp = clos;
+	if (mapdata->RegionChunk(rgn, RCT_NOFLAGS, NULL, NULL))
+		*goodp = 0;
+}
 
 
 void SpawnFlag(Arena *arena, int fid, int owned, int center)
@@ -177,42 +183,42 @@ void SpawnFlag(Arena *arena, int fid, int owned, int center)
 	struct FlagData *f = &afd->flags[fid];
 
 	LOCK_STATUS(arena);
+
 	if (f->state == FLAG_ONMAP)
 	{
-		logm->Log(L_WARN, "<flags> spawnFlag called for a flag on the map");
+		logm->Log(L_WARN, "<flags> SpawnFlag called for a flag on the map");
 		UNLOCK_STATUS(arena);
 		return;
 	}
-	else /* all others work mostly the same */
-	{
-		/* figure out location */
-		if (center || f->state == FLAG_NONE)
-		{
-			cx = pfd->spawnx;
-			cy = pfd->spawny;
-			rad = pfd->spawnr;
-		}
-		/* center is false */
-		else if (f->state == FLAG_CARRIED)
-		{
-			Player *p = f->carrier;
-			cx = p->position.x>>4;
-			cy = p->position.y>>4;
-			rad = pfd->dropr;
-		}
-		else if (f->state == FLAG_NEUTED)
-		{
-			cx = f->x;
-			cy = f->y;
-			rad = pfd->dropr;
-		}
 
-		/* figure out ownership */
-		if (owned)
-			freq = f->freq;
-		else
-			freq = -1;
+	/* these work mostly the same: */
+	/* figure out location */
+	if (center || f->state == FLAG_NONE)
+	{
+		cx = pfd->spawnx;
+		cy = pfd->spawny;
+		rad = pfd->spawnr;
 	}
+	/* center is false */
+	else if (f->state == FLAG_CARRIED)
+	{
+		Player *p = f->carrier;
+		cx = p->position.x>>4;
+		cy = p->position.y>>4;
+		rad = pfd->dropr;
+	}
+	else if (f->state == FLAG_NEUTED)
+	{
+		cx = f->x;
+		cy = f->y;
+		rad = pfd->dropr;
+	}
+
+	/* figure out ownership */
+	if (owned)
+		freq = f->freq;
+	else
+		freq = -1;
 
 	do {
 		int i, fc;
@@ -261,6 +267,19 @@ void SpawnFlag(Arena *arena, int fid, int owned, int center)
 		if (!good) rad++;
 	} while (!good);
 
+	if (!(center || f->state == FLAG_NONE))
+	{
+		/* one more check, for no-flag regions */
+		mapdata->EnumContaining(arena, x, y, spawnflag_rgn_cb, &good);
+		if (!good)
+		{
+			/* just give up and center it */
+			SpawnFlag(arena, fid, owned, TRUE);
+			UNLOCK_STATUS(arena);
+			return;
+		}
+	}
+
 	/* whew, finally place the thing */
 	MoveFlag(arena, fid, x, y, freq);
 
@@ -271,10 +290,16 @@ void SpawnFlag(Arena *arena, int fid, int owned, int center)
 void MoveFlag(Arena *arena, int fid, int x, int y, int freq)
 {
 	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
+	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
 	struct S2CFlagLocation fl = { S2C_FLAGLOC, fid, x, y, freq };
 	Player *oldp;
 
 	LOCK_STATUS(arena);
+	if (fid < 0 || fid > pfd->maxflags)
+	{
+		UNLOCK_STATUS(arena);
+		return;
+	}
 	afd->flags[fid].state = FLAG_ONMAP;
 	afd->flags[fid].x = x;
 	afd->flags[fid].y = y;

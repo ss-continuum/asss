@@ -196,6 +196,9 @@ typedef struct Igame
 
 	void (*FakePosition)(Player *p, struct C2SPosition *pos, int len);
 	void (*FakeKill)(Player *killer, Player *killed, int pts, int flags);
+
+	double (*GetIgnoreWeapons)(Player *p);
+	void (*SetIgnoreWeapons)(Player *p, double proportion);
 } Igame;
 
 

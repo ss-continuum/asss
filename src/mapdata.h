@@ -185,7 +185,7 @@ typedef struct Imapdata
 	 * @param clos a closure argument for the callback.
 	 */
 	void (*EnumContaining)(Arena *arena, int x, int y,
-			void (*cb)(void *clos, Region *rgrgn), void *clos);
+			void (*cb)(void *clos, Region *rgn), void *clos);
 
 	/** finds some region containing the given point.
 	 * @param arena the arena whose map we're dealing with.

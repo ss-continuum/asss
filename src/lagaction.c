@@ -143,7 +143,7 @@ local void check_lag(Player *p, laglimits_t *ll)
 	if (ign1 < 0.0) ign1 = 0.0;
 	if (ign1 > 1.0) ign1 = 1.0;
 
-	p->ignoreweapons = (unsigned)((double)RAND_MAX * ign1);
+	game->SetIgnoreWeapons(p, ign1);
 }
 
 
@@ -308,7 +308,7 @@ EXPORT int MM_lagaction(int action, Imodman *mm, Arena *arena)
 		{
 			p->flags.no_flags_balls = 0;
 			p->flags.no_ship = 0;
-			p->ignoreweapons = 0;
+			game->SetIgnoreWeapons(p, 0.0);
 		}
 		pd->Unlock();
 

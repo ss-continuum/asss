@@ -13,6 +13,8 @@
 #define KEY_SHIPLOCK 46
 
 #define WEAPONCOUNT 32
+#define REGION_CHECK_INTERVAL 200 /* check regions at most once/two seconds */
+
 
 /* structs */
 
@@ -31,14 +33,19 @@ typedef struct
 	struct C2SPosition pos;
 	Player *speccing;
 	u32 wpnsent;
-	struct { int changes; unsigned lastcheck; } changes;
+	int ignoreweapons, deathwofiring;
+
+	struct { int changes; ticks_t lastcheck; } changes;
+
 	/* epd/energy stuff */
 	int epd_queries;
-	struct { int seenrg, seenrgspec, seeepd; } pl_epd;
-	/*           enum    enum        bool              */
-	int lockship;
+	struct { byte seenrg, seenrgspec, seeepd, pad1; } pl_epd;
+	/*            enum    enum        bool              */
+
+	/* some flags */
+	byte lockship, rgnnoanti, rgnnoweapons, pad2;
 	time_t expires; /* when the lock expires, or 0 for session-long lock */
-	int deathwofiring;
+	ticks_t lastrgncheck; /* when we last updated the region-based flags */
 } pdata;
 
 typedef struct
@@ -113,6 +120,16 @@ local inline long lhypot (register long dx, register long dy)
 }
 
 
+local void ppk_region_cb(void *clos, Region *rgn)
+{
+	pdata *data = clos;
+	if (mapdata->RegionChunk(rgn, RCT_NOANTIWARP, NULL, NULL))
+		data->rgnnoanti = 1;
+	if (mapdata->RegionChunk(rgn, RCT_NOWEAPONS, NULL, NULL))
+		data->rgnnoweapons = 1;
+}
+
+
 local void Pppk(Player *p, byte *pkt, int len)
 {
 	struct C2SPosition *pos = (struct C2SPosition *)pkt;
@@ -123,7 +140,7 @@ local void Pppk(Player *p, byte *pkt, int len)
 	Player *i;
 	Link *link;
 	ticks_t gtc = current_ticks();
-	int latency;
+	int latency, isnewer;
 
 #ifdef CFG_RELAX_LENGTH_CHECKS
 	if (len < 22)
@@ -164,11 +181,21 @@ local void Pppk(Player *p, byte *pkt, int len)
 		return;
 	}
 
+	isnewer = TICK_DIFF(pos->time, data->pos.time) > 0;
+
 	/* speccers don't get their position sent to anyone */
 	if (p->p_ship != SHIP_SPEC)
 	{
 		x1 = pos->x;
 		y1 = pos->y;
+
+		/* update region-based stuff once in a while */
+		if (TICK_DIFF(gtc, data->lastrgncheck) >= REGION_CHECK_INTERVAL)
+		{
+			data->lastrgncheck = gtc;
+			data->rgnnoanti = data->rgnnoweapons = 0;
+			mapdata->EnumContaining(p->arena, x1>>4, y1>>4, ppk_region_cb, data);
+		}
 
 		/* this check should be before the weapon ignore hook */
 		if (pos->weapon.type)
@@ -177,9 +204,20 @@ local void Pppk(Player *p, byte *pkt, int len)
 			data->deathwofiring = 0;
 		}
 
-		/* this is the weapons ignore hook */
-		if (pos->weapon.type && prng->Rand() < p->ignoreweapons)
+		/* this is the weapons ignore hook. also ignore weapons based on
+		 * region. */
+		if ((prng->Rand() < data->ignoreweapons) ||
+		    data->rgnnoweapons)
 			pos->weapon.type = 0;
+
+		/* also turn off anti based on region */
+		if (data->rgnnoanti)
+			pos->status &= ~STATUS_ANTIWARP;
+
+		/* if this is a plain position packet with no weapons, and is in
+		 * the wrong order, there's no need to send it. */
+		if (!isnewer && pos->weapon.type == 0)
+			return;
 
 		/* there are several reasons to send a weapon packet (05) instead of
 		 * just a position one (28) */
@@ -375,22 +413,26 @@ local void Pppk(Player *p, byte *pkt, int len)
 				len >= 26 ? pos->extra.s2cping * 10 : -1,
 				data->wpnsent);
 
-	if ((pos->status ^ data->pos.status) & STATUS_SAFEZONE)
-		DO_CBS(CB_SAFEZONE, arena, SafeZoneFunc, (p, pos->x, pos->y, pos->status & STATUS_SAFEZONE));
+	/* only copy if the new one is later */
+	if (isnewer)
+	{
+		if ((pos->status ^ data->pos.status) & STATUS_SAFEZONE)
+			DO_CBS(CB_SAFEZONE, arena, SafeZoneFunc, (p, pos->x, pos->y, pos->status & STATUS_SAFEZONE));
 
-	/* copy the whole thing. this will copy the epd, or, if the client
-	 * didn't send any epd, it will copy zeros because the buffer was
-	 * zeroed before data was recvd into it. */
-	memcpy(&data->pos, pkt, sizeof(data->pos));
+		/* copy the whole thing. this will copy the epd, or, if the client
+		 * didn't send any epd, it will copy zeros because the buffer was
+		 * zeroed before data was recvd into it. */
+		memcpy(&data->pos, pkt, sizeof(data->pos));
 
-	/* update position in global players array */
-	p->position.x = pos->x;
-	p->position.y = pos->y;
-	p->position.xspeed = pos->xspeed;
-	p->position.yspeed = pos->yspeed;
-	p->position.rotation = pos->rotation;
-	p->position.bounty = pos->bounty;
-	p->position.status = pos->status;
+		/* update position in global players array */
+		p->position.x = pos->x;
+		p->position.y = pos->y;
+		p->position.xspeed = pos->xspeed;
+		p->position.yspeed = pos->yspeed;
+		p->position.rotation = pos->rotation;
+		p->position.bounty = pos->bounty;
+		p->position.status = pos->status;
+	}
 
 	if (p->flags.sent_ppk == 0)
 	{
@@ -649,9 +691,9 @@ local void PSetShip(Player *p, byte *pkt, int len)
 	}
 
 	/* exponential decay by 1/2 every 10 seconds */
-	d = (current_ticks() - data->changes.lastcheck) / 1000;
+	d = TICK_DIFF(current_ticks(), data->changes.lastcheck) / 1000;
 	data->changes.changes >>= d;
-	data->changes.lastcheck += d * 1000;
+	data->changes.lastcheck = TICK_MAKE(data->changes.lastcheck + d * 1000);
 	if (data->changes.changes > cfg_changelimit && cfg_changelimit > 0)
 	{
 		lm->LogP(L_INFO, "game", p, "too many ship changes");
@@ -959,6 +1001,15 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 
 	if (action == PA_PREENTERARENA)
 	{
+		/* clear the saved ppk, but set time to the present so that new
+		 * position packets look like they're in the future. also set a
+		 * bunch of other timers to now. */
+		memset(&data->pos, 0, sizeof(data->pos));
+		data->pos.time =
+			data->lastrgncheck =
+			data->changes.lastcheck =
+			current_ticks();
+
 		data->lockship = ad->initlockship;
 		if (ad->initspec)
 		{
@@ -1135,6 +1186,20 @@ local void UnlockArena(Arena *a, int notify, int onlyarenastate)
 }
 
 
+local double GetIgnoreWeapons(Player *p)
+{
+	pdata *data = PPDATA(p, pdkey);
+	return data->ignoreweapons / (double)RAND_MAX;
+}
+
+
+local void SetIgnoreWeapons(Player *p, double proportion)
+{
+	pdata *data = PPDATA(p, pdkey);
+	data->ignoreweapons = (int)((double)RAND_MAX * proportion);
+}
+
+
 local void clear_data(Player *p, void *v)
 {
 	/* this was taken care of in PA_PREENTERARENA */
@@ -1190,7 +1255,8 @@ local Igame _myint =
 	INTERFACE_HEAD_INIT(I_GAME, "game")
 	SetFreq, SetShip, SetFreqAndShip, WarpTo, GivePrize,
 	Lock, Unlock, LockArena, UnlockArena,
-	FakePosition, FakeKill
+	FakePosition, FakeKill,
+	GetIgnoreWeapons, SetIgnoreWeapons
 };
 
 

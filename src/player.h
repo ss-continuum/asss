@@ -182,10 +182,6 @@ struct Player
 	i16 xres, yres;
 	/** the time (in ticks) that this player first connected */
 	ticks_t connecttime;
-	/** ignore weapons hook. this is a number between 0 and RAND_MAX. for
-	 ** each incoming weapon, if rand() is less than this, it's ignored.
-	 ** this really shouldn't be here, i know. */
-	int ignoreweapons;
 	/** contains some recent information about the player's position */
 	struct PlayerPosition position;
 	/** the player's machine id, for standard clients. */
@@ -249,7 +245,7 @@ typedef void (*NewPlayerFunc)(Player *p, int isnew);
 
 
 /** the interface id for playerdata */
-#define I_PLAYERDATA "playerdata-4"
+#define I_PLAYERDATA "playerdata-5"
 
 /** the playerdata interface struct */
 typedef struct Iplayerdata
