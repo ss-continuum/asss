@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import sys, os, select, signal, optparse
+import sys, os, time, random, select, signal, optparse
 import util, prot, ui, pilot
 
 conns = []
@@ -15,21 +15,49 @@ def set_signal():
 	signal.signal(signal.SIGINT, sigfunc)
 
 
+def new_conn(name = None):
+	conn = prot.Connection()
+	conn.connect(opts.server, opts.port)
+	mypilot = pilot.Pilot(conn, name=name)
+	conns.append((conn, mypilot))
+
+
+last_login_evt = 0
+def try_login_events(conns):
+	global last_login_evt
+	now = time.time()
+	if opts.loginiv and (now - last_login_evt) * 100 > opts.loginiv:
+		last_login_evt = now
+		if len(conns) == 1:
+			add = 1
+		elif len(conns) >= 2 * opts.n:
+			add = 0
+		else:
+			add = random.random() > 0.5
+		if add:
+			new_conn()
+			print "*** new connection -> %d" % len(conns)
+		else:
+			cp = random.choice(conns)
+			conns.remove(cp)
+			cp[0].disconnect()
+			print "*** dropping connection -> %d" % len(conns)
+
+
 def main():
 	parser = optparse.OptionParser()
 	parser.add_option('-s', '--server', type='string', dest='server', default='127.0.0.1')
 	parser.add_option('-p', '--port', type='int', dest='port', default=5000)
 	parser.add_option('-n', type='int', dest='n', default=1)
+	parser.add_option('-l', type='int', dest='loginiv', default=0)
 
+	global opts
 	(opts, args) = parser.parse_args()
 
 	set_signal()
 
 	for i in range(opts.n):
-		conn = prot.Connection()
-		conn.connect(opts.server, opts.port)
-		mypilot = pilot.Pilot(conn, name='loadgen-%02d-%03d' % (os.getpid() % 99, i))
-		conns.append((conn, mypilot))
+		new_conn('loadgen-%02d-%03d' % (os.getpid() % 99, i))
 
 	myui = None
 
@@ -65,6 +93,8 @@ def main():
 
 			# move pilot
 			mypilot.iter()
+
+		try_login_events(conns)
 
 
 if __name__ == '__main__':
