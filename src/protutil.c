@@ -240,7 +240,7 @@ int do_sp_process(sp_conn *conn, void (*process)(const char *line, const char *r
 		/* put the new one in place */
 		conn->inbuf = buf2;
 		/* reset message time */
-		conn->lastmsgtime = current_ticks();
+		conn->lastproctime = current_ticks();
 	}
 	else if (LEFT(buf) <= 0)
 	{
@@ -274,6 +274,8 @@ int do_sp_write(sp_conn *conn)
 			afree(buf);
 			LLRemoveFirst(&conn->outbufs);
 		}
+
+		conn->lastsendtime = current_ticks();
 	}
 
 	return 0;

@@ -11,7 +11,7 @@ typedef struct sp_conn
 {
 	int socket;
 	struct sockaddr_in sin;
-	ticks_t lastmsgtime;
+	ticks_t lastproctime, lastsendtime;
 	struct sp_buffer *inbuf;
 	LinkedList outbufs;
 } sp_conn;
