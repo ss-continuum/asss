@@ -151,7 +151,7 @@ typedef struct Iconfig
 	 */
 	ConfigHandle (*OpenConfigFile)(const char *arena, const char *name,
 			ConfigChangedFunc func, void *clos);
-	/* FIXMEpyint: zstring, zstring, null, null -> config */
+	/* pyint: zstring, zstring, null, null -> config */
 
 	/** Closes a previously opened file.
 	 * Don't forget to call this when you're done with a config file.

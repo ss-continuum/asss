@@ -61,7 +61,7 @@ local pthread_key_t lastcbarenakey, lastintarenakey;
 
 local Imodman mmint =
 {
-	INTERFACE_HEAD_INIT(NULL, "modman")
+	INTERFACE_HEAD_INIT(I_MODMAN, "modman")
 	LoadModule_, UnloadModule, EnumModules,
 	AttachModule, DetachModule,
 	RegInterface, UnregInterface, GetInterface, GetInterfaceByName, ReleaseInterface,
@@ -98,6 +98,8 @@ Imodman * InitModuleManager(void)
 	loaders = HashAlloc();
 	mmint.head.refcount = 1;
 	nomoremods = 0;
+	/* for the benefit of python: */
+	RegInterface(&mmint, ALLARENAS);
 	return &mmint;
 }
 

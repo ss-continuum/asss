@@ -203,6 +203,7 @@ typedef struct Imapdata
 	 */
 	void (*EnumContaining)(Arena *arena, int x, int y,
 			void (*cb)(void *clos, Region *rgn), void *clos);
+	/* pyint: arena, int, int, (clos, region -> void), clos -> void */
 
 	/** finds some region containing the given point.
 	 * @param arena the arena whose map we're dealing with.

@@ -118,6 +118,9 @@ typedef int (*ModuleLoaderFunc)(int action, mod_args_t *args, const char *line, 
 #define ALLARENAS NULL
 
 
+/** this is only used from python */
+#define I_MODMAN "modman-1"
+
 /** the module manager interface struct */
 typedef struct Imodman
 {
@@ -150,17 +153,20 @@ typedef struct Imodman
 	 */
 	void (*EnumModules)(void (*func)(const char *name, const char *info,
 				void *clos), void *clos, Arena *attachedfilter);
+	/* pyint: (string, string, clos -> void), clos, arena -> void */
 
 	/** Attaches a module to an arena.
 	 * This is called by the arena manager at the proper stage of arena
 	 * loading, and occasionally while the arena is running also.
 	 */
 	int (*AttachModule)(const char *modname, Arena *arena);
+	/* pyint: string, arena -> int */
 	/** Detaches a module from an arena.
 	 * This is called by the arena manager at the proper stage of arena
 	 * loading, and occasionally while the arena is running also.
 	 */
 	int (*DetachModule)(const char *modname, Arena *arena);
+	/* pyint: string, arena -> int */
 
 
 	/* interface stuff */
@@ -267,6 +273,7 @@ typedef struct Imodman
 	 * compatibility.
 	 */
 	const char *(*GetModuleInfo)(const char *modname);
+	/* pyint: string -> string */
 
 	/** Detaches all modules from an arena. */
 	void (*DetachAllFromArena)(Arena *arena);
