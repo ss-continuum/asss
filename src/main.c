@@ -12,6 +12,8 @@
 #include <paths.h>
 #include <unistd.h>
 #include <fcntl.h>
+#else
+#include <direct.h>
 #endif
 
 #include "asss.h"

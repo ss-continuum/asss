@@ -24,7 +24,8 @@
 #define S_ISDIR(a) ((a) & _S_IFDIR)
 #define mkdir(a,b) _mkdir(a)
 #define mktemp(a) _mktemp(a)
-#define open(a) _open(a)
+#define chdir(a) _chdir(a)
+#define random rand
 
 typedef int socklen_t;
 

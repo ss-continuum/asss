@@ -318,7 +318,7 @@ actually used for a zone will decrease the memory usage of the server,
 and make it run faster.
 
 Once a module is loaded into the server, it has full access to the
-server's data, including player ip addresses, machine id's, scores, and
+server's data, including player IP addresses, machine id's, scores, and
 passwords. It can also access files on the machine it is running on, and
 make network connections, and it can easily crash or deadlock the
 server. Thus, admins and sysops should be careful to only load modules
@@ -678,7 +678,7 @@ General:DesiredPlaying, which is a count of \emph{playing} players
 (i.e., not spectators).
 
 
-\section{Bandwidth Throttling}
+\subsection{Bandwidth Throttling}
 
 \asss{} supports bandwidth throttling for players on slower connections.
 To make the game fairer, packets are prioritized depending on their
@@ -786,7 +786,74 @@ recieve no packets from a player before forcing him into spectator mode.
 %\subsection{Making regions}
 
 
-\section{Commands}
+
+\section{Virtual Servers}
+
+\asss{} allows one server process to apear to clients as several
+different servers. The primary advantage of this feature is that players
+connecting to all virtual servers are treated the same internally and
+can move between arenas and communicate as if they connected to the same
+server.
+
+To create virtual servers, you have to tell the \verb/net/ module to
+listen on more than one port. You do this by creating additional
+settings in the ``Net'' section of \verb/global.conf/ named ``Listen1,''
+``Listen2,'' etc. Each setting must specify a port, and can also
+optionally specify a virtual server identifier, and a specific IP
+address to bind to.
+
+Virtual server identifiers are used in several ways: if you are using an
+arena placing module that supports them (e.g., \verb/ap_multipub/), the
+server id will be used as the arena basename to place players who
+connect through that port in.
+
+The \verb/directory/ module also supports virtual servers: it will
+create one directory entry for each virtual server. The server name and
+description can be different for each virtual server. To specify them,
+create ``Name'' and ``Description'' settings in the section
+``Directory-\emph{servername}'' for each virtual server identifier. If
+either of those settings is missing from that section, it will fall back
+to their values in the ``Directory'' section.
+
+Finally, an example to make this all clear:
+
+\begin{verbatim}
+;; global.conf
+
+[Net]
+;; listen on 3 different ports:
+; players connecting to port 2000 will be send to a random arena.
+; players who connect to 5000 will be sent to pb1, pb2, etc. port 7500
+; will send them to aswz by default, and so on.
+Listen1 = 2000
+Listen2 = 5000:pb
+Listen3 = 7500:aswz
+; just as an example, this will force the server to listen on an
+; internal interface only, and send those players to a secret arena:
+Listen4 = 192.168.0.23:3300:#secret
+
+[Directory]
+;; point to the directory servers you want to be listed on. using
+;; default port and password.
+Server1 = sscentral.one.com
+Server2 = sscentral.two.com
+
+;; now describe what this server is called by default:
+Name = A Testing Zone
+Description = Testing happens here.
+
+[Directory-pb]
+;; specify the name and description for pb:
+Name = PowerBall
+Description = Play with balls!
+
+[Directory-aswz]
+;; specify only name for aswz:
+Name = A Small WarZone
+\end{verbatim}
+
+
+\section{Command Reference}
 
 These are all of the commands that the server currently recognizes. Not
 all of them will always be available. If a command requires a module
@@ -808,7 +875,7 @@ be fully customized for each particular server.
 \input{commands.tex}
 
 
-\section{Configuration}
+\section{Configuration Reference}
 
 All config files used by \asss{} (except \verb/modules.conf/) have the
 same format and conventions. The format is roughly based on, and is

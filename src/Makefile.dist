@@ -19,7 +19,7 @@ MYSQL_LDFLAGS = -L$(MYSQL_LIB) -Wl,-rpath,$(MYSQL_LIB) -lmysqlclient_r
 LDFLAGS = -fPIC $(PROF_FLAGS)
 #PROF_FLAGS = -pg
 
-OPT_CFLAGS = -O2 -fomit-frame-pointer -Wall -fpedantic
+OPT_CFLAGS = -O2 -fomit-frame-pointer -Wall -fpedantic -DNDEBUG
 DEBUG_CFLAGS = -g -Wall -fpedantic
 ALL_CFLAGS = -D_REENTRANT -D_GNU_SOURCE -fPIC $(DB_CFLAGS) $(MYSQL_CFLAGS)
 
@@ -37,6 +37,7 @@ ALL_STUFF = asss         \
             scoring.so   \
             admin.so     \
             database.so  \
+            turf.so      \
             funky.so
 
 
@@ -47,7 +48,7 @@ all: $(ALL_STUFF) install
 opt: clean
 	$(MAKE) "CFLAGS=$(ALL_CFLAGS) $(OPT_CFLAGS) $(PROF_FLAGS)"
 
-asss: main.o app.o module.o util.o pathutil.o protutil.o region.o
+asss: main.o app.o module.o util.o pathutil.o protutil.o region.o rwlock.o
 	$(CC) $(LDFLAGS) -rdynamic -o $@ $^ -ldl -lpthread
 
 dbtool: dbtool.o statcodes.o util.c
@@ -79,6 +80,8 @@ admin.so: filetrans.o quickfix.o
 
 database.so: mysql.o aliasdb.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ $(MYSQL_LDFLAGS) -lz
+
+turf.so: turf_reward.o points_turf_reward.o turf_stats.o
 
 funky.so: bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
 	chatnet.o md5.o auth_file.o ap_multipub.o sendfile.o fake.o \

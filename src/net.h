@@ -127,6 +127,9 @@ typedef struct Inet
 	void (*GetStats)(struct net_stats *stats);
 	void (*GetClientStats)(Player *p, struct net_client_stats *stats);
 	int (*GetLastPacketTime)(Player *p);
+
+	int (*GetListenData)(unsigned index, int *port, char *connectasbuf, int buflen);
+	/* returns true if it returned stuff, false if bad index */
 } Inet;
 
 

@@ -29,8 +29,9 @@
  * for write access can also lock it for read access any number of
  * times; again it must be unlocked the same number.
  */
-#include <pthread.h>
+#include "pthread.h"
 #include "errno.h"
+
 #include "rwlock.h"
 
 /* #define CHECK_VALID */

@@ -19,6 +19,7 @@
 #endif
 
 #include <string.h>
+#include <stdio.h>
 
 #include "asss.h"
 
@@ -43,16 +44,17 @@ local Iconfig *cfg;
 local Imainloop *ml;
 local Iplayerdata *pd;
 local Ilogman *lm;
+local Imodman *mm;
 
 local LinkedList servers;
-local struct S2DInfo data;
+local LinkedList packets;
 local int sock;
 
 
 local int SendUpdates(void *dummy)
 {
 	int n, count = 0;
-	Link *link, *l;
+	Link *link, *l, *k;
 	Player *p;
 
 	lm->Log(L_DRIVEL, "<directory> Sending information to directory servers");
@@ -64,51 +66,107 @@ local int SendUpdates(void *dummy)
 			count++;
 	pd->Unlock();
 
-	data.players = count;
+	for (k = LLGetHead(&packets); k; k = k->next)
+	{
+		struct S2DInfo *data = k->data;
+		data->players = count;
+		n = offsetof(struct S2DInfo, description) + strlen(data->description) + 1;
 
-	n = sizeof(data) - sizeof(data.description) + strlen(data.description) + 1;
-
-	for (l = LLGetHead(&servers); l; l = l->next)
-		sendto(sock, (byte*)&data, n, 0, (const struct sockaddr *)l->data, n);
+		for (l = LLGetHead(&servers); l; l = l->next)
+			sendto(
+					sock,
+					(byte*)data,
+					n,
+					0,
+					(const struct sockaddr *)l->data,
+					sizeof(struct sockaddr_in));
+	}
 
 	return TRUE;
 }
 
 
-local void init_data()
+local void init_data(void)
 {
-	const char *t;
+	Inet *net = mm->GetInterface(I_NET, ALLARENAS);
+	int i;
+	int port;
+	char connectas[32];
+	const char *pwd;
 
-	memset(&data, 0, sizeof(data));
-	data.ip = 0;
-	data.port = cfg->GetInt(GLOBAL, "Net", "Port", 5000);
-	data.players = 0; /* fill in later */;
-	data.scoresp = 1; /* always keep scores */
-	/* data.version = ASSSVERSION_NUM; */
-	data.version = 134; /* priit's updated dirserv require this */
-	/* cfghelp: Directory:Name, global, string
-	 * The server name to send to the directory server. */
-	if ((t = cfg->GetStr(GLOBAL, "Directory", "Name")))
-		astrncpy(data.servername, t, sizeof(data.servername));
-	else
-		astrncpy(data.servername, "<no name provided>", sizeof(data.servername));
 	/* cfghelp: Directory:Password, global, string, def: cane
-	 * The password used to send information to the directory server. */
-	if ((t = cfg->GetStr(GLOBAL, "Directory", "Password")))
-		astrncpy(data.password, t, sizeof(data.password));
-	else
-		astrncpy(data.password, "cane", sizeof(data.password));
-	/* cfghelp: Directory:Description, global, string
-	 * The server description to send to the directory server. */
-	if ((t = cfg->GetStr(GLOBAL, "Directory", "Description")))
-		astrncpy(data.description, t, sizeof(data.description));
-	else
-		astrncpy(data.description, "<no description provided>", sizeof(data.description));
-	lm->Log(L_DRIVEL, "<directory> Server name: %s", data.servername);
+	 * The password used to send information to the directory
+	 * server. */
+	pwd = cfg->GetStr(GLOBAL, "Directory", "Password");
+	if (!pwd)
+		pwd = "cane";
+
+	LLInit(&packets);
+
+	if (!net)
+		return;
+
+	for (i = 0; i < 10 && net->GetListenData(i, &port, connectas, sizeof(connectas)); i++)
+	{
+		const char *t;
+		char secname[32];
+		struct S2DInfo *data = amalloc(sizeof(*data));
+
+		if (connectas[0])
+			snprintf(secname, sizeof(secname), "Directory-%s", connectas);
+		else
+			astrncpy(secname, "Directory", sizeof(secname));
+
+		/* hmm. should we be setting this to something other than zero?
+		 * how about for virtual servers that bind to ips other than the
+		 * default one? */
+		data->ip = 0;
+		data->port = port;
+		data->players = 0; /* fill in later */;
+		data->scoresp = 1; /* always keep scores */
+		/* data->version = ASSSVERSION_NUM; */
+		data->version = 134; /* priit's updated dirserv require this */
+
+		/* cfghelp: Directory:Name, global, string
+		 * The server name to send to the directory server. Virtual
+		 * servers will use section name 'Directory-<vs-name>' for this
+		 * and other settings in this section, and will fall back to
+		 * 'Directory' if that section doesn't exist. See Net:Listen
+		 * help for how to identify virtual servers. */
+		if ((t = cfg->GetStr(GLOBAL, secname, "Name")))
+			astrncpy(data->servername, t, sizeof(data->servername));
+		else if ((t = cfg->GetStr(GLOBAL, "Directory", "Name")))
+			astrncpy(data->servername, t, sizeof(data->servername));
+		else
+			astrncpy(data->servername, "<no name provided>", sizeof(data->servername));
+
+		/* cfghelp: Directory:Description, global, string
+		 * The server description to send to the directory server. See
+		 * Directory:Name for more information about the section name.
+		 * */
+		if ((t = cfg->GetStr(GLOBAL, secname, "Description")))
+			astrncpy(data->description, t, sizeof(data->description));
+		else if ((t = cfg->GetStr(GLOBAL, "Directory", "Description")))
+			astrncpy(data->description, t, sizeof(data->description));
+		else
+			astrncpy(data->description, "<no description provided>", sizeof(data->description));
+
+		astrncpy(data->password, pwd, sizeof(data->password));
+
+		if (connectas[0])
+			lm->Log(L_INFO, "<directory> virtual server '%s' on port %d using name '%s",
+					connectas, port, data->servername);
+		else
+			lm->Log(L_INFO, "<directory> server on port %d using name '%s",
+					port, data->servername);
+
+		LLAdd(&packets, data);
+	}
+
 }
 
 
-local void init_servers()
+local void init_servers(void)
 {
 	char skey[] = "Server#", pkey[] = "Port#";
 	unsigned short i, defport, port;
@@ -147,18 +205,21 @@ local void init_servers()
 }
 
 
-local void deinit_servers()
+local void deinit_servers(void)
 {
 	LLEnum(&servers, afree);
 	LLEmpty(&servers);
+	LLEnum(&packets, afree);
+	LLEmpty(&packets);
 }
 
 
 
-EXPORT int MM_directory(int action, Imodman *mm, Arena *arena)
+EXPORT int MM_directory(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
+		mm = mm_;
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);

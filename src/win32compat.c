@@ -3,8 +3,11 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <io.h>
+#include <fcntl.h>
 
 #include "win32compat.h"
+#include "util.h"
 
 
 /* taken from
@@ -32,14 +35,14 @@ int mkstemp(char *template)
 	if (mktemp(template) == NULL)
 		return -1;
 	else
-		return open(template);
+		return open(template, _O_CREAT | _O_TEMPORARY);
 }
 
 
 struct DIR
 {
 	struct _finddata_t fi;
-	long handle;
+	long fh;
 	long lastres;
 	struct dirent de;
 };
@@ -58,7 +61,7 @@ struct dirent *readdir(DIR *dir)
 {
 	if (dir->lastres != -1)
 	{
-		astrncpy(de->d_name, dir->fi.name, sizeof(de->d_name));
+		astrncpy(dir->de.d_name, dir->fi.name, sizeof(dir->de.d_name));
 		dir->lastres = _findnext(dir->fh, &dir->fi);
 		return &dir->de;
 	}

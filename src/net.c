@@ -168,6 +168,7 @@ typedef struct Buffer
 typedef struct ListenData
 {
 	int gamesock, pingsock;
+	int port;
 	const char *connectas;
 } ListenData;
 
@@ -202,6 +203,7 @@ local Player * NewConnection(int type, struct sockaddr_in *, Iencrypt *enc, void
 local void GetStats(struct net_stats *stats);
 local void GetClientStats(Player *p, struct net_client_stats *stats);
 local int GetLastPacketTime(Player *p);
+local int GetListenData(unsigned index, int *port, char *connectasbuf, int buflen);
 
 /* net-client interface */
 local ClientConnection *MakeClientConnection(const char *addr, int port,
@@ -332,7 +334,7 @@ local Inet netint =
 
 	ReallyRawSend, NewConnection,
 
-	GetStats, GetClientStats, GetLastPacketTime,
+	GetStats, GetClientStats, GetLastPacketTime, GetListenData
 };
 
 
@@ -674,12 +676,13 @@ int InitSockets(void)
 #endif
 
 	/* cfghelp: Net:Listen, global, string
-	 * A designation for a port and ip to listen on. Format is either
-	 * 'port', 'ip:port', or 'ip:port:connectas'. Listen1 through
-	 * Listen9 are also supported. The 'connectas' field can be used to
-	 * treat clients different depending on which port or ip they use to
-	 * connect to the server.
-	 */
+	 * A designation for a port and ip to listen on. Format is one of
+	 * 'port', 'port:connectas', or 'ip:port:connectas'. Listen1 through
+	 * Listen9 are also supported. A missing or zero-length 'ip' field
+	 * means all interfaces. The 'connectas' field can be used to treat
+	 * clients differently depending on which port or ip they use to
+	 * connect to the server. It serves as a virtual server identifier
+	 * for the rest of the server. */
 	for (i = 0; i < 10; i++)
 	{
 		unsigned short port;
@@ -712,18 +715,22 @@ int InitSockets(void)
 			n = delimcpy(field2, n, sizeof(field2), ':');
 			if (!n)
 			{
-				/* two fields: ip, port */
-				inet_aton(field1, &sin.sin_addr);
-				port = strtol(field2, NULL, 0);
+				/* two fields: port, connectas */
+				sin.sin_addr.s_addr = INADDR_ANY;
+				port = strtol(field1, NULL, 0);
+				ld->connectas = astrdup(field2);
 			}
 			else
 			{
 				/* three fields: ip, port, connectas */
-				inet_aton(field1, &sin.sin_addr);
+				if (inet_aton(field1, &sin.sin_addr) == 0)
+					sin.sin_addr.s_addr = INADDR_ANY;
 				port = strtol(field2, NULL, 0);
 				ld->connectas = astrdup(n);
 			}
 		}
+
+		ld->port = port;
 
 		/* now try to get and bind the sockets */
 		sin.sin_port = htons(port);
@@ -787,6 +794,31 @@ int InitSockets(void)
 	}
 
 	return 0;
+}
+
+
+int GetListenData(unsigned index, int *port, char *connectasbuf, int buflen)
+{
+	Link *l;
+	ListenData *ld;
+
+	/* er, this is going to be quadratic in the common case of iterating
+	 * through the list. if it starts getting called from lots of
+	 * places, i'll fix it. */
+	l = LLGetHead(&listening);
+	while (l && index > 0)
+		index--, l = l->next;
+
+	if (!l)
+		return FALSE;
+
+	ld = l->data;
+	if (port)
+		*port = ld->port;
+	if (connectasbuf)
+		astrncpy(connectasbuf, ld->connectas ? ld->connectas : "", buflen);
+
+	return TRUE;
 }
 
 

@@ -30,6 +30,6 @@ cp doc/userguide/userguide.{pdf,html,txt} $d/doc
 make -C doc/userguide clean
 
 find $d -exec touch -r $d/bin/asss {} \;
-tar --numeric-owner -czvf $d.tar.gz $d
+tar --numeric-owner --exclude CVS -czvf $d.tar.gz $d
 #rm -rf $d
 

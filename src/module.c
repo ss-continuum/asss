@@ -213,8 +213,7 @@ int LoadMod(const char *_spec)
 				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
 				(LPTSTR) &lpMsgBuf,
 				0,
-				NULL
-		);
+				NULL);
 		LOG1(L_ERROR, "<module> Error in LoadLibrary: %s", (LPCTSTR)lpMsgBuf);
 		LocalFree(lpMsgBuf);
 #endif
@@ -226,7 +225,7 @@ int LoadMod(const char *_spec)
 	if (!mod->mm)
 	{
 #ifndef WIN32
-		LOG1(L_ERROR,"<module> Error in dlsym: %s", dlerror());
+		LOG1(L_ERROR, "<module> Error in dlsym: %s", dlerror());
 #else
 		LPVOID lpMsgBuf;
 		FormatMessage(
@@ -238,8 +237,7 @@ int LoadMod(const char *_spec)
 				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
 				(LPTSTR) &lpMsgBuf,
 				0,
-				NULL
-		);
+				NULL);
 		LOG1(L_ERROR, "<module> Error in GetProcAddress: %s", (LPCTSTR)lpMsgBuf);
 		LocalFree(lpMsgBuf);
 #endif
@@ -257,7 +255,7 @@ int LoadMod(const char *_spec)
 
 	if (ret != MM_OK)
 	{
-		LOG2(L_ERROR, "<module> Error loading module '%s': %s", modname, dlerror());
+		LOG1(L_ERROR, "<module> Error loading module '%s'", modname);
 		if (!mod->myself) dlclose(mod->hand);
 		goto die;
 	}

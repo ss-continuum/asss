@@ -1,5 +1,7 @@
 /*
  * Defines the basic scoring algorithms for the turf_reward module
+ *
+ * dist: public
  */
 
 #include "asss.h"

@@ -860,6 +860,7 @@ local void process_packet(byte *pkt, int len)
 
 local void got_connection(void)
 {
+	int port;
 	struct S2B_ServerConnect pkt;
 	/* cfghelp: Billing:ServerName, global, string
 	 * The server name to send to the user database server. */
@@ -878,8 +879,10 @@ local void got_connection(void)
 	pkt.ScoreID = cfg->GetInt(GLOBAL, "Billing", "ScoreID", 0);
 
 	astrncpy(pkt.ServerName, servername?servername:"", sizeof(pkt.ServerName));
-	/* FIXME: it's not this simple anymore... */
-	pkt.Port = cfg->GetInt(GLOBAL, "Net", "Listen", 0);
+	if (net->GetListenData(0, &port, NULL, 0))
+		pkt.Port = port;
+	else
+		pkt.Port = 0;
 	astrncpy(pkt.Password, password?password:"", sizeof(pkt.Password));
 
 	netcli->SendPacket(cc, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
@@ -1046,6 +1049,7 @@ local billing_state_t GetStatus(void)
 		case s_retry: ret = BILLING_DOWN; break;
 		case s_loginfailed: ret = BILLING_DISABLED; break;
 		case s_disabled: ret = BILLING_DISABLED; break;
+		default: ret = BILLING_DISABLED; break;
 	};
 	pthread_mutex_unlock(&mtx);
 	return ret;

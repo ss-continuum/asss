@@ -1,9 +1,11 @@
 
 /* dist: public */
 
+#ifndef WIN32
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -81,6 +83,7 @@ local void uploaded(const char *fname, void *clos)
 	if (fname && u->unzip)
 	{
 		/* unzip it to the destination directory */
+#ifndef WIN32 /* should use popen, since more portable */
 		r = fork();
 		if (r == 0)
 		{
@@ -108,6 +111,7 @@ local void uploaded(const char *fname, void *clos)
 			_exit(0);
 		}
 		else if (r < 0)
+#endif
 			lm->Log(L_WARN, "<admincmd> can't fork to unzip uploaded .zip file");
 	}
 	else if (fname)

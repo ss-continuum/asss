@@ -29,7 +29,7 @@ local void load_pubnames(void)
 
 local int Place(char *retname, int namelen, Player *pp)
 {
-	LinkedList *trylist = &pubnames;
+	LinkedList *trylist;
 	Link *l;
 	char buf[20];
 	int pass;
@@ -41,6 +41,8 @@ local int Place(char *retname, int namelen, Player *pp)
 
 	if (pp->connectas)
 		trylist = &deflist;
+	else
+		trylist = &pubnames;
 
 	/* if we don't find anything in 9 passes (unlikely), just do the
 	 * default action */
