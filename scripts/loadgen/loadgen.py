@@ -3,49 +3,48 @@
 import sys, os, time, random, select, signal, optparse
 import util, prot, ui, pilot, timer
 
-conns = []
+clients = []
 
 def set_signal():
 	def sigfunc(signum, frame):
 		util.log("caught signal, disconnecting")
-		for conn, mypilot in conns:
-			conn.disconnect()
+		for client in clients:
+			client.disconnect()
 		os._exit(0)
 	signal.signal(signal.SIGTERM, sigfunc)
 	signal.signal(signal.SIGINT, sigfunc)
 
 
-def new_conn(name = None):
-	conn = prot.Connection()
-	conn.connect(opts.server, opts.port)
+def new_client(name = None):
 	dest = random.randint(0, opts.arenas - 1)
-	mypilot = pilot.Pilot(conn, name=name, defarena=dest)
-	conns.append((conn, mypilot))
+	client = pilot.Client(name=name, defarena=dest)
+	client.connect(opts.server, opts.port)
+	clients.append(client)
 
 
 def login_event():
-	if len(conns) == 1:
+	if len(clients) == 1:
 		add = 1
-	elif len(conns) >= 2 * opts.n:
+	elif len(clients) >= 2 * opts.n:
 		add = 0
 	else:
 		add = random.random() > 0.5
 	if add:
-		new_conn()
-		print "*** new connection -> %d" % len(conns)
+		new_client()
+		print "*** new connection -> %d" % len(clients)
 	else:
-		cp = random.choice(conns)
-		conns.remove(cp)
+		cp = random.choice(clients)
+		clients.remove(cp)
 		cp[0].disconnect()
-		print "*** dropping connection -> %d" % len(conns)
+		print "*** dropping connection -> %d" % len(clients)
 
 
 def arena_event():
-	conn, mypilot = random.choice(conns)
-	if mypilot.pid is not None:
+	client = random.choice(clients)
+	if client.pid is not None:
 		dest = random.randint(0, opts.arenas - 1)
-		print "*** arena change pid %d -> arena %d" % (mypilot.pid, dest)
-		mypilot.goto_arena(dest)
+		print "*** arena change pid %d -> arena %d" % (client.pid, dest)
+		client.goto_arena(dest)
 
 
 def main():
@@ -63,7 +62,7 @@ def main():
 	set_signal()
 
 	for i in range(opts.n):
-		new_conn('loadgen-%02d-%03d' % (os.getpid() % 99, i))
+		new_client('loadgen-%02d-%03d' % (os.getpid() % 99, i))
 
 	myui = None
 
@@ -73,11 +72,11 @@ def main():
 	if opts.arenaiv:
 		mytimers.add(opts.arenaiv, arena_event)
 
-	while conns:
+	while clients:
 
 		socks = [0]
-		for conn, mypilot in conns:
-			socks.append(conn.sock)
+		for client in clients:
+			socks.append(client.sock)
 
 		try:
 			ready, _, _ = select.select(socks, [], [], 0.01)
@@ -85,12 +84,12 @@ def main():
 			ready = []
 
 		# read/process some data
-		for conn, mypilot in conns:
-			if conn.sock in ready:
+		for client in clients:
+			if client.sock in ready:
 				try:
-					conn.try_read()
+					client.try_read()
 				except prot.Disconnected:
-					conns.remove((conn, mypilot))
+					clients.remove(client)
 					continue
 			if myui and 0 in ready:
 				line = sys.stdin.readline().strip()
@@ -98,13 +97,13 @@ def main():
 
 			# try sending
 			try:
-				conn.try_sending_outqueue()
+				client.try_sending_outqueue()
 			except prot.Disconnected:
-				conns.remove((conn, mypilot))
+				clients.remove(client)
 				continue
 
 			# move pilot
-			mypilot.iter()
+			client.iter()
 
 		mytimers.iter()
 

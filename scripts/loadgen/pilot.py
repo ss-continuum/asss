@@ -1,6 +1,7 @@
 
 import os, struct, random
 
+import prot
 import timer
 import util
 log = util.log
@@ -24,16 +25,48 @@ def make_ppk(rot, x, y, xspeed, yspeed, status, bty, nrg):
 
 
 class Pilot:
-	def __init__(me, conn, name = None, pwd = '', defarena = 0):
-		me.conn = conn
+	MAX = 65536
 
-		me.conn.add_handler(0x0200, me.handle_connected)
-		me.conn.add_handler(S2C_WHOAMI, me.handle_whoami)
-		me.conn.add_handler(S2C_ENTERINGARENA, me.handle_inarena)
-		me.conn.add_handler(S2C_LOGINRESPONSE, me.handle_loginresponse)
-		me.conn.add_handler(S2C_WEAPON, me.handle_weapon)
-		me.conn.add_handler(S2C_POSITION, me.handle_position)
-		me.conn.add_handler(S2C_CHAT, me.handle_chat)
+	def __init__(me):
+		me.x = Pilot.MAX/2
+		me.y = Pilot.MAX/2
+
+	def getxy(me):
+		return me.x, me.y
+
+	def getbty(me):
+		return random.choice([20, 40, 60, 100, 200, 280, 500])
+
+	def update(me):
+		pass
+
+
+class RandomWalk(Pilot):
+	# simple random walk
+	def __init__(me, jump = 30):
+		Pilot.__init__(me)
+		me.jump2 = 2 * jump
+
+	def update(me):
+		me.x += me.jump2 * (random.random() - 0.5)
+		me.y += me.jump2 * (random.random() - 0.5)
+		if me.x < 0 or me.x >= Pilot.MAX:
+			me.x = Pilot.MAX/2
+		if me.y < 0 or me.y >= Pilot.MAX:
+			me.y = Pilot.MAX/2
+
+
+class Client(prot.Connection):
+	def __init__(me, name = None, pwd = '', defarena = 0):
+		prot.Connection.__init__(me)
+
+		me.add_handler(0x0200, me.handle_connected)
+		me.add_handler(S2C_WHOAMI, me.handle_whoami)
+		me.add_handler(S2C_ENTERINGARENA, me.handle_inarena)
+		me.add_handler(S2C_LOGINRESPONSE, me.handle_loginresponse)
+		me.add_handler(S2C_WEAPON, me.handle_weapon)
+		me.add_handler(S2C_POSITION, me.handle_position)
+		me.add_handler(S2C_CHAT, me.handle_chat)
 
 		if name:
 			me.name = name
@@ -42,7 +75,7 @@ class Pilot:
 		me.pwd = pwd
 		me.defarena = defarena
 
-		me.x = me.y = 512<<4
+		me.pilot = RandomWalk()
 		me.pid = None
 
 		me.reset_stats()
@@ -58,7 +91,7 @@ class Pilot:
 		log("sending login packet")
 		login = struct.pack('< B x 32s 32s I x 2x 2x h 8x 4x 12x',
 			C2S_LOGIN, me.name, me.pwd, 0x12345678, 134)
-		me.conn.send(login, 1)
+		me.send(login, 1)
 
 	def handle_loginresponse(me, pkt):
 		log("got login response, entering arena")
@@ -95,35 +128,29 @@ class Pilot:
 		else:
 			goarena = struct.pack('< B B 2x h h h 16s',
 				C2S_GOTOARENA, 0, 1024, 768, -3, arena)
-		me.conn.send(goarena, 1)
+		me.send(goarena, 1)
 
 	def send_ppk(me):
-		#log("sending ppk: (%4d, %4d)" % (me.x, me.y))
+		me.pilot.update()
+		bty = me.pilot.getbty()
+		x, y = me.pilot.getxy()
+		ppk = make_ppk(0, x, y, 0, 0, 0, bty, 1700)
+		me.send(ppk)
 		me.pos_sent += 1
-		bty = random.choice([20, 40, 60, 100, 200, 280, 500])
-		ppk = make_ppk(0, me.x, me.y, 0, 0, 0, bty, 1700)
-		me.conn.send(ppk)
-
-		# simple random walk, for now:
-		me.x += random.choice([-10, 10])
-		me.y += random.choice([-10, 10])
-		if me.x < 0 or me.x > 65535:
-			me.x = 512<<4
-		if me.y < 0 or me.y > 65535:
-			me.y = 512<<4
+		#log("sent ppk: (%d,%d) :%d" % (x, y, bty))
 
 	def send_chat(me):
 		me.chat_sent += 1
 		pkt = struct.pack('< B B x h', C2S_CHAT, 2, -1)
 		pkt += 'msg from %d' % me.pid
 		pkt += chr(0)
-		me.conn.send(pkt, 1)
+		me.send(pkt, 1)
 
 	def print_stats(me):
-		log("pos_sent=%2d  pos_rcvd=%4d  wpn_rcvd=%3d  \
-chat_sent=%2d  chat_rcvd=%3d  inq_len=%2d" % \
+		log("pos_sent=%2d  pos_rcvd=%4d  wpn_rcvd=%3d  "
+			"chat_sent=%2d  chat_rcvd=%3d  inq_len=%2d" %
 			(me.pos_sent, me.pos_rcvd, me.wpn_rcvd,
-			me.chat_sent, me.chat_rcvd, me.conn.get_inq_len()))
+			 me.chat_sent, me.chat_rcvd, me.get_inq_len()))
 		me.reset_stats()
 
 	def reset_stats(me):
