@@ -1,0 +1,85 @@
+
+S/M/C
+single - only one of multiple choices present at once
+multiple - multiple ones of multiple choices at once
+core - only one implementation necessary
+
+context?
+yes - other plugins need to access this one(s) directly (or they need
+to register themselves)
+no - completely managed by other plugins and is not seen directly
+
+plugin types:
+  name				S/M/C		In context?
+  -----------------------------------------
+  MainLoop			multiple	yes
+  ConnManager		core		yes
+  Billing			core		yes
+  BillingRecv		multiple	no (by Billing)
+  Database			single		yes
+  Logger			multiple	yes
+  ConfigManager		single		yes
+  Encryption		single		no (by ConnManager)
+  RawPacket			multiple	yes
+  Authenticator		single		yes
+  TimerManager		core		yes
+  Timer				multiple	no (by TimerManager)
+  Command			multiple	yes
+  Console			multiple	yes
+
+
+plugins:
+  name              type							status
+  ------------------------------------------------------------
+  net				MainLoop						done but missing input buffering and encryption
+  billing			BillingSend,MainLoop			not started
+  timermanager		MainLoop						pretty much done
+  mysql				Database						-
+  configfile		ConfigManager					-
+  log				Logger							-
+  nullenc			Encryption						done
+  ssenc				Encryption						need data!
+  login				RawPacket						-
+  nullauth			Authenticator					done
+  billingauth		Authenticator,BillingRecv		-
+  miscdata			RawPacket						-
+  chat				RawPacket,BillingRecv
+  flag				RawPacket
+  turfflag			RawPacket
+  weapon			RawPacket
+  brick				RawPacket
+  balls				RawPacket
+  banner			RawPacket
+  periodic			Timer
+  koth				Timer
+  newstxt			RawPacket
+  mapdl				RawPacket
+  territory			Timer
+  alias				Timer
+  shipcheck			RawPacket
+  borderguard		Timer
+  superstats		Timer
+  p2pfile			RawPacket
+  chess				Command
+  elim				RawPacket
+  zombie			RawPacket
+  minewriter		Command
+  bricklayer		Command
+  buy				Command
+  console			Console
+  recorder			RawPacket
+  player			RawPacket
+
+
+Needed for a preliminary server:
+net: almost done (missing encryption, antispoofing)
+timerman: done
+configfile: done, i hope
+logman: done
+log_console: done
+core: login stuff done, needs more
+chat: almost done (missing chat channels and remote privs)
+
+
+
+

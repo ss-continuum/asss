@@ -1,0 +1,31 @@
+
+
+the format of the config files is very flexible
+here are some examples:
+
+
+standard windows ini:
+
+[Foo]
+Bar=Baz
+
+
+weirdo style:
+ 
+   {{{  Foo   }}}
+   Key  ===   Val
+
+
+quasi-C style:
+ 
+{   NewSection
+        Key = Value
+        Key2 = Value
+}
+
+
+not to mention the ability to load other config managers, even ones that get
+configuration info out of a database. that's quite powerful.
+
+
+

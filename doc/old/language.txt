@@ -1,0 +1,30 @@
+
+UPDATED 02.04.2001:
+ROFL! There are some good ideas in here, just bad assumptions. Like that
+function pointers in C are ugly. They don't have to be. I've solved all the
+problems in here, and more elegantly than this, so I think we can ignore it
+except for historical and comedic value.
+
+------------------------------------------------------------------------------
+
+Ok, maybe I should be using C for this thing, but I'm not. I'm using
+C++. Why? To simplify stuff and prevent ugliness. One big thing I want
+to prevent is using lots of function pointers in structs. That's ugly.
+But I don't want to get stuck using lots of advanced C++ features. No
+inheritence. The way that works is I have one .h file that will define
+the interface for the class, and then multiple implementations for THE
+SAME CLASS. This is _only_ possible because they are in separate
+compilation units. This means I don't have to make everything virtual.
+
+The ONLY features of C++ that I should be using are: classes/member
+functions, new/delete, and overloaded procedures.
+
+Thought: how can I make it possible to put multiple plugins in a single .so
+file? Answer: Use different names for the entry function.
+
+Thought: how can I be able to put plugins in the main binary? Answer, kinda:
+maintain a table of entry function names and addresses, and refer to it when
+an "internal" plugin is referenced. Problem: how to build that table and
+compile in the correct .o files automatically.
+
+

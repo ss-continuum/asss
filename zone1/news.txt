@@ -1,0 +1,131 @@
+
+Welcome to asss (a small subspace server) 0.2
+
+I've proven that it can send a news.txt to players, so I'm going to be using
+this file for updates and other important information.
+
+If you're playing on here, please help me test by trying out different
+combinations of everything and telling me if anything works different
+than subgame. Even slightly differently. Even if it just _feels_ funny,
+tell me. It might mean I'm doing something differently.
+
+
+Recent updates:
+    * put all packet structs in src/packets
+
+    * put #ifndef/#endif around all header files
+
+    * redid module loading on startup to be simpler
+
+    * rewrote config file crap. it even has #include now.
+
+
+Current bugs/ugliness:
+
+    * it blocks on compressing .lvl files. this isn't a big deal on my p800
+        with a few people on at a time, but it must get fixed eventually.
+
+    * there's quite a bit of restrictions on the order stuff loads in. the new
+        internal design should help, but i'd like to clean this up even more
+
+    * unknown bug in module unloading that sometimes crashes on shutdown. in
+        general, module unloading is not as clean as i'd like it to be.
+
+    * the network layer currently relies on some data from players[], which
+        means i can't use the exact same module to serve a billing server,
+        which i'd like to do eventually.
+
+
+
+
+Stuff it does now:
+    * logging on and entering arenas
+    * map/news downloads
+    * chat: pub, priv (same arena only), team, nme team,
+        mod (start messages with a backslash: '\')
+    * changing ship and freq
+    * changing arena (test this a lot)
+    * green relaying
+    * deaths
+    * positions/weapons
+        this means you can actually play a game!
+        my routing is probably not as good as real subgame yet
+        then again, it might be better
+        I've come to realize that JeffP didn't really know what
+        he was doing when he wrote this part
+        (test this a lot too)
+    * speccing people (test this)
+    * player counts on port+1
+    * encryption (disabled most of the time, though)
+    * some commands (?arena, ?logon, ?setop, ?shutdown)
+        note that my command structure is very different from subgame
+        the most important difference is that there is no longer a difference
+        between ? and *. both work for all commands, and all commands are
+        logged
+    * some mod structure: you can assign people oplevels, or use passwords
+        staff log on by default with no powers, you need to type ?logon to
+        enable them. you can also get rid of them by typing ?logon 0 or any
+        text that isn't a password.
+
+
+
+Stuff it will do soon:
+    * use hash for incoming packets
+    * bricks
+    * banners
+    * client-side settings
+
+
+
+Stuff it will probably do in a long time:
+    * everything involving billing server:
+        ?chat channels
+        scores
+        squads
+        authentication
+    * buffering and late-sending of weapons packets (?)
+    * flags
+    * balls
+    * lag stuff:
+        calculation of lag in an intelligent way
+        varying penalties (dropping weapons, forcing to spec, etc)
+    * security checksums
+    * other security enhancements (there's a lot to do here)
+    * run ekted's bots internally (not so hard, but useless without flags/balls first)
+    * use the same core code and modules to be a billing server too
+
+
+
+Fun stuff it might do if I feel like it: (no protocol modifications)
+    * server-side version of minewriter
+    * bricklayer: minewriter with bricks
+    * dynamicly generated news.txt
+        (not sure if this is useful... maybe include extra info for staff?)
+    * player-to-player file transfer (should be possible with the current client)
+    * integrated game recorder/player (will put ssvcr to shame :)
+    * working chess player with 32 real ships
+    * implement ?buy, but much more flexible. it should be possible to
+        set up an RPG-type zone where you keep upgrades across deaths
+        and earn money you can purchase upgrades with, etc.
+
+
+
+Really cool stuff that's only possible with protocol modifications:
+    * configurable spawn points and forcing into arenas, enabling
+        multi-arena" maps where going to a specific area in one map would warp
+        you to some other area on another map.
+    * more possibilities with doors
+    * much more I can't think of at the moment
+
+
+
+Stuff it will do only if people request it:
+    * ads
+    * lots of subgame features that aren't really used
+
+
+
+
+random line to force redownloading:
+6281824014
+

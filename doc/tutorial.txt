@@ -1,0 +1,150 @@
+
+asss - a small subspace server
+------------------------------
+
+module-writing tutorial
+-----------------------
+
+The design works something like this: everything is a module. So you
+extend the server just by writing more modules. The current list of
+modules is:
+
+billcore - billing server commnication core stuff
+chat - chat messages
+cmdman - command manager
+config - config file manager
+core - core game stuff (logins, etc.) and arenas
+encrypt1 - basic encryption
+game - game stuff (freqs, weapons, kills, etc.)
+log_console - logging to console
+log_file - logging to files
+logman - log manager
+mainloop - main loop and timers
+module - module manager
+net - network layer
+playercmd - ? commands, mostly
+
+In the future, there will hopefully be:
+
+flag - handle all flag packets and maybe game types
+ball - balls and goals
+banner - do banners
+mapdata - shared map data for other modules to use
+brick - do bricks
+staffcmd - * commands
+and more
+
+A module resides in a single .c file, and an optional .h file if it
+exposes any interfaces for other modules to use. All functions except
+the entry point should be local to the module, use "local" (which is
+#defined to be "static") to do that. All global data should be marked
+local too.
+
+Lots of modules expose interfaces for other modules to use. These are
+just structs of function pointers. You only interact with other modules
+through these interfaces; that's why they're called interfaces. They're
+defined in the .h files.
+
+I'll use log_console as an example, because it's so simple:
+
+// log_console.c
+
+#include <stdio.h>
+
+#include "asss.h"
+
+
+local void LogConsole(int, char *);
+
+
+int MM_log_console(int action, Imodman *mm)
+{
+	Ilogman *log;
+
+	if (action == MM_LOAD)
+	{
+		log = mm->GetInterface(I_LOGMAN);
+		if (!log) return MM_FAIL;
+		log->AddLog(LogConsole);
+	}
+	else if (action == MM_UNLOAD)
+	{
+		log = mm->GetInterface(I_LOGMAN);
+		if (!log) return MM_FAIL;
+		log->RemoveLog(LogConsole);
+	}
+	else if (action == MM_DESCRIBE)
+	{
+		mm->desc = "log_console - logs output to stdout";
+	}
+	return MM_OK;
+}
+
+
+void LogConsole(int lev, char *s)
+{
+	puts(s);
+}
+
+// end of log_console.c
+
+
+Every module has an entry point which is named MM_<modulename>. It returns an
+int indicating success or failure. It gets passed an int telling it what to
+do, and a pointer to the module manager interface, which it uses to do stuff.
+
+In this one, it first gets a pointer to the log manager interface by calling
+GetInterface. (I_LOGMAN is a symbolic constant defined in defs.h. They're all
+in that file to be sure that no two modules use the same number.) If the log
+manager isn't loaded, it fails. Finally, it calls the log manager's AddLog
+function to add a new logging method, which is the LogConsole function. The
+required signature for logging functions is in logman.h, and it's not really
+important now.
+
+To expose an interface to other modules, you have to do several things. I'll
+use the log manager as an example:
+
+Make a new interface id in defs.h:
+
+#define I_LOGMAN		4
+
+
+Make an interface definition in logman.h:
+
+typedef struct Ilogman
+{
+	void (*AddLog)(LogFunc);
+	void (*RemoveLog)(LogFunc);
+	void (*Log)(int, char *, ...);
+} Ilogman;
+
+
+Write prototypes for the functions in your interface. They happen to have the
+same names as the members of the struct, but this is not strictly necessary.
+
+local void AddLog(LogFunc);
+local void RemoveLog(LogFunc);
+local void Log(int, char *, ...);
+
+
+Set up a structure that will be your interface:
+
+local Ilogman _interface = { AddLog, RemoveLog, Log };
+
+
+Register the interface in your entry point function in response to MM_LOAD:
+
+mm->RegisterInterface(I_LOGMAN, &_interface);
+
+
+And remember to unregister it when your module is being unloaded:
+
+mm->UnregisterInterface(&_interface);
+
+
+Note that even though the functions will be called from other modules, they
+can (and should) still be declared as local (static). This is because they are
+called through function pointers and not directly by name, and you don't want
+to confuse the linker by exporting lots of functions whose names may clash.
+
+
