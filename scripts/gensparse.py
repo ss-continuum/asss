@@ -48,7 +48,7 @@ else:
 bits.reverse()
 
 def maxcoord(idx):
-	return 2**bits[idx] - 1
+	return 2**bits[idx]
 
 
 def lsum(l):
@@ -163,7 +163,7 @@ def gen_val(idx):
 	{
 		'n': 'c_%d' % (idx+1),
 		'shift': lsum(bits[:idx]),
-		'and': maxcoord(idx)
+		'and': maxcoord(idx) - 1
 	}
 
 
