@@ -48,39 +48,41 @@ local pthread_mutex_t bigmtx;
 
 local int get_socket(void)
 {
-	char field1[32];
-	const char *spec, *n;
-	int add = 0, port;
+	const char *spec;
+	int port;
 	struct in_addr bindaddr;
 
 	/* cfghelp: Net:ChatListen, global, string, mod: chatnet
 	 * Where to listen for chat protocol connections. Either 'port' or
-	 * 'ip:port'. Net:Listen will be used if this is missing, except the
-	 * port number specified there will be incremented by two. */
+	 * 'ip:port'. Net:Listen will be used if this is missing. */
 	spec = cfg->GetStr(GLOBAL, "Net", "ChatListen");
 	if (spec == NULL)
 	{
-		spec = cfg->GetStr(GLOBAL, "Net", "Listen");
-		if (!spec)
-			return -1;
-		add = 2;
-	}
-
-	n = delimcpy(field1, spec, sizeof(field1), ':');
-	if (!n)
-	{
-		/* just port */
-		port = strtol(field1, NULL, 0);
+		Inet *net = mm->GetInterface(I_NET, ALLARENAS);
+		if (!net) return -1;
+		net->GetListenData(0, &port, NULL, 0);
+		mm->ReleaseInterface(net);
 		bindaddr.s_addr = INADDR_ANY;
 	}
 	else
 	{
-		/* got ip:port */
-		port = strtol(n, NULL, 0);
-		inet_aton(field1, &bindaddr);
+		char field1[32];
+		const char *n = delimcpy(field1, spec, sizeof(field1), ':');
+		if (!n)
+		{
+			/* just port */
+			port = strtol(field1, NULL, 0);
+			bindaddr.s_addr = INADDR_ANY;
+		}
+		else
+		{
+			/* got ip:port */
+			port = strtol(n, NULL, 0);
+			inet_aton(field1, &bindaddr);
+		}
 	}
 
-	return init_listening_socket(port + add, bindaddr.s_addr);
+	return init_listening_socket(port, bindaddr.s_addr);
 }
 
 
