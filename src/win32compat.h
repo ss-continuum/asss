@@ -3,10 +3,12 @@
 
 #ifdef WIN32
 
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <winsock.h>
 #include <limits.h>
 #include <malloc.h>
+#include <io.h>
 
 #define EXPORT __declspec(dllexport)
 
@@ -27,20 +29,26 @@
 #ifndef NAME_MAX
 #define NAME_MAX 256
 #endif
-#if 0
+#ifndef snprintf
 #define snprintf _snprintf
 #define vsnprintf _vsnprintf
 #endif
 #define usleep(x) Sleep((x)/1000)
 #define sleep(x) Sleep((x)*1000)
 #define mkdir(a,b) _mkdir(a)
-#if 0
+#ifndef alloca
 #define alloca _alloca
 #define access _access
-#define R_OK 4
+#endif
+#ifndef S_ISDIR
 #define S_ISDIR(a) ((a) & _S_IFDIR)
+#endif
+#ifndef mktemp
 #define mktemp(a) _mktemp(a)
 #define chdir(a) _chdir(a)
+#endif
+#ifndef R_OK
+#define R_OK 4
 #endif
 
 typedef int socklen_t;

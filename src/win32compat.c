@@ -5,8 +5,8 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <io.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 #include "win32compat.h"
 #include "util.h"
@@ -37,7 +37,7 @@ int mkstemp(char *templ)
 	if (mktemp(templ) == NULL)
 		return -1;
 
-	return open(templ, _O_CREAT);
+	return _open(templ, _O_CREAT | _O_RDWR | _O_BINARY | _O_EXCL, _S_IREAD | _S_IWRITE);
 }
 
 
