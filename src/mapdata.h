@@ -25,16 +25,17 @@ typedef struct Imapdata
 	int (*GetTile)(int arena, int x, int );
 	/* returns the contents of the given tile. */
 
+
 	/* the following two functions deal with the map region system. */
 
 	char * (*GetRegion)(int arena, int x, int y);
 	/* returns the region containing the given coordinates. only returns
-	 * regions that specify IsBase to be true. */
+	 * regions that specify IsBase to be true. returns NULL if there is
+	 * no named region covering that area. */
 
-	int (*ClipToRegion)(int arena, char *region, int *x, int *y);
-	/* ensures the given coordinates are within the named region.
-	 * returns 0 if the point was already in the region, 1 if it was
-	 * clipped, and -1 if the region doesn't exist. */
+	int (*InRegion)(int arena, char *region, int x, int y);
+	/* returns true if the given point is in the given region. */
+
 
 	/* the following two functions are in this module because of
 	 * efficiency concerns. */

@@ -1,11 +1,16 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
+#include <string.h>
 
 #include "asss.h"
 
 /* extra includes */
 #include "sparse.inc"
+
+/* region stuff, to be consistent with regiongen */
+#include "region.h"
 
 
 #define TILE_FLAG 0xAA
@@ -25,9 +30,8 @@ struct TileData
 
 struct Region
 {
-	char name[MAXREGIONNAME];
 	int isbase;
-	int x1, y1, x2, y2;
+	rectlist_t rects;
 };
 
 
@@ -35,20 +39,21 @@ struct MapData
 {
 	sparse_arr arr;
 	int flags, errors;
-	LinkedList *regions;
+	HashTable *regions;
 };
 
 
 /* prototypes */
 local void ArenaAction(int arena, int action);
-int read_lvl(char *name, struct MapData *md);
+local int read_lvl(char *name, struct MapData *md);
+local HashTable * LoadRegions(char *fname);
 
 /* interface funcs */
 local int GetMapFilename(int arena, char *buffer, int bufferlen);
 local int GetFlagCount(int arena);
 local int GetTile(int arena, int x, int y);
 local char *GetRegion(int arena, int x, int y);
-local int ClipToRegion(int arena, char *region, int *x, int *y);
+local int InRegion(int arena, char *region, int x, int y);
 local void FindFlagTile(int arena, int *x, int *y);
 local void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2);
 
@@ -65,7 +70,11 @@ local Ilogman *log;
 
 /* this module's interface */
 local Imapdata _int =
-{ GetMapFilename, GetFlagCount, GetTile, FindFlagTile, FindBrickEndpoints };
+{
+	GetMapFilename, GetFlagCount, GetTile,
+	GetRegion, InRegion,
+	FindFlagTile, FindBrickEndpoints
+};
 
 
 
@@ -160,6 +169,13 @@ int read_lvl(char *name, struct MapData *md)
 }
 
 
+local void FreeRegion(void *v)
+{
+	struct Region *r = (struct Region *)v;
+	delete_rectlist(r->rects);
+	afree(r);
+}
+
 void ArenaAction(int arena, int action)
 {
 	/* no matter what is happening, destroy old mapdata */
@@ -173,10 +189,8 @@ void ArenaAction(int arena, int action)
 
 		if (mapdata[arena].regions)
 		{
-			Link *l;
-			for (l = LLGetHead(mapdata[arena].regions); l; l = l->next)
-				afree(l->data);
-			LLFree(mapdata[arena].regions);
+			HashEnum(mapdata[arena].regions, FreeRegion);
+			HashFree(mapdata[arena].regions);
 			mapdata[arena].regions = NULL;
 		}
 	}
@@ -322,24 +336,82 @@ void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, in
 
 /* region stuff below here */
 
-
-LinkedList * LoadRegions(char *fname)
+HashTable * LoadRegions(char *fname)
 {
-	LinkedList *lst;
-	char mapn[PATH_MAX];
+	char buf[256];
+	FILE *f = fopen(fname, "r");
+	HashTable *hash = HashAlloc(17);
+	struct Region *reg = NULL;
 
+	if (f)
+	{
+		fgets(buf, 256, f);
+		RemoveCRLF(buf);
+		if (strcmp(buf, HEADER))
+		{
+			HashFree(hash);
+			return NULL;
+		}
+
+		while (fgets(buf, 256, f))
+		{
+			RemoveCRLF(buf);
+			if (buf[0] == ';' || buf[0] == 0)
+				continue;
+			else if (buf[0] == '|')
+			{
+				/* data coming */
+				rect_t r;
+				if (!reg) continue;
+				r = decode_rectangle(buf+2);
+				add_rect(&reg->rects, r);
+			}
+			else if (!strncasecmp(buf, "name", 4))
+			{
+				/* new region */
+				char *t = buf + 4;
+				while (*t == ':' || *t == ' ' || *t == '\t') t++;
+
+				/* get new */
+				reg = amalloc(sizeof(struct Region));
+				reg->isbase = 0;
+				reg->rects = init_rectlist();
+				HashAdd(hash, t, reg);
+			}
+			else if (!strncasecmp(buf, "isbase", 6))
+			{
+				reg->isbase = 1;
+			}
+		}
+	}
+	return hash;
 }
+
 
 char *GetRegion(int arena, int x, int y)
 {
 	return NULL;
 }
 
-int ClipToRegion(int arena, char *region, int *x, int *y)
+int InRegion(int arena, char *region, int x, int y)
 {
-	/* returns 0 if the point was already in the region, 1 if it was
-	 * clipped, and -1 if the region doesn't exist. */
-	return -1;
-}
+	struct Region *reg;
 
+	reg = HashGetOne(mapdata[arena].regions, region);
+
+	if (!reg)
+		return 0;
+	else
+	{
+		int i;
+		rect_t *r;
+		for (i = 0, r = reg->rects.data; i < reg->rects.count; i++, r++)
+			if (x >= r->x &&
+			    (x - r->x) < r->w &&
+			    y >= r->y &&
+			    (y - r->y) < r->h)
+				return 1;
+		return 0;
+	}
+}
 

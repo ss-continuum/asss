@@ -23,7 +23,6 @@ ALL_STUFF = asss $(EXTMODS) $(INCLUDE_ELDERD)
 
 
 INTMODS = config.o    \
-          pathutil.o  \
           player.o    \
           core.o      \
           logman.o    \
@@ -31,17 +30,22 @@ INTMODS = config.o    \
           net.o       \
           encrypt1.o  \
           arenaman.o  \
-          player.o    \
           mapdata.o   \
           mapnewsdl.o \
           clientset.o
+
+EXTRAOBJS = module.o  \
+            util.o    \
+            pathutil.o\
+            region.o
 
 EXTMODS = loggers.so  \
           game.so     \
           command.so  \
           billing.so  \
           scoring.so  \
-          scheme.so
+          scheme.so   \
+          funky.so
 
 
 
@@ -62,9 +66,10 @@ scoring.so: persist.o stats.o points_kill.o points_flag.o
 
 scheme.so: scheme.o ooputils.o
 
+funky.so: autowarp.o
 
 
-asss: main.o module.o util.o $(INTMODS)
+asss: main.o $(INTMODS) $(EXTRAOBJS)
 	$(CC) $(LDFLAGS) -rdynamic -o $@ $^ $(ASSSLIBS)
 
 

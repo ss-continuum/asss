@@ -474,7 +474,7 @@ int SyncTimer(void *dummy)
 	msg->callback = NULL;
 	MPAdd(&dbq, msg);
 
-	log->Log(L_INFO, "<persist> Adding all persistant data and syncing to disk");
+	log->Log(L_INFO, "<persist> Collecting all persistant data and syncing to disk");
 
 	return 1;
 }
