@@ -131,23 +131,11 @@ local void report_error(const char *error)
 local int locate_config_file(char *dest, int destlen, const char *arena, const char *name)
 {
 	const char *path = CFG_CONFIG_SEARCH_PATH;
-	char basename[32];
 	struct replace_table repls[] =
-		{ { 'n', name }, { 'a', arena }, { 'b', basename } };
+		{ { 'n', name }, { 'b', arena } };
 
 	if (!name)
 		repls[0].with = arena ? "arena.conf" : "global.conf";
-
-	/* some uglyness: we duplicate the basename calculation here.
-	 * ideally, we'd do it only once (in arenaman). */
-	if (arena)
-	{
-		char *t;
-		astrncpy(basename, arena, sizeof(basename));
-		t = basename + strlen(basename) - 1;
-		while ((t > basename) && isdigit(*t))
-			*(t--) = 0;
-	}
 
 	return find_file_on_path(dest, destlen, path, repls, arena ? 3 : 1);
 }
@@ -188,7 +176,7 @@ local void do_load(ConfigHandle ch, const char *arena, const char *name)
 			/* new section: copy to key name */
 			/* skip leading brackets/spaces */
 			while (*buf == '[' || *buf == ' ' || *buf == '\t') buf++;
-			/* get rid of training spaces or brackets */
+			/* get rid of trailing spaces or brackets */
 			t = buf + strlen(buf) - 1;
 			while (*t == ']' || *t == ' ' || *t == '\t') *t-- = 0;
 			/* copy section name into key */
@@ -249,7 +237,7 @@ local void ReloadConfigFile(ConfigHandle ch)
 	/* free this stuff, then create it again */
 	SCFree(ch->thestrings);
 	HashFree(ch->thetable);
-	ch->thetable = HashAlloc(383);
+	ch->thetable = HashAlloc();
 	ch->thestrings = SCAlloc();
 
 	/* now load file again */
@@ -311,7 +299,7 @@ local ConfigHandle new_file()
 
 	f = amalloc(sizeof(struct ConfigFile));
 	f->refcount = 1;
-	f->thetable = HashAlloc(383);
+	f->thetable = HashAlloc();
 	f->thestrings = SCAlloc();
 	f->changed = NULL;
 	LLInit(&f->dirty);
@@ -528,8 +516,11 @@ EXPORT int MM_config(int action, Imodman *mm_, Arena *arena)
 
 		mm = mm_;
 
+		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
+		if (!ml) return MM_FAIL;
+
 		LLInit(&files);
-		opened = HashAlloc(23);
+		opened = HashAlloc();
 
 		pthread_mutexattr_init(&attr);
 		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
@@ -538,11 +529,8 @@ EXPORT int MM_config(int action, Imodman *mm_, Arena *arena)
 
 		global = OpenConfigFile(NULL, NULL, global_changed, NULL);
 		if (!global) return MM_FAIL;
-	
-		lm = NULL;
 
-		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
-		if (!ml) return MM_FAIL;
+		lm = NULL;
 
 		set_timers();
 

@@ -16,7 +16,6 @@
 #include "packets/kill.h"
 #include "packets/shipchange.h"
 #include "packets/green.h"
-#include "packets/brick.h"
 
 #include "settings/game.h"
 
@@ -44,19 +43,8 @@ typedef struct
 	int initlockship, initspec;
 } adata;
 
-typedef struct
-{
-	u16 cbrickid;
-	u16 countbricksaswalls;
-	ticks_t lasttime;
-	LinkedList list;
-	pthread_mutex_t mtx;
-} brickdata;
-
 
 /* prototypes */
-local void SendOldBricks(Player *p);
-
 local void PlayerAction(Player *p, int action, Arena *arena);
 local void ArenaAction(Arena *arena, int action);
 
@@ -69,7 +57,6 @@ local void PDie(Player *, byte *, int);
 local void PGreen(Player *, byte *, int);
 local void PAttach(Player *, byte *, int);
 local void PKickoff(Player *, byte *, int);
-local void PBrick(Player *, byte *, int);
 
 local void MChangeFreq(Player *p, const char *line);
 
@@ -80,7 +67,6 @@ local inline long lhypot (register long dx, register long dy);
 local void SetFreq(Player *p, int freq);
 local void SetShip(Player *p, int ship);
 local void SetFreqAndShip(Player *p, int ship, int freq);
-local void DropBrick(Arena *arena, int freq, int x1, int y1, int x2, int y2);
 local void WarpTo(const Target *target, int x, int y);
 local void GivePrize(const Target *target, int type, int count);
 local void Lock(const Target *t, int notify, int spec);
@@ -93,7 +79,7 @@ local void FakeKill(Player *killer, Player *killed, int bounty, int flags);
 local Igame _myint =
 {
 	INTERFACE_HEAD_INIT(I_GAME, "game")
-	SetFreq, SetShip, SetFreqAndShip, DropBrick, WarpTo, GivePrize,
+	SetFreq, SetShip, SetFreqAndShip, WarpTo, GivePrize,
 	Lock, Unlock, LockArena, UnlockArena,
 	FakePosition, FakeKill
 };
@@ -115,7 +101,7 @@ local Ilagcollect *lagc;
 local Ichat *chat;
 
 /* big arrays */
-local int adkey, brickkey, pdkey;
+local int adkey, pdkey;
 
 local int cfg_bulletpix, cfg_wpnpix, cfg_pospix;
 local int cfg_sendanti, cfg_changelimit;
@@ -144,9 +130,8 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		if (!net || !cfg || !lm || !aman) return MM_FAIL;
 
 		adkey = aman->AllocateArenaData(sizeof(adata));
-		brickkey = aman->AllocateArenaData(sizeof(brickdata));
 		pdkey = pd->AllocatePlayerData(sizeof(pdata));
-		if (adkey == -1 || brickkey == -1 || pdkey == -1) return MM_FAIL;
+		if (adkey == -1 || pdkey == -1) return MM_FAIL;
 
 		/* cfghelp: Net:BulletPixels, global, int, def: 1500
 		 * How far away to always send bullets (in pixels). */
@@ -186,7 +171,6 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		net->AddPacket(C2S_GREEN, PGreen);
 		net->AddPacket(C2S_ATTACHTO, PAttach);
 		net->AddPacket(C2S_TURRETKICKOFF, PKickoff);
-		net->AddPacket(C2S_BRICK, PBrick);
 
 		if (chatnet)
 			chatnet->AddHandler("CHANGEFREQ", MChangeFreq);
@@ -208,11 +192,9 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		net->RemovePacket(C2S_GREEN, PGreen);
 		net->RemovePacket(C2S_ATTACHTO, PAttach);
 		net->RemovePacket(C2S_TURRETKICKOFF, PKickoff);
-		net->RemovePacket(C2S_BRICK, PBrick);
 		mm->UnregCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 		aman->FreeArenaData(adkey);
-		aman->FreeArenaData(brickkey);
 		pd->FreePlayerData(pdkey);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(cfg);
@@ -265,6 +247,14 @@ void Pppk(Player *p, byte *p2, int n)
 			lm->LogP(L_MALICIOUS, "game", p, "bad position packet checksum");
 			return;
 		}
+	}
+
+	if (pos->x == -1 && pos->y == -1)
+	{
+		/* position sent after death, before respawn. these aren't
+		 * really useful for anything except making sure the server
+		 * knows the client hasn't dropped, so just ignore them. */
+		return;
 	}
 
 	/* speccers don't get their position sent to anyone */
@@ -767,15 +757,15 @@ local void notify_kill(Player *killer, Player *killed, int bty, int flags, int g
 void PDie(Player *p, byte *pkt, int n)
 {
 	struct SimplePacket *dead = (struct SimplePacket*)pkt;
-	int bty = dead->d2;
-	int flagcount, reldeaths, green, killreward;
+	int bty = dead->d2, pts = 0;
+	int flagcount, reldeaths, green;
 	Arena *arena = p->arena;
 	Player *killer;
 
 	if (!arena) return;
 
 	killer = pd->PidToPlayer(dead->d1);
-	if (!killer || killer->status != S_PLAYING)
+	if (!killer || killer->status != S_PLAYING || killer->arena != p->arena)
 	{
 		lm->LogP(L_MALICIOUS, "game", p, "reported kill by bad pid %d", dead->d1);
 		return;
@@ -792,33 +782,26 @@ void PDie(Player *p, byte *pkt, int n)
 	else
 		flagcount = 0;
 
-	if (p->p_freq == killer->p_freq)
-		bty = 0;
-
 	reldeaths = cfg->GetInt(arena->cfg, "Misc", "ReliableKills", 1);
 
-	/* cfghelp: Kill:FixedKillReward, arena, int, def: -1
-	 * If this is set (to a value other than -1), specifies a fixed
-	 * number of points to give for each kill (instead of the bounty. */
-	killreward = cfg->GetInt(arena->cfg, "Kill", "FixedKillReward", -1);
+	/* this will figure out how many points to send in the packet */
+	DO_CBS(CB_KILL, arena, KillFunc,
+			(arena, killer, p, bty, flagcount, &pts));
 
-	notify_kill(killer, p, (killreward != -1) ? killreward : bty, flagcount, green, reldeaths);
+	notify_kill(killer, p, pts, flagcount, green, reldeaths);
 
-	lm->Log(L_DRIVEL, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d)",
+	lm->Log(L_DRIVEL, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d,pts=%d)",
 			arena->name,
 			p->name,
 			killer->name,
 			bty,
-			flagcount);
-
-	/* call callbacks */
-	DO_CBS(CB_KILL, arena, KillFunc,
-			(arena, killer, p, bty, flagcount));
+			flagcount,
+			pts);
 }
 
-void FakeKill(Player *killer, Player *killed, int bounty, int flags)
+void FakeKill(Player *killer, Player *killed, int pts, int flags)
 {
-	notify_kill(killer, killed, bounty, flags, 0, TRUE);
+	notify_kill(killer, killed, pts, flags, 0, TRUE);
 }
 
 
@@ -924,8 +907,6 @@ void PlayerAction(Player *p, int action, Arena *arena)
 		data->pl_epd.seeepd = seeepd;
 
 		data->wpnsent = 0;
-
-		SendOldBricks(p);
 	}
 	else if (action == PA_LEAVEARENA)
 	{
@@ -949,7 +930,6 @@ void ArenaAction(Arena *arena, int action)
 	{
 		unsigned int pg = 0;
 		adata *ad = P_ARENA_DATA(arena, adkey);
-		brickdata *bd = P_ARENA_DATA(arena, brickkey);
 
 		/* cfghelp: Misc:SpecSeeExtra, arena, bool, def: 1
 		 * Whether spectators can see extra data for the person they're
@@ -982,16 +962,6 @@ void ArenaAction(Arena *arena, int action)
 			pg |= (1<<personal_brick);
 
 		ad->personalgreen = pg;
-
-		pthread_mutex_init(&bd->mtx, NULL);
-		LLInit(&bd->list);
-		bd->cbrickid = 0;
-		bd->lasttime = current_ticks();
-
-		/* cfghelp: Brick:CountBricksAsWalls, arena, bool, def: 1
-		 * Whether bricks snap to the edges of other bricks (as opposed
-		 * to only snapping to walls). */
-		bd->countbricksaswalls = cfg->GetInt(arena->cfg, "Brick", "CountBricksAsWalls", 1);
 
 		if (action == AA_CREATE)
 			ad->initlockship = ad->initspec = FALSE;
@@ -1103,116 +1073,4 @@ void UnlockArena(Arena *a, int notify, int onlyarenastate)
 		lock_work(&t, FALSE, notify, FALSE);
 	}
 }
-
-
-
-/* call with mutex */
-local void expire_bricks(Arena *arena)
-{
-	ticks_t gtc, timeout;
-	LinkedList *list = &((brickdata*)P_ARENA_DATA(arena, brickkey))->list;
-	Link *l, *next;
-
-	timeout = cfg->GetInt(arena->cfg, "Brick", "BrickTime", 0) + 10;
-
-	gtc = current_ticks();
-	for (l = LLGetHead(list); l; l = next)
-	{
-		struct S2CBrickPacket *pkt = l->data;
-		next = l->next;
-
-		if (TICK_GT(gtc, pkt->starttime + timeout))
-		{
-			mapdata->DoBrick(arena, 0, pkt->x1, pkt->y1, pkt->x2, pkt->y2);
-			LLRemove(list, pkt);
-			afree(pkt);
-		}
-	}
-}
-
-
-/* call with mutex */
-local void drop_brick(Arena *arena, int freq, int x1, int y1, int x2, int y2)
-{
-	brickdata *bd = P_ARENA_DATA(arena, brickkey);
-	struct S2CBrickPacket *pkt = amalloc(sizeof(*pkt));
-
-	pkt->x1 = x1; pkt->y1 = y1;
-	pkt->x2 = x2; pkt->y2 = y2;
-	pkt->type = S2C_BRICK;
-	pkt->freq = freq;
-	pkt->brickid = bd->cbrickid++;
-	pkt->starttime = current_ticks();
-	/* workaround for stupid priitk */
-	if (pkt->starttime <= bd->lasttime)
-		pkt->starttime = ++bd->lasttime;
-	else
-		bd->lasttime = pkt->starttime;
-	LLAdd(&bd->list, pkt);
-
-	net->SendToArena(arena, NULL, (byte*)pkt, sizeof(*pkt), NET_RELIABLE | NET_PRI_P4);
-	lm->Log(L_DRIVEL, "<game> {%s} brick dropped (%d,%d)-(%d,%d) (freq=%d) (id=%d)",
-			arena->name,
-			x1, y1, x2, y2, freq,
-			pkt->brickid);
-
-	mapdata->DoBrick(arena, 1, x1, y1, x2, y2);
-}
-
-
-void DropBrick(Arena *arena, int freq, int x1, int y1, int x2, int y2)
-{
-	brickdata *bd = P_ARENA_DATA(arena, brickkey);
-	pthread_mutex_lock(&bd->mtx);
-	expire_bricks(arena);
-	drop_brick(arena, freq, x1, y1, x2, y2);
-	pthread_mutex_unlock(&bd->mtx);
-}
-
-
-void SendOldBricks(Player *p)
-{
-	Arena *arena = p->arena;
-	brickdata *bd = P_ARENA_DATA(arena, brickkey);
-	LinkedList *list = &bd->list;
-	Link *l;
-
-	pthread_mutex_lock(&bd->mtx);
-
-	expire_bricks(arena);
-
-	for (l = LLGetHead(list); l; l = l->next)
-	{
-		struct S2CBrickPacket *pkt = (struct S2CBrickPacket*)l->data;
-		net->SendToOne(p, (byte*)pkt, sizeof(*pkt), NET_RELIABLE);
-	}
-
-	pthread_mutex_unlock(&bd->mtx);
-}
-
-
-void PBrick(Player *p, byte *pkt, int len)
-{
-	int dx, dy, x1, y1, x2, y2;
-	Arena *arena = p->arena;
-	brickdata *bd;
-	int l;
-
-	if (!arena) return;
-	bd = P_ARENA_DATA(arena, brickkey);
-
-	/* cfghelp: Brick:BrickSpan, arena, int, def: 10
-	 * The maximum length of a dropped brick. */
-	l = cfg->GetInt(arena->cfg, "Brick", "BrickSpan", 10);
-
-	dx = ((struct SimplePacket*)pkt)->d1;
-	dy = ((struct SimplePacket*)pkt)->d2;
-
-	pthread_mutex_lock(&bd->mtx);
-	expire_bricks(arena);
-	mapdata->FindBrickEndpoints(arena, dx, dy, l, &x1, &y1, &x2, &y2);
-	drop_brick(arena, p->p_freq, x1, y1, x2, y2);
-	pthread_mutex_unlock(&bd->mtx);
-}
-
 

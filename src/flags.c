@@ -44,7 +44,7 @@ local void AAFlag(Arena *arena, int action);
 local void PAFlag(Player *p, int action, Arena *arena);
 local void ShipChange(Player *, int, int);
 local void FreqChange(Player *, int);
-local void FlagKill(Arena *, Player *, Player *, int, int);
+local void FlagKill(Arena *, Player *, Player *, int, int, int *);
 
 /* timers */
 local int BasicFlagTimer(void *);
@@ -238,7 +238,7 @@ void SpawnFlag(Arena *arena, int fid, int owned, int center)
 		}
 
 		/* ask mapdata to move it to nearest empty tile */
-		mapdata->FindFlagTile(arena, &x, &y);
+		mapdata->FindEmptyTileNear(arena, &x, &y);
 
 		/* finally make sure it doesn't hit any other flags */
 		good = 1;
@@ -610,7 +610,6 @@ local void CheckWin(Arena *arena)
 		logm->Log(L_INFO, "<flags> {%s} flag victory: freq %d won",
 				arena->name, freq);
 	}
-
 }
 
 
@@ -682,7 +681,7 @@ void FreqChange(Player *p, int newfreq)
 	CleanupAfter(p->arena, p);
 }
 
-void FlagKill(Arena *arena, Player *killer, Player *killed, int bounty, int flags)
+void FlagKill(Arena *arena, Player *killer, Player *killed, int bounty, int flags, int *pts)
 {
 	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
 	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);

@@ -443,7 +443,7 @@ EXPORT int MM_chatnet(int action, Imodman *mm_, Arena *a)
 		pthread_mutex_init(&bigmtx, &attr);
 		pthread_mutexattr_destroy(&attr);
 
-		handlers = HashAlloc(71);
+		handlers = HashAlloc();
 
 		/* install timer */
 		ml->SetTimer(do_one_iter, 10, 10, NULL, NULL);

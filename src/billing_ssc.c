@@ -250,7 +250,7 @@ local void paction(Player *p, int action, Arena *arena)
 		}
 	}
 #endif
-else if (action == PA_LEAVEARENA && ARENA_IS_PUBLIC(arena))
+	else if (action == PA_LEAVEARENA && ARENA_IS_PUBLIC(arena))
 	{
 		data->saved_score.Score = stats->GetStat(p, STAT_KILL_POINTS, INTERVAL_RESET);
 		data->saved_score.FlagScore = stats->GetStat(p, STAT_FLAG_POINTS, INTERVAL_RESET);

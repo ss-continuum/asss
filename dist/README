@@ -27,3 +27,8 @@ module is somewhat better tested than the alternative.
 
 Known bugs:
 
+reliable sync is sometimes lost when lots of game packets are being
+sent. this is under investigation.
+
+private freqs are sometimes visible when they shouldn't be?
+

@@ -19,6 +19,9 @@ privcmd_warn
 cmd_timer
 cmd_timereset
 cmd_pausetimer
+cmd_recyclearena
+cmd_kick
+cmd_setjackpot
 
 privcmd_scorereset
 cmd_endinterval
@@ -26,13 +29,12 @@ cmd_endinterval
 cmd_flaginfo
 cmd_neutflag
 
-privcmd_report
-
 privcmd_setship
 privcmd_setfreq
 cmd_specall
 privcmd_specall
 
+cmd_prize
 privcmd_prize
 privcmd_shipreset
 

@@ -29,6 +29,9 @@
 /* debugging option to dump raw packets to the console */
 /* #define CFG_DUMP_RAW_PACKETS */
 
+/* whether to increase bandwidth limit only when it's hit */
+#define USE_HITLIMIT
+
 /* the size of the ip address hash table. this _must_ be a power of two. */
 #define CFG_HASHSIZE 256
 
@@ -108,14 +111,15 @@ typedef struct
 	/* hash bucket */
 	Player *nextinbucket;
 	/* sequence numbers for reliable packets */
-	int s2cn, c2sn;
+	i32 s2cn, c2sn;
 	/* time of last packet recvd and of initial connection */
 	ticks_t lastpkt;
 	/* total amounts sent and recvd */
-	unsigned int pktsent, pktrecvd;
-	unsigned int bytesent, byterecvd;
+	unsigned long pktsent, pktrecvd;
+	unsigned long bytesent, byterecvd;
 	/* duplicate reliable packets and reliable retries */
-	unsigned int reldups, retries;
+	unsigned long reldups, retries;
+	unsigned long pktdropped;
 	int hitmaxretries;
 	/* averaged round-trip time and deviation */
 	int avgrtt, rttdev;
@@ -137,12 +141,15 @@ typedef struct
 	LinkedList sizedsends;
 	/* bandwidth control. sincetime is in millis, not ticks */
 	ticks_t sincetime;
-	unsigned int bytessince, limit;
+	int bytessince, limit;
+#ifdef USE_HITLIMIT
+	int hitlimit;
+#endif
 	/* the outlist */
 	DQNode outlist;
 	pthread_mutex_t olmtx;
 	pthread_mutex_t bigmtx;
-} ConnData; /* 172 bytes? */
+} ConnData; /* 172-6 bytes? */
 
 
 
@@ -161,7 +168,7 @@ typedef struct Buffer
 	union
 	{
 		struct ReliablePacket rel;
-		byte raw[MAXPACKET];
+		byte raw[MAXPACKET+4];
 	} d;
 } Buffer;
 
@@ -615,6 +622,9 @@ local void InitConnData(ConnData *conn, Iencrypt *enc)
 	pthread_mutex_init(&conn->bigmtx, NULL);
 	conn->c2sn = -1;
 	conn->limit = LOW_LIMIT * 3; /* start slow */
+#ifdef USE_HITLIMIT
+	conn->hitlimit = 0;
+#endif
 	conn->enc = enc;
 	conn->avgrtt = 100; /* an initial guess */
 	conn->rttdev = 100;
@@ -707,7 +717,7 @@ int InitSockets(void)
 		{
 			/* single field: port */
 			sin.sin_addr.s_addr = INADDR_ANY;
-			port = strtol(field1, NULL, 0);
+			port = (unsigned short)strtol(field1, NULL, 0);
 		}
 		else
 		{
@@ -716,7 +726,7 @@ int InitSockets(void)
 			{
 				/* two fields: port, connectas */
 				sin.sin_addr.s_addr = INADDR_ANY;
-				port = strtol(field1, NULL, 0);
+				port = (unsigned short)strtol(field1, NULL, 0);
 				ld->connectas = astrdup(field2);
 			}
 			else
@@ -724,7 +734,7 @@ int InitSockets(void)
 				/* three fields: ip, port, connectas */
 				if (inet_aton(field1, &sin.sin_addr) == 0)
 					sin.sin_addr.s_addr = INADDR_ANY;
-				port = strtol(field2, NULL, 0);
+				port = (unsigned short)strtol(field2, NULL, 0);
 				ld->connectas = astrdup(n);
 			}
 		}
@@ -1279,9 +1289,11 @@ local void send_outgoing(ConnData *conn)
 	 * to resend a packet */
 	unsigned long timeout = conn->avgrtt + 4*conn->rttdev;
 
+	CLIP(timeout, 10, 2000);
+
 	/* adjust the current idea of how many bytes have been sent in the
 	 * last second */
-	if ( TICK_DIFF(now, conn->sincetime) > (1000/7) )
+	if (TICK_DIFF(now, conn->sincetime) > (1000/7))
 	{
 		conn->bytessince = conn->bytessince * 7 / 8;
 		conn->sincetime = TICK_MAKE(conn->sincetime + (1000/7));
@@ -1315,7 +1327,7 @@ local void send_outgoing(ConnData *conn)
 			/* check if it's time to send this yet (increase timeout
 			 * exponentially). */
 			if (buf->retries != 0 &&
-			    TICK_DIFF(now, buf->lastretry) <= (timeout << (buf->retries-1)))
+			    (unsigned long)TICK_DIFF(now, buf->lastretry) <= (timeout << (buf->retries-1)))
 				continue;
 
 			/* only buffer fixed number of rel packets to client */
@@ -1329,8 +1341,12 @@ local void send_outgoing(ConnData *conn)
 				{
 					DQRemove((DQNode*)buf);
 					FreeBuffer(buf);
+					conn->pktdropped++;
 				}
 				/* but in either case, skip it */
+#ifdef USE_HITLIMIT
+				conn->hitlimit = 1;
+#endif
 				continue;
 			}
 
@@ -1358,7 +1374,7 @@ local void send_outgoing(ConnData *conn)
 			    buf->callback == NULL &&
 			    ((gptr - gbuf) + buf->len) < (MAXPACKET-10))
 			{
-				*gptr++ = buf->len;
+				*gptr++ = (unsigned char)buf->len;
 				memcpy(gptr, buf->d.raw, buf->len);
 				gptr += buf->len;
 				bytessince += buf->len + 1;
@@ -1507,7 +1523,7 @@ void * SendThread(void *dummy)
 			    IS_OURS(p) &&
 			    pthread_mutex_trylock(&conn->olmtx) == 0)
 			{
-				send_outgoing(PPDATA(p, connkey));
+				send_outgoing(conn);
 				submit_rel_stats(p);
 				pthread_mutex_unlock(&conn->olmtx);
 			}
@@ -1897,6 +1913,7 @@ void ProcessGrouped(Buffer *buf)
 		}
 		pos += len;
 	}
+
 	FreeBuffer(buf);
 }
 
@@ -1938,7 +1955,19 @@ void ProcessAck(Buffer *buf)
 			}
 
 			/* handle limit adjustment */
-			conn->limit += 540*540/conn->limit;
+#ifdef USE_HITLIMIT
+			if (conn->hitlimit)
+			{
+				if (conn->p && conn->p->status != S_PLAYING)
+					conn->limit += 2048*2048/conn->limit;
+				else
+					conn->limit += 1024*1024/conn->limit;
+				conn->hitlimit = 0;
+			}
+			else
+#endif
+				conn->limit += 540*540/conn->limit;
+
 			CLIP(conn->limit, LOW_LIMIT, HIGH_LIMIT);
 
 			FreeBuffer(b);
@@ -2159,8 +2188,8 @@ presized_done:
 
 void ProcessCancelReq(Buffer *buf)
 {
+	/* the client has requested a cancel for the file transfer */
 	byte pkt[] = {0x00, 0x0C};
-	/* the client has request a cancel for the file transfer */
 	ConnData *conn = buf->conn;
 	struct sized_send_data *sd;
 	Link *l;
@@ -2181,9 +2210,9 @@ void ProcessCancelReq(Buffer *buf)
 	}
 	LLRemoveFirst(&conn->sizedsends);
 
-	pthread_mutex_unlock(&conn->olmtx);
+	BufferPacket(conn, pkt, sizeof(pkt), NET_RELIABLE, NULL, NULL);
 
-	BufferPacket(buf->conn, pkt, sizeof(pkt), NET_RELIABLE, NULL, NULL);
+	pthread_mutex_unlock(&conn->olmtx);
 
 	FreeBuffer(buf);
 }
@@ -2270,19 +2299,33 @@ Buffer * BufferPacket(ConnData *conn, byte *data, int len, int flags,
 	Buffer *buf;
 	int limit;
 
-	assert(len < MAXPACKET);
+	assert(len <= MAXPACKET);
 
 	/* handle default priority */
 	if (GET_PRI(flags) == 0) flags |= NET_PRI_DEFAULT;
+
 	limit = conn->limit * pri_limits[GET_PRI(flags)] / 100;
 
 	/* try the fast path */
-	if (flags == NET_PRI_P4 || flags == NET_PRI_P5)
+	if (GET_PRI(flags) > 5 && (flags & NET_RELIABLE) == 0)
+	{
 		if ((int)conn->bytessince + len + IP_UDP_OVERHEAD <= limit)
 		{
 			SendRaw(conn, data, len);
 			return NULL;
 		}
+		else
+		{
+#ifdef USE_HITLIMIT
+			conn->hitlimit = 1;
+#endif
+			if (flags & NET_DROPPABLE)
+			{
+				conn->pktdropped++;
+				return NULL;
+			}
+		}
+	}
 
 	buf = GetBuffer();
 	buf->conn = conn;
@@ -2291,7 +2334,7 @@ Buffer * BufferPacket(ConnData *conn, byte *data, int len, int flags,
 	buf->pri = GET_PRI(flags);
 	buf->callback = callback;
 	buf->clos = clos;
-	buf->flags = 0;
+	buf->flags = flags;
 	global_stats.pri_stats[buf->pri]++;
 
 	/* get data into packet */
@@ -2314,12 +2357,18 @@ Buffer * BufferPacket(ConnData *conn, byte *data, int len, int flags,
 
 	/* if it's urgent, do one retry now */
 	if (GET_PRI(flags) > 5)
+	{
 		if (((int)conn->bytessince + buf->len + IP_UDP_OVERHEAD) <= limit)
 		{
 			buf->lastretry = current_millis();
 			buf->retries++;
 			SendRaw(conn, buf->d.raw, buf->len);
 		}
+#ifdef USE_HITLIMIT
+		else
+			conn->hitlimit = 1;
+#endif
+	}
 
 	return buf;
 }
@@ -2330,7 +2379,7 @@ void SendToOne(Player *p, byte *data, int len, int flags)
 	ConnData *conn = PPDATA(p, connkey);
 	if (!IS_OURS(p)) return;
 	/* see if we can do it the quick way */
-	if (len < MAXPACKET)
+	if (len <= MAXPACKET)
 	{
 		pthread_mutex_lock(&conn->olmtx);
 		BufferPacket(conn, data, len, flags, NULL, NULL);
@@ -2470,6 +2519,7 @@ void GetClientStats(Player *p, struct net_client_stats *stats)
 #define ASSIGN(field) stats->field = conn->field
 	ASSIGN(s2cn); ASSIGN(c2sn);
 	ASSIGN(pktsent); ASSIGN(pktrecvd); ASSIGN(bytesent); ASSIGN(byterecvd);
+	ASSIGN(pktdropped);
 #undef ASSIGN
 	/* encryption */
 	if (conn->enc)
@@ -2515,9 +2565,9 @@ ClientConnection *MakeClientConnection(const char *addr, int port,
 	cc->c.cc = cc; /* confusingly cryptic c code :) */
 
 	cc->c.sin.sin_family = AF_INET;
-	if (inet_aton(addr, &cc->c.sin.sin_addr) == 0)
+	if (inet_aton((char*)addr, &cc->c.sin.sin_addr) == 0)
 		goto fail;
-	cc->c.sin.sin_port = htons(port);
+	cc->c.sin.sin_port = htons((unsigned short)port);
 	cc->c.whichsock = clientsock;
 
 	pthread_mutex_lock(&ccmtx);

@@ -6,7 +6,7 @@
 
 /* prototypes */
 
-local void MyKillFunc(Arena *, Player *, Player *, int, int);
+local void MyKillFunc(Arena *, Player *, Player *, int, int, int*);
 
 /* global data */
 
@@ -51,13 +51,11 @@ EXPORT int MM_points_kill(int action, Imodman *mm_, Arena *arena)
 }
 
 
-void MyKillFunc(Arena *arena, Player *killer, Player *killed, int bounty, int flags)
+void MyKillFunc(Arena *arena, Player *killer, Player *killed, int bounty, int flags, int *totalpts)
 {
-	int tk, pts, fixedreward;
+	int tk, fixedreward, pts;
 
 	tk = killer->p_freq == killed->p_freq;
-	pts = bounty;
-
 	fixedreward = cfg->GetInt(arena->cfg, "Kill", "FixedKillReward", -1);
 	pts = (fixedreward != -1) ? fixedreward : bounty;
 
@@ -76,5 +74,9 @@ void MyKillFunc(Arena *arena, Player *killer, Player *killed, int bounty, int fl
 
 	if (stats)
 		stats->IncrementStat(killer, STAT_KILL_POINTS, pts);
+	/* no need for SendUpdates here because the client figures it out
+	 * from the kill packet. */
+
+	*totalpts += pts;
 }
 

@@ -65,6 +65,7 @@ EXPORT int MM_log_sysop(int action, Imodman *mm, Arena *arena)
 		cmd->RemoveCommand("lastlog", Clastlog);
 		mm->UnregCallback(CB_PLAYERACTION, PA, ALLARENAS);
 		mm->UnregCallback(CB_LOGFUNC, LogSysop, ALLARENAS);
+		pd->FreePlayerData(seewhatkey);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(lm);

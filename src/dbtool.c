@@ -580,7 +580,7 @@ local void arenas_print_names(char *key, void *val, void *data)
 
 local int cmd_arenas(int argc, char *argv[])
 {
-	arenas_hash = HashAlloc(491);
+	arenas_hash = HashAlloc();
 
 	walk_db(arenas_get_names, FALSE);
 
@@ -634,7 +634,7 @@ local void players_print_names(char *key, void *val, void *data)
 
 local int cmd_players(int argc, char *argv[])
 {
-	players_hash = HashAlloc(491);
+	players_hash = HashAlloc();
 
 	walk_db(players_get_names, FALSE);
 
@@ -690,7 +690,7 @@ local int cmd_serials(int argc, char *argv[])
 		return 1;
 	}
 
-	serials_hash = HashAlloc(491);
+	serials_hash = HashAlloc();
 
 	walk_db(serials_get_names, FALSE);
 

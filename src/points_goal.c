@@ -43,6 +43,7 @@ struct ArenaScores
 {
 	int mode;                       // stores type of soccer game, 0-6 by default
 	int stealpts;                   // 0 = absolute scoring, else = start value for each team
+	int cpts, reward, winby, timed;
 	int score[MAXFREQ];             // score each freq has
 	GoalAreas goals[MAXGOALS];      // array of goal-defined areas for >2 goal arenas
 };
@@ -136,9 +137,28 @@ void MyAA(Arena *arena, int action)
 	{
 		int i, cpts;
 
-		/* FIXME: document these settings */
+		/* cfghelp: Soccer:Mode, arena, int, def: 0
+		 * Goal configuration (0=any goal, 1=left-half/right-half,
+		 * 2=top-half/bottom-half, 3=quadrants-defend-one-goal,
+		 * 4=quadrants-defend-three-goals, 5=sides-defend-one-goal,
+		 * 6=sides-defend-three-goals */
 		scores->mode = cfg->GetInt(arena->cfg, "Soccer", "Mode",0);
-		cpts = cfg->GetInt(arena->cfg, "Soccer", "CapturePoints",1);
+		/* cfghelp: Soccer:CapturePoints, arena, int, def: 1
+		 * If positive, these points are distributed to each goal/team.
+		 * When you make a goal, the points get transferred to your goal/team.
+		 * In timed games, team with most points in their goal wins.  If one 
+		 * team gets all the points, then they win as well.  If negative,
+		 * teams are given 1 point for each goal, first team to reach
+		 * -CapturePoints points wins the game. */
+		cpts = scores->cpts = cfg->GetInt(arena->cfg, "Soccer", "CapturePoints", 1);
+		/* cfghelp: Soccer:Reward, arena, int, def: 0
+		 * Negative numbers equal absolute points given,
+		 * positive numbers use FlagReward formula. */
+		scores->reward = cfg->GetInt(arena->cfg, "Soccer", "Reward", 0);
+		/* cfghelp: Soccer:WinBy, arena, int, def: 0
+		 * Have to beat other team by this many goals */
+		scores->winby  = cfg->GetInt(arena->cfg, "Soccer", "WinBy",0);
+		scores->timed = cfg->GetInt(arena->cfg, "Misc", "TimedGame", 0);
 
 		if (cpts < 0)
 		{
@@ -326,10 +346,10 @@ int IdGoalScored (Arena *arena, int x, int y)
 
 void RewardPoints(Arena *arena, int winfreq)
 {
+	struct ArenaScores *scores = P_ARENA_DATA(arena, scrkey);
 	LinkedList set = LL_INITIALIZER;
 	int players = 0, points;
-	/* FIXME: document this setting */
-	int reward = cfg->GetInt(arena->cfg, "Soccer", "Reward", 0);
+	int reward = scores->reward;
 	Link *link;
 	Player *i;
 
@@ -369,7 +389,7 @@ void CheckGameOver(Arena *arena, int bid)
 	struct ArenaScores *scores = P_ARENA_DATA(arena, scrkey);
 	int i, j = 0, freq = 0;
 
-	if (cfg->GetInt(arena->cfg, "Misc", "TimedGame", 0))
+	if (scores->timed)
 		return;
 
 	for(i = 0; i < MAXFREQ; i++)
@@ -405,9 +425,8 @@ void CheckGameOver(Arena *arena, int bid)
 	}
 	else // is mode 1-6 with absolute scoring
 	{
-		int win = cfg->GetInt(arena->cfg, "Soccer", "CapturePoints",0);
-		/* FIXME: document this */
-		int by  = cfg->GetInt(arena->cfg, "Soccer", "WinBy",0);
+		int win = scores->cpts;
+		int by  = scores->winby;
 
 		if (scores->score[freq] >= win*-1)
 			for(i = 0; i < MAXFREQ; i++)

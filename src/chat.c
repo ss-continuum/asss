@@ -274,7 +274,6 @@ local void SendRemotePrivMessage(LinkedList *set, int sound,
 
 #define CMD_CHAR_1 '?'
 #define CMD_CHAR_2 '*'
-#define CMD_CHAR_3 '!'
 #define MOD_CHAT_CHAR '\\'
 
 #define OK(type) IS_ALLOWED(pm->mask | *am, type)
@@ -289,7 +288,7 @@ local void run_commands(const char *text, Player *p, Target *target)
 	while (*text)
 	{
 		/* skip over *, ?, and | */
-		while (*text == '?' || *text == '*' || *text == '|' || *text == '!')
+		while (*text == CMD_CHAR_1 || *text == CMD_CHAR_2 || *text == '|')
 			text++;
 		if (*text)
 		{
@@ -310,7 +309,7 @@ local void handle_pub(Player *p, const char *msg, int ismacro, int sound)
 	struct player_mask_t *pm = PPDATA(p, pmkey);
 	struct ChatPacket *to = alloca(strlen(msg) + 40);
 
-	if (msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2 || msg[0] == CMD_CHAR_3)
+	if (msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2)
 	{
 		if (OK(MSG_COMMAND))
 		{
@@ -332,9 +331,7 @@ local void handle_pub(Player *p, const char *msg, int ismacro, int sound)
 			net->SendToArena(arena, p, (byte*)to, strlen(msg)+6,
 					ismacro ? cfg_msgrel | NET_PRI_N1 : cfg_msgrel);
 		if (chatnet)
-			chatnet->SendToArena(arena, p, "MSG:PUB:%s:%s",
-				p->name,
-				msg);
+			chatnet->SendToArena(arena, p, "MSG:PUB:%s:%s", p->name, msg);
 
 		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, to->type, sound, NULL, -1, msg));
 
@@ -386,7 +383,7 @@ local void handle_freq(Player *p, int freq, const char *msg, int sound)
 	struct player_mask_t *pm = PPDATA(p, pmkey);
 	struct ChatPacket *to = alloca(strlen(msg) + 40);
 
-	if (msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2 || msg[0] == CMD_CHAR_3)
+	if (msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2)
 	{
 		if (OK(MSG_COMMAND))
 		{
@@ -528,16 +525,28 @@ local void PChat(Player *p, byte *pkt, int len)
 	Arena *arena = p->arena;
 	Player *targ;
 	int freq = p->p_freq, sound = 0;
+	unsigned char *t;
+
+	if (len < 6)
+	{
+		lm->LogP(L_MALICIOUS, "chat", p, "bad chat packet len=%i", len);
+		return;
+	}
+
+	if (pkt[len-1] != '\0')
+	{
+		lm->LogP(L_MALICIOUS, "chat", p, "non-null terminated chat message");
+		return;
+	}
 
 	if (!arena) return;
 
 	expire_mask(p);
 
-	if (len < 6 || from->text[len - 6] != '\0')
-	{
-		lm->LogP(L_MALICIOUS, "chat", p, "non-null terminated chat message");
-		return;
-	}
+	/* remove control characters from the chat message */
+	for (t = from->text; *t; t++)
+		if (*t < 32 || *t == 127 || *t == 255)
+			*t = '_';
 
 	if (capman->HasCapability(p, CAP_SOUNDMESSAGES))
 		sound = from->sound;
@@ -561,7 +570,7 @@ local void PChat(Player *p, byte *pkt, int len)
 			targ = pd->PidToPlayer(from->pid);
 			if (!targ) break;
 
-			if (targ->arena == p->arena)
+			if (targ->arena == arena)
 				handle_freq(p, targ->p_freq, from->text, sound);
 			else
 				lm->LogP(L_MALICIOUS, "chat", p, "cross-arena nmefreq chat message");
@@ -575,7 +584,7 @@ local void PChat(Player *p, byte *pkt, int len)
 			targ = pd->PidToPlayer(from->pid);
 			if (!targ) break;
 
-			if (targ->arena == p->arena)
+			if (targ->arena == arena)
 				handle_priv(p, targ, from->text, sound);
 			else
 				lm->LogP(L_MALICIOUS, "chat", p, "cross-arena private chat message");
@@ -783,7 +792,7 @@ EXPORT int MM_chat(int action, Imodman *mm_, Arena *arena)
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
-		if (!cfg || !aman || !pd) return MM_FAIL;
+		if (!cfg || !aman || !pd || !lm) return MM_FAIL;
 
 #ifdef CFG_PERSISTENT_CHAT_MASKS
 		persist = mm->GetInterface(I_PERSIST, ALLARENAS);

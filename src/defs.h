@@ -16,8 +16,8 @@
 #define ATTR_MALLOC()
 #endif
 
-#define ASSSVERSION "1.1.4"
-#define ASSSVERSION_NUM 0x00010104
+#define ASSSVERSION "1.1.6"
+#define ASSSVERSION_NUM 0x00010106
 #define BUILDDATE __DATE__ " " __TIME__
 
 
@@ -174,7 +174,7 @@ typedef unsigned char byte;
 #endif
 
 
-#include "packets/sizes.h"
+#include "sizes.h"
 
 #include "packets/types.h"
 

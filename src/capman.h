@@ -45,7 +45,7 @@ typedef struct Icapman
 
 /* this interface should be used by very few places, because it might
  * not be available when using alternative capability managers. */
-#define I_GROUPMAN "groupman-1"
+#define I_GROUPMAN "groupman-2"
 
 typedef struct Igroupman
 {
@@ -79,6 +79,9 @@ typedef struct Igroupman
 #define CAP_SEESYSOPLOGARENA      "seesysoplogarena"
 #define CAP_SEEPRIVARENA          "seeprivarena"
 #define CAP_BYPASS_SECURITY       "bypasssecurity"
+#define CAP_BROADCAST_BOT         "broadcastbot"
+#define CAP_BROADCAST_ANY         "broadcastany"
+#define CAP_INVISIBLE_SPECTATOR   "invisiblespectator"
 
 
 #endif

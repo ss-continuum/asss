@@ -14,8 +14,53 @@
  * access speeds.
  */
 
+/* Return codes for GetTile() */
+enum map_tile_t
+{
+	/* standard tile types */
+	TILE_NONE           = 0,
 
-#define I_MAPDATA "mapdata-3"
+	TILE_START          = 1,
+	/* map borders are not included in the .lvl files */
+	TILE_BORDER         = 20,
+	TILE_END            = 161,
+	/* tiles up to this point are part of security checksum */
+
+	TILE_V_DOOR_START   = 162,
+	TILE_V_DOOR_END     = 165,
+
+	TILE_H_DOOR_START   = 166,
+	TILE_H_DOOR_END     = 169,
+
+	TILE_TURF_FLAG      = 170,
+
+	/* only other tile included in security checksum */
+	TILE_SAFE           = 171,
+
+	TILE_GOAL           = 172,
+
+	/* fly-over */
+	TILE_OVER_START     = 173,
+	TILE_OVER_END       = 175,
+
+	/* fly-under */
+	TILE_UNDER_START    = 176,
+	TILE_UNDER_END      = 190,
+
+	TILE_TINY_ASTEROID  = 216,
+	TILE_TINY_ASTEROID2 = 217,
+	TILE_BIG_ASTEROID   = 218,
+
+	TILE_STATION        = 219,
+
+	TILE_WORMHOLE       = 220,
+
+	/* internal tile types */
+	TILE_BRICK          = 250,
+};
+
+
+#define I_MAPDATA "mapdata-4"
 
 typedef struct Imapdata
 {
@@ -51,14 +96,14 @@ typedef struct Imapdata
 	/* the following three functions are in this module because of
 	 * efficiency concerns. */
 
-	void (*FindFlagTile)(Arena *arena, int *x, int *y);
+	void (*FindEmptyTileNear)(Arena *arena, int *x, int *y);
 	/* finds the tile nearest to the given tile that is appropriate for
-	 * placing a flag (empty and accessible). */
+	 * placing a flag. */
 
-	void (*FindBrickEndpoints)(Arena *arena, int dropx, int dropy,
+	int (*FindBrickEndpoints)(Arena *arena, int brickmode, int dropx, int dropy, int direction,
 			int length, int *x1, int *y1, int *x2, int *y2);
 	/* calculates the placement of a brick of a given length dropped at
-	 * a certain position. */
+	 * a certain position. direction is in ship graphic units: 0-39 */
 
 	u32 (*GetChecksum)(Arena *arena, u32 key);
 

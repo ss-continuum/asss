@@ -103,6 +103,7 @@ typedef struct Iarenaman
 	LinkedList arenalist;
 } Iarenaman;
 
+
 /* this will tell you if an arena is considered a "public" arena */
 #define ARENA_IS_PUBLIC(a) (strcmp((a)->basename, AG_PUBLIC) == 0)
 

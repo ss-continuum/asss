@@ -278,7 +278,7 @@ local HashTable *py_cb_callers;
 
 local void init_py_callbacks(void)
 {
-	py_cb_callers = HashAlloc(37);
+	py_cb_callers = HashAlloc();
 """)
 	for n, ctype in pycb_cb_names:
 		callback_file.write("	{ %s typecheck = py_cb_%s; (void)typecheck; }\n" % (ctype, n))
@@ -762,8 +762,8 @@ local HashTable *pyint_impl_ints;
 
 local void init_py_interfaces(void)
 {
-	pyint_ints = HashAlloc(37);
-	pyint_impl_ints = HashAlloc(37);
+	pyint_ints = HashAlloc();
+	pyint_impl_ints = HashAlloc();
 """)
 	for line in pyint_init_code:
 		out.write(line)

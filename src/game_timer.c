@@ -239,6 +239,8 @@ EXPORT int MM_game_timer(int action, Imodman *mm_, Arena *arena)
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
+		if (!pd || !aman || !lm || !cmd || !chat || !ml)
+			return MM_FAIL;
 
 		tdkey = aman->AllocateArenaData(sizeof(timerdata));
 		if (tdkey == -1) return MM_FAIL;

@@ -7,12 +7,12 @@
 #include <stdlib.h>
 
 #ifndef WIN32
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 #else
-#include <sys/stat.h>
+#include <io.h>
 #endif
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <fcntl.h>
 
 #include "zlib.h"
@@ -73,7 +73,7 @@ struct event_fc
 struct event_kill
 {
 	struct event_header head;
-	i16 killer, killed, bty, flags;
+	i16 killer, killed, pts, flags;
 };
 
 struct event_chat
@@ -257,7 +257,7 @@ local void cb_freqchange(Player *p, int freq)
 }
 
 
-local void cb_kill(Arena *a, Player *killer, Player *killed, int bty, int flags)
+local void cb_kill(Arena *a, Player *killer, Player *killed, int bty, int flags, int *pts)
 {
 	rec_adata *ra = P_ARENA_DATA(a, adkey);
 	struct event_kill *ev = amalloc(sizeof(*ev));
@@ -266,7 +266,7 @@ local void cb_kill(Arena *a, Player *killer, Player *killed, int bty, int flags)
 	ev->head.type = EV_KILL;
 	ev->killer = killer->pid;
 	ev->killed = killed->pid;
-	ev->bty = bty;
+	ev->pts = *pts; /* FIXME: this is only accurate if this is the last callback to get called */
 	ev->flags = flags;
 	MPAdd(&ra->mpq, ev);
 }
@@ -312,7 +312,7 @@ local inline int check_arena(Arena *a, rec_adata *ra)
 		return FALSE;
 }
 
-local void ppk(Player *p, byte *pkt, int n)
+local void ppk(Player *p, byte *pkt, int len)
 {
 	Arena *a = p->arena;
 	rec_adata *ra = P_ARENA_DATA(a, adkey);
@@ -320,11 +320,11 @@ local void ppk(Player *p, byte *pkt, int n)
 
 	if (!check_arena(a, ra)) return;
 
-	ev = amalloc(n + offsetof(struct event_pos, pos));
+	ev = amalloc(len + offsetof(struct event_pos, pos));
 	ev->head.tm = current_ticks();
 	ev->head.type = EV_POS;
-	memcpy(&ev->pos, pkt, n);
-	ev->pos.type = n;
+	memcpy(&ev->pos, pkt, len);
+	ev->pos.type = len;
 	ev->pos.time = p->pid;
 	MPAdd(&ra->mpq, ev);
 }
@@ -938,7 +938,7 @@ local void *playback_thread(void *v)
 					p1 = pidmap[ev.kill.killer];
 					p2 = pidmap[ev.kill.killed];
 					if (p1 && p2)
-						game->FakeKill(p1, p2, ev.kill.bty, ev.kill.flags);
+						game->FakeKill(p1, p2, ev.kill.pts, ev.kill.flags);
 					else
 						lm->LogA(L_WARN, "record", a, "no mapping for pid %d",
 								ev.sc.pid);

@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 1.1.4
+Welcome to asss (a small subspace server) 1.1.6.
 
 asss is a new subspace server, written from scratch. It has lots of cool
 new features and improvements over subgame.
@@ -14,15 +14,8 @@ server), please let me know.
 
 
 Recent updates:
-    * targeting autoturrets, better admin commands, turret kicking,
-      misc.other improvements and internal changes.
-
-    * added ?recyclearena, fixed horrible cont crashing bug.
-
-    * lots of changes were made between 1.0 and 1.1. the most
-      significant are: support for modules written in Python, a game
-      recorder module, updates to the console chat client, and lots of
-      bug fixes.
+    * lots of tiny bug fixes and internal improvements. new brick modes.
+      ForceEvenTeams. ?setjackpot.
 
 
 Contact: grelminar@yahoo.com

@@ -18,27 +18,28 @@
 #define S2C_SCOREUPDATE 0x09
 #define S2C_LOGINRESPONSE 0x0A
 #define S2C_SOCCERGOAL 0x0B
-/* compressed .wav, with extra data */
-#define S2C_WAVEFILE 0x0C
+#define S2C_VOICE 0x0C
 #define S2C_FREQCHANGE 0x0D
 #define S2C_TURRET 0x0E
 #define S2C_SETTINGS 0x0F
 #define S2C_INCOMINGFILE 0x10
-/* missing 11 */
+/* subspace client does no operation with 0x11 */
 #define S2C_FLAGLOC 0x12
 #define S2C_FLAGPICKUP 0x13
 #define S2C_FLAGRESET 0x14
 #define S2C_TURRETKICKOFF 0x15
 #define S2C_FLAGDROP 0x16
-/* missing 17 */
+/* subspace client does no operation with 0x17 */
 #define S2C_SECURITY 0x18
 #define S2C_REQUESTFORFILE 0x19
 #define S2C_TIMEDGAME 0x1A
 /* just 1 byte, tells client they need to reset their ship */
 #define S2C_SHIPRESET 0x1B
 /* two bytes, if byte two is true, client needs to send their item info in
- * position packets */
-#define S2C_EXTRADATA 0x1C
+ * position packets, OR
+ * three bytes, parameter is the player id of a player going into spectator
+ * mode */
+#define S2C_SPECDATA 0x1C
 #define S2C_SHIPCHANGE 0x1D
 #define S2C_BANNERTOGGLE 0x1E
 #define S2C_BANNER 0x1F
@@ -50,14 +51,14 @@
 #define S2C_SPEED 0x24
 /* two bytes, if byte two is true, you can use UFO if you want to */
 #define S2C_UFO 0x25
-/* missing 26 */
+/* subspace client does no operation with 0x26 */
 #define S2C_KEEPALIVE 0x27
 #define S2C_POSITION 0x28
 #define S2C_MAPFILENAME 0x29
 #define S2C_MAPDATA 0x2A
 #define S2C_SETKOTHTIMER 0x2B
 #define S2C_KOTH 0x2C
-/* missing 2D */
+/* missing 2D : some timer change? */
 #define S2C_BALL 0x2E
 #define S2C_ARENA 0x2F
 /* vie's old method of showing ads */
@@ -71,8 +72,7 @@
 /* u8 type - unlimited number of ui16 with obj id (if & 0xF000, means
  * turning off) */
 #define S2C_TOGGLEOBJ 0x35
-/* that ugly struct in mapobj.h that doesn't work yet */
-#define S2C_RECVOBJECT 0x36
+#define S2C_MOVEOBJECT 0x36
 /* two bytes, if byte two is true, client should send damage info */
 #define S2C_TOGGLEDAMAGE 0x37
 /* complex, the info used from a *watchdamage */
@@ -83,22 +83,20 @@
 #define C2S_GOTOARENA 0x01
 #define C2S_LEAVING 0x02
 #define C2S_POSITION 0x03
-/* missing 04 */
+/* missing 04 : appears to be disabled in subgame */
 #define C2S_DIE 0x05
 #define C2S_CHAT 0x06
 #define C2S_GREEN 0x07
 #define C2S_SPECREQUEST 0x08
 #define C2S_LOGIN 0x09
-/* ugly packet in mapobj.h */
-#define C2S_OBJECTMOVER 0x0A
+#define C2S_REBROADCAST 0x0A
 #define C2S_UPDATEREQUEST 0x0B
 #define C2S_MAPREQUEST 0x0C
 #define C2S_NEWSREQUEST 0x0D
-/* sending a .wav to another client */
-#define C2S_WAVESEND 0x0E
+#define C2S_RELAYVOICE 0x0E
 #define C2S_SETFREQ 0x0F
 #define C2S_ATTACHTO 0x10
-/* missing 12 */
+/* missing 12 : appears to be disabled in subgame */
 #define C2S_PICKUPFLAG 0x13
 #define C2S_TURRETKICKOFF 0x14
 #define C2S_DROPFLAGS 0x15
@@ -116,8 +114,8 @@
 #define C2S_SHOOTBALL 0x1F
 #define C2S_PICKUPBALL 0x20
 #define C2S_GOAL 0x21
-/* missing 22 23 */
-/* Had 22 logged once: 22 59 B8 13 03 3A 9E 96 60 48 C9 1C 28 0E 00 00 00 00 */
+/* missing 22 : subspace client sends extra checksums and other security stuff */
+/* missing 23 */
 #define C2S_CONTLOGIN 0x24
 #define C2S_DAMAGE 0x32
 

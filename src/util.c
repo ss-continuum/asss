@@ -14,6 +14,7 @@
 /* for GetTickCount() */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <io.h>
 #endif
 
 /* make sure to get the prototypes for thread functions instead of macros */
@@ -21,9 +22,6 @@
 
 #include "util.h"
 #include "defs.h"
-
-
-#define DEFTABLESIZE 29
 
 
 
@@ -36,8 +34,9 @@ typedef struct HashEntry
 
 struct HashTable
 {
-	int size;
-	HashEntry *lists[0];
+	int bucketsm1, ents;
+	int maxload; /* percent out of 100 */
+	HashEntry **lists;
 };
 
 
@@ -492,7 +491,7 @@ void LLEnum(LinkedList *lst, void (*func)(const void *ptr))
 /* HashTable data type */
 
 
-local inline HashEntry *GetAnEntry(const char *key)
+static inline HashEntry *alloc_entry(const char *key)
 {
 	HashEntry *ret = amalloc(sizeof(HashEntry) + strlen(key));
 	ret->next = ret->p = NULL;
@@ -502,19 +501,27 @@ local inline HashEntry *GetAnEntry(const char *key)
 
 
 /* note: this is a case-insensitive hash! */
-inline unsigned Hash(const char *s, int modulus)
+static inline unsigned long hash_string(const char *s)
 {
-	unsigned len = 3, ret = 17;
+	unsigned long h = 0xf0e1d2;
 	while (*s)
-		ret = ret * ((*s++)|32) + len++;
-	return ret % modulus;
+		h ^= (h << 7) + (h >> 2) + ((*s++) | 32);
+	return h;
 }
 
-HashTable * HashAlloc(int req)
+
+HashTable * HashAlloc(void)
 {
-	int size = req ? req : DEFTABLESIZE;
-	HashTable *h = amalloc(sizeof(HashTable) + size * sizeof(HashEntry*));
-	h->size = size;
+	int i;
+	HashTable *h = amalloc(sizeof(*h));
+
+	h->bucketsm1 = 15;
+	h->ents = 0;
+	h->lists = amalloc((h->bucketsm1 + 1) * sizeof(HashEntry *));
+	for (i = 0; i <= h->bucketsm1; i++)
+		h->lists[i] = NULL;
+	h->maxload = 75;
+
 	return h;
 }
 
@@ -522,7 +529,7 @@ void HashFree(HashTable *h)
 {
 	HashEntry *e, *n;
 	int i;
-	for (i = 0; i < h->size; i++)
+	for (i = 0; i <= h->bucketsm1; i++)
 	{
 		e = h->lists[i];
 		while (e)
@@ -532,6 +539,7 @@ void HashFree(HashTable *h)
 			e = n;
 		}
 	}
+	afree(h->lists);
 	afree(h);
 }
 
@@ -539,7 +547,7 @@ void HashEnum(HashTable *h, void (*func)(char *key, void *val, void *data), void
 {
 	HashEntry *e;
 	int i;
-	for (i = 0; i < h->size; i++)
+	for (i = 0; i <= h->bucketsm1; i++)
 	{
 		e = h->lists[i];
 		while (e)
@@ -550,14 +558,68 @@ void HashEnum(HashTable *h, void (*func)(char *key, void *val, void *data), void
 	}
 }
 
+static void check_rehash(HashTable *h)
+{
+	int newbucketsm1, i, load = h->ents * 100 / (h->bucketsm1+1);
+	HashEntry **newlists;
+
+	/* figure out if we need to rehash, and how big the resulting table
+	 * will be */
+	if (load > h->maxload)
+		newbucketsm1 = h->bucketsm1 * 2 + 1;
+	else if (load < (h->maxload / 4) && h->bucketsm1 > 15)
+		newbucketsm1 = (h->bucketsm1 - 1) / 2;
+	else
+		return;
+
+	/* allocate the new bucket array */
+	newlists = amalloc((newbucketsm1+1) * sizeof(HashEntry *));
+	for (i = 0; i <= newbucketsm1; i++)
+		newlists[i] = NULL;
+
+	/* rehash entries. this will end up with the chains in backwards
+	 * order */
+	for (i = 0; i <= h->bucketsm1; i++)
+	{
+		HashEntry *next, *e = h->lists[i];
+		while (e)
+		{
+			int newbucket = hash_string(e->key) & newbucketsm1;
+			next = e->next;
+			e->next = newlists[newbucket];
+			newlists[newbucket] = e;
+			e = next;
+		}
+	}
+
+	/* so we reverse them */
+	for (i = 0; i <= newbucketsm1; i++)
+	{
+		HashEntry *prev = NULL, *next, *e = newlists[i];
+		while (e)
+		{
+			next = e->next;
+			e->next = prev;
+			prev = e;
+			e = next;
+		}
+		newlists[i] = prev;
+	}
+
+	/* and finally clean up the old array */
+	afree(h->lists);
+	h->lists = newlists;
+	h->bucketsm1 = newbucketsm1;
+}
+
 void HashAdd(HashTable *h, const char *s, void *p)
 {
 	int slot;
 	HashEntry *e, *l;
 
-	slot = Hash(s, h->size);
+	slot = hash_string(s) & h->bucketsm1;
 
-	e = GetAnEntry(s);
+	e = alloc_entry(s);
 	e->p = p;
 	e->next = NULL;
 
@@ -573,6 +635,9 @@ void HashAdd(HashTable *h, const char *s, void *p)
 		/* this is first hash entry for this key */
 		h->lists[slot] = e;
 	}
+
+	h->ents++;
+	check_rehash(h);
 }
 
 void HashAddFront(HashTable *h, const char *s, void *p)
@@ -580,42 +645,40 @@ void HashAddFront(HashTable *h, const char *s, void *p)
 	int slot;
 	HashEntry *e;
 
-	slot = Hash(s, h->size);
+	slot = hash_string(s) & h->bucketsm1;
 
-	e = GetAnEntry(s);
+	e = alloc_entry(s);
 	e->p = p;
 	e->next = h->lists[slot];
 	h->lists[slot] = e;
+	h->ents++;
+	check_rehash(h);
 }
 
 void HashReplace(HashTable *h, const char *s, void *p)
 {
 	int slot;
-	HashEntry *l;
+	HashEntry *l, *last;
 
-	slot = Hash(s, h->size);
+	slot = hash_string(s) & h->bucketsm1;
 	l = h->lists[slot];
 
-	if (!l)
-		HashAdd(h, s, p);
-	else
+	/* try to find it */
+	while (l)
 	{
-		/* try to find it */
-		HashEntry *last;
-		do {
-			if (!strcasecmp(s, l->key))
-			{
-				/* found it, replace data and return */
-				l->p = p;
-				return;
-			}
-			last = l;
-			l = l->next;
-		} while (l);
-
-		/* it's not in the table, add normally */
-		HashAdd(h, s, p);
+		if (!strcasecmp(s, l->key))
+		{
+			/* found it, replace data and return */
+			l->p = p;
+			/* no need to modify h->ents */
+			return;
+		}
+		last = l;
+		l = l->next;
 	}
+
+	/* it's not in the table, add normally */
+	HashAdd(h, s, p);
 }
 
 void HashRemove(HashTable *h, const char *s, void *p)
@@ -623,7 +686,7 @@ void HashRemove(HashTable *h, const char *s, void *p)
 	int slot;
 	HashEntry *l, *prev = NULL;
 
-	slot = Hash(s, h->size);
+	slot = hash_string(s) & h->bucketsm1;
 	l = h->lists[slot];
 
 	while (l)
@@ -635,6 +698,8 @@ void HashRemove(HashTable *h, const char *s, void *p)
 			else /* removing first item */
 				h->lists[slot] = l->next;
 			afree(l);
+			h->ents--;
+			check_rehash(h);
 			return;
 		}
 		prev = l;
@@ -654,7 +719,7 @@ void HashGetAppend(HashTable *h, const char *s, LinkedList *res)
 	int slot;
 	HashEntry *l;
 
-	slot = Hash(s, h->size);
+	slot = hash_string(s) & h->bucketsm1;
 	l = h->lists[slot];
 
 	while (l)
@@ -670,7 +735,7 @@ void *HashGetOne(HashTable *h, const char *s)
 	int slot;
 	HashEntry *l;
 
-	slot = Hash(s, h->size);
+	slot = hash_string(s) & h->bucketsm1;
 	l = h->lists[slot];
 
 	while (l)

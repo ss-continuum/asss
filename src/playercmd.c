@@ -162,7 +162,7 @@ local void Carena(const char *params, Player *p, const Target *target)
 			{
 				/* every arena must have an arena.conf. this filters out
 				 * ., .., CVS, etc. */
-				snprintf(aconf, PATH_MAX, "arenas/%s/arena.conf", de->d_name);
+				snprintf(aconf, sizeof(aconf), "arenas/%s/arena.conf", de->d_name);
 				if (
 						(pos-buf+strlen(de->d_name)) < 480 &&
 						access(aconf, R_OK) == 0 &&
@@ -441,14 +441,14 @@ local void Cgetgroup(const char *params, Player *p, const Target *target)
 	REQUIRE_MOD(groupman)
 
 	if (target->type == T_PLAYER)
-		chat->SendMessage(p, "getgroup: %s is in group %s",
+		chat->SendMessage(p, "%s is in group %s",
 				target->u.p->name,
 				groupman->GetGroup(target->u.p));
 	else if (target->type == T_ARENA)
-		chat->SendMessage(p, "getgroup: You are in group %s",
+		chat->SendMessage(p, "You are in group %s",
 				groupman->GetGroup(p));
 	else
-		chat->SendMessage(p, "getgroup: Bad target");
+		chat->SendMessage(p, "Bad target");
 }
 
 
@@ -627,7 +627,7 @@ local void Clistmod(const char *params, Player *p, const Target *target)
 	FOR_EACH_PLAYER(i)
 		if (i->status == S_PLAYING &&
 		    strcmp(group = groupman->GetGroup(i), "default"))
-			chat->SendMessage(p, "listmod: %20s %10s %10s",
+			chat->SendMessage(p, ": %20s %10s %10s",
 					i->name,
 					i->arena->name,
 					group);
@@ -703,9 +703,9 @@ local void Cinfo(const char *params, Player *p, const Target *target)
 					prefix, s.ipaddr, s.port, s.encname, t->macid, t->permid);
 			ignoring = (int)(100.0 * (double)p->ignoreweapons / (double)RAND_MAX);
 			chat->SendMessage(p,
-					"%s: limit=%d  avg bandwidth in/out=%d/%d  ignoringwpns=%d%%",
+					"%s: limit=%d  avg bw in/out=%ld/%ld  ignoringwpns=%d%%  dropped=%ld",
 					prefix, s.limit, s.byterecvd*100/tm, s.bytesent*100/tm,
-					ignoring);
+					ignoring, s.pktdropped);
 		}
 		else if (IS_CHAT(t))
 		{
@@ -1336,6 +1336,7 @@ local void Cflaginfo(const char *params, Player *p, const Target *target)
 				{
 					unsigned short x = fd->flags[i].x * 20 / 1024;
 					unsigned short y = fd->flags[i].y * 20 / 1024;
+
 					chat->SendMessage(p,
 							"flag %d: on the map at %c%c (%d,%d), owned by freq %d",
 							i, 'A' + x, '1' + y, fd->flags[i].x, fd->flags[i].y, fd->flags[i].freq);
@@ -1440,6 +1441,22 @@ local void Cmoveflag(const char *params, Player *p, const Target *target)
 		y = fd->flags[flagid].y;
 	}
 
+	/* make sure it's not in a wall or off the map */
+	{
+		struct Imapdata *mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
+
+		if (x < 0) x = 0;
+		if (y < 0) y = 0;
+		if (x > 1023) x = 1023;
+		if (y > 1023) y = 1023;
+
+		if (mapdata)
+		{
+			mapdata->FindEmptyTileNear(arena, &x, &y);
+			mm->ReleaseInterface(mapdata);
+		}
+	}
+
 	flags->MoveFlag(arena, flagid, x, y, freq);
 
 mf_unlock:
@@ -1491,6 +1508,26 @@ local void Cjackpot(const char *params, Player *p, const Target *target)
 	}
 	else
 		chat->SendMessage(p, "jackpot: %d", jackpot->GetJP(p->arena));
+}
+
+
+local helptext_t setjackpot_help =
+"Targets: none\n"
+"Args: <new jackpot value>\n"
+"Sets the jackpot for this arena to a new value.\n";
+
+local void Csetjackpot(const char *params, Player *p, const Target *target)
+{
+	char *next;
+	int new = strtol(params, &next, 0);
+
+	if (next != params)
+	{
+		jackpot->SetJP(p->arena, new);
+		chat->SendMessage(p, "jackpot: %d", jackpot->GetJP(p->arena));
+	}
+	else
+		chat->SendMessage(p, "setjackpot: bad value");
 }
 
 
@@ -1892,6 +1929,7 @@ local void Ckick(const char *params, Player *p, const Target *target)
 		if (!capman->HasCapability(p, cap))
 		{
 			chat->SendMessage(p, "You don't have permission to use ?kick on that player.");
+			chat->SendMessage(t, "%s tried to use ?kick on you.", p->name);
 			return;
 		}
 	}
@@ -1978,6 +2016,7 @@ local const struct interface_info jackpot_requires[] =
 local const struct cmd_info jackpot_commands[] =
 {
 	CMD(jackpot)
+	CMD(setjackpot)
 	END()
 };
 
@@ -2143,5 +2182,6 @@ EXPORT int MM_playercmd(int action, Imodman *_mm, Arena *arena)
 	}
 	return MM_FAIL;
 }
+
 
 

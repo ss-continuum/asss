@@ -43,7 +43,7 @@ local pthread_rwlock_t arenalock;
 /* stuff to keep track of private per-arena memory */
 local int perarenaspace;
 
-typedef struct { int resurrect; } adata;
+typedef struct { byte resurrect; } adata;
 local int adkey;
 
 /* forward declaration */
@@ -78,6 +78,7 @@ local void do_attach(Arena *a, int action)
 local void arena_conf_changed(void *v)
 {
 	Arena *a = v;
+
 	/* only running arenas should recieve confchanged events */
 	if (a->status == ARENA_RUNNING)
 		DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_CONFCHANGED));
@@ -217,7 +218,7 @@ local Arena * create_arena(const char *name)
 
 	a->status = ARENA_DO_INIT;
 	a->cfg = NULL;
-	ad->resurrect = 0;
+	ad->resurrect = FALSE;
 
 	LLAdd(&myint.arenalist, a);
 
@@ -488,7 +489,7 @@ local void count_players(Arena *a, int *totalp, int *playingp)
 
 
 local void complete_go(Player *p, const char *reqname, int ship, int xres, int yres, int gfx,
-		int spawnx, int spawny)
+		int voices, int spawnx, int spawny)
 {
 	char name[16], *t;
 
@@ -552,6 +553,7 @@ local void complete_go(Player *p, const char *reqname, int ship, int xres, int y
 	p->xres = xres;
 	p->yres = yres;
 	p->flags.want_all_lvz = gfx;
+	p->pkt.acceptaudio = voices;
 	sp->x = spawnx;
 	sp->y = spawny;
 
@@ -572,21 +574,21 @@ local int has_cap_go(Player *p)
 }
 
 
-local void PArena(Player *p, byte *pkt, int l)
+local void PArena(Player *p, byte *pkt, int len)
 {
 	struct GoArenaPacket *go = (struct GoArenaPacket*)pkt;
 	char name[16];
 	int spx = 0, spy = 0;
 
 #ifdef CFG_RELAX_LENGTH_CHECKS
-	if (l != LEN_GOARENAPACKET_VIE && l != LEN_GOARENAPACKET_CONT)
+	if ( (p->type == T_VIE && len < LEN_GOARENAPACKET_VIE) ||
+	     (p->type == T_CONT && len < LEN_GOARENAPACKET_CONT) )
 #else
-	if ( (p->type == T_VIE && l != LEN_GOARENAPACKET_VIE) ||
-	     (p->type == T_CONT && l != LEN_GOARENAPACKET_CONT) )
+	if ( (p->type == T_VIE && len != LEN_GOARENAPACKET_VIE) ||
+	     (p->type == T_CONT && len != LEN_GOARENAPACKET_CONT) )
 #endif
 	{
-		lm->Log(L_MALICIOUS,"<arenaman> [%s] bad arena packet length (%d)",
-				p->name, l);
+		lm->LogP(L_MALICIOUS, "arenaman", p, " bad arena packet len=%i)", len);
 		return;
 	}
 
@@ -625,29 +627,35 @@ local void PArena(Player *p, byte *pkt, int l)
 		return;
 	}
 
-	complete_go(p, name, go->shiptype, go->xres, go->yres, go->optionalgraphics, spx, spy);
+	/* only use extra byte if it's there */
+	complete_go(p, name, go->shiptype, go->xres, go->yres,
+			(len >= LEN_GOARENAPACKET_CONT) ? go->optionalgraphics : 0,
+			go->wavmsg, spx, spy);
 }
 
 
 local void MArena(Player *p, const char *line)
 {
-	complete_go(p, line[0] ? line : "0", SPEC, 0, 0, 0, 0, 0);
+	complete_go(p, line[0] ? line : "0", SPEC, 0, 0, 0, 0, 0, 0);
 }
 
 
 local void SendToArena(Player *p, const char *aname, int spawnx, int spawny)
 {
-	int ship = p->p_ship;
-	int xres = p->xres;
-	int yres = p->yres;
-	int gfx = p->flags.want_all_lvz;
-
 	if (p->type == T_CONT)
-		complete_go(p, aname, ship, xres, yres, gfx, spawnx, spawny);
+		complete_go(p, aname, p->p_ship, p->xres, p->yres, p->flags.want_all_lvz, p->pkt.acceptaudio, spawnx, spawny);
 }
 
-local void PLeaving(Player *p, byte *pkt, int q)
+local void PLeaving(Player *p, byte *pkt, int len)
 {
+#ifndef CFG_RELAX_LENGTH_CHECKS
+	if (len != 1)
+	{
+		lm->LogP(L_MALICIOUS, "arenaman", p, "bad arena leaving packet len=%i", len);
+		return;
+	}
+#endif
+
 	LeaveArena(p);
 }
 
@@ -738,7 +746,7 @@ local int AllocateArenaData(size_t bytes)
 	for (l = LLGetHead(&blocks); l; l = l->next)
 	{
 		b = l->data;
-		if ((b->start - current) >= bytes)
+		if ((size_t)(b->start - current) >= bytes)
 		{
 			nb = amalloc(sizeof(*nb));
 			nb->start = current;
@@ -754,7 +762,7 @@ local int AllocateArenaData(size_t bytes)
 	}
 
 	/* if we couldn't get in between two blocks, try at the end */
-	if ((perarenaspace - current) >= bytes)
+	if ((size_t)(perarenaspace - current) >= bytes)
 	{
 		nb = amalloc(sizeof(*nb));
 		nb->start = current;
@@ -891,6 +899,5 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 	}
 	return MM_FAIL;
 }
-
 
 

@@ -83,8 +83,10 @@ void MyPA(Player *p, int action, Arena *arena)
 			aman->Unlock();
 
 			if (!link || !a)
+			{
 				if (lm) lm->Log(L_WARN, "<arenaperm> [%s] can't find any unrestricted arena!",
 						p->name);
+			}
 			else
 			{
 				p->arena = a; /* redirect him to new arena! */

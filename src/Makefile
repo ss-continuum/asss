@@ -37,7 +37,7 @@ link_db_statically = no
 
 # change this to the directory of your bdb 4.x install
 DB_HOME = /opt/db-4.0.14
-# these shouldn't have to change
+# you might have to add a '/db4' to the end of the next line:
 DB_INC = $(DB_HOME)/include
 DB_LIB = $(DB_HOME)/lib
 DB_CFLAGS = -I$(DB_INC)
@@ -113,7 +113,10 @@ LDFLAGS = $(DASH_PTHREAD) $(DASH_F_PIC) $(PROF_FLAGS)
 
 
 # the standalone binaries to build
-BINARIES := asss$(EXE) dbtool$(EXE)
+BINARIES := asss$(EXE)
+ifndef no_bdb
+BINARIES += dbtool$(EXE)
+endif
 
 # dynamic libraries to build
 DLS := core.so loggers.so game.so command.so external.so admin.so funky.so turf.so
@@ -140,21 +143,22 @@ asss$(EXE): main.o module.o cmod.o $(UTIL_OBJS)
 dbtool$(EXE): dbtool.o statcodes.o util.c
 	$(CC) $(LDFLAGS) -DNOMPQUEUE -o $@ $^ $(DB_LDFLAGS)
 
-core.so: config.o player.o core.o logman.o mainloop.o net.o \
+core.so: config.o prng.o md5.o player.o core.o logman.o mainloop.o net.o \
 	nullenc.o encrypt1.o arenaman.o mapdata.o mapnewsdl.o clientset.o \
 	capman.o lagdata.o lagaction.o $(DL_UTIL_OBJS)
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -lz
 
-loggers.so: log_file.o log_console.o log_sysop.o
+loggers.so: log_file.o log_console.o log_sysop.o $(DL_UTIL_OBJS)
 
 game.so: game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
-	banners.o objects.o messages.o koth.o fm_lockspec.o $(DL_UTIL_OBJS)
+	banners.o bricks.o objects.o messages.o koth.o fm_lockspec.o \
+	$(DL_UTIL_OBJS)
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -lm
 
 command.so: cmdman.o playercmd.o admincmd.o watchdamage.o buy.o help.o \
 	cfghelp.o $(DL_UTIL_OBJS)
 
-external.so: directory.o billing.o billing_ssc.o
+external.so: directory.o billing.o billing_ssc.o $(DL_UTIL_OBJS)
 
 scoring.so: persist.o stats.o statcodes.o points_kill.o points_flag.o \
 	points_goal.o jackpot.o periodic.o points_periodic.o basicstats.o \

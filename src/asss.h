@@ -22,9 +22,11 @@
 #include "stats.h"
 #include "flags.h"
 #include "balls.h"
-#include "mapdata.h"
 #include "chatnet.h"
 #include "lagdata.h"
+#include "prng.h"
+#include "bricks.h"
+#include "mapdata.h"
 
 /* utility functions that are linked in directly */
 #include "util.h"

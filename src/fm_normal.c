@@ -66,7 +66,7 @@ local int count_freq(Arena *arena, int freq, Player *excl, int inclspec)
 		if (p->arena == arena &&
 		    p->p_freq == freq &&
 		    p != excl &&
-		    ( p->p_ship < SPEC || inclspec ) )
+		    ( p->p_ship != SPEC || inclspec ) )
 			t++;
 	pd->Unlock();
 	return t;
@@ -119,7 +119,7 @@ local int BalanceFreqs(Arena *arena, Player *excl, int inclspec)
 		if (i->arena == arena &&
 		    i->p_freq < desired &&
 		    i != excl &&
-		    ( i->p_ship < SPEC || inclspec ) )
+		    ( i->p_ship != SPEC || inclspec ) )
 			counts[i->p_freq]++;
 	pd->Unlock();
 
@@ -298,6 +298,23 @@ local void Freq(Player *p, int *ship, int *freq)
 		if (max > 0 && count >= max)
 			/* the freq has too many people, assign him to another */
 			f = BalanceFreqs(arena, p, inclspec);
+		/* cfghelp: Team:ForceEvenTeams, arena, boolean, def: 0
+		 * Whether players can switch to more populous teams. */
+		else if (cfg->GetInt(ch, "Team", "ForceEvenTeams", 0))
+		{
+			int old = count_freq(arena, p->p_freq, p, inclspec);
+
+			/* ForceEvenTeams */
+			if (old < count)
+			{
+				if (chat)
+					chat->SendMessage(p,
+						"Changing frequencies would make the teams uneven.");
+				*freq = p->p_freq;
+				*ship = p->p_ship;
+				return;
+			}
+		}
 	}
 
 	/* make sure he has an appropriate ship for this freq */

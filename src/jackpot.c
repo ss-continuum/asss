@@ -51,6 +51,14 @@ local int GetJP(Arena *arena)
 	return jp;
 }
 
+local void SetJP(Arena *arena, int pts)
+{
+	jpdata *jpd = P_ARENA_DATA(arena, jpkey);
+	LOCK();
+	jpd->jp = pts;
+	UNLOCK();
+}
+
 
 local int get_data(Arena *arena, void *d, int len, void *v)
 {
@@ -89,7 +97,7 @@ local ArenaPersistentData persistdata =
 };
 
 
-local void mykill(Arena *arena, int killer, int killed, int bounty, int flags)
+local void mykill(Arena *arena, int killer, int killed, int bounty, int flags, int *pts)
 {
 	jpdata *jpd = P_ARENA_DATA(arena, jpkey);
 	LOCK();
@@ -114,7 +122,7 @@ local void aaction(Arena *arena, int action)
 local Ijackpot jpint =
 {
 	INTERFACE_HEAD_INIT(I_JACKPOT, "jackpot")
-	ResetJP, AddJP, GetJP
+	ResetJP, AddJP, GetJP, SetJP
 };
 
 

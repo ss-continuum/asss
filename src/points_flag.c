@@ -2,6 +2,7 @@
 /* dist: public */
 
 #include "asss.h"
+#include "jackpot.h"
 
 
 /* prototypes */
@@ -55,9 +56,10 @@ EXPORT int MM_points_flag(int action, Imodman *mm_, Arena *arena)
 void MyFlagWin(Arena *arena, int freq)
 {
 	LinkedList set = LL_INITIALIZER;
-	int players, reward, splitpts, points;
+	int players, reward, splitpts, points, jppts = 0;
 	Player *i;
 	Link *link;
+	Ijackpot *jackpot;
 
 	players = 0;
 	pd->Lock();
@@ -79,6 +81,13 @@ void MyFlagWin(Arena *arena, int freq)
 		}
 	pd->Unlock();
 
+	jackpot = mm->GetInterface(I_JACKPOT, arena);
+	if (jackpot)
+	{
+		jppts = jackpot->GetJP(arena);
+		mm->ReleaseInterface(jackpot);
+	}
+
 	/* cfghelp: Flag:FlagReward, arena, int, def: 5000, mod: points_flag
 	 * The basic flag reward is calculated as (players in arena)^2 *
 	 * reward / 1000. */
@@ -88,7 +97,7 @@ void MyFlagWin(Arena *arena, int freq)
 	 * give them each the full amount. */
 	splitpts = cfg->GetInt(arena->cfg, "Flag", "SplitPoints", 0);
 
-	points = players * players * reward / 1000;
+	points = players * players * reward / 1000 + jppts;
 
 	if (splitpts && LLCount(&set) > 0)
 		points /= LLCount(&set);

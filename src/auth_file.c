@@ -66,8 +66,8 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 {
 	AuthData ad;
 	const char *line;
-	char name[24];
-	char pass[24];
+	char name[32];
+	char pass[32];
 
 	/* copy to local storage in case it's not null terminated */
 	astrncpy(name, lp->name, sizeof(name));
@@ -128,9 +128,9 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 			{
 				char hex[33];
 
-				hash_password(lp->name, lp->password, hex);
+				hash_password(name, pass, hex);
 
-				cfg->SetStr(pwdfile, "users", lp->name, hex, NULL);
+				cfg->SetStr(pwdfile, "users", name, hex, NULL);
 				ad.authenticated = TRUE;
 			}
 		}

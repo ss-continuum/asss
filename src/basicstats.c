@@ -16,7 +16,7 @@ local void mypa(Player *p, int action, Arena *arena)
 		stats->StopTimer(p, STAT_ARENA_TOTAL_TIME);
 }
 
-local void mykill(Arena *arena, Player *killer, Player *killed, int bounty, int flags)
+local void mykill(Arena *arena, Player *killer, Player *killed, int bounty, int flags, int *pts)
 {
 	stats->IncrementStat(killer, STAT_KILLS, 1);
 	stats->IncrementStat(killed, STAT_DEATHS, 1);

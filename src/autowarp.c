@@ -81,12 +81,15 @@ local void DoChecksum(struct S2CWeapons *pkt)
 }
 
 
-void Pppk(Player *p, byte *p2, int n)
+void Pppk(Player *p, byte *p2, int len)
 {
 	struct C2SPosition *pos = (struct C2SPosition *)p2;
 	Arena *arena = p->arena;
 	struct adata *ad = P_ARENA_DATA(arena, adkey);
 	int warpy = 0;
+
+	if (len < 22)
+		return;
 
 	/* handle common errors */
 	if (!arena || !ad->on) return;

@@ -14,20 +14,17 @@
 /* region stuff, to be consistent with regiongen */
 #include "region.h"
 
-
-#define TILE_FLAG 0xAA
-#define TILE_SAFE 0xAB
-#define TILE_GOAL 0xAC
-#define TILE_BRICK 0xFA /* internal only */
+/* brick mode constants */
+#include "settings/game.h"
 
 #define MAXREGIONNAME 32
 
 /* structs for packet types and data */
 struct TileData
 {
-	unsigned x : 12;
-	unsigned y : 12;
-	unsigned type : 8;
+	u32 x : 12;
+	u32 y : 12;
+	u32 type : 8;
 };
 
 
@@ -58,8 +55,15 @@ local int GetFlagCount(Arena *arena);
 local int GetTile(Arena *arena, int x, int y);
 local const char *GetRegion(Arena *arena, int x, int y);
 local int InRegion(Arena *arena, const char *region, int x, int y);
-local void FindFlagTile(Arena *arena, int *x, int *y);
-local void FindBrickEndpoints(Arena *arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2);
+local void FindEmptyTileNear(Arena *arena, int *x, int *y);
+local int FindBrickEndpoints(
+		Arena *arena,
+		int mode,
+		int dropx,
+		int dropy,
+		int direction,
+		int length,
+		int *x1, int *y1, int *x2, int *y2);
 local u32 GetChecksum(Arena *arena, u32 key);
 local void DoBrick(Arena *arena, int drop, int x1, int y1, int x2, int y2);
 
@@ -72,6 +76,7 @@ local Imodman *mm;
 local Iconfig *cfg;
 local Iarenaman *aman;
 local Ilogman *lm;
+local Iprng *prng;
 
 
 /* this module's interface */
@@ -81,7 +86,7 @@ local Imapdata _int =
 	GetMapFilename,
 	GetFlagCount, GetTile,
 	GetRegion, InRegion,
-	FindFlagTile, FindBrickEndpoints,
+	FindEmptyTileNear, FindBrickEndpoints,
 	GetChecksum, DoBrick
 };
 
@@ -117,6 +122,7 @@ EXPORT int MM_mapdata(int action, Imodman *_mm, Arena *arena)
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(prng);
 
 		return MM_OK;
 	}
@@ -131,12 +137,12 @@ int read_lvl(char *name, struct MapData *md)
 	int flags = 0, errors = 0;
 	sparse_arr arr;
 
-	FILE *f = fopen(name, "r");
+	FILE *f = fopen(name, "rb");
 	if (!f) return 1;
 
 	/* first try to skip over bmp header */
 	fread(&bm, sizeof(bm), 1, f);
-	if (bm == 0x4D42)
+	if (bm == 0x4D42) /* "BM" */
 	{
 		u32 len;
 		fread(&len, sizeof(len), 1, f);
@@ -152,18 +158,18 @@ int read_lvl(char *name, struct MapData *md)
 	{
 		if (td.x < 1024 && td.y < 1024)
 		{
-			if (td.type == TILE_FLAG)
+			if (td.type == TILE_TURF_FLAG)
 				flags++;
-			if (td.type < 0xD0)
+			if (td.type < TILE_BIG_ASTEROID)
 				insert_sparse(arr, td.x, td.y, td.type);
 			else
 			{
 				int size = 1, x, y;
-				if (td.type == 0xD9)
+				if (td.type == TILE_BIG_ASTEROID)
 					size = 2;
-				else if (td.type == 0xDB)
+				else if (td.type == TILE_STATION)
 					size = 6;
-				else if (td.type == 0xDC)
+				else if (td.type == TILE_WORMHOLE)
 					size = 5;
 				for (x = 0; x < size; x++)
 					for (y = 0; y < size; y++)
@@ -195,10 +201,9 @@ local int GetMapFilename(Arena *arena, char *buf, int buflen, const char *mapnam
 {
 	int islvl = 0;
 	const char *t;
-	struct replace_table repls[3] =
+	struct replace_table repls[2] =
 	{
 		{'m', NULL},
-		{'a', arena->name},
 		{'b', arena->basename},
 	};
 
@@ -220,7 +225,7 @@ local int GetMapFilename(Arena *arena, char *buf, int buflen, const char *mapnam
 			buflen,
 			islvl ? CFG_LVL_SEARCH_PATH : CFG_LVZ_SEARCH_PATH,
 			repls,
-			3) == 0;
+			2) == 0;
 }
 
 void ArenaAction(Arena *arena, int action)
@@ -237,7 +242,6 @@ void ArenaAction(Arena *arena, int action)
 	/* no matter what is happening, destroy old mapdata */
 	if (action == AA_CREATE || action == AA_DESTROY)
 	{
-
 		if (md->arr)
 		{
 			delete_sparse(md->arr);
@@ -262,8 +266,11 @@ void ArenaAction(Arena *arena, int action)
 			char *t;
 
 			if (read_lvl(mapname, md))
-				lm->Log(L_ERROR, "<mapdata> {%s} error parsing map file '%s'",
-						arena->name, mapname);
+				lm->LogA(L_ERROR, "mapdata", arena, "error processing map file '%s'",
+						mapname);
+			else
+				lm->LogA(L_INFO, "mapdata", arena, "successfully processed map file '%s'",
+						mapname);
 			/* if extension == .lvl */
 			t = strrchr(mapname, '.');
 			if (t && strcmp(t, ".lvl") == 0)
@@ -297,17 +304,16 @@ int GetFlagCount(Arena *a)
 }
 
 
-void FindFlagTile(Arena *arena, int *x, int *y)
+void FindEmptyTileNear(Arena *arena, int *x, int *y)
 {
 	/* init context. these values are funny because they are one
 	 * iteration before where we really want to start from. */
 	struct
 	{
-		enum { down, right, up, left } dir;
+		enum { up, right, down, left } dir;
 		int upto, remaining;
 		int x, y;
 	} ctx = { left, 0, 1, *x + 1, *y };
-	int good = 0;
 	struct MapData *md;
 	sparse_arr arr;
 
@@ -319,7 +325,7 @@ void FindFlagTile(Arena *arena, int *x, int *y)
 	if (!arr) goto failed_1;
 
 	/* do it */
-	do
+	for (;;)
 	{
 		/* move 1 in current dir */
 		switch (ctx.dir)
@@ -339,26 +345,18 @@ void FindFlagTile(Arena *arena, int *x, int *y)
 			ctx.remaining = ctx.upto;
 		}
 
-		/* check if it's ok */
-		good = 1;
 		/* check if the tile is empty */
 		if (lookup_sparse(arr, ctx.x, ctx.y))
-			good = 0;
-		/* check if it's surrounded on top and bottom */
-		if (lookup_sparse(arr, ctx.x, ctx.y + 1) &&
-		    lookup_sparse(arr, ctx.x, ctx.y - 1))
-			good = 0;
-		/* check if it's surrounded on left and right */
-		if (lookup_sparse(arr, ctx.x + 1, ctx.y) &&
-		    lookup_sparse(arr, ctx.x - 1, ctx.y))
-			good = 0;
-	}
-	while (!good && ctx.upto < 35);
+		{
+			if (ctx.upto < 35)
+				continue;
+			else
+				goto failed_1;
+		}
 
-	if (good)
-	{
 		/* return values */
 		*x = ctx.x; *y = ctx.y;
+		break;
 	}
 
 failed_1:
@@ -366,11 +364,18 @@ failed_1:
 }
 
 
-void FindBrickEndpoints(Arena *arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2)
+int FindBrickEndpoints(
+		Arena *arena,
+		int brickmode,
+		int dropx,
+		int dropy,
+		int direction,
+		int length,
+		int *x1, int *y1, int *x2, int *y2)
 {
 	struct MapData *md;
 	sparse_arr arr;
-	enum { down, right, up, left } dir;
+	enum { up, right, down, left } dir;
 	int bestcount, bestdir, x, y, destx = dropx, desty = dropy;
 
 	md = P_ARENA_DATA(arena, mdkey);
@@ -379,26 +384,84 @@ void FindBrickEndpoints(Arena *arena, int dropx, int dropy, int length, int *x1,
 
 	if (lookup_sparse(arr, dropx, dropy))
 	{
-		/* we can't drop it on a wall! */
-		*x1 = *x2 = dropx;
-		*y1 = *y2 = dropy;
-		goto failed_2;
+		pthread_mutex_unlock(&md->mtx);
+		return FALSE;
 	}
 
-	/* find closest wall and the point next to it */
-	bestcount = 3000;
-	bestdir = -1;
-	for (dir = 0; dir < 4; dir++)
+	/* in the worst case, we can always just drop a single block */
+
+	if (brickmode == BRICK_VIE)
+	{
+		/* find closest wall and the point next to it */
+		bestcount = 3000;
+		bestdir = -1;
+		for (dir = 0; dir < 4; dir++)
+		{
+			int count = 0, oldx = dropx, oldy = dropy;
+			x = dropx; y = dropy;
+
+			while (x >= 0 && x < 1024 &&
+			       y >= 0 && y < 1024 &&
+			       lookup_sparse(arr, x, y) == 0 &&
+			       count < length)
+			{
+				switch (dir)
+				{
+					case down:  oldy = y++; break;
+					case right: oldx = x++; break;
+					case up:    oldy = y--; break;
+					case left:  oldx = x--; break;
+				}
+				count++;
+			}
+
+			if (count < bestcount)
+			{
+				bestcount = count;
+				bestdir = dir;
+				destx = oldx; desty = oldy;
+			}
+		}
+
+		if (bestdir == -1)
+		{
+			/* shouldn't happen */
+			*x1 = *x2 = dropx;
+			*y1 = *y2 = dropy;
+			goto failed_2;
+		}
+
+		if (bestcount == length)
+		{
+			/* no closest wall */
+			if (prng->Get32() & 1)
+			{
+				destx = dropx - length / 2;
+				desty = dropy;
+				bestdir = left;
+			}
+			else
+			{
+				destx = dropx;
+				desty = dropy - length / 2;
+				bestdir = up;
+			}
+		}
+	}
+	else if (brickmode == BRICK_AHEAD)
 	{
 		int count = 0, oldx = dropx, oldy = dropy;
+
 		x = dropx; y = dropy;
 
-		while (lookup_sparse(arr, x, y) == 0 &&
-		       x >= 0 && x < 1024 &&
+		bestdir = ((direction + 5) % 40) / 10;
+
+		while (x >= 0 && x < 1024 &&
 		       y >= 0 && y < 1024 &&
+		       lookup_sparse(arr, x, y) == 0 &&
 		       count < length)
 		{
-			switch (dir)
+			switch (bestdir)
 			{
 				case down:  oldy = y++; break;
 				case right: oldx = x++; break;
@@ -408,38 +471,146 @@ void FindBrickEndpoints(Arena *arena, int dropx, int dropy, int length, int *x1,
 			count++;
 		}
 
-		if (count < bestcount)
+		destx = oldx; desty = oldy;
+	}
+	else if (brickmode == BRICK_LATERAL)
+	{
+		int count = 0, oldx = dropx, oldy = dropy;
+
+		x = dropx; y = dropy;
+
+		bestdir = ((direction + 15) % 40) / 10;
+
+		while (x >= 0 && x < 1024 &&
+		       y >= 0 && y < 1024 &&
+		       lookup_sparse(arr, x, y) == 0 &&
+		       count <= length / 2)
 		{
-			bestcount = count;
-			bestdir = dir;
-			destx = oldx; desty = oldy;
+			switch (bestdir)
+			{
+				case down:  oldy = y++; break;
+				case right: oldx = x++; break;
+				case up:    oldy = y--; break;
+				case left:  oldx = x--; break;
+			}
+			count++;
 		}
-	}
 
-	if (bestdir == -1)
-	{
-		/* shouldn't happen */
-		*x1 = *x2 = dropx;
-		*y1 = *y2 = dropy;
-		goto failed_2;
+		destx = oldx; desty = oldy;
 	}
-
-	if (bestcount == length)
+	else if (brickmode == BRICK_CAGE)
 	{
-		/* no closest wall */
-		if (rand() & 0x800)
+		/* generate drop coords inside map */
+		int sx = dropx - (length) / 2,
+			sy = dropy - (length) / 2,
+			ex = dropx + (length + 1) / 2,
+			ey = dropy + (length + 1) / 2;
+
+		if (sx < 0) sx = 0;
+		if (sy < 0) sy = 0;
+		if (ex > 1023) ex = 1023;
+		if (ey > 1023) ey = 1023;
+
+		/* top */
+		x = sx;
+		y = sy;
+
+		while (x <= ex && lookup_sparse(arr, x, y))
+			++x;
+
+		if (x > ex)
 		{
-			destx = dropx - length / 2;
-			desty = dropy;
-			bestdir = left;
+			x1[0] = dropx;
+			x2[0] = dropx;
+			y1[0] = dropy;
+			y2[0] = dropy;
 		}
 		else
 		{
-			destx = dropx;
-			desty = dropy - length / 2;
-			bestdir = up;
+			x1[0] = x++;
+			while (x <= ex && !lookup_sparse(arr, x, y))
+				++x;
+			x2[0] = x-1;
+			y1[0] = y;
+			y2[0] = y;
 		}
+
+		/* bottom */
+		x = sx;
+		y = ey;
+
+		while (x <= ex && lookup_sparse(arr, x, y))
+			++x;
+
+		if (x > ex)
+		{
+			x1[1] = dropx;
+			x2[1] = dropx;
+			y1[1] = dropy;
+			y2[1] = dropy;
+		}
+		else
+		{
+			x1[1] = x++;
+			while (x <= ex && !lookup_sparse(arr, x, y))
+				++x;
+			x2[1] = x-1;
+			y1[1] = y;
+			y2[1] = y;
+		}
+
+		/* left */
+		x = sx;
+		y = sy;
+
+		while (y <= ey && lookup_sparse(arr, x, y))
+			++y;
+
+		if (y > ey)
+		{
+			x1[2] = dropx;
+			x2[2] = dropx;
+			y1[2] = dropy;
+			y2[2] = dropy;
+		}
+		else
+		{
+			y1[2] = y++;
+			while (y <= ey && !lookup_sparse(arr, x, y))
+				++y;
+			y2[2] = y-1;
+			x1[2] = x;
+			x2[2] = x;
+		}
+
+		/* right */
+		x = ex;
+		y = sy;
+
+		while (y <= ey && lookup_sparse(arr, x, y))
+			++y;
+
+		if (y > ey)
+		{
+			x1[3] = dropx;
+			x2[3] = dropx;
+			y1[3] = dropy;
+			y2[3] = dropy;
+		}
+		else
+		{
+			y1[3] = y++;
+			while (y <= ey && !lookup_sparse(arr, x, y))
+				++y;
+			y2[3] = y-1;
+			x1[3] = x;
+			x2[3] = x;
+		}
+
+		goto failed_2;
 	}
+	else
+		goto failed_2;
 
 	/* enter first coordinate */
 	dropx = x = *x1 = destx; dropy = y = *y1 = desty;
@@ -495,6 +666,7 @@ void FindBrickEndpoints(Arena *arena, int dropx, int dropy, int length, int *x1,
 
 failed_2:
 	pthread_mutex_unlock(&md->mtx);
+	return TRUE;
 }
 
 
@@ -544,7 +716,7 @@ u32 GetChecksum(Arena *arena, u32 key)
 		for (x = savekey % 31; x < 1024; x += 31)
 		{
 			byte tile = lookup_sparse(arr, x, y);
-			if ((tile > 0x00 && tile < 0xa1) || tile == 0xab)
+			if ((tile >= TILE_START && tile <= TILE_END) || tile == TILE_SAFE)
 				key += savekey ^ tile;
 		}
 
@@ -560,7 +732,7 @@ HashTable * LoadRegions(char *fname)
 {
 	char buf[256];
 	FILE *f = fopen(fname, "r");
-	HashTable *hash = HashAlloc(17);
+	HashTable *hash = HashAlloc();
 	struct Region *reg = NULL;
 
 	if (f)

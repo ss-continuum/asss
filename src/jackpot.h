@@ -13,7 +13,7 @@
  */
 
 
-#define I_JACKPOT "jackpot-1"
+#define I_JACKPOT "jackpot-2"
 
 typedef struct Ijackpot
 {
@@ -26,6 +26,8 @@ typedef struct Ijackpot
 	/* pyint: arena, int -> void */
 	int (*GetJP)(Arena *arena);
 	/* pyint: arena -> int */
+	void (*SetJP)(Arena *arena, int pts);
+	/* pyint: arena, int -> void */
 } Ijackpot;
 
 #endif

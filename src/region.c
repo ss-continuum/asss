@@ -48,7 +48,7 @@ rectlist_t init_rectlist(void)
 
 void add_rect(rectlist_t *l, rect_t rect)
 {
-	if (l->count == l->allocated)
+	if (l->count >= l->allocated)
 	{
 		l->allocated *= 2;
 		l->data = realloc(l->data, l->allocated * sizeof(rect_t));

@@ -315,6 +315,7 @@ EXPORT int MM_lagaction(int action, Imodman *mm, Arena *arena)
 		mm->UnregCallback(CB_MAINLOOP, mainloop, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, arenaaction, ALLARENAS);
 		aman->FreeArenaData(limkey);
+		pd->FreePlayerData(lcheckkey);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);

@@ -68,7 +68,14 @@ local Ipersist *persist;
 local Istats *stats;
 
 local int pdkey;
+
+#define CVERSION_CONT 38
+#define CVERSION_VIE 134
+
 local u32 contchecksum, codechecksum;
+
+#define CONT_EXE_FILE "clients/continuum.exe"
+#define CONT_CSUM_FILE "scrty"
 
 local Iauth _iauth =
 {
@@ -99,7 +106,7 @@ local u32 get_checksum(const char *file)
 local u32 get_u32(const char *file, int offset)
 {
 	FILE *f;
-	u32 buf = -1;
+	u32 buf = (u32)-1;
 	if ((f = fopen(file, "rb")))
 	{
 		if (fseek(f, offset, SEEK_SET) == 0)
@@ -147,8 +154,8 @@ EXPORT int MM_core(int action, Imodman *mm_, Arena *arena)
 		/* set up periodic events */
 		ml->SetTimer(SendKeepalive, 500, 500, NULL, NULL);
 
-		contchecksum = get_checksum("clients/continuum.exe");
-		codechecksum = get_u32("scrty", 4);
+		contchecksum = get_checksum(CONT_EXE_FILE);
+		codechecksum = get_u32(CONT_CSUM_FILE, 4);
 
 		return MM_OK;
 	}
@@ -159,6 +166,8 @@ EXPORT int MM_core(int action, Imodman *mm_, Arena *arena)
 	}
 	else if (action == MM_PREUNLOAD)
 	{
+		/* FIXME: if this module attempts to unload,
+		 * it should check if it can before releasing these */
 		mm->ReleaseInterface(persist);
 		mm->ReleaseInterface(stats);
 	}
@@ -414,19 +423,41 @@ int process_player_states(void *v)
 }
 
 
+void fail_login_with(Player *p, int authcode, const char *text, const char *logmsg)
+{
+	AuthData auth;
+
+	if (p->type == T_CONT && text)
+	{
+		auth.code = AUTH_CUSTOMTEXT;
+		strncpy(auth.customtext, text, sizeof(auth.customtext));
+	}
+	else
+		auth.code = authcode;
+
+	pd->WriteLock();
+	p->status = S_WAIT_AUTH;
+	pd->WriteUnlock();
+
+	AuthDone(p, &auth);
+
+	lm->Log(L_DRIVEL, "<core> [pid=%d] login request denied: %s", p->pid, logmsg);
+}
+
+
 void PLogin(Player *p, byte *opkt, int l)
 {
 	pdata *d = PPDATA(p, pdkey);
-	int type = p->type;
 
-	if (type != T_VIE && type != T_CONT)
+	if (!IS_STANDARD(p))
 		lm->Log(L_MALICIOUS, "<core> [pid=%d] login packet from wrong client type (%d)",
-				p->pid, type);
+				p->pid, p->type);
 #ifdef CFG_RELAX_LENGTH_CHECKS
-	else if (l != LEN_LOGINPACKET_VIE && l != LEN_LOGINPACKET_CONT)
+	else if ( (p->type == T_VIE && l < LEN_LOGINPACKET_VIE) ||
+	          (p->type == T_CONT && l < LEN_LOGINPACKET_CONT) )
 #else
-	else if ( (type == T_VIE && l != LEN_LOGINPACKET_VIE) ||
-	          (type == T_CONT && l != LEN_LOGINPACKET_CONT) )
+	else if ( (p->type == T_VIE && l != LEN_LOGINPACKET_VIE) ||
+	          (p->type == T_CONT && l != LEN_LOGINPACKET_CONT) )
 #endif
 		lm->Log(L_MALICIOUS, "<core> [pid=%d] bad login packet length (%d)", p->pid, l);
 	else if (p->status != S_CONNECTED)
@@ -434,25 +465,74 @@ void PLogin(Player *p, byte *opkt, int l)
 	else
 	{
 		struct LoginPacket *pkt = (struct LoginPacket*)opkt, *lp;
-		int c;
+
+#ifndef CFG_RELAX_LENGTH_CHECKS
+		/* VIE clients can only have one version. Continuum clients will
+		 * need to ask for an update. */
+		if (p->type == T_VIE && pkt->cversion != CVERSION_VIE)
+		{
+			fail_login_with(p, AUTH_LOCKEDOUT, NULL, "bad VIE client version");
+			return;
+		}
+#endif
 
 		/* copy into storage for use by authenticator */
 		lp = d->loginpkt = amalloc(sizeof(*lp));
-		d->lplen = l;
 		memcpy(lp, pkt, l);
+		d->lplen = l;
+
+		/* name must be nul-terminated, also set name length limit at 19
+		 * characters. */
+		lp->name[19] = '\0';
+
+		if (lp->name[0] == '\0')
+		{
+			fail_login_with(p, AUTH_NONAME, "Your player name is blank", "name is blank");
+			return;
+		}
+
+		/* only allow printable characters in names, excluding colon.
+		 * while we're at it, remove leading, trailing, and series of
+		 * spaces */
+		{
+			unsigned char c, cc = ' ', *s = lp->name, *l = lp->name;
+
+			while ((c = *s++))
+				if (c >= 32 && c <= 126 && c != ':')
+				{
+					if (c == ' ' && cc == ' ')
+						continue;
+
+					*l++ = cc = c;
+				}
+
+			*l = '\0';
+		}
+
+		/* if nothing could be salvaged from their name, disconnect them */
+		if (strlen(lp->name) == 0)
+		{
+			fail_login_with(p, AUTH_BADNAME, "Your player name contains no valid characters",
+					"all invalid chars");
+			return;
+		}
+
+		/* must start with number or letter */
+		if (!isalnum(*lp->name))
+		{
+			fail_login_with(p, AUTH_BADNAME,
+					"Your player name must start with a letter or number",
+					"name doesn't start with alphanumeric");
+			return;
+		}
+
+		/* pass must be nul-terminated */
+		lp->password[31] = '\0';
+
+		/* fill misc data */
 		p->macid = pkt->macid;
 		p->permid = pkt->D2;
-		/* replace colons and nonprintables with underscores
-		 * and replace series of spaces with a single space + underscore(s) */
-		l = strlen(lp->name);
-		for (c = 0; c < l; c++)
-			if (lp->name[c] == ':' || lp->name[c] < 32 || lp->name[c] > 126)
-				lp->name[c] = '_';
-			else if (c > 1 && lp->name[c] == ' ' && lp->name[c-1] == ' ')
-				lp->name[c] = '_';
-		/* must start with number, letter, or underscore */
-		if (!isalnum(lp->name[0]))
-			lp->name[0] = '_';
+
 		/* set up status */
 		pd->WriteLock();
 		p->status = S_NEED_AUTH;
@@ -631,7 +711,7 @@ void SendLoginResponse(Player *p)
 				u8 type;
 				u16 contversion;
 				u32 checksum;
-			} pkt = { S2C_CONTVERSION, 38, contchecksum };
+			} pkt = { S2C_CONTVERSION, CVERSION_CONT, contchecksum };
 			net->SendToOne(p, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
 
 			lr.exechecksum = contchecksum;

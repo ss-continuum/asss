@@ -21,30 +21,30 @@
 
 struct Weapons /* 2 bytes */
 {
-	unsigned short type : 5;
-	unsigned short level : 2;
-	unsigned short shrapbouncing : 1;
-	unsigned short shraplevel : 2;
-	unsigned short shrap : 5;
-	unsigned short alternate : 1;
+	u16 type : 5;
+	u16 level : 2;
+	u16 shrapbouncing : 1;
+	u16 shraplevel : 2;
+	u16 shrap : 5;
+	u16 alternate : 1;
 };
 
 
 struct ExtraPosData /* 10 bytes */
 {
-	unsigned int energy : 16;
-	unsigned int s2cping : 16;
-	unsigned int timer : 16;
-	unsigned int shields : 1;
-	unsigned int super : 1;
-	unsigned int bursts : 4;
-	unsigned int repels : 4;
-	unsigned int thors : 4;
-	unsigned int bricks : 4;
-	unsigned int decoys : 4;
-	unsigned int rockets : 4;
-	unsigned int portals : 4;
-	unsigned int padding : 2;
+	u16 energy;
+	u16 s2cping;
+	u16 timer;
+	u32 shields : 1;
+	u32 super : 1;
+	u32 bursts : 4;
+	u32 repels : 4;
+	u32 thors : 4;
+	u32 bricks : 4;
+	u32 decoys : 4;
+	u32 rockets : 4;
+	u32 portals : 4;
+	u32 padding : 2;
 };
 
 

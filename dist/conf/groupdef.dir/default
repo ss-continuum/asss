@@ -29,6 +29,7 @@ cmd_listarena
 ; this isn't as dangerous as it looks.
 ; you need more capabilities to set other people's groups.
 privcmd_setgroup
+privcmd_rmgroup
 
 privcmd_freqkick
 privcmd_giveowner

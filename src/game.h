@@ -6,8 +6,8 @@
 
 /* these callbacks will be called whenever a kill occurs */
 #define CB_KILL "kill"
-typedef void (*KillFunc)(Arena *arena, Player *killer, Player *killed, int bounty, int flags);
-/* pycb: arena, player, player, int, int */
+typedef void (*KillFunc)(Arena *arena, Player *killer, Player *killed, int bounty, int flags, int *pts);
+/* FIXMEpycb: arena, player, player, int, int */
 
 
 /* this will be called when a player changes his freq (but stays in the
@@ -37,7 +37,7 @@ typedef void (*SafeZoneFunc)(Player *p, int x, int y, int entering);
 
 /* these should be mostly self-explanatory. */
 
-#define I_GAME "game-5"
+#define I_GAME "game-6"
 
 typedef struct Igame
 {
@@ -50,8 +50,6 @@ typedef struct Igame
 	/* pyint: player, int -> void */
 	void (*SetFreqAndShip)(Player *p, int ship, int freq);
 	/* pyint: player, int, int -> void */
-	void (*DropBrick)(Arena *arena, int freq, int x1, int y1, int x2, int y2);
-	/* pyint: arena, int, int, int, int, int -> void */
 	void (*WarpTo)(const Target *target, int x, int y);
 	/* pyint: target, int, int -> void */
 	void (*GivePrize)(const Target *target, int type, int count);
@@ -67,7 +65,7 @@ typedef struct Igame
 	/* pyint: arena, int, int -> void */
 
 	void (*FakePosition)(Player *p, struct C2SPosition *pos, int len);
-	void (*FakeKill)(Player *killer, Player *killed, int bounty, int flags);
+	void (*FakeKill)(Player *killer, Player *killed, int pts, int flags);
 } Igame;
 
 

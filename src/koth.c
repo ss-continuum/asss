@@ -245,7 +245,7 @@ local void shipchange(Player *p, int ship, int freq)
 }
 
 
-local void mykill(Arena *arena, Player *killer, Player *killed, int bounty, int flags)
+local void mykill(Arena *arena, Player *killer, Player *killed, int bounty, int flags, int *pts)
 {
 	struct koth_arena_data *adata = P_ARENA_DATA(arena, akey);
 	struct koth_player_data *erdata = PPDATA(killer, pkey);
@@ -296,8 +296,14 @@ local void mykill(Arena *arena, Player *killer, Player *killed, int bounty, int 
 }
 
 
-local void p_kothexired(Player *p, byte *pkt, int l)
+local void p_kothexpired(Player *p, byte *pkt, int len)
 {
+	if (len != 1)
+	{
+		lm->LogP(L_MALICIOUS, "koth", p, "bad KoTH expired packet len=%i", len);
+		return;
+	}
+
 	LOCK();
 	remove_crown(p);
 	UNLOCK();
@@ -341,14 +347,14 @@ EXPORT int MM_koth(int action, Imodman *mm_, Arena *arena)
 
 		cmd->AddCommand("resetkoth", Cresetkoth, NULL);
 
-		net->AddPacket(C2S_KOTHEXPIRED, p_kothexired);
+		net->AddPacket(C2S_KOTHEXPIRED, p_kothexpired);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		cmd->RemoveCommand("resetkoth", Cresetkoth);
-		net->RemovePacket(C2S_KOTHEXPIRED, p_kothexired);
+		net->RemovePacket(C2S_KOTHEXPIRED, p_kothexpired);
 		ml->ClearTimer(timer, NULL);
 
 		aman->FreeArenaData(akey);

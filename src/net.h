@@ -82,9 +82,11 @@ struct net_stats
 struct net_client_stats
 {
 	/* sequence numbers */
-	int s2cn, c2sn;
+	i32 s2cn, c2sn;
 	/* counts of stuff sent and recvd */
-	unsigned int pktsent, pktrecvd, bytesent, byterecvd;
+	unsigned long pktsent, pktrecvd, bytesent, byterecvd;
+	/* count of s2c packets dropped */
+	unsigned long pktdropped;
 	/* encryption type and bandwidth limit */
 	unsigned int limit;
 	const char *encname;
@@ -97,7 +99,7 @@ struct net_client_stats
 #include "encrypt.h"
 
 
-#define I_NET "net-6"
+#define I_NET "net-7"
 
 typedef struct Inet
 {

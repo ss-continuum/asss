@@ -107,7 +107,7 @@ APPContext *InitContext(FileFinderFunc finder, ReportErrFunc err, const char *ar
 	ctx->file = NULL;
 	ctx->ifs = NULL;
 	ctx->processing = 1;
-	ctx->defs = HashAlloc(53);
+	ctx->defs = HashAlloc();
 	ctx->depth = 0;
 
 	return ctx;
@@ -173,7 +173,7 @@ static FileEntry *get_file(APPContext *ctx, const char *name)
 	FileEntry *fe;
 
 	/* try to find it */
-	ret = ctx->finder(fname, PATH_MAX, ctx->arena, name);
+	ret = ctx->finder(fname, sizeof(fname), ctx->arena, name);
 	if (ret == -1)
 	{
 		do_error(ctx, "Can't find file for arena '%s', name '%s'", ctx->arena, name);

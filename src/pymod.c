@@ -77,7 +77,7 @@ local int mods_loaded;
 local PyObject *cPickle;
 local PyObject *sysdict;
 
-#if not_yet
+#ifdef not_yet
 local pthread_mutex_t pymtx = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK() pthread_mutex_lock(&pymtx)
 #define UNLOCK() pthread_mutex_unlock(&pymtx)
@@ -886,7 +886,7 @@ local HashTable *pycmd_cmds;
 
 local void init_py_commands(void)
 {
-	pycmd_cmds = HashAlloc(43);
+	pycmd_cmds = HashAlloc();
 }
 
 local void deinit_py_commands(void)

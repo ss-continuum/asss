@@ -11,7 +11,7 @@
 local void Cbrickwrite(const char *params, Player *p, const Target *target);
 
 local Iplayerdata *pd;
-local Igame *game;
+local Ibricks *bricks;
 local Icmdman *cmd;
 
 
@@ -20,16 +20,19 @@ EXPORT int MM_bricklayer(int action, Imodman *mm, Arena *arena)
 	if (action == MM_LOAD)
 	{
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
-		game = mm->GetInterface(I_GAME, ALLARENAS);
+		bricks = mm->GetInterface(I_BRICKS, ALLARENAS);
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		cmd->AddCommand("brickwrite", Cbrickwrite, NULL);
+
+		if (!bricks) return MM_FAIL;
+
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		cmd->RemoveCommand("brickwrite", Cbrickwrite);
 		mm->ReleaseInterface(cmd);
-		mm->ReleaseInterface(game);
+		mm->ReleaseInterface(bricks);
 		mm->ReleaseInterface(pd);
 		return MM_OK;
 	}
@@ -45,17 +48,15 @@ void Cbrickwrite(const char *params, Player *p, const Target *target)
 	int x = p->position.x >> 4;
 	int y = p->position.y >> 4;
 
-	if (!game) return;
-
 	wid = 0;
-	for (i = 0; i < strlen(params); i++)
+	for (i = 0; i < (int)strlen(params); i++)
 		if (params[i] >= ' ' && params[i] <= '~')
 			wid += letterdata[(int)params[i] - ' '].width + 1;
 
 	x -= wid / 2;
 	y -= letterheight / 2;
 
-	for (i = 0; i < strlen(params); i++)
+	for (i = 0; i < (int)strlen(params); i++)
 		if (params[i] >= ' ' && params[i] <= '~')
 		{
 			int c = params[i] - ' ';
@@ -63,7 +64,7 @@ void Cbrickwrite(const char *params, Player *p, const Target *target)
 			struct bl_brick *brk = letterdata[c].bricks;
 			for ( ; bnum ; bnum--, brk++)
 			{
-				game->DropBrick(
+				bricks->DropBrick(
 						arena,
 						freq,
 						x + brk->x1,

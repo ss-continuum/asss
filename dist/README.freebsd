@@ -1,13 +1,11 @@
 
-There may be asss binaries compiled for freebsd in the freebsd
-directory, depending on whether my freebsd box is availble at the time
-when I'm compiling this release. Also in there, you'll find a patch for
-the Makefile so you can compile it yourself.
+The provided Makefile should work on FreeBSD. There are no binaries.
+Some things to note:
 
-I've heard that the binaries don't work for freebsd versions below 5.0.
-That happens to be the version I have installed, so it's the only
-version I can compile for. Sorry.
+- You should have Berkeley DB 4.x and Python 2.2.x (or greater)
+  installed (from the ports tree).
 
-You'll need to have installed Berkeley DB 4.x from the ports library to
-run it, and also Python 2.2.x to build it.
+- Read lines 40 and 44 of the Makefile.
+
+Good luck!
 

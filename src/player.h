@@ -61,6 +61,8 @@ enum
 	/* player is finished logging in but is not in an arena yet status
 	 * returns here after leaving an arena, also */
 
+/* p->arena is valid starting here */
+
 	S_DO_FREQ_AND_ARENA_SYNC,
 	/* player has requested entering an arena, needs to be assigned a
 	 * freq and have arena data syched */
@@ -85,6 +87,8 @@ enum
 
 	S_WAIT_ARENA_SYNC2,
 	/* waiting for scores sync, other direction */
+
+/* p->arena is no longer valid after this point */
 
 	S_LEAVING_ZONE,
 	/* player is leaving zone, call disconnecting callbacks */
@@ -139,7 +143,7 @@ struct Player
 	/* this is a number between 0 and RAND_MAX. for each incoming
 	 * weapon, if rand() is less than this, it's ignored. this really
 	 * shouldn't be here, i know. */
-	unsigned int ignoreweapons;
+	int ignoreweapons;
 	struct PlayerPosition position;
 	u32 macid, permid;
 	char ipaddr[16];
@@ -150,26 +154,26 @@ struct Player
 	{
 		/* if the player has been authenticated by either a billing
 		 * server or a password file */
-		unsigned authenticated : 1;
+		u32 authenticated : 1;
 		/* set when the player has changed freqs or ships, but before he
 		 * has acknowleged it */
-		unsigned during_change : 1;
+		u32 during_change : 1;
 		/* if player wants optional .lvz files */
-		unsigned want_all_lvz : 1;
+		u32 want_all_lvz : 1;
 		/* if player is waiting for db query results */
-		unsigned during_query : 1;
+		u32 during_query : 1;
 		/* if the player's lag is too high to let him be in a ship */
-		unsigned no_ship : 1;
+		u32 no_ship : 1;
 		/* if the player's lag is too high to let him have flags or
 		 * balls */
-		unsigned no_flags_balls : 1;
+		u32 no_flags_balls : 1;
 		/* if the player has sent a position packet since entering the
 		 * arena */
-		unsigned sent_ppk : 1;
+		u32 sent_ppk : 1;
 		/* if the player is a bot who wants all position packets */
-		unsigned see_all_posn : 1;
-		unsigned padding1 : 24;
+		u32 see_all_posn : 1;
 		/* fill this up to 32 bits */
+		u32 padding : 24;
 	} flags;
 	byte playerextradata[0];
 };

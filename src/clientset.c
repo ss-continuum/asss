@@ -117,12 +117,12 @@ local void load_settings(adata *ad, ConfigHandle conf)
 
 	/* clear and set type */
 	memset(cs, 0, sizeof(*cs));
-	cs->bit_set.type = S2C_SETTINGS;
 
+	cs->bit_set.type = S2C_SETTINGS;
 	cs->bit_set.ExactDamage = cfg->GetInt(conf, "Bullet", "ExactDamage", 0);
 	cs->bit_set.HideFlags = cfg->GetInt(conf, "Spectator", "HideFlags", 0);
 	cs->bit_set.NoXRadar = cfg->GetInt(conf, "Spectator", "NoXRadar", 0);
-	cs->bit_set.SlowFrameRate = cfg->GetInt(conf, "Misc", "SlowFrameRate", 0);
+	cs->bit_set.SlowFrameRate = cfg->GetInt(conf, "Misc", "SlowFrameCheck", 0);
 	cs->bit_set.DisableScreenshot = cfg->GetInt(conf, "Misc", "DisableScreenshot", 0);
 	cs->bit_set.MaxTimerDrift = cfg->GetInt(conf, "Misc", "MaxTimerDrift", 0);
 	cs->bit_set.DisableBallThroughWalls = cfg->GetInt(conf, "Misc", "DisableBallThroughWalls", 0);
@@ -230,8 +230,13 @@ void SendClientSettings(Player *p)
 {
 	adata *ad = P_ARENA_DATA(p->arena, adkey);
 	LOCK();
-	if (p->arena && ad->cs.bit_set.type == S2C_SETTINGS)
-		net->SendToOne(p, (byte*)&ad->cs, sizeof(struct ClientSettings), NET_RELIABLE);
+	if (p->arena)
+	{
+		if (ad->cs.bit_set.type == S2C_SETTINGS)
+			net->SendToOne(p, (byte*)&ad->cs, sizeof(struct ClientSettings), NET_RELIABLE);
+		else
+			lm->LogA(L_ERROR, "clientset", p->arena, "uninitialized client settings");
+	}
 	UNLOCK();
 }
 

@@ -21,6 +21,7 @@ cmd_timereset
 cmd_pausetimer
 cmd_recyclearena
 cmd_kick
+cmd_setjackpot
 
 privcmd_scorereset
 cmd_endinterval

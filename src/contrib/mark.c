@@ -1,6 +1,8 @@
 
 /* dist: public */
 
+EXPORT const char info_mark[] = "v?.? by Catid <cat02e@fsu.edu>"
+
 /* FIXME: KoTH game screws with the marks, so only one of the two may be used at a time */
 /* FIXME: race conditions(?) */
 
@@ -131,11 +133,7 @@ local void Cmark(const char *params, Player *p,
 	const Target *target) {
 	kothmark *md;
 
-	RETURN_IF(markey == -1)
-
 	md = (kothmark*)PPDATA(p, markey);
-
-	RETURN_IF(!md)
 
 	if (*params || (target->type == T_PLAYER))
 	{
@@ -214,11 +212,7 @@ local void Cunmark(const char *params, Player *p,
 	const Target *target) {
 	kothmark *md;
 
-	RETURN_IF(markey == -1)
-
 	md = (kothmark*)PPDATA(p, markey);
-
-	RETURN_IF(!md)
 
 	if (*params || (target->type == T_PLAYER))
 	{
@@ -268,6 +262,32 @@ local void Cunmark(const char *params, Player *p,
 }
 
 
+
+/* /?destroy command */
+
+/* STOLEN: from game:game.c -- if the logic changes there, it needs to change here also */
+
+/* End of stolen code */
+
+local helptext_t destroy_help =
+	"Targets: Player\n"
+	"Syntax: /?destroy\n"
+	"Simulates the player getting killed.";
+
+local void Cdestroy(const char *params, Player *p,
+	const Target *target) {
+
+	if (target->type == T_PLAYER)
+	{
+		
+	}
+	else
+	{
+		chat->SendMessage(p, "You must send this command privately to a single player");
+	}
+}
+
+
 void MyPA(Player *p, int action, Arena *arena)
 {
 	kothmark *md;
@@ -291,17 +311,16 @@ void MyPA(Player *p, int action, Arena *arena)
 		LLEmpty(&md->listed);
 	}
 	else if (action == PA_ENTERARENA)
-	{
-		/* FIXME: must be loaded after certain modules
-		   because the Player Entering packet needs to be sent prior to
-		   this KoTH packet. */
+	{	/* FIXME: must be loaded after certain modules
+				  because the Player Entering packet
+				  needs to be sent prior to this KoTH
+				  packet. */
 		Link *link;
 		Player *pp;
 		kothmark *mdd;
 
 		md = (kothmark*)PPDATA(p, markey);
 
-		pd->Lock();
 		FOR_EACH_PLAYER_P(pp, mdd, markey)
 			if (pp->arena == p->arena)
 			{
@@ -310,7 +329,22 @@ void MyPA(Player *p, int action, Arena *arena)
 				if (markExists(md, pp->name))
 					adjustMark(p, pp, KOTH_ACTION_ADD_CROWN);
 			}
-		pd->Unlock();
+	}
+}
+
+/* ?bounty command */
+
+local helptext_t bounty_help =
+	"Targets: Player\n"
+	"Syntax: /?bounty <points>\n"
+	"Set a bounty on another player.";
+
+local void Cbounty(const char *params, Player *p,
+	const Target *target) {
+	if (target->type != T_PLAYER || target->u.p == p)
+	{
+		chat->SendMessage(p,"Only valid target for ?bounty is another player.");
+		return;
 	}
 }
 
@@ -331,6 +365,7 @@ EXPORT int MM_mark(int action, Imodman *_mm, Arena *arena)
 
 		cmd->AddCommand("mark", Cmark, mark_help);
 		cmd->AddCommand("unmark", Cunmark, unmark_help);
+		cmd->AddCommand("destroy", Cdestroy, destroy_help);
 
 		mm->RegCallback(CB_PLAYERACTION, MyPA, ALLARENAS);
 
@@ -346,6 +381,7 @@ EXPORT int MM_mark(int action, Imodman *_mm, Arena *arena)
 
 		cmd->RemoveCommand("mark", Cmark);
 		cmd->RemoveCommand("unmark", Cunmark);
+		cmd->RemoveCommand("destroy", Cdestroy);
 
 		pd->Lock();
 		FOR_EACH_PLAYER_P(p, md, markey)

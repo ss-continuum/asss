@@ -105,7 +105,7 @@ local int load_c_module(const char *spec_, mod_args_t *args)
 	else
 	{
 		char cwd[PATH_MAX];
-		getcwd(cwd, PATH_MAX);
+		getcwd(cwd, sizeof(cwd));
 		path = buf;
 		if (snprintf(path, sizeof(buf), "%s/bin/%s"
 #ifndef WIN32

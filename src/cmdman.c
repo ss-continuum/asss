@@ -64,7 +64,7 @@ EXPORT int MM_cmdman(int action, Imodman *mm_, Arena *arena)
 		pthread_mutex_init(&cmdmtx, &attr);
 		pthread_mutexattr_destroy(&attr);
 
-		cmds = HashAlloc(47);
+		cmds = HashAlloc();
 
 		defaultfunc = NULL;
 

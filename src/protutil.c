@@ -100,7 +100,7 @@ int init_listening_socket(int port, unsigned long int bindaddr)
 #ifdef CFG_SET_REUSEADDR
 	{
 		int yes = 1;
-		setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+		setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const void*)&yes, sizeof(yes));
 	}
 #endif
 

@@ -87,12 +87,12 @@ Imodman * InitModuleManager(void)
 	pthread_key_create(&lastintarenakey, NULL);
 
 	LLInit(&mods);
-	arenacallbacks = HashAlloc(233);
-	globalcallbacks = HashAlloc(233);
-	arenaints = HashAlloc(43);
-	globalints = HashAlloc(53);
-	intsbyname = HashAlloc(23);
-	loaders = HashAlloc(5);
+	arenacallbacks = HashAlloc();
+	globalcallbacks = HashAlloc();
+	arenaints = HashAlloc();
+	globalints = HashAlloc();
+	intsbyname = HashAlloc();
+	loaders = HashAlloc();
 	mmint.head.refcount = 1;
 	nomoremods = 0;
 	return &mmint;

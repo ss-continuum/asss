@@ -217,7 +217,7 @@ local void SendMapFilename(Player *p)
 			{
 				strncpy(mf->files[idx].filename, data->filename, 16);
 				mf->files[idx].checksum = data->checksum;
-				mf->files[idx].size = data->uncmplen;
+				mf->files[idx].size = data->cmplen;
 				idx++;
 			}
 		}
@@ -469,10 +469,15 @@ local void PMapRequest(Player *p, byte *pkt, int len)
 		struct MapDownloadData *data;
 		unsigned short lvznum = (len == 3) ? pkt[1] | pkt[2]<<8 : 0;
 
+		if (len != 1 && len != 3)
+		{
+			lm->LogP(L_MALICIOUS, "mapnewsdl", p, "bad map/LVZ req packet len=%i", len);
+			return;
+		}
+
 		if (!arena)
 		{
-			lm->Log(L_MALICIOUS, "<mapnewsdl> [%s] map request before entering arena",
-					p->name);
+			lm->LogP(L_MALICIOUS, "mapnewsdl", p, "map request before entering arena");
 			return;
 		}
 
@@ -494,9 +499,25 @@ local void PMapRequest(Player *p, byte *pkt, int len)
 		net->SendSized(p, dl, data->cmplen, get_data);
 		lm->LogP(L_DRIVEL, "mapnewsdl", p, "sending map/lvz %d (%d bytes) (transfer %p)",
 				lvznum, data->cmplen, dl);
+
+		/* if we're getting these requests, it's too late to set their ship
+		 * and team directly, we need to go through the in-game procedures */
+		if (IS_STANDARD(p) &&
+			(p->p_ship != SPEC || p->p_freq != arena->specfreq))
+		{
+			struct Igame *game = mm->GetInterface(I_GAME, ALLARENAS);
+			if (game) game->SetFreqAndShip(p, SPEC, arena->specfreq);
+			mm->ReleaseInterface(game);
+		}
 	}
 	else if (pkt[0] == C2S_NEWSREQUEST)
 	{
+		if (len != 1)
+		{
+			lm->LogP(L_MALICIOUS, "mapnewsdl", p, "bad news req packet len=%i", len);
+			return;
+		}
+
 		if (cmpnews)
 		{
 			dl = amalloc(sizeof(*dl));
@@ -515,9 +536,17 @@ local void PMapRequest(Player *p, byte *pkt, int len)
 
 local void PUpdateRequest(Player *p, byte *pkt, int len)
 {
-	Ifiletrans *ft = mm->GetInterface(I_FILETRANS, ALLARENAS);
-	if (ft)
-		ft->SendFile(p, "clients/update.exe", "", FALSE);
+	Ifiletrans *ft;
+
+	if (len != 1)
+	{
+		lm->LogP(L_MALICIOUS, "mapnewsdl", p, "bad update req packet len=%i", len);
+		return;
+	}
+
+	ft = mm->GetInterface(I_FILETRANS, ALLARENAS);
+	if (ft && ft->SendFile(p, "clients/update.exe", "", FALSE) != MM_OK)
+		lm->Log(L_WARN, "<mapnewsdl> update request, but clients/update.exe doesn't exist");
 	mm->ReleaseInterface(ft);
 }
 

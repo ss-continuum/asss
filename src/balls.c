@@ -43,7 +43,7 @@ local void AABall(Arena *arena, int action);
 local void PABall(Player *p, int action, Arena *arena);
 local void ShipChange(Player *, int, int);
 local void FreqChange(Player *, int);
-local void BallKill(Arena *, Player *, Player *, int, int);
+local void BallKill(Arena *, Player *, Player *, int, int, int *);
 
 /* timers */
 local int BasicBallTimer(void *);
@@ -70,6 +70,7 @@ local Iplayerdata *pd;
 local Iarenaman *aman;
 local Imainloop *ml;
 local Imapdata *mapdata;
+local Iprng *prng;
 
 /* per arena data keys */
 local int abdkey, pbdkey, mtxkey;
@@ -95,6 +96,9 @@ EXPORT int MM_balls(int action, Imodman *_mm, Arena *arena)
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
+		prng = mm->GetInterface(I_PRNG, ALLARENAS);
+		if (!net || !cfg || !logm || !pd || !aman || !ml || !mapdata || !prng)
+			return MM_FAIL;
 
 		abdkey = aman->AllocateArenaData(sizeof(ArenaBallData));
 		pbdkey = aman->AllocateArenaData(sizeof(MyBallData));
@@ -142,6 +146,7 @@ EXPORT int MM_balls(int action, Imodman *_mm, Arena *arena)
 		mm->ReleaseInterface(logm);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(prng);
 		return MM_OK;
 	}
 	return MM_FAIL;
@@ -209,11 +214,12 @@ void SpawnBall(Arena *arena, int bid)
 	cx = pbd->spawnx;
 	cy = pbd->spawny;
 	rad = pbd->spawnr;
+
+	/* pick random tile */
 	{
 		double rndrad, rndang;
-		/* pick random point */
-		rndrad = (double)rand()/(RAND_MAX+1.0) * (double)rad;
-		rndang = (double)rand()/(RAND_MAX+1.0) * M_PI * 2.0;
+		rndrad = prng->Uniform() * (double)rad;
+		rndang = prng->Uniform() * M_PI * 2.0;
 		x = cx + (int)(rndrad * cos(rndang));
 		y = cy + (int)(rndrad * sin(rndang));
 		/* wrap around, don't clip, so radii of 2048 from a corner
@@ -224,11 +230,18 @@ void SpawnBall(Arena *arena, int bid)
 		while (y > 1023) y -= 1024;
 
 		/* ask mapdata to move it to nearest empty tile */
-		mapdata->FindFlagTile(arena, &x, &y);
+		mapdata->FindEmptyTileNear(arena, &x, &y);
 	}
 
+	/* place it randomly within the chosen tile */
+	x <<= 4;
+	y <<= 4;
+	rad = prng->Get32() & 0xff;
+	x |= rad / 16;
+	y |= rad % 16;
+
 	/* whew, finally place the thing */
-	d.x = x<<4; d.y = y<<4;
+	d.x = x; d.y = y;
 	PlaceBall(arena, bid, &d);
 }
 
@@ -329,7 +342,7 @@ void EndGame(Arena *arena)
 	 * ticks. */
 	newgame = cfg->GetInt(c, "Soccer", "NewGameDelay", -3000);
 	if (newgame < 0)
-		newgame = rand()%(-newgame);
+		newgame = prng->Number(0, -newgame);
 
 	for (i = 0; i < abd->ballcount; i++)
 		abd->balls[i].time = TICK_MAKE(now + newgame);
@@ -357,7 +370,7 @@ void ReleaseBallData(Arena *arena)
 }
 
 
-local void LoadBallSettings(Arena *arena, int spawnballs)
+local void load_ball_settings(Arena *arena, int spawnballs)
 {
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
 	MyBallData *pbd = P_ARENA_DATA(arena, pbdkey);
@@ -404,13 +417,15 @@ local void LoadBallSettings(Arena *arena, int spawnballs)
 			for (i = 0; i < bc; i++)
 				SpawnBall(arena, i);
 
-			logm->Log(L_INFO, "<balls> {%s} arena has %d balls",
-					arena->name,
-					bc);
+			logm->LogA(L_INFO, "balls", arena, "arena has %d balls", bc);
 		}
 
 		UNLOCK_STATUS(arena);
 	}
+
+	/* ball count has changed (settings changed), update pballs */
+	if (abd->ballcount != bc)
+		SetBallCount(arena, bc);
 }
 
 
@@ -443,12 +458,12 @@ void AABall(Arena *arena, int action)
 	if (action == AA_CREATE)
 	{
 		/* only if we're creating, load the data */
-		LoadBallSettings(arena, 1);
+		load_ball_settings(arena, 1);
 	}
 	else if (action == AA_CONFCHANGED)
 	{
 		/* reload only settings, don't reset balls */
-		LoadBallSettings(arena, 0);
+		load_ball_settings(arena, 0);
 	}
 	UNLOCK_STATUS(arena);
 }
@@ -506,7 +521,7 @@ void FreqChange(Player *p, int newfreq)
 	CleanupAfter(p->arena, p, 1);
 }
 
-void BallKill(Arena *arena, Player *killer, Player *killed, int bounty, int flags)
+void BallKill(Arena *arena, Player *killer, Player *killed, int bounty, int flags, int *pts)
 {
 	MyBallData *pbd = P_ARENA_DATA(arena, pbdkey);
 	CleanupAfter(arena, killed, !pbd->deathgoal);

@@ -71,7 +71,7 @@ local void RemoveWatch(Player *p, Player *target)
 {
 	watchdata *wd = PPDATA(target, wdkey);
 
-	if (WATCHCOUNT(wd) == 0)
+	if (WATCHCOUNT(wd) <= 0)
 		return;
 
 	LLRemoveAll(&wd->watches, p);
@@ -166,7 +166,7 @@ local void Cwatchdamage(const char *params, Player *p, const Target *target)
 		else
 		{
 			/* toggle */
-			if (AddWatch(p, t) == -1)
+			if (AddWatch(p, t) < 0)
 			{
 				RemoveWatch(p, t);
 				if (chat) chat->SendMessage(p, "Damage watching on %s turned off", t->name);
@@ -232,34 +232,33 @@ local void PDamage(Player *p, byte *pkt, int len)
 {
 	watchdata *wd = PPDATA(p, wdkey);
 	struct C2SWatchDamage *c2swd = (struct C2SWatchDamage *)pkt;
-	struct S2CWatchDamage s2cwd;
+	struct S2CWatchDamage *s2cwd;
 	Arena *arena = p->arena;
-	Link *l;
+	int count, s2clen;
 
-	if (sizeof(struct C2SWatchDamage) != len)
+	if (((len - offsetof(struct C2SWatchDamage, damage)) % sizeof(DamageData)) != 0)
 	{
-		if (lm) lm->LogP(L_MALICIOUS, "watchdamage", p, "bad size for damage");
+		if (lm) lm->LogP(L_MALICIOUS, "watchdamage", p, "bad damage packet len=%d", len);
 		return;
 	}
 
-	if (!arena) return;
+	if (!arena || p->status != S_PLAYING) return;
 
-	s2cwd.type = S2C_DAMAGE;
-	s2cwd.damageuid = p->pid;
-	s2cwd.tick = c2swd->tick;
-	s2cwd.shooteruid = c2swd->shooteruid;
-	s2cwd.weapon = c2swd->weapon;
-	s2cwd.energy = c2swd->energy;
-	s2cwd.damage = c2swd->damage;
-	s2cwd.unknown = c2swd->unknown;
+	count = (len - 5) / sizeof(DamageData);
+	s2clen = 7 + count * sizeof(DamageData);
 
-	/* forward all damage packets to those watching */
-	for (l = LLGetHead(&wd->watches); l; l = l->next)
-		net->SendToOne(l->data, (byte*)&s2cwd, sizeof(s2cwd), NET_RELIABLE | NET_PRI_N1);
+	s2cwd = alloca(s2clen);
+	s2cwd->type = S2C_DAMAGE;
+	s2cwd->damageuid = p->pid;
+	s2cwd->tick = c2swd->tick;
+
+	memcpy(s2cwd->damage, c2swd->damage, count * sizeof(DamageData));
+
+	net->SendToSet(&wd->watches, (byte*)s2cwd, s2clen, NET_RELIABLE | NET_PRI_N1);
 
 	/* do callbacks only if a module is watching, since these can go in mass spamming sometimes */
 	if (wd->modwatch > 0)
-		DO_CBS(CB_PLAYERDAMAGE, arena, PlayerDamage, (arena, p, &s2cwd));
+		DO_CBS(CB_PLAYERDAMAGE, arena, PlayerDamage, (arena, p, s2cwd, count));
 }
 
 
