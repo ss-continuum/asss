@@ -24,7 +24,7 @@
 /* the thing to send */
 struct S2DInfo
 {
-	u32 zero;
+	u32 ip;
 	u16 port;
 	u16 players;
 	u16 scoresp;
@@ -64,10 +64,12 @@ local int SendUpdates(void *dummy)
 
 	data.players = count;
 
+	n = sizeof(data) - sizeof(data.description) + strlen(data.description) + 1;
+
 	for (l = LLGetHead(&servers); l; l = l->next)
 	{
 		struct sockaddr_in *sin = l->data;
-		sendto(sock, &data, sizeof(data), 0, sin, sizeof(*sin));
+		sendto(sock, (byte*)&data, n, 0, (const struct sockaddr *)sin, n);
 	}
 
 	return TRUE;
@@ -79,11 +81,12 @@ local void init_data()
 	const char *t;
 
 	memset(&data, 0, sizeof(data));
-	data.zero = 0;
+	data.ip = 0;
 	data.port = cfg->GetInt(GLOBAL, "Net", "Port", 5000);
 	data.players = 0; /* fill in later */;
 	data.scoresp = 1; /* always keep scores */
 	data.version = ASSSVERSION_NUM;
+	data.version = 134; /* priit's updated dirserv require this */
 	if ((t = cfg->GetStr(GLOBAL, "Directory", "Name")))
 		astrncpy(data.servername, t, sizeof(data.servername));
 	else
@@ -96,23 +99,28 @@ local void init_data()
 		astrncpy(data.description, t, sizeof(data.description));
 	else
 		astrncpy(data.description, "<no description provided>", sizeof(data.description));
+	lm->Log(L_DRIVEL, "<directory> Server name: %s", data.servername);
 }
 
 
 local void init_servers()
 {
-	char key[] = "Server#";
-	int i, port;
+	char skey[] = "Server#", pkey[] = "Port#";
+	unsigned short i, defport, port;
 
 	LLInit(&servers);
 
-	port = cfg->GetInt(GLOBAL, "Directory", "Port", 4991);
+	defport = cfg->GetInt(GLOBAL, "Directory", "Port", 4991);
 
 	for (i = 1; i < 10; i++)
 	{
 		const char *name;
-		key[6] = '0' + i;
-		name = cfg->GetStr(GLOBAL, "Directory", key);
+
+		skey[6] = '0' + i;
+		pkey[4] = '0' + i;
+		name = cfg->GetStr(GLOBAL, "Directory", skey);
+		port = cfg->GetInt(GLOBAL, "Directory", pkey, defport);
+
 		if (name)
 		{
 			struct sockaddr_in *sin;
@@ -121,7 +129,7 @@ local void init_servers()
 			{
 				sin = amalloc(sizeof(*sin));
 				sin->sin_family = AF_INET;
-				sin->sin_port = port;
+				sin->sin_port = htons(port);
 				memcpy(&sin->sin_addr, ent->h_addr, sizeof(sin->sin_addr));
 				LLAdd(&servers, sin);
 				lm->Log(L_INFO, "<directory> Using '%s' at %s as a directory server",

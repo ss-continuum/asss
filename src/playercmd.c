@@ -12,13 +12,19 @@
 #include "asss.h"
 
 
-#ifdef CFG_USE_UNAME
+#ifdef CFG_EXTRA_VERSION_INFO
+#ifndef WIN32
 #include <sys/utsname.h>
+#endif
 #endif
 
 #ifdef CFG_DO_EXTRAARENAS
+#ifndef WIN32
 #include <dirent.h>
 #include <unistd.h>
+#else
+#include <io.h>
+#endif
 #endif
 
 
@@ -104,6 +110,7 @@ local void Carena(const char *params, int pid, int target)
 	/* add in more arenas if requested */
 	if (!strcasecmp(params, "all"))
 	{
+#ifndef WIN32
 		char aconf[PATH_MAX];
 		DIR *dir = opendir("arenas");
 		if (dir)
@@ -130,6 +137,38 @@ local void Carena(const char *params, int pid, int target)
 			}
 			closedir(dir);
 		}
+#else
+		char aconf[PATH_MAX];
+		struct _finddata_t fi;
+		long FH = _findfirst("arenas/*", &fi);
+		if (FH != -1)
+		{
+			do
+			{
+				if ((fi.attrib & _A_SUBDIR) &&
+				    strcmp(fi.name, "..") &&
+				    strcmp(fi.name, "."))
+				{
+					/* every arena must have an arena.conf */
+					snprintf(aconf, PATH_MAX, "arenas/%s/arena.conf", fi.name);
+					if (
+							(pos-buf+strlen(fi.name)) < 480 &&
+							access(aconf, R_OK) == 0 &&
+							(fi.name[0] != '#' || seehid) &&
+							check_arena(buf, pos-buf, fi.name)
+					   )
+					{
+						l = strlen(fi.name) + 1;
+						strncpy(pos, fi.name, l);
+						pos += l;
+						*pos++ = 0;
+						*pos++ = 0;
+					}
+				}
+			} while (_findnext(FH,&fi) != -1);
+			_findclose(FH);
+		}
+#endif
 	}
 #endif
 
@@ -214,14 +253,39 @@ local void Csetship(const char *params, int pid, int target)
 local void Cversion(const char *params, int pid, int target)
 {
 	chat->SendMessage(pid, "asss %s built at %s", ASSSVERSION, BUILDDATE);
-#ifdef CFG_USE_UNAME
+#ifdef CFG_EXTRA_VERSION_INFO
+#ifndef WIN32
 	{
 		struct utsname un;
 		uname(&un);
 		chat->SendMessage(pid, "running on %s %s, host: %s, machine: %s",
 				un.sysname, un.release, un.nodename, un.machine);
 	}
+#else
+	{
+		OSVERSIONINFO vi;
+		DWORD len;
+		char name[MAX_COMPUTERNAME_LENGTH + 1];
+
+		vi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+		GetVersionEx(&vi);
+
+		len = MAX_COMPUTERNAME_LENGTH + 1;
+		GetComputerName(name, &len);
+
+		chat->SendMessage(pid, "running on %s %s (version %d.%d.%d), host: %s",
+			vi.dwPlatformId == VER_PLATFORM_WIN32s ? "Windows 3.11" : 
+				vi.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS ? 
+					(vi.dwMinorVersion == 0 ? "Windows 95" : "Windows 98") :
+				vi.dwPlatformId == VER_PLATFORM_WIN32_NT ? "Windows NT" : "Unknown",
+			vi.szCSDVersion,
+			vi.dwMajorVersion, vi.dwMinorVersion,
+			vi.dwBuildNumber,
+			name);
+	}
 #endif
+#endif
+
 #ifdef CFG_LOG_PRIVATE
 	chat->SendMessage(pid, "This server IS logging private and chat messages.");
 #endif

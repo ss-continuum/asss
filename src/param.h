@@ -27,16 +27,10 @@
 
 
 /* whether to include uname info in the ?version output */
-#define CFG_USE_UNAME
+#define CFG_EXTRA_VERSION_INFO
 
 /* whether to scan the arenas directory for ?arena all */
 #define CFG_DO_EXTRAARENAS
-
-/* these two are unsupported on windows */
-#ifdef WIN32
-#undef CFG_USE_UNAME
-#undef CFG_DO_EXTRAARENAS
-#endif
 
 
 /* if this is defined and the capability mananger isn't loaded, all

@@ -8,6 +8,8 @@
 #ifndef WIN32
 #include <unistd.h>
 #include <db1/db.h>
+#else
+#include "db.h"
 #endif
 
 #include "asss.h"
