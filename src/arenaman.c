@@ -357,6 +357,8 @@ local int initiate_leave_arena(Player *p)
 		case S_LEAVING_ARENA:
 		case S_DO_ARENA_SYNC2:
 		case S_WAIT_ARENA_SYNC2:
+		case S_LEAVING_ZONE:
+		case S_WAIT_GLOBAL_SYNC2:
 			/* no problem, player is already on the way out */
 			break;
 
