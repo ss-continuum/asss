@@ -139,7 +139,7 @@ def neut_flag(a, i, x, y, r, freq):
 	flagcore.SetFlags(a, i, f)
 
 
-def spawn_flag(a, i, cx, cy, r, freq):
+def spawn_flag(a, i, cx, cy, r, freq, fallback = 1):
 	good = 0
 	tries = 0
 	while not good and tries < 30:
@@ -158,14 +158,16 @@ def spawn_flag(a, i, cx, cy, r, freq):
 					good = 0
 		# and check for no-flag regions:
 		if good:
-			regs = []
-			mapdata.EnumContaining(a, x, y, lambda r: regs.append(r))
-			if regs:
+			foundnoflags = []
+			def check_region(r):
+				if mapdata.RegionChunk(r, asss.RCT_NOFLAGS) is not None:
+					foundnoflags.append(1)
+			mapdata.EnumContaining(a, x, y, check_region)
+			if foundnoflags:
 				good = 0
 		# if we did hit another flag, bump up the radius so we don't get
 		# stuck here.
-		if not good:
-			tries += 1
+		tries += 1
 
 	if good:
 		f = asss.flaginfo()
@@ -174,11 +176,19 @@ def spawn_flag(a, i, cx, cy, r, freq):
 		f.freq = freq
 		f.carrier = None
 		flagcore.SetFlags(a, i, f)
-	else:
-		# just give up and center it
+	elif fallback:
+		# we have one fallback option: centering it
 		lm.LogA(asss.L_WARN, 'flagcore', a,
-				"failed to place a flag at (%d,%d)-%d" % (cx, cy, r))
-		spawn_flag(a, i, 512, 512, 512, freq)
+				("failed to place a flag at (%d,%d)-%d, "
+				 "falling back to center") % (cx, cy, r))
+		sets = a.fg_wz_sets
+		spawn_flag(a, i, sets.spawnx, sets.spawny, sets.spawnr, freq, 0)
+	else:
+		# couldn't place in original location, and couldn't place in
+		# center either. this is really bad.
+		lm.LogA(asss.L_ERROR, 'flagcore', a,
+				("failed to place a flag at (%d,%d)-%d, "
+				 "fallback disabled")% (cx, cy, r))
 
 
 # the spawn timer
