@@ -275,7 +275,7 @@ int GetRandomPrize(Arena *arena)
 	if (max == 0)
 		return 0;
 
-	r = prng->Number(0, max+1);
+	r = prng->Number(0, max-1);
 
 	/* binary search */
 	while (r >= ad->pwps[i])
