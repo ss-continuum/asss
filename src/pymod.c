@@ -1072,7 +1072,7 @@ local PyObject *mthd_set_timer(PyObject *self, PyObject *args)
 }
 
 
-/* persistent data */
+/* player persistent data */
 
 struct pypersist_ppd
 {
@@ -1081,7 +1081,7 @@ struct pypersist_ppd
 };
 
 
-local int get_data(Player *p, void *data, int len, void *v)
+local int get_player_data(Player *p, void *data, int len, void *v)
 {
 	struct pypersist_ppd *pyppd = v;
 	PyObject *val, *pkl;
@@ -1126,7 +1126,7 @@ local int get_data(Player *p, void *data, int len, void *v)
 	return pkllen;
 }
 
-local void set_data(Player *p, void *data, int len, void *v)
+local void set_player_data(Player *p, void *data, int len, void *v)
 {
 	struct pypersist_ppd *pyppd = v;
 	PyObject *buf, *val, *ret;
@@ -1140,16 +1140,13 @@ local void set_data(Player *p, void *data, int len, void *v)
 		return;
 	}
 
-	ret = PyEval_CallFunction(pyppd->set, "(O&O)",
-			cvt_c2p_player,
-			p,
-			val);
+	ret = PyEval_CallFunction(pyppd->set, "(O&O)", cvt_c2p_player, p, val);
 	Py_XDECREF(ret);
 	if (!ret)
 		log_py_exception(L_ERROR, "error in persistent data setter");
 }
 
-local void clear_data(Player *p, void *v)
+local void clear_player_data(Player *p, void *v)
 {
 	struct pypersist_ppd *pyppd = v;
 	PyObject *ret;
@@ -1219,9 +1216,9 @@ local PyObject * mthd_reg_ppd(PyObject *self, PyObject *args)
 	pyppd->ppd.key = key;
 	pyppd->ppd.interval = interval;
 	pyppd->ppd.scope = scope;
-	pyppd->ppd.GetData = get_data;
-	pyppd->ppd.SetData = set_data;
-	pyppd->ppd.ClearData = clear_data;
+	pyppd->ppd.GetData = get_player_data;
+	pyppd->ppd.SetData = set_player_data;
+	pyppd->ppd.ClearData = clear_player_data;
 	pyppd->ppd.clos = pyppd;
 	pyppd->get = get;
 	pyppd->set = set;
@@ -1230,6 +1227,164 @@ local PyObject * mthd_reg_ppd(PyObject *self, PyObject *args)
 	persist->RegPlayerPD(&pyppd->ppd);
 
 	return PyCObject_FromVoidPtr(pyppd, unreg_ppd);
+}
+
+
+/* arena persistent data */
+
+struct pypersist_apd
+{
+	ArenaPersistentData apd;
+	PyObject *get, *set, *clear;
+};
+
+
+local int get_arena_data(Arena *a, void *data, int len, void *v)
+{
+	struct pypersist_apd *pyapd = v;
+	PyObject *val, *pkl;
+	const void *pkldata;
+	int pkllen;
+
+	val = PyEval_CallFunction(pyapd->get, "(O&)", cvt_c2p_arena, a);
+	if (!val)
+	{
+		log_py_exception(L_ERROR, "error in persistent data getter");
+		return 0;
+	}
+
+	pkl = PyObject_CallMethod(cPickle, "dumps", "(Oi)", val, 1);
+	Py_DECREF(val);
+	if (!pkl)
+	{
+		log_py_exception(L_ERROR, "error pickling persistent data");
+		return 0;
+	}
+
+	if (PyObject_AsReadBuffer(pkl, &pkldata, &pkllen))
+	{
+		Py_DECREF(pkl);
+		lm->Log(L_ERROR, "<pymod> pickle result isn't buffer");
+		return 0;
+	}
+
+	if (pkllen > len)
+	{
+		Py_DECREF(pkl);
+		lm->Log(L_WARN, "<pymod> persistent data getter returned more "
+				"than %d bytes of data (%d allowed)",
+				pkllen, len);
+		return 0;
+	}
+
+	memcpy(data, pkldata, pkllen);
+
+	Py_DECREF(pkl);
+
+	return pkllen;
+}
+
+local void set_arena_data(Arena *a, void *data, int len, void *v)
+{
+	struct pypersist_apd *pyapd = v;
+	PyObject *buf, *val, *ret;
+
+	buf = PyString_FromStringAndSize(data, len);
+	val = PyObject_CallMethod(cPickle, "loads", "(O)", buf);
+	Py_XDECREF(buf);
+	if (!val)
+	{
+		log_py_exception(L_ERROR, "can't unpickle persistent data");
+		return;
+	}
+
+	ret = PyEval_CallFunction(pyapd->set, "(O&O)", cvt_c2p_arena, a, val);
+	Py_XDECREF(ret);
+	if (!ret)
+		log_py_exception(L_ERROR, "error in persistent data setter");
+}
+
+local void clear_arena_data(Arena *a, void *v)
+{
+	struct pypersist_apd *pyapd = v;
+	PyObject *ret;
+
+	ret = PyEval_CallFunction(pyapd->clear, "(O&)", cvt_c2p_arena, a);
+	Py_XDECREF(ret);
+	if (!ret)
+		log_py_exception(L_ERROR, "error in persistent data clearer");
+}
+
+
+local void unreg_apd(void *v)
+{
+	struct pypersist_apd *pyapd = v;
+	persist->UnregArenaPD(&pyapd->apd);
+	Py_XDECREF(pyapd->get);
+	Py_XDECREF(pyapd->set);
+	Py_XDECREF(pyapd->clear);
+	afree(pyapd);
+}
+
+local PyObject * mthd_reg_apd(PyObject *self, PyObject *args)
+{
+	struct pypersist_apd *pyapd;
+	PyObject *get, *set, *clear;
+	int key, interval, scope;
+
+	if (!persist)
+	{
+		PyErr_SetString(PyExc_Exception, "the persist module isn't loaded");
+		return NULL;
+	}
+
+	if (!cPickle)
+	{
+		PyErr_SetString(PyExc_Exception, "cPickle isn't loaded");
+		return NULL;
+	}
+
+	if (!PyArg_ParseTuple(args, "iiiOOO", &key, &interval, &scope,
+				&get, &set, &clear))
+		return NULL;
+
+	if (!PyCallable_Check(get) || !PyCallable_Check(set) || !PyCallable_Check(clear))
+	{
+		PyErr_SetString(PyExc_TypeError, "one of the functions isn't callable");
+		return NULL;
+	}
+
+	if (scope != PERSIST_ALLARENAS && scope != PERSIST_GLOBAL)
+	{
+		PyErr_SetString(PyExc_ValueError, "scope must be PERSIST_ALLARENAS or PERSIST_GLOBAL");
+		return NULL;
+	}
+
+	if (interval < 0 || interval > MAX_INTERVAL)
+	{
+		PyErr_SetString(PyExc_ValueError, "interval out of range");
+		return NULL;
+	}
+
+	Py_INCREF(get);
+	Py_INCREF(set);
+	Py_INCREF(clear);
+
+	pyapd = amalloc(sizeof(*pyapd));
+	pyapd->apd.key = key;
+	pyapd->apd.interval = interval;
+	pyapd->apd.scope = scope;
+	pyapd->apd.GetData = get_arena_data;
+	pyapd->apd.SetData = set_arena_data;
+	pyapd->apd.ClearData = clear_arena_data;
+	pyapd->apd.clos = pyapd;
+	pyapd->get = get;
+	pyapd->set = set;
+	pyapd->clear = clear;
+
+	persist->RegArenaPD(&pyapd->apd);
+
+	return PyCObject_FromVoidPtr(pyapd, unreg_apd);
 }
 
 
@@ -1247,7 +1402,9 @@ local PyMethodDef asss_module_methods[] =
 		"registers a command implemented in python. the docstring of the "
 		"command function will be used for command helptext."},
 	{"reg_player_persistent", mthd_reg_ppd, METH_VARARGS,
-		"registers a persistent data handler"},
+		"registers a per-player persistent data handler"},
+	{"reg_arena_persistent", mthd_reg_apd, METH_VARARGS,
+		"registers a per-arena persistent data handler"},
 	{"set_timer", mthd_set_timer, METH_VARARGS,
 		"registers a timer"},
 	{NULL}
