@@ -79,6 +79,10 @@ local struct { unsigned changes, lastcheck; } changes[MAXPLAYERS];
 local struct { char see, cap, capnrg, pad__; } pl_epd[MAXPLAYERS];
 local struct { char spec, nrg; } ar_epd[MAXARENA];
 
+/* these are bit positions for the greenlimit field */
+enum { personal_thor, personal_burst, personal_brick };
+local unsigned long personalgreen[MAXARENA];
+
 local int cfg_bulletpix, cfg_wpnpix, cfg_pospix;
 local int cfg_sendanti, cfg_changelimit;
 local int wpnrange[WEAPONCOUNT]; /* there are 5 bits in the weapon type */
@@ -657,6 +661,12 @@ void PGreen(int pid, byte *p, int n)
 {
 	struct GreenPacket *g = (struct GreenPacket *)p;
 	int arena = players[pid].arena;
+
+	/* don't forward non-shared prizes */
+	if (g->green == PRIZE_THOR  && (personalgreen[arena] & (1<<personal_thor))) return;
+	if (g->green == PRIZE_BURST && (personalgreen[arena] & (1<<personal_burst))) return;
+	if (g->green == PRIZE_BRICK && (personalgreen[arena] & (1<<personal_brick))) return;
+
 	g->pid = pid;
 	g->type = S2C_GREEN; /* HACK :) */
 	net->SendToArena(arena, pid, p, sizeof(struct GreenPacket), NET_UNRELIABLE);
@@ -727,6 +737,8 @@ void ArenaAction(int arena, int action)
 {
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
 	{
+		unsigned int pg = 0;
+
 		/* cfghelp: Misc:SpecSeeEnergy, arena, enum, def: $SEE_NONE
 		 * Whose energy levels spectators can see. Check 'SeeEnergy' for
 		 * the description of the options. */
@@ -738,6 +750,21 @@ void ArenaAction(int arena, int action)
 		 * and $SEE_SPEC is only the player you're spectating. */
 		ar_epd[arena].nrg =
 			cfg->GetInt(arenas[arena].cfg, "Misc", "SeeEnergy", SEE_NONE);
+
+		/* cfghelp: Misc:DontShareThor, arena, bool, def: 0
+		 * Whether Thor greens don't go to the whole team. */
+		if (cfg->GetInt(arenas[arena].cfg, "Misc", "DontShareThor", 0))
+			pg |= (1<<personal_thor);
+		/* cfghelp: Misc:DontShareBurst, arena, bool, def: 0
+		 * Whether Burst greens don't go to the whole team. */
+		if (cfg->GetInt(arenas[arena].cfg, "Misc", "DontShareBurst", 0))
+			pg |= (1<<personal_burst);
+		/* cfghelp: Misc:DontShareBrick, arena, bool, def: 0
+		 * Whether Brick greens don't go to the whole team. */
+		if (cfg->GetInt(arenas[arena].cfg, "Misc", "DontShareBrick", 0))
+			pg |= (1<<personal_brick);
+
+		personalgreen[arena] = pg;
 	}
 }
 

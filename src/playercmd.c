@@ -828,6 +828,23 @@ local void Cwarpto(const char *params, int pid, const Target *target)
 }
 
 
+local helptext_t send_help =
+"Targets: player\n"
+"Args: <arena name>\n"
+"Sends target player to the named arena. (Works on Continuum users only)\n";
+
+local void Csend(const char *params, int pid, const Target *target)
+{
+	int t = target->u.pid;
+	if (target->type != T_PID)
+		return;
+	if (players[t].type == T_CONT)
+		aman->SendToArena(t, params, 0, 0);
+	else
+		chat->SendMessage(pid, "You can only use ?send on players using Continuum");
+}
+
+
 local helptext_t shipreset_help =
 "Targets: player, freq, or arena\n"
 "Args: none\n"
@@ -1519,6 +1536,7 @@ local const struct cmd_info core_commands[] =
 	CMD(a)
 	CMD(cheater)
 	CMD(netstats)
+	CMD(send)
 	END()
 };
 

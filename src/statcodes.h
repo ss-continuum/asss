@@ -42,7 +42,7 @@ enum stat_t
 	STAT_BALL_GAMES_LOST, /* no per-game */
 
 	/* other games */
-	STAT_KOTH_GAMES_WON = 400, /* no per-game, not implemented */
+	STAT_KOTH_GAMES_WON = 400, /* no per-game */
 
 	/* non-standard ball stats (none implemented yet) */
 	STAT_BALL_ASSISTS = 500,

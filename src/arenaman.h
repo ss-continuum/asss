@@ -66,7 +66,7 @@ typedef struct ArenaData
 } ArenaData;
 
 
-#define I_ARENAMAN "arenaman-2"
+#define I_ARENAMAN "arenaman-3"
 
 typedef struct Iarenaman
 {
@@ -74,6 +74,9 @@ typedef struct Iarenaman
 
 	void (*SendArenaResponse)(int pid);
 	void (*LeaveArena)(int pid);
+
+	void (*SendToArena)(int pid, const char *aname, int spawnx, int spawny);
+	/* works on cont clients only. set spawnx/y to 0 for default spawn */
 
 	int (*FindArena)(const char *name, int *totalcount, int *playing);
 	/* this is a multi-purpose function. given a name, it returns either

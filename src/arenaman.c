@@ -45,6 +45,7 @@ local void MLeaving(int, const char *);
 local void LeaveArena(int);
 local void SendArenaResponse(int);
 local int FindArena(const char *name, int *totalcount, int *playing);
+local void SendToArena(int pid, const char *aname, int sx, int sy);
 
 /* globals */
 
@@ -62,13 +63,15 @@ local PlayerData *players;
 /* big static arena data array */
 local ArenaData arenas[MAXARENA];
 
+local struct { short x, y; } spawn[MAXPLAYERS];
+
 local pthread_mutex_t arenastatusmtx;
 
 local Iarenaman _int =
 {
 	INTERFACE_HEAD_INIT(I_ARENAMAN, "arenaman")
 	SendArenaResponse, LeaveArena,
-	FindArena,
+	SendToArena, FindArena,
 	LockStatus, UnlockStatus, arenas
 };
 
@@ -424,8 +427,15 @@ void SendArenaResponse(int pid)
 		/* send brick clear and finisher */
 		whoami.type = S2C_BRICK;
 		net->SendToOne(pid, (byte*)&whoami, 1, NET_RELIABLE);
+
 		whoami.type = S2C_ENTERINGARENA;
 		net->SendToOne(pid, (byte*)&whoami, 1, NET_RELIABLE);
+
+		if (spawn[pid].x > 0 && spawn[pid].y > 0)
+		{
+			struct SimplePacket wto = { S2C_WARPTO, spawn[pid].x, spawn[pid].y };
+			net->SendToOne(pid, (byte *)&wto, 5, NET_RELIABLE | NET_PRI_P3);
+		}
 	}
 }
 
@@ -469,7 +479,8 @@ local void count_players(int arena, int *totalp, int *playingp)
 }
 
 
-local void complete_go(int pid, const char *name, int ship, int xres, int yres, int gfx)
+local void complete_go(int pid, const char *name, int ship, int xres, int yres, int gfx,
+		int spawnx, int spawny)
 {
 	/* status should be S_LOGGEDIN or S_PLAYING at this point */
 	int arena;
@@ -513,6 +524,8 @@ local void complete_go(int pid, const char *name, int ship, int xres, int yres, 
 	players[pid].xres = xres;
 	players[pid].yres = yres;
 	gfx ? SET_ALL_LVZ(pid) : UNSET_ALL_LVZ(pid);
+	spawn[pid].x = spawnx;
+	spawn[pid].y = spawny;
 
 	/* don't mess with player status yet, let him stay in S_LOGGEDIN.
 	 * it will be incremented when the arena is ready. */
@@ -581,15 +594,26 @@ void PArena(int pid, byte *p, int l)
 		return;
 	}
 
-	complete_go(pid, name, go->shiptype, go->xres, go->yres, go->optionalgraphics);
+	complete_go(pid, name, go->shiptype, go->xres, go->yres, go->optionalgraphics, 0, 0);
 }
 
 
 void MArena(int pid, const char *line)
 {
-	complete_go(pid, line[0] ? line : "0", SPEC, 0, 0, 0);
+	complete_go(pid, line[0] ? line : "0", SPEC, 0, 0, 0, 0, 0);
 }
 
+
+void SendToArena(int pid, const char *aname, int spawnx, int spawny)
+{
+	int ship = pd->players[pid].shiptype;
+	int xres = pd->players[pid].xres;
+	int yres = pd->players[pid].yres;
+	int gfx = WANT_ALL_LVZ(pid);
+
+	if (pd->players[pid].type == T_CONT)
+		complete_go(pid, aname, ship, xres, yres, gfx, spawnx, spawny);
+}
 
 void LeaveArena(int pid)
 {
