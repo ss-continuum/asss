@@ -55,6 +55,7 @@ def print_lvl_info(lvl):
 			if r.chunks:
 				for t, d in r.chunks:
 					print "      unknown chunk: type %s, %d bytes" % (t, len(d))
+			idx += 1
 		for t, d in lvl.chunks:
 			print "    unknown chunk: type %s, %d bytes" % (t, len(d))
 
@@ -172,8 +173,8 @@ def modify_lvl(lvl, opts):
 			print "*** bad setregiontiles option: '%s' (should be 'region=bmpfile:r,g,b')" % spec
 			sys.exit(1)
 
-		r = lvl.find_region(rname)
-		if not r:
+		rgn = lvl.find_region(rname)
+		if not rgn:
 			print "*** can't find region %s" % mq(rname)
 			sys.exit(1)
 
@@ -195,9 +196,50 @@ def modify_lvl(lvl, opts):
 				if bmp.get_pixel(x, y) == target:
 					newtiles[(x,y)] = 1
 
-		r.tiles = newtiles
+		rgn.tiles = newtiles
 		print "set region %s tiles from %s with color %d,%d,%d" % \
 			(mq(rname), bmpname, r, g, b)
+
+	for rgnv1file in opts.rgnv1files:
+		try:
+			lines = file(rgnv1file).readlines()
+		except:
+			print "*** can't read version 1 region file '%s'" % rgnv1file
+			sys.exit(1)
+
+		if lines[0].strip() != 'asss region file version 1':
+			print "*** bad region file header"
+			sys.exit(1)
+
+		def decode_rect(s):
+			def char_to_val(c):
+				c = ord(c)
+				if c >= ord('a') and c <= ord('z'):
+					return c - ord('a')
+				elif c >= ord('1') and c <= ord('6'):
+					return c - ord('1') + 26
+			return (char_to_val(s[0]) << 5 | char_to_val(s[1]),
+			        char_to_val(s[2]) << 5 | char_to_val(s[3]),
+			        char_to_val(s[4]) << 5 | char_to_val(s[5]),
+			        char_to_val(s[6]) << 5 | char_to_val(s[7]))
+
+		r = None
+		for l in lines:
+			l = l.strip().lower()
+			if l.startswith('name: '):
+				rname = l[6:].strip()
+				r = lvl.find_region(rname)
+				if not r:
+					r = Region([('rNAM', rname)])
+					lvl.regions.append(r)
+					print "created region %s" % (mq(rname))
+			elif l.startswith('| ') and r:
+				x0, y0, w, h = decode_rect(l[2:])
+				print "adding rect (%d,%d)-(%d,%d) to region %s" % \
+					(x0, y0, x0+w, y0+h, r.name)
+				for x in xrange(x0, x0+w):
+					for y in xrange(y0, y0+h):
+						r.tiles[(x, y)] = 1
 
 
 def process_script(s):
@@ -272,6 +314,9 @@ commands:
 	op.add_option('--setregiontiles', action = 'append', type = 'string',
 		dest = 'regs_to_set_tiles', default = [], metavar = 'REGIONNAME=BMPFILE:r,g,b',
 		help = 'sets the tiles for the specified region based on a bmp file')
+	op.add_option('--loadv1file', action = 'append', type = 'string',
+		dest = 'rgnv1files', default = [], metavar = 'RGNFILE',
+		help = 'loads the contents of the specified version 1 region file')
 
 	# options from file
 	op.add_option('--script', action = 'append', type = 'string', dest = 'scripts',
@@ -303,7 +348,7 @@ def main():
 
 	if not args:
 		if not opts.infile:
-			op.print_help()
+			make_op().print_help()
 			sys.exit(0)
 		else:
 			args = ['print']
