@@ -39,6 +39,11 @@ cmd_passwd
 
 cmd_sheep
 
+; turf:
+cmd_turftime
+cmd_turfinfo
+cmd_turfstats
+
 ; not implemented yet
 cmd_packetloss
 cmd_zone

@@ -58,7 +58,7 @@ typedef struct
 	struct ClientLatencyData cping; /* client-reported ping */
 	struct ClientPLossData ploss; /* basic ploss info */
 	struct ReliableLagData reldata; /* reliable layer data */
-	unsigned int wpnsent, wpnrcvd;
+	unsigned int wpnsent, wpnrcvd, lastwpnsent;
 } LagData;
 
 
@@ -107,7 +107,7 @@ local void Position(int pid, int ping, unsigned int wpnsent)
 	if (data[pid])
 	{
 		add_ping(&data[pid]->pping, ping);
-		data[pid]->wpnsent = wpnsent;
+		data[pid]->lastwpnsent = wpnsent;
 	}
 	PEDANTIC_UNLOCK();
 }
@@ -129,6 +129,7 @@ local void ClientLatency(int pid, struct ClientLatencyData *d)
 	{
 		data[pid]->cping = *d;
 		data[pid]->wpnrcvd = d->weaponcount;
+		data[pid]->wpnsent = data[pid]->lastwpnsent;
 	}
 	PEDANTIC_UNLOCK();
 }

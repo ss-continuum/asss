@@ -20,3 +20,7 @@ bypass_security
 
 ; prefix chars
 prefix_>
+
+; setgroup
+setgroup_mod
+

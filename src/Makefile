@@ -53,7 +53,7 @@ core.so: config.o player.o core.o logman.o mainloop.o net.o \
 loggers.so: log_file.o log_console.o log_sysop.o
 
 game.so: game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
-	banners.o objects.o messages.o
+	banners.o objects.o messages.o koth.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -lm
 
 command.so: cmdman.o playercmd.o watchdamage.o buy.o help.o cfghelp.o

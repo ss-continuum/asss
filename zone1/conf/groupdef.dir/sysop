@@ -37,3 +37,6 @@ prefix_#
 prefix_$$
 prefix_@
 
+; setgroup:
+setgroup_smod
+

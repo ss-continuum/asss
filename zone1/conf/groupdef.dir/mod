@@ -37,6 +37,9 @@ cmd_turfresettimer
 cmd_forceding
 cmd_forcestats
 
+; koth
+cmd_resetkoth
+
 ; fun stuff
 cmd_brickwrite
 

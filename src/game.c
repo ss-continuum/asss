@@ -842,10 +842,10 @@ void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2, unsigned tm)
 	pthread_mutex_unlock(&brickdata[arena].mtx);
 
 	net->SendToArena(arena, -1, (byte*)pkt, sizeof(*pkt), NET_RELIABLE | NET_PRI_P4);
-	lm->Log(L_DRIVEL, "<game> {%s} Brick dropped (%d,%d)-(%d,%d) (freq=%d) (id=%d) (time=%u)",
+	lm->Log(L_DRIVEL, "<game> {%s} Brick dropped (%d,%d)-(%d,%d) (freq=%d) (id=%d)",
 			arenas[arena].name,
 			x1, y1, x2, y2, freq,
-			pkt->brickid, pkt->starttime);
+			pkt->brickid);
 }
 
 
