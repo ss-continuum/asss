@@ -298,7 +298,7 @@ void Pppk(Player *p, byte *p2, int n)
 		     rand() < cfg_sendanti)
 			sendtoall = 1;
 		/* send safe zone enters to everyone, reliably */
-		if ((pos->status && STATUS_SAFEZONE) &&
+		if ((pos->status & STATUS_SAFEZONE) &&
 		    !(p->position.status & STATUS_SAFEZONE))
 			sendtoall = 2;
 

@@ -120,7 +120,7 @@ int find_file_on_path(
 		/* do macro replace */
 		res = macro_expand_string(
 				file,
-				MAXFILENAME,
+				sizeof(file),
 				path,
 				repls,
 				replslen,

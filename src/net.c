@@ -21,6 +21,7 @@
 #include "asss.h"
 #include "encrypt.h"
 #include "net-client.h"
+#include "protutil.h"
 
 
 /* defines */
@@ -741,6 +742,9 @@ int InitSockets(void)
 			continue;
 		}
 
+		if (set_nonblock(ld->gamesock) < 0)
+			lm->Log(L_WARN, "<net> can't make socket nonblocking");
+
 		if (bind(ld->gamesock, (struct sockaddr *) &sin, sizeof(sin)) == -1)
 		{
 			lm->Log(L_ERROR, "<net> can't bind socket to %s:%d for Listen%d",
@@ -760,6 +764,9 @@ int InitSockets(void)
 			afree(ld);
 			continue;
 		}
+
+		if (set_nonblock(ld->pingsock) < 0)
+			lm->Log(L_WARN, "<net> can't make socket nonblocking");
 
 		if (bind(ld->pingsock, (struct sockaddr *) &sin, sizeof(sin)) == -1)
 		{
@@ -783,6 +790,9 @@ int InitSockets(void)
 		lm->Log(L_ERROR, "<net> can't create socket for client connections");
 	else
 	{
+		if (set_nonblock(clientsock) < 0)
+			lm->Log(L_WARN, "<net> can't make socket nonblocking");
+
 		memset(&sin, 0, sizeof(sin));
 		sin.sin_family = AF_INET;
 		sin.sin_port = htons(0);
@@ -1491,7 +1501,7 @@ void * SendThread(void *dummy)
 		pthread_testcancel();
 
 		/* first send outgoing packets (players) */
-		pd->/*Read*/Lock();
+		pd->Lock();
 		FOR_EACH_PLAYER_P(p, conn, connkey)
 			if (p->status < S_TIMEWAIT &&
 			    IS_OURS(p) &&

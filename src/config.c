@@ -333,7 +333,7 @@ local ConfigHandle OpenConfigFile(const char *arena, const char *name,
 	struct stat st;
 
 	/* make sure at least the base file exists */
-	if (locate_config_file(fname, PATH_MAX, arena, name) == -1)
+	if (locate_config_file(fname, sizeof(fname), arena, name) == -1)
 		return NULL;
 
 	/* first try to get it out of the table */

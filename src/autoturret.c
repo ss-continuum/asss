@@ -214,7 +214,6 @@ Player *findTurretTarget(struct TurretData *td)
 				bd = dist;
 			}
 		}
-#undef DISTANCE
 
 	return bp;
 }

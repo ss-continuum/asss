@@ -278,7 +278,7 @@ local void SendArenaResponse(Player *p)
 
 	pd->Lock();
 	FOR_EACH_PLAYER(op)
-		if (op->status == S_PLAYING &&
+		if ((op->status == S_PLAYING || op->status == S_DO_ARENA_CALLBACKS) &&
 		    op->arena == a &&
 		    op != p )
 		{

@@ -63,7 +63,7 @@ local void CheckBin(const char *argv0)
 	{
 		printf("No 'bin' directory found, attempting to locate one.\n");
 		/* try argv[0] */
-		astrncpy(binpath, argv0, PATH_MAX);
+		astrncpy(binpath, argv0, sizeof(binpath));
 		/* make sure asss exists */
 		if (stat(binpath, &st) == -1)
 			goto no_bin;

@@ -660,16 +660,22 @@ def process_typed(line):
 	if line.startswith(';'):
 		# chat message
 		ns = line.find(';', 1)
-		if ns == -1:
-			send_line("SEND:CHAT:%s" % line[1:])
-			txt = "1:%s> %s" % (myname, line[1:])
-			add_line(txt, colors.chat)
-			log(L_CHAT, txt)
+		if ns > 0 and ns < 16:
+			chan = line[1:ns]
+			try:
+				int(chan)
+				msg = line[ns+1:]
+			except:
+				chan = '1'
+				msg = line[1:]
 		else:
-			send_line("SEND:CHAT:%s" % line[1:])
-			txt = "%s:%s> %s" % (line[1:ns], myname, line[ns+1:])
-			add_line(txt, colors.chat)
-			log(L_CHAT, txt)
+			chan = '1'
+			msg = line[1:]
+
+		send_line("SEND:CHAT:%s" % line[1:])
+		txt = "%s:%s> %s" % (chan, myname, msg)
+		add_line(txt, colors.chat)
+		log(L_CHAT, txt)
 	elif line.startswith("'") or line.startswith('//') or line.startswith('"'):
 		# team chat
 		pass

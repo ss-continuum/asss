@@ -9,8 +9,8 @@
 #define ASSS_DB_FILENAME "data.db"
 
 /* these are alternate values of the 'arena' field in the keys below. */
-#define AG_PUBLIC "<public>"
-#define AG_GLOBAL "<global>"
+#define AG_PUBLIC "(public)"
+#define AG_GLOBAL "(global)"
 
 /* the length of an arena or arena group name. don't change this. */
 #define MAXAGLEN 16

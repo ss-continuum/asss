@@ -50,7 +50,7 @@ local int load_c_module(const char *spec_, mod_args_t *args)
 	else fprintf(stderr, "%c " fmt "\n", lev, a1, a2);
 
 	/* make copy of specifier */
-	astrncpy(spec, spec_, PATH_MAX);
+	astrncpy(spec, spec_, sizeof(spec));
 
 	modname = strchr(spec, ':');
 	if (modname)
@@ -81,7 +81,7 @@ local int load_c_module(const char *spec_, mod_args_t *args)
 		/* Windows LoadLibrary function will not return itself if null,
 		 * so need to set it to myself */
 		char *quote;
-		strcpy(buf, &GetCommandLine()[1]);
+		astrncpy(buf, &GetCommandLine()[1], sizeof(buf));
 		quote = strchr(buf, '"');
 		if (quote)
 			*quote = 0;
@@ -141,7 +141,7 @@ local int load_c_module(const char *spec_, mod_args_t *args)
 		goto die;
 	}
 
-	snprintf(buf, PATH_MAX, "MM_%s", modname);
+	snprintf(buf, sizeof(buf), "MM_%s", modname);
 	cmd->main = (ModMain)dlsym(cmd->handle, buf);
 	if (!cmd->main)
 	{
@@ -168,7 +168,7 @@ local int load_c_module(const char *spec_, mod_args_t *args)
 	}
 
 	/* load info if it exists */
-	snprintf(buf, PATH_MAX, "info_%s", modname);
+	snprintf(buf, sizeof(buf), "info_%s", modname);
 	args->info = dlsym(cmd->handle, buf);
 
 	astrncpy(args->name, modname, sizeof(args->name));
