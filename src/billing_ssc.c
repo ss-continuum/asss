@@ -398,6 +398,9 @@ local void Cdefault(const char *line, Player *p, const Target *target)
 		return;
 	}
 
+	if (IS_RESTRICTED(chat->GetPlayerChatMask(p), MSG_BCOMMAND))
+		return;
+
 	if (!strncasecmp(line, "chat", 4) && (line[4] == ' ' || line[4] == '='))
 		rewrite_chat_command(p, line, &pkt);
 	else

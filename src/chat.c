@@ -39,7 +39,7 @@ struct player_mask_t
 	ticks_t lastcheck;
 };
 
-local int cfg_msgrel, cfg_floodlimit, cfg_floodshutup;
+local int cfg_msgrel, cfg_floodlimit, cfg_floodshutup, cfg_cmdlimit;
 local int cmkey, pmkey;
 
 
@@ -76,9 +76,16 @@ local void check_flood(Player *p)
 	    !capman->HasCapability(p, CAP_CANSPAM))
 	{
 		pm->msgs >>= 1;
-		pm->mask |= MSG_PUBMACRO | MSG_PUB | MSG_FREQ | MSG_NMEFREQ |
-			MSG_PRIV | MSG_REMOTEPRIV | MSG_CHAT | MSG_MODCHAT |
-			MSG_BCOMMAND;
+		pm->mask |=
+			1 << MSG_PUBMACRO |
+			1 << MSG_PUB |
+			1 << MSG_FREQ |
+			1 << MSG_NMEFREQ |
+			1 << MSG_PRIV |
+			1 << MSG_REMOTEPRIV |
+			1 << MSG_CHAT |
+			1 << MSG_MODCHAT |
+			1 << MSG_BCOMMAND;
 		if (pm->expires)
 			/* already has a mask, add time */
 			pm->expires += cfg_floodshutup;
@@ -98,8 +105,7 @@ local const char *get_chat_type(int type)
 	{
 		case MSG_ARENA: return "ARENA";
 		case MSG_PUB:
-		case MSG_PUBMACRO:
-						return "PUB";
+		case MSG_PUBMACRO: return "PUB";
 		case MSG_PRIV: return "PRIV";
 		case MSG_FREQ: return "FREQ";
 		case MSG_SYSOPWARNING: return "SYSOP";
@@ -280,22 +286,24 @@ local void SendRemotePrivMessage(LinkedList *set, int sound,
 local void run_commands(const char *text, Player *p, Target *target)
 {
 	char buf[512], *b;
+	int count = 0;
 
 	if (!cmd) return;
 
-	while (*text)
+	for (;;)
 	{
 		/* skip over *, ?, and | */
 		while (*text == CMD_CHAR_1 || *text == CMD_CHAR_2 || *text == '|')
 			text++;
-		if (*text)
-		{
-			b = buf;
-			while (*text && *text != '|' && (b-buf) < sizeof(buf))
-				*b++ = *text++;
-			*b = '\0';
-			cmd->Command(buf, p, target);
-		}
+
+		if (*text == '\0' || count++ >= cfg_cmdlimit)
+			break;
+
+		b = buf;
+		while (*text && *text != '|' && (b-buf) < sizeof(buf))
+			*b++ = *text++;
+		*b = '\0';
+		cmd->Command(buf, p, target);
 	}
 }
 
@@ -508,11 +516,16 @@ local void handle_remote_priv(Player *p, const char *msg, int sound)
 
 local void handle_chat(Player *p, const char *msg, int sound)
 {
-	/* msg should look like "text" or "#;text" */
+	struct player_mask_t *pm = PPDATA(p, pmkey);
+
+	if (IS_ALLOWED(pm->mask, MSG_CHAT))
+	{
+		/* msg should look like "text" or "#;text" */
+		DO_CBS(CB_CHATMSG, ALLARENAS, ChatMsgFunc, (p, MSG_CHAT, sound, NULL, -1, msg));
 #ifdef CFG_LOG_PRIVATE
-	lm->LogP(L_DRIVEL, "chat", p, "chat msg: %s", msg);
+		lm->LogP(L_DRIVEL, "chat", p, "chat msg: %s", msg);
 #endif
-	DO_CBS(CB_CHATMSG, ALLARENAS, ChatMsgFunc, (p, MSG_CHAT, sound, NULL, -1, msg));
+	}
 }
 
 
@@ -821,6 +834,9 @@ EXPORT int MM_chat(int action, Imodman *mm_, Arena *arena)
 		 * How many seconds to disable chat for a player that is
 		 * flooding chat messages. */
 		cfg_floodshutup = cfg->GetInt(GLOBAL, "Chat", "FloodShutup", 60);
+		/* cfghelp: Chat:CommandLimit, global, int, def: 5
+		 * How many commands are allowed on a single line. */
+		cfg_cmdlimit = cfg->GetInt(GLOBAL, "Chat", "CommandLimit", 5);
 
 		if (net)
 			net->AddPacket(C2S_CHAT, PChat);

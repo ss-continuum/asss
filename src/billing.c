@@ -308,6 +308,8 @@ local void Cdefault(const char *cmd, const char *params, Player *p, const Target
 		;
 	else if (target->type != T_ARENA)
 		lm->LogP(L_DRIVEL, "billing", p, "unknown command with bad target: %s %s", cmd, params);
+	else if (IS_RESTRICTED(chat->GetPlayerChatMask(p), MSG_BCOMMAND))
+		;
 	else
 	{
 		snprintf(buf, sizeof(buf), "CMD:%d:%s:%s", p->pid, cmd, params);
