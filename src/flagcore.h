@@ -80,7 +80,7 @@ typedef void (*FlagResetFunc)(Arena *a, int freq, int points);
 /* run when the flag game is reset (either a win or a forced reset) */
 
 
-#define I_FLAGCORE "flagcore-1"
+#define I_FLAGCORE "flagcore-2"
 
 typedef struct Iflagcore
 {
@@ -96,6 +96,7 @@ typedef struct Iflagcore
 
 	/* convenience: */
 	int (*CountFreqFlags)(Arena *a, int freq);
+	int (*CountPlayerFlags)(Player *p);
 
 	/* used during initialization: */
 

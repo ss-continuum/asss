@@ -38,6 +38,7 @@ typedef struct adata
 	FlagInfo *fis;
 	Player *toucher; /* see set_flag */
 	int during_init; /* ''           */
+	int during_cleanup; /* ugly hack for check_consistency */
 } adata;
 
 
@@ -62,7 +63,8 @@ local void check_consistency(void)
 			if (ad->fis[i].state == FI_CARRIED)
 			{
 				assert(ad->fis[i].carrier);
-				assert(ad->fis[i].freq == ad->fis[i].carrier->p_freq);
+				assert(ad->during_cleanup ||
+				       ad->fis[i].freq == ad->fis[i].carrier->p_freq);
 				(*((int*)PPDATA(ad->fis[i].carrier, pdkey)))++;
 			}
 	aman->Unlock();
@@ -98,6 +100,7 @@ local void cleanup(Player *p, Arena *a, int reason)
 	adata *ad = P_ARENA_DATA(a, adkey);
 
 	LOCK();
+	ad->during_cleanup = TRUE;
 	for (i = 0; i < ad->count; i++)
 		if (ad->fis[i].state == FI_CARRIED &&
 		    ad->fis[i].carrier == p)
@@ -111,7 +114,7 @@ local void cleanup(Player *p, Arena *a, int reason)
 			/* leave freq in case manager wants to use it */
 			ad->game->Cleanup(a, i, reason, p, ad->fis[i].freq);
 		}
-	check_consistency();
+	ad->during_cleanup = FALSE;
 	UNLOCK();
 }
 
@@ -459,7 +462,7 @@ local void freqchange(Player *p, int newfreq)
 local void kill(Arena *a, Player *killer, Player *killed,
 		int bty, int flags, int *pts, int *green)
 {
-	int cancarry, i;
+	int cancarry, i, overflow = FALSE;
 	adata *ad = P_ARENA_DATA(a, adkey);
 
 	LOCK();
@@ -517,15 +520,43 @@ local void kill(Arena *a, Player *killer, Player *killed,
 				ad->game->Cleanup(a, i, reason, killed, killed->p_freq);
 			}
 			else
-			{
-				ad->fis[i].state = FI_NONE;
-				ad->fis[i].carrier = NULL;
-				/* leave freq in case manager wants to use it */
-				DO_CBS(CB_FLAGLOST, a, FlagLostFunc,
-						(a, killed, i, CLEANUP_KILL_CANTCARRY));
-				ad->game->Cleanup(a, i, CLEANUP_KILL_CANTCARRY, killed, killed->p_freq);
-			}
+				overflow = TRUE;
 		}
+
+	/* special overflow handling for when the killer has been given too
+	 * many flags. */
+	/* first have the killer drop all his flags, and pick up the ones
+	 * that really belong to him. */
+	if (overflow)
+	{
+		struct S2CFlagDrop pkt = { S2C_FLAGDROP, killer->pid };
+		net->SendToArena(a, NULL, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
+
+		for (i = 0; i < ad->count; i++)
+			if (ad->fis[i].state == FI_CARRIED)
+			{
+				if (ad->fis[i].carrier == killer)
+				{
+					/* re-pick-up killer flags */
+					struct S2CFlagPickup pkt =
+						{ S2C_FLAGPICKUP, i, killer->pid };
+					net->SendToArena(a, NULL, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
+				}
+				else if (ad->fis[i].carrier == killed)
+				{
+					/* the client thought these transferred, but after the
+					 * drop/re-pick-up maneuver, the client now thinks these
+					 * are void. */
+					killed->pkt.flagscarried--;
+					ad->fis[i].state = FI_NONE;
+					ad->fis[i].carrier = NULL;
+					/* leave freq in case manager wants to use it */
+					DO_CBS(CB_FLAGLOST, a, FlagLostFunc,
+							(a, killed, i, CLEANUP_KILL_CANTCARRY));
+					ad->game->Cleanup(a, i, CLEANUP_KILL_CANTCARRY, killed, killed->p_freq);
+				}
+			}
+	}
 
 	check_consistency();
 	UNLOCK();
@@ -731,6 +762,17 @@ local int CountFreqFlags(Arena *a, int freq)
 }
 
 
+local int CountPlayerFlags(Player *p)
+{
+	int count;
+	LOCK();
+	check_consistency();
+	count = p->pkt.flagscarried;
+	UNLOCK();
+	return count;
+}
+
+
 local void SetCarryMode(Arena *a, int carrymode)
 {
 	adata *ad = P_ARENA_DATA(a, adkey);
@@ -758,7 +800,7 @@ local Iflagcore flagint =
 {
 	INTERFACE_HEAD_INIT(I_FLAGCORE, "flagcore")
 	GetFlags, SetFlags, FlagReset,
-	CountFreqFlags,
+	CountFreqFlags, CountPlayerFlags,
 	SetCarryMode, ReserveFlags
 };
 
@@ -798,7 +840,7 @@ EXPORT int MM_flagcore(int action, Imodman *mm_, Arena *a)
 		mm->RegCallback(CB_ARENAACTION, aaction, ALLARENAS);
 		mm->RegCallback(CB_SHIPCHANGE, shipchange, ALLARENAS);
 		mm->RegCallback(CB_FREQCHANGE, freqchange, ALLARENAS);
-		mm->RegCallback(CB_KILL, kill, ALLARENAS);
+		mm->RegCallback(CB_KILL_POST_NOTIFY, kill, ALLARENAS);
 
 		mm->RegInterface(&flagint, ALLARENAS);
 

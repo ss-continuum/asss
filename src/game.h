@@ -14,6 +14,7 @@
 
 /** this callback is be called whenever a kill occurs */
 #define CB_KILL "kill-2"
+#define CB_KILL_POST_NOTIFY "killpostnotify-2"
 /** the type of CB_KILL.
  * @param arena the arena the kill took place in
  * @param killer the player who made the kill

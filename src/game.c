@@ -996,6 +996,9 @@ local void PDie(Player *p, byte *pkt, int len)
 
 	notify_kill(killer, p, pts, flagcount, green);
 
+	DO_CBS(CB_KILL_POST_NOTIFY, arena, KillFunc,
+			(arena, killer, p, bty, flagcount, &pts, &green));
+
 	lm->Log(L_DRIVEL, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d,pts=%d)",
 			arena->name,
 			p->name,
