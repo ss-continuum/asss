@@ -1919,7 +1919,7 @@ Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v
 	astrncpy(p->ipaddr, inet_ntoa(sin->sin_addr), sizeof(p->ipaddr));
 
 	if (type == T_VIE)
-		astrncpy(p->clientname, "<vie client>", sizeof(p->clientname));
+		astrncpy(p->clientname, "<ss/vie client>", sizeof(p->clientname));
 	else if (type == T_CONT)
 		astrncpy(p->clientname, "<continuum>", sizeof(p->clientname));
 	else
