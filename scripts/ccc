@@ -585,6 +585,37 @@ class LastPrivList:
 			return ''
 
 
+class ChatParser:
+	def __init__(me):
+		me.expires = 0
+
+	def reset(me):
+		me.expires = time.time() + 5.0
+		me.lastchatname = None
+		me.idx = 0
+		for v in views:
+			if v.name.startswith('chat '):
+				v.players.clear()
+
+	def line(me, line):
+		if time.time() > me.expires:
+			return
+
+		try:
+			chat, names = line.split(': ')
+			names = names.split(',')
+			if chat != me.lastchatname:
+				me.lastchatname = chat
+				me.idx += 1
+
+			view = find_chat_view(me.idx)
+			if view:
+				for n in names:
+					view.players.add(Player(n, 0))
+		except:
+			pass
+
+
 class Colors:
 	def __init__(me):
 		from curses import init_pair, color_pair, A_BOLD, A_REVERSE, COLORS, COLOR_PAIRS
@@ -762,10 +793,6 @@ def process_typed(prefix, line):
 	if not line:
 		return
 
-	# commands don't obey the view prefix
-	if not line.startswith('?'):
-		line = prefix + line
-
 	if line.startswith(';'):
 		# chat message
 		ns = line.find(';', 1)
@@ -819,6 +846,9 @@ def process_typed(prefix, line):
 			send_line("CHANGEFREQ:%d" % freq)
 		except:
 			add_line("Bad freq number", colors.info)
+	elif prefix:
+		# recur, with prefix
+		process_typed('', prefix+line)
 	else:
 		# pub msg
 		send_line("SEND:PUB:%s" % line)
@@ -883,10 +913,11 @@ def process_leaving(line):
 
 def process_msg(line):
 	type, rest = line.split(':', 1)
-	if type == 'ARENA':
+	if type == 'ARENA' or type == 'CMD':
 		msg = rest
 		add_line(msg, colors.arena)
 		log(L_ARENA, msg)
+		chatparser.line(rest)
 	elif type == 'PUB':
 		name, msg = rest.split(':', 1)
 		txt = '%s> %s' % (name, msg)
@@ -982,13 +1013,14 @@ def process_incoming(line):
 
 
 def send_line(line):
-	global sock
+	if line == "SEND:PUB:?chat":
+		# special handling for the results of ?chat:
+		chatparser.reset()
 	sock.sendall(line + '\n')
 
 
 deferred_lines = []
 def add_line(line, color = None, view = None, setnewcrap = 1):
-	global colors, jumpback
 	if not colors:
 		# if we're trying to add a line before curses initialization,
 		# save it in a list for later.
@@ -1229,7 +1261,7 @@ def process_config(file):
 
 
 def main():
-	global wins, sock, views, myname, colors
+	global wins, sock, views, myname, colors, chatparser
 	global logindone, last_priv_list
 
 	colors = 0
@@ -1239,6 +1271,7 @@ def main():
 	views = [make_arena_view()]
 	last_priv_list = LastPrivList(10)
 	wins = MyWindows()
+	chatparser = ChatParser()
 
 	# get config file
 	if os.environ.get('CCC_CONFIG_FILE'):
@@ -1297,7 +1330,7 @@ def main():
 	# join chats and other autocommands
 	if opts.has_key('chats'):
 		send_line("SEND:CMD:?chat=%s" % opts['chats'])
-		if opts.get('chatwindows', 1):
+		if opts.get('chatwindows', 0):
 			chats = opts['chats'].split(',')
 			idx = 1
 			for c in chats:
