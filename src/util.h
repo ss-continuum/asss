@@ -53,6 +53,7 @@
 /* miscelaneous stuff */
 
 unsigned int GTC(void);
+unsigned int current_millis(void);
 
 char *RemoveCRLF(char *str);
 char *ToLowerStr(char *str);

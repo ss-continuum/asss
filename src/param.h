@@ -90,10 +90,6 @@
 #define CFG_HASHSIZE 256
 
 
-/* the sampling resolution for bandwidth measurement, in ticks */
-#define CFG_BANDWIDTH_RES 100
-
-
 /* maximum paramaters for the soccer game */
 #define CFG_SOCCER_MAXFREQ 8
 #define CFG_SOCCER_MAXGOALS 16

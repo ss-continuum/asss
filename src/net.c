@@ -31,12 +31,18 @@
 #define IP_UDP_OVERHEAD 28
 
 /* packets to queue up for sending files */
-#define QUEUE_PACKETS 10
+#define QUEUE_PACKETS 15
 /* threshold to start queuing up more packets */
 #define QUEUE_THRESHOLD 5
 
 /* we need to know how many packets the client is able to buffer */
-#define CLIENT_CAN_BUFFER 10
+#define CLIENT_CAN_BUFFER 30
+
+/* the limits on the bandwidth limit */
+#define LOW_LIMIT 1024
+#define HIGH_LIMIT 65536
+#define CLIP(x, low, high) \
+	do { if ((x) > (high)) (x) = (high); else if ((x) < (low)) (x) = (low); } while (0)
 
 /* check whether we manage this client */
 #define IS_OURS(p) ((p)->type == T_CONT || (p)->type == T_VIE)
@@ -91,6 +97,8 @@ typedef struct
 	unsigned int bytesent, byterecvd;
 	/* duplicate reliable packets and reliable retries */
 	unsigned int reldups, retries;
+	/* averaged round-trip time and deviation */
+	int avgrtt, rttdev;
 	/* encryption type */
 	Iencrypt *enc;
 	/* stuff for recving sized packets, protected by player mtx */
@@ -107,7 +115,7 @@ typedef struct
 	} bigrecv;
 	/* stuff for sending sized packets, protected by outlist mtx */
 	LinkedList sizedsends;
-	/* bandwidth control */
+	/* bandwidth control. sincetime is in millis, not ticks */
 	unsigned int sincetime, bytessince, limit;
 	/* the outlist */
 	DQNode outlist;
@@ -122,8 +130,8 @@ typedef struct Buffer
 	/* p, len: valid for all buffers */
 	/* pri, lastretry: valid for buffers in outlist */
 	Player *p;
-	int len, pri;
-	unsigned int lastretry;
+	short len, pri, retries;
+	unsigned int lastretry; /* in millis, not ticks! */
 	/* used for reliable buffers in the outlist only { */
 	RelCallback callback;
 	void *clos;
@@ -154,7 +162,6 @@ local void RemovePacket(int, PacketFunc);
 local void AddSizedPacket(int, SizedPacketFunc);
 local void RemoveSizedPacket(int, SizedPacketFunc);
 local Player * NewConnection(int type, struct sockaddr_in *, Iencrypt *enc);
-local void SetLimit(Player *p, int limit);
 local void GetStats(struct net_stats *stats);
 local void GetClientStats(Player *p, struct net_client_stats *stats);
 local int GetLastPacketTime(Player *p);
@@ -228,8 +235,8 @@ local int pri_limits[8] =
 
 local struct
 {
-	int timeout, droptimeout;
-	int bufferdelta, deflimit;
+	int droptimeout;
+	int bufferdelta;
 	unsigned long int bindaddr /* network order */;
 	unsigned short int port /* host order */;
 } config;
@@ -268,7 +275,7 @@ local Inet netint =
 
 	ReallyRawSend, NewConnection,
 
-	SetLimit, GetStats, GetClientStats, GetLastPacketTime,
+	GetStats, GetClientStats, GetLastPacketTime,
 };
 
 
@@ -299,9 +306,6 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		/* cfghelp: Net:Port, global, int, def: 5000
 		 * The main port that the server runs on. */
 		config.port = (unsigned short)cfg->GetInt(GLOBAL, "Net", "Port", 5000);
-		/* cfghelp: Net:ReliableTimeout, global, int, def: 100
-		 * How long to wait to resend reliable packets (in ticks). */
-		config.timeout = cfg->GetInt(GLOBAL, "Net", "ReliableTimeout", 100);
 		/* cfghelp: Net:DropTimeout, global, int, def: 3000
 		 * How long to get no data from a cilent before disconnecting
 		 * him (in ticks). */
@@ -309,10 +313,6 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		/* cfghelp: Net:MaxBufferDelta, global, int, def: 30
 		 * The maximum number of reliable packets to buffer for a player. */
 		config.bufferdelta = cfg->GetInt(GLOBAL, "Net", "MaxBufferDelta", 30);
-		/* cfghelp: Net:BandwidthLimit, global, int, def: 3500
-		 * The maximum number of bytes per second to send to each
-		 * player by default. */
-		config.deflimit = cfg->GetInt(GLOBAL, "Net", "BandwidthLimit", 3500);
 		/* cfghelp: Net:BindIP, global, string
 		 * If this is set, it must be a single IP address that the
 		 * server should bind to. If unset, the server will bind to all
@@ -504,8 +504,12 @@ local void InitClient(ClientData *cli, Iencrypt *enc)
 	memset(cli, 0, sizeof(ClientData));
 	pthread_mutex_init(&cli->olmtx, NULL);
 	cli->c2sn = -1;
-	cli->limit = config.deflimit;
+	cli->limit = LOW_LIMIT * 3; /* start slow */
 	cli->enc = enc;
+	cli->avgrtt = 100; /* an initial guess */
+	cli->rttdev = 100;
+	cli->bytessince = 0;
+	cli->sincetime = current_millis();
 	LLInit(&cli->sizedsends);
 	DQInit(&cli->outlist);
 }
@@ -887,16 +891,20 @@ local void send_outgoing(Player *p)
 	byte gbuf[MAXPACKET] = { 0x00, 0x0E };
 	byte *gptr = gbuf + 2;
 
-	unsigned int gtc = GTC();
+	unsigned int now = current_millis();
 	int gcount = 0, bytessince, pri, retries = 0, minseqnum;
 	Buffer *buf, *nbuf;
 	DQNode *outlist;
+	/* use an estimate of the average round-trip time to figure out when
+	 * to resend a packet */
+	unsigned int timeout = cli->avgrtt + 4*cli->rttdev;
 
-	/* check if it's time to clear the bytessent */
-	if ( (gtc - cli->sincetime) >= CFG_BANDWIDTH_RES)
+	/* adjust the current idea of how many bytes have been sent in the
+	 * last second */
+	if ( (int)(now - cli->sincetime) >= (1000/7) )
 	{
-		cli->sincetime = gtc;
-		cli->bytessince = 0;
+		cli->bytessince = cli->bytessince * 7 / 8;
+		cli->sincetime += (1000/7);
 	}
 
 	/* we keep a local copy of bytessince to account for the
@@ -922,14 +930,22 @@ local void send_outgoing(Player *p)
 			nbuf = (Buffer*)buf->node.next;
 
 			if (buf->pri == pri &&
-			    (int)(gtc - buf->lastretry) > config.timeout &&
+			    /* increase the required timeout linearly by the number
+			     * of retries so far */
+			    (int)(now - buf->lastretry) > (timeout * buf->retries) &&
 			    ( ! IS_REL(buf) ||
 			      (buf->d.rel.seqnum - minseqnum) < CLIENT_CAN_BUFFER ) &&
 			    (bytessince + buf->len + IP_UDP_OVERHEAD) <= limit)
 			{
-				if (buf->lastretry != 0)
-					/* this is a retry, not an initial send */
+				if (buf->retries != 0)
+				{
+					/* this is a retry, not an initial send. record it
+					 * for lag stats and also halve bw limit (with
+					 * clipping) */
 					retries++;
+					cli->limit /= 2;
+					CLIP(cli->limit, LOW_LIMIT, HIGH_LIMIT);
+				}
 
 				/* try to group it */
 				if (buf->len <= 255 &&
@@ -939,10 +955,14 @@ local void send_outgoing(Player *p)
 					*gptr++ = buf->len;
 					memcpy(gptr, buf->d.raw, buf->len);
 					gptr += buf->len;
-					buf->lastretry = gtc;
 					bytessince += buf->len + 1;
 					gcount++;
-					if (! IS_REL(buf))
+					if (IS_REL(buf))
+					{
+						buf->lastretry = now;
+						buf->retries++;
+					}
+					else
 					{
 						DQRemove((DQNode*)buf);
 						FreeBuffer(buf);
@@ -953,8 +973,12 @@ local void send_outgoing(Player *p)
 					/* send immediately */
 					bytessince += buf->len + IP_UDP_OVERHEAD;
 					SendRaw(p, buf->d.raw, buf->len);
-					buf->lastretry = gtc;
-					if (! IS_REL(buf))
+					if (IS_REL(buf))
+					{
+						buf->lastretry = now;
+						buf->retries++;
+					}
+					else
 					{
 						/* if we just sent an unreliable packet,
 						 * free it so we don't send it again. */
@@ -1371,36 +1395,40 @@ void ProcessAck(Buffer *buf)
 	Buffer *b, *nbuf;
 	DQNode *outlist;
 
-	RelCallback callback = NULL;
-	void *clos = NULL;
-
-	unsigned int ping = 1;
-
 	pthread_mutex_lock(&cli->olmtx);
 	outlist = &cli->outlist;
 	for (b = (Buffer*)outlist->next; (DQNode*)b != outlist; b = nbuf)
 	{
 		nbuf = (Buffer*)b->node.next;
-		/* this should only match once */
 		if (IS_REL(b) &&
 		    b->d.rel.seqnum == buf->d.rel.seqnum)
 		{
-			callback = b->callback;
-			clos = b->clos;
-			ping = (GTC() - b->lastretry) * 10;
 			DQRemove((DQNode*)b);
+			pthread_mutex_unlock(&cli->olmtx);
+
+			if (b->callback)
+				b->callback(buf->p, 1, b->clos);
+
+			if (b->retries == 1)
+			{
+				int rtt = current_millis() - b->lastretry;
+				int dev = cli->avgrtt - rtt;
+				if (dev < 0) dev = -dev;
+				cli->rttdev = (cli->rttdev * 3 + dev) / 4;
+				cli->avgrtt = (cli->avgrtt * 7 + rtt) / 8;
+				if (lagc) lagc->RelDelay(buf->p, rtt);
+			}
+
+			/* handle limit adjustment */
+			cli->limit += 540*540/cli->limit;
+			CLIP(cli->limit, LOW_LIMIT, HIGH_LIMIT);
+
 			FreeBuffer(b);
+			FreeBuffer(buf);
+			return;
 		}
 	}
 	pthread_mutex_unlock(&cli->olmtx);
-
-	if (callback)
-		callback(buf->p, 1, clos);
-
-	if (lagc && ping != 1)
-		lagc->RelDelay(buf->p, ping);
-
-	FreeBuffer(buf);
 }
 
 
@@ -1552,27 +1580,24 @@ presized_done:
 
 void ProcessCancel(Buffer *req)
 {
-	/* the client has request a cancel for the file transfer. that means
-	 * we have to go through the outlist and remove all presized
-	 * packets. */
+	/* the client has request a cancel for the file transfer */
 	ClientData *cli = PPDATA(req->p, clikey);
-	Buffer *buf, *nbuf;
-	DQNode *outlist;
+	struct sized_send_data *sd;
+	Link *l;
 
 	pthread_mutex_lock(&cli->olmtx);
-	outlist = &cli->outlist;
-	for (buf = (Buffer*)outlist->next; (DQNode*)buf != outlist; buf = nbuf)
+
+	/* cancel current presized transfer */
+	if ((l = LLGetHead(&cli->sizedsends)) && (sd = l->data))
 	{
-		/* callbacks aren't allowed for file transfers, so don't worry
-		 * about them */
-		nbuf = (Buffer*)buf->node.next;
-		if (IS_PRESIZED(buf))
-		{
-			DQRemove((DQNode*)buf);
-			FreeBuffer(buf);
-		}
+		sd->request_data(sd->clos, 0, NULL, 0);
+		afree(sd);
 	}
+	LLRemoveFirst(&cli->sizedsends);
+
 	pthread_mutex_unlock(&cli->olmtx);
+
+	/* FIXME: we probably have to do something else here */
 
 	FreeBuffer(req);
 }
@@ -1652,7 +1677,8 @@ Buffer * BufferPacket(Player *p, byte *data, int len, int flags,
 
 	buf = GetBuffer();
 	buf->p = p;
-	buf->lastretry = 0;
+	buf->lastretry = current_millis() - 10000;
+	buf->retries = 0;
 	buf->pri = GET_PRI(flags);
 	buf->callback = callback;
 	buf->clos = clos;
@@ -1680,8 +1706,9 @@ Buffer * BufferPacket(Player *p, byte *data, int len, int flags,
 	if (GET_PRI(flags) > 5)
 		if (((int)cli->bytessince + buf->len + IP_UDP_OVERHEAD) <= limit)
 		{
+			buf->lastretry = current_millis();
+			buf->retries++;
 			SendRaw(p, buf->d.raw, buf->len);
-			buf->lastretry = GTC();
 		}
 
 	return buf;
@@ -1810,13 +1837,6 @@ i32 GetIP(Player *p)
 }
 
 
-void SetLimit(Player *p, int limit)
-{
-	ClientData *cli = PPDATA(p, clikey);
-	cli->limit = limit * CFG_BANDWIDTH_RES / 100;
-}
-
-
 void GetStats(struct net_stats *stats)
 {
 	if (stats)
@@ -1839,7 +1859,7 @@ void GetClientStats(Player *p, struct net_client_stats *stats)
 	else
 		stats->encname = "none";
 	/* convert to bytes per second */
-	stats->limit = cli->limit * 100 / CFG_BANDWIDTH_RES;
+	stats->limit = cli->limit;
 	/* RACE: inet_ntoa is not thread-safe */
 	astrncpy(stats->ipaddr, inet_ntoa(cli->sin.sin_addr), 16);
 	stats->port = cli->sin.sin_port;
@@ -1848,6 +1868,6 @@ void GetClientStats(Player *p, struct net_client_stats *stats)
 int GetLastPacketTime(Player *p)
 {
 	ClientData *cli = PPDATA(p, clikey);
-	return GTC() - cli->lastpkt;
+	return (int)(GTC() - cli->lastpkt);
 }
 

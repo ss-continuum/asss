@@ -27,7 +27,7 @@ typedef struct MyBallData
 	/* these are in centiseconds. the timer event runs with a resolution
 	 * of 50 centiseconds, though, so that's the best resolution you're
 	 * going to get. */
-	int sendtime, lastsent;
+	unsigned sendtime, lastsent;
 	int spawnx, spawny, spawnr;
 	/* this is the delay between a goal and the ball respawning. */
 	int goaldelay;
@@ -306,7 +306,8 @@ void EndGame(Arena *arena)
 {
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
 
-	int i, gtc = GTC(), newgame;
+	int i, newgame;
+	unsigned now = GTC();
 	ConfigHandle c = arena->cfg;
 
 	LOCK_STATUS(arena);
@@ -327,7 +328,7 @@ void EndGame(Arena *arena)
 		newgame = rand()%(newgame*-1);
 
 	for (i = 0; i < abd->ballcount; i++)
-		abd->balls[i].time = gtc + newgame;
+		abd->balls[i].time = now + newgame;
 
 	UNLOCK_STATUS(arena);
 }

@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 0.9.9.
+Welcome to asss (a small subspace server) 0.9.11.
 
 This news.txt will be used for updates about new features and other
 important information. If you have any suggestions of any kind, please
@@ -7,8 +7,15 @@ let me know.
 
 
 Recent updates:
-    * big internal improvements: there are no more hard limits on
-      players or arenas
+    * network layer improvements: faster and smoother downloads
+
+    * billing server support re-added (plus a proxy to connect
+      to older servers)
+
+    * improved ?putfile command
+
+    * big internal improvements: no more hard limits on
+      players or arenas, plus lower memory usage
 
     * players can send files to each other with /?sendfile
 

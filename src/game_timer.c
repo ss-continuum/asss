@@ -187,7 +187,7 @@ local void Ctimereset(const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	timerdata *td = P_ARENA_DATA(arena, tdkey);
-	long gamelen = td->gamelen;
+	unsigned gamelen = td->gamelen;
 
 	if (gamelen)
 	{

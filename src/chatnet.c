@@ -198,7 +198,8 @@ local int do_one_iter(void *dummy)
 	Player *p;
 	sp_conn *cli;
 	Link *link;
-	int max, ret, gtc = GTC();
+	int max, ret;
+	unsigned gtc = GTC();
 	fd_set readset, writeset;
 	struct timeval tv = { 0, 0 };
 	LinkedList toremove = LL_INITIALIZER;

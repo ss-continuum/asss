@@ -630,7 +630,7 @@ int SendKeepalive(void *q)
 {
 	byte keepalive = S2C_KEEPALIVE;
 	if (net)
-		net->SendToArena(ALLARENAS, NULL, &keepalive, 1, NET_UNRELIABLE);
+		net->SendToArena(ALLARENAS, NULL, &keepalive, 1, NET_RELIABLE);
 	return 1;
 }
 

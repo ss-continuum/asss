@@ -80,14 +80,16 @@ local int lagkey;
 local void add_ping(struct PingData *pd, int ping)
 {
 	/* prevent horribly incorrect pings from messing up stats */
-	if (ping > MAX_PING || ping < -MAX_PING)
+	if (ping > MAX_PING)
 		ping = MAX_PING;
+	if (ping < 0)
+		ping = 0;
 
 	pd->current = ping;
 #ifdef USE_BUCKETS
 	pd->buckets[MS_TO_BUCKET(ping)]++;
 #endif
-	pd->avg = (pd->avg * 9 + ping) / 10;
+	pd->avg = (pd->avg * 7 + ping) / 8;
 	if (ping < pd->min)
 		pd->min = ping;
 	if (ping > pd->max)

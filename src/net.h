@@ -97,7 +97,7 @@ struct net_client_stats
 #include "encrypt.h"
 
 
-#define I_NET "net-4"
+#define I_NET "net-5"
 
 typedef struct Inet
 {
@@ -122,9 +122,6 @@ typedef struct Inet
 	/* only to be used by encryption modules! */
 	void (*ReallyRawSend)(struct sockaddr_in *sin, byte *pkt, int len);
 	Player * (*NewConnection)(int type, struct sockaddr_in *sin, Iencrypt *enc);
-
-	/* bandwidth limits. the units on these parameters are bytes/second */
-	void (*SetLimit)(Player *p, int limit);
 
 	void (*GetStats)(struct net_stats *stats);
 	void (*GetClientStats)(Player *p, struct net_client_stats *stats);

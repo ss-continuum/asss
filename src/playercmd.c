@@ -615,13 +615,13 @@ local void Cinfo(const char *params, Player *p, const Target *target)
 			"unknown", "fake", "vie", "cont", "chat"
 		};
 		const char *type, *prefix;
-		unsigned int tm;
+		int tm;
 		Player *t = target->u.p;
 
 		type = t->type < (sizeof(type_names)/sizeof(type_names[0])) ?
 			type_names[t->type] : "really_unknown";
 		prefix = params[0] ? params : "info";
-		tm = GTC() - t->connecttime;
+		tm = (int)(GTC() - t->connecttime);
 
 		chat->SendMessage(p,
 				"%s: pid=%d  status=%d  name='%s'  squad='%s'  auth=%c",

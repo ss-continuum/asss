@@ -419,7 +419,7 @@ void Pppk(Player *p, byte *p2, int n)
 	if (lagc)
 		lagc->Position(
 				p,
-				(GTC() - pos->time) * 10,
+				(gtc - pos->time) * 10,
 				n >= 26 ? pos->extra.s2cping * 10 : -1,
 				data->wpnsent);
 

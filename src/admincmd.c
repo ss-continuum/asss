@@ -198,8 +198,13 @@ EXPORT int MM_admincmd(int action, Imodman *_mm, Arena *arena)
 		mm = _mm;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
-		if (!pd || !chat || !cmd) return MM_FAIL;
+		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
+		logfile = mm->GetInterface(I_LOG_FILE, ALLARENAS);
+		filetrans = mm->GetInterface(I_FILETRANS, ALLARENAS);
+		if (!pd || !chat || !lm || !cmd || !capman || !logfile || !filetrans)
+			return MM_FAIL;
 
 		cmd->AddCommand("admlogfile", Cadmlogfile, admlogfile_help);
 		cmd->AddCommand("getfile", Cgetfile, getfile_help);
@@ -216,7 +221,11 @@ EXPORT int MM_admincmd(int action, Imodman *_mm, Arena *arena)
 		cmd->RemoveCommand("putzip", Cputzip);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(chat);
+		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(cmd);
+		mm->ReleaseInterface(capman);
+		mm->ReleaseInterface(logfile);
+		mm->ReleaseInterface(filetrans);
 		return MM_OK;
 	}
 	return MM_FAIL;
