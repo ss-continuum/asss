@@ -28,7 +28,7 @@ size_t read_full(int fd, void *_buf, size_t req)
 }
 
 
-size_t write_full(int fd, void *_buf, size_t req)
+static size_t write_full(int fd, void *_buf, size_t req)
 {
 	int left, ret;
 	char *buf;
