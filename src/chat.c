@@ -401,12 +401,13 @@ void SendArenaMessage(int arena, const char *str, ...)
 	cp->pktype = S2C_CHAT;
 	cp->type = MSG_ARENA;
 	cp->sound = 0;
-	
+
 	pd->LockStatus();
 	for (i = 0; i < MAXPLAYERS; i++)
 		if (players[i].status == S_PLAYING && players[i].arena == arena)
 			set[setc++] = i;
 	pd->UnlockStatus();
+	set[setc] = -1;
 
 	net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
 }
