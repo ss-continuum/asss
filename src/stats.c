@@ -1,10 +1,12 @@
 
+#include <time.h>
 #include <string.h>
 
 #include "asss.h"
 
 
 #define KEY_STATS 1
+#define KEY_ENDING_TIME 2
 
 
 /* structs */
@@ -365,6 +367,32 @@ DO_PERSISTENT_DATA(game, INTERVAL_GAME)
 #undef DO_PERSISTENT_DATA
 
 
+/* interval ending time */
+
+local int get_ending_time(int arena, void *data, int len)
+{
+	time(data);
+	return sizeof(time_t);
+}
+
+local void set_ending_time(int arena, void *data, int len) { /* noop */ }
+
+local void clear_ending_time(int arena) { /* noop */ }
+
+local PersistentData my_reset_end_time_data =
+{
+	KEY_ENDING_TIME, ALLARENAS, INTERVAL_RESET,
+	get_ending_time, set_ending_time, clear_ending_time
+};
+
+local PersistentData my_game_end_time_data =
+{
+	KEY_ENDING_TIME, ALLARENAS, INTERVAL_GAME,
+	get_ending_time, set_ending_time, clear_ending_time
+};
+
+
+
 
 local helptext_t stats_help =
 "Targets: player or none\n"
@@ -439,6 +467,8 @@ EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 		persist->RegPlayerPD(&my_forever_data);
 		persist->RegPlayerPD(&my_reset_data);
 		persist->RegPlayerPD(&my_game_data);
+		persist->RegArenaPD(&my_reset_end_time_data);
+		persist->RegArenaPD(&my_game_end_time_data);
 
 		mm->RegInterface(&_myint, ALLARENAS);
 		return MM_OK;
@@ -450,6 +480,8 @@ EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 		persist->UnregPlayerPD(&my_forever_data);
 		persist->UnregPlayerPD(&my_reset_data);
 		persist->UnregPlayerPD(&my_game_data);
+		persist->UnregArenaPD(&my_reset_end_time_data);
+		persist->UnregArenaPD(&my_game_end_time_data);
 
 		cmd->RemoveCommand("stats", Cstats);
 
@@ -465,5 +497,4 @@ EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 	}
 	return MM_FAIL;
 }
-
 

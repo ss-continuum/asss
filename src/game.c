@@ -215,6 +215,10 @@ void Pppk(int pid, byte *p2, int n)
 		regset.count = 0;
 		epdset.count = 0;
 
+		/* this is the weapons ignore hook */
+		if (p->weapon.type && rand() < players[pid].ignoreweapons)
+			p->weapon.type = 0;
+
 		/* there are several reasons to send a weapon packet (05) instead of
 		 * just a position one (28) */
 		sendwpn = 0;

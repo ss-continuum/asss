@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 0.7.3.
+Welcome to asss (a small subspace server) 0.7.4.
 
 This news.txt will be used for updates about new features and other
 important information. If you have any suggestions of any kind, please
@@ -10,20 +10,18 @@ see it eventually (it all gets logged).
 
 
 Recent updates:
+    * lag actions - spec on spikes, high ping, high ploss. gradual
+      weapons disabling for high ping/ploss also.
+
+    * more stats - team kills/deaths, flag pickups/drops/neuts/kills/
+      deaths/time, carry time, ball pickups/goals/time/goals, flag games
+      won/lost, ball games won/lost.
+
+      use ?stats to see them.
+
     * various security features (chat flood detection, login limiting)
 
     * ?last - shows you last 10 people to log in
-
-    * password security - type ?passwd=foobar to set one
-
-    * alias database with mysql support
-
-    * some basic lag statistics gathering
-
-    * brand new database stuff. it will be cool.
-
-    * simple text-based chat protocol. read doc/simple-chat.txt, then
-      telnet to asss.sscx.net, port 5002.
 
 
 Lots more detail at:

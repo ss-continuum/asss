@@ -595,13 +595,16 @@ local void Cinfo(const char *params, int pid, const Target *target)
 		if (IS_STANDARD(t))
 		{
 			struct net_client_stats s;
+			int ignoring;
 			net->GetClientStats(t, &s);
 			chat->SendMessage(pid,
 					"%s: ip=%s  port=%d  encname=%s",
 					prefix, s.ipaddr, s.port, s.encname);
+			ignoring = 100.0 * (double)p->ignoreweapons / (double)RAND_MAX;
 			chat->SendMessage(pid,
-					"%s: limit=%d  avg bandwidth in/out=%d/%d",
-					prefix, s.limit, s.byterecvd*100/tm, s.bytesent*100/tm);
+					"%s: limit=%d  avg bandwidth in/out=%d/%d  ignoringwpns=%d%%",
+					prefix, s.limit, s.byterecvd*100/tm, s.bytesent*100/tm,
+					ignoring);
 		}
 		else if (IS_CHAT(t))
 		{

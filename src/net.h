@@ -99,7 +99,7 @@ struct net_client_stats
 };
 
 
-#define I_NET "net-2"
+#define I_NET "net-3"
 
 typedef struct Inet
 {
@@ -132,6 +132,7 @@ typedef struct Inet
 
 	void (*GetStats)(struct net_stats *stats);
 	void (*GetClientStats)(int pid, struct net_client_stats *stats);
+	int (*GetLastPacketTime)(int pid);
 } Inet;
 
 

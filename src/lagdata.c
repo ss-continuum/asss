@@ -43,8 +43,8 @@ local pthread_mutex_t mtx;
 struct PingData
 {
 	unsigned int buckets[MAX_BUCKET];
-	/* total is in centiseconds, everything else in milliseconds */
-	unsigned int current, total, count, max, min;
+	/* these are all in milliseconds */
+	unsigned int current, avg, max, min;
 };
 
 typedef struct
@@ -85,8 +85,7 @@ local void add_ping(struct PingData *pd, int ping)
 {
 	pd->current = ping;
 	pd->buckets[MS_TO_BUCKET(ping)]++;
-	pd->total += ping / 10;
-	pd->count++;
+	pd->avg = (pd->avg * 9 + ping) / 10;
 	if (ping < pd->min)
 		pd->min = ping;
 	if (ping > pd->max)
@@ -110,7 +109,7 @@ local void RelDelay(int pid, unsigned int ping)
 {
 	PEDANTIC_LOCK();
 	if (data[pid])
-		add_ping(&data[pid]->rping, ping);
+		add_ping(&data[pid]->rping, ping/2);
 	PEDANTIC_UNLOCK();
 }
 
@@ -153,7 +152,7 @@ local void QueryPPing(int pid, struct PingSummary *p)
 	{
 		struct PingData *pd = &data[pid]->pping;
 		p->cur = pd->current;
-		p->avg = pd->count ? (pd->total*10) / pd->count : 0;
+		p->avg = pd->avg;
 		p->min = pd->min;
 		p->max = pd->max;
 	}
@@ -191,7 +190,7 @@ local void QueryRPing(int pid, struct PingSummary *p)
 	{
 		struct PingData *pd = &data[pid]->rping;
 		p->cur = pd->current;
-		p->avg = pd->count ? (pd->total*10) / pd->count : 0;
+		p->avg = pd->avg;
 		p->min = pd->min;
 		p->max = pd->max;
 	}

@@ -38,6 +38,10 @@ typedef struct PlayerData
 	char name[24], squad[24];
 	i16 xres, yres;
 	unsigned int connecttime;
+	/* this is a number between 0 and RAND_MAX. for each incoming
+	 * weapon, if rand() is less than this, it's ignored. this really
+	 * shouldn't be here, i know. */
+	unsigned int ignoreweapons;
 	struct PlayerPosition position;
 	struct LoginPacket *loginpkt;
 } PlayerData;

@@ -46,7 +46,7 @@ asss: main.o app.o module.o util.o pathutil.o region.o
 
 core.so: config.o player.o core.o logman.o mainloop.o net.o \
 	nullenc.o encrypt1.o arenaman.o mapdata.o mapnewsdl.o clientset.o \
-	capman.o security.o lagdata.o
+	capman.o security.o lagdata.o lagaction.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -lz
 
 loggers.so: log_file.o log_console.o log_sysop.o

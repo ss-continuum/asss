@@ -147,6 +147,7 @@ local int NewConnection(int type, struct sockaddr_in *, Iencrypt *enc);
 local void SetLimit(int pid, int limit);
 local void GetStats(struct net_stats *stats);
 local void GetClientStats(int pid, struct net_client_stats *stats);
+local int GetLastPacketTime(int pid);
 
 /* internal: */
 local inline int HashIP(struct sockaddr_in);
@@ -258,7 +259,8 @@ local Inet _int =
 	ReallyRawSend,
 	KillConnection,
 	AddPacket, RemovePacket, AddSizedPacket, RemoveSizedPacket,
-	NewConnection, SetLimit, GetStats, GetClientStats
+	NewConnection, SetLimit, GetStats, GetClientStats,
+	GetLastPacketTime
 };
 
 
@@ -2011,5 +2013,10 @@ void GetClientStats(int pid, struct net_client_stats *stats)
 	/* RACE: inet_ntoa is not thread-safe */
 	astrncpy(stats->ipaddr, inet_ntoa(clients[pid].sin.sin_addr), 16);
 	stats->port = clients[pid].sin.sin_port;
+}
+
+int GetLastPacketTime(int pid)
+{
+	return GTC() - clients[pid].lastpkt;
 }
 

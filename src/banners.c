@@ -56,7 +56,9 @@ local int CheckBanner(int pid)
 
 local void PBanner(int pid, byte *p, int len)
 {
+	static unsigned lastbsend = 0;
 	struct C2SBanner *b = (struct C2SBanner*)p;
+	unsigned gtc = GTC();
 
 	if (len != sizeof(*b))
 	{
@@ -77,13 +79,17 @@ local void PBanner(int pid, byte *p, int len)
 		/* send to everyone */
 		BannerToArena(pid);
 		/* send to biller */
-		if (bnet)
+		/* only allow 1 banner every .2 seconds to get sent to biller.
+		 * any more get dropped */
+		if (bnet && (gtc - lastbsend) > 20)
 		{
 			struct S2BBanner bsend;
 			bsend.type = S2B_BANNER;
 			bsend.pid = pid;
 			bsend.banner = b->banner;
-			bnet->SendToBiller((byte*)&bsend, sizeof(bsend), NET_RELIABLE);
+			bnet->SendToBiller((byte*)&bsend, sizeof(bsend),
+					NET_RELIABLE | NET_PRI_N1);
+			lastbsend = gtc;
 		}
 
 		if (lm) lm->Log(L_DRIVEL, "<banners> [%s] Recvd banner", pd->players[pid].name);
