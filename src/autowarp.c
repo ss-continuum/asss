@@ -107,8 +107,9 @@ void Pppk(Player *p, byte *p2, int len)
 	if (warpy)
 	{
 		struct S2CWeapons wpn = {
-			S2C_WEAPON, pos->rotation, (pos->time + 2000) & 0xFFFF, pos->x, pos->yspeed,
-			p->pid, pos->xspeed, 0, pos->status, 0, pos->y + warpy, pos->bounty
+			S2C_WEAPON, pos->rotation, (pos->time + 10000) & 0xFFFF,
+			pos->x, pos->yspeed, p->pid, pos->xspeed, 0, pos->status, 0,
+			pos->y + warpy, pos->bounty
 		};
 
 		DoChecksum(&wpn);
