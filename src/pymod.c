@@ -642,7 +642,7 @@ local void call_gen_py_callbacks(const char *cbid, PyObject *args)
 			Py_DECREF(ret);
 		else
 		{
-			lm->Log(L_ERROR, "<pymod> python error in callback for '%s'", cbid+3);
+			lm->Log(L_ERROR, "<pymod> error in callback for '%s'", cbid+3);
 			log_py_exception(L_ERROR, NULL);
 		}
 	}
@@ -961,7 +961,16 @@ local void pycmd_command(const char *tc, const char *params, Player *p, const Ta
 	{
 		HashGetAppend(pycmd_cmds, tc, &cmds);
 		for (l = LLGetHead(&cmds); l; l = l->next)
-			PyObject_Call(l->data, args, NULL);
+		{
+			PyObject *ret = PyObject_Call(l->data, args, NULL);
+			if (ret)
+				Py_DECREF(ret);
+			else
+			{
+				lm->Log(L_ERROR, "<pymod> error in command handler for '%s'", tc);
+				log_py_exception(L_ERROR, NULL);
+			}
+		}
 		Py_DECREF(args);
 	}
 }
@@ -1426,6 +1435,9 @@ local void init_asss_module(void)
 	if (m == NULL)
 		return;
 
+	PyModule_AddObject(m, "PlayerType", (PyObject*)&PlayerType);
+	PyModule_AddObject(m, "ArenaType", (PyObject*)&ArenaType);
+
 	/* handle constants */
 #define STRING(x) PyModule_AddStringConstant(m, #x, x);
 #define PYCALLBACK(x) PyModule_AddStringConstant(m, #x, PYCBPREFIX x);
@@ -1490,6 +1502,30 @@ local int unload_py_module(mod_args_t *args)
 }
 
 
+local int call_maybe_with_arena(PyObject *mod, const char *funcname, Arena *a)
+{
+	PyObject *func = PyObject_GetAttrString(mod, (char*)funcname);
+	if (func)
+	{
+		PyObject *ret = a ?
+			PyEval_CallFunction(func, "(O&)", cvt_c2p_arena, a) :
+			PyEval_CallFunction(func, NULL);
+		Py_XDECREF(ret);
+		Py_DECREF(func);
+		if (ret)
+			return MM_OK;
+		else
+		{
+			lm->Log(L_ERROR, "<pymod> error in '%s'", funcname);
+			log_py_exception(L_ERROR, NULL);
+		}
+	}
+	else
+		PyErr_Clear();
+	return MM_FAIL;
+}
+
+
 local int pyloader(int action, mod_args_t *args, const char *line, Arena *arena)
 {
 	switch (action)
@@ -1501,11 +1537,16 @@ local int pyloader(int action, mod_args_t *args, const char *line, Arena *arena)
 			return unload_py_module(args);
 
 		case MM_ATTACH:
+			return call_maybe_with_arena(args->privdata, "mm_attach", arena);
+
 		case MM_DETACH:
+			return call_maybe_with_arena(args->privdata, "mm_detach", arena);
+
 		case MM_POSTLOAD:
+			return call_maybe_with_arena(args->privdata, "mm_postload", NULL);
+
 		case MM_PREUNLOAD:
-			/* FIXME: implement these */
-			return MM_FAIL;
+			return call_maybe_with_arena(args->privdata, "mm_preunload", NULL);
 
 		default:
 			return MM_FAIL;
