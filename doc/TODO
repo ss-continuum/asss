@@ -18,6 +18,12 @@ better authority model (groups, capabilities)
   write about it first!
 
 
+net
+---
+does my implementation of acking (the lastack thing) really work?!
+fix it!
+and make outgoing queues separate per player.
+
 
 long term
 ---------
