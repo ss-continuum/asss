@@ -42,7 +42,7 @@ all: $(ALL_STUFF) install
 opt: clean
 	$(MAKE) "CFLAGS=$(ALL_CFLAGS) $(OPT_CFLAGS) $(PROF_FLAGS)"
 
-asss: main.o app.o module.o util.o pathutil.o region.o
+asss: main.o app.o module.o util.o pathutil.o protutil.o region.o
 	$(CC) $(LDFLAGS) -rdynamic -o $@ $^ -ldl -lpthread
 
 core.so: config.o player.o core.o logman.o mainloop.o net.o \
@@ -58,7 +58,7 @@ game.so: game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
 
 command.so: cmdman.o playercmd.o watchdamage.o buy.o help.o cfghelp.o
 
-external.so: directory.o # billcore.so
+external.so: directory.o billing.o
 
 scoring.so: persist.o stats.o statcodes.o points_kill.o points_flag.o \
 	points_goal.o jackpot.o periodic.o points_periodic.o basicstats.o

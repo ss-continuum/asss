@@ -16,3 +16,7 @@
 // probable use: provide portals between arenas to transport player to other arena
 #define REWARD_STD_MULTI   4
 
+
+#define TR_WEIGHT_TIME    0
+#define TR_WEIGHT_DINGS   1
+

@@ -72,7 +72,7 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 
 	/* setup basic authdata */
 	memset(&ad, 0, sizeof(ad));
-	ad.code = AUTH_OK;
+	ad.authenticated = FALSE;
 	astrncpy(ad.name, name, sizeof(ad.name));
 	astrncpy(ad.sendname, name, sizeof(ad.sendname));
 
@@ -94,7 +94,11 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 			if (strcmp(hex, line))
 				ad.code = AUTH_BADPASSWORD;
 			else
+			{
+				/* only a correct password gets marked as authenticated */
+				ad.authenticated = TRUE;
 				ad.code = AUTH_OK;
+			}
 		}
 	}
 	else

@@ -20,39 +20,14 @@
 
 #include "asss.h"
 
+#include "protutil.h"
+
 
 /* locking notes: we only acquire the big chatnet lock in many places
  * when checking player type information because although new players
  * may be created and destroyed without that mutex, chatnet players may
  * not be, and those are the only ones we're interested in here. */
 
-
-#define MAXCMDNAME 16
-#define MAXMSGSIZE 1023
-
-#define CR 0x0D
-#define LF 0x0A
-
-
-
-/* defines */
-
-typedef struct buffer
-{
-	char *cur; /* points to within data */
-	char data[1];
-} buffer;
-
-#define LEFT(buf) (MAXMSGSIZE - ((buf)->cur - (buf)->data) - 1)
-
-typedef struct cdata
-{
-	int socket;
-	struct sockaddr_in sin;
-	unsigned int lastmsgtime;
-	buffer *inbuf;
-	LinkedList outbufs;
-} cdata;
 
 /* global data */
 
@@ -71,55 +46,11 @@ local pthread_mutex_t bigmtx;
 #define UNLOCK() pthread_mutex_unlock(&bigmtx)
 
 
-local buffer *get_out_buffer(const char *str)
+local int get_socket(void)
 {
-	buffer *b = amalloc(sizeof(buffer) + strlen(str));
-	strcpy(b->data, str);
-	b->cur = b->data;
-	return b;
-}
-
-local buffer *get_in_buffer(void)
-{
-	buffer *b = amalloc(sizeof(buffer) + MAXMSGSIZE);
-	b->cur = b->data;
-	return b;
-}
-
-
-local int set_nonblock(int s)
-{
-#ifndef WIN32
-	int opts = fcntl(s, F_GETFL);
-	if (opts == -1)
-		return -1;
-	else if (fcntl(s, F_SETFL, opts | O_NONBLOCK) == -1)
-		return -1;
-	else
-		return 0;
-#else
-	unsigned long nb = 1;
-
-	if (ioctlsocket(s, FIONBIO, &nb) == SOCKET_ERROR)
-		return -1;
-	else
-		return 0;
-#endif
-}
-
-
-local int init_socket(void)
-{
-	int s, port;
-	struct sockaddr_in sin;
-	unsigned long int bindaddr;
+	int port;
 	const char *addr;
-
-#ifdef WIN32
-	WSADATA wsad;
-	if (WSAStartup(MAKEWORD(1,1),&wsad))
-		return -1;
-#endif
+	unsigned long int bindaddr;
 
 	/* cfghelp: Net:ChatPort, global, int, def: Net:Port + 2, \
 	 * mod: chatnet
@@ -127,6 +58,7 @@ local int init_socket(void)
 	port = cfg->GetInt(GLOBAL, "Net", "ChatPort", -1);
 	if (port == -1)
 		port = cfg->GetInt(GLOBAL, "Net", "Port", 5000) + 2;
+
 	/* cfghelp: Net:ChatBindIP, global, string, def: Net:BindIP, \
 	 * mod: chatnet
 	 * If this is set, it must be a single IP address that the server
@@ -136,41 +68,7 @@ local int init_socket(void)
 	if (!addr) addr = cfg->GetStr(GLOBAL, "Net", "BindIP");
 	bindaddr = addr ? inet_addr(addr) : INADDR_ANY;
 
-	sin.sin_family = AF_INET;
-	memset(sin.sin_zero, 0, sizeof(sin.sin_zero));
-	sin.sin_addr.s_addr = bindaddr;
-	sin.sin_port = htons(port);
-
-	s = socket(PF_INET, SOCK_STREAM, 0);
-
-	if (s == -1)
-	{
-		perror("socket");
-		return -1;
-	}
-
-	if (bind(s, (struct sockaddr *)&sin, sizeof(sin)) == -1)
-	{
-		perror("bind");
-		close(s);
-		return -1;
-	}
-
-	if (set_nonblock(s) == -1)
-	{
-		perror("set_nonblock");
-		close(s);
-		return -1;
-	}
-
-	if (listen(s, 5) == -1)
-	{
-		perror("listen");
-		close(s);
-		return -1;
-	}
-
-	return s;
+	return init_listening_socket(port, bindaddr);
 }
 
 
@@ -178,7 +76,7 @@ local int init_socket(void)
 local Player * try_accept(int s)
 {
 	Player *p;
-	cdata *cli;
+	sp_conn *cli;
 
 	int a;
 	socklen_t sinsize;
@@ -216,22 +114,18 @@ local Player * try_accept(int s)
 }
 
 
-local void process_line(Player *p, const char *line)
+local void process_line(const char *cmd, const char *rest, void *v)
 {
-	char cmd[MAXCMDNAME + 1], *t;
+	Player *p = v;
 	Link *l;
 	LinkedList lst = LL_INITIALIZER;
 
-	for (t = cmd; *line && *line != ':'; line++)
-		if ((t - cmd) < MAXCMDNAME)
-			*t++ = *line;
-	*t = 0; /* terminate command name */
-	if (*line == ':') line++; /* pass colon */
+	if (!rest) rest = "";
 
 	HashGetAppend(handlers, cmd, &lst);
 
 	for (l = LLGetHead(&lst); l; l = l->next)
-		((MessageFunc)(l->data))(p, line);
+		((MessageFunc)(l->data))(p, rest);
 
 	LLEmpty(&lst);
 }
@@ -240,11 +134,8 @@ local void process_line(Player *p, const char *line)
 /* call with lock held */
 local void clear_bufs(Player *p)
 {
-	cdata *cli = PPDATA(p, cdkey);
-	afree(cli->inbuf);
-	cli->inbuf = 0;
-	LLEnum(&cli->outbufs, afree);
-	LLEmpty(&cli->outbufs);
+	sp_conn *cli = PPDATA(p, cdkey);
+	clear_sp_conn(cli);
 }
 
 /* call with lock held */
@@ -258,7 +149,7 @@ local void kill_connection(Player *p)
 
 	/* will put in S_LEAVING_ARENA */
 	if (p->arena)
-		process_line(p, "LEAVE");
+		process_line("LEAVE", NULL, p);
 
 	pd->WriteLock();
 
@@ -280,111 +171,32 @@ local void kill_connection(Player *p)
 /* call with big lock */
 local void do_read(Player *p)
 {
-	cdata *cli = PPDATA(p, cdkey);
-	buffer *buf = cli->inbuf;
-	int n;
-
-	if (!buf)
-		buf = get_in_buffer();
-
-	n = recv(cli->socket, buf->cur, LEFT(buf), 0);
-
-	if (n == 0)
-	{
-		/* client disconnected */
+	sp_conn *cli = PPDATA(p, cdkey);
+	if (do_sp_read(cli) == sp_read_died)
 		kill_connection(p);
-		return;
-	}
-	else if (n > 0)
-		buf->cur += n;
-
-	/* if the line is too long... */
-	if (LEFT(buf) <= 0)
-	{
-		lm->LogP(L_MALICIOUS, "chatnet", p, "Line too long");
-		afree(buf);
-		buf = NULL;
-	}
-
-	/* replace the buffer */
-	cli->inbuf = buf;
 }
 
 
 /* call w/big lock */
 local void try_process(Player *p)
 {
-	cdata *cli = PPDATA(p, cdkey);
-	buffer *buf = cli->inbuf;
-	char *src = buf->data;
-
-	/* if there is a complete message */
-	if (memchr(src, CR, buf->cur - src) || memchr(src, LF, buf->cur - src))
-	{
-		char line[MAXMSGSIZE+1], *dst = line;
-		buffer *buf2 = NULL;
-
-		/* copy it into line, minus terminators */
-		while (*src != CR && *src != LF) *dst++ = *src++;
-		/* close it off */
-		*dst = 0;
-
-		/* process it */
-		process_line(p, line);
-
-		/* skip terminators in input */
-		while (*src == CR || *src == LF) src++;
-		/* if there's unprocessed data left... */
-		if ((buf->cur - src) > 0)
-		{
-			/* put the unprocessed data in a new buffer */
-			buf2 = get_in_buffer();
-			memcpy(buf2->data, src, buf->cur - src);
-			buf2->cur += buf->cur - src;
-		}
-
-		/* free the old one */
-		afree(buf);
-		/* put the new one in place */
-		cli->inbuf = buf2;
-		/* reset message time */
-		cli->lastmsgtime = GTC();
-	}
+	sp_conn *cli = PPDATA(p, cdkey);
+	do_sp_process(cli, process_line, p);
 }
 
 
 /* call with big lock */
 local void do_write(Player *p)
 {
-	cdata *cli = PPDATA(p, cdkey);
-	Link *l = LLGetHead(&cli->outbufs);
-
-	if (l && l->data)
-	{
-		buffer *buf = l->data;
-		int n, len;
-
-		len = strlen(buf->data) - (buf->cur - buf->data);
-
-		n = send(cli->socket, buf->cur, len, 0);
-
-		if (n > 0)
-			buf->cur += n;
-
-		/* check if this buffer is done */
-		if (buf->cur[0] == 0)
-		{
-			afree(buf);
-			LLRemoveFirst(&cli->outbufs);
-		}
-	}
+	sp_conn *cli = PPDATA(p, cdkey);
+	do_sp_write(cli);
 }
 
 
-local int main_loop(void *dummy)
+local int do_one_iter(void *dummy)
 {
 	Player *p;
-	cdata *cli;
+	sp_conn *cli;
 	Link *link;
 	int max, ret, gtc = GTC();
 	fd_set readset, writeset;
@@ -411,7 +223,7 @@ local int main_loop(void *dummy)
 				/* always check for incoming data */
 				FD_SET(cli->socket, &readset);
 				/* maybe for writing too */
-				if (LLCount(&cli->outbufs) > 0)
+				if (! LLIsEmpty(&cli->outbufs))
 					FD_SET(cli->socket, &writeset);
 				/* update max */
 				if (cli->socket > max)
@@ -488,15 +300,14 @@ local void real_send(LinkedList *lst, const char *line, va_list ap)
 	char buf[MAXMSGSIZE+1];
 
 	vsnprintf(buf, MAXMSGSIZE - 2, line, ap);
-	strcat(buf, "\x0D\x0A");
 
 	LOCK();
 	for (l = LLGetHead(lst); l; l = l->next)
 	{
 		Player *p = l->data;
-		cdata *cli = PPDATA(p, cdkey);
+		sp_conn *cli = PPDATA(p, cdkey);
 		if (IS_CHAT(p))
-			LLAdd(&cli->outbufs, get_out_buffer(buf));
+			sp_send(cli, buf);
 	}
 	UNLOCK();
 }
@@ -514,8 +325,6 @@ local void SendToSet(LinkedList *set, const char *line, ...)
 local void SendToOne(Player *p, const char *line, ...)
 {
 	va_list args;
-
-	/* this feels a bit wrong */
 	Link l = { NULL, p };
 	LinkedList lst = { &l, &l };
 
@@ -536,7 +345,7 @@ local void SendToArena(Arena *arena, Player *except, const char *line, ...)
 
 	pd->Lock();
 	FOR_EACH_PLAYER(p)
-		if (p->status == S_PLAYING && p->arena == arena && p != except)
+		if (p->status == S_PLAYING && p->arena == arena && p != except && IS_CHAT(p))
 			LLAdd(&lst, p);
 	pd->Unlock();
 
@@ -550,7 +359,7 @@ local void SendToArena(Arena *arena, Player *except, const char *line, ...)
 
 local void GetClientStats(Player *p, struct chat_client_stats *stats)
 {
-	cdata *cli = PPDATA(p, cdkey);
+	sp_conn *cli = PPDATA(p, cdkey);
 	if (!stats || !p) return;
 	/* RACE: inet_ntoa is not thread-safe */
 	astrncpy(stats->ipaddr, inet_ntoa(cli->sin.sin_addr), 16);
@@ -562,7 +371,7 @@ local void do_final_shutdown(void)
 {
 	Link *link;
 	Player *p;
-	cdata *cli;
+	sp_conn *cli;
 
 	LOCK();
 	pd->Lock();
@@ -603,11 +412,11 @@ EXPORT int MM_chatnet(int action, Imodman *mm_, Arena *a)
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		if (!pd || !cfg || !lm || !ml) return MM_FAIL;
 
-		cdkey = pd->AllocatePlayerData(sizeof(cdata));
+		cdkey = pd->AllocatePlayerData(sizeof(sp_conn));
 		if (cdkey == -1) return MM_FAIL;
 
 		/* get the sockets */
-		mysock = init_socket();
+		mysock = get_socket();
 		if (mysock == -1) return MM_FAIL;
 
 		/* cfghelp: Net:ChatMessageDelay, global, int, def: 20 \
@@ -626,7 +435,7 @@ EXPORT int MM_chatnet(int action, Imodman *mm_, Arena *a)
 		handlers = HashAlloc(71);
 
 		/* install timer */
-		ml->SetTimer(main_loop, 10, 10, NULL, NULL);
+		ml->SetTimer(do_one_iter, 10, 10, NULL, NULL);
 
 		/* install ourself */
 		mm->RegInterface(&_int, ALLARENAS);
@@ -639,7 +448,7 @@ EXPORT int MM_chatnet(int action, Imodman *mm_, Arena *a)
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 
-		ml->ClearTimer(main_loop, NULL);
+		ml->ClearTimer(do_one_iter, NULL);
 
 		/* clean up */
 		do_final_shutdown();

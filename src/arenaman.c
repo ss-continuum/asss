@@ -481,9 +481,9 @@ local void PArena(Player *p, byte *pkt, int l)
 
 	go = (struct GoArenaPacket*)pkt;
 
-	if (p->p_ship > SPEC)
+	if (go->shiptype > SPEC)
 	{
-		lm->Log(L_MALICIOUS, "<arenaman> [%s] Bad p_ship in arena request", p->name);
+		lm->Log(L_MALICIOUS, "<arenaman> [%s] Bad shiptype in arena request", p->name);
 		return;
 	}
 
@@ -515,7 +515,7 @@ local void PArena(Player *p, byte *pkt, int l)
 		return;
 	}
 
-	complete_go(p, name, p->p_ship, go->xres, go->yres, go->optionalgraphics, 0, 0);
+	complete_go(p, name, go->shiptype, go->xres, go->yres, go->optionalgraphics, 0, 0);
 }
 
 

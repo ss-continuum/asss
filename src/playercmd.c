@@ -647,8 +647,9 @@ local void Cinfo(const char *params, Player *p, const Target *target)
 		tm = GTC() - t->connecttime;
 
 		chat->SendMessage(p,
-				"%s: pid=%d  status=%d  name='%s'  squad='%s'",
-				prefix, t->pid, t->status, t->name, t->squad);
+				"%s: pid=%d  status=%d  name='%s'  squad='%s'  auth=%c",
+				prefix, t->pid, t->status, t->name, t->squad,
+				IS_AUTHENTICATED(t) ? 'y' : 'n');
 		chat->SendMessage(p,
 				"%s: arena=%s  type=%s  res=%dx%d  seconds=%d",
 				prefix, t->arena ? t->arena->name : "(none)", type, t->xres,

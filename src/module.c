@@ -119,6 +119,13 @@ int LoadMod(const char *_spec)
 	ModuleData *mod;
 	Ilogman *lm;
 
+#define LOG0(lev, fmt) if (lm) lm->Log(lev, fmt); \
+	else fprintf(stderr, "%c " fmt "\n", lev);
+#define LOG1(lev, fmt, a1) if (lm) lm->Log(lev, fmt, a1); \
+	else fprintf(stderr, "%c " fmt "\n", lev, a1);
+#define LOG2(lev, fmt, a1, a2) if (lm) lm->Log(lev, fmt, a1, a2); \
+	else fprintf(stderr, "%c " fmt "\n", lev, a1, a2);
+
 	if (nomoremods) return MM_FAIL;
 
 	lm = GetInterface(I_LOGMAN, ALLARENAS);
@@ -138,7 +145,7 @@ int LoadMod(const char *_spec)
 		filename = "internal";
 	}
 
-	if (lm) lm->Log(L_INFO, "<module> Loading module '%s' from '%s'", modname, filename);
+	LOG2(L_INFO, "<module> Loading module '%s' from '%s'", modname, filename);
 
 	mod = amalloc(sizeof(ModuleData));
 
@@ -162,12 +169,8 @@ int LoadMod(const char *_spec)
 #ifdef CFG_RESTRICT_MODULE_PATH
 	else if (strstr(filename, "..") || filename[0] == '/')
 	{
-		if (lm)
-			lm->Log(L_ERROR, "<module> refusing to load filename: %s",
-					filename);
-		else
-			fprintf(stderr, "%c <module> refusing to load filename: %s",
-					L_ERROR, filename);
+
+		LOG1(L_ERROR, "<module> refusing to load filename: %s", filename);
 		goto die;
 	}
 #else
@@ -196,7 +199,7 @@ int LoadMod(const char *_spec)
 	if (!mod->hand)
 	{
 #ifndef WIN32
-		if (lm) lm->Log(L_ERROR,"<module> Error in dlopen: %s", dlerror());
+		LOG1(L_ERROR, "<module> Error in dlopen: %s", dlerror());
 #else
 		LPVOID lpMsgBuf;
 
@@ -211,10 +214,7 @@ int LoadMod(const char *_spec)
 				0,
 				NULL
 		);
-		if (lm)
-			lm->Log(L_ERROR, "<module> Error in LoadLibrary: %s", (LPCTSTR)lpMsgBuf);
-		else
-			fprintf(stderr, "%c <module> Error in LoadLibrary: %s", L_ERROR, (LPCTSTR)lpMsgBuf);
+		LOG1(L_ERROR, "<module> Error in LoadLibrary: %s", (LPCTSTR)lpMsgBuf);
 		LocalFree(lpMsgBuf);
 #endif
 		goto die;
@@ -225,7 +225,7 @@ int LoadMod(const char *_spec)
 	if (!mod->mm)
 	{
 #ifndef WIN32
-		if (lm) lm->Log(L_ERROR,"<module> Error in dlsym: %s", dlerror());
+		LOG1(L_ERROR,"<module> Error in dlsym: %s", dlerror());
 #else
 		LPVOID lpMsgBuf;
 		FormatMessage(
@@ -239,10 +239,7 @@ int LoadMod(const char *_spec)
 				0,
 				NULL
 		);
-		if (lm)
-			lm->Log(L_ERROR, "<module> Error in GetProcAddress: %s", (LPCTSTR)lpMsgBuf);
-		else
-			fprintf(stderr, "%c <module> Error in GetProcAddress: %s", L_ERROR, (LPCTSTR)lpMsgBuf);
+		LOG1(L_ERROR, "<module> Error in GetProcAddress: %s", (LPCTSTR)lpMsgBuf);
 		LocalFree(lpMsgBuf);
 #endif
 		if (!mod->myself) dlclose(mod->hand);
@@ -259,10 +256,7 @@ int LoadMod(const char *_spec)
 
 	if (ret != MM_OK)
 	{
-		if (lm)
-			lm->Log(L_ERROR, "<module> Error loading module '%s'", modname);
-		else
-			printf("%c <module> Error loading module '%s'\n", L_ERROR, modname);
+		LOG1(L_ERROR, "<module> Error loading module '%s'", modname);
 		if (!mod->myself) dlclose(mod->hand);
 		goto die;
 	}
@@ -278,6 +272,10 @@ die:
 	afree(mod);
 	if (lm) ReleaseInterface(lm);
 	return MM_FAIL;
+
+#undef LOG0
+#undef LOG1
+#undef LOG2
 }
 
 
@@ -449,7 +447,7 @@ int UnregInterface(void *iface, Arena *arena)
 
 
 /* must call holding intmtx */
-local inline InterfaceHead *get_int(HashTable *hash, const char *id)
+local InterfaceHead *get_int(HashTable *hash, const char *id)
 {
 	InterfaceHead *head;
 	head = HashGetOne(hash, id);

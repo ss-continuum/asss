@@ -24,13 +24,21 @@ local Iconfig *cfg;
 local void UpdateGroup(Player *p, Arena *arena)
 {
 #define LOGIT(from) \
-	lm->Log(L_DRIVEL, "<capman> {%s} [%s] Player assigned to group '%s' from %s", \
+	lm->Log(L_DRIVEL, "<capman> {%s} [%s] player assigned to group '%s' from %s", \
 			arena->name, \
 			p->name, \
 			group, \
 			from)
 
 	char *group = ((pdata*)PPDATA(p, pdkey))->group;
+
+	if (! IS_AUTHENTICATED(p))
+	{
+		/* if the player hasn't been authenticated against either the
+		 * biller or password file, don't assign groups based on name. */
+		astrncpy(group, "default", MAXGROUPLEN);
+		return;
+	}
 
 	if (!arena)
 	{
@@ -39,7 +47,7 @@ local void UpdateGroup(Player *p, Arena *arena)
 		if (gg)
 		{
 			astrncpy(group, gg, MAXGROUPLEN);
-			lm->Log(L_DRIVEL, "<capman> [%s] Player assigned to group '%s' from global staff list",
+			lm->Log(L_DRIVEL, "<capman> [%s] player assigned to group '%s' from global staff list",
 					p->name,
 					group);
 		}

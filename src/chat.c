@@ -15,6 +15,7 @@
 
 #define CAP_MODCHAT "seemodchat"
 #define CAP_SENDMODCHAT "sendmodchat"
+#define CAP_SOUNDMESSAGES "sendsoundmessages"
 
 #define KEY_CHAT 47
 
@@ -99,7 +100,6 @@ local const char *get_chat_type(int type)
 	{
 		case MSG_ARENA: return "ARENA";
 		case MSG_SYSOPWARNING: return "SYSOP";
-		case MSG_INTERARENAPRIV: return "REMOTEPRIV";
 		case MSG_CHAT: return "CHAT";
 		case MSG_MODCHAT: return "MOD";
 		default: return NULL;
@@ -262,7 +262,7 @@ local void run_commands(const char *text, Player *p, Target *target)
 }
 
 
-local void handle_pub(Player *p, const char *msg, int ismacro)
+local void handle_pub(Player *p, const char *msg, int ismacro, int sound)
 {
 	Arena *arena = p->arena;
 	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
@@ -283,7 +283,7 @@ local void handle_pub(Player *p, const char *msg, int ismacro)
 	{
 		to->pktype = S2C_CHAT;
 		to->type = ismacro ? MSG_PUBMACRO : MSG_PUB;
-		to->sound = 0;
+		to->sound = sound;
 		to->pid = p->pid;
 		strcpy(to->text, msg);
 
@@ -295,14 +295,14 @@ local void handle_pub(Player *p, const char *msg, int ismacro)
 				p->name,
 				msg);
 
-		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, to->type, NULL, -1, msg));
+		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, to->type, sound, NULL, -1, msg));
 
-		lm->LogP(L_DRIVEL, "chat", p, "Pub msg: %s", msg);
+		lm->LogP(L_DRIVEL, "chat", p, "pub msg: %s", msg);
 	}
 }
 
 
-local void handle_modchat(Player *p, const char *msg)
+local void handle_modchat(Player *p, const char *msg, int sound)
 {
 	Arena *arena = p->arena;
 	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
@@ -312,7 +312,7 @@ local void handle_modchat(Player *p, const char *msg)
 
 	to->pktype = S2C_CHAT;
 	to->type = MSG_SYSOPWARNING;
-	to->sound = 0;
+	to->sound = sound;
 	to->pid = p->pid;
 	sprintf(to->text, "%s> %s", p->name, msg);
 
@@ -324,7 +324,7 @@ local void handle_modchat(Player *p, const char *msg)
 			if (net) net->SendToSet(&set, (byte*)to, strlen(to->text)+6, NET_RELIABLE);
 			if (chatnet) chatnet->SendToSet(&set, "MSG:MOD:%s:%s",
 					p->name, msg);
-			DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_MODCHAT, NULL, -1, msg));
+			DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_MODCHAT, sound, NULL, -1, msg));
 			lm->LogP(L_DRIVEL, "chat", p, "Mod chat: %s", msg);
 		}
 		else
@@ -338,7 +338,7 @@ local void handle_modchat(Player *p, const char *msg)
 }
 
 
-local void handle_freq(Player *p, int freq, const char *msg)
+local void handle_freq(Player *p, int freq, const char *msg, int sound)
 {
 	Arena *arena = p->arena;
 	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
@@ -364,7 +364,7 @@ local void handle_freq(Player *p, int freq, const char *msg)
 
 		to->pktype = S2C_CHAT;
 		to->type = p->p_freq == freq ? MSG_FREQ : MSG_NMEFREQ;
-		to->sound = 0;
+		to->sound = sound;
 		to->pid = p->pid;
 		strcpy(to->text, msg);
 
@@ -380,13 +380,13 @@ local void handle_freq(Player *p, int freq, const char *msg)
 		if (chatnet) chatnet->SendToSet(&set, "MSG:FREQ:%s:%s",
 				p->name,
 				msg);
-		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_FREQ, NULL, freq, msg));
-		lm->LogP(L_DRIVEL, "chat", p, "Freq msg (%d): %s", freq, msg);
+		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_FREQ, sound, NULL, freq, msg));
+		lm->LogP(L_DRIVEL, "chat", p, "freq msg (%d): %s", freq, msg);
 	}
 }
 
 
-local void handle_priv(Player *p, Player *dst, const char *msg)
+local void handle_priv(Player *p, Player *dst, const char *msg, int sound)
 {
 	Arena *arena = p->arena;
 	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
@@ -407,31 +407,69 @@ local void handle_priv(Player *p, Player *dst, const char *msg)
 	{
 		to->pktype = S2C_CHAT;
 		to->type = MSG_PRIV;
-		to->sound = 0;
+		to->sound = sound;
 		to->pid = p->pid;
 		strcpy(to->text, msg);
-#ifdef CFG_LOG_PRIVATE
-		lm->LogP(L_DRIVEL, "chat", p, "to [%s] Priv msg: %s",
-				dst->name, msg);
-#endif
 		if (IS_STANDARD(dst))
 			net->SendToOne(dst, (byte*)to, strlen(to->text)+6, NET_RELIABLE);
 		else if (IS_CHAT(dst))
 			chatnet->SendToOne(dst, "MSG:PRIV:%s:%s",
 					p->name, msg);
+		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_PRIV, sound, dst, -1, msg));
 #ifdef CFG_LOG_PRIVATE
-		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_PRIV, dst, -1, msg));
+		lm->LogP(L_DRIVEL, "chat", p, "to [%s] priv msg: %s",
+				dst->name, msg);
 #endif
 	}
 }
 
 
-local void handle_chat(Player *p, const char *msg)
+local void handle_remote_priv(Player *p, const char *msg, int sound)
+{
+	Arena *arena = p->arena;
+	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
+	struct player_mask_t *pm = PPDATA(p, pmkey);
+	struct ChatPacket *to = alloca(strlen(msg) + 40);
+	const char *t;
+	char dest[24];
+
+	t = delimcpy(dest, msg+1, 21, ':');
+	if (msg[0] != ':' || !t)
+		lm->LogP(L_MALICIOUS, "chat", p, "malformed remote private message");
+	else if (OK(MSG_INTERARENAPRIV))
+	{
+		Player *d = pd->FindPlayer(dest);
+		if (d)
+		{
+			if (IS_STANDARD(d))
+			{
+				to->pktype = S2C_CHAT;
+				to->type = MSG_INTERARENAPRIV;
+				to->sound = sound;
+				to->pid = -1;
+				snprintf(to->text, strlen(msg)+30, "(%s)>%s", p->name, msg);
+			}
+			else if (IS_CHAT(d))
+				chatnet->SendToOne(d, "MSG:REMOTEPRIV:%s:%s",
+						p->name, msg);
+		}
+
+		/* the billing module will catch these if dest is NULL */
+		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_INTERARENAPRIV, sound, d, -1, msg));
+
+#ifdef CFG_LOG_PRIVATE
+		lm->LogP(L_DRIVEL, "chat", p, "to [%s] remote priv msg: %s", dest, msg);
+#endif
+	}
+}
+
+
+local void handle_chat(Player *p, const char *msg, int sound)
 {
 #ifdef CFG_LOG_PRIVATE
 	lm->LogP(L_DRIVEL, "chat", p, "Chat msg: %s", msg);
-	DO_CBS(CB_CHATMSG, ALLARENAS, ChatMsgFunc, (p, MSG_CHAT, NULL, -1, msg));
 #endif
+	DO_CBS(CB_CHATMSG, ALLARENAS, ChatMsgFunc, (p, MSG_CHAT, sound, NULL, -1, msg));
 }
 
 
@@ -441,7 +479,7 @@ local void PChat(Player *p, byte *pkt, int len)
 	struct ChatPacket *from = (struct ChatPacket *)pkt;
 	Arena *arena = p->arena;
 	Player *targ;
-	int freq = p->p_freq;
+	int freq = p->p_freq, sound = 0;
 
 	if (!arena) return;
 
@@ -453,6 +491,9 @@ local void PChat(Player *p, byte *pkt, int len)
 		return;
 	}
 
+	if (capman->HasCapability(p, CAP_SOUNDMESSAGES))
+		sound = from->sound;
+
 	switch (from->type)
 	{
 		case MSG_ARENA:
@@ -463,31 +504,29 @@ local void PChat(Player *p, byte *pkt, int len)
 			/* fall through */
 		case MSG_PUB:
 			if (from->text[0] == MOD_CHAT_CHAR)
-				handle_modchat(p, from->text + 1);
+				handle_modchat(p, from->text + 1, sound);
 			else
-				handle_pub(p, from->text, from->type == MSG_PUBMACRO);
+				handle_pub(p, from->text, from->type == MSG_PUBMACRO, sound);
 			break;
 
 		case MSG_NMEFREQ:
 			targ = pd->PidToPlayer(from->pid);
 			if (targ)
-				handle_freq(p, targ->p_freq, from->text);
+				handle_freq(p, targ->p_freq, from->text, sound);
 			break;
 
 		case MSG_FREQ:
-			handle_freq(p, freq, from->text);
+			handle_freq(p, freq, from->text, sound);
 			break;
 
 		case MSG_PRIV:
 			targ = pd->PidToPlayer(from->pid);
 			if (targ)
-				handle_priv(p, targ, from->text);
+				handle_priv(p, targ, from->text, sound);
 			break;
 
 		case MSG_INTERARENAPRIV:
-			/* FIXME
-			 * billcore handles these, but they need to be handled
-			 * within server too */
+			handle_remote_priv(p, from->text, sound);
 			break;
 
 		case MSG_SYSOPWARNING:
@@ -495,7 +534,7 @@ local void PChat(Player *p, byte *pkt, int len)
 			break;
 
 		case MSG_CHAT:
-			handle_chat(p, from->text);
+			handle_chat(p, from->text, sound);
 			break;
 	}
 
@@ -517,14 +556,14 @@ local void MChat(Player *p, const char *line)
 	if (!t) return;
 
 	if (!strcasecmp(subtype, "PUB") || !strcasecmp(subtype, "CMD"))
-		handle_pub(p, t, 0);
+		handle_pub(p, t, 0, 0);
 	else if (!strcasecmp(subtype, "PRIV") || !strcasecmp(subtype, "PRIVCMD"))
 	{
 		t = delimcpy(data, t, sizeof(data), ':');
 		if (!t) return;
 		i = pd->FindPlayer(data);
 		if (i)
-			handle_priv(p, i, t);
+			handle_priv(p, i, t, 0);
 	}
 	else if (!strcasecmp(subtype, "FREQ"))
 	{
@@ -532,12 +571,12 @@ local void MChat(Player *p, const char *line)
 		t = delimcpy(data, t, sizeof(data), ':');
 		if (!t) return;
 		f = atoi(data);
-		handle_freq(p, f, t);
+		handle_freq(p, f, t, 0);
 	}
 	else if (!strcasecmp(subtype, "CHAT"))
-		handle_chat(p, t);
+		handle_chat(p, t, 0);
 	else if (!strcasecmp(subtype, "MOD"))
-		handle_modchat(p, t);
+		handle_modchat(p, t, 0);
 
 	check_flood(p);
 }

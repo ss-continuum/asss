@@ -50,7 +50,7 @@ typedef struct Imainloop
 
 	void (*ClearTimer)(TimerFunc func, void *key);
 	/* clears all timers using the function with the given key. calling
-	 * this with a key of -1 means clear all timers using that function,
+	 * this with a key of NULL means clear all timers using that function,
 	 * regardless of key */
 
 	void (*CleanupTimer)(TimerFunc func, void *key, CleanupFunc cleanup);

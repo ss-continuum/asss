@@ -66,6 +66,7 @@ struct TurfFlag
 	int weight;      // weight of the flag (how much it's worth)
 	int taggerPID;   // id of player that tagged the flag
                          // note: player may have been on another team when tag occured or may have even left the game
+	int tagTC;       // time flag was last tagged in ticks
 
 	LinkedList old;  // linked list of OldNodes storing data of flag's previous owners who have a chance to 'recover' it
 };
@@ -105,6 +106,7 @@ struct TurfArena
 	double min_percent;             // min percentage of jackpot needed to recieve an award
 	int jackpot_modifier;           // modifies the jackpot based on how many points per player playing
 	int recover_dings;
+	int weight_calc;
 	int set_weights;                // number of weights that were set from cfg
 	int *weights;                   // array of weights from cfg
 	// int min_kills_arena;         // todo: minimum # of kills needed for anyone to recieve rewards

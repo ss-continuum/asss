@@ -1,6 +1,6 @@
 
 subspace billing server protocol proposal
-version 1.1
+version 1.2
 grelminar@yahoo.com
 
 
@@ -22,11 +22,11 @@ server", and the billing server "the biller". i'll use g->b and b->g to
 describe the two directions.)
 
 to login:
-g->b: "CONNECT:version:swname:zonename:host:password"
+g->b: "CONNECT:version:swname:zonename:network:password"
     version is the version of the protocol used.
     swname is something idenifying the software used, like "asss 1.0.5".
     zonename is the name of this zone, like "A Small Warzone".
-    host is where this zone is hosted, like "SSCX".
+    network is where this zone is hosted, like "SSCX".
     password is a password to authenticate this zone.
 
 the response will either be this:
@@ -59,14 +59,16 @@ g->b: "PLOGIN:pid:flag:name:pw:ip:macid:contid"
     with lowercase letters.
 
 biller responds with either:
-b->g: "POK:pid:rtext:name:squad:userid:usage:firstused"
+b->g: "POK:pid:rtext:name:squad:billerid:usage:firstused"
     pid is the player id that was passed in PLOGIN.
     rtext is additional text that can be delivered to the client. if
-    there are no complications logging in, it should be empty.
+    there are no complications logging in, it should be empty. if the
+    billing server wants the client to fill out the registration form,
+    it should be set to "regdata".
     name is the name assigned by the biller (the biller can change the
     name of a player if desired).
     squad is the player's squad.
-    userid is an id number assigned by the billing server.
+    billerid is an id number assigned by the billing server.
     usage is the number of seconds that this player has ever been
     connected to this biller.
     firstused is a string describing when this named account was
@@ -146,8 +148,8 @@ g->b: "RMTSQD:pid:destsquad:sound:text"
     text is the text of the message.
 
 when a player receives a squad message:
-b->g: "RMTSQD:pid:sender:sound:text"
-    pid is the pid of the recipient.
+b->g: "RMTSQD:destsquad:sender:sound:text"
+    destsquad is the squad that the message is for.
     sender is the name of the sending player.
     sound is a sound code.
     text is the text of the message.

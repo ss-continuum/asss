@@ -164,6 +164,13 @@ struct Player
 #define UNSET_SENT_PPK(p) ((p)->pflags &= ~F_SENT_PPK)
 #define HAS_SENT_PPK(p) ((p)->pflags & F_SENT_PPK)
 
+/* if the player has been authenticated by either a billing server or a
+ * password file */
+#define F_AUTHENTICATED 0x20
+#define SET_AUTHENTICATED(p) ((p)->pflags |= F_AUTHENTICATED)
+#define UNSET_AUTHENTICATED(p) ((p)->pflags &= ~F_AUTHENTICATED)
+#define IS_AUTHENTICATED(p) ((p)->pflags & F_AUTHENTICATED)
+
 
 #define I_PLAYERDATA "playerdata-2"
 

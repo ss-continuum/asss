@@ -130,15 +130,32 @@ void RemoveCommand(const char *cmd, CommandFunc f)
 }
 
 
+
+local inline int dontlog(const char *cmd)
+{
+	if (!strcasecmp(cmd, "chat")) return TRUE;
+	if (!strcasecmp(cmd, "password")) return TRUE;
+	if (!strcasecmp(cmd, "passwd")) return TRUE;
+	if (!strcasecmp(cmd, "squadcreate")) return TRUE;
+	if (!strcasecmp(cmd, "squadjoin")) return TRUE;
+	if (!strcasecmp(cmd, "addop")) return TRUE;
+	if (!strcasecmp(cmd, "adduser")) return TRUE;
+	if (!strcasecmp(cmd, "changepassword")) return TRUE;
+	if (!strcasecmp(cmd, "login")) return TRUE;
+	if (!strcasecmp(cmd, "blogin")) return TRUE;
+	if (!strcasecmp(cmd, "bpassword")) return TRUE;
+	return FALSE;
+}
+
+
 local void log_command(Player *p, const Target *target, const char *cmd, const char *params)
 {
 	char t[32];
 
-	if (!lm)
-		return;
+	if (!lm) return;
 
 	/* don't log the params to some commands */
-	if (cfg->GetStr(GLOBAL, "DontLogParams", cmd))
+	if (dontlog(cmd))
 		params = "...";
 
 	if (target->type == T_ARENA)

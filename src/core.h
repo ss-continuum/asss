@@ -37,6 +37,7 @@ typedef struct AuthData
 {
 	int demodata;
 	int code;
+	int authenticated;
 	char name[24];
 	char sendname[20];
 	char squad[24];

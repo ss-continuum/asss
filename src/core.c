@@ -469,6 +469,11 @@ void AuthDone(Player *p, AuthData *auth)
 	d->authdata = amalloc(sizeof(AuthData));
 	memcpy(d->authdata, auth, sizeof(AuthData));
 
+	if (auth->authenticated)
+		SET_AUTHENTICATED(p);
+	else
+		UNSET_AUTHENTICATED(p);
+
 	if (AUTH_IS_OK(auth->code))
 	{
 		/* login suceeded */
@@ -594,8 +599,10 @@ void DefaultAuth(Player *p, struct LoginPacket *pkt, int lplen,
 {
 	AuthData auth;
 
+	memset(&auth, 0, sizeof(auth));
 	auth.demodata = 0;
 	auth.code = AUTH_OK;
+	auth.authenticated = FALSE;
 	astrncpy(auth.name, pkt->name, 24);
 	strncpy(auth.sendname, pkt->name, 20);
 	memset(auth.squad, 0, sizeof(auth.squad));

@@ -124,19 +124,19 @@ EXPORT int MM_mapdata(int action, Imodman *_mm, Arena *arena)
 
 int read_lvl(char *name, struct MapData *md)
 {
-	unsigned short bm;
+	u16 bm;
 	struct TileData td;
 	int flags = 0, errors = 0;
 	sparse_arr arr;
 
-	FILE *f = fopen(name,"r");
+	FILE *f = fopen(name, "r");
 	if (!f) return 1;
 
 	/* first try to skip over bmp header */
 	fread(&bm, sizeof(bm), 1, f);
 	if (bm == 0x4D42)
 	{
-		unsigned long len;
+		u32 len;
 		fread(&len, sizeof(len), 1, f);
 		fseek(f, len, SEEK_SET);
 	}

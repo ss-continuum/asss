@@ -27,10 +27,11 @@
 
 
 /* called for most types of chat msg. type is one of the above codes.
- * target is only valid for MSG_PRIV; freq is only valid for MSG_FREQ
- * and MSG_NMEFREQ. */
+ * target is only valid for MSG_PRIV and MSG_INTERARENAPRIV; freq is
+ * only valid for MSG_FREQ and MSG_NMEFREQ. */
 #define CB_CHATMSG "chatmsg"
-typedef void (*ChatMsgFunc)(Player *p, int type, Player *target, int freq, const char *text);
+typedef void (*ChatMsgFunc)(Player *p, int type, int sound, Player *target,
+		int freq, const char *text);
 
 
 /* the bits of one of these represent those types above. only use the

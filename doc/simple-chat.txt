@@ -80,8 +80,7 @@ server sends:
 	MSG:ARENA:msg
 	MSG:PUB:name:msg
 	MSG:PRIV:name:msg
-	MSG:REMOTEPRIV:line
-		(line is "(name)>msg")
+	MSG:REMOTEPRIV:name:msg
 	MSG:FREQ:name:msg
 	MSG:CHAT:line
 		(line is "channelnum:msg")
