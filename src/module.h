@@ -140,7 +140,7 @@ typedef struct Imodman
 	/* pyint: string -> int */
 
 	/** Calls the supplied callback function for each loaded module,
-	 ** passing it the module name any extra info, and a closure pointer
+	 ** passing it the module name and extra info, and a closure pointer
 	 ** for it to use.
 	 * If attachedfilter is not NULL, only modules attached to the
 	 * specified arena are returned.
@@ -255,6 +255,15 @@ typedef struct Imodman
 	void (*RegModuleLoader)(const char *signature, ModuleLoaderFunc func);
 	/** Unregisters a module loader. */
 	void (*UnregModuleLoader)(const char *signature, ModuleLoaderFunc func);
+
+	/* more module stuff */
+
+	/** Gets the extra info for a module.
+	 * This belongs up there with the other module functions, but it was
+	 * added later and goes down here to avoid breaking binary
+	 * compatibility.
+	 */
+	const char *(*GetModuleInfo)(const char *modname);
 
 	/* these functions should be called only from main.c */
 	struct

@@ -332,10 +332,7 @@ local void add_mod(const char *name, const char *info, void *buf)
 	char *start = buf, *p;
 	int l = strlen(buf);
 	p = start + l;
-	if (info)
-		snprintf(p, MAXDATA - l, ", %s (%s)", name, info);
-	else
-		snprintf(p, MAXDATA - l, ", %s", name);
+	snprintf(p, MAXDATA - l, ", %s", name);
 }
 
 local void send_msg_cb(const char *line, void *clos)
@@ -364,6 +361,29 @@ local void Clsmod(const char *tc, const char *params, Player *p, const Target *t
 		chat->SendMessage(p, "Loaded modules:");
 	}
 	wrap_text(data+2, 80, ' ', send_msg_cb, p);
+}
+
+
+local helptext_t modinfo_help =
+"Targets: none\n"
+"Args: <module name>\n"
+"Displays information about the specified module. This might include a\n"
+"version number, contact information for the author, and a general\n"
+"description of the module.\n";
+
+local void Cmodinfo(const char *tc, const char *params, Player *p, const Target *target)
+{
+	const char *info = mm->GetModuleInfo(params);
+	if (!info)
+		chat->SendMessage(p, "No information for module '%s'", params);
+	else
+	{
+		const char *tmp = NULL;
+		char buf[100];
+		chat->SendMessage(p, "Info for module '%s':", params);
+		while (strsplit(info, "\n", buf, sizeof(buf), &tmp))
+			chat->SendMessage(p, "  %s", buf);
+	}
 }
 
 
@@ -2023,6 +2043,7 @@ local const struct cmd_info core_commands[] =
 	CMD(version)
 	CMD(uptime)
 	CMD(lsmod)
+	CMD(modinfo)
 #ifndef CFG_NO_RUNTIME_LOAD
 	CMD(insmod)
 #endif
