@@ -293,6 +293,7 @@ local void paction(Player *p, int action)
 	else if (action == PA_DISCONNECT)
 	{
 		cleanup_ud(p, 0);
+		afree(ud->work_dir);
 	}
 }
 

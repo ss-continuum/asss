@@ -55,6 +55,7 @@ EXPORT int MM_mainloop(int action, Imodman *mm_, Arena *arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
+		LLEnum(&timers, afree);
 		LLEmpty(&timers);
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;

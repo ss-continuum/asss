@@ -542,7 +542,7 @@ void PLogin(Player *p, byte *opkt, int l)
 		p->permid = pkt->D2;
 		if (p->type == T_VIE)
 			snprintf(p->clientname, sizeof(p->clientname),
-					"<subspace or other vie client, v. %d>", pkt->cversion);
+					"<vie client, v. %d>", pkt->cversion);
 		else if (p->type == T_CONT)
 			snprintf(p->clientname, sizeof(p->clientname),
 					"<continuum, v. %d>", pkt->cversion);

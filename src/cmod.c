@@ -197,6 +197,7 @@ local int unload_c_module(mod_args_t *args)
 			return MM_FAIL;
 	if (cmd->handle && !cmd->ismyself)
 		dlclose(cmd->handle);
+	afree(cmd);
 	return MM_OK;
 }
 
