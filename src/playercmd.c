@@ -1787,7 +1787,7 @@ local void Cendinterval(const char *tc, const char *params, Player *p, const Tar
 			dasha = 0;
 		}
 		else if (!strcmp(word, "-g"))
-			strcpy(ag, AG_PUBLIC);
+			strcpy(ag, AG_GLOBAL);
 		else if (!strcmp(word, "-a"))
 			dasha = 1;
 		else if (!strcmp(word, "game"))
