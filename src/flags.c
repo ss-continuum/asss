@@ -242,6 +242,10 @@ void SpawnFlag(int arena, int fid)
 			    f->x == x &&
 			    f->y == y)
 				good = 0;
+
+		/* if it did hit another flag, bump the radius a bit so we don't
+		 * get stuck here */
+		if (!good) rad++;
 	} while (!good);
 
 	/* whew, finally place the thing */

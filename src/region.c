@@ -89,11 +89,8 @@ void encode_rectangle(char *s, rect_t r)
 {
 #define DO(v) \
 	*s++ = val_to_char( ((v) >> 5) & 31 ); \
-	*s++ = val_to_char( ((v) >> 0) & 31 )
-	DO(r.x);
-	DO(r.y);
-	DO(r.w);
-	DO(r.h);
+	*s++ = val_to_char( ((v) >> 0) & 31 );
+	DO(r.x) DO(r.y) DO(r.w) DO(r.h)
 #undef DO
 	*s = 0;
 }
@@ -103,11 +100,8 @@ rect_t decode_rectangle(char *s)
 {
 	rect_t r;
 #define DO(v) \
-	(v) = char_to_val(*s++) << 5 | char_to_val(*s++)
-	DO(r.x);
-	DO(r.y);
-	DO(r.w);
-	DO(r.h);
+	(v) = char_to_val(s[0]) << 5 | char_to_val(s[1]); s += 2;
+	DO(r.x) DO(r.y) DO(r.w) DO(r.h)
 #undef DO
 	return r;
 }

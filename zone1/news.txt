@@ -10,6 +10,9 @@ see it eventually (it all gets logged).
 
 
 Recent updates:
+    * a new kick-ass turf reward module from GiGaKiLLeR. ?go turf with
+      some friends to try it.
+
     * lag actions - spec on spikes, high ping, high ploss. gradual
       weapons disabling for high ping/ploss also.
 
@@ -18,8 +21,6 @@ Recent updates:
       won/lost, ball games won/lost.
 
       use ?stats to see them.
-
-    * various security features (chat flood detection, login limiting)
 
     * ?last - shows you last 10 people to log in
 

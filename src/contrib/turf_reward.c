@@ -704,6 +704,9 @@ local int turfRewardTimer(void *arenaPtr)
 	int *aPtr = arenaPtr;
 	int arena = *aPtr;
 
+	if (ARENA_BAD(arena))
+		return 0;
+
 	LOCK_STATUS(arena);
 
 	if(!(tr[arena].flags) || !(tr[arena].freqs))

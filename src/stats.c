@@ -91,7 +91,7 @@ local inline void update_timer(stat_info *si, time_t tm)
 {
 	if (si->started)
 	{
-		si->value += tm;
+		si->value += (tm - si->started);
 		si->started = tm;
 		si->dirty = 1;
 	}
@@ -222,12 +222,12 @@ local int GetStat(int pid, int stat, int iv)
 #ifdef this_wont_be_necessary_until_new_protocol
 local void update_timers_work(TreapHead *node, void *clos)
 {
-	update_timer((stat_info*)node, *(unsigned*)clos);
+	update_timer((stat_info*)node, *(time_t*)clos);
 }
 
-local void update_timers(stat_info *si, unsigned gtc)
+local void update_timers(stat_info *si, time_t now)
 {
-	TrEnum((TreapHead*)si, update_timers_work, (void*)&gtc);
+	TrEnum((TreapHead*)si, update_timers_work, (void*)&now);
 }
 #endif
 
