@@ -10,6 +10,9 @@
 
 
 /* defines */
+
+#define BALL_SEND_PRI NET_PRI_P4
+
 #define LOCK_STATUS(arena) \
 	pthread_mutex_lock(ballmtx + arena)
 #define UNLOCK_STATUS(arena) \
@@ -517,7 +520,7 @@ void PPickupBall(int pid, byte *p, int len)
 	bd->carrier = pid;
 	bd->freq = pd->players[pid].freq;
 	bd->time = 0;
-	SendBallPacket(arena, bp->ballid, NET_UNRELIABLE | NET_PRI_P3);
+	SendBallPacket(arena, bp->ballid, NET_UNRELIABLE | BALL_SEND_PRI);
 
 	UNLOCK_STATUS(arena);
 
@@ -584,7 +587,7 @@ void PFireBall(int pid, byte *p, int len)
 	bd->yspeed = fb->yspeed;
 	bd->freq = pd->players[pid].freq;
 	bd->time = fb->time;
-	SendBallPacket(arena, bid, NET_UNRELIABLE | NET_PRI_P3);
+	SendBallPacket(arena, bid, NET_UNRELIABLE | BALL_SEND_PRI);
 
 	UNLOCK_STATUS(arena);
 

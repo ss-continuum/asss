@@ -42,14 +42,17 @@ enum
 	T_UNKNOWN,
 	/* this probably won't be used */
 
+	T_FAKE,
+	/* no client, internal to server */
+
 	T_VIE,
 	/* original vie client */
 
 	T_CONT,
 	/* continuum client */
 
-	T_FAKE,
-	/* no client, internal to server */
+	T_CHAT,
+	/* simple chat client */
 };
 
 

@@ -164,11 +164,12 @@ int strsplit(const char *big, const char *delims, char *buf, int buflen, const c
 	/* check if we moved off end of string */
 	if (!*tmp) return 0;
 	/* copy into buf until max or delim or end of string */
-	while (*tmp && !strchr(delims, *tmp) && buflen > 1)
-	{
-		*buf++ = *tmp++;
-		buflen--;
-	}
+	for ( ; *tmp && !strchr(delims, *tmp); tmp++)
+		if (buflen > 1)
+		{
+			*buf++ = *tmp;
+			buflen--;
+		}
 	/* terminate with nil */
 	*buf = '\0';
 	/* replace tmp pointer */
@@ -179,9 +180,23 @@ int strsplit(const char *big, const char *delims, char *buf, int buflen, const c
 
 /* LinkedList data type */
 
-#ifndef USE_GC
-
 #define LINKSATONCE 510 /* enough to almost fill a page */
+
+#ifdef _REENTRANT
+
+#include <pthread.h>
+
+local pthread_mutex_t freelinkmtx = PTHREAD_MUTEX_INITIALIZER;
+
+#define LOCK_FREE() pthread_mutex_lock(&freelinkmtx)
+#define UNLOCK_FREE() pthread_mutex_unlock(&freelinkmtx)
+
+#else
+
+#define LOCK_FREE()
+#define UNLOCK_FREE()
+
+#endif
 
 local void GetSomeLinks(void)
 {
@@ -195,7 +210,25 @@ local void GetSomeLinks(void)
 	freelinks = start;
 }
 
-#endif
+local Link *GetALink(void)
+{
+	Link *ret;
+	LOCK_FREE();
+	if (!freelinks) GetSomeLinks();
+	ret = freelinks;
+	freelinks = freelinks->next;
+	UNLOCK_FREE();
+	return ret;
+}
+
+local void FreeALink(Link *l)
+{
+	LOCK_FREE();
+	l->next = freelinks;
+	freelinks = l;
+	UNLOCK_FREE();
+}
+
 
 void LLInit(LinkedList *lst)
 {
@@ -205,32 +238,26 @@ void LLInit(LinkedList *lst)
 LinkedList * LLAlloc(void)
 {
 	LinkedList *ret;
-#ifdef USE_GC
-	ret = amalloc(sizeof(Link));
-#else
 	/* HACK: depends on LinkedList and Link being the same size */
-	if (!freelinks) GetSomeLinks();
-	ret = (LinkedList*) freelinks;
-	freelinks = freelinks->next;
-#endif
+	ret = (LinkedList*)GetALink();
 	LLInit(ret);
 	return ret;
 }
 
 void LLEmpty(LinkedList *l)
 {
-#ifndef USE_GC
 	Link *n = l->start, *t;
 
 	if (n)
 	{
+		LOCK_FREE();
 		t = freelinks;
 		freelinks = n;
 		while (n->next)
 			n = n->next;
 		n->next = t;
+		UNLOCK_FREE();
 	}
-#endif
 	l->start = l->end = NULL;
 }
 
@@ -238,23 +265,14 @@ void LLFree(LinkedList *lst)
 {
 	/* HACK: see above */
 	LLEmpty(lst);
-#ifndef USE_GC
-	((Link*)lst)->next = freelinks;
-	freelinks = (Link*)lst;
-#endif
+	FreeALink((Link*)lst);
 }
 
 void LLAdd(LinkedList *l, void *p)
 {
 	Link *n;
 
-#ifdef USE_GC
-	n = amalloc(sizeof(Link));
-#else
-	if (!freelinks) GetSomeLinks();
-	n = freelinks;
-	freelinks = freelinks->next;
-#endif
+	n = GetALink();
 
 	n->next = NULL;
 	n->data = p;
@@ -273,14 +291,8 @@ void LLAdd(LinkedList *l, void *p)
 void LLAddFirst(LinkedList *lst, void *data)
 {
 	Link *n;
-	
-#ifdef USE_GC
-	n = amalloc(sizeof(Link));
-#else
-	if (!freelinks) GetSomeLinks();
-	n = freelinks;
-	freelinks = freelinks->next;
-#endif
+
+	n = GetALink();
 
 	n->next = lst->start;
 	n->data = data;
@@ -307,13 +319,7 @@ int LLRemove(LinkedList *l, void *p)
 				prev->next = n->next;
 				if (n == l->end) l->end = prev;
 			}
-#ifdef USE_GC
-			n->next = n->data = NULL;
-			n = NULL;
-#else
-			n->next = freelinks;
-			freelinks = n;
-#endif
+			FreeALink(n);
 			return 1;
 		}
 		prev = n;
@@ -341,13 +347,7 @@ int LLRemoveAll(LinkedList *l, void *p)
 				prev->next = next;
 				if (next == NULL) l->end = prev;
 			}
-#ifdef USE_GC
-			n->next = n->data = NULL;
-			n = NULL;
-#else
-			n->next = freelinks;
-			freelinks = n;
-#endif
+			FreeALink(n);
 			removed++;
 		}
 		else
@@ -371,13 +371,7 @@ void *LLRemoveFirst(LinkedList *lst)
 	lnk = lst->start;
 	lst->start = lst->start->next;
 
-#ifdef USE_GC
-	lnk->next = lnk->data = NULL;
-	lnk = NULL;
-#else
-	lnk->next = freelinks;
-	freelinks = lnk;
-#endif
+	FreeALink(lnk);
 
 	if (lst->start == NULL)
 		lst->end = NULL;
@@ -685,6 +679,111 @@ int DQCount(DQNode *node)
 }
 
 #endif
+
+
+
+#ifndef NOTREAP
+
+local TreapHead **tr_find(TreapHead **root, int key)
+{
+	for (;;)
+		if ((*root) == NULL)
+			return NULL;
+		else if ((*root)->key == key)
+			return root;
+		else if ((*root)->key < key)
+			root = &(*root)->right;
+		else
+			root = &(*root)->left;
+}
+
+TreapHead *TrGet(TreapHead *root, int key)
+{
+	TreapHead **p = tr_find(&root, key);
+	return p ? *p : NULL;
+}
+
+#define TR_ROT_LEFT(node)              \
+do {                                   \
+    TreapHead *tmp = (*node)->right;   \
+    (*node)->right = tmp->left;        \
+    tmp->left = *node;                 \
+    *node = tmp;                       \
+} while(0)
+
+#define TR_ROT_RIGHT(node)             \
+do {                                   \
+    TreapHead *tmp = (*node)->left;    \
+    (*node)->left = tmp->right;        \
+    tmp->right = *node;                \
+    *node = tmp;                       \
+} while(0)                             \
+
+void TrPut(TreapHead **root, TreapHead *node)
+{
+	if (*root == NULL)
+	{
+		node->pri = rand();
+		node->left = node->right = NULL;
+		*root = node;
+	}
+	else if ((*root)->key < node->key)
+	{
+		TrPut(&(*root)->right, node);
+		/* the node might now be the right child of root */
+		if ((*root)->pri > (*root)->right->pri)
+			TR_ROT_LEFT(root);
+	}
+	else
+	{
+		TrPut(&(*root)->left, node);
+		/* the node might now be the left child of root */
+		if ((*root)->pri > (*root)->left->pri)
+			TR_ROT_RIGHT(root);
+	}
+}
+
+void TrDelKey(TreapHead **root, int key)
+{
+	TreapHead **node;
+
+	node = tr_find(root, key);
+	if (node == NULL)
+		return;
+
+	while ((*node)->left || (*node)->right)
+		if ((*node)->left == NULL)
+			TR_ROT_LEFT(node);
+		else if ((*node)->right == NULL)
+			TR_ROT_RIGHT(node);
+		else if ((*node)->right->pri < (*node)->left->pri)
+			TR_ROT_LEFT(node);
+		else
+			TR_ROT_RIGHT(node);
+
+	*node = NULL;
+}
+
+void TrEnum(TreapHead *root, void *clos, void (*func)(TreapHead *node, void *clos))
+{
+	if (root)
+	{
+		TreapHead *t;
+		TrEnum(root->left, clos, func);
+		/* save right child now because func might free it */
+		t = root->right;
+		func(root, clos);
+		TrEnum(t, clos, func);
+	}
+}
+
+void tr_enum_afree(TreapHead *node, void *dummy)
+{
+	afree(node);
+}
+
+#endif
+
 
 
 #ifndef NOSTRINGCHUNK

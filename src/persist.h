@@ -41,7 +41,11 @@
  */
 
 
+#include "statcodes.h"
+
+
 #define MAXPERSISTLENGTH 1024
+
 
 #define PERSIST_ALLARENAS (-1)
 #define PERSIST_GLOBAL (-2)
@@ -49,7 +53,7 @@
 
 typedef struct PersistantData
 {
-	int key, arena;
+	int key, scope, interval;
 	int (*GetData)(int pid, void *data, int len);
 	void (*SetData)(int pid, void *data, int len);
 	void (*ClearData)(int pid);
@@ -70,5 +74,4 @@ typedef struct Ipersist
 
 
 #endif
-
 

@@ -114,8 +114,6 @@ void LogA(char level, const char *mod, int arena, const char *format, ...)
 	va_list argptr;
 	char buf[1024];
 
-	if (!aman) aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
-
 	len = snprintf(buf, 1024, "%c <%s> {%s} ",
 			level,
 			mod,

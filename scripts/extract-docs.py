@@ -26,12 +26,12 @@ checks = [
 ]
 
 def print_line(line):
-	# replace < and > with math symbols
-	line = line.replace('<', '$<$')
-	line = line.replace('>', '$>$')
-
 	# replace braces with texttt expressions
 	line = re_braces.sub(r"\\texttt\1", line)
+
+	# replace < and > with math symbols
+	line = line.replace('<', '\\lt{}')
+	line = line.replace('>', '\\gt{}')
 
 	# handle underscores and hash marks
 	line = line.replace('_', '\_')

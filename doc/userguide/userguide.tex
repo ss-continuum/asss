@@ -10,8 +10,18 @@
 \newcommand{\requiremod}[1]{\noindent\textbf{Requires module:} \texttt{#1}\\}
 \newcommand{\targets}[1]{\noindent\textbf{Possible targets:} #1\\}
 \newcommand{\args}[1]{\noindent\textbf{Arguments:} #1\\}
-\newcommand{\asss}{\texttt{asss}}
-\newcommand{\subgame}{\texttt{subgame}}
+\newcommand{\asss}{asss}
+\newcommand{\subgame}{subgame}
+
+% this is for making tex2page output have nice angle brackets
+\ifx\shipout\undefined
+\newcommand{\lt}{\rawhtml&lt;\endrawhtml}
+\newcommand{\gt}{\rawhtml&gt;\endrawhtml}
+\else
+\newcommand{\lt}{$<$}
+\newcommand{\gt}{$>$}
+\fi
+
 
 \title{\asss{} User's Guide}
 
@@ -44,11 +54,11 @@ run slower.
 
 The requirements for running \asss{} on Linux are very simple: The
 system should have the pthreads library (any recent Linux system
-should), Berkeley DB 1.85 (newer versions won't work), and zlib. To
-compile \asss{} from source (on either Linux or Windows), the include
-files for those libraries must be installed, as well as a C compiler. If
-you've obtained the source from CVS, you'll also need the Python
-interpreter in order to generate certain files. If you're using a
+should), Berkeley DB 4.0 or greater (older versions won't work), and
+zlib. To compile \asss{} from source (on either Linux or Windows), the
+include files for those libraries must be installed, as well as a C
+compiler. If you've obtained the source from CVS, you'll also need the
+Python interpreter in order to generate certain files. If you're using a
 tarball instead, it will come with those files present already.
 
 Currently, only Intel platforms are supported because of byte-order
@@ -64,7 +74,7 @@ There is an online bug-management system set up at this url:
 
 \noindent You don't need an account to create new tickets, although you
 do to modify them. Please check that you're not reporting a duplicate
-bug before you submit a new ticker. And finally, it's running off of my
+bug before you submit a new ticket. And finally, it's running off of my
 cable modem, so go easy on it.
 
 
@@ -79,9 +89,9 @@ Here's what a typical machine's file layout should look like:
 /home/asss
 + bin
 | + asss
+| + core.so
 | + commands.so
 | + flags.so
-| + balls.so
 | + balls.so
 | + ...
 |
@@ -90,18 +100,15 @@ Here's what a typical machine's file layout should look like:
 | + bin  (symlinked to ../bin)
 | + defaultarena
 | | + arena.conf
-| | + scores.db
 | |
 | + arenas
 | | + duel
 | | | + arena.conf
-| | | + scores.db
 | | |
 | | + pb
 | |   + arena.conf
 | |   + balls.conf
 | |   + pb.lvl
-| |   + scores.db
 | |
 | + conf
 | | + global.conf
@@ -126,8 +133,11 @@ Here's what a typical machine's file layout should look like:
 | | + asss.log.1
 | |
 | + maps
-|   + zone1-pub.lvl
-|   + another.lvl
+| | + zone1-pub.lvl
+| | + another.lvl
+| |
+| + data
+|   + data.db
 |
 + zone2
   + bin  (symlinked to ../bin)
@@ -147,14 +157,14 @@ list of modules to load at startup, \verb/global.conf/, which contains
 config settings for the whole server, \verb/groupdef.conf/, which
 describes which capabilities belong to each group, and
 \verb/staff.conf/, which assigns groups to various players.
-\verb/groupdef.conf/ uses files in the \verb/groups/ subdirectory to
-ensure more powerful groups have all the capabilities of lesser ones.
+\verb/groupdef.conf/ uses files in the \verb/groupdef.dir/ subdirectory
+to ensure more powerful groups have all the capabilities of lesser ones.
 
 Also in \verb/conf/ is \verb/defs.h/, which includes a bunch of other
 config files that are typically symlinks to files in the source code
 directory. This is done to ensure the server and config files agree on
-numerical values for various constants. All \verb/.conf/ files should
-\verb/#include/ \verb/defs.h/.
+numerical values for various constants. All \verb/.conf/ files
+automatically \verb/#include/ \verb/defs.h/.
 
 \verb/conf/ can also contain partial config files for arenas to include.
 The default directory structure contains an \verb/svs/ directory, with
@@ -182,11 +192,6 @@ contains the settings for that arena. For ease of administration, this
 file may \verb/#include/ other config files in either the same
 directory, or the global \verb/conf/ directory.
 
-The server will create the file \verb/scores.db/ in each arena's
-directory to keep track of players' scores for that arena. It will also
-create \verb/global.db/ in the base of the zone directory for keeping
-track of global persistent data.
-
 The file \verb/news.txt/ should be located in the base of the zone
 directory as well, unless another location is specified in
 \verb/global.conf/.
@@ -201,7 +206,7 @@ library can contain any number of modules.
 
 There are currently
 % grep 'int MM_' ~/src/asss/src/*.c | wc -l
-40
+43
 modules that are part of \asss{}, but each zone might have some
 custom-developed modules for their zone as well.
 
@@ -217,10 +222,8 @@ line should contain a ``module specifier.'' A module specifier is just
 something of the form \verb/filename:module/. The filename part should
 be the name of the file containing the module, without the extension.
 The module part should be a module name that's contained in the file.
-The colon separating them is just a colon. For modules that are in the
-\asss{} binary itself, use the special file name \verb/int/ (for
-``internal''). Comments are indicated by an initial semicolon or pound
-sign.
+The colon separating them is just a colon. Comments are indicated by an
+initial semicolon or pound sign.
 
 If a particular zone has no need for a particular module (e.g., Chaos
 zone doesn't have any flags or balls, so it doesn't need those modules),
@@ -379,10 +382,11 @@ servers or bugs in the server itself.
 
 There are currently
 % cat ~/src/asss/src/*.c | grep ">Log[AP]\?(L_" -c
-155
-distinct log messages in the server. By type, there are 26 ERROR
-messages, 21 WARN messages, 50 MALICIOUS messages, 18 INFO messages, and
-40 DRIVEL messages.
+175
+% cat ~/src/asss/src/*.c | grep ">Log[AP]\?(L_" | sed 's/.*>Log[AP]\?(L_\([A-Z]*\).*/\1/' | sort | uniq -c
+distinct log messages in the server. By type, there are 23 ERROR
+messages, 30 WARN messages, 55 MALICIOUS messages, 25 INFO messages, and
+42 DRIVEL messages.
 
 \subsection{Filtering}
 

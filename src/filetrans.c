@@ -127,7 +127,7 @@ local void sized_p_inc_file(int pid, byte *data, int len, int offset, int totall
 			fwrite(data, len, 1, ud->fp);
 		else
 		{
-			lm->LogP(L_INFO, "filetrans", pid, "Completed upload");
+			lm->LogP(L_INFO, "filetrans", pid, "Completed upload of '%s'", ud->fname);
 			cleanup_ud(pid, 1);
 		}
 	}

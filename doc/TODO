@@ -17,9 +17,6 @@ locking. lots of options here:
 	finite "lives" also fits in here
 	must be able to be controlled by mod commands and other modules
 
-allow commands to be targeted to specific freqs (using nmefreq
-messages). this probably requires changes to the command interface.
-
 fix flag drops at edges
 
 fix brick drop algorithm (it should snap to edges of other bricks)

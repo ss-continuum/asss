@@ -10,7 +10,6 @@
 #else
 #include <direct.h>
 #define dlopen(a,b) LoadLibrary(a)
-#define dlerror() "dlerror() not supported"
 #define dlsym(a,b) ((ModMain)GetProcAddress(a,b))
 #define dlclose(a) FreeLibrary(a)
 #endif
@@ -175,7 +174,27 @@ int LoadMod(const char *_spec)
 	mod->hand = dlopen(path, RTLD_NOW);
 	if (!mod->hand)
 	{
-		if (lm) lm->Log(L_ERROR,"<module> LoadMod: error in dlopen: %s", dlerror());
+#ifndef WIN32
+		if (lm) lm->Log(L_ERROR,"<module> Error in dlopen: %s", dlerror());
+#else
+		if (lm)
+		{
+			LPVOID lpMsgBuf;
+			FormatMessage(
+					FORMAT_MESSAGE_ALLOCATE_BUFFER |
+					FORMAT_MESSAGE_FROM_SYSTEM |
+					FORMAT_MESSAGE_IGNORE_INSERTS,
+					NULL,
+					GetLastError(),
+					MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+					(LPTSTR) &lpMsgBuf,
+					0,
+					NULL
+			);
+			lm->Log(L_ERROR, "<module> Error in LoadLibrary: %s", (LPCTSTR)lpMsgBuf);
+			LocalFree(lpMsgBuf);
+		}
+#endif
 		goto die;
 	}
 
@@ -183,7 +202,27 @@ int LoadMod(const char *_spec)
 	mod->mm = dlsym(mod->hand, buf);
 	if (!mod->mm)
 	{
-		if (lm) lm->Log(L_ERROR,"<module> LoadMod: error in dlsym: %s", dlerror());
+#ifndef WIN32
+		if (lm) lm->Log(L_ERROR,"<module> Error in dlsym: %s", dlerror());
+#else
+		if (lm)
+		{
+			LPVOID lpMsgBuf;
+			FormatMessage(
+					FORMAT_MESSAGE_ALLOCATE_BUFFER |
+					FORMAT_MESSAGE_FROM_SYSTEM |
+					FORMAT_MESSAGE_IGNORE_INSERTS,
+					NULL,
+					GetLastError(),
+					MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+					(LPTSTR) &lpMsgBuf,
+					0,
+					NULL
+			);
+			lm->Log(L_ERROR, "<module> Error in GetProcAddress: %s", (LPCTSTR)lpMsgBuf);
+			LocalFree(lpMsgBuf);
+		}
+#endif
 		if (!mod->myself) dlclose(mod->hand);
 		goto die;
 	}

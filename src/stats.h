@@ -5,22 +5,14 @@
 /* Istats - the statistics/scores manager
  *
  * This module has functions for managing simple scores and statistics.
- *
  */
 
-typedef enum stat_t
-{
-	/* these four correspond to the standard subspace statistics */
-	STAT_KILL_POINTS = 0,
-	STAT_FLAG_POINTS = 1,
-	STAT_KILLS   = 2,
-	STAT_DEATHS  = 3,
-	/* this is the highest-numbered stat */
-	STAT_MAX     = 15
-} stat_t;
+
+/* get the stat id codes */
+#include "statcodes.h"
 
 
-#define I_STATS "stats-1"
+#define I_STATS "stats-2"
 
 typedef struct Istats
 {
@@ -28,21 +20,15 @@ typedef struct Istats
 
 	void (*IncrementStat)(int pid, int stat, int amount);
 	/* arpc: void(int, int, int) */
-	/* increments a particular statistic */
+	/* increments a particular statistic in _all_ intervals */
 
-#if 0
-	void (*SetStat)(int pid, int stat, int value);
-	/* arpc: void(int, int, int) */
+	void (*SetStat)(int pid, int stat, int interval, int value);
+	/* arpc: void(int, int, int, int) */
 	/* sets a statistic to a given value */
 
-	int (*GetStat)(int pid, int stat);
-	/* arpc: void(int, int) */
-	/* gets the value of one statistic */
-
-	void (*ResetAllStats)(int pid);
+	int (*GetStat)(int pid, int stat, int interval);
 	/* arpc: void(int, int, int) */
-	/* resets all stats to zero */
-#endif
+	/* gets the value of one statistic */
 
 	void (*SendUpdates)(void);
 	/* arpc: void(void) */

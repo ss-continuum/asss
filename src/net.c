@@ -18,7 +18,7 @@
 
 #include "asss.h"
 
-/* DEFINES */
+/* defines */
 
 #define MAXTYPES 64
 
@@ -30,8 +30,8 @@
 /* threshold to start queuing up more packets */
 #define QUEUE_THRESHOLD 10
 
-/* bits in ClientData.flags */
-#define NET_FAKE 0x01
+/* check whether we manage this client */
+#define IS_OURS(pid) (players[(pid)].type == T_CONT || players[(pid)].type == T_VIE)
 
 /* check if a buffer is reliable */
 #define IS_REL(buf) ((buf)->d.rel.t1 == 0x00 && (buf)->d.rel.t2 == 0x03)
@@ -49,7 +49,7 @@
 )
 
 
-/* STRUCTS */
+/* structs */
 
 #include "packets/reliable.h"
 
@@ -64,12 +64,12 @@ struct sized_send_data
 
 typedef struct ClientData
 {
-	/* general flags, hash bucket */
-	int flags, nextinbucket;
-	/* sequence numbers for reliable packets */
-	int s2cn, c2sn;
 	/* the address to send packets to */
 	struct sockaddr_in sin;
+	/* hash bucket */
+	int nextinbucket;
+	/* sequence numbers for reliable packets */
+	int s2cn, c2sn;
 	/* time of last packet recvd and of initial connection */
 	unsigned int lastpkt, connecttime;
 	/* total amounts sent and recvd */
@@ -118,7 +118,7 @@ typedef struct Buffer
 } Buffer;
 
 
-/* PROTOTYPES */
+/* prototypes */
 
 /* interface: */
 local void SendToOne(int, byte *, int, int);
@@ -175,7 +175,7 @@ local void ProcessCancel(Buffer *);
 
 
 
-/* GLOBAL DATA */
+/* global data */
 
 local Imodman *mm;
 local Iplayerdata *pd;
@@ -256,7 +256,7 @@ local Inet _int =
 
 
 
-/* START OF FUNCTIONS */
+/* start of functions */
 
 
 EXPORT int MM_net(int action, Imodman *mm_, int arena)
@@ -752,7 +752,7 @@ donehere:
 				pd->LockStatus();
 				for (n = 0; n < MAXPLAYERS; n++)
 					if (players[n].status == S_PLAYING &&
-					    (clients[n].flags & NET_FAKE) == 0)
+					    players[n].type != T_FAKE)
 						data[0]++;
 				pd->UnlockStatus();
 				sendto(myothersock, (char*)data, 8, 0,
@@ -817,7 +817,7 @@ int QueueMoreData(void *dummy)
 	for (pid = 0; pid < MAXPACKET; pid++)
 		if (players[pid].status > S_FREE &&
 		    players[pid].status < S_TIMEWAIT &&
-		    (players[pid].flags & NET_FAKE) == 0 &&
+		    IS_OURS(pid) &&
 		    pthread_mutex_trylock(outlistmtx + pid) == 0)
 		{
 			if ((l = LLGetHead(&clients[pid].sizedsends)) &&
@@ -885,7 +885,7 @@ void * SendThread(void *dummy)
 		/* first send outgoing packets */
 		for (i = 0; i < (MAXPLAYERS + EXTRA_PID_COUNT); i++)
 			if ( ((players[i].status > S_FREE && players[i].status < S_TIMEWAIT &&
-			       (players[i].flags & NET_FAKE) == 0) ||
+			       IS_OURS(i)) ||
 			      i >= MAXPLAYERS /* billing needs to send before connected */) &&
 			     pthread_mutex_trylock(outlistmtx + i) == 0)
 			{
@@ -1273,7 +1273,6 @@ int NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc)
 	else
 	{
 		clients[i].nextinbucket = -1;
-		clients[i].flags = NET_FAKE;
 	}
 	pthread_mutex_unlock(&hashmtx);
 
@@ -1619,7 +1618,7 @@ void SendRaw(int pid, byte *data, int len)
 	byte encbuf[MAXPACKET];
 	Iencrypt *enc = clients[pid].enc;
 
-	if (clients[pid].flags & NET_FAKE) return;
+	if (!IS_OURS(pid)) return;
 
 	if (pid != PID_BILLER)
 	{
@@ -1662,7 +1661,7 @@ void BufferPacket(int pid, byte *data, int len, int flags,
 	Buffer *buf;
 	int limit;
 
-	if (clients[pid].flags & NET_FAKE)
+	if (players[pid].type == T_FAKE)
 	{
 		/* this hook lets fake players recieve packets */
 		if (clients[pid].enc && clients[pid].enc->Encrypt)

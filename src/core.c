@@ -48,16 +48,17 @@ local void DefaultAuth(int, struct LoginPacket *, int, void (*)(int, AuthData *)
 AuthData bigauthdata[MAXPLAYERS];
 struct LoginPacket bigloginpkt[MAXPLAYERS];
 
+local Imodman *mm;
 local Iplayerdata *pd;
 local Imainloop *ml;
 local Iconfig *cfg;
 local Inet *net;
-local Imodman *mm;
 local Ilogman *lm;
 local Imapnewsdl *map;
 local Iarenaman *aman;
-local Ipersist *persist;
 local Icapman *capman;
+local Ipersist *persist;
+local Istats *stats;
 
 local PlayerData *players;
 
@@ -83,7 +84,6 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		map = mm->GetInterface(I_MAPNEWSDL, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
-		persist = mm->GetInterface(I_PERSIST, ALLARENAS);
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 
 		players = pd->players;
@@ -103,6 +103,16 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 
 		return MM_OK;
 	}
+	else if (action == MM_POSTLOAD)
+	{
+		persist = mm->GetInterface(I_PERSIST, ALLARENAS);
+		stats = mm->GetInterface(I_STATS, ALLARENAS);
+	}
+	else if (action == MM_PREUNLOAD)
+	{
+		mm->ReleaseInterface(persist);
+		mm->ReleaseInterface(stats);
+	}
 	else if (action == MM_UNLOAD)
 	{
 		if (mm->UnregInterface(&_iauth, ALLARENAS))
@@ -116,7 +126,6 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(ml);
 		mm->ReleaseInterface(map);
-		mm->ReleaseInterface(persist);
 		mm->ReleaseInterface(capman);
 		return MM_OK;
 	}
@@ -188,10 +197,6 @@ void ProcessLoginQueue(void)
 				break;
 		}
 
-		/* check for missing persist module */
-		if (!persist && (ns == S_WAIT_GLOBAL_SYNC || ns == S_WAIT_ARENA_SYNC) )
-			ns++;
-
 		player->status = ns; /* set it */
 
 		/* now unlock status, lock player (because we might be calling
@@ -227,6 +232,8 @@ void ProcessLoginQueue(void)
 			case S_NEED_GLOBAL_SYNC:
 				if (persist)
 					persist->SyncFromFile(pid, PERSIST_GLOBAL, GSyncDone);
+				else
+					GSyncDone(pid);
 				break;
 
 			case S_DO_GLOBAL_CALLBACKS:
@@ -266,9 +273,19 @@ void ProcessLoginQueue(void)
 				/* then, sync scores */
 				if (persist)
 					persist->SyncFromFile(pid, player->arena, ASyncDone);
+				else
+					ASyncDone(pid);
 				break;
 
 			case S_SEND_ARENA_RESPONSE:
+				/* try to get scores in pdata packet */
+				if (stats)
+				{
+					player->killpoints = stats->GetStat(pid, STAT_KILL_POINTS, INTERVAL_RESET);
+					player->flagpoints = stats->GetStat(pid, STAT_FLAG_POINTS, INTERVAL_RESET);
+					player->wins = stats->GetStat(pid, STAT_KILLS, INTERVAL_RESET);
+					player->losses = stats->GetStat(pid, STAT_DEATHS, INTERVAL_RESET);
+				}
 				aman->SendArenaResponse(pid);
 				break;
 

@@ -134,6 +134,23 @@ int DQCount(DQNode *node);
 #endif
 
 
+#ifndef NOTREAP
+
+typedef struct TreapHead
+{
+	struct TreapHead *left, *right;
+	int pri, key;
+} TreapHead;
+
+struct TreapHead *TrGet(TreapHead *root, int key);
+void TrPut(TreapHead **root, TreapHead *node);
+void TrDelKey(TreapHead **root, int key);
+void TrEnum(TreapHead *root, void *clos, void (*func)(TreapHead *node, void *clos));
+void tr_enum_afree(TreapHead *node, void *dummy);
+
+#endif
+
+
 #ifndef NOSTRINGCHUNK
 
 /* string chunks: idea stolen from glib */

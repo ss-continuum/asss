@@ -37,6 +37,9 @@ view: dvi
 clean:
 	$(RM) -f $(ALLTARGETS) *.log *.aux *.blg *.bak *.hlog *-Z-* *~
 
+publish: pdf html
+	scp *.pdf *.html *.gif ellie:userguide
+
 
 ### Dependencies and commands
 

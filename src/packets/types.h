@@ -104,7 +104,7 @@
 #define C2S_DROPFLAGS 0x15
 /* uploading a file to server */
 #define C2S_UPLOADFILE 0x16
-/* missing 17 */
+#define C2S_NAMEREG 0x17
 #define C2S_SETSHIP 0x18
 /* sending new banner */
 #define C2S_BANNER 0x19
