@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #include <time.h>
 #include <string.h>
 #include <stdarg.h>
@@ -200,6 +202,8 @@ void wrap_text(const char *txt, int mlen, char delim,
 
 /* LinkedList data type */
 
+#ifdef CFG_USE_FREE_LINK_LIST
+
 #define LINKSATONCE 510 /* enough to almost fill a page */
 
 static Link *freelinks = NULL;
@@ -232,7 +236,7 @@ local void GetSomeLinks(void)
 	freelinks = start;
 }
 
-local Link *GetALink(void)
+local inline Link *GetALink(void)
 {
 	Link *ret;
 	LOCK_FREE();
@@ -243,13 +247,27 @@ local Link *GetALink(void)
 	return ret;
 }
 
-local void FreeALink(Link *l)
+local inline void FreeALink(Link *l)
 {
 	LOCK_FREE();
 	l->next = freelinks;
 	freelinks = l;
 	UNLOCK_FREE();
 }
+
+#else
+
+local inline Link *GetALink(void)
+{
+	return amalloc(sizeof(Link));
+}
+
+local inline void FreeALink(Link *l)
+{
+	afree(l);
+}
+
+#endif
 
 
 void LLInit(LinkedList *lst)
@@ -270,6 +288,7 @@ void LLEmpty(LinkedList *l)
 {
 	Link *n = l->start, *t;
 
+#ifdef CFG_USE_FREE_LINK_LIST
 	if (n)
 	{
 		LOCK_FREE();
@@ -280,6 +299,14 @@ void LLEmpty(LinkedList *l)
 		n->next = t;
 		UNLOCK_FREE();
 	}
+#else
+	while (n)
+	{
+		t = n->next;
+		afree(n);
+		n = t;
+	}
+#endif
 	l->start = l->end = NULL;
 }
 

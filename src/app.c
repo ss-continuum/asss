@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 /* app - the asss preprocessor
  *
  * handles selected features of the C preprocessor, including #include,

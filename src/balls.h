@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __BALLS_H
 #define __BALLS_H
 

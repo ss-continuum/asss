@@ -1,5 +1,6 @@
 #!/bin/sh
 # vim: et sw=2 ts=2
+# dist: public
 
 # change this to the root of your asss installation
 ASSSHOME=$HOME/src/asss

@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_BILLMISC_H
 #define __PACKETS_BILLMISC_H
 

@@ -1,13 +1,17 @@
 
+/* dist: public */
+
 #include <stdio.h>
 
 #include "asss.h"
 
-
-local void LogConsole(char *);
-
 local Ilogman *lm;
 
+local void LogConsole(char *s)
+{
+	if (lm->FilterLog(s, "log_console"))
+		puts(s);
+}
 
 EXPORT int MM_log_console(int action, Imodman *mm, int arena)
 {
@@ -25,12 +29,5 @@ EXPORT int MM_log_console(int action, Imodman *mm, int arena)
 		return MM_OK;
 	}
 	return MM_FAIL;
-}
-
-
-void LogConsole(char *s)
-{
-	if (lm->FilterLog(s, "log_console"))
-		puts(s);
 }
 

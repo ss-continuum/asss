@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #include <stdio.h>
 
 #include "asss.h"
@@ -70,7 +72,7 @@ local int Place(char *retname, int namelen, int ppid)
 
 local Iarenaplace myint =
 {
-	INTERFACE_HEAD_INIT(I_PERIODIC_POINTS, "ap-multipub")
+	INTERFACE_HEAD_INIT(I_ARENAPLACE, "ap-multipub")
 	Place
 };
 
@@ -79,6 +81,7 @@ EXPORT int MM_ap_multipub(int action, Imodman *mm, int arena)
 	if (action == MM_LOAD)
 	{
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		if (!aman || !cfg) return MM_FAIL;
 
 		load_pubnames();

@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __MAINLOOP_H
 #define __MAINLOOP_H
 

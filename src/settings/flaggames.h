@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #define FLAGGAME_NONE 0
 /* no flag game */
 

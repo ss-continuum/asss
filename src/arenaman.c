@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -53,7 +55,7 @@ local Inet *net;
 local Ichatnet *chatnet;
 local Imodman *mm;
 local Ilogman *lm;
-local Ipersist *persist;
+local /* noinit */ Ipersist *persist;
 
 local PlayerData *players;
 

@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_KILL_H
 #define __PACKETS_KILL_H
 

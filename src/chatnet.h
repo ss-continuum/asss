@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __CHATNET_H
 #define __CHATNET_H
 

@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 
 /* absolute maximum number of players */
 #define CFG_MAX_PLAYERS 255
@@ -90,7 +92,7 @@
 
 
 /* relax checks on certain packet lengths. only useful for debugging. */
-#define CFG_RELAX_LENGTH_CHECKS
+/* #define CFG_RELAX_LENGTH_CHECKS */
 
 
 /* the size of the ip address hash table. this _must_ be a power of two. */
@@ -110,6 +112,13 @@
  * that the bucket width is in milliseconds, not ticks. */
 #define CFG_LAG_BUCKETS 25
 #define CFG_LAG_BUCKET_WIDTH 20
+
+
+/* whether to keep a list of free links. this is an optimization that
+ * will have different effects on different systems. enabling it will
+ * probably decrease memory use a bit, and might make things faster or
+ * slower, depending on your system and malloc implementation. */
+/* #define CFG_USE_FREE_LINK_LIST */
 
 
 /* whether to enable a few locks that may decrease performance (and

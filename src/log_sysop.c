@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #include <string.h>
 #include <stdlib.h>
 

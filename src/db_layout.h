@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __DB_LAYOUT_H
 #define __DB_LAYOUT_H
 

@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __RELDB_H
 #define __RELDB_H
 

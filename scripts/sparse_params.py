@@ -1,3 +1,4 @@
+# dist: public
 
 # the type of the data to be represented
 sourcetype = 'unsigned char'

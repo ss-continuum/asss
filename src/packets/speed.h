@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_SPEED_H
 #define __PACKETS_SPEED_H
 

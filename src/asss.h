@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 /* important defines and typedefs */
 #include "defs.h"
 

@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #define EXPORT __declspec(dllexport)
 
 #ifndef NDEBUG

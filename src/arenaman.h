@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __ARENAMAN_H
 #define __ARENAMAN_H
 

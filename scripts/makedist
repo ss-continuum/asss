@@ -1,0 +1,32 @@
+#!/bin/sh
+
+set -e
+
+cd ~/src/asss
+
+d="asss-`date +%Y%m%d`"
+
+rm -rf $d
+cp -a dist $d
+
+tar cf - `grep -lr '[d]ist: public' src scripts` scripts/banner.font | \
+	(cd $d ; tar xf -)
+mv $d/src/Makefile.dist $d/src/Makefile
+
+make -C src -f Makefile.dist clean
+make -C src -f Makefile.dist install
+make -C src -f Makefile.dist clean
+make -C ~/src/extra-asss/contenc all
+make -C ~/src/extra-asss/contenc clean
+
+cp bin/asss bin/*.so $d/bin
+rm $d/bin/turf.so
+
+make -C doc/userguide all
+cp doc/userguide/userguide.{dvi,ps,pdf,html,txt} $d/doc
+make -C doc/userguide clean
+
+find $d -exec touch -r $d/bin/asss {} \;
+tar --numeric-owner -czvf $d.tar.gz $d
+rm -rf $d
+

@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __CAPMAN_H
 #define __CAPMAN_H
 

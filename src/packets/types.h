@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_TYPES_H
 #define __PACKETS_TYPES_H
 

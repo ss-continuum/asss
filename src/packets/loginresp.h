@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_LOGINRESP_H
 #define __PACKETS_LOGINRESP_H
 

@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_SCOREUPD_H
 #define __PACKETS_SCOREUPD_H
 

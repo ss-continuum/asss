@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __LOG_FILE_H
 #define __LOG_FILE_H
 

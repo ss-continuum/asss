@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_BALL_H
 #define __PACKETS_BALL_H
 

@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_FLAGS_H
 #define __PACKETS_FLAGS_H
 

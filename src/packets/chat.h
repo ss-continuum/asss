@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_CHAT_H
 #define __PACKETS_CHAT_H
 

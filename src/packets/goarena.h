@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_GOARENA_H
 #define __PACKETS_GOARENA_H
 

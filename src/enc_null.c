@@ -1,4 +1,5 @@
 
+/* dist: public */
 
 #include "asss.h"
 

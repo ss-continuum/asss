@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PERIODIC_H
 #define __PERIODIC_H
 

@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_SHIPCHANGE_h
 #define __PACKETS_SHIPCHANGE_h
 

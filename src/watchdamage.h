@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __WATCHDAMAGE_H
 #define __WATCHDAMAGE_H
 

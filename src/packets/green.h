@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_GREEN_H
 #define __PACKETS_GREEN_H
 

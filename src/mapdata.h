@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __MAPDATA_H
 #define __MAPDATA_H
 

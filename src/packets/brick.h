@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_BRICK_H
 #define __PACKETS_BRICK_H
 

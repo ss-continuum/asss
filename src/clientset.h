@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __CLIENTSET_H
 #define __CLIENTSET_H
 

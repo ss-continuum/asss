@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __MODMAN_H
 #define __MODMAN_H
 

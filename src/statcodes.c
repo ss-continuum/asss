@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #include "statcodes.h"
 
 const char *get_stat_name(int st)

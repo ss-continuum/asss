@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __ASSS_H
 #define __ASSS_H
 

@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_OBJECTS_H
 #define __PACKETS_OBJECTS_H
 

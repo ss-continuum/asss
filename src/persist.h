@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PERSIST_H
 #define __PERSIST_H
 

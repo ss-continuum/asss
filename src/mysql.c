@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef WIN32
 #include <unistd.h>
 /* #include <signal.h> */

@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __FLAGS_H
 #define __FLAGS_H
 

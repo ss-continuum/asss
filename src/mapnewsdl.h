@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __MAPNEWSDL_H
 #define __MAPNEWSDL_H
 

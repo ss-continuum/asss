@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __LOGMAN_H
 #define __LOGMAN_H
 

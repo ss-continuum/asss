@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __JACKPOT_H
 #define __JACKPOT_H
 

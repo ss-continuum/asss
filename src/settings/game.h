@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 /* these are for Misc:SeeEnergy */
 
 #define SEE_NONE 0

@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,9 +35,12 @@
 #define IP_UDP_OVERHEAD 28
 
 /* packets to queue up for sending files */
-#define QUEUE_PACKETS 30
+#define QUEUE_PACKETS 20
 /* threshold to start queuing up more packets */
-#define QUEUE_THRESHOLD 10
+#define QUEUE_THRESHOLD 5
+
+/* we need to know how many packets the client is able to buffer */
+#define CLIENT_CAN_BUFFER 40
 
 /* check whether we manage this client */
 #define IS_OURS(pid) (players[(pid)].type == T_CONT || players[(pid)].type == T_VIE)
@@ -630,12 +635,14 @@ int ConnectToClient(const char *name, const char *ipaddr, unsigned short port,
 }
 
 
-#ifdef CFG_DUMP_RAW_PACKETS
-local void dump_pk(byte *data, int len)
+#if defined(CFG_DUMP_RAW_PACKETS) || defined(CFG_DUMP_UNKNOWN_PACKETS)
+local void dump_pk(byte *d, int len)
 {
-	FILE *f = popen("xxd", "w");
-	fwrite(data, len, 1, f);
-	pclose(f);
+	char str[256];
+	int c, i;
+	for (c = 0, i = 0; c < len && i < 250; c++, i += 3)
+		sprintf(&str[i], "%02X ", d[c]);
+	puts(str);
 }
 #endif
 
@@ -990,7 +997,7 @@ local void send_outgoing(int pid)
 	byte gbuf[MAXPACKET] = { 0x00, 0x0E };
 
 	unsigned int gtc = GTC();
-	int gcount = 0, bytessince, pri, retries = 0;
+	int gcount = 0, bytessince, pri, retries = 0, minseqnum;
 	Buffer *buf, *nbuf;
 	byte *gptr = gbuf + 2;
 	DQNode *outlist;
@@ -1006,8 +1013,14 @@ local void send_outgoing(int pid)
 	 * sizes of stuff in grouped packets. */
 	bytessince = clients[pid].bytessince;
 
-	/* iterate through outlist */
 	outlist = &clients[pid].outlist;
+
+	/* find smallest seqnum remaining in outlist */
+	minseqnum = INT_MAX;
+	for (buf = (Buffer*)outlist->next; (DQNode*)buf != outlist; buf = (Buffer*)buf->node.next)
+		if (IS_REL(buf) &&
+		    buf->d.rel.seqnum < minseqnum)
+			minseqnum = buf->d.rel.seqnum;
 
 	/* process highest priority first */
 	for (pri = 7; pri > 0; pri--)
@@ -1020,6 +1033,8 @@ local void send_outgoing(int pid)
 
 			if (buf->pri == pri &&
 			    (gtc - buf->lastretry) > config.timeout &&
+			    ( ! IS_REL(buf) ||
+			      (buf->d.rel.seqnum - minseqnum) < CLIENT_CAN_BUFFER ) &&
 			    (bytessince + buf->len + IP_UDP_OVERHEAD) <= limit)
 			{
 				if (buf->lastretry != 0)
@@ -1159,9 +1174,8 @@ void * SendThread(void *dummy)
 
 		/* first send outgoing packets */
 		for (i = 0; i < (MAXPLAYERS + EXTRA_PID_COUNT); i++)
-			if ( ((players[i].status > S_FREE && players[i].status < S_TIMEWAIT &&
-			       IS_OURS(i)) ||
-			     i >= MAXPLAYERS /* billing needs to send before connected */) &&
+			if ( (players[i].status > S_FREE && players[i].status < S_TIMEWAIT &&
+			      IS_OURS(i)) &&
 			     pthread_mutex_trylock(outlistmtx + i) == 0)
 			{
 				send_outgoing(i);
@@ -1337,13 +1351,10 @@ void ProcessPacket(int pid, byte *d, int len)
 #ifdef CFG_DUMP_UNKNOWN_PACKETS
 		if (!count)
 		{
-			char str[256];
-			int c, i;
-
-			for (c = 0, i = 0; c < len && i < 250; c++, i += 3)
-				sprintf(&str[i], "%02X ", d[c]);
-
-			if (lm) lm->Log(L_DRIVEL, "<net> [pid=%d] Unknown packet (len %d): %s", pid, len, str);
+			if (lm) lm->Log(L_DRIVEL, "<net> [pid=%d] Unknown packet, len %d, type %d",
+					pid, len, d[0]);
+			printf("unknown pkt, %d bytes:\n", len);
+			dump_pk(d, len);
 		}
 #endif
 	}

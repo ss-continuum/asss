@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 /* information on the directory server protocol was obtained from
  * Hammuravi's page at
  * http://www4.ncsu.edu/~rniyenga/subspace/old/dprotocol.html
@@ -85,7 +87,7 @@ local void init_data()
 	data.port = cfg->GetInt(GLOBAL, "Net", "Port", 5000);
 	data.players = 0; /* fill in later */;
 	data.scoresp = 1; /* always keep scores */
-	data.version = ASSSVERSION_NUM;
+	/* data.version = ASSSVERSION_NUM; */
 	data.version = 134; /* priit's updated dirserv require this */
 	/* cfghelp: Directory:Name, global, string
 	 * The server name to send to the directory server. */

@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __LAGDATA_H
 #define __LAGDATA_H
 

@@ -1,4 +1,6 @@
 
+# dist: public
+
 #host = 'localhost'
 host = 'server.sscx.net'
 port = 5002

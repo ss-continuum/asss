@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 /* this module authenticates players based on hashed passwords from a
  * file. the file should look rougly like:
 

@@ -1,3 +1,6 @@
+
+/* dist: public */
+
 #ifndef MD5_H
 #define MD5_H
 

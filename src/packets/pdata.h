@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_PDATA_H
 #define __PACKETS_PDATA_H
 

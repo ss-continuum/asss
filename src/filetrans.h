@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __FILETRANS_H
 #define __FILETRANS_H
 

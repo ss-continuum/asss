@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PATHUTIL_H
 #define __PATHUTIL_H
 

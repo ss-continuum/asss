@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# dist: public
 
 # gensparse.py
 # generates C code for efficient sparse array manipulation

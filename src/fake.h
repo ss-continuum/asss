@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __FAKE_H
 #define __FAKE_H
 

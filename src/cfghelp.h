@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __CFGHELP_H
 #define __CFGHELP_H
 

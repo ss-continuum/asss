@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __REGION_H
 #define __REGION_H
 

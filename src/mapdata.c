@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>

@@ -3,6 +3,7 @@
  * parameters sent to the client in the client settings packet */
 
 /* vi: set ft=c: */
+/* dist: public */
 
 static char *ship_names[] =
 {

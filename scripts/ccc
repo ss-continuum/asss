@@ -2,6 +2,8 @@
 # ccc - a console chat client for asss
 # <grelminar@yahoo.com>
 
+# dist: public
+
 import sys, time, curses, socket, select, os
 
 

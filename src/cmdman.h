@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __CMDMAN_H
 #define __CMDMAN_H
 

@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #include "asss.h"
 
 
@@ -14,10 +16,10 @@
  * The maximum number of players on a public freq. Zero means no limit. */
 #define MAXTEAM(ch) cfg->GetInt(ch, "Team", "MaxPerTeam", 0)
 
-/* cfghelp: General:MaxPlaying, arena, int, def: 0
+/* cfghelp: General:MaxPlaying, arena, int, def: 100
  * This is the most players that will be allowed to play in the arena at
  * once. Zero means no limit. */
-#define MAXPLAYING(ch) cfg->GetInt(ch, "General", "MaxPlaying", 0)
+#define MAXPLAYING(ch) cfg->GetInt(ch, "General", "MaxPlaying", 100)
 
 
 local void Initial(int pid, int *ship, int *freq);

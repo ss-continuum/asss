@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_RELIABLE_H
 #define __PACKETS_RELIABLE_H
 

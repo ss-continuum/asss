@@ -1,4 +1,5 @@
 
+# dist: public
 
 ASSSHOME = ..
 SCRIPTS = $(ASSSHOME)/scripts
@@ -31,7 +32,6 @@ ALL_STUFF = asss         \
             scoring.so   \
             admin.so     \
             database.so  \
-            turf.so      \
             funky.so
 
 
@@ -62,8 +62,9 @@ external.so: billcore.o directory.o
 
 scoring.so: persist.o stats.o statcodes.o points_kill.o points_flag.o \
 	points_goal.o jackpot.o periodic.o points_periodic.o basicstats.o
-	$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(DBLIB) -Wl,-rpath,$(DBLIB) -ldb-4
-	#$(CC) $(LDFLAGS) -shared -o $@ $^ $(DBLIB)/libdb.a
+	$(CC) $(LDFLAGS) -shared -o $@ $^ $(DBLIB)/libdb.a
+	# uncomment this one to link dynamically
+	#$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(DBLIB) -Wl,-rpath,$(DBLIB) -ldb-4
 
 admin.so: filetrans.o quickfix.o
 
@@ -72,8 +73,8 @@ database.so: mysql.o aliasdb.o
 
 turf.so: turf_reward.o turf_stats.o points_turf_reward.o
 
-funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
-	fake.o autoturret.o chatnet.o md5.o auth_file.o ap_multipub.o
+funky.so: bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
+	chatnet.o md5.o auth_file.o ap_multipub.o
 
 
 

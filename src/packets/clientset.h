@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_CLIENTSET_H
 #define __PACKETS_CLIENTSET_H
 

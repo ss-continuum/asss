@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #include "asss.h"
 #include "jackpot.h"
 

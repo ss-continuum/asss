@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# dist: public
 
 import sys, re, string
 

@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_SIZES_H
 #define __PACKETS_SIZES_H
 

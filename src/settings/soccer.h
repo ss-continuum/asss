@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #define GOAL_ALL            0
 #define GOAL_LEFTRIGHT      1
 #define GOAL_TOPBOTTOM      2

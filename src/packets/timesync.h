@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_TIMESYNC_H
 #define __PACKETS_TIMESYNC_H
 

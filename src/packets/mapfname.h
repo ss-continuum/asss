@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_MAPFNAME_H
 #define __PACKETS_MAPFNAME_H
 

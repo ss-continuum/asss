@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_BANNERS_H
 #define __PACKETS_BANNERS_H
 

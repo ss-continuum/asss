@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __STATCODES_H
 #define __STATCODES_H
 

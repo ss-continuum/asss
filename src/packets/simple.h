@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __PACKETS_SIMPLE_H
 #define __PACKETS_SIMPLE_H
 

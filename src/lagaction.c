@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #include <stdlib.h>
 
 #include "asss.h"
@@ -246,7 +248,7 @@ local void arenaaction(int arena, int action)
 		DODBL(c2sloss.noflags, "C2SLossToDisallowFlags", 50);
 		/* cfghelp: Lag:SpikeToSpec, arena, int, def: 3000
 		 * The amount of time the server can get no data from a player
-		 * before forcing him to spectator mode (in ticks). */
+		 * before forcing him to spectator mode (in ms). */
 		DOINT(spiketospec, "SpikeToSpec", 3000);
 
 		/* cache this for later */
