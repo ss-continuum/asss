@@ -179,7 +179,7 @@ endif
 	$(CC) $(LDFLAGS) $(EXPORT_SYMBOLS) -o $@ $^ $(DL_LIB) $(PTHREAD_LIB) $(ZLIB_LIB) -lm
 
 dbtool$(EXE): dbtool.o statcodes.o util.c
-	$(CC) $(LDFLAGS) -DNOMPQUEUE -o $@ $^ $(DB_LDFLAGS)
+	$(CC) $(LDFLAGS) -DNODQ -DNOTREAP -DNOSTRINGCHUNK -DNOMPQUEUE -DNOMMAP -o $@ $^ $(DB_LDFLAGS)
 
 scoring.$(SO): persist.o stats.o statcodes.o points_kill.o points_flag.o \
 	points_goal.o jackpot.o periodic.o points_periodic.o basicstats.o
