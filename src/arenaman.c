@@ -512,11 +512,13 @@ local void complete_go(Player *p, const char *reqname, int ship,
 		return;
 	}
 
-	/* set all illegal characters to underscores, and lowercase name */
+	/* remove all illegal characters, and lowercase name */
 	astrncpy(name, reqname, sizeof(name));
 	for (t = name; *t; t++)
-		if (!isalnum(*t) && !strchr("-_#@", *t))
-			*t = '_';
+		if (*t == '#' && t == name)
+			/* initial pound sign allowed */;
+		else if (!isalnum(*t))
+			*t = 'x';
 		else if (isupper(*t))
 			*t = tolower(*t);
 
