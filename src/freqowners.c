@@ -96,7 +96,7 @@ void Cfreqkick(const char *params, int pid, int target)
 	if (PID_BAD(pid) || PID_BAD(target))
 		return;
 
-	if (ownsfreq[pid] && !ownsfreq[target]
+	if (ownsfreq[pid] && !ownsfreq[target] &&
 	    pd->players[pid].arena == pd->players[target].arena &&
 	    pd->players[pid].freq == pd->players[target].freq)
 	{

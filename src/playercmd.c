@@ -282,7 +282,7 @@ local void Cnetstats(const char *params, int pid, int target)
 	struct net_stats stats;
 	net->GetStats(&stats);
 	chat->SendMessage(pid, "netstats: %d pings, %d packets sent, %d packets recvd",
-			stats.pcountpings, stats.pktssent, stats.pktsrecvd);
+			stats.pcountpings, stats.pktsent, stats.pktrecvd);
 	chat->SendMessage(pid, "netstats: %d/%d (%.1f%%) buffers used",
 			stats.buffersused, stats.buffercount,
 			(double)stats.buffersused/(double)stats.buffercount*100.0);

@@ -28,11 +28,21 @@ typedef struct PlayerData
 	i16 attachedto;
 	i8 unknown1[3];
 	/* stuff below this point is not part of the recieved data */
-	int type, status, whenloggedin, arena, oldarena;
+	int status, arena;
+	/* these only need to go up to 255 or so, so save space. the above
+	 * two can fit in bytes too, but they're accessed very frequently. */
+	unsigned char type, whenloggedin, pflags, oldarena;
 	char name[24], squad[24];
 	i16 xres, yres;
 	struct PlayerPosition position;
 } PlayerData;
+
+
+/* flag bits for the flags bits */
+#define F_DURING_CHANGE 0x01
+#define SET_DURING_CHANGE(pid) pd->players[pid].pflags |= F_DURING_CHANGE
+#define RESET_DURING_CHANGE(pid) pd->players[pid].pflags &= ~F_DURING_CHANGE
+#define IS_DURING_CHANGE(pid) (pd->players[pid].pflags & F_DURING_CHANGE)
 
 
 #endif

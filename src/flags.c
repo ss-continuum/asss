@@ -535,6 +535,7 @@ void FlagKill(int arena, int killer, int killed, int bounty, int flags)
 	fc = pflagdata[arena].maxflags;
 	if (pd->players[killer].freq != pd->players[killed].freq ||
 	    pflagdata[arena].friendlytransfer)
+	{
 		for (i = 0; i < fc; i++, f++)
 		{
 			if (f->state == FLAG_CARRIED &&
@@ -544,6 +545,7 @@ void FlagKill(int arena, int killer, int killed, int bounty, int flags)
 				f->freq = newfreq;
 			}
 		}
+	}
 	else
 	{
 		/* friendlytransfer is off. we have to drop the flags from the
@@ -575,23 +577,34 @@ void PPickupFlag(int pid, byte *p, int len)
 
 	arena = pd->players[pid].arena;
 
-	if (len != sizeof(struct C2SFlagPickup))
+	if (ARENA_BAD(arena))
 	{
-		logm->Log(L_MALICIOUS, "<flags> [%s] Bad size for flag pickup packet", pd->players[pid].name);
+		logm->Log(L_MALICIOUS, "<flags> [%s] Flag pickup from bad arena",
+				pd->players[pid].name);
 		return;
 	}
 
-	if (ARENA_BAD(arena) || pd->players[pid].status != S_PLAYING)
-	{
-		logm->Log(L_WARN, "<flags> [%s] Flag pickup packet from bad arena or status", pd->players[pid].name);
-		return;
+#define ERR(msg) \
+	{ \
+		logm->Log(L_MALICIOUS, "<flags> {%s} [%s] " msg, \
+				aman->arenas[arena].name, \
+				pd->players[pid].name); \
+		return; \
 	}
+
+	if (pd->players[pid].status != S_PLAYING)
+		ERR("Flag pickup from bad arena or status")
+
+	if (len != sizeof(struct C2SFlagPickup))
+		ERR("Bad size for flag pickup packet")
 
 	if (pd->players[pid].shiptype >= SPEC)
-	{
-		logm->Log(L_MALICIOUS, "<flags> [%s] Flag pickup packet from spec", pd->players[pid].name);
-		return;
-	}
+		ERR("Flag pickup packet from spec")
+
+	if (IS_DURING_CHANGE(pid))
+		ERR("Flag pickup before ship/freq change ack")
+
+#undef ERR
 
 	LOCK_STATUS(arena);
 	/* copy the fd struct so we can modify it */
@@ -662,7 +675,7 @@ void PDropFlag(int pid, byte *p, int len)
 
 	if (ARENA_BAD(arena) || pd->players[pid].status != S_PLAYING)
 	{
-		logm->Log(L_WARN, "<flags> [%s] Flag drop packet from bad arena or status", pd->players[pid].name);
+		logm->Log(L_MALICIOUS, "<flags> [%s] Flag drop packet from bad arena or status", pd->players[pid].name);
 		return;
 	}
 

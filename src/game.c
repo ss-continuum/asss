@@ -366,20 +366,31 @@ void PSpecRequest(int pid, byte *p, int n)
 }
 
 
+local void reset_during_change(int pid, int success, void *dummy)
+{
+	RESET_DURING_CHANGE(pid);
+}
+
+
 void SetFreqAndShip(int pid, int ship, int freq)
 {
 	struct ShipChangePacket to = { S2C_SHIPCHANGE, ship, pid, freq };
-	int arena;
+	int arena, set[] = { pid, -1 };
 
 	if (PID_BAD(pid))
 		return;
 	arena = players[pid].arena;
 
 	pd->LockPlayer(pid);
+	SET_DURING_CHANGE(pid);
 	players[pid].shiptype = ship;
 	players[pid].freq = freq;
-	net->SendToArena(arena, -1, (byte*)&to, 6, NET_RELIABLE);
 	pd->UnlockPlayer(pid);
+
+	/* send it to him, with a callback */
+	net->SendWithCallback(set, (byte*)&to, 6, reset_during_change, NULL);
+	/* sent it to everyone else */
+	net->SendToArena(arena, pid, (byte*)&to, 6, NET_RELIABLE);
 
 	DO_CBS(CB_SHIPCHANGE, arena, ShipChangeFunc,
 			(pid, ship, freq));
@@ -430,12 +441,17 @@ void PSetShip(int pid, byte *p, int n)
 void SetFreq(int pid, int freq)
 {
 	struct SimplePacket to = { S2C_FREQCHANGE, pid, freq, -1};
-	int arena = players[pid].arena;
+	int arena = players[pid].arena, set[] = { pid, -1 };
 
 	pd->LockPlayer(pid);
+	SET_DURING_CHANGE(pid);
 	players[pid].freq = freq;
-	net->SendToArena(arena, -1, (byte*)&to, 6, NET_RELIABLE);
 	pd->UnlockPlayer(pid);
+
+	/* him, with callback */
+	net->SendWithCallback(set, (byte*)&to, 6, reset_during_change, NULL);
+	/* everyone else */
+	net->SendToArena(arena, pid, (byte*)&to, 6, NET_RELIABLE);
 
 	DO_CBS(CB_FREQCHANGE, arena, FreqChangeFunc, (pid, freq));
 

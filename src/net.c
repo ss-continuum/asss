@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 #ifndef WIN32
 #include <sys/socket.h>
@@ -40,6 +41,7 @@ typedef struct ClientData
 	int s2cn, c2sn, flags, nextinbucket;
 	struct sockaddr_in sin;
 	unsigned int lastpkt, key;
+	unsigned int pktsent, pktrecvd;
 	short enctype;
 	int bigpktsize, bigpktroom;
 	byte *bigpktbuf;
@@ -56,6 +58,10 @@ typedef struct Buffer
 	DQNode node;
 	int retries, pid, len;
 	unsigned int lastretry;
+	/* used for reliable buffers in the outlist only { */
+	RelCallback callback;
+	void *clos;
+	/* } */
 	union
 	{
 		struct ReliablePacket rel;
@@ -71,6 +77,8 @@ local void SendToOne(int, byte *, int, int);
 local void SendToArena(int, int, byte *, int, int);
 local void SendToSet(int *, byte *, int, int);
 local void SendToAll(byte *, int, int);
+local void SendWithCallback(int *pidset, byte *data, int length,
+		RelCallback callback, void *clos);
 local void ProcessPacket(int, byte *, int);
 local void AddPacket(byte, PacketFunc);
 local void RemovePacket(byte, PacketFunc);
@@ -82,7 +90,6 @@ void GetStats(struct net_stats *stats);
 local inline int HashIP(struct sockaddr_in);
 local inline void SendRaw(int, byte *, int);
 local void KillConnection(int pid);
-local void BufferPacket(int, byte *, int, int);
 local void ProcessBuffer(Buffer *);
 local void InitSockets(void);
 local Buffer * GetBuffer(void);
@@ -163,7 +170,7 @@ local void (*oohandlers[])(Buffer*) =
 local Inet _int =
 {
 	INTERFACE_HEAD_INIT("net-udp")
-	SendToOne, SendToArena, SendToSet, SendToAll,
+	SendToOne, SendToArena, SendToSet, SendToAll, SendWithCallback,
 	KillConnection, ProcessPacket, AddPacket, RemovePacket,
 	NewConnection, GetIP, GetStats
 };
@@ -326,6 +333,10 @@ local void ClearOutlist(int pid)
 	{
 		nbuf = (Buffer*)buf->node.next;
 		DQRemove((DQNode*)buf);
+		/* I don't like calling these callbacks while holding the
+		 * outlistmtx, but it's probably not a big deal. */
+		if (buf->callback)
+			buf->callback(pid, 0, buf->clos);
 		FreeBuffer(buf);
 	}
 
@@ -335,8 +346,8 @@ local void ClearOutlist(int pid)
 
 local void InitClient(int i)
 {
-	/* free any buffers remaining in the outlist. there probably should
-	 * be any. just be sure. */
+	/* free any buffers remaining in the outlist. there probably
+	 * shouldn't be any. just be sure. */
 	ClearOutlist(i);
 
 	/* set up clientdata */
@@ -389,6 +400,7 @@ Buffer * GetBuffer(void)
 		/* clear it after releasing mtx */
 	}
 	memset(dq + 1, 0, sizeof(Buffer) - sizeof(DQNode));
+	((Buffer*)dq)->callback = NULL;
 	return (Buffer *)dq;
 }
 
@@ -585,6 +597,7 @@ void * RecvThread(void *dummy)
 			buf->pid = pid;
 			/* set the last packet time */
 			clients[pid].lastpkt = GTC();
+			clients[pid].pktrecvd++;
 
 			/* decrypt the packet */
 			type = clients[pid].enctype;
@@ -606,7 +619,7 @@ freeit:
 			pd->UnlockStatus();
 			FreeBuffer(buf);
 donehere:
-			global_stats.pktsrecvd++;
+			global_stats.pktrecvd++;
 		}
 
 		if (FD_ISSET(myothersock, &fds))
@@ -665,12 +678,16 @@ void * SendThread(void *dummy)
 	{
 		usleep(10000);
 
+		/* first send outgoing packets */
 		for (i = 0; i < (MAXPLAYERS + EXTRA_PID_COUNT); i++)
 		{
 			int sentbig, pcount;
 			DQNode *outlist;
 			Buffer *buf, *nbuf;
 			byte *gptr;
+
+			if (players[i].status == S_FREE)
+				goto skip_this_one;
 
 			/* set up context */
 			sentbig = 0;
@@ -746,10 +763,11 @@ void * SendThread(void *dummy)
 			}
 
 			UnlockMutex(outlistmtx + i);
+skip_this_one:
 		}
 
-		/* process lagouts and timewait */
-		/* do this in another loop so that we only have to lock/unlock
+		/* process lagouts and timewait
+		 * do this in another loop so that we only have to lock/unlock
 		 * player status once instead of MAXPLAYERS times around the
 		 * loop. */
 		pd->LockStatus();
@@ -1147,6 +1165,9 @@ void ProcessAck(Buffer *buf)
 	Buffer *b, *nbuf;
 	DQNode *outlist;
 
+	RelCallback callback = NULL;
+	void *clos;
+
 	LockMutex(outlistmtx + buf->pid);
 	outlist = &clients[buf->pid].outlist;
 	for (b = (Buffer*)outlist->next; (DQNode*)b != outlist; b = nbuf)
@@ -1156,11 +1177,17 @@ void ProcessAck(Buffer *buf)
 		    b->d.rel.t2 == 0x03 &&
 		    b->d.rel.seqnum == buf->d.rel.seqnum)
 		{
+			callback = b->callback;
+			clos = b->clos;
 			DQRemove((DQNode*)b);
 			FreeBuffer(b);
 		}
 	}
 	UnlockMutex(outlistmtx + buf->pid);
+
+	if (callback)
+		callback(buf->pid, 1, clos);
+
 	FreeBuffer(buf);
 }
 
@@ -1169,7 +1196,7 @@ void ProcessSyncRequest(Buffer *buf)
 {
 	struct TimeSyncC2S *cts = (struct TimeSyncC2S*)(buf->d.raw);
 	struct TimeSyncS2C ts = { 0x00, 0x06, cts->time, GTC() };
-	BufferPacket(buf->pid, (byte*)&ts, sizeof(ts), NET_IMMEDIATE);
+	SendRaw(buf->pid, (byte*)&ts, sizeof(ts));
 	FreeBuffer(buf);
 }
 
@@ -1335,11 +1362,13 @@ void SendRaw(int pid, byte *data, int len)
 		dump_pk(data, len);
 		*/
 	}
-	global_stats.pktssent++;
+	global_stats.pktsent++;
+	clients[pid].pktsent++;
 }
 
 
-void BufferPacket(int pid, byte *data, int len, int rel)
+local void BufferPacket(int pid, byte *data, int len, int rel,
+		RelCallback callback, void *clos)
 {
 	Buffer *buf;
 
@@ -1356,6 +1385,8 @@ void BufferPacket(int pid, byte *data, int len, int rel)
 
 	buf->pid = pid;
 	buf->lastretry = 0;
+	buf->callback = callback;
+	buf->clos = clos;
 
 	/* get data into packet */
 	if (rel & NET_RELIABLE)
@@ -1399,7 +1430,7 @@ void SendToOne(int pid, byte *data, int len, int reliable)
 {
 	/* see if we can do it the quick way */
 	if (len < MAXPACKET && !(reliable & NET_PRESIZE))
-		BufferPacket(pid, data, len, reliable);
+		BufferPacket(pid, data, len, reliable, NULL, NULL);
 	else
 	{
 		int set[2];
@@ -1475,12 +1506,28 @@ void SendToSet(int *set, byte *data, int len, int rel)
 		}
 	}
 	else
-	{
 		while (*set != -1)
 		{
-			BufferPacket(*set, data, len, rel);
+			BufferPacket(*set, data, len, rel, NULL, NULL);
 			set++;
 		}
+}
+
+
+void SendWithCallback(
+		int *set,
+		byte *data,
+		int len,
+		RelCallback callback,
+		void *clos)
+{
+	/* we can't handle big packets here */
+	assert(len < MAXPACKET);
+
+	while (*set != -1)
+	{
+		BufferPacket(*set, data, len, NET_RELIABLE, callback, clos);
+		set++;
 	}
 }
 

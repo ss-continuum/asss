@@ -68,9 +68,12 @@
 
 typedef void (*PacketFunc)(int pid, byte *data, int length);
 
+typedef void (*RelCallback)(int pid, int success, void *clos);
+
+
 struct net_stats
 {
-	int pcountpings, pktssent, pktsrecvd;
+	int pcountpings, pktsent, pktrecvd;
 	int buffercount, buffersused;
 };
 
@@ -78,15 +81,23 @@ struct net_stats
 typedef struct Inet
 {
 	INTERFACE_HEAD_DECL
+
 	void (*SendToOne)(int pid, byte *data, int length, int flags);
 	void (*SendToArena)(int arenaid, int exception, byte *data, int length, int flags);
 	void (*SendToSet)(int *pidset, byte *data, int length, int flags);
 	void (*SendToAll)(byte *data, int length, int flags);
+	void (*SendWithCallback)(int *pidset, byte *data, int length,
+			RelCallback callback, void *clos);
+
 	void (*DropClient)(int pid);
+
 	void (*ProcessPacket)(int pid, byte *data, int length);
+
 	void (*AddPacket)(byte pktype, PacketFunc func);
 	void (*RemovePacket)(byte pktype, PacketFunc func);
+
 	int (*NewConnection)(int type, struct sockaddr_in *sin);
+
 	i32 (*GetIP)(int pid);
 	void (*GetStats)(struct net_stats *stats);
 } Inet;

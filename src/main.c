@@ -4,6 +4,8 @@
 #include <string.h>
 
 #ifndef WIN32
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <paths.h>
 #include <unistd.h>
@@ -25,6 +27,47 @@ local void ProcessArgs(int argc, char *argv[])
 		if (!strcmp(argv[i], "--daemonize"))
 			dodaemonize = 1;
 	}
+}
+
+
+local void CheckBin(const char *argv0)
+{
+#ifndef WIN32
+	struct stat st;
+	char binpath[PATH_MAX], *t;
+
+	if (stat("bin", &st) == -1)
+	{
+		printf("No 'bin' directory found, attempting to locate one.\n");
+		/* try argv[0] */
+		astrncpy(binpath, argv0, PATH_MAX);
+		/* make sure asss exists */
+		if (stat(binpath, &st) == -1)
+			goto no_bin;
+		/* get dir name */
+		t = strrchr(binpath, '/');
+		if (!t)
+			goto no_bin;
+		*t = 0;
+		/* make sure this exists */
+		if (stat(binpath, &st) == -1)
+			goto no_bin;
+		/* link it */
+		if (symlink(binpath, "bin") == -1)
+		{
+			printf("symlink failed. Module loading won't work\n");
+		}
+		printf("Made link from 'bin' to '%s'.\n", binpath);
+		return;
+no_bin:
+		printf("Can't find suitable bin directory.\n");
+	}
+	else if (!S_ISDIR(st.st_mode))
+		printf("'bin' isn't a directory.\n");
+	else /* everything is fine */
+		return;
+	printf("Module loading won't work.\n");
+#endif
 }
 
 
@@ -96,6 +139,8 @@ int main(int argc, char *argv[])
 	Imainloop *ml;
 
 	ProcessArgs(argc,argv);
+
+	CheckBin(argv[0]);
 
 	mm = InitModuleManager();
 

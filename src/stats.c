@@ -172,7 +172,7 @@ void PChat(int pid, byte *p, int len)
 	if (from->text[0] == CMD_CHAR_1 || from->text[0] == CMD_CHAR_2)
 		gdata[pid].commands++;
 	else if (from->type == MSG_PUB && from->text[0] == MOD_CHAT_CHAR)
-		gdata[pid].message[MSG_MODCHAT]++;
+		gdata[pid].messages[MSG_MODCHAT]++;
 	else if (from->type < 10)
 		gdata[pid].messages[(int)from->type]++;
 }
