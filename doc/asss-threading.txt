@@ -1,0 +1,66 @@
+
+new threading model for asss (TENATIVE!)
+----------------------------------------
+
+INCOMING PACKETS
+
+there is a buffer struct:
+struct InBufData
+{
+	int pid, seqnum, length, etc;
+	byte data[MAXPACKET];
+};
+
+there are two buffer arrays:
+struct InBufData *relinbuf[RELINBUFSIZE];
+struct InBufData *unrelinbuf[UNRELINBUFSIZE];
+
+each array has a lock and two condition variables.
+
+upon recieving a packet, net will pass it off to one of the oohandlers. the
+reliable oohandler will allocate a new buffer struct and fill it in. it will
+then wait for space in the array using a condition variable, insert the new
+struct, signal new data on another cond variable, and release the lock. the
+unreliable oohandler will do the same thing, but put the packets in an
+unreliable buffer instead.
+
+another thread will get the lock, sleep on the condition variable, then scan
+the buffer looking for expected sequence numbers. if it doesn't find anything
+suitable to process it will sleep on the condition variable again. when it
+find one to process it will set the field in the buffer array to null, signal
+the free space condition, and release the lock. then process the packet, free
+it, and go back to scanning the buffer.
+
+another thread will scan the buffer, looking for unreliable packets and
+processing them similarly to the reliable thread, but simpler because it
+doesn't have to check seqnums, it can process everying as soon as it comes in.
+
+
+OUTGOING PACKETS
+
+
+
+
+
+OTHER DETAILS
+
+memory usage can be optimized a bit by doing intelligent allocation for the
+buffers. using some kind of memory chunk scheme is best, since we don't want
+to have to keep jumping into malloc. but allocating 520 bytes + asss overhead
+for every little packet is too much. so use two memory chunks: one for packets
+<= a certain size (e.g. 32 bytes) and one for larger packets. both chunks will
+grow to whatever size they need and hopefully stay steady there.
+
+
+QUESTIONS
+
+should there be one lock for the client array or one for each entry?
+
+what about access to players?
+
+
+
+
+
+
+
