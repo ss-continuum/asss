@@ -27,8 +27,22 @@ module is somewhat better tested than the alternative.
 
 Known bugs:
 
-reliable sync is sometimes lost when lots of game packets are being
-sent. this is under investigation.
+nothing major as of now.
 
-private freqs are sometimes visible when they shouldn't be?
+
+Contributors:
+
+These are people who have contribued stuff to the actual code. Many
+others have provided support in other forms, and they are thanked in the
+user guide.
+
+Grelminar <grelminar@yahoo.com> - primary author
+Mine GO BOOM <?> - objects, watchdamage, other stuff
+divine.216 <?> - banners
+GiGaKiLLeR <gigamon@hotmail.com> - the turf scoring modules
+Stag Shot <ffl2000vv@yahoo.com> - soccer scoring, game timers
+PriitK <?> - continuum support, ssc biller support
+Catid <?> - many security fixes, mark
+Smong <?> - misc. documentation and fixes
+Snrrrub <snrrrub@yahoo.com> - misc. fixes
 
