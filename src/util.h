@@ -156,7 +156,8 @@ typedef struct MPQueue
 void MPInit(MPQueue *mpq);
 void MPDestroy(MPQueue *mpq);
 void MPAdd(MPQueue *mpq, void *data); /* will not block  */
-void * MPRemove(MPQueue *mpq); /* WILL BLOCK */
+void * MPTryRemove(MPQueue *mpq); /* will not block */
+void * MPRemove(MPQueue *mpq); /* will block */
 
 #endif /* MPQUEUE */
 

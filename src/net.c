@@ -576,7 +576,8 @@ void ProcessDrop(int pid, byte *p, int n)
 	else
 	{
 		/* leave arena again, just in case */
-		ProcessPacket(pid, &leaving, 1);
+		if (players[pid].arena >= 0)
+			ProcessPacket(pid, &leaving, 1);
 
 		players[pid].status = S_FREE; /* set free status */
 

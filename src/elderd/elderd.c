@@ -14,7 +14,10 @@
 #include <errno.h>
 
 #include <scheme.h>
+
 #include "elderd.h"
+#include "ooputils.h"
+
 
 /* util options */
 
@@ -252,6 +255,7 @@ void run_child(int s)
 			}
 			else
 			{
+				log("Evaluating string: %s", eval->string);
 				res = scheme_eval_string(eval->string, global);
 				if (eval->pid >= 0)
 				{
@@ -267,52 +271,6 @@ void run_child(int s)
 			listen_for_packet(A2E_EVALSTRING);
 		}
 	}
-}
-
-
-size_t read_full(int fd, void *_buf, size_t req)
-{
-	int left, ret;
-	char *buf;
-
-	left = req;
-	buf = _buf;
-
-	while (left > 0)
-	{
-		ret = read(fd, buf, left);
-		if (ret == 0)
-			return 0;
-		if (ret > 0)
-		{
-			left -= ret;
-			buf += ret;
-		}
-	}
-	return req;
-}
-
-
-size_t write_full(int fd, void *_buf, size_t req)
-{
-	int left, ret;
-	char *buf;
-
-	left = req;
-	buf = _buf;
-
-	while (left > 0)
-	{
-		ret = write(fd, buf, left);
-		if (ret == 0)
-			return 0;
-		if (ret > 0)
-		{
-			left -= ret;
-			buf += ret;
-		}
-	}
-	return req;
 }
 
 
@@ -354,6 +312,8 @@ void * listen_for_packet(int reqtype)
 
 				type = *(int*)msg;
 
+				/* log("Got packet: %i", type); */
+
 				if (type == A2E_EVALSTRING) /* queue it */
 					LLAdd(&evalqueue, msg);
 
@@ -383,16 +343,18 @@ void install_primitives()
 
 void send_text_message(int pid, char *msg)
 {
+	/* log("send_text_message to %i: %s", pid, msg); */
 	if (pid != -1)
 	{
 		struct data_e2a_sendmessage *pkt;
-		int len;
+		int size;
 
-		len = strlen(msg);
-		pkt = scheme_malloc_atomic(sizeof(struct data_e2a_sendmessage) + len);
+		size = sizeof(struct data_e2a_sendmessage) + strlen(msg);
+		pkt = scheme_malloc_atomic(size);
+		pkt->type = E2A_SENDMESSAGE;
 		pkt->pid = pid;
-		astrncpy(pkt->message, msg, len+1);
-		write_full(sck, pkt, sizeof(struct data_e2a_sendmessage) + len);
+		strcpy(pkt->message, msg);
+		write_message(sck, pkt, size);
 	}
 }
 

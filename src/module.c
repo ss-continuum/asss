@@ -144,7 +144,7 @@ int LoadModule(char *filename)
 	if (ret != MM_OK)
 	{
 		if (log) log->Log(LOG_ERROR,
-				"Error loading module string '%s' from '%s'", modname, filename);
+				"Error loading module string '%s'", filename);
 		if (!mod->myself) dlclose(mod->hand);
 		afree(mod);
 		return ret;

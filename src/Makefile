@@ -29,7 +29,8 @@ INTMODS = config.o    \
 EXTMODS = loggers.so  \
           game.so     \
           command.so  \
-          billing.so
+          billing.so  \
+		  scheme.so
 
 
 
@@ -45,13 +46,15 @@ command.so: cmdman.o playercmd.o
 
 billing.so: billcore.o
 
+scheme.so: scheme.o ooputils.o
+
 
 
 asss: main.o module.o util.o $(INTMODS)
 	$(CC) -rdynamic -o $@ $^ $(ASSSLIBS)
 
 
-elderd: elderd.c util-elderd.o
+elderd: elderd.c util-elderd.o ooputils.o
 	$(CC) $(OPT_CFLAGS) -L$(SCHEMELIB) -I $(SCHEMEINC) -o $@ $^ -lmzscheme -lgc -ldl
 
 

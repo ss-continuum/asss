@@ -18,6 +18,7 @@ local void Cshutdown(const char *, int, int);
 /* global data */
 
 local Ichat *chat;
+local Ilogman *log;
 local Icmdman *cmd;
 local Inet *net;
 local Iconfig *cfg;
@@ -35,6 +36,7 @@ int MM_playercmd(int action, Imodman *mm)
 	if (action == MM_LOAD)
 	{
 		mm->RegInterest(I_CHAT, &chat);
+		mm->RegInterest(I_LOGMAN, &log);
 		mm->RegInterest(I_CMDMAN, &cmd);
 		mm->RegInterest(I_NET, &net);
 		mm->RegInterest(I_CONFIG, &cfg);
@@ -60,6 +62,7 @@ int MM_playercmd(int action, Imodman *mm)
 
 		cfg->CloseConfigFile(configops);
 		mm->UnregInterest(I_CHAT, &chat);
+		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_CMDMAN, &cmd);
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_CONFIG, &cfg);
@@ -119,9 +122,13 @@ void Clogin(const char *params, int pid, int target)
 	{
 		players[pid].oplevel = cfg->GetInt(
 				configops, "Passwords", params, 0);
+		log->Log(LOG_INFO, "Player '%s' got oplevel %i with a password",
+				players[pid].name, players[pid].oplevel);
 	}
 	else
 	{
+		char *where = "global";
+
 		players[pid].oplevel = cfg->GetInt(
 				configops, "Staff", players[pid].name, 0);
 		if (arena >= 0)
@@ -129,8 +136,13 @@ void Clogin(const char *params, int pid, int target)
 			op2 = cfg->GetInt(arenas[arena].cfg,
 					"Staff", players[pid].name, 0);
 			if (op2 > players[pid].oplevel)
+			{
 				players[pid].oplevel = op2;
+				where = "arena";
+			}
 		}
+		log->Log(LOG_INFO, "Player '%s' got oplevel %i from the %s staff list",
+				players[pid].name, players[pid].oplevel, where);
 	}
 	chat->SendMessage(pid, "Your current oplevel is %i", players[pid].oplevel);
 }
@@ -145,8 +157,8 @@ void Csetop(const char *params, int pid, int target)
 	players[target].oplevel = op;
 	chat->SendMessage(pid, "You have assigned oplevel %i to %s", op, players[target].name);
 	chat->SendMessage(target, "Your current oplevel is %i", op);
-/*	log->Log(LOG_INFO, "Player '%s' assigned oplevel %i to '%s'",
-			players[pid].name, op, players[target].name); */
+	log->Log(LOG_INFO, "Player '%s' assigned oplevel %i to '%s'",
+			players[pid].name, op, players[target].name);
 }
 
 
