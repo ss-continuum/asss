@@ -16,9 +16,6 @@
 #endif
 
 #include "db.h"
-#ifdef WIN32
-#pragma comment(lib, "libdb41")
-#endif
 
 #ifdef DB_VERSION_MAJOR
 #if DB_VERSION_MAJOR < 4

@@ -41,8 +41,12 @@ DB_HOME = /opt/db-4.0.14
 DB_INC = $(DB_HOME)/include
 DB_LIB = $(DB_HOME)/lib
 DB_CFLAGS = -I$(DB_INC)
+ifneq ($(link_db_statically),yes)
 # you might have to change -ldb-4 to -ldb4 in the next line:
 DB_LDFLAGS = -L$(DB_LIB) -Wl,-rpath,$(DB_LIB) -ldb-4
+else
+DB_LDFLAGS = $(DB_LIB)/libdb.a
+endif
 
 # change this to the directory of your mysql install
 MYSQL_HOME = /opt/mysql
@@ -74,7 +78,7 @@ DL_LIB = -ldl
 ZLIB_LIB = -lz
 PTHREAD_LIB = -lpthread
 DASH_F_PIC = -fPIC
-DASH_RDYNAMIC = -rdynamic
+EXPORT_SYMBOLS = -rdynamic
 SO = so
 SYS_NAME := ok
 endif
@@ -83,25 +87,25 @@ UTIL_LIB = -lutil
 ZLIB_LIB = -lz
 DASH_F_PIC = -fPIC
 DASH_PTHREAD = -pthread
-DASH_RDYNAMIC = -rdynamic
+EXPORT_SYMBOLS = -rdynamic
 SO = so
 SYS_NAME := ok
 endif
 ifeq ($(findstring CYGWIN,$(SYS_NAME)),CYGWIN)
 PTHREAD_LIB = -lpthread
 EXE = .exe
-DL_UTIL_OBJS = $(UTIL_OBJS)
 SO = so
 SYS_NAME := ok
 endif
 ifeq ($(findstring MINGW,$(SYS_NAME)),MINGW)
+run_dlltool = yes
 PTHREAD_LIB = -L$(ASSSHOME)/bin -lpthreadGC -lwsock32
 ZLIB_LIB = -L$(ASSSHOME)/bin -lzdll
-SO_LDFLAGS = $(PTHREAD_LIB)
+SO_LDFLAGS = import.imp $(PTHREAD_LIB)
+EXPORT_SYMBOLS = export.exp
 EXE = .exe
 SO = dll
 W32COMPAT = win32compat.o
-DL_UTIL_OBJS = $(UTIL_OBJS)
 SYS_NAME := ok
 endif
 ifneq ($(SYS_NAME),ok)
@@ -134,7 +138,7 @@ BINARIES += dbtool$(EXE)
 endif
 
 # dynamic libraries to build
-DLS := core.$(SO) loggers.$(SO) game.$(SO) command.$(SO) external.$(SO) admin.$(SO) funky.$(SO)
+DLS := funky.$(SO)
 ifndef no_bdb
 DLS += scoring.$(SO)
 endif
@@ -147,42 +151,36 @@ endif
 
 ALL_STUFF = $(BINARIES) $(DLS)
 
-UTIL_OBJS = util.o pathutil.o protutil.o region.o rwlock.o app.o $(W32COMPAT)
+UTIL_OBJS = util.o pathutil.o protutil.o region.o rwlock.o app.o md5.o $(W32COMPAT)
+
+INTERNAL_MODULES = config.o prng.o md5.o player.o core.o logman.o \
+	mainloop.o net.o nullenc.o encrypt1.o arenaman.o mapdata.o \
+	mapnewsdl.o clientset.o capman.o lagdata.o lagaction.o \
+	log_file.o log_console.o log_sysop.o \
+	game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
+	banners.o bricks.o objects.o messages.o koth.o fm_lockspec.o \
+	cmdman.o playercmd.o admincmd.o watchdamage.o buy.o help.o \
+	cfghelp.o \
+	directory.o billing.o billing_ssc.o \
+	filetrans.o quickfix.o \
+	freqowners.o arenaperm.o auth_prefix.o fake.o chatnet.o auth_file.o \
+	ap_multipub.o sendfile.o auth_ban.o
 
 
 all: install
 
-asss$(EXE): main.o module.o cmod.o $(UTIL_OBJS)
-	$(CC) $(LDFLAGS) $(DASH_RDYNAMIC) -o $@ $^ $(DL_LIB) $(PTHREAD_LIB)
+asss$(EXE): main.o module.o cmod.o $(UTIL_OBJS) $(INTERNAL_MODULES)
+ifdef run_dlltool
+	dlltool.exe --export-all-symbols -D $@ -e export.exp -l import.imp $^
+endif
+	$(CC) $(LDFLAGS) $(EXPORT_SYMBOLS) -o $@ $^ $(DL_LIB) $(PTHREAD_LIB) $(ZLIB_LIB) -lm
 
 dbtool$(EXE): dbtool.o statcodes.o util.c
 	$(CC) $(LDFLAGS) -DNOMPQUEUE -o $@ $^ $(DB_LDFLAGS)
 
-core.$(SO): config.o prng.o md5.o player.o core.o logman.o mainloop.o net.o \
-	nullenc.o encrypt1.o arenaman.o mapdata.o mapnewsdl.o clientset.o \
-	capman.o lagdata.o lagaction.o
-core.$(SO): LIBS=$(ZLIB_LIB)
-
-loggers.$(SO): log_file.o log_console.o log_sysop.o
-
-game.$(SO): game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
-	banners.o bricks.o objects.o messages.o koth.o fm_lockspec.o
-game.$(SO): LIBS=-lm
-
-command.$(SO): cmdman.o playercmd.o admincmd.o watchdamage.o buy.o help.o \
-	cfghelp.o
-
-external.$(SO): directory.o billing.o billing_ssc.o
-
 scoring.$(SO): persist.o stats.o statcodes.o points_kill.o points_flag.o \
 	points_goal.o jackpot.o periodic.o points_periodic.o basicstats.o
-ifneq ($(link_db_statically),yes)
 scoring.$(SO): LIBS=$(DB_LDFLAGS)
-else
-scoring.$(SO): LIBS=$(DB_LIB)/libdb.a
-endif
-
-admin.$(SO): filetrans.o quickfix.o
 
 database.$(SO): mysql.o aliasdb.o
 database.$(SO): LIBS=$(MYSQL_LDFLAGS) $(ZLIB_LIB)
@@ -192,10 +190,8 @@ pymod.$(SO): LIBS=$(PYTHON_LDFLAGS)
 
 include */*.mk
 
-funky.$(SO): autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
-	fake.o autoturret.o chatnet.o md5.o auth_file.o ap_multipub.o sendfile.o \
-	record.o auth_ban.o $(EXTRA_FUNKY_OBJS)
-funky.$(SO): LIBS=$(ZLIB_LIB) -lm
+funky.$(SO): autowarp.o bricklayer.o autoturret.o record.o $(EXTRA_FUNKY_OBJS)
+#funky.$(SO): LIBS=$(ZLIB_LIB) -lm
 
 
 sparse.inc: $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py
@@ -222,14 +218,14 @@ pymod.o: CFLAGS += $(PYTHON_CFLAGS)
 
 
 %.$(SO):
-	$(CC) $(LDFLAGS) -shared -o $@ $^ $(DL_UTIL_OBJS) $(SO_LDFLAGS) $(LIBS)
+	$(CC) $(LDFLAGS) -shared -o $@ $^ $(SO_LDFLAGS) $(LIBS)
 
 install: $(ALL_STUFF)
 	install -d $(ASSSHOME)/bin
 	install $(ALL_STUFF) $(ASSSHOME)/bin
 
 clean:
-	-rm -f asss$(EXE) dbtool$(EXE) *.o */*.o *.so */*.so *.inc core Makefile.deps
+	-rm -f asss$(EXE) dbtool$(EXE) *.o */*.o *.$(SO) */*.$(SO) *.inc core Makefile.deps
 
 
 .PHONY: clean install all

@@ -9,26 +9,17 @@
 
 #ifndef WIN32
 #include <arpa/inet.h>
-#endif
-
-#include "asss.h"
-#include "jackpot.h"
-#include "persist.h"
-
-#ifdef CFG_EXTRA_VERSION_INFO
-#ifndef WIN32
 #include <sys/utsname.h>
-#endif
-#endif
-
-#ifdef CFG_DO_EXTRAARENAS
-#ifndef WIN32
 #include <dirent.h>
 #include <unistd.h>
 #else
 #include <io.h>
 #endif
-#endif
+
+
+#include "asss.h"
+#include "jackpot.h"
+#include "persist.h"
 
 
 #define REQUIRE_MOD(m) \

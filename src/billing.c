@@ -640,6 +640,7 @@ local void process_line(const char *cmd, const char *rest, void *dummy)
 
 /* stuff to handle connecting */
 
+#ifndef WIN32
 local void setup_proxy(const char *proxy, const char *ipaddr, int port)
 {
 	/* this means we're using an external proxy to connect to the
@@ -694,6 +695,7 @@ local void setup_proxy(const char *proxy, const char *ipaddr, int port)
 		state = s_connected;
 	}
 }
+#endif
 
 
 local void remote_connect(const char *ipaddr, int port)
@@ -763,7 +765,14 @@ local void get_socket(void)
 	lastretry = time(NULL);
 
 	if (proxy)
+#ifndef WIN32
 		setup_proxy(proxy, ipaddr, port);
+#else
+	{
+		lm->Log(L_ERROR, "<billing> proxy not supported on windows");
+		state = s_disabled;
+	}
+#endif
 	else
 		remote_connect(ipaddr, port);
 }
