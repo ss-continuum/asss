@@ -142,9 +142,7 @@ local void init_servers()
 
 local void deinit_servers()
 {
-	Link *l;
-	for (l = LLGetHead(&servers); l; l = l->next)
-		afree(l->data);
+	LLEnum(&servers, afree);
 	LLEmpty(&servers);
 }
 

@@ -26,6 +26,11 @@ struct MapDownloadData
 	char filename[20];
 };
 
+struct data_locator
+{
+	int arena, lvznum, wantopt, len;
+};
+
 
 /* GLOBALS */
 
@@ -423,16 +428,48 @@ local void ArenaAction(int arena, int action)
 }
 
 
+
+local struct MapDownloadData *get_map(int arena, int lvznum, int wantopt)
+{
+	Link *l;
+	int idx;
+
+	/* find the right spot */
+	for (idx = lvznum, l = LLGetHead(mapdldata + arena); idx && l; l = l->next)
+		if (!((struct MapDownloadData*)(l->data))->optional || wantopt)
+			idx--;
+
+	return l ? l->data : NULL;
+}
+
+
+local void get_data(void *clos, int offset, byte *buf, int needed)
+{
+	struct MapDownloadData *data;
+	struct data_locator *dl = (struct data_locator*)clos;
+
+	if (needed == 0)
+		afree(dl);
+	else if (dl->arena == -1 && dl->len == cmpnewssize)
+		memcpy(buf, cmpnews + offset, needed);
+	else if ((data = get_map(dl->arena, dl->lvznum, dl->wantopt)) &&
+	         dl->len == data->cmplen)
+		memcpy(buf, data->cmpmap + offset, needed);
+	else if (buf)
+		memset(buf, 0, needed);
+}
+
+
 local void PMapRequest(int pid, byte *p, int len)
 {
+	struct data_locator *dl;
 	int arena = players[pid].arena;
 	int wantopt = WANT_ALL_LVZ(pid);
 
 	if (p[0] == C2S_MAPREQUEST)
 	{
 		struct MapDownloadData *data;
-		Link *l;
-		unsigned short lvznum = (len == 3) ? p[1] | p[2]<<8 : 0, idx;
+		unsigned short lvznum = (len == 3) ? p[1] | p[2]<<8 : 0;
 
 		if (ARENA_BAD(arena))
 		{
@@ -441,26 +478,22 @@ local void PMapRequest(int pid, byte *p, int len)
 			return;
 		}
 
-		/* find the right spot */
-		for (idx = lvznum, l = LLGetHead(mapdldata + arena); idx && l; l = l->next)
-			if (!((struct MapDownloadData*)(l->data))->optional || wantopt)
-				idx--;
+		data = get_map(arena, lvznum, wantopt);
 
-		if (!l || !l->data)
+		if (!data)
 		{
-			lm->LogA(L_WARN, "mapnewsdl", arena, "Can't find lvz number %d", lvznum);
+			lm->LogP(L_WARN, "mapnewsdl", pid, "Can't find lvl/lvz %d", lvznum);
 			return;
 		}
 
-		data = l->data;
+		dl = amalloc(sizeof(*dl));
 
-		if (!data->cmpmap)
-		{
-			lm->LogA(L_ERROR, "mapnewsdl", arena, "Missing compressed map!");
-			return;
-		}
+		dl->arena = arena;
+		dl->lvznum = lvznum;
+		dl->wantopt = wantopt;
+		dl->len = data->cmplen;
 
-		net->SendToOne(pid, data->cmpmap, data->cmplen, NET_RELIABLE | NET_PRESIZE);
+		net->SendSized(pid, dl, data->cmplen, get_data);
 		lm->Log(L_DRIVEL,"<mapnewsdl> {%s} [%s] Sending map/lvz %d",
 				arenas[arena].name,
 				players[pid].name,
@@ -470,7 +503,10 @@ local void PMapRequest(int pid, byte *p, int len)
 	{
 		if (cmpnews)
 		{
-			net->SendToOne(pid, cmpnews, cmpnewssize, NET_RELIABLE | NET_PRESIZE);
+			dl = amalloc(sizeof(*dl));
+			dl->arena = -1;
+			dl->len = cmpnewssize;
+			net->SendSized(pid, dl, cmpnewssize, get_data);
 			lm->Log(L_DRIVEL,"<mapnewsdl> [%s] Sending news.txt", players[pid].name);
 		}
 		else
@@ -516,7 +552,7 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
 		/* reread news every 5 min */
-		ml->SetTimer(RefreshNewsTxt, 50, 
+		ml->SetTimer(RefreshNewsTxt, 50,
 				cfg->GetInt(GLOBAL, "General", "NewsRefreshMinutes", 5)
 				* 60 * 100, NULL);
 

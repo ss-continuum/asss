@@ -94,11 +94,13 @@ int LLRemoveAll(LinkedList *lst, void *data);
 void *LLRemoveFirst(LinkedList *lst);
 int LLIsEmpty(LinkedList *lst);
 int LLCount(LinkedList *lst);
+void LLEnum(LinkedList *lst, void (*func)(void *ptr));
 
 #ifdef USE_PROTOTYPES
 Link *LLGetHead(LinkedList *lst);
 #else
 #define LLGetHead(lst) ((lst)->start)
+#define LLIsEmpty(lst) ((lst)->start == NULL)
 #endif
 
 

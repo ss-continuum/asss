@@ -165,12 +165,12 @@ void SendToBiller(byte *data, int length, int flags)
 
 void AddPacket(byte pktype, PacketFunc func)
 {
-	net->AddPacket(pktype + PKT_BILLBASE, func);
+	net->AddPacket(pktype + PKT_BILLER_OFFSET, func);
 }
 
 void RemovePacket(byte pktype, PacketFunc func)
 {
-	net->RemovePacket(pktype + PKT_BILLBASE, func);
+	net->RemovePacket(pktype + PKT_BILLER_OFFSET, func);
 }
 
 int GetStatus(void)

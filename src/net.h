@@ -55,12 +55,11 @@
 #define PID_BILLER EXTRA_PID(0)
 #define PID_DIRECTORY EXTRA_PID(1)
 
-#define PKT_BILLBASE 0x50
+#define PKT_BILLER_OFFSET 0x100
 
 /* bits in the flags parameter to the SendX functions */
 #define NET_UNRELIABLE 0x00
 #define NET_RELIABLE 0x01
-#define NET_PRESIZE 0x02
 
 /* priority levels are encoded using bits 3-5 of the flags parameter
  * (0x04, 0x08, 0x10). priority is unrelated to reliable-ness.
@@ -92,6 +91,9 @@
 
 typedef void (*PacketFunc)(int pid, byte *data, int length);
 
+typedef void (*SizedPacketFunc)
+	(int pid, byte *data, int len, int offset, int totallen);
+
 typedef void (*RelCallback)(int pid, int success, void *clos);
 
 #define CB_CONNINIT ("conninit")
@@ -120,7 +122,7 @@ struct client_stats
 };
 
 
-#define I_NET "net-1"
+#define I_NET "net-2"
 
 typedef struct Inet
 {
@@ -133,6 +135,8 @@ typedef struct Inet
 	void (*SendToAll)(byte *data, int length, int flags);
 	void (*SendWithCallback)(int *pidset, byte *data, int length,
 			RelCallback callback, void *clos);
+	void (*SendSized)(int pid, void *clos, int len,
+			void (*request_data)(void *clos, int offset, byte *buf, int needed));
 
 	/* only to be used by encryption modules! */
 	void (*ReallyRawSend)(struct sockaddr_in *sin, byte *pkt, int len);
@@ -141,8 +145,10 @@ typedef struct Inet
 
 	void (*ProcessPacket)(int pid, byte *data, int length);
 
-	void (*AddPacket)(byte pktype, PacketFunc func);
-	void (*RemovePacket)(byte pktype, PacketFunc func);
+	void (*AddPacket)(int pktype, PacketFunc func);
+	void (*RemovePacket)(int pktype, PacketFunc func);
+	void (*AddSizedPacket)(int pktype, SizedPacketFunc func);
+	void (*RemoveSizedPacket)(int pktype, SizedPacketFunc func);
 
 	int (*NewConnection)(int type, struct sockaddr_in *sin, Iencrypt *enc);
 

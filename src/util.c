@@ -403,6 +403,13 @@ int LLCount(LinkedList *ll)
 	return c;
 }
 
+void LLEnum(LinkedList *lst, void (*func)(void *ptr))
+{
+	Link *l;
+	for (l = lst->start; l; l = l->next)
+		func(l->data);
+}
+
 
 /* HashTable data type */
 

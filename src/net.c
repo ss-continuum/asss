@@ -20,29 +20,32 @@
 
 /* DEFINES */
 
-#define MAXTYPES 128
+#define MAXTYPES 64
 
 /* ip/udp overhead, in bytes per physical packet */
 #define IP_UDP_OVERHEAD 28
 
+/* packets to queue up for sending files */
+#define QUEUE_PACKETS 15
+/* threshold to start queuing up more packets */
+#define QUEUE_THRESHOLD 3
+
 /* bits in ClientData.flags */
 #define NET_FAKE 0x01
-#define NET_INPRESIZE 0x02
-#define NET_INBIGPKT 0x04
 
 /* check if a buffer is reliable */
 #define IS_REL(buf) ((buf)->d.rel.t1 == 0x00 && (buf)->d.rel.t2 == 0x03)
-/* check if a buffer is a connection init packet */
 
-#define IS_CONNINIT(buf)                           \
-(                                                  \
-	(buf)->d.rel.t1 == 0x00 &&                     \
-	(                                              \
-	 (buf)->d.rel.t2 == 0x01 ||                    \
-	 (buf)->d.rel.t2 == 0x11                       \
-	 /* add more packet types that encryption      \
-	  * module need to know about here */          \
-	)                                              \
+/* check if a buffer is a connection init packet */
+#define IS_CONNINIT(buf)                        \
+(                                               \
+ (buf)->d.rel.t1 == 0x00 &&                     \
+ (                                              \
+  (buf)->d.rel.t2 == 0x01 ||                    \
+  (buf)->d.rel.t2 == 0x11                       \
+  /* add more packet types that encryption      \
+   * module need to know about here */          \
+ )                                              \
 )
 
 
@@ -51,6 +54,13 @@
 #include "packets/reliable.h"
 
 #include "packets/timesync.h"
+
+struct sized_send_data
+{
+	void (*request_data)(void *clos, int offset, byte *buf, int needed);
+	void *clos;
+	int totallen, offset;
+};
 
 typedef struct ClientData
 {
@@ -67,9 +77,20 @@ typedef struct ClientData
 	unsigned int bytesent, byterecvd;
 	/* encryption type */
 	Iencrypt *enc;
-	/* big packet buffer pointer and size */
-	int bigpktsize, bigpktroom;
-	byte *bigpktbuf;
+	/* stuff for recving sized packets, protected by player mtx */
+	struct
+	{
+		byte type;
+		int totallen, offset;
+	} sizedrecv;
+	/* stuff for recving big packets, protected by player mtx */
+	struct
+	{
+		int size, room;
+		byte *buf;
+	} bigrecv;
+	/* stuff for sending sized packets, protected by outlist mtx */
+	LinkedList sizedsends;
 	/* bandwidth control */
 	unsigned int sincetime, bytessince, limit;
 	/* the outlist */
@@ -107,10 +128,15 @@ local void SendToTarget(const Target *, byte *, int, int);
 local void SendToAll(byte *, int, int);
 local void SendWithCallback(int *pidset, byte *data, int length,
 		RelCallback callback, void *clos);
+local void SendSized(int pid, void *clos, int len,
+		void (*req)(void *clos, int offset, byte *buf, int needed));
+
 local void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len);
 local void ProcessPacket(int, byte *, int);
-local void AddPacket(byte, PacketFunc);
-local void RemovePacket(byte, PacketFunc);
+local void AddPacket(int, PacketFunc);
+local void RemovePacket(int, PacketFunc);
+local void AddSizedPacket(int, SizedPacketFunc);
+local void RemoveSizedPacket(int, SizedPacketFunc);
 local int NewConnection(int type, struct sockaddr_in *, Iencrypt *enc);
 local void SetLimit(int pid, int limit);
 local void GetStats(struct net_stats *stats);
@@ -157,6 +183,8 @@ local Iconfig *cfg;
 local PlayerData *players;
 
 local LinkedList handlers[MAXTYPES];
+local LinkedList sizedhandlers[MAXTYPES];
+local LinkedList billhandlers[MAXTYPES];
 local int mysock, myothersock, mybillingsock;
 
 local DQNode freelist, rellist;
@@ -216,9 +244,10 @@ local Inet _int =
 {
 	INTERFACE_HEAD_INIT(I_NET, "net-udp")
 	SendToOne, SendToArena, SendToSet, SendToTarget,
-	SendToAll, SendWithCallback,
+	SendToAll, SendWithCallback, SendSized,
 	ReallyRawSend,
-	KillConnection, ProcessPacket, AddPacket, RemovePacket,
+	KillConnection, ProcessPacket,
+	AddPacket, RemovePacket, AddSizedPacket, RemoveSizedPacket,
 	NewConnection, SetLimit, GetStats, GetClientStats
 };
 
@@ -242,7 +271,11 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		players = pd->players;
 
 		for (i = 0; i < MAXTYPES; i++)
+		{
 			LLInit(handlers + i);
+			LLInit(sizedhandlers + i);
+			LLInit(billhandlers + i);
+		}
 
 		/* store configuration params */
 		config.port = cfg->GetInt(GLOBAL, "Net", "Port", 5000);
@@ -297,7 +330,11 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 
 		/* clean up */
 		for (i = 0; i < MAXTYPES; i++)
+		{
 			LLEmpty(handlers + i);
+			LLEmpty(sizedhandlers + i);
+			LLEmpty(billhandlers + i);
+		}
 
 		/* let threads die */
 		killallthreads = 1;
@@ -314,16 +351,32 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 }
 
 
-void AddPacket(byte t, PacketFunc f)
+void AddPacket(int t, PacketFunc f)
 {
-	if (t >= MAXTYPES) return;
-	LLAdd(handlers+t, f);
+	if (t >= 0 && t < MAXTYPES)
+		LLAdd(handlers+t, f);
+	else if (t >= PKT_BILLER_OFFSET && t < PKT_BILLER_OFFSET + MAXTYPES)
+		LLAdd(billhandlers+(t-PKT_BILLER_OFFSET), f);
 }
 
-void RemovePacket(byte t, PacketFunc f)
+void RemovePacket(int t, PacketFunc f)
 {
-	if (t >= MAXTYPES) return;
-	LLRemove(handlers+t, f);
+	if (t >= 0 && t < MAXTYPES)
+		LLRemove(handlers+t, f);
+	else if (t >= PKT_BILLER_OFFSET && t < PKT_BILLER_OFFSET + MAXTYPES)
+		LLRemove(billhandlers+(t-PKT_BILLER_OFFSET), f);
+}
+
+void AddSizedPacket(int t, SizedPacketFunc f)
+{
+	if (t >= 0 && t < MAXTYPES)
+		LLAdd(sizedhandlers+t, f);
+}
+
+void RemoveSizedPacket(int t, SizedPacketFunc f)
+{
+	if (t >= 0 && t < MAXTYPES)
+		LLRemove(sizedhandlers+t, f);
 }
 
 
@@ -356,12 +409,14 @@ local void ClearOutlist(int pid)
 {
 	Buffer *buf, *nbuf;
 	DQNode *outlist;
+	Link *l;
 
 	LockMutex(outlistmtx + pid);
 
 	outlist = &clients[pid].outlist;
 	for (buf = (Buffer*)outlist->next; (DQNode*)buf != outlist; buf = nbuf)
 	{
+		nbuf = (Buffer*)buf->node.next;
 		if (buf->callback)
 		{
 			/* this is ugly, but we have to release the outlist mutex
@@ -372,10 +427,17 @@ local void ClearOutlist(int pid)
 			buf->callback(pid, 0, buf->clos);
 			LockMutex(outlistmtx + pid);
 		}
-		nbuf = (Buffer*)buf->node.next;
 		DQRemove((DQNode*)buf);
 		FreeBuffer(buf);
 	}
+
+	for (l = LLGetHead(&clients[pid].sizedsends); l; l = l->next)
+	{
+		struct sized_send_data *sd = l->data;
+		sd->request_data(sd->clos, 0, NULL, 0);
+		afree(sd);
+	}
+	LLEmpty(&clients[pid].sizedsends);
 
 	UnlockMutex(outlistmtx + pid);
 }
@@ -393,6 +455,7 @@ local void InitClient(int i, Iencrypt *enc)
 	clients[i].c2sn = -1;
 	clients[i].limit = config.deflimit;
 	clients[i].enc = enc;
+	LLInit(&clients[i].sizedsends);
 	DQInit(&clients[i].outlist);
 	UnlockMutex(outlistmtx + i);
 }
@@ -714,6 +777,54 @@ donehere:
 }
 
 
+
+/* call with outlist lock */
+local void queue_more_data(int pid)
+{
+#define REQUESTATONCE (QUEUE_PACKETS*480)
+	int needed = REQUESTATONCE;
+	byte buffer[REQUESTATONCE], *dp;
+	struct ReliablePacket packet;
+	struct sized_send_data *sd;
+	Link *l = LLGetHead(&clients[pid].sizedsends);
+
+	if (!l) return;
+
+	sd = l->data;
+
+	/* prepare packet */
+	packet.t1 = 0x00;
+	packet.t2 = 0x0A;
+	packet.seqnum = sd->totallen;
+
+	/* get needed bytes */
+	if ((sd->totallen - sd->offset) < needed)
+		needed = sd->totallen - sd->offset;
+	sd->request_data(sd->clos, sd->offset, buffer, needed);
+	sd->offset += needed;
+
+	/* put data in outlist, in 480 byte chunks */
+	dp = buffer;
+	while (needed > 480)
+	{
+		memcpy(packet.data, dp, 480);
+		BufferPacket(pid, (byte*)&packet, 486, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
+		dp += 480;
+		needed -= 480;
+	}
+	memcpy(packet.data, dp, needed);
+	BufferPacket(pid, (byte*)&packet, needed + 6, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
+
+	/* check if we need more */
+	if (sd->offset >= sd->totallen)
+	{
+		/* notify sender that this is the end */
+		sd->request_data(sd->clos, sd->offset, NULL, 0);
+		LLRemove(&clients[pid].sizedsends, sd);
+		afree(sd);
+	}
+}
+
 void * SendThread(void *dummy)
 {
 	byte gbuf[MAXPACKET] = { 0x00, 0x0E };
@@ -730,7 +841,7 @@ void * SendThread(void *dummy)
 			      (players[i].flags & NET_FAKE) == 0) ||
 			     i >= MAXPLAYERS /* billing needs to send before connected */)
 			{
-				int pcount = 0, bytessince, pri;
+				int pcount = 0, bytessince, pri, relseen = 0;
 				Buffer *buf, *nbuf;
 				byte *gptr = gbuf + 2;
 				DQNode *outlist;
@@ -768,6 +879,8 @@ void * SendThread(void *dummy)
 								(gtc - buf->lastretry) > config.timeout &&
 								(bytessince + buf->len + IP_UDP_OVERHEAD) <= limit)
 						{
+							if (pri == 1 && IS_REL(buf))
+								relseen++;
 							/* now check size */
 							if (buf->len > 240)
 							{
@@ -813,6 +926,10 @@ void * SendThread(void *dummy)
 					/* send the whole thing as a group */
 					SendRaw(i, gbuf, gptr - gbuf);
 				}
+
+				/* check if we need to request more data */
+				if (relseen < QUEUE_THRESHOLD)
+					queue_more_data(i);
 
 				UnlockMutex(outlistmtx + i);
 			}
@@ -985,17 +1102,17 @@ void ProcessBuffer(Buffer *buf)
 			FreeBuffer(buf);
 		}
 	}
-	else if (buf->d.rel.t1 < PKT_BILLBASE)
+	else if (buf->d.rel.t1 < MAXTYPES)
 	{
-		LinkedList *lst = handlers+((int)buf->d.rel.t1);
+		LinkedList *lst;
 		Link *l;
 
-		if (buf->pid == PID_BILLER)
-			lst = handlers+(buf->d.rel.t1 + PKT_BILLBASE);
+		lst = buf->pid != PID_BILLER ? handlers : billhandlers;
+		lst += (int)buf->d.rel.t1;
 
 		pd->LockPlayer(buf->pid);
 		for (l = LLGetHead(lst); l; l = l->next)
-			((PacketFunc)l->data)(buf->pid, buf->d.raw, buf->len);
+			((PacketFunc)(l->data))(buf->pid, buf->d.raw, buf->len);
 		pd->UnlockPlayer(buf->pid);
 
 		FreeBuffer(buf);
@@ -1020,16 +1137,16 @@ void ProcessPacket(int pid, byte *d, int len)
 		memcpy(buf->d.raw, d, len);
 		ProcessBuffer(buf);
 	}
-	else if (d[0] < PKT_BILLBASE)
+	else if (d[0] < MAXTYPES)
 	{
-		LinkedList *lst = handlers+d[0];
+		LinkedList *lst;
 		Link *l;
 #ifdef CFG_DUMP_UNKNOWN_PACKETS
 		int count = 0;
 #endif
 
-		if (pid == PID_BILLER)
-			lst = handlers+(d[0] + PKT_BILLBASE);
+		lst = pid != PID_BILLER ? handlers : billhandlers;
+		lst += d[0];
 
 		pd->LockPlayer(pid);
 #ifndef CFG_DUMP_UNKNOWN_PACKETS
@@ -1037,7 +1154,7 @@ void ProcessPacket(int pid, byte *d, int len)
 #else
 		for (l = LLGetHead(lst); l; l = l->next, count++)
 #endif
-			((PacketFunc)l->data)(pid, d, len);
+			((PacketFunc)(l->data))(pid, d, len);
 		pd->UnlockPlayer(pid);
 
 #ifdef CFG_DUMP_UNKNOWN_PACKETS
@@ -1180,9 +1297,8 @@ void ProcessKeyResponse(Buffer *buf)
 
 		players[buf->pid].status = BNET_CONNECTED;
 
-		for (l = LLGetHead(handlers+(PKT_BILLBASE + 0));
-				l; l = l->next)
-			((PacketFunc)l->data)(buf->pid, buf->d.raw, buf->len);
+		for (l = LLGetHead(billhandlers + 0); l; l = l->next)
+			((PacketFunc)(l->data))(buf->pid, buf->d.raw, buf->len);
 	}
 	FreeBuffer(buf);
 }
@@ -1222,8 +1338,10 @@ void ProcessReliable(Buffer *buf)
 		/* send the ack. use priority 3 so it gets sent as soon as
 		 * possible, but not urgent, because we want to combine multiple
 		 * ones into packets. */
+		LockMutex(outlistmtx + buf->pid);
 		BufferPacket(buf->pid, (byte*)&ack, sizeof(ack),
 				NET_UNRELIABLE | NET_PRI_P3, NULL, NULL);
+		UnlockMutex(outlistmtx + buf->pid);
 	}
 }
 
@@ -1295,117 +1413,95 @@ void ProcessDrop(Buffer *buf)
 
 void ProcessBigData(Buffer *buf)
 {
-	int pid, newsize;
+	int newsize;
 	byte *newbuf;
+	ClientData *client = clients + buf->pid;
 
-	pid = buf->pid;
-	newsize = clients[buf->pid].bigpktsize + buf->len - 2;
+	pd->LockPlayer(buf->pid);
 
-	if (clients[pid].flags & NET_INPRESIZE)
-	{
-		lm->Log(L_MALICIOUS, "<net> [%s] Recieved bigpacket while handling presized data",
-				players[pid].name);
-		goto reallyexit;
-	}
-
-	clients[pid].flags |= NET_INBIGPKT;
+	newsize = client->bigrecv.size + buf->len - 2;
 
 	if (newsize > MAXBIGPACKET)
 	{
-		lm->Log(L_MALICIOUS,
-			"<net> [%s] Big packet: refusing to allocate more than %d bytes",
-			players[pid].name,
-			MAXBIGPACKET);
+		lm->LogP(L_MALICIOUS, "net", buf->pid, "Refusing to allocate more than %d bytes", MAXBIGPACKET);
 		goto freebigbuf;
 	}
 
-	if (clients[pid].bigpktroom < newsize)
+	if (client->bigrecv.room < newsize)
 	{
-		clients[pid].bigpktroom *= 2;
-		if (clients[pid].bigpktroom < newsize) clients[pid].bigpktroom = newsize;
-		newbuf = realloc(clients[pid].bigpktbuf, clients[pid].bigpktroom);
+		client->bigrecv.room *= 2;
+		if (client->bigrecv.room < newsize)
+			client->bigrecv.room = newsize;
+		newbuf = realloc(client->bigrecv.buf, client->bigrecv.room);
 		if (!newbuf)
 		{
-			lm->Log(L_ERROR,"<net> [%s] Cannot allocate %d bytes for bigpacket",
-				newsize, players[pid].name);
+			lm->LogP(L_ERROR,"net", buf->pid, "Cannot allocate %d bytes for bigpacket", newsize);
 			goto freebigbuf;
 		}
-		clients[pid].bigpktbuf = newbuf;
+		client->bigrecv.buf = newbuf;
 	}
 	else
-		newbuf = clients[pid].bigpktbuf;
+		newbuf = client->bigrecv.buf;
 
-	memcpy(newbuf + clients[pid].bigpktsize, buf->d.raw + 2, buf->len - 2);
+	memcpy(newbuf + client->bigrecv.size, buf->d.raw + 2, buf->len - 2);
 
-	clients[pid].bigpktbuf = newbuf;
-	clients[pid].bigpktsize = newsize;
+	client->bigrecv.buf = newbuf;
+	client->bigrecv.size = newsize;
 
 	if (buf->d.rel.t2 == 0x08) goto reallyexit;
 
-	ProcessPacket(pid, newbuf, newsize);
+	ProcessPacket(buf->pid, newbuf, newsize);
 
 freebigbuf:
-	afree(clients[pid].bigpktbuf);
-	clients[pid].bigpktbuf = NULL;
-	clients[pid].bigpktsize = 0;
-	clients[pid].bigpktroom = 0;
-	clients[pid].flags &= ~NET_INBIGPKT;
+	afree(client->bigrecv.buf);
+	client->bigrecv.buf = NULL;
+	client->bigrecv.size = 0;
+	client->bigrecv.room = 0;
 reallyexit:
+	pd->UnlockPlayer(buf->pid);
 	FreeBuffer(buf);
 }
 
 
 void ProcessPresize(Buffer *buf)
 {
-	int size = buf->d.rel.seqnum, pid = buf->pid;
+	Link *l;
+	ClientData *client = clients + buf->pid;
+	int size = buf->d.rel.seqnum;
 
-	if (clients[pid].flags & NET_INBIGPKT)
-	{
-		lm->Log(L_MALICIOUS,"<net> [%s] Recieved presized data while handling bigpacket", players[pid].name);
-		goto reallyexit;
-	}
+	pd->LockPlayer(buf->pid);
 
-	if (clients[pid].bigpktbuf)
+	if (client->sizedrecv.offset == 0)
 	{
-		/* copy data */
-		if (size != clients[pid].bigpktroom)
-		{
-			lm->Log(L_MALICIOUS, "<net> [%s] Presized data length mismatch", players[pid].name);
-			goto freepacket;
-		}
-		memcpy(clients[pid].bigpktbuf+clients[pid].bigpktsize, buf->d.rel.data, buf->len - 6);
-		clients[pid].bigpktsize += (buf->len - 6);
-	}
-	else
-	{
-		/* allocate it */
-		if (size > MAXBIGPACKET)
-		{
-			lm->Log(L_MALICIOUS,
-				"<net> [%s] Big packet: refusing to allocate more than %d bytes",
-				players[pid].name,
-				MAXBIGPACKET);
-		}
+		/* first packet */
+		if (buf->d.rel.data[0] < MAXTYPES)
+			client->sizedrecv.type = buf->d.rel.data[0];
 		else
-		{
-			/* copy initial segment */
-			clients[pid].bigpktbuf = amalloc(size);
-			clients[pid].bigpktroom = size;
-			memcpy(clients[pid].bigpktbuf, buf->d.rel.data, buf->len - 6);
-			clients[pid].bigpktsize = buf->len - 6;
-		}
+			goto clearsized;
+		client->sizedrecv.totallen = size;
 	}
-	if (clients[pid].bigpktsize < size) return;
 
-	ProcessPacket(pid, clients[pid].bigpktbuf, size);
+	if (clients->sizedrecv.totallen != size)
+	{
+		lm->LogP(L_MALICIOUS, "net", buf->pid, "Length mismatch in sized packet");
+		goto clearsized;
+	}
 
-freepacket:
-	afree(clients[pid].bigpktbuf);
-	clients[pid].bigpktbuf = NULL;
-	clients[pid].bigpktsize = 0;
-	clients[pid].bigpktroom = 0;
-	clients[pid].flags &= ~NET_INPRESIZE;
-reallyexit:
+	for (l = LLGetHead(sizedhandlers + client->sizedrecv.type); l; l = l->next)
+		((SizedPacketFunc)(l->data))
+			(buf->pid, buf->d.rel.data, buf->len - 6, client->sizedrecv.offset, size);
+
+	clients->sizedrecv.offset += buf->len - 6;
+
+	if (clients->sizedrecv.offset < size)
+		goto skipclear;
+
+clearsized:
+	client->sizedrecv.type = 0;
+	client->sizedrecv.totallen = 0;
+	client->sizedrecv.offset = 0;
+skipclear:
+	pd->UnlockPlayer(buf->pid);
 	FreeBuffer(buf);
 }
 
@@ -1506,6 +1602,7 @@ void SendRaw(int pid, byte *data, int len)
 }
 
 
+/* must be called with outlist mutex! */
 void BufferPacket(int pid, byte *data, int len, int flags,
 		RelCallback callback, void *clos)
 {
@@ -1528,8 +1625,6 @@ void BufferPacket(int pid, byte *data, int len, int flags,
 	/* handle default priority */
 	if (GET_PRI(flags) == 0) flags |= NET_PRI_DEFAULT;
 	limit = clients[pid].limit * pri_limits[GET_PRI(flags)] / 100;
-
-	LockMutex(outlistmtx + pid);
 
 	/* try the fast path */
 	if (flags == NET_PRI_P4 || flags == NET_PRI_P5)
@@ -1574,16 +1669,18 @@ void BufferPacket(int pid, byte *data, int len, int flags,
 			SendRaw(pid, buf->d.raw, buf->len);
 			buf->lastretry = GTC();
 		}
-
-	UnlockMutex(outlistmtx + pid);
 }
 
 
 void SendToOne(int pid, byte *data, int len, int flags)
 {
 	/* see if we can do it the quick way */
-	if (len < MAXPACKET && !(flags & NET_PRESIZE))
+	if (len < MAXPACKET)
+	{
+		LockMutex(outlistmtx + pid);
 		BufferPacket(pid, data, len, flags, NULL, NULL);
+		UnlockMutex(outlistmtx + pid);
+	}
 	else
 	{
 		int set[2];
@@ -1630,51 +1727,29 @@ void SendToTarget(const Target *target, byte *data, int len, int flags)
 
 void SendToSet(int *set, byte *data, int len, int flags)
 {
-	if (len > MAXPACKET || (flags & NET_PRESIZE))
+	if (len > MAXPACKET)
 	{
-		/* too big to send or buffer */
-		if (flags & NET_PRESIZE)
-		{
-			/* use 00 0A packets (file transfer) */
-			byte _buf[486], *dp = data;
-			struct ReliablePacket *pk = (struct ReliablePacket *)_buf;
+		/* use 00 08/9 packets */
+		byte buf[482], *dp = data;
 
-			pk->t1 = 0x00; pk->t2 = 0x0A;
-			pk->seqnum = len;
-			while (len > 480)
-			{
-				memcpy(pk->data, dp, 480);
-				/* file transfers go at lowest priority */
-				SendToSet(set, (byte*)pk, 486, NET_RELIABLE | NET_PRI_N1);
-				dp += 480;
-				len -= 480;
-			}
-			memcpy(pk->data, dp, len);
-			SendToSet(set, (byte*)pk, len+6, NET_RELIABLE | NET_PRI_N1);
-		}
-		else
+		buf[0] = 0x00; buf[1] = 0x08;
+		while (len > 480)
 		{
-			/* use 00 08/9 packets */
-			byte buf[482], *dp = data;
-
-			buf[0] = 0x00; buf[1] = 0x08;
-			while (len > 480)
-			{
-				memcpy(buf+2, dp, 480);
-				SendToSet(set, buf, 482, flags);
-				dp += 480;
-				len -= 480;
-			}
-			buf[1] = 0x09;
-			memcpy(buf+2, dp, len);
-			SendToSet(set, buf, len+2, flags);
+			memcpy(buf+2, dp, 480);
+			SendToSet(set, buf, 482, flags);
+			dp += 480;
+			len -= 480;
 		}
+		buf[1] = 0x09;
+		memcpy(buf+2, dp, len);
+		SendToSet(set, buf, len+2, flags);
 	}
 	else
-		while (*set != -1)
+		for ( ; *set != -1; set++)
 		{
+			LockMutex(outlistmtx + *set);
 			BufferPacket(*set, data, len, flags, NULL, NULL);
-			set++;
+			UnlockMutex(outlistmtx + *set);
 		}
 }
 
@@ -1689,11 +1764,28 @@ void SendWithCallback(
 	/* we can't handle big packets here */
 	assert(len < MAXPACKET);
 
-	while (*set != -1)
+	for ( ; *set != -1; set++)
 	{
+		LockMutex(outlistmtx + *set);
 		BufferPacket(*set, data, len, NET_RELIABLE, callback, clos);
-		set++;
+		UnlockMutex(outlistmtx + *set);
 	}
+}
+
+
+void SendSized(int pid, void *clos, int len,
+		void (*req)(void *clos, int offset, byte *buf, int needed))
+{
+	struct sized_send_data *sd = amalloc(sizeof(*sd));
+
+	sd->request_data = req;
+	sd->clos = clos;
+	sd->totallen = len;
+	sd->offset = 0;
+
+	LockMutex(outlistmtx + pid);
+	LLAdd(&clients[pid].sizedsends, sd);
+	UnlockMutex(outlistmtx + pid);
 }
 
 
