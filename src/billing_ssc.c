@@ -982,7 +982,7 @@ local int do_one_iter(void *v)
 		}
 		else
 		{
-			Iclientencrypt *clienc = mm->GetInterfaceByName("vieenc-client");
+			Iclientencrypt *clienc = mm->GetInterfaceByName("enc-vie-client");
 			cc = netcli->MakeClientConnection(ipaddr, port, &ccint, clienc);
 			if (cc)
 			{

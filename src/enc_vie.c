@@ -41,18 +41,18 @@ local Iplayerdata *pd;
 
 local Iencrypt ienc =
 {
-	INTERFACE_HEAD_INIT("__unused__", "vieenc")
+	INTERFACE_HEAD_INIT("__unused__", "enc-vie")
 	Encrypt, Decrypt, Void
 };
 
 local Iclientencrypt iclienc =
 {
-	INTERFACE_HEAD_INIT("__unused__", "vieenc-client")
+	INTERFACE_HEAD_INIT("__unused__", "enc-vie-client")
 	ClientInit, ClientEncrypt, ClientDecrypt, ClientVoid
 };
 
 
-EXPORT int MM_encrypt1(int action, Imodman *mm, Arena *arena)
+EXPORT int MM_enc_vie(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -141,6 +141,7 @@ local void do_init(EncData *ed, int k)
 #ifdef __GNUC__
 		asm ( "imul %%ecx" : "=d" (t) : "a" (k), "c" (0x834E0B5F) );
 #else
+#ifdef __MSVC__
 		_asm
 		{
 			mov eax,k
@@ -148,6 +149,9 @@ local void do_init(EncData *ed, int k)
 			imul ecx
 			mov t,edx
 		};
+#else
+#error "I don't know how to do inline assembly for your compiler."
+#endif
 #endif
 		t = (t + k) >> 16;
 		t += t >> 31;

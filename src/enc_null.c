@@ -14,7 +14,7 @@ local void ConnInit(struct sockaddr_in *sin, byte *pkt, int len, void *v);
 local Inet *net;
 
 
-EXPORT int MM_nullenc(int action, Imodman *mm, Arena *arena)
+EXPORT int MM_enc_null(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
