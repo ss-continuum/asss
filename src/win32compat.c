@@ -1,6 +1,8 @@
 
 /* dist: public */
 
+#ifdef WIN32
+
 #include <stdio.h>
 #include <string.h>
 #include <io.h>
@@ -87,4 +89,5 @@ int inet_aton(char *cp, struct in_addr *pin)
 	return 1;
 }
 
+#endif
 

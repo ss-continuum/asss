@@ -57,6 +57,17 @@ typedef struct Igroupman
 
 #define MAXGROUPLEN 32
 
+/* some standard capability names */
+
+#define CAP_MODCHAT               "seemodchat"
+#define CAP_SENDMODCHAT           "sendmodchat"
+#define CAP_SOUNDMESSAGES         "sendsoundmessages"
+#define CAP_UPLOADFILE            "uploadfile"
+#define CAP_SEESYSOPLOGALL        "seesysoplogall"
+#define CAP_SEESYSOPLOGARENA      "seesysoplogarena"
+#define CAP_SEEPRIVARENA          "seeprivarena"
+#define CAP_BYPASS_SECURITY       "bypasssecurity"
+
 
 #endif
 

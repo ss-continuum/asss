@@ -26,7 +26,6 @@
 #include "packets/billing.h"
 #include "packets/banners.h"
 
-#define CAP_SENDMODCHAT "sendmodchat"   /* FIXME: move to .h file? */
 
 typedef struct pdata
 {

@@ -584,7 +584,7 @@ local int cmd_arenas(int argc, char *argv[])
 
 	walk_db(arenas_get_names, FALSE);
 
-	printf("  this database contains information about these arenas:\n");
+	printf("    this database contains information about these arenas:\n");
 	printf("  %-14.14s  %-17s  %-17s  %-17s\n",
 		"arena name",
 		"player recs/bytes",
@@ -638,7 +638,7 @@ local int cmd_players(int argc, char *argv[])
 
 	walk_db(players_get_names, FALSE);
 
-	printf("  this database contains information about these players:\n");
+	printf("    this database contains information about these players:\n");
 	printf("  %-18.18s  %-17s\n",
 		"player name",
 		"records / bytes");

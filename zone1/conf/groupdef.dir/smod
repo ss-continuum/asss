@@ -1,6 +1,9 @@
 ; conf/groups/smod
 
 seesysoplogarena
+; bypass checksums
+bypasssecurity
+
 privcmd_info
 
 ; not implemented
@@ -18,9 +21,6 @@ cmd_quickfix
 cmd_userdbadm
 
 privcmd_send
-
-; bypass checksums
-bypass_security
 
 ; prefix chars
 prefix_>

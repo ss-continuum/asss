@@ -22,9 +22,6 @@
 #include "filetrans.h"
 
 
-#define CAP_UPLOADFILE "uploadfile"
-
-
 struct upload_data
 {
 	FILE *fp;

@@ -30,8 +30,6 @@
 #endif
 
 
-#define CAP_SEEPRIVARENA "seeprivarena"
-
 #define REQUIRE_MOD(m) \
 	if (!m) { chat->SendMessage(p, "Module '" #m "' not loaded"); return; }
 

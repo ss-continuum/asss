@@ -154,10 +154,10 @@ local void init_data(void)
 		astrncpy(data->password, pwd, sizeof(data->password));
 
 		if (connectas[0])
-			lm->Log(L_INFO, "<directory> virtual server '%s' on port %d using name '%s",
+			lm->Log(L_INFO, "<directory> virtual server '%s' on port %d using name '%s'",
 					connectas, port, data->servername);
 		else
-			lm->Log(L_INFO, "<directory> server on port %d using name '%s",
+			lm->Log(L_INFO, "<directory> server on port %d using name '%s'",
 					port, data->servername);
 
 		LLAdd(&packets, data);

@@ -7,10 +7,6 @@
 #include "asss.h"
 
 
-#define CAP_SEESYSOPLOGALL "seesysoplogall"
-#define CAP_SEESYSOPLOGARENA "seesysoplogarena"
-
-
 local void LogSysop(const char *);
 local void PA(Player *p, int action, Arena *arena);
 local void Clastlog(const char *params, Player *p, const Target *target);

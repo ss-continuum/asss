@@ -14,10 +14,6 @@
 #include "persist.h"
 
 
-#define CAP_MODCHAT "seemodchat"
-#define CAP_SENDMODCHAT "sendmodchat"
-#define CAP_SOUNDMESSAGES "sendsoundmessages"
-
 #define KEY_CHAT 47
 
 

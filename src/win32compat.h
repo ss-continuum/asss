@@ -1,6 +1,8 @@
 
 /* dist: public */
 
+#ifdef WIN32
+
 #define EXPORT __declspec(dllexport)
 
 #ifndef NDEBUG
@@ -50,3 +52,4 @@ void closedir(DIR *dir);
 
 int inet_aton(char *cp, struct in_addr *pin);
 
+#endif
