@@ -749,8 +749,7 @@ local void get_socket(void)
 	 * input and output. It will get two command line arguments, which
 	 * are the ip and port of the billing server, as specified in the
 	 * Billing:IP and Billing:Port settings. The program name should
-	 * either be an absolute pathname or be located on your $PATH.
-	 */
+	 * either be an absolute pathname or be located on your $PATH. */
 	const char *proxy = cfg->GetStr(GLOBAL, "Billing", "Proxy");
 	/* cfghelp: Billing:IP, global, string
 	 * The ip address of the billing server (no dns hostnames allowed). */

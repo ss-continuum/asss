@@ -145,11 +145,10 @@ local helptext_t lastlog_help =
 "Module: log_sysop\n"
 "Targets: none\n"
 "Args: [<number of lines>] [<limiting text>]\n"
-"Prints out the last 10 lines in the server log. You can specify a number\n"
-"as an argument, it will print that many lines instead. If you\n"
-"specify any text as an argument, besides a number, the display will be\n"
-"limited to lines that contain that text. You can specify both a number\n"
-"and limiting text, just put the number first.\n";
+"Prints out the last <number> lines in the server log (default: 10\n"
+"lines). If you specify any text as an argument, besides a number, the\n"
+"display will be limited to lines that contain that text. You can specify\n"
+"both a number and limiting text, just put the number first.\n";
 
 void Clastlog(const char *params, Player *p, const Target *target)
 {

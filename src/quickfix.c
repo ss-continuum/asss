@@ -118,7 +118,7 @@ local helptext_t quickfix_help =
 "Lets you quickly change arena settings. This will display some list of\n"
 "settings with their current values and allow you to change them. The\n"
 "argument to this command can be used to limit the list of settings\n"
-"displayed.\n";
+"displayed. (With no arguments, equivalent to ?getsettings in subgame.)\n";
 
 local void Cquickfix(const char *params, Player *p, const Target *target)
 {

@@ -200,7 +200,8 @@ local void Ctimereset(const char *params, Player *p, const Target *target)
 local helptext_t pausetimer_help =
 "Targets: none\n"
 "Args: none\n"
-"Pauses the timer. The timer must have been created with ?timer.\n";
+"Toggles the timer between paused and unpaused. The timer must have been\n"
+"created with ?timer.\n";
 
 local void Cpausetimer(const char *params, Player *p, const Target *target)
 {

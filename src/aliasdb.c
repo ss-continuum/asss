@@ -135,8 +135,7 @@ local void dbcb_nameipmac(int status, db_res *res, void *clos)
 
 
 #ifdef notdone
-local helptext_t qalias_help =
-"";
+local helptext_t qalias_help = NULL;
 
 local void Cqalias(const char *params, Player *p, const Target *target)
 {

@@ -168,7 +168,8 @@ local helptext_t putzip_help =
 "Args: <client filename>:<server directory>\n"
 "Uploads the specified zip file to the server and unzips it in the\n"
 "specified directory. This can be used to efficiently send a large\n"
-"number of files to the server at once.\n";
+"number of files to the server at once, while preserving directory\n"
+"structure.\n";
 
 local void Cputzip(const char *params, Player *p, const Target *target)
 {

@@ -504,7 +504,7 @@ void Csetscore(const char *params, Player *p, const Target *target)
 local helptext_t score_help =
 "Targets: none\n"
 "Args: none\n"
-"Returns score of current soccer game.\n";
+"Returns current score of the soccer game in progress.\n";
 
 void Cscore(const char *params, Player *p, const Target *target)
 {

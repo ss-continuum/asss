@@ -40,6 +40,7 @@ def print_line(line):
 	line = line.replace('$', '\\$')
 	line = line.replace('^', '\\^')
 	line = line.replace('%', '\\%')
+	line = line.replace('|', '\\vbar{}')
 
 	# check itemized lists
 	if line.startswith(' * '):

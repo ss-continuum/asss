@@ -193,9 +193,10 @@ local void Carena(const char *params, Player *p, const Target *target)
 local helptext_t shutdown_help =
 "Targets: none\n"
 "Args: [{-r}]\n"
-"Immediately shuts down the server, exiting with {EXIT_NONE}.\n"
-"If {-r} is specified, exit with {EXIT_RECYCLE} instead. The {run-asss}\n"
-"script will notice {EXIT_RECYCLE} and restart the server.\n";
+"Immediately shuts down the server, exiting with {EXIT_NONE}. If\n"
+"{-r} is specified, exit with {EXIT_RECYCLE} instead. The {run-asss}\n"
+"script, if it is being used, will notice {EXIT_RECYCLE} and restart\n"
+"the server.\n";
 
 local void Cshutdown(const char *params, Player *p, const Target *target)
 {
@@ -226,7 +227,8 @@ local helptext_t ballcount_help =
 "Args: <number of balls to add or remove>\n"
 "Increases or decreases the number of balls in the arena. Takes an\n"
 "argument that is a positive or negative number, which is the number of\n"
-"balls to add (or, if negative, to remove).\n";
+"balls to add (or, if negative, to remove). Continuum currently supports\n"
+"only eight balls.\n";
 
 local void Cballcount(const char *params, Player *p, const Target *target)
 {
@@ -244,7 +246,7 @@ local void Cballcount(const char *params, Player *p, const Target *target)
 local helptext_t setfreq_help =
 "Targets: player, freq, or arena\n"
 "Args: <freq number>\n"
-"Moves the target player to the specified freq.\n";
+"Moves the targets to the specified freq.\n";
 
 local void Csetfreq(const char *params, Player *p, const Target *target)
 {
@@ -270,7 +272,7 @@ local void Csetfreq(const char *params, Player *p, const Target *target)
 local helptext_t setship_help =
 "Targets: player, freq, or arena\n"
 "Args: <ship number>\n"
-"Sets the target player to the specified ship. The argument must be a\n"
+"Sets the targets to the specified ship. The argument must be a\n"
 "number from 1 (Warbird) to 8 (Shark), or 9 (Spec).\n";
 
 local void Csetship(const char *params, Player *p, const Target *target)
@@ -434,7 +436,7 @@ local void Cattmod(const char *params, Player *p, const Target *target)
 local helptext_t getgroup_help =
 "Targets: player or none\n"
 "Args: none\n"
-"Prints out the group of the target player.\n";
+"Displays the group of the player, or if none specified, you.\n";
 
 local void Cgetgroup(const char *params, Player *p, const Target *target)
 {
@@ -663,7 +665,7 @@ local helptext_t info_help =
 "Targets: player\n"
 "Args: none\n"
 "Displays various information on the target player, including which\n"
-"client they are using, their resolution, ip address, how long they have\n"
+"client they are using, their resolution, IP address, how long they have\n"
 "been connected, and bandwidth usage information.\n";
 
 local void Cinfo(const char *params, Player *p, const Target *target)
@@ -869,7 +871,7 @@ local void Ca(const char *params, Player *p, const Target *target)
 local helptext_t aa_help =
 "Targets: player, freq, or arena\n"
 "Args: <text>\n"
-"Displays the text as an anonymous arena message to the targets.\n";
+"Displays the text as an anonymous arena (green) message to the targets.\n";
 
 local void Caa(const char *params, Player *p, const Target *target)
 {
@@ -894,7 +896,7 @@ local void Cz(const char *params, Player *p, const Target *target)
 local helptext_t az_help =
 "Targets: none\n"
 "Args: <text>\n"
-"Displays the text as an anonymous arena message to the whole zone.\n";
+"Displays the text as an anonymous arena (green) message to the whole zone.\n";
 
 local void Caz(const char *params, Player *p, const Target *target)
 {
@@ -922,7 +924,7 @@ local void Ccheater(const char *params, Player *p, const Target *target)
 local helptext_t warn_help =
 "Targets: player\n"
 "Args: <message>\n"
-"Send a warning message to a player.\n";
+"Send a red warning message to a player.\n";
 
 local void Cwarn(const char *params, Player *p, const Target *target)
 {
@@ -1244,7 +1246,7 @@ local helptext_t lock_help =
 "Locks the specified targets so that they can't change ships. Use ?unlock\n"
 "to unlock them. By default, ?lock won't change anyone's ship. If {-s} is\n"
 "present, it will spec the targets before locking them. If {-n} is present,\n"
-"it will players of their change in status.\n";
+"it will notify players of their change in status.\n";
 
 local void Clock(const char *params, Player *p, const Target *target)
 {
@@ -2182,6 +2184,7 @@ EXPORT int MM_playercmd(int action, Imodman *_mm, Arena *arena)
 	}
 	return MM_FAIL;
 }
+
 
 
 
