@@ -31,7 +31,8 @@ struct MapDownloadData
 struct data_locator
 {
 	Arena *arena;
-	int lvznum, wantopt, len;
+	int lvznum, wantopt;
+	u32 len;
 };
 
 
@@ -80,7 +81,7 @@ local int RefreshNewsTxt(void *dummy)
 #endif
 		newstime = newtime;
 		fsize = st.st_size;
-		csize = 1.0011 * fsize + 35;
+		csize = (uLong)(1.0011 * fsize + 35);
 
 		/* mmap it */
 #ifndef WIN32
@@ -258,7 +259,7 @@ local struct MapDownloadData * compress_map(const char *fname, int docomp)
 	fstat(mapfd, &st);
 	fsize = st.st_size;
 	if (docomp)
-		csize = 1.0011 * fsize + 35;
+		csize = (uLong)(1.0011 * fsize + 35);
 	else
 		csize = fsize + 17;
 

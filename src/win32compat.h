@@ -22,6 +22,7 @@
 #define R_OK 4
 #define S_ISDIR(a) ((a) & _S_IFDIR)
 #define mkdir(a,b) _mkdir(a)
+#define mktemp(a) _mktemp(a)
 
 typedef int socklen_t;
 

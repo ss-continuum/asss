@@ -661,7 +661,7 @@ local void Cinfo(const char *params, Player *p, const Target *target)
 			chat->SendMessage(p,
 					"%s: ip=%s  port=%d  encname=%s",
 					prefix, s.ipaddr, s.port, s.encname);
-			ignoring = 100.0 * (double)p->ignoreweapons / (double)RAND_MAX;
+			ignoring = (int)(100.0 * (double)p->ignoreweapons / (double)RAND_MAX);
 			chat->SendMessage(p,
 					"%s: limit=%d  avg bandwidth in/out=%d/%d  ignoringwpns=%d%%",
 					prefix, s.limit, s.byterecvd*100/tm, s.bytesent*100/tm,

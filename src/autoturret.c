@@ -6,7 +6,8 @@
 struct TurretData
 {
 	Player *p;
-	int endtime, interval, tofire, tosend, weapon;
+	int interval, weapon;
+	unsigned long endtime, tofire, tosend;
 	struct C2SPosition pos;
 };
 

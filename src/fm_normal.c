@@ -1,6 +1,8 @@
 
 /* dist: public */
 
+#include <limits.h>
+
 #include "asss.h"
 
 

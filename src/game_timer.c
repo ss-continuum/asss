@@ -26,7 +26,7 @@ typedef struct
 	int gamelen;
 	int enabled;
 	unsigned timeout;
-	int warnmsgs[MAXWARNMSGS];
+	unsigned warnmsgs[MAXWARNMSGS];
 } timerdata;
 
 int tdkey;

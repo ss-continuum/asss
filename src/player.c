@@ -235,7 +235,7 @@ local int AllocatePlayerData(size_t bytes)
 	for (l = LLGetHead(&blocks); l; l = l->next)
 	{
 		b = l->data;
-		if ((b->start - current) >= bytes)
+		if ((b->start - current) >= (int)bytes)
 		{
 			nb = amalloc(sizeof(*nb));
 			nb->start = current;
@@ -251,7 +251,7 @@ local int AllocatePlayerData(size_t bytes)
 	}
 
 	/* if we couldn't get in between two blocks, try at the end */
-	if ((perplayerspace - current) >= bytes)
+	if ((perplayerspace - current) >= (int)bytes)
 	{
 		nb = amalloc(sizeof(*nb));
 		nb->start = current;

@@ -163,7 +163,7 @@ local void mainloop()
 
 	FOR_EACH_PLAYER(p)
 		if (p->status == S_PLAYING &&
-		    (now - LASTCHECKED(p)) > cfg_checkinterval)
+		    (int)(now - LASTCHECKED(p)) > cfg_checkinterval)
 		{
 			LASTCHECKED(p) = now;
 

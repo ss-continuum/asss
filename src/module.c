@@ -12,7 +12,7 @@
 #else
 #include <direct.h>
 #define dlopen(a,b) LoadLibrary(a)
-#define dlsym(a,b) ((ModMain)GetProcAddress(a,b))
+#define dlsym(a,b) ((void*)GetProcAddress(a,b))
 #define dlclose(a) FreeLibrary(a)
 #endif
 

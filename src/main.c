@@ -221,7 +221,6 @@ int main(int argc, char *argv[])
 
 	/* seed random number generators */
 	srand(GTC());
-	srandom(GTC());
 
 	ProcessArgs(argc, argv);
 

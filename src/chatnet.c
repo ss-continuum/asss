@@ -287,7 +287,7 @@ local void do_read(Player *p)
 	if (!buf)
 		buf = get_in_buffer();
 
-	n = read(cli->socket, buf->cur, LEFT(buf));
+	n = recv(cli->socket, buf->cur, LEFT(buf), 0);
 
 	if (n == 0)
 	{
@@ -366,7 +366,7 @@ local void do_write(Player *p)
 
 		len = strlen(buf->data) - (buf->cur - buf->data);
 
-		n = write(cli->socket, buf->cur, len);
+		n = send(cli->socket, buf->cur, len, 0);
 
 		if (n > 0)
 			buf->cur += n;
@@ -450,7 +450,7 @@ local int main_loop(void *dummy)
 				do_write(p);
 			/* or process? */
 			if (cli->inbuf &&
-			    (gtc - cli->lastmsgtime) > cfg_msgdelay)
+			    (int)(gtc - cli->lastmsgtime) > cfg_msgdelay)
 				try_process(p);
 		}
 	pd->Unlock();

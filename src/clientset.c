@@ -68,18 +68,17 @@ EXPORT int MM_clientset(int action, Imodman *mm_, Arena *arena)
 		mm->RegInterface(&_myint, ALLARENAS);
 
 		/* do these at least once */
-		{
-			struct ClientSettings cs;
-			struct ShipSettings ss;
-
-			assert(COUNT(cs.long_set) == COUNT(long_names));
-			assert(COUNT(cs.short_set) == COUNT(short_names));
-			assert(COUNT(cs.byte_set) == COUNT(byte_names));
-			assert(COUNT(cs.prizeweight_set) == COUNT(prizeweight_names));
-			assert(COUNT(ss.long_set) == COUNT(ship_long_names));
-			assert(COUNT(ss.short_set) == COUNT(ship_short_names));
-			assert(COUNT(ss.byte_set) == COUNT(ship_byte_names));
-		}
+#define cs (*((struct ClientSettings*)0))
+#define ss (*((struct ShipSettings*)0))
+		assert(COUNT(cs.long_set) == COUNT(long_names));
+		assert(COUNT(cs.short_set) == COUNT(short_names));
+		assert(COUNT(cs.byte_set) == COUNT(byte_names));
+		assert(COUNT(cs.prizeweight_set) == COUNT(prizeweight_names));
+		assert(COUNT(ss.long_set) == COUNT(ship_long_names));
+		assert(COUNT(ss.short_set) == COUNT(ship_short_names));
+		assert(COUNT(ss.byte_set) == COUNT(ship_byte_names));
+#undef cs
+#undef ss
 
 		return MM_OK;
 	}

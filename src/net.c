@@ -228,9 +228,10 @@ local int pri_limits[8] =
 
 local struct
 {
-	int port /* host order */, timeout, droptimeout;
+	int timeout, droptimeout;
 	int bufferdelta, deflimit;
 	unsigned long int bindaddr /* network order */;
+	unsigned short int port /* host order */;
 } config;
 
 local volatile struct net_stats global_stats;
@@ -297,7 +298,7 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		/* store configuration params */
 		/* cfghelp: Net:Port, global, int, def: 5000
 		 * The main port that the server runs on. */
-		config.port = cfg->GetInt(GLOBAL, "Net", "Port", 5000);
+		config.port = (unsigned short)cfg->GetInt(GLOBAL, "Net", "Port", 5000);
 		/* cfghelp: Net:ReliableTimeout, global, int, def: 100
 		 * How long to wait to resend reliable packets (in ticks). */
 		config.timeout = cfg->GetInt(GLOBAL, "Net", "ReliableTimeout", 100);
@@ -917,7 +918,7 @@ local void send_outgoing(Player *p)
 			nbuf = (Buffer*)buf->node.next;
 
 			if (buf->pri == pri &&
-			    (gtc - buf->lastretry) > config.timeout &&
+			    (int)(gtc - buf->lastretry) > config.timeout &&
 			    ( ! IS_REL(buf) ||
 			      (buf->d.rel.seqnum - minseqnum) < CLIENT_CAN_BUFFER ) &&
 			    (bytessince + buf->len + IP_UDP_OVERHEAD) <= limit)
@@ -1066,7 +1067,7 @@ void * SendThread(void *dummy)
 		usleep(10000); /* 1/100 second */
 
 		/* first send outgoing packets */
-		FOR_EACH_PLAYER_P(p, cli, clikey);
+		FOR_EACH_PLAYER_P(p, cli, clikey)
 			if (p->status < S_TIMEWAIT &&
 			    IS_OURS(p) &&
 			    pthread_mutex_trylock(&cli->olmtx) == 0)
@@ -1639,7 +1640,7 @@ Buffer * BufferPacket(Player *p, byte *data, int len, int flags,
 
 	/* try the fast path */
 	if (flags == NET_PRI_P4 || flags == NET_PRI_P5)
-		if (cli->bytessince + len + IP_UDP_OVERHEAD <= limit)
+		if ((int)cli->bytessince + len + IP_UDP_OVERHEAD <= limit)
 		{
 			SendRaw(p, data, len);
 			return NULL;
@@ -1673,7 +1674,7 @@ Buffer * BufferPacket(Player *p, byte *data, int len, int flags,
 
 	/* if it's urgent, do one retry now */
 	if (GET_PRI(flags) > 5)
-		if ((cli->bytessince + buf->len + IP_UDP_OVERHEAD) <= limit)
+		if (((int)cli->bytessince + buf->len + IP_UDP_OVERHEAD) <= limit)
 		{
 			SendRaw(p, buf->d.raw, buf->len);
 			buf->lastretry = GTC();

@@ -28,7 +28,7 @@ typedef struct
 	struct C2SPosition pos;
 	Player *speccing;
 	unsigned int wpnsent;
-	struct { unsigned changes, lastcheck; } changes;
+	struct { int changes; unsigned lastcheck; } changes;
 	/* epd/energy stuff */
 	struct { char see, cap, capnrg; } pl_epd;
 } pdata;
@@ -246,7 +246,7 @@ void Pppk(Player *p, byte *p2, int n)
 		y1 = pos->y;
 
 		/* this is the weapons ignore hook */
-		if (pos->weapon.type && rand() < p->ignoreweapons)
+		if (pos->weapon.type && (unsigned)rand() < p->ignoreweapons)
 			pos->weapon.type = 0;
 
 		/* there are several reasons to send a weapon packet (05) instead of
@@ -345,7 +345,7 @@ void Pppk(Player *p, byte *p2, int n)
 			int nflags;
 			struct S2CPosition sendpos = {
 				S2C_POSITION, pos->rotation, pos->time & 0xFFFF, pos->x, 0,
-				pos->bounty, p->pid, pos->status, pos->yspeed, pos->y, pos->xspeed
+				pos->bounty, (u8)p->pid, pos->status, pos->yspeed, pos->y, pos->xspeed
 			};
 
 			nflags = NET_UNRELIABLE | NET_PRI_P3;

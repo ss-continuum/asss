@@ -208,12 +208,12 @@ void SpawnBall(Arena *arena, int bid)
 	cy = pbd->spawny;
 	rad = pbd->spawnr;
 	{
-		float rndrad, rndang;
+		double rndrad, rndang;
 		/* pick random point */
-		rndrad = (float)rand()/(RAND_MAX+1.0) * (float)rad;
-		rndang = (float)rand()/(RAND_MAX+1.0) * M_PI * 2.0;
-		x = cx + (rndrad * cos(rndang));
-		y = cy + (rndrad * sin(rndang));
+		rndrad = (double)rand()/(RAND_MAX+1.0) * (double)rad;
+		rndang = (double)rand()/(RAND_MAX+1.0) * M_PI * 2.0;
+		x = cx + (int)(rndrad * cos(rndang));
+		y = cy + (int)(rndrad * sin(rndang));
 		/* wrap around, don't clip, so radii of 2048 from a corner
 		 * work properly. */
 		while (x < 0) x += 1024;
@@ -760,9 +760,9 @@ int BasicBallTimer(void *dummy)
 		if (abd->ballcount > 0)
 		{
 			/* see if we are ready to send packets */
-			int gtc = GTC();
+			unsigned gtc = GTC();
 
-			if ( ((int)gtc - (int)pbd->lastsent) > pbd->sendtime)
+			if ( (int)(gtc - pbd->lastsent) > pbd->sendtime)
 			{
 				int bid, bc = abd->ballcount;
 				struct BallData *b = abd->balls;

@@ -207,10 +207,10 @@ void SpawnFlag(Arena *arena, int fid)
 
 	do {
 		int i, fc;
-		float rndrad, rndang;
+		double rndrad, rndang;
 		/* pick random point */
-		rndrad = (float)rand()/(RAND_MAX+1.0) * (float)rad;
-		rndang = (float)rand()/(RAND_MAX+1.0) * M_PI * 2.0;
+		rndrad = (double)rand()/(RAND_MAX+1.0) * (double)rad;
+		rndang = (double)rand()/(RAND_MAX+1.0) * M_PI * 2.0;
 		x = cx + (rndrad * cos(rndang));
 		y = cy + (rndrad * sin(rndang));
 		/* wrap around, don't clip, so radii of 2048 from a corner
@@ -881,9 +881,9 @@ int BasicFlagTimer(void *dummy)
 			/* first check if we have to pick a new flag count */
 			if (afd->flagcount < pfd->minflags)
 			{
-				float diff, cflags;
-				diff = pfd->maxflags - pfd->minflags + 1;
-				cflags = diff * ((float)rand() / (RAND_MAX+1.0));
+				double diff, cflags;
+				diff = (double)(pfd->maxflags - pfd->minflags + 1);
+				cflags = diff * ((double)rand() / (RAND_MAX+1.0));
 				afd->flagcount = (int)cflags + pfd->minflags;
 			}
 
