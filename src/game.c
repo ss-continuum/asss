@@ -206,9 +206,6 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 
 void Pppk(Player *p, byte *p2, int n)
 {
-	/* LOCK: yeah, more stuff should really be locked here. but since
-	 * this will be the most often-called handler by far, we can't
-	 * afford it. */
 	struct C2SPosition *pos = (struct C2SPosition *)p2;
 	Arena *arena = p->arena;
 	adata *ad = P_ARENA_DATA(arena, adkey);
@@ -413,7 +410,11 @@ void Pppk(Player *p, byte *p2, int n)
 
 	/* lag data */
 	if (lagc)
-		lagc->Position(p, (GTC() - pos->time) * 10, data->wpnsent);
+		lagc->Position(
+				p,
+				(GTC() - pos->time) * 10,
+				n >= 26 ? pos->extra.s2cping * 10 : -1,
+				data->wpnsent);
 
 	/* copy the whole thing. this will copy the epd, or, if the client
 	 * didn't send any epd, it will copy zeros because the buffer was

@@ -16,11 +16,11 @@ MYSQLLIB = $(MYSQLHOME)/lib
 LDFLAGS = -fPIC $(PROF_FLAGS)
 #PROF_FLAGS = -pg
 
-OPT_CFLAGS = -O2 -fomit-frame-pointer -Wall -fpedantic
+#OPT_CFLAGS = -O2 -fomit-frame-pointer -Wall -fpedantic
 DEBUG_CFLAGS = -g -Wall -fpedantic
 ALL_CFLAGS = -D_REENTRANT -D_GNU_SOURCE -fPIC $(DBINC) $(MYSQLINC)
 
-CFLAGS = $(ALL_CFLAGS) $(DEBUG_CFLAGS) $(PROF_FLAGS) # $(OPT_CFLAGS)
+CFLAGS = $(ALL_CFLAGS) $(DEBUG_CFLAGS) $(PROF_FLAGS) $(OPT_CFLAGS)
 
 ALL_STUFF = asss         \
             core.so      \

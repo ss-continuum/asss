@@ -346,7 +346,7 @@ void ProcessLoginQueue(void)
 }
 
 
-void PLogin(Player *p, byte *pkt, int l)
+void PLogin(Player *p, byte *opkt, int l)
 {
 	pdata *d = PPDATA(p, pdkey);
 	int type = p->type;
@@ -365,7 +365,7 @@ void PLogin(Player *p, byte *pkt, int l)
 		lm->Log(L_MALICIOUS, "<core> [pid=%d] Login request from wrong stage: %d", p->pid, p->status);
 	else
 	{
-		struct LoginPacket *pkt = (struct LoginPacket*)pkt, *lp;
+		struct LoginPacket *pkt = (struct LoginPacket*)opkt, *lp;
 		Player *oldp = pd->FindPlayer(pkt->name);
 		int c;
 
@@ -388,9 +388,9 @@ void PLogin(Player *p, byte *pkt, int l)
 			if (lp->name[c] == ':')
 				lp->name[c] = '_';
 		/* set up status */
-		/* pd->WriteLock(); */
+		pd->WriteLock();
 		p->status = S_NEED_AUTH;
-		/* pd->Unlock(); */
+		pd->Unlock();
 		lm->Log(L_DRIVEL, "<core> [pid=%d] Login request: '%s'", p->pid, pkt->name);
 	}
 }

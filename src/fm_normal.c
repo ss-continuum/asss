@@ -131,7 +131,7 @@ local int BalanceFreqs(Arena *arena, Player *excl, int inclspec)
 {
 	Player *i;
 	Link *link;
-	int counts[CFG_MAX_DESIRED] = { 0 }, desired, min = MAXPLAYERS, best = -1, max, j;
+	int counts[CFG_MAX_DESIRED] = { 0 }, desired, min = INT_MAX, best = -1, max, j;
 
 	max = MAXTEAM(arena->cfg);
 	/* cfghelp: Team:DesiredTeams, arena, int, def: 2

@@ -25,6 +25,10 @@
 #endif
 
 
+/* important constants */
+#define MAXPACKET 512
+#define MAXBIGPACKET CFG_MAX_BIG_PACKET
+
 /* bits in the flags parameter to the SendX functions */
 #define NET_UNRELIABLE 0x00
 #define NET_RELIABLE 0x01

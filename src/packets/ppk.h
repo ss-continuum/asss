@@ -19,9 +19,8 @@
 #define W_THOR          8
 #define W_WORMHOLE      0 /* used in watchdamage packet only */
 
-struct Weapons
+struct Weapons /* 2 bytes */
 {
-	/* this is a bit field. the whole thing should fit into 16 bits */
 	unsigned short type : 5;
 	unsigned short level : 2;
 	unsigned short shrapbouncing : 1;
@@ -31,7 +30,7 @@ struct Weapons
 };
 
 
-struct ExtraPosData
+struct ExtraPosData /* 10 bytes */
 {
 	unsigned int energy : 16;
 	unsigned int s2cping : 16;

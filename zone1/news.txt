@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 0.7.6.
+Welcome to asss (a small subspace server) 0.9.0.
 
 This news.txt will be used for updates about new features and other
 important information. If you have any suggestions of any kind, please
@@ -10,17 +10,14 @@ see it eventually (it all gets logged).
 
 
 Recent updates:
+    * big internal improvements: there are no more hard limits on
+      players or arenas
+
     * players can send files to each other with /?sendfile
 
     * koth game in the default arena (?go 0)
 
     * an arena placing module that supports multiple "public" arenas
-
-    * ?help supports config settings and ?quickfix works.
-
-    * a new kick-ass turf reward module from GiGaKiLLeR. ?go turf with
-      some friends to try it. (this is undergoing heavy development and
-      might not work right at all times)
 
 
 Lots more detail at:

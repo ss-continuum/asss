@@ -1380,11 +1380,11 @@ local void Claginfo(const char *params, Player *p, const Target *target)
 	lagq->QueryPLoss(t, &ploss);
 	lagq->QueryRelLag(t, &rlag);
 
-	chat->SendMessage(p, "%s: s2c ping: %d %d (%d-%d)",
+	chat->SendMessage(p, "%s: s2c ping: %d %d (%d-%d) (reported by client)",
 		t->name, cping.cur, cping.avg, cping.min, cping.max);
-	chat->SendMessage(p, "%s: c2s ping: %d %d (%d-%d)",
+	chat->SendMessage(p, "%s: c2s ping: %d %d (%d-%d) (from position pkt times)",
 		t->name, pping.cur, pping.avg, pping.min, pping.max);
-	chat->SendMessage(p, "%s: rel ping: %d %d (%d-%d)",
+	chat->SendMessage(p, "%s: rel ping: %d %d (%d-%d) (reliable ping)",
 		t->name, rping.cur, rping.avg, rping.min, rping.max);
 	chat->SendMessage(p, "%s: ploss: s2c: %.2f c2s: %.2f s2cwpn: %.2f",
 		t->name, 100.0*ploss.s2c, 100.0*ploss.c2s, 100.0*ploss.s2cwpn);

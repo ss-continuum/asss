@@ -8,6 +8,8 @@
 #define MAX_PING 10000
 #define PLOSS_MIN_PACKETS 20
 
+#define USE_BUCKETS
+
 #ifdef CFG_PEDANTIC_LOCKING
 #define PEDANTIC_LOCK() LOCK()
 #define PEDANTIC_UNLOCK() UNLOCK()
@@ -31,6 +33,8 @@ local Iplayerdata *pd;
  * buckets.
  */
 
+#ifdef USE_BUCKETS
+
 #ifdef CFG_LAG_BUCKETS
 #define MAX_BUCKET CFG_LAG_BUCKETS
 #else
@@ -46,9 +50,13 @@ local Iplayerdata *pd;
 #define MS_TO_BUCKET(ms) \
 ( ((ms) < 0) ? 0 : ( ((ms) < (MAX_BUCKET * BUCKET_WIDTH)) ? ((ms) / BUCKET_WIDTH) : MAX_BUCKET ) )
 
+#endif
+
 struct PingData
 {
+#ifdef USE_BUCKETS
 	int buckets[MAX_BUCKET];
+#endif
 	/* these are all in milliseconds */
 	int current, avg, max, min;
 };
@@ -76,7 +84,9 @@ local void add_ping(struct PingData *pd, int ping)
 		ping = MAX_PING;
 
 	pd->current = ping;
+#ifdef USE_BUCKETS
 	pd->buckets[MS_TO_BUCKET(ping)]++;
+#endif
 	pd->avg = (pd->avg * 9 + ping) / 10;
 	if (ping < pd->min)
 		pd->min = ping;
@@ -85,7 +95,7 @@ local void add_ping(struct PingData *pd, int ping)
 }
 
 
-local void Position(Player *p, int ping, unsigned int wpnsent)
+local void Position(Player *p, int ping, int cliping, unsigned int wpnsent)
 {
 	LagData *ld = PPDATA(p, lagkey);
 	PEDANTIC_LOCK();
@@ -214,6 +224,7 @@ local void do_hist(
 		void (*callback)(Player *p, int bucket, int count, int maxcount, void *clos),
 		void *clos)
 {
+#ifdef USE_BUCKETS
 	int i, max = 0;
 
 	for (i = 0; i < MAX_BUCKET; i++)
@@ -222,6 +233,7 @@ local void do_hist(
 
 	for (i = 0; i < MAX_BUCKET; i++)
 		callback(p, i, pd->buckets[i], max, clos);
+#endif
 }
 
 local void DoPHistogram(Player *p,

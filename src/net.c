@@ -589,7 +589,7 @@ int InitSockets(void)
 }
 
 
-#if 0 && (defined(CFG_DUMP_RAW_PACKETS) || defined(CFG_DUMP_UNKNOWN_PACKETS))
+#ifdef CFG_DUMP_RAW_PACKETS
 local void dump_pk(byte *d, int len)
 {
 	char str[256];
@@ -1403,8 +1403,9 @@ void ProcessSyncRequest(Buffer *buf)
 {
 	ClientData *cli = PPDATA(buf->p, clikey);
 	struct TimeSyncC2S *cts = (struct TimeSyncC2S*)(buf->d.raw);
-	struct TimeSyncS2C ts = { 0x00, 0x06, cts->time, GTC() };
+	struct TimeSyncS2C ts = { 0x00, 0x06, cts->time };
 	pthread_mutex_lock(&cli->olmtx);
+	ts.servertime = GTC();
 	/* note: this bypasses bandwidth limits */
 	SendRaw(buf->p, (byte*)&ts, sizeof(ts));
 	pthread_mutex_unlock(&cli->olmtx);
@@ -1595,7 +1596,7 @@ void SendRaw(Player *p, byte *data, int len)
 	memcpy(encbuf, data, len);
 
 #ifdef CFG_DUMP_RAW_PACKETS
-	printf("SEND: %d bytes to pid %d\n", len, pid);
+	printf("SEND: %d bytes to pid %d\n", len, p->pid);
 	dump_pk(encbuf, len);
 #endif
 

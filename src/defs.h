@@ -8,8 +8,8 @@
 
 #include "util.h"
 
-#define ASSSVERSION "0.7.6"
-#define ASSSVERSION_NUM 0x00000706
+#define ASSSVERSION "0.9.0"
+#define ASSSVERSION_NUM 0x00000900
 #define BUILDDATE __DATE__ " " __TIME__
 
 
@@ -28,13 +28,6 @@
 
 /* bring in local config options */
 #include "param.h"
-
-
-/* really important constants */
-#define MAXPLAYERS CFG_MAX_PLAYERS
-
-#define MAXPACKET 512
-#define MAXBIGPACKET CFG_MAX_BIG_PACKET
 
 
 /* hopefully useful exit codes */

@@ -85,13 +85,13 @@ struct ClientPLossData
 };
 
 
-#define I_LAGCOLLECT "lagcollect-1"
+#define I_LAGCOLLECT "lagcollect-2"
 
 typedef struct Ilagcollect
 {
 	INTERFACE_HEAD_DECL
 
-	void (*Position)(Player *p, int ms, unsigned int wpnsent);
+	void (*Position)(Player *p, int ms, int cliping, unsigned int wpnsent);
 	void (*RelDelay)(Player *p, int ms);
 	void (*ClientLatency)(Player *p, struct ClientLatencyData *data);
 	void (*ClientPLoss)(Player *p, struct ClientPLossData *data);

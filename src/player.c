@@ -10,10 +10,17 @@
 
 local Imodman *mm;
 local int mtxkey;
+#if 0
 local pthread_rwlock_t plock;
 #define RDLOCK() pthread_rwlock_rdlock(&plock)
 #define WRLOCK() pthread_rwlock_wrlock(&plock)
 #define UNLOCK() pthread_rwlock_unlock(&plock)
+#else
+local pthread_mutex_t plock;
+#define RDLOCK() pthread_mutex_lock(&plock)
+#define WRLOCK() pthread_mutex_lock(&plock)
+#define UNLOCK() pthread_mutex_unlock(&plock)
+#endif
 
 local Player **pidmap;
 local int pidmapsize;
@@ -302,7 +309,11 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 		pthread_mutexattr_init(&recmtxattr);
 		pthread_mutexattr_settype(&recmtxattr, PTHREAD_MUTEX_RECURSIVE);
 
+#if 0
 		pthread_rwlock_init(&plock, NULL);
+#else
+		pthread_mutex_init(&plock, &recmtxattr);
+#endif
 
 		/* init some basic data */
 		pidmapsize = 256;
@@ -317,6 +328,8 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		perplayerspace = cfg ? cfg->GetInt(GLOBAL, "General", "PerPlayerBytes", 4000) : 4000;
 		mm->ReleaseInterface(cfg);
+
+		mtxkey = AllocatePlayerData(sizeof(pthread_mutex_t));
 
 		/* register interface */
 		mm->RegInterface(&myint, ALLARENAS);

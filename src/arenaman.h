@@ -100,15 +100,14 @@ typedef struct Iarenaman
 #define FOR_EACH_ARENA(a) \
 	for ( \
 			link = LLGetHead(&aman->arenalist); \
-			link && ((a = link->data) || 1); \
-			link = link->next)
+			link && ((a = link->data, link = link->next) || 1); )
 
 #define FOR_EACH_ARENA_P(a, d, key) \
 	for ( \
 			link = LLGetHead(&aman->arenalist); \
-			link && (((a = link->data), \
-			          (d = P_ARENA_DATA(a, key))) || 1); \
-			link = link->next)
+			link && ((a = link->data, \
+			          d = P_ARENA_DATA(a, key), \
+			          link = link->next) || 1); )
 
 
 #define I_ARENAPLACE "arenaplace-1"

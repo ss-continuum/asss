@@ -558,6 +558,7 @@ local int ReapArenas(void *q)
 			link = link->next)
 		if (a->status == ARENA_RUNNING)
 		{
+			Link *link;
 			FOR_EACH_PLAYER(p)
 				if (p->arena == a)
 					goto skip;

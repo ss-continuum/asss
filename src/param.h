@@ -2,10 +2,6 @@
 /* dist: public */
 
 
-/* absolute maximum number of players */
-#define CFG_MAX_PLAYERS 255
-
-
 /* the search path for config files */
 #define CFG_CONFIG_SEARCH_PATH "arenas/%a/%n:defaultarena/%n:conf/%n:%n"
 
@@ -89,10 +85,6 @@
 
 /* debugging option to dump raw packets to the console */
 /* #define CFG_DUMP_RAW_PACKETS */
-
-
-/* debugging option to log unknown packets */
-#define CFG_DUMP_UNKNOWN_PACKETS
 
 
 /* relax checks on certain packet lengths. only useful for debugging. */

@@ -204,19 +204,20 @@ typedef struct Iplayerdata
 
 /* these assume you have a Link * named 'link' and that 'pd' points to
  * the player data interface. don't forget to use pd->Lock() first. */
+
+/* this is the basic iterating over players macro */
 #define FOR_EACH_PLAYER(p) \
 	for ( \
 			link = LLGetHead(&pd->playerlist); \
-			link && ((p = link->data) || 1); \
-			link = link->next)
+			link && ((p = link->data, link = link->next) || 1); )
 
+/* this one gives you a pointer to some private data too */
 #define FOR_EACH_PLAYER_P(p, d, key) \
 	for ( \
 			link = LLGetHead(&pd->playerlist); \
-			link && (((p = link->data), \
-			          (d = PPDATA(p, key))) || 1); \
-			link = link->next)
-
+			link && ((p = link->data, \
+			          d = PPDATA(p, key), \
+			          link = link->next) || 1); )
 
 #endif
 
