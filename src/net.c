@@ -398,6 +398,15 @@ void * RecvThread(void *dummy)
 				goto donehere;
 			}
 
+			log->Log(LOG_DEBUG,"Got %i bytes from %s:%i", len, inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
+			/*
+			log->Log(LOG_DEBUG,"recv: %2x %2x -- -- -- -- %2x",
+					buf->d.raw[0],
+					buf->d.raw[1],
+					buf->d.raw[6]
+					);
+			*/
+
 			buf->len = len;
 
 			/* search for an existing connection */
@@ -530,6 +539,7 @@ void * SendThread(void *dummy)
 			     && clients[buf->pid].lastack >= buf->d.rel.seqnum)
 				buf->retries = 0;
 
+			/* LOCK: lock status here? */
 			/* check if the player still exists */
 			if (!PLAYER_IS_CONNECTED(buf->pid))
 				buf->retries = 0;
@@ -564,8 +574,7 @@ void * SendThread(void *dummy)
 		}
 		UnlockMutex(&outmtx);
 
-		gtc = GTC();
-
+		/* send packets! */
 		for (i = 0; i < (MAXPLAYERS + EXTRA_PID_COUNT); i++)
 		{
 			if (pcount[i] == 1)
@@ -600,16 +609,26 @@ void * SendThread(void *dummy)
 				/* send it, finally */
 				SendRaw(i, gbuf, current - gbuf);
 			}
+		}
 
+		/* process lagouts and timewait */
+		gtc = GTC();
+		pd->LockStatus();
+		for (i = 0; i < (MAXPLAYERS + EXTRA_PID_COUNT); i++)
+		{
 			/* process lagouts */
 			if (   players[i].status != S_FREE
+			    && players[i].whenloggedin == 0 /* acts as flag to prevent dups */
 			    && (gtc - clients[i].lastpkt) > config.droptimeout)
 			{
 				byte pk7[] = { 0x00, 0x07 };
-				log->Log(LOG_USELESSINFO, "Player '%s' lagged off", players[i].name);
+				log->Log(LOG_USELESSINFO, "Lag out: %s", players[i].name);
 				/* FIXME: send "you have been disconnected..." msg */
 				SendRaw(i, pk7, 2);
+				/* can't hold lock here for deadlock-related reasons */
+				pd->UnlockStatus();
 				KillConnection(i);
+				pd->LockStatus();
 			}
 
 			/* process timewait states
@@ -648,6 +667,7 @@ void * SendThread(void *dummy)
 			if (players[i].status == S_TIMEWAIT)
 				players[i].status = S_TIMEWAIT2;
 		}
+		pd->UnlockStatus();
 
 		/* give up some time */
 		sched_yield();
@@ -828,22 +848,21 @@ void KillConnection(int pid)
 	int type;
 	byte leaving = C2S_LEAVING;
 
-	/* obtain locks */
 	pd->LockPlayer(pid);
-	pd->LockStatus();
 
-	/* leave arena again, just in case */
+	/* if we haven't processed the leaving arena packet yet (quite
+	 * likely), just generate one and process it. */
 	if (players[pid].arena >= 0)
 		ProcessPacket(pid, &leaving, 1);
 
-	/* set status */
-	players[pid].status = S_LEAVING_ZONE;
+	pd->LockStatus();
 
+	/* set status */
 	if (pid == PID_BILLER)
 	{
 		log->Log(LOG_IMPORTANT, "Connection to billing server lost");
 		/* for normal players, ProcessLoginQueue runs and changes
-		 * S_LEAVING_ZONEs to S_TIMEWAITs after calling callback
+		 * S_LEAVING_ZONE's to S_TIMEWAIT's after calling callback
 		 * functions. but it doesn't do that for biller, so we set
 		 * S_TIMEWAIT directly right here. */
 		players[pid].status = S_TIMEWAIT;
@@ -852,7 +871,12 @@ void KillConnection(int pid)
 		return;
 	}
 	else
-		players[pid].status = S_LEAVING_ZONE;
+	{
+		/* set this special flag so that the player will be set to leave
+		 * the zone when the S_LEAVING_ARENA-initiated actions are
+		 * completed. */
+		players[pid].whenloggedin = S_LEAVING_ZONE;
+	}
 
 	pd->UnlockStatus();
 	pd->UnlockPlayer(pid);
@@ -913,6 +937,9 @@ void ProcessKeyResponse(Buffer *buf)
 
 void ProcessReliable(Buffer *buf)
 {
+	/* FIXME: just drop packet if seqnum is too far ahead
+	 * (prevent DoS by forcing server to buffer lots of packets) */
+
 	/* ack */
 	buf->d.rel.t2++;
 	SendRaw(buf->pid, buf->d.raw, 6);

@@ -117,14 +117,14 @@ int MM_core(int action, Imodman *mm_)
 
 void ProcessLoginQueue()
 {
-	int pid, newstatus;
+	int pid, ns, oldstatus;
 	PlayerData *player;
 
 	pd->LockStatus();
 	for (pid = 0, player = players; pid < MAXPLAYERS; pid++, player++)
 	{
-		newstatus = player->status;
-		switch (newstatus)
+		oldstatus = player->status;
+		switch (oldstatus)
 		{
 			/* for all of these states, there's nothing to do in this
 			 * loop */
@@ -132,7 +132,7 @@ void ProcessLoginQueue()
 			case S_CONNECTED:
 			case S_WAIT_AUTH:
 			case S_WAIT_GLOBAL_SYNC:
-			case S_LOGGEDIN:
+			/* case S_LOGGEDIN: */
 			case S_WAIT_ARENA_SYNC:
 			case S_PLAYING:
 			case S_TIMEWAIT:
@@ -140,35 +140,63 @@ void ProcessLoginQueue()
 				continue;
 		}
 
-		/* release status lock and just hold player lock */
+		/* while still holding the status lock, set the new status.
+		 * we do this now so that if any of the actions taken by the
+		 * status responses modify the status, the change isn't lost.
+		 * yeah, it's all because of DefaultAuth. bah. */
+		switch (oldstatus)
+		{
+			case S_NEED_AUTH:           ns = S_WAIT_AUTH;           break;
+			case S_NEED_GLOBAL_SYNC:    ns = S_WAIT_GLOBAL_SYNC;    break;
+			case S_DO_GLOBAL_CALLBACKS: ns = S_SEND_LOGIN_RESPONSE; break;
+			case S_SEND_LOGIN_RESPONSE: ns = S_LOGGEDIN;            break;
+			case S_ASSIGN_FREQ:         ns = S_NEED_ARENA_SYNC;     break;
+			case S_NEED_ARENA_SYNC:     ns = S_WAIT_ARENA_SYNC;     break;
+			case S_DO_ARENA_CALLBACKS:  ns = S_SEND_ARENA_RESPONSE; break;
+			case S_SEND_ARENA_RESPONSE: ns = S_PLAYING;             break;
+			case S_LEAVING_ARENA:       ns = S_LOGGEDIN;            break;
+			case S_LEAVING_ZONE:        ns = S_TIMEWAIT;            break;
+
+			case S_LOGGEDIN:
+				if (player->whenloggedin)
+					player->status = player->whenloggedin;
+				continue;
+
+			default:
+				log->Log(LOG_ERROR,"Internal error: unknown player status!");
+				break;
+		}
+		player->status = ns; /* set it */
+
+		/* now unlock status, lock player (because we might be calling
+		 * callbacks and we want to have player locked already), and
+		 * finally perform the actual action */
 		pd->UnlockStatus();
 		pd->LockPlayer(pid);
 
-		switch (newstatus)
+		log->Log(LOG_DEBUG,"Processing status %i for pid %i",oldstatus,pid);
+
+		switch (oldstatus)
 		{
 			case S_NEED_AUTH:
-				newstatus = S_WAIT_AUTH;
 				auth->Authenticate(pid, bigloginpkt + pid, AuthDone);
 				break;
 
 			case S_NEED_GLOBAL_SYNC:
-				newstatus = S_WAIT_GLOBAL_SYNC;
 				/* FIXME: scoreman->SyncFromFileAsync(pid, 1, GSyncDone); */
+				GSyncDone(pid);
 				break;
 
 			case S_DO_GLOBAL_CALLBACKS:
-				newstatus = S_SEND_LOGIN_RESPONSE;
 				CallPA(pid, PA_CONNECT);
 				break;
 
 			case S_SEND_LOGIN_RESPONSE:
-				newstatus = S_LOGGEDIN;
 				SendLoginResponse(pid);
 				log->Log(LOG_INFO, "Player logged on (%s)", player->name);
 				break;
 
 			case S_ASSIGN_FREQ:
-				newstatus = S_NEED_ARENA_SYNC;
 				/* yes, player->shiptype will be set here because it's
 				 * done in PArena */
 				player->freq = afreq->AssignFreq(pid, BADFREQ,
@@ -176,37 +204,32 @@ void ProcessLoginQueue()
 				break;
 
 			case S_NEED_ARENA_SYNC:
-				newstatus = S_WAIT_ARENA_SYNC;
 				/* FIXME: scoreman->SyncFromFileAsync(pid, 0, ASyncDone); */
+				ASyncDone(pid);
 				break;
 
 			case S_DO_ARENA_CALLBACKS:
-				newstatus = S_SEND_ARENA_RESPONSE;
 				CallPA(pid, PA_ENTERARENA);
 				break;
 
 			case S_SEND_ARENA_RESPONSE:
-				newstatus = S_PLAYING;
 				aman->SendArenaResponse(pid);
 				break;
 
 			case S_LEAVING_ARENA:
-				newstatus = S_LOGGEDIN;
 				CallPA(pid, PA_LEAVEARENA);
 				break;
 
 			case S_LEAVING_ZONE:
-				newstatus = S_TIMEWAIT;
 				CallPA(pid, PA_DISCONNECT);
 				break;
 		}
 
 		/* now we release player and take back status */
-		/* maybe hold player lock while setting status? */
 		pd->UnlockPlayer(pid);
 		pd->LockStatus();
-		player->status = newstatus;
 	}
+	pd->UnlockStatus();
 }
 
 
@@ -257,7 +280,9 @@ void AuthDone(int pid, AuthData *auth)
 	astrncpy(player->squad, auth->squad, 21);
 
 	/* increment stage */
+	pd->LockStatus();
 	player->status = S_NEED_GLOBAL_SYNC;
+	pd->UnlockStatus();
 }
 
 

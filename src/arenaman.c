@@ -13,10 +13,10 @@
 /* MACROS */
 
 #define LOCK_STATUS() \
-	LockMutex(&arenastatusmtx)
+	pthread_mutex_lock(&arenastatusmtx)
 
 #define UNLOCK_STATUS() \
-	UnlockMutex(&arenastatusmtx)
+	pthread_mutex_unlock(&arenastatusmtx)
 
 
 /* PROTOTYPES */
@@ -55,7 +55,7 @@ local PlayerData *players;
 /* big static arena data array */
 local ArenaData arenas[MAXARENA];
 
-local Mutex arenastatusmtx;
+local pthread_mutex_t arenastatusmtx;
 
 local Iarenaman _int =
 { SendArenaResponse, LockStatus, UnlockStatus, arenas };
@@ -65,6 +65,8 @@ local Iarenaman _int =
 
 int MM_arenaman(int action, Imodman *mm_)
 {
+	pthread_mutexattr_t attr;
+
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
@@ -82,7 +84,11 @@ int MM_arenaman(int action, Imodman *mm_)
 
 		memset(arenas, 0, sizeof(ArenaData) * MAXARENA);
 
-		InitMutex(&arenastatusmtx);
+		/* init mutexes */
+		pthread_mutexattr_init(&attr);
+		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+		pthread_mutex_init(&arenastatusmtx, &attr);
+
 		mm->RegCallback(CALLBACK_MAINLOOP, ProcessArenaQueue);
 
 		net->AddPacket(C2S_GOTOARENA, PArena);
@@ -145,10 +151,8 @@ void ProcessArenaQueue()
 	ArenaData *a;
 
 	LOCK_STATUS();
-	for (i = 0; i < MAXARENA; i++)
+	for (i = 0, a = arenas; i < MAXARENA; i++, a++)
 	{
-		a = arenas + i;
-
 		/* get the status */
 		nextstatus = a->status;
 
@@ -161,7 +165,9 @@ void ProcessArenaQueue()
 
 		UNLOCK_STATUS();
 
-		switch(nextstatus)
+		log->Log(LOG_DEBUG,"Processing stage %i for arena %i", nextstatus, i);
+
+		switch (nextstatus)
 		{
 			case ARENA_DO_LOAD_CONFIG:
 				a->cfg = cfg->OpenConfigFile(a->name, NULL);
@@ -188,7 +194,8 @@ void ProcessArenaQueue()
 			case ARENA_DO_DESTROY_CALLBACKS:
 				/* ASSERT there is nobody in here */
 				for (j = 0; j < MAXPLAYERS; j++)
-					assert(players[j].arena != i);
+					if (players[j].status != S_FREE)
+						assert(players[j].arena != i);
 				CallAA(i, AA_DESTROY);
 				nextstatus = ARENA_DO_UNLOAD_CONFIG;
 				break;
@@ -241,7 +248,7 @@ void SendArenaResponse(int pid)
 
 	arena = p->arena;
 
-	log->Log(LOG_USELESSINFO, "Player '%s' entering arena '%s' (S)",
+	log->Log(LOG_USELESSINFO, "Player '%s' entering arena '%s'",
 				p->name, arenas[arena].name);
 
 	/* send whoami packet */
@@ -356,7 +363,7 @@ int FindArena(char *name, int min, int max)
 			UNLOCK_STATUS();
 			return i;
 		}
-	LOCK_STATUS();
+	UNLOCK_STATUS();
 	return -1;
 }
 
@@ -409,6 +416,7 @@ void PArena(int pid, byte *p, int l)
 		return;
 	}
 
+	log->Log(LOG_DEBUG, "locking arena st and finding arena");
 	LOCK_STATUS();
 
 	/* try to locate an existing arena */
@@ -416,7 +424,7 @@ void PArena(int pid, byte *p, int l)
 
 	if (arena == -1)
 	{
-		log->Log(LOG_INFO, "Arena '%s' doesn't exist, creating it", name);
+		log->Log(LOG_INFO, "Creating arena '%s'", name);
 		arena = CreateArena(name);
 		if (arena == -1)
 		{
@@ -462,9 +470,22 @@ void PLeaving(int pid, byte *p, int q)
 	struct SimplePacket pk = { S2C_PLAYERLEAVING };
 
 	pk.d1 = pid;
+
+	pd->LockStatus();
+
 	arena = players[pid].arena;
-	net->SendToArena(arena, pid, (byte*)&pk, 3, NET_RELIABLE);
+	if (players[pid].status != S_PLAYING || arena == -1)
+	{
+		pd->UnlockStatus();
+		return;
+	}
+
 	players[pid].arena = -1;
+	players[pid].status = S_LEAVING_ARENA;
+
+	pd->UnlockStatus();
+
+	net->SendToArena(arena, pid, (byte*)&pk, 3, NET_RELIABLE);
 	log->Log(LOG_USELESSINFO, "Player '%s' leaving arena '%s'",
 			players[pid].name, arenas[arena].name);
 }
@@ -482,7 +503,7 @@ int ReapArenas(void *q)
 		if (arenas[i].status == ARENA_RUNNING)
 		{
 			for (j = 0; j < MAXPLAYERS; j++)
-				if (	players[j].status == S_CONNECTED &&
+				if (	players[j].status != S_FREE &&
 						players[j].arena == i)
 					goto skip;
 

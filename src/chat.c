@@ -82,14 +82,15 @@ void PChat(int pid, byte *p, int len)
 	int setc = 0, i, arena, freq;
 	static int set[MAXPLAYERS];
 
+	freq = players[pid].freq;
+	arena = players[pid].arena;
+	if (arena < 0) return;
+
 	to = alloca(len + 30);
 	to->pktype = S2C_CHAT;
 	to->type = from->type;
 	to->pid = pid;
 	strcpy(to->text, from->text);
-	freq = players[pid].freq;
-	arena = players[pid].arena;
-	if (arena < 0) return;
 
 	switch (from->type)
 	{
