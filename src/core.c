@@ -130,6 +130,7 @@ void ProcessLoginQueue()
 			/* for all of these states, there's nothing to do in this
 			 * loop */
 			case S_FREE:
+			case S_NEED_KEY:
 			case S_CONNECTED:
 			case S_WAIT_AUTH:
 			case S_WAIT_GLOBAL_SYNC:
@@ -193,7 +194,7 @@ void ProcessLoginQueue()
 				break;
 
 			case S_NEED_GLOBAL_SYNC:
-				/* FIXME: scoreman->SyncFromFile(pid, 1, GSyncDone); */
+				/* FIXME: persist->SyncFromFile(pid, 1, GSyncDone); */
 				GSyncDone(pid);
 				break;
 
@@ -213,7 +214,7 @@ void ProcessLoginQueue()
 				player->freq = afreq->AssignFreq(pid, BADFREQ,
 						player->shiptype);
 				/* then, sync scores */
-				/* FIXME: scoreman->SyncFromFile(pid, 0, ASyncDone); */
+				/* FIXME: persist->SyncFromFile(pid, 0, ASyncDone); */
 				ASyncDone(pid);
 				break;
 
@@ -227,12 +228,12 @@ void ProcessLoginQueue()
 
 			case S_LEAVING_ARENA:
 				CallPA(pid, PA_LEAVEARENA);
-				/* FIXME: scoreman->SyncToFile(pid, 0); */
+				/* FIXME: persist->SyncToFile(pid, 0); */
 				break;
 
 			case S_LEAVING_ZONE:
 				CallPA(pid, PA_DISCONNECT);
-				/* FIXME: scoreman->SyncToFile(pid, 1); */
+				/* FIXME: persist->SyncToFile(pid, 1); */
 				break;
 		}
 

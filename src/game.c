@@ -85,8 +85,8 @@ int MM_game(int action, Imodman *mm_)
 		
 		arenas = aman->data;
 
-		cfg_bulletpix = cfg->GetInt(GLOBAL, "Net", "BulletPixels", 1024);
-		cfg_wpnpix = cfg->GetInt(GLOBAL, "Net", "WeaponPixels", 2048);
+		cfg_bulletpix = cfg->GetInt(GLOBAL, "Net", "BulletPixels", 1500);
+		cfg_wpnpix = cfg->GetInt(GLOBAL, "Net", "WeaponPixels", 2000);
 		cfg_wpnbufsize = cfg->GetInt(GLOBAL, "Net", "WeaponBuffer", 300);
 		cfg_pospix = cfg->GetInt(GLOBAL, "Net", "PositionExtraPixels", 8192);
 
@@ -305,14 +305,13 @@ void PSetFreq(int pid, byte *p, int n)
 
 void PDie(int pid, byte *p, int n)
 {
-	/* GCC: fix these nonconstant initializers sometime */
 	struct SimplePacket *dead = (struct SimplePacket*)p;
 	struct KillPacket kp = { S2C_KILL, 0, dead->d1, pid, dead->d2, 0 };
 	int arena = players[pid].arena, reldeaths;
 
 	if (arena < 0) return;
 
-	reldeaths = cfg->GetInt(arenas[arena].cfg,
+	reldeaths = !!cfg->GetInt(arenas[arena].cfg,
 			"Misc", "ReliableKills", 1);
 	net->SendToArena(arena, pid, (byte*)&kp, sizeof(kp), NET_RELIABLE * reldeaths);
 }
@@ -352,7 +351,7 @@ void DoChecksum(struct S2CWeapons *p, int n)
 	int i;
 	u8 ck = 0;
 	for (i = 0; i < n; i++)
-		ck ^= ((char*)p)[i];
+		ck ^= ((u8*)p)[i];
 	p->checksum = ck;
 }
 
@@ -364,7 +363,6 @@ void SendPPK(int pid, int to)
 		S2C_POSITION, p->rotation, (i16)p->time, p->x, 0, (u8)pid,
 		p->flags, p->yspeed, p->y, p->xspeed
 	};
-	net->SendToOne(pid, (byte*)&pos, sizeof(struct S2CPosition), NET_UNRELIABLE | NET_IMMEDIATE);
 	net->SendToOne(pid, (byte*)&pos, sizeof(struct S2CPosition), NET_UNRELIABLE | NET_IMMEDIATE);
 }
 

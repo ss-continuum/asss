@@ -66,60 +66,63 @@
 #define S_FREE                        0
 /* this player entry is free to be reused */
 
-#define S_CONNECTED                   1
+#define S_NEED_KEY                    1
+/* the player exists, but has not completed key exchange */
+
+#define S_CONNECTED                   2
 /* player is connected (key exchange completed)
  * but has not logged in yet */
 
-#define S_NEED_AUTH                   2
+#define S_NEED_AUTH                   3
 /* player sent login, auth request will be sent */
 
-#define S_WAIT_AUTH                   3
+#define S_WAIT_AUTH                   4
 /* waiting for auth response */
 
-#define S_NEED_GLOBAL_SYNC            4
+#define S_NEED_GLOBAL_SYNC            5
 /* auth done, will request global sync */
 
-#define S_WAIT_GLOBAL_SYNC            5
+#define S_WAIT_GLOBAL_SYNC            6
 /* waiting for sync global persistant data to complete */
 
-#define S_DO_GLOBAL_CALLBACKS         6
+#define S_DO_GLOBAL_CALLBACKS         7
 /* global sync done, will call global player connecting callbacks */
 
-#define S_SEND_LOGIN_RESPONSE         7
+#define S_SEND_LOGIN_RESPONSE         8
 /* callbacks done, will send arena response */
 
-#define S_LOGGEDIN                    8
+#define S_LOGGEDIN                    9
 /* player is finished logging in but is not in an arena yet 
  * status returns here after leaving an arena, also */
 
-#define S_DO_FREQ_AND_ARENA_SYNC      9
+#define S_DO_FREQ_AND_ARENA_SYNC      10
 /* player has requested entering an arena, needs to be assigned a freq
  * and have arena data syched */
 
-#define S_WAIT_ARENA_SYNC             10
+#define S_WAIT_ARENA_SYNC             11
 /* waiting for scores sync */
 
-#define S_DO_ARENA_CALLBACKS          11
+#define S_DO_ARENA_CALLBACKS          12
 /* scores sync complete, will call arena entering callbacks */
 
-#define S_SEND_ARENA_RESPONSE         12
+#define S_SEND_ARENA_RESPONSE         13
 /* all done with initalizing, needs to send arena response */
 
-#define S_PLAYING                     13
+#define S_PLAYING                     14
 /* player is playing in an arena. typically the longest stage */
 
-#define S_LEAVING_ARENA               14
+#define S_LEAVING_ARENA               15
 /* player has left arena, callbacks need to be called
  * will return to S_LOGGEDIN after this */
 
-#define S_LEAVING_ZONE                15
+#define S_LEAVING_ZONE                16
 /* player is leaving zone, call disconnecting callbacks, go to TIMEWAIT
  * after this */
 
-#define S_TIMEWAIT                    16
+#define S_TIMEWAIT                    17
 /* time-wait state for network to flush outgoing packets from the buffer */
 
-#define S_TIMEWAIT2                   17
+#define S_TIMEWAIT2                   18
 /* second part of time-wait state. goes to S_FREE after this */
 
 

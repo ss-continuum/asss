@@ -45,6 +45,7 @@ local Imodman *mm;
 
 local void (*CachedAuthDone)(int, AuthData*);
 local PlayerData *players;
+local int (*FindPlayer)(char *);
 
 local Iauth _iauth = { BillingAuth };
 local Ibillcore _ibillcore =

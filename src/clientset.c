@@ -84,7 +84,7 @@ void LoadSettings(int arena)
 #include "clientset.def"
 
 	/* get the file */
-	conf = arenas[arena].config;
+	conf = arenas[arena].cfg;
 
 	/* clear and set type */
 	memset(cs, 0, sizeof(*cs));
@@ -110,7 +110,7 @@ void LoadSettings(int arena)
 		DO(ShrapnelMax); DO(ShrapnelRate);  DO(AntiWarpStatus);
 		DO(CloakStatus); DO(StealthStatus); DO(XRadarStatus);
 		DO(InitialGuns); DO(MaxGuns);       DO(InitialBombs);
-		DO(MaxBombs);    DO(DoubleBarrel);  DO(EmbBomp);
+		DO(MaxBombs);    DO(DoubleBarrel);  DO(EmpBomb);
 		DO(SeeMines);    DO(Unused1);
 #undef DO
 	}

@@ -281,7 +281,7 @@ int FindPlayer(char *name)
 	{
 		Ilogman *log;
 		if (log) log->Log(LOG_ERROR,
-				"Can't FindPlayer when players module isn't loaded!");
+				"module: Can't FindPlayer when players module isn't loaded!");
 		return -1;
 	}
 

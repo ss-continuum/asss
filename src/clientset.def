@@ -2,7 +2,9 @@
 /* this file contains the config setting names for the various
  * parameters sent to the client in the client settings packet. */
 
-static char ship_names[][] =
+/* vi: set ft=c: */
+
+static char *ship_names[] =
 {
 	"Warbird",
 	"Javelin",
@@ -14,7 +16,7 @@ static char ship_names[][] =
 	"Shark"
 };
 
-static char long_names[][] =
+static char *long_names[] =
 {
 	"Bullet:BulletDamageLevel",
 	"Bomb:BombDamageLevel", /* * 1000 */
@@ -42,7 +44,7 @@ static char long_names[][] =
 	"Unused:Unused4"
 };
 
-static char short_names[][] =
+static char *short_names[] =
 {
 	"Latency:SendRoutePercent",
 	"Bomb:BombExplodeDelay",
@@ -102,7 +104,7 @@ static char short_names[][] =
 	"Unused:Unused3"
 };
 
-static char byte_names[][] =
+static char *byte_names[] =
 {
 	"Shrapnel:Random",
 	"Soccer:BallBounce",
@@ -132,7 +134,7 @@ static char byte_names[][] =
 	"Unused:Unused2"
 };
 
-static char prizeweight_names[][] =
+static char *prizeweight_names[] =
 {
 	"PrizeWeight:QuickCharge",
 	"PrizeWeight:Energy",
@@ -166,13 +168,13 @@ static char prizeweight_names[][] =
 
 /* the following names are only key names, not key+section names */
 
-static char ship_long_names[][] =
+static char *ship_long_names[] =
 {
 	"SuperTime",
 	"ShieldsTime"
 };
 
-static char ship_short_names[][] =
+static char *ship_short_names[] =
 {
 	"Gravity",
 	"GravityTopSpeed",
@@ -225,7 +227,7 @@ static char ship_short_names[][] =
 	"SoccerBallSpeed"
 };
 
-static char ship_byte_names[][] =
+static char *ship_byte_names[] =
 {
 	"TurretLimit",
 	"BurstShrapnel",

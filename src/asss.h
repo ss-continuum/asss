@@ -17,7 +17,7 @@
 #include "billcore.h"
 #include "mapnewsdl.h"
 #include "clientset.h"
-#include "scoreman.h"
+#include "persist.h"
 
 /* utility functions that are linked in directly */
 #include "util.h"

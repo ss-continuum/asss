@@ -123,7 +123,7 @@ local PlayerData *players;
 
 local Iencrypt *crypters[MAXENCRYPT];
 
-local LinkedList *handlers[MAXTYPES];
+local LinkedList handlers[MAXTYPES];
 local int mysock, myothersock, mybillingsock;
 
 local DQNode freelist, rellist, outlist;
@@ -193,7 +193,7 @@ int MM_net(int action, Imodman *mm)
 		players = pd->players;
 
 		for (i = 0; i < MAXTYPES; i++)
-			handlers[i] = LLAlloc();
+			LLInit(handlers + i);
 		for (i = 0; i < MAXENCRYPT; i++)
 			mm->RegInterest(I_ENCRYPTBASE + i, crypters + i);
 
@@ -242,6 +242,9 @@ int MM_net(int action, Imodman *mm)
 		for (i = 0; i < MAXENCRYPT; i++)
 			mm->UnregInterest(I_ENCRYPTBASE + i, crypters + i);
 
+		for (i = 0; i < MAXTYPES; i++)
+			LLEmpty(handlers + i);
+
 		/* let threads die */
 		killallthreads = 1;
 		/* note: we don't join them because they could be blocked on
@@ -258,13 +261,13 @@ int MM_net(int action, Imodman *mm)
 void AddPacket(byte t, PacketFunc f)
 {
 	if (t >= MAXTYPES) return;
-	LLAdd(handlers[t], f);
+	LLAdd(handlers+t, f);
 }
 
 void RemovePacket(byte t, PacketFunc f)
 {
 	if (t >= MAXTYPES) return;
-	LLRemove(handlers[t], f);
+	LLRemove(handlers+t, f);
 }
 
 
@@ -399,11 +402,18 @@ void * RecvThread(void *dummy)
 				goto donehere;
 			}
 
-			/*log->Log(LOG_DEBUG,"Got %i bytes from %s:%i", len, inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
-			log->Log(LOG_DEBUG,"recv: %2x %2x -- -- -- -- %2x",
+			
+			log->Log(LOG_DEBUG,"Got %i bytes from %s:%i", len, inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
+			/*
+			log->Log(LOG_DEBUG,"recv: %2x %2x %2x %2x %2x %2x %2x %2x",
 					buf->d.raw[0],
 					buf->d.raw[1],
-					buf->d.raw[6]
+					buf->d.raw[2],
+					buf->d.raw[3],
+					buf->d.raw[4],
+					buf->d.raw[5],
+					buf->d.raw[6],
+					buf->d.raw[7]
 					);
 			*/
 
@@ -441,6 +451,8 @@ void * RecvThread(void *dummy)
 				}
 			}
 
+			log->Log(LOG_DEBUG,"    --> has status %d", players[pid].status);
+
 			buf->pid = pid;
 			/* set the last packet time */
 			clients[pid].lastpkt = GTC();
@@ -449,7 +461,7 @@ void * RecvThread(void *dummy)
 			type = clients[pid].enctype;
 			if (type >= 0 && type < MAXENCRYPT && crypters[type])
 			{
-				/*log->Log(LOG_DEBUG,"calling decrypt: %X %X", recvbuf[0], recvbuf[1]); */
+				/* log->Log(LOG_DEBUG,"calling decrypt: %X %X", buf->d.rel.t1, buf->d.rel.t2); */
 				if (buf->d.rel.t1 == 0x00)
 					crypters[type]->Decrypt(pid, buf->d.raw+2, len-2);
 				else
@@ -654,10 +666,7 @@ void * SendThread(void *dummy)
 					if (j >= 0)
 						clients[j].nextinbucket = clients[i].nextinbucket;
 					else
-					{
-						log->Log(LOG_BADDATA, "Internal error: "
-							"established connection not in hash table");
-					}
+						log->Log(LOG_BADDATA, "net: Internal error: established connection not in hash table");
 				}
 
 				players[i].status = S_FREE;
@@ -665,7 +674,13 @@ void * SendThread(void *dummy)
 				UnlockMutex(&hashmtx);
 			}
 			if (players[i].status == S_TIMEWAIT)
+			{
+				/* here, send disconnection packet */
+				char drop[2] = {0x00, 0x07};
+				SendToOne(i, drop, 2, NET_UNRELIABLE | NET_IMMEDIATE);
+
 				players[i].status = S_TIMEWAIT2;
+			}
 		}
 		pd->UnlockStatus();
 
@@ -745,11 +760,11 @@ void ProcessBuffer(Buffer *buf)
 	}
 	else if (buf->d.rel.t1 < PKT_BILLBASE)
 	{
-		LinkedList *lst = handlers[(int)buf->d.rel.t1];
+		LinkedList *lst = handlers+((int)buf->d.rel.t1);
 		Link *l;
 
 		if (buf->pid == PID_BILLER)
-			lst = handlers[buf->d.rel.t1 + PKT_BILLBASE];
+			lst = handlers+(buf->d.rel.t1 + PKT_BILLBASE);
 
 		pd->LockPlayer(buf->pid);
 		for (l = LLGetHead(lst); l; l = l->next)
@@ -780,11 +795,11 @@ void ProcessPacket(int pid, byte *d, int len)
 	}
 	else if (d[0] < PKT_BILLBASE)
 	{
-		LinkedList *lst = handlers[d[0]];
+		LinkedList *lst = handlers+d[0];
 		Link *l;
 
 		if (pid == PID_BILLER)
-			lst = handlers[d[0] + PKT_BILLBASE];
+			lst = handlers+(d[0] + PKT_BILLBASE);
 
 		pd->LockPlayer(pid);
 		for (l = LLGetHead(lst); l; l = l->next)
@@ -835,7 +850,7 @@ int NewConnection(struct sockaddr_in *sin)
 	players[i].pid = i;
 	players[i].shiptype = SPEC;
 	players[i].attachedto = -1;
-	players[i].status = S_CONNECTED;
+	players[i].status = S_NEED_KEY;
 	pd->UnlockStatus();
 	pd->UnlockPlayer(i);
 
@@ -851,7 +866,8 @@ void KillConnection(int pid)
 	pd->LockPlayer(pid);
 
 	/* if we haven't processed the leaving arena packet yet (quite
-	 * likely), just generate one and process it. */
+	 * likely), just generate one and process it. this must set status
+	 * to S_LEAVING_ARENA */
 	if (players[pid].arena >= 0)
 		ProcessPacket(pid, &leaving, 1);
 
@@ -895,6 +911,20 @@ void ProcessKey(Buffer *buf)
 {
 	int key = buf->d.rel.seqnum;
 	short type = *(short*)buf->d.rel.data;
+	PlayerData *player = players + buf->pid;
+
+	pd->LockStatus();
+	if (player->status != S_NEED_KEY)
+	{
+		pd->UnlockStatus();
+		log->Log(LOG_BADDATA, "net: pid %d initiated key exchange from incorrect stage: %d, dropping", buf->pid, player->status);
+		KillConnection(buf->pid);
+		FreeBuffer(buf);
+		return;
+	}
+
+	player->status = S_CONNECTED;
+	pd->UnlockStatus();
 
 	buf->d.rel.t2 = 2;
 
@@ -927,7 +957,7 @@ void ProcessKeyResponse(Buffer *buf)
 
 		players[buf->pid].status = BNET_CONNECTED;
 
-		for (l = LLGetHead(handlers[PKT_BILLBASE + 0]);
+		for (l = LLGetHead(handlers+(PKT_BILLBASE + 0));
 				l; l = l->next)
 			((PacketFunc)l->data)(buf->pid, buf->d.raw, buf->len);
 	}
