@@ -146,6 +146,36 @@ char *astrncpy(char *dest, const char *source, size_t n)
 }
 
 
+int strsplit(const char *big, const char *delims, char *buf, int buflen, const char **ptmp)
+{
+	const char *tmp = *ptmp;
+	/* if the first time, init pointer to start of string */
+	if (!tmp)
+	{
+		if (big)
+			tmp = big;
+		else
+			return 0;
+	}
+	/* now pick up where we left off */
+	/* move past delims */
+	while (*tmp && strchr(delims, *tmp)) tmp++;
+	/* check if we moved off end of string */
+	if (!*tmp) return 0;
+	/* copy into buf until max or delim or end of string */
+	while (*tmp && !strchr(delims, *tmp) && buflen > 1)
+	{
+		*buf++ = *tmp++;
+		buflen--;
+	}
+	/* terminate with nil */
+	*buf = '\0';
+	/* replace tmp pointer */
+	*ptmp = tmp;
+	return 1;
+}
+
+
 /* LinkedList data type */
 
 #ifndef USE_GC
@@ -363,6 +393,15 @@ int LLIsEmpty(LinkedList *lst)
 {
 	return lst->start == NULL;
 }
+
+int LLCount(LinkedList *ll)
+{
+	Link *l;
+	int c = 0;
+	for (l = ll->start; l; l = l->next) c++;
+	return c;
+}
+
 
 /* HashTable data type */
 

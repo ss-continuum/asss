@@ -49,7 +49,6 @@ local int read_lvl(char *name, struct MapData *md);
 local HashTable * LoadRegions(char *fname);
 
 /* interface funcs */
-local int GetMapFilename(int arena, char *buffer, int bufferlen);
 local int GetFlagCount(int arena);
 local int GetTile(int arena, int x, int y);
 local const char *GetRegion(int arena, int x, int y);
@@ -72,7 +71,7 @@ local Ilogman *lm;
 local Imapdata _int =
 {
 	INTERFACE_HEAD_INIT(I_MAPDATA, "mapdata")
-	GetMapFilename, GetFlagCount, GetTile,
+	GetFlagCount, GetTile,
 	GetRegion, InRegion,
 	FindFlagTile, FindBrickEndpoints
 };
@@ -176,6 +175,26 @@ local void FreeRegion(char *k, void *v, void *d)
 	afree(r);
 }
 
+#include "pathutil.h"
+
+local int real_get_filename(int arena, const char *map, char *buffer, int bufferlen)
+{
+	struct replace_table repls[2] =
+	{
+		{'a', aman->arenas[arena].name},
+		{'m', map}
+	};
+
+	if (!map) return -1;
+
+	return find_file_on_path(
+			buffer,
+			bufferlen,
+			CFG_MAP_SEARCH_PATH,
+			repls,
+			2);
+}
+
 void ArenaAction(int arena, int action)
 {
 	/* no matter what is happening, destroy old mapdata */
@@ -199,7 +218,11 @@ void ArenaAction(int arena, int action)
 	if (action == AA_CREATE)
 	{
 		char mapname[256];
-		if (GetMapFilename(arena, mapname, 256))
+		if (real_get_filename(
+					arena,
+					cfg->GetStr(aman->arenas[arena].cfg, "General", "Map"),
+					mapname,
+					256) == -1)
 			lm->Log(L_ERROR, "<mapdata> {%s} Can't find map file for arena",
 					aman->arenas[arena].name);
 		else
@@ -221,33 +244,6 @@ void ArenaAction(int arena, int action)
 	}
 }
 
-
-#include "pathutil.h"
-
-int GetMapFilename(int arena, char *buffer, int bufferlen)
-{
-	struct replace_table repls[2];
-	const char *map, *searchpath;
-
-	map = cfg->GetStr(aman->arenas[arena].cfg, "General", "Map");
-	if (!map) return -1;
-
-	repls[0].repl = 'a';
-	repls[0].with = aman->arenas[arena].name;
-	repls[1].repl = 'm';
-	repls[1].with = map;
-
-	searchpath = cfg->GetStr(GLOBAL, "General", "MapSearchPath");
-	if (!searchpath)
-		searchpath = CFG_MAP_SEARCH_PATH;
-
-	return find_file_on_path(
-			buffer,
-			bufferlen,
-			searchpath,
-			repls,
-			2);
-}
 
 int GetTile(int arena, int x, int y)
 {

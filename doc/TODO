@@ -1,6 +1,9 @@
 
 easy
 ----
+too many shipchanges detection
+
+chat flooding detection
 
 
 moderate
@@ -32,6 +35,8 @@ fix flag drops at edges
 fix brick drop algorithm (it should snap to edges of other bricks)
 
 implement emulation for ekted's bots.
+
+allow sharing for compressed .lvl's and .lvz's between arenas.
 
 
 hard

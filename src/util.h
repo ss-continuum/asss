@@ -61,6 +61,8 @@ void afree(void *ptr);
 
 char *astrncpy(char *dest, const char *source, size_t destlength);
 
+int strsplit(const char *big, const char *delims, char *buf, int buflen, const char **ptmp);
+
 void Error(int errorcode, char *message, ...);
 
 
@@ -91,6 +93,7 @@ int LLRemove(LinkedList *lst, void *data);
 int LLRemoveAll(LinkedList *lst, void *data);
 void *LLRemoveFirst(LinkedList *lst);
 int LLIsEmpty(LinkedList *lst);
+int LLCount(LinkedList *lst);
 
 #ifdef USE_PROTOTYPES
 Link *LLGetHead(LinkedList *lst);

@@ -23,15 +23,6 @@ local LinkedList watches[MAXPLAYERS];
 local short modwatch[MAXPLAYERS];
 
 
-local int LLCount(LinkedList *ll)
-{
-	Link *l;
-	int c = 0;
-	for (l = LLGetHead(ll); l; l = l->next) c++;
-	return c;
-}
-
-
 /* functions to send packets */
 
 local void ToggleWatch(int pid, byte on)

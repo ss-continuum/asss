@@ -172,7 +172,7 @@ EXPORT int MM_directory(int action, Imodman *mm, int arena)
 		ml->SetTimer(SendUpdates, 1000, 6000, NULL);
 		return MM_OK;
 	}
-	else
+	else if (action == MM_UNLOAD)
 	{
 		ml->ClearTimer(SendUpdates);
 		deinit_servers();

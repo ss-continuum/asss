@@ -8,9 +8,12 @@
 struct MapFilename
 {
 	u8 type;
-	char filename[16];
-	u32 checksum;
-	u32 size; /* cont only */
+	struct
+	{
+		char filename[16];
+		u32 checksum;
+		u32 size; /* cont only */
+	} files[1];
 };
 
 #endif

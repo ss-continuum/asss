@@ -19,11 +19,6 @@ typedef struct Imapdata
 {
 	INTERFACE_HEAD_DECL
 
-	int (*GetMapFilename)(int arena, char *buffer, int bufferlen);
-	/* arpc: null */
-	/* gets the filename of the map file for the given arena. returns
-	 * nonzero on error. */
-
 	int (*GetFlagCount)(int arena);
 	/* arpc: int(int) */
 	/* gets the number of turf flags on the map */
