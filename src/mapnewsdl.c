@@ -132,16 +132,9 @@ local void SendMapFilename(Player *p)
 		return;
 	}
 
-	if (p->type != T_CONT)
-	{
-		data = LLGetHead(dls)->data;
-		mf = alloca(21);
-
-		strncpy(mf->files[0].filename, data->filename, 16);
-		mf->files[0].checksum = data->checksum;
-		len = 21;
-	}
-	else
+	/* allow vie clients that specifically ask for them to get all the
+	 * lvz data, to support bots. */
+	if (p->type == T_CONT || p->flags.want_all_lvz)
 	{
 		int idx = 0;
 		Link *l;
@@ -161,6 +154,15 @@ local void SendMapFilename(Player *p)
 			}
 		}
 		len = 1 + sizeof(mf->files[0]) * idx;
+	}
+	else
+	{
+		data = LLGetHead(dls)->data;
+		mf = alloca(21);
+
+		strncpy(mf->files[0].filename, data->filename, 16);
+		mf->files[0].checksum = data->checksum;
+		len = 21;
 	}
 
 	mf->type = S2C_MAPFILENAME;

@@ -496,8 +496,8 @@ local void count_players(Arena *a, int *totalp, int *playingp)
 }
 
 
-local void complete_go(Player *p, const char *reqname, int ship, int xres, int yres, int gfx,
-		int voices, int spawnx, int spawny)
+local void complete_go(Player *p, const char *reqname, int ship,
+		int xres, int yres, int gfx, int voices, int spawnx, int spawny)
 {
 	char name[16], *t;
 
@@ -588,13 +588,7 @@ local void PArena(Player *p, byte *pkt, int len)
 	char name[16];
 	int spx = 0, spy = 0;
 
-#ifdef CFG_RELAX_LENGTH_CHECKS
-	if ( (p->type == T_VIE && len < LEN_GOARENAPACKET_VIE) ||
-	     (p->type == T_CONT && len < LEN_GOARENAPACKET_CONT) )
-#else
-	if ( (p->type == T_VIE && len != LEN_GOARENAPACKET_VIE) ||
-	     (p->type == T_CONT && len != LEN_GOARENAPACKET_CONT) )
-#endif
+	if (len != LEN_GOARENAPACKET_VIE && len != LEN_GOARENAPACKET_CONT)
 	{
 		lm->LogP(L_MALICIOUS, "arenaman", p, " bad arena packet len=%i)", len);
 		return;
