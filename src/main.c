@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #else
 #include <direct.h>
+#include <wincon.h>
 #endif
 
 #include "asss.h"
@@ -24,6 +25,9 @@
 
 
 local Imodman *mm;
+local Ilogman *lm;
+local Imainloop *ml;
+
 local int dodaemonize, dochroot;
 local struct
 {
@@ -227,6 +231,15 @@ local int do_chroot(void)
 #endif
 
 
+#ifdef WIN32
+local BOOL winshutdown(DWORD shutdowntype)
+{
+	ml->Quit(EXIT_NONE);
+	return TRUE;
+}
+#endif
+
+
 local void syncdone(Player *dummy)
 {
 	wait.done = 1;
@@ -237,8 +250,6 @@ local void syncdone(Player *dummy)
 int main(int argc, char *argv[])
 {
 	int code;
-	Ilogman *lm;
-	Imainloop *ml;
 
 	/* seed random number generators */
 	srand(current_ticks());
@@ -276,6 +287,11 @@ int main(int argc, char *argv[])
 		Error(EXIT_MODLOAD, "mainloop module missing");
 
 	if (lm) lm->Log(L_DRIVEL, "<main> entering main loop");
+
+#ifdef WIN32
+	/* safely handle console closing on windows */
+	SetConsoleCtrlHandler(winshutdown, TRUE);
+#endif
 
 	code = ml->RunLoop();
 
@@ -319,5 +335,6 @@ int main(int argc, char *argv[])
 
 	return code;
 }
+
 
 
