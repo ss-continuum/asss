@@ -1468,6 +1468,8 @@ void SendRaw(int pid, byte *data, int len)
 	byte encbuf[MAXPACKET];
 	Iencrypt *enc = clients[pid].enc;
 
+	if (clients[pid].flags & NET_FAKE) return;
+
 	if (pid != PID_BILLER)
 	{
 		memcpy(encbuf, data, len);
@@ -1484,8 +1486,6 @@ void SendRaw(int pid, byte *data, int len)
 		printf("SEND: %d bytes (after encryption):\n", len);
 		dump_pk(encbuf, len);
 #endif
-
-		if (clients[pid].flags & NET_FAKE) return;
 
 		sendto(mysock, encbuf, len, 0,
 				(struct sockaddr*)&clients[pid].sin, sizeof(struct sockaddr_in));
@@ -1510,7 +1510,16 @@ void BufferPacket(int pid, byte *data, int len, int flags,
 	Buffer *buf;
 	int limit;
 
-	if (clients[pid].flags & NET_FAKE) return;
+	if (clients[pid].flags & NET_FAKE)
+	{
+		/* this hook lets fake players recieve packets */
+		if (clients[pid].enc && clients[pid].enc->Encrypt)
+			clients[pid].enc->Encrypt(pid, data, len);
+		/* pretend it was acked */
+		if (callback)
+			callback(pid, 1, clos);
+		return;
+	}
 
 	assert(len < MAXPACKET);
 
