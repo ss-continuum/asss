@@ -642,21 +642,24 @@ local void process_rmt(const char *data,int len)
 
 		if (recipient[0] == '#')
 		{
-			/* squad msg */
-			Link *link;
-			LinkedList set = LL_INITIALIZER;
-			pd->Lock();
-			FOR_EACH_PLAYER(p)
-				if (strcasecmp(recipient+1, p->squad) == 0)
-					LLAdd(&set, p);
-			pd->Unlock();
-			chat->SendRemotePrivMessage(&set, pkt->Sound, recipient+1,
-					sender, text);
+			/* squad msg. check for the null squad name */
+			if (recipient[1])
+			{
+				Link *link;
+				LinkedList set = LL_INITIALIZER;
+				pd->Lock();
+				FOR_EACH_PLAYER(p)
+					if (strcasecmp(recipient+1, p->squad) == 0)
+						LLAdd(&set, p);
+				pd->Unlock();
+				chat->SendRemotePrivMessage(&set, pkt->Sound, recipient+1,
+						sender, text);
 #ifdef CFG_LOG_PRIVATE
-			lm->Log(L_DRIVEL, "<chat> (%d rcpts) incoming remote squad msg: %s:%s> %s",
-					LLCount(&set), recipient+1, sender, text);
+				lm->Log(L_DRIVEL, "<chat> (%d rcpts) incoming remote squad msg: %s:%s> %s",
+						LLCount(&set), recipient+1, sender, text);
 #endif
-			LLEmpty(&set);
+				LLEmpty(&set);
+			}
 		}
 		else if ((p = pd->FindPlayer(recipient)))
 		{
