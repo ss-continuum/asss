@@ -125,6 +125,8 @@ local void uploaded(const char *fname, void *clos)
 			chat->SendMessage(u->p, "Couldn't upload file to '%s'", u->serverpath);
 			remove(fname);
 		}
+		else
+			chat->SendMessage(u->p, "File received: %s", u->serverpath);
 	}
 
 	afree(u);

@@ -116,11 +116,13 @@ void LogSysop(const char *s)
 		chat->SendAnyMessage(&set, MSG_SYSOPWARNING, 0, NULL, "%s", s);
 	}
 
-	/* always add to lastlog */
-	LOCK_LL();
-	astrncpy(ll_data[ll_pos], s, MAXLINE);
-	ll_pos = (ll_pos+1) % MAXLAST;
-	UNLOCK_LL();
+	if (lm->FilterLog(s, "log_lastlog"))
+	{
+		LOCK_LL();
+		astrncpy(ll_data[ll_pos], s, MAXLINE);
+		ll_pos = (ll_pos+1) % MAXLAST;
+		UNLOCK_LL();
+	}
 }
 
 

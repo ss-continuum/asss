@@ -56,6 +56,8 @@ local Ipersist *persist;
 local Istats *stats;
 local Imodman *mm;
 
+static ticks_t startedat;
+
 
 
 local void translate_arena_packet(Player *p, char *pkt, int len)
@@ -640,24 +642,24 @@ local void Clistmod(const char *params, Player *p, const Target *target)
 local helptext_t netstats_help =
 "Targets: none\n"
 "Args: none\n"
-"Prints out some statistics from the network layer, including the number\n"
-"of main menu pings the server has received, the total number of packets\n"
-"it has sent and received, and the number of buffers currently in use\n"
-"versus the number allocated.\n";
+"Prints out some statistics from the network layer.\n";
 
 local void Cnetstats(const char *params, Player *p, const Target *target)
 {
+	ticks_t secs = TICK_DIFF(current_ticks(), startedat) / 100;
+	unsigned long bwin, bwout;
 	struct net_stats stats;
+
 	net->GetStats(&stats);
-	chat->SendMessage(p, "netstats: pings=%d  pkts sent=%d  pkts recvd=%d",
+
+	chat->SendMessage(p, "netstats: pings=%lu  pkts sent=%lu  pkts recvd=%lu",
 			stats.pcountpings, stats.pktsent, stats.pktrecvd);
-	chat->SendMessage(p, "netstats: buffers used=%d/%d (%.1f%%)",
+	bwout = (stats.bytesent + stats.pktsent * 28) / secs;
+	bwin = (stats.byterecvd + stats.pktrecvd * 28) / secs;
+	chat->SendMessage(p, "netstats: bw out=%lu  bw in=%lu", bwout, bwin);
+	chat->SendMessage(p, "netstats: buffers used=%lu/%lu (%.1f%%)",
 			stats.buffersused, stats.buffercount,
 			(double)stats.buffersused/(double)stats.buffercount*100.0);
-	chat->SendMessage(p, "netstats: priority counts=%d/%d/%d/%d/%d/%d/%d",
-			stats.pri_stats[1], stats.pri_stats[2], stats.pri_stats[3],
-			stats.pri_stats[4], stats.pri_stats[5], stats.pri_stats[6],
-			stats.pri_stats[7]);
 }
 
 
@@ -1532,8 +1534,6 @@ local void Csetjackpot(const char *params, Player *p, const Target *target)
 		chat->SendMessage(p, "setjackpot: bad value");
 }
 
-
-static ticks_t startedat;
 
 local helptext_t uptime_help =
 "Targets: none\n"

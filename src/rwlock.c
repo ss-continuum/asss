@@ -191,7 +191,7 @@ int rwl_readunlock (rwlock_t *rwl)
 	if (status != 0)
 		return status;
 	rwl->r_active--;
-	if (rwl->r_active == 0 && rwl->w_wait > 0)
+	if (rwl->r_active == 0 && rwl->w_active == 0 && rwl->w_wait > 0)
 		status = pthread_cond_signal (&rwl->write);
 	status2 = pthread_mutex_unlock (&rwl->mutex);
 	return (status2 == 0 ? status : status2);
@@ -290,13 +290,15 @@ int rwl_writeunlock (rwlock_t *rwl)
 		return status;
 	rwl->w_active--;
 	if (rwl->w_active == 0) {
+		/* don't need to set w_owner here because it's only considered
+		 * valid when w_active is positive. */
 		if (rwl->r_wait > 0) {
 			status = pthread_cond_broadcast (&rwl->read);
 			if (status != 0) {
 				pthread_mutex_unlock (&rwl->mutex);
 				return status;
 			}
-		} else if (rwl->w_wait > 0) {
+		} else if (rwl->r_active == 0 && rwl->w_wait > 0) {
 			status = pthread_cond_signal (&rwl->write);
 			if (status != 0) {
 				pthread_mutex_unlock (&rwl->mutex);

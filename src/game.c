@@ -1200,6 +1200,7 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(lagc);
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(prng);
+		mm->ReleaseInterface(cmd);
 		return MM_OK;
 	}
 	return MM_FAIL;

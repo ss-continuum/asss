@@ -74,9 +74,9 @@ typedef void (*ConnectionInitFunc)(struct sockaddr_in *sin, byte *pkt, int len, 
 
 struct net_stats
 {
-	unsigned int pcountpings, pktsent, pktrecvd;
-	unsigned int buffercount, buffersused;
-	unsigned int pri_stats[8];
+	unsigned long pcountpings, pktsent, pktrecvd;
+	unsigned long bytesent, byterecvd;
+	unsigned long buffercount, buffersused;
 };
 
 struct net_client_stats
@@ -99,7 +99,7 @@ struct net_client_stats
 #include "encrypt.h"
 
 
-#define I_NET "net-7"
+#define I_NET "net-7.1"
 
 typedef struct Inet
 {
