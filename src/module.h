@@ -201,14 +201,14 @@ void DeInitModuleManager(Imodman *mm);
 
 
 /* this might be a useful macro */
-#define DO_CBS(cb, arena, type, args)                  \
-do {                                                   \
-	LinkedList lst;                                    \
-	Link *l;                                           \
-	mm->LookupCallback(cb, arena, &lst);               \
-	for (l = LLGetHead(&lst); l; l = l->next)          \
-		((type)l->data) args ;                         \
-	mm->FreeLookupResult(&lst);                        \
+#define DO_CBS(cb, arena, type, args)        \
+do {                                         \
+	LinkedList _a_lst;                       \
+	Link *_a_l;                              \
+	mm->LookupCallback(cb, arena, &_a_lst);  \
+	for (_a_l = LLGetHead(&_a_lst); _a_l; _a_l = _a_l->next)  \
+		((type)_a_l->data) args ;            \
+	mm->FreeLookupResult(&_a_lst);           \
 } while (0)
 
 
