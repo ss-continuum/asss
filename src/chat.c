@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+#include <ctype.h>
 
 #include "asss.h"
 #include "persist.h"
@@ -310,14 +311,15 @@ local void run_commands(const char *text, Player *p, Target *target)
 }
 
 
-local void handle_pub(Player *p, const char *msg, int ismacro, int sound)
+local void handle_pub(Player *p, const char *msg, int ismacro, int isallcmd, int sound)
 {
 	Arena *arena = p->arena;
 	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
 	struct player_mask_t *pm = PPDATA(p, pmkey);
 	struct ChatPacket *to = alloca(strlen(msg) + 40);
 
-	if ((msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2) && msg[1] != '\0')
+	if (((msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2) && msg[1] != '\0') ||
+	    isallcmd)
 	{
 		if (OK(MSG_COMMAND))
 		{
@@ -434,13 +436,14 @@ local void handle_freq(Player *p, int freq, const char *msg, int sound)
 }
 
 
-local void handle_priv(Player *p, Player *dst, const char *msg, int sound)
+local void handle_priv(Player *p, Player *dst, const char *msg, int isallcmd, int sound)
 {
 	Arena *arena = p->arena;
 	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
 	struct player_mask_t *pm = PPDATA(p, pmkey);
 
-	if ((msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2) && msg[1] != '\0')
+	if (((msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2) && msg[1] != '\0') ||
+	    isallcmd)
 	{
 		if (OK(MSG_COMMAND))
 		{
@@ -474,7 +477,7 @@ local void handle_priv(Player *p, Player *dst, const char *msg, int sound)
 }
 
 
-local void handle_remote_priv(Player *p, const char *msg, int sound)
+local void handle_remote_priv(Player *p, const char *msg, int isallcmd, int sound)
 {
 	Arena *arena = p->arena;
 	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
@@ -485,7 +488,8 @@ local void handle_remote_priv(Player *p, const char *msg, int sound)
 	t = delimcpy(dest, msg+1, 21, ':');
 	if (msg[0] != ':' || !t)
 		lm->LogP(L_MALICIOUS, "chat", p, "malformed remote private message");
-	else if ((t[0] == CMD_CHAR_1 || t[0] == CMD_CHAR_2) && t[1] != '\0')
+	else if (((t[0] == CMD_CHAR_1 || t[0] == CMD_CHAR_2) && t[1] != '\0') ||
+	         isallcmd)
 	{
 		if (OK(MSG_COMMAND))
 		{
@@ -588,7 +592,7 @@ local void PChat(Player *p, byte *pkt, int len)
 			if (from->text[0] == MOD_CHAT_CHAR)
 				handle_modchat(p, from->text + 1, sound);
 			else
-				handle_pub(p, from->text, from->type == MSG_PUBMACRO, sound);
+				handle_pub(p, from->text, from->type == MSG_PUBMACRO, FALSE, sound);
 			break;
 
 		case MSG_NMEFREQ:
@@ -610,13 +614,13 @@ local void PChat(Player *p, byte *pkt, int len)
 			if (!targ) break;
 
 			if (targ->arena == arena)
-				handle_priv(p, targ, from->text, sound);
+				handle_priv(p, targ, from->text, FALSE, sound);
 			else
 				lm->LogP(L_MALICIOUS, "chat", p, "cross-arena private chat message");
 			break;
 
 		case MSG_REMOTEPRIV:
-			handle_remote_priv(p, from->text, sound);
+			handle_remote_priv(p, from->text, FALSE, sound);
 			break;
 
 		case MSG_SYSOPWARNING:
@@ -650,7 +654,7 @@ local void MChat(Player *p, const char *line)
 	if (!t) return;
 
 	if (!strncasecmp(subtype, "PUB", 3) || !strcasecmp(subtype, "CMD"))
-		handle_pub(p, t, subtype[3] == 'M', 0);
+		handle_pub(p, t, toupper(subtype[3]) == 'M', toupper(subtype[0]) == 'C', 0);
 	else if (!strcasecmp(subtype, "PRIV") || !strcasecmp(subtype, "PRIVCMD"))
 	{
 		t = delimcpy(data, t, sizeof(data), ':');
@@ -660,16 +664,16 @@ local void MChat(Player *p, const char *line)
 		if (i && i->arena == p->arena && i->status == S_PLAYING)
 		{
 			pd->Unlock();
-			handle_priv(p, i, t, 0);
+			handle_priv(p, i, t, toupper(subtype[4]) == 'C', 0);
 		}
 		else
 		{
 			/* this is a little hacky: we want to pass in the colon
-			 * right after PRIV because that's what handle_remote_priv
-			 * expects. we know it's at a fixed offset from line, so use
-			 * that. */
+			 * right after PRIV or PRIVCMD because that's what
+			 * handle_remote_priv expects. we know it's the first colon
+			 * in the line, so use strchr to find it. */
 			pd->Unlock();
-			handle_remote_priv(p, line + 4, 0);
+			handle_remote_priv(p, strchr(line, ':'), toupper(subtype[4]) == 'C', 0);
 		}
 	}
 	else if (!strcasecmp(subtype, "FREQ"))
