@@ -411,7 +411,16 @@ local void CleanupAfter(int arena, int pid)
 			f->x = pd->players[pid].position.x;
 			f->y = pd->players[pid].position.y;
 			f->xspeed = f->yspeed = 0;
+			f->carrier = -1;
 			f->time = GTC();
+			SendBallPacket(arena, i, NET_UNRELIABLE);
+		}
+		else if (f->carrier == pid)
+		{
+			/* if it's on the map, but last touched by the person, reset
+			 * it's last touched pid to -1 so that the last touched pid
+			 * always refers to a valid player. */
+			f->carrier = -1;
 			SendBallPacket(arena, i, NET_UNRELIABLE);
 		}
 	UNLOCK_STATUS(arena);
@@ -443,9 +452,6 @@ void BallKill(int arena, int killer, int killed, int bounty, int flags)
 
 void PPickupBall(int pid, byte *p, int len)
 {
-	static const char shipnames[8][12] =
-	{ "Warbird", "Javelin", "Spider", "Leviathan",
-	  "Weasel", "Terrier", "Lancaster", "Shark" };
 	int arena = pd->players[pid].arena, i;
 	struct BallData *bd;
 	struct C2SPickupBall *bp = (struct C2SPickupBall*)p;
@@ -472,7 +478,7 @@ void PPickupBall(int pid, byte *p, int len)
 
 	if (bp->ballid >= balldata[arena].ballcount)
 	{
-		logm->Log(L_MALICIOUS, "<balls> [%s] Tried to pick up a nonexistent ball", pd->players[pid].name);
+		logm->LogP(L_MALICIOUS, "balls", pid, "Tried to pick up a nonexistent ball");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -482,33 +488,16 @@ void PPickupBall(int pid, byte *p, int len)
 	/* make sure someone else didn't get it first */
 	if (bd->state != BALL_ONMAP)
 	{
-		logm->Log(L_MALICIOUS, "<balls> {%s} [%s] Tried to pick up a carried ball",
-				aman->arenas[arena].name,
-				pd->players[pid].name);
+		logm->LogP(L_MALICIOUS, "balls", pid, "Tried to pick up a carried ball");
 		UNLOCK_STATUS(arena);
 		return;
 	}
 
-	/* whenever ball is stationary, check if player is within prox x2 */
-	if (bd->xspeed == 0 && bd->yspeed == 0)
+	if (bp->time != bd->time)
 	{
-		int prox2, dist2, dx, dy;
-
-		prox2 = cfg->GetInt(aman->arenas[arena].cfg,
-				shipnames[pd->players[pid].shiptype],
-				"SoccerBallProximity", 0) * 2;
-		prox2 = prox2 * prox2;
-
-		dx = abs(pd->players[pid].position.x - bd->x);
-		dy = abs(pd->players[pid].position.y - bd->y);
-		dist2 = dx*dx + dy*dy;
-
-		if (prox2 && dist2 > prox2)
-		{
-			logm->LogP(L_MALICIOUS, "balls", pid, "Tried to pick up a ball from outside ball proximity");
-			UNLOCK_STATUS(arena);
-			return;
-		}
+		logm->LogP(L_MALICIOUS, "balls", pid, "Tried to pick up a ball from stale coords");
+		UNLOCK_STATUS(arena);
+		return;
 	}
 
 	/* make sure player doesnt carry more than one ball */
@@ -633,7 +622,7 @@ void PGoal(int pid, byte *p, int len)
 
 	if (bid < 0 || bid >= balldata[arena].ballcount)
 	{
-		logm->Log(L_MALICIOUS, "<balls> [%s] Sent a goal for a nonexistent ball", pd->players[pid].name);
+		logm->LogP(L_MALICIOUS, "balls", pid, "Sent a goal for a nonexistent ball");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -649,7 +638,22 @@ void PGoal(int pid, byte *p, int len)
 
 	if (bd->state != BALL_ONMAP)
 	{
-		logm->Log(L_MALICIOUS, "<balls> [%s] Player sent goal for bad ball", pd->players[pid].name);
+		logm->LogP(L_MALICIOUS, "balls", pid, "Sent goal for carried ball");
+		UNLOCK_STATUS(arena);
+		return;
+	}
+
+	if (pid != bd->carrier)
+	{
+		logm->LogP(L_MALICIOUS, "balls", pid, "Sent goal for ball he didn't fire");
+		UNLOCK_STATUS(arena);
+		return;
+	}
+
+	if (pd->players[bd->carrier].status != S_PLAYING)
+	{
+		logm->Log(L_MALICIOUS, "<balls> {%s} Bad scorer for ball %d",
+				aman->arenas[arena].name, bid);
 		UNLOCK_STATUS(arena);
 		return;
 	}
