@@ -13,7 +13,6 @@
 #define KEY_SHIPLOCK 46
 
 #define WEAPONCOUNT 32
-#define REGION_CHECK_INTERVAL 200 /* check regions at most once/two seconds */
 
 
 /* structs */
@@ -54,6 +53,7 @@ typedef struct
 	u32 personalgreen;
 	int initlockship, initspec;
 	int deathwofiring;
+	int regionchecktime;
 } adata;
 
 
@@ -75,7 +75,6 @@ local Iprng *prng;
 local Icmdman *cmd;
 local Ipersist *persist;
 
-/* big arrays */
 local int adkey, pdkey;
 
 local int cfg_bulletpix, cfg_wpnpix, cfg_pospix;
@@ -209,6 +208,7 @@ local void Pppk(Player *p, byte *pkt, int len)
 {
 	struct C2SPosition *pos = (struct C2SPosition *)pkt;
 	Arena *arena = p->arena;
+	adata *adata = P_ARENA_DATA(arena, adkey);
 	pdata *data = PPDATA(p, pdkey), *idata;
 	int sendwpn, x1, y1;
 	int sendtoall = 0, randnum = prng->Rand();
@@ -265,7 +265,7 @@ local void Pppk(Player *p, byte *pkt, int len)
 		y1 = pos->y;
 
 		/* update region-based stuff once in a while */
-		if (isnewer && TICK_DIFF(gtc, data->lastrgncheck) >= REGION_CHECK_INTERVAL)
+		if (isnewer && TICK_DIFF(gtc, data->lastrgncheck) >= adata->regionchecktime)
 		{
 			update_regions(p, x1 >> 4, y1 >> 4);
 			data->lastrgncheck = gtc;
@@ -1195,6 +1195,10 @@ local void ArenaAction(Arena *arena, int action)
 		unsigned int pg = 0;
 		adata *ad = P_ARENA_DATA(arena, adkey);
 
+		/* cfghelp: Misc:RegionCheckInterval, arena, int, def: 100
+		 * How often to check for region enter/exit events (in ticks). */
+		ad->regionchecktime =
+			cfg->GetInt(arena->cfg, "Misc", "RegionCheckInterval", 100);
 		/* cfghelp: Misc:SpecSeeExtra, arena, bool, def: 1
 		 * Whether spectators can see extra data for the person they're
 		 * spectating. */
