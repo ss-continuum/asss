@@ -200,15 +200,15 @@ local void Calias(const char *params, Player *p, const Target *target)
 
 	p->flags.during_query = 1;
 	db->Query(dbcb_alias, p, 1,
-			"SELECT 'IPAddr' AS 'Match Type',Alias.name as Name, "
+			"(SELECT 'IPAddr' AS 'Match Type',Alias.name as Name, "
 			"INET_NTOA(Alias.ip) AS 'IP/Mac', "
 			"TO_DAYS(now()) - TO_DAYS(Alias.lastseen) as 'days ago' "
 			"FROM " TABLE_NAME " AS Source, " TABLE_NAME " AS Alias "
 			"WHERE "
 			"Source.name=? AND "
 			"Alias.name<>Source.name AND "
-			"Source.ip=Alias.ip ORDER BY 'days ago' ASC LIMIT 100 "
-			"UNION "
+			"Source.ip=Alias.ip LIMIT 100 "
+			") UNION ( "
 			"SELECT 'MacId' AS 'Match Type',Alias.name as Name, "
 			"Alias.macid AS 'IP/Mac', "
 			"TO_DAYS(now()) - TO_DAYS(Alias.lastseen) as 'days ago' "
@@ -218,7 +218,8 @@ local void Calias(const char *params, Player *p, const Target *target)
 			"Alias.name<>Source.name AND "
 			"Source.macid > 400 AND "
 			"Source.macid <> 305419896 AND " /* exclude 0x12345678, used by subchat */
-			"Source.macid=Alias.macid ORDER BY 'days ago' ASC LIMIT 50 ",
+			"Source.macid=Alias.macid LIMIT 50 ) "
+			"ORDER BY 'days ago' ASC",
 			name, name);
 }
 
