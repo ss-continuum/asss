@@ -33,7 +33,7 @@ local Icapman *capman;
 local Iconfig *cfg;
 local Imodman *mm;
 
-local pthread_rwlock_t cmdlock;
+local pthread_mutex_t cmdmtx;
 local HashTable *cmds;
 local CommandFunc defaultfunc;
 local CommandFunc2 defaultfunc2;
@@ -51,13 +51,18 @@ EXPORT int MM_cmdman(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
+		pthread_mutexattr_t attr;
+
 		mm = mm_;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 
-		pthread_rwlock_init(&cmdlock, NULL);
+		pthread_mutexattr_init(&attr);
+		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+		pthread_mutex_init(&cmdmtx, &attr);
+		pthread_mutexattr_destroy(&attr);
 
 		cmds = HashAlloc();
 
@@ -75,6 +80,7 @@ EXPORT int MM_cmdman(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(capman);
 		mm->ReleaseInterface(cfg);
 		HashFree(cmds);
+		pthread_mutex_destroy(&cmdmtx);
 		return MM_OK;
 	}
 	return MM_FAIL;
@@ -91,9 +97,9 @@ void AddCommand(const char *cmd, CommandFunc f, helptext_t helptext)
 		data->func = f;
 		data->func2 = NULL;
 		data->helptext = helptext;
-		pthread_rwlock_wrlock(&cmdlock);
+		pthread_mutex_lock(&cmdmtx);
 		HashAdd(cmds, cmd, data);
-		pthread_rwlock_unlock(&cmdlock);
+		pthread_mutex_unlock(&cmdmtx);
 	}
 }
 
@@ -108,9 +114,9 @@ void AddCommand2(const char *cmd, CommandFunc2 f2, helptext_t helptext)
 		data->func = NULL;
 		data->func2 = f2;
 		data->helptext = helptext;
-		pthread_rwlock_wrlock(&cmdlock);
+		pthread_mutex_lock(&cmdmtx);
 		HashAdd(cmds, cmd, data);
-		pthread_rwlock_unlock(&cmdlock);
+		pthread_mutex_unlock(&cmdmtx);
 	}
 }
 
@@ -127,7 +133,7 @@ void RemoveCommand(const char *cmd, CommandFunc f)
 		LinkedList lst = LL_INITIALIZER;
 		Link *l;
 
-		pthread_rwlock_wrlock(&cmdlock);
+		pthread_mutex_lock(&cmdmtx);
 		HashGetAppend(cmds, cmd, &lst);
 		for (l = LLGetHead(&lst); l; l = l->next)
 		{
@@ -137,12 +143,12 @@ void RemoveCommand(const char *cmd, CommandFunc f)
 				HashRemove(cmds, cmd, data);
 				LLEmpty(&lst);
 				afree(data);
-				pthread_rwlock_unlock(&cmdlock);
+				pthread_mutex_unlock(&cmdmtx);
 				return;
 			}
 		}
 		LLEmpty(&lst);
-		pthread_rwlock_unlock(&cmdlock);
+		pthread_mutex_unlock(&cmdmtx);
 	}
 }
 
@@ -159,7 +165,7 @@ void RemoveCommand2(const char *cmd, CommandFunc2 f2)
 		LinkedList lst = LL_INITIALIZER;
 		Link *l;
 
-		pthread_rwlock_wrlock(&cmdlock);
+		pthread_mutex_lock(&cmdmtx);
 		HashGetAppend(cmds, cmd, &lst);
 		for (l = LLGetHead(&lst); l; l = l->next)
 		{
@@ -169,12 +175,12 @@ void RemoveCommand2(const char *cmd, CommandFunc2 f2)
 				HashRemove(cmds, cmd, data);
 				LLEmpty(&lst);
 				afree(data);
-				pthread_rwlock_unlock(&cmdlock);
+				pthread_mutex_unlock(&cmdmtx);
 				return;
 			}
 		}
 		LLEmpty(&lst);
-		pthread_rwlock_unlock(&cmdlock);
+		pthread_mutex_unlock(&cmdmtx);
 	}
 }
 
@@ -264,7 +270,7 @@ void Command(const char *line, Player *p, const Target *target)
 
 	private = target->type != T_ARENA && target->type != T_NONE;
 
-	pthread_rwlock_rdlock(&cmdlock);
+	pthread_mutex_lock(&cmdmtx);
 	HashGetAppend(cmds, cmd, &lst);
 
 	if (LLIsEmpty(&lst))
@@ -294,7 +300,7 @@ void Command(const char *line, Player *p, const Target *target)
 				p->name, cmd);
 #endif
 
-	pthread_rwlock_unlock(&cmdlock);
+	pthread_mutex_unlock(&cmdmtx);
 	LLEmpty(&lst);
 }
 
@@ -304,10 +310,10 @@ helptext_t GetHelpText(const char *cmd)
 	CommandData *cd;
 	helptext_t ret;
 
-	pthread_rwlock_rdlock(&cmdlock);
+	pthread_mutex_lock(&cmdmtx);
 	cd = HashGetOne(cmds, cmd);
 	ret = cd ? cd->helptext : NULL;
-	pthread_rwlock_unlock(&cmdlock);
+	pthread_mutex_unlock(&cmdmtx);
 
 	return ret;
 }
