@@ -1304,44 +1304,44 @@ local PyGetSetDef %(getsetters)s[] =
 local PyTypeObject %(typeobj)s =
 {
 	PyObject_HEAD_INIT(NULL)
-	0,                         /*ob_size*/
-	"asss.%(name)s_wrapper",   /*tp_name*/
-	sizeof(%(objtype)s),       /*tp_basicsize*/
-	0,                         /*tp_itemsize*/
-	(destructor)PyObject_Del,  /*tp_dealloc*/
-	0,                         /*tp_print*/
-	0,                         /*tp_getattr*/
-	0,                         /*tp_setattr*/
-	0,                         /*tp_compare*/
-	0,                         /*tp_repr*/
-	0,                         /*tp_as_number*/
-	0,                         /*tp_as_sequence*/
-	0,                         /*tp_as_mapping*/
-	0,                         /*tp_hash */
-	0,                         /*tp_call*/
-	0,                         /*tp_str*/
-	0,                         /*tp_getattro*/
-	0,                         /*tp_setattro*/
-	0,                         /*tp_as_buffer*/
-	Py_TPFLAGS_DEFAULT,        /*tp_flags*/
-	"type object for %(name)s",/* tp_doc */
-	0,                         /* tp_traverse */
-	0,                         /* tp_clear */
-	0,                         /* tp_richcompare */
-	0,                         /* tp_weaklistoffset */
-	0,                         /* tp_iter */
-	0,                         /* tp_iternext */
-	0,                         /* tp_methods */
-	0,                         /* tp_members */
-	%(getsetters)s,            /* tp_getset */
-	0,                         /* tp_base */
-	0,                         /* tp_dict */
-	0,                         /* tp_descr_get */
-	0,                         /* tp_descr_set */
-	0,                         /* tp_dictoffset */
-	0,                         /* tp_init */
-	0,                         /* tp_alloc */
-	PyType_GenericNew,         /* tp_new */
+	0,                          /* ob_size */
+	"asss.%(name)s_wrapper",    /* tp_name */
+	sizeof(%(objtype)s),        /* tp_basicsize */
+	0,                          /* tp_itemsize */
+	0,                          /* tp_dealloc */
+	0,                          /* tp_print */
+	0,                          /* tp_getattr */
+	0,                          /* tp_setattr */
+	0,                          /* tp_compare */
+	0,                          /* tp_repr */
+	0,                          /* tp_as_number */
+	0,                          /* tp_as_sequence */
+	0,                          /* tp_as_mapping */
+	0,                          /* tp_hash  */
+	0,                          /* tp_call */
+	0,                          /* tp_str */
+	0,                          /* tp_getattro */
+	0,                          /* tp_setattro */
+	0,                          /* tp_as_buffer */
+	Py_TPFLAGS_DEFAULT,         /* tp_flags */
+	"type object for %(name)s", /* tp_doc */
+	0,                          /* tp_traverse */
+	0,                          /* tp_clear */
+	0,                          /* tp_richcompare */
+	0,                          /* tp_weaklistoffset */
+	0,                          /* tp_iter */
+	0,                          /* tp_iternext */
+	0,                          /* tp_methods */
+	0,                          /* tp_members */
+	%(getsetters)s,             /* tp_getset */
+	0,                          /* tp_base */
+	0,                          /* tp_dict */
+	0,                          /* tp_descr_get */
+	0,                          /* tp_descr_set */
+	0,                          /* tp_dictoffset */
+	0,                          /* tp_init */
+	0,                          /* tp_alloc */
+	0,                          /* tp_new */
 };
 
 ATTR_UNUSED()
@@ -1413,7 +1413,11 @@ local int ready_generated_types(void)
 {
 """)
 	for n, t in pytype_objects:
-		type_file.write("\tif (PyType_Ready(&%s) < 0) return -1;\n" % t)
+		type_file.write("""\
+	%(t)s.tp_dealloc = (destructor)PyObject_Del;
+	%(t)s.tp_new = PyType_GenericNew;
+	if (PyType_Ready(&%(t)s) < 0) return -1;
+""" % {'t': t})
 	type_file.write("""
 	return 0;
 }
