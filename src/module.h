@@ -265,6 +265,9 @@ typedef struct Imodman
 	 */
 	const char *(*GetModuleInfo)(const char *modname);
 
+	/** Detaches all modules from an arena. */
+	void (*DetachAllFromArena)(Arena *arena);
+
 	/* these functions should be called only from main.c */
 	struct
 	{

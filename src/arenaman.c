@@ -49,18 +49,10 @@ local int adkey;
 local Iarenaman myint;
 
 
-local void do_attach(Arena *a, int action)
+local void do_attach(Arena *a)
 {
 	char mod[32];
 	const char *attmods, *tmp = NULL;
-	void (*func)(const char *name, Arena *arena);
-	
-	if (action == MM_ATTACH)
-		func = mm->AttachModule;
-	else if (action == MM_DETACH)
-		func = mm->DetachModule;
-	else
-		return;
 
 	/* cfghelp: Modules:AttachModules, arena, string
 	 * This is a list of modules that you want to take effect in this
@@ -70,7 +62,7 @@ local void do_attach(Arena *a, int action)
 	if (!attmods) return;
 
 	while (strsplit(attmods, " \t:;,", mod, sizeof(mod), &tmp))
-		func(mod, a);
+		mm->AttachModule(mod, a);
 }
 
 
@@ -129,7 +121,7 @@ local int ProcessArenaStates(void *dummy)
 				 * The frequency that spectators are assigned to, by default. */
 				a->specfreq = cfg->GetInt(a->cfg, "Team", "SpectatorFrequency", CFG_DEF_SPEC_FREQ);
 				/* attach modules */
-				do_attach(a, MM_ATTACH);
+				do_attach(a);
 				/* now callbacks */
 				DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_CREATE));
 				/* finally, persistant stuff */
@@ -170,7 +162,7 @@ local int ProcessArenaStates(void *dummy)
 			case ARENA_DO_DEINIT:
 				/* reverse order: callbacks, detach, close config file */
 				DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_DESTROY));
-				do_attach(a, MM_DETACH);
+				mm->DetachAllFromArena(a);
 				cfg->CloseConfigFile(a->cfg);
 				a->cfg = NULL;
 

@@ -24,6 +24,7 @@ local int UnloadModule(const char *);
 local void EnumModules(void (*)(const char *, const char *, void *), void *, Arena *);
 local int AttachModule(const char *, Arena *);
 local int DetachModule(const char *, Arena *);
+local void DetachAllFromArena(Arena *);
 local const char *GetModuleInfo(const char *);
 
 local void RegInterface(void *iface, Arena *arena);
@@ -67,7 +68,7 @@ local Imodman mmint =
 	RegCallback, UnregCallback, LookupCallback, FreeLookupResult,
 	GetArenaOfCurrentCallback, GetArenaOfLastInterfaceRequest,
 	RegModuleLoader, UnregModuleLoader,
-	GetModuleInfo,
+	GetModuleInfo, DetachAllFromArena,
 	{ DoStage, UnloadAllModules, NoMoreModules }
 };
 
@@ -321,6 +322,19 @@ int DetachModule(const char *name, Arena *arena)
 		}
 	pthread_mutex_unlock(&modmtx);
 	return ret;
+}
+
+void DetachAllFromArena(Arena *arena)
+{
+	Link *l;
+	pthread_mutex_lock(&modmtx);
+	for (l = LLGetHead(&mods); l; l = l->next)
+	{
+		ModuleData *mod = l->data;
+		if (LLRemove(&mod->attached, arena))
+			mod->loader(MM_DETACH, &mod->args, NULL, arena);
+	}
+	pthread_mutex_unlock(&modmtx);
 }
 
 const char * GetModuleInfo(const char *name)
