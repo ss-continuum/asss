@@ -314,8 +314,8 @@ void PDie(int pid, byte *p, int n)
 
 	if (arena < 0) return;
 
-	kp->killer = killer;
-	kp->bounty = bty;
+	kp.killer = killer;
+	kp.bounty = bty;
 	/* kp->flags = flags; */
 
 	reldeaths = !!cfg->GetInt(arenas[arena].cfg,

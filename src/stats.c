@@ -20,6 +20,7 @@ struct ArenaStats /* 64 bytes */
 /* prototypes */
 
 local void IncrementStat(int, Stat, int);
+
 local void GetA(int, void *);
 local void SetA(int, void *);
 local void ClearA(int);
@@ -70,14 +71,17 @@ int MM_stats(int action, Imodman *mm_)
 		mm->RegCallback(CALLBACK_PLAYERACTION, PAFunc);
 		cmd->AddCommand("stats", CStats, 0);
 		cmd->AddCommand("scores", CScores, 0);
-		persist->RegPersistantData(&dumbdata);
+		persist->RegPersistantData(&gdatadesc);
+		persist->RegPersistantData(&adatadesc);
 		net->AddPacket(C2S_CHAT, PChat);
+		mm->RegInterface(I_STATS, &_myint);
 	}
 	else if (action == MM_UNLOAD)
 	{
+		mm->UnregInterface(I_STATS, &_myint);
 		net->RemovePacket(C2S_CHAT, PChat);
-		net->RemovePacket(C2S_DIE, PDie);
-		persist->UnregPersistantData(&dumbdata);
+		persist->UnregPersistantData(&gdatadesc);
+		persist->UnregPersistantData(&adatadesc);
 		cmd->RemoveCommand("stats", CStats);
 		cmd->RemoveCommand("scores", CScores);
 		mm->UnregCallback(CALLBACK_PLAYERACTION, PAFunc);
@@ -111,24 +115,19 @@ void PChat(int pid, byte *p, int len)
 	if (len <= sizeof(struct ChatPacket)) return;
 
 	if (from->text[0] == CMD_CHAR_1 || from->text[0] == CMD_CHAR_2)
-		thedata[pid].commands++;
+		gdata[pid].commands++;
 	else if (from->type == MSG_PUB && from->text[0] == MOD_CHAT_CHAR)
-		thedata[pid].modchat++;
+		gdata[pid].modchat++;
 	else if (from->type >= 0 && from->type < 10)
-		thedata[pid].messages[(int)from->type]++;
+		gdata[pid].messages[(int)from->type]++;
 }
 
 void PAFunc(int pid, int action)
 {
 	if (action == PA_CONNECT)
-		thedata[pid].logins++;
+		gdata[pid].logins++;
 }
 
-void KillFunc(int arena, int killer, int killed, int bounty, int flags)
-{
-	Igivepoints *gp = mm->GetArenaInterface(arena, AI_GIVEPOINTS);
-	gp->Kill
-}
 
 void GetG(int pid, void *space)
 {

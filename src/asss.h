@@ -18,6 +18,8 @@
 #include "mapnewsdl.h"
 #include "clientset.h"
 #include "persist.h"
+#include "game.h"
+#include "stats.h"
 
 /* utility functions that are linked in directly */
 #include "util.h"
