@@ -8,7 +8,7 @@
 
 #include "util.h"
 
-#define ASSSVERSION "1.0rc1"
+#define ASSSVERSION "1.0rc2"
 #define ASSSVERSION_NUM 0x00010000
 #define BUILDDATE __DATE__ " " __TIME__
 

@@ -43,6 +43,7 @@ typedef struct
 typedef struct
 {
 	u16 cbrickid;
+	u16 countbricksaswalls;
 	ticks_t lasttime;
 	LinkedList list;
 	pthread_mutex_t mtx;
@@ -899,6 +900,11 @@ void ArenaAction(Arena *arena, int action)
 		LLInit(&bd->list);
 		bd->cbrickid = 0;
 		bd->lasttime = current_ticks();
+
+		/* cfghelp: Brick:CountBricksAsWalls, arena, bool, def: 1
+		 * Whether bricks snap to the edges of other bricks (as opposed
+		 * to only snapping to walls). */
+		bd->countbricksaswalls = cfg->GetInt(arena->cfg, "Brick", "CountBricksAsWalls", 1);
 	}
 }
 

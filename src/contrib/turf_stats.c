@@ -85,7 +85,7 @@ local void ADisplay(Arena *arena, int histNum);
 local void PDisplay(Arena *arena, Player *pid, int histNum);
 //local struct FreqInfo* findFreqPtr(Arena *arena, int histNum, int freq);
 
-EXPORT const char info_turf_stats[] = "v0.2.1 by GiGaKiLLeR <gigamon@hotmail.com>";
+EXPORT const char info_turf_stats[] = "v0.2.2 by GiGaKiLLeR <gigamon@hotmail.com>";
 
 EXPORT int MM_turf_stats(int action, Imodman *_mm, Arena *arena)
 {
@@ -342,13 +342,16 @@ local void ADisplay(Arena *arena, int histNum)
 		}
 	}
 	
-	chat->SendArenaMessage(arena, "Freq\tPlyrs\tFlags\t%%Flgs\tWghts\t%%Wghts\tPerCap\t%%JP\tPts");
-	chat->SendArenaMessage(arena, "----\t-----\t-----\t-----\t-----\t------\t------\t---\t---");
+	chat->SendArenaMessage(arena, "Freq Plyrs Flags %%Flgs Wghts  %%Wghts PerCap %%JP  Pts");
+	chat->SendArenaMessage(arena, "---- ----- ----- ----- ------ ------ ------ ---- ------");
 	
 	// tsd now points to the stats we want to output, output freq stats
 	for(l = LLGetHead(&tsd->freqs); l; l = l->next)
 	{
-		int freq, numFlags, percentFlags, numWeights, percentWeights, numTags, numRecovers, numLost, numPlayers, perCapita, percent, numPoints; 
+		int freq, numFlags, numPlayers; 
+		unsigned int numTags, numRecovers, numLost, numPoints;
+		long int numWeights;
+		double percentFlags, percentWeights, perCapita, percent;
 		pFreq = l->data;
 
 		// all the data members
@@ -371,14 +374,14 @@ local void ADisplay(Arena *arena, int histNum)
 			{
 				// public freqs
 				chat->SendArenaMessage(arena, 
-					"%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
+					"%04d %5d %5d %5.1f %6ld %6.1f %6.1f %4.1f %6u",
 					freq, numPlayers, numFlags, percentFlags, numWeights, percentWeights, perCapita, percent, numPoints);
 			}
 			else
 			{
 				// private freqs
 				chat->SendArenaMessage(arena, 
-					"priv\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
+					"priv %5d %5d %5.1f %6ld %6.1f %6.1f %4.1f %6u",
 					numPlayers, numFlags, percentFlags, numWeights, percentWeights, perCapita, percent, numPoints);
 			}
 		}
@@ -412,14 +415,17 @@ local void PDisplay(Arena *arena, Player *pid, int histNum)
 			break;
 		}
 	}
-	
-	chat->SendMessage(pid, "Freq\tPlyrs\tFlags\t%%Flgs\tWghts\t%%Wghts\tPerCap\t%%JP\tPts");
-	chat->SendMessage(pid, "----\t-----\t-----\t-----\t-----\t------\t------\t---\t---");
+
+	chat->SendMessage(pid, "Freq Plyrs Flags %%Flgs Wghts  %%Wghts PerCap %%JP  Pts");
+	chat->SendMessage(pid, "---- ----- ----- ----- ------ ------ ------ ---- ------");
 	
 	// tsd now points to the stats we want to output, output freq stats
 	for(l = LLGetHead(&tsd->freqs) ; l ; l=l->next)
 	{
-		int freq, numFlags, percentFlags, numWeights, percentWeights, numTags, numRecovers, numLost, numPlayers, perCapita, percent, numPoints; 
+		int freq, numFlags, numPlayers; 
+		unsigned int numTags, numRecovers, numLost, numPoints;
+		long int numWeights;
+		double percentFlags, percentWeights, perCapita, percent;
 		pFreq = l->data;
 
 		// all the data members
@@ -442,14 +448,14 @@ local void PDisplay(Arena *arena, Player *pid, int histNum)
 			{
 				// public freqs
 				chat->SendMessage(pid, 
-					"%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
+					"%04d %5d %5d %5.1f %6ld %6.1f %6.1f %4.1f %6u",
 					freq, numPlayers, numFlags, percentFlags, numWeights, percentWeights, perCapita, percent, numPoints);
 			}
 			else
 			{
 				// private freqs
 				chat->SendMessage(pid, 
-					"priv\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d",
+					"priv %5d %5d %5.1f %6ld %6.1f %6.1f %4.1f %6u",
 					numPlayers, numFlags, percentFlags, numWeights, percentWeights, perCapita, percent, numPoints);
 			}
 		}

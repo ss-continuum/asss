@@ -316,7 +316,7 @@ local void print_player_data(int key, DBT *val)
 		} *v = val->data;
 
 		printf("\tchat data: mask=%hu expires=%ld msgs=%d lastcheck=%d\n",
-				v->mask, v->expires, v->msgs, v->lastcheck);
+				v->mask, (long)v->expires, v->msgs, v->lastcheck);
 	}
 	else
 	{

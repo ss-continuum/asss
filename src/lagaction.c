@@ -168,6 +168,7 @@ local void mainloop(void)
 	pd->Lock();
 	FOR_EACH_PLAYER(p)
 		if (p->status == S_PLAYING &&
+		    IS_STANDARD(p) &&
 		    (TICK_DIFF(now, LASTCHECKED(p)) > cfg_checkinterval ||
 		     LASTCHECKED(p) == 0))
 		{
