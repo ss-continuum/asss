@@ -1,9 +1,9 @@
 
-import sys, struct
+import sys, struct, time
 
 import util
-log = util.log
 
+import enc
 
 s_nothing = 0
 s_sentkey = 1
@@ -33,6 +33,7 @@ class Connection:
 		me.timeoutinterval = 1500
 
 		# connection state
+		me.encstate = enc.EncState()
 		me.c2sn = 0
 		me.s2cn = 0
 
@@ -48,12 +49,14 @@ class Connection:
 
 		me.dispatch = {}
 		me.curchunk = ''
+		me.presizedata = ''
 
 
 	def raw_send(me, d):
+		d = me.encstate.encrypt(d)
 		r = me.sock.send(d)
 		if r < len(d):
-			log('send failed to send whole packet (%d < %d bytes)'
+			util.log('send failed to send whole packet (%d < %d bytes)'
 					% (r, len(d)))
 
 
@@ -62,10 +65,11 @@ class Connection:
 			r = me.sock.recv(512)
 			if r:
 				me.lastrecv = util.ticks()
+				r = me.encstate.decrypt(r)
 				me.process_pkt(r)
 				me.try_process_inqueue()
 			else:
-				log("recvd 0 bytes from remote socket")
+				util.log("recvd 0 bytes from remote socket")
 
 		except:
 			# probably ewouldblock
@@ -79,7 +83,7 @@ class Connection:
 
 		# check for disconnect
 		if (now - me.lastrecv) > me.timeoutinterval:
-			log("no packets from server in %s seconds, assuming down" %
+			util.log("no packets from server in %s seconds, assuming down" %
 				((now-me.lastrecv)/100))
 			raise Disconnected()
 
@@ -120,7 +124,7 @@ class Connection:
 
 
 	def process_pkt(me, p):
-		#log("got pkt: %s" % repr(p))
+		#util.log("got pkt: %s" % repr(p[:64]))
 		t1 = ord(p[0])
 
 		if t1 == 0:
@@ -128,14 +132,6 @@ class Connection:
 			if t2 == 2:
 				# key response
 				me.stage = s_connected
-
-				# set up encryption
-				(key,) = struct.unpack('<i', p[2:6])
-				if key != 0:
-					log("remote server responded with bad key")
-					raise Disconnected()
-				else:
-					log("remote server responded correctly")
 
 				# respond
 				func = me.dispatch.get(0x0200)
@@ -154,7 +150,7 @@ class Connection:
 			elif t2 == 7:
 				# disconnect
 				# close our sockets and die
-				log("got disconnect from server, exiting")
+				util.log("got disconnect from server, exiting")
 				me.sock.close()
 				# the main loop catches this and removes us
 				raise Disconnected()
@@ -162,7 +158,7 @@ class Connection:
 				# chunk
 				me.curchunk = me.curchunk + p[2:]
 				if len(me.curchunk) > me.max_bigpkt:
-					log("big packet too long. discarding.")
+					util.log("big packet too long. discarding.")
 					me.curchunk = ''
 			elif t2 == 9:
 				# chunk tail
@@ -171,7 +167,18 @@ class Connection:
 				me.chrchunk = ''
 			elif t2 == 10:
 				# presize
-				log("got presized packet from remote server")
+
+				# give the client a heads-up
+				func = me.dispatch.get(0x0a00)
+				if func: func(p)
+
+				(total,) = struct.unpack('<I', p[2:6])
+				me.presizedata = me.presizedata + p[6:]
+				util.log("got presized packet from remote server, %d/%d bytes" %
+						(len(me.presizedata), total))
+				if len(me.presizedata) == total:
+					me.process_pkt(me.presizedata)
+					me.presizedata = ''
 			elif t2 == 14:
 				# grouped
 				pos = 2
@@ -182,18 +189,18 @@ class Connection:
 					me.process_pkt(newp)
 					pos += l
 			else:
-				log("unknown network subtype: %d" % t2)
+				util.log("unknown network subtype: %d" % t2)
 
 		else:
 			func = me.dispatch.get(t1)
 			if func:
 				func(p)
 			else:
-				#log("unknown packet type: %d" % t1)
+				#util.log("unknown packet type: %d" % t1)
 				pass
 
 
-	def try_process_inqueue(me, ):
+	def try_process_inqueue(me):
 		while 1:
 			pkt = me.inq.get(me.s2cn)
 			if pkt:
@@ -204,7 +211,7 @@ class Connection:
 					me.process_pkt(d)
 				except:
 					raise
-					log("error processing packet from inqueue, type %x" % ord(d[0]))
+					util.log("error processing packet from inqueue, type %x" % ord(d[0]))
 			else:
 				return
 
@@ -213,23 +220,26 @@ class Connection:
 		return len(me.inq)
 
 
-	def connect(me, ip, port):
+	def connect(me, ip, port, useenc=0):
 		import socket
 
 		me.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 		me.sock.connect((ip, port))
 		me.sock.setblocking(0)
 
-		log("contacting remote server")
+		util.log("contacting remote server")
 
-		key = 0 # force no encryption
+		if useenc:
+			key = int(util.ticks() & 0xfffffffL) | 0x80000000L
+		else:
+			key = 0 # force no encryption
 		pkt = struct.pack('< BB I BB', 0, 1, key, 1, 0)
 		me.raw_send(pkt)
 		me.stage = s_sentkey
 
 
 	def disconnect(me, count = 1):
-		log("sending disconnect")
+		util.log("sending disconnect")
 		pkt = struct.pack('<BB', 0, 7)
 		for ii in range(count):
 			me.raw_send(pkt)

@@ -3,7 +3,7 @@
 import sys
 
 def dig(d):
-	if d in ['a','b','c','d','e','f']:
+	if d in 'abcdef':
 		return ord(d) - ord('a') + 10
 	else:
 		return ord(d) - ord('0')

@@ -38,7 +38,7 @@ sentconnect = 0
 
 # pick a key for this run
 mykey = int(util.ticks() & 0xfffffff) | 0x80000000
-encdata = enc.noenc
+encstate = enc.EncState()
 
 def set_sock(s):
 	global sock
@@ -57,8 +57,8 @@ class Pkt:
 
 
 def raw_send(d):
-	global sock, encdata
-	encd = enc.encrypt(encdata, d)
+	global sock, encstate
+	encd = encstate.encrypt(d)
 	r = sock.send(encd)
 	if r < len(encd):
 		log('send failed to send whole packet (%d < %d bytes)'
@@ -66,13 +66,13 @@ def raw_send(d):
 
 
 def try_read():
-	global sock, lastrecv, encdata
+	global sock, lastrecv, encstate
 
 	try:
 		r = sock.recv(512)
 		if r:
 			lastrecv = util.ticks()
-			dec = decrypt(encdata, r)
+			dec = encstate.decrypt(r)
 			try:
 				process_pkt(dec)
 			except:
@@ -186,7 +186,7 @@ B2S_CHAT                   = 0x0A
 curchunk = ''
 
 def process_pkt(p):
-	global curchunk, inq, encdata
+	global curchunk, inq, encstate
 
 	t1 = ord(p[0])
 
@@ -196,15 +196,6 @@ def process_pkt(p):
 			# key response
 			global stage
 			stage = s_connected
-
-			# set up encryption
-			(key,) = struct.unpack('<i', p[2:6])
-			if key != mykey:
-				log("remote server responded (using vie encryption)")
-				encdata = enc.gen_keystream(key)
-			else:
-				log("remote server responded (no encryption)")
-				encdata = enc.noenc
 
 			# respond
 			asss_bprot.send_connected()
