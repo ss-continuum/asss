@@ -23,16 +23,13 @@ tinyscheme/python/other-random-language interface
 
 currently broken
 ----------------
-turret kicking
+turret kicking?
 
 ball sync?
 
 
 misc
 ----
-arenas:
-*go command
-
 balls:
 region-based goals. 3/6-team ball games.
 let ball speccer see info of person carrying ball.

@@ -45,7 +45,7 @@ typedef struct PlayerData
 	 * shouldn't be here, i know. */
 	unsigned int ignoreweapons;
 	struct PlayerPosition position;
-	struct LoginPacket *loginpkt;
+	u32 macid, permid;
 } PlayerData;
 
 

@@ -12,8 +12,6 @@
 
 #define TABLE_NAME "logins"
 
-#define CHAT_CLIENT_MACID 101
-
 
 /* global data */
 
@@ -64,29 +62,23 @@ local void playera(int pid, int action, int arena)
 
 		char *name = pd->players[pid].name;
 		char *ip = "0";
-		unsigned int macid = 0;
-		unsigned int permid = 0;
+		unsigned int macid;
+		unsigned int permid;
 
 		/* get ip and optionally macid/permid */
 		if (IS_STANDARD(pid) && net)
 		{
 			net->GetClientStats(pid, &ncs);
 			ip = ncs.ipaddr;
-
-			if (pd->players[pid].loginpkt)
-			{
-				macid = pd->players[pid].loginpkt->macid;
-				permid = pd->players[pid].loginpkt->D2;
-			}
 		}
 		else if (IS_CHAT(pid) && chatnet)
 		{
 			chatnet->GetClientStats(pid, &ccs);
 			ip = ccs.ipaddr;
-
-			/* identify chat clients by macid 101 */
-			macid = CHAT_CLIENT_MACID;
 		}
+
+		macid = pd->players[pid].macid;
+		permid = pd->players[pid].permid;
 
 		/* the ip address will be in dotted decimal form, let mysql do
 		 * the conversion to an integer. */

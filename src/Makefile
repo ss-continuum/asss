@@ -73,7 +73,7 @@ database.so: mysql.o aliasdb.o
 turf.so: turf_reward.o turf_stats.o points_turf_reward.o
 
 funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
-	fake.o autoturret.o chatnet.o md5.o auth_file.o ap_multipub.o
+	fake.o autoturret.o chatnet.o md5.o auth_file.o ap_multipub.o sendfile.o
 
 
 

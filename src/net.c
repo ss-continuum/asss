@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #include <assert.h>
 
 #ifndef WIN32
@@ -35,12 +36,12 @@
 #define IP_UDP_OVERHEAD 28
 
 /* packets to queue up for sending files */
-#define QUEUE_PACKETS 20
+#define QUEUE_PACKETS 10
 /* threshold to start queuing up more packets */
 #define QUEUE_THRESHOLD 5
 
 /* we need to know how many packets the client is able to buffer */
-#define CLIENT_CAN_BUFFER 30
+#define CLIENT_CAN_BUFFER 10
 
 /* check whether we manage this client */
 #define IS_OURS(pid) (players[(pid)].type == T_CONT || players[(pid)].type == T_VIE)

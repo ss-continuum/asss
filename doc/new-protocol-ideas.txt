@@ -208,7 +208,7 @@ moving between zones without leaving the game:
 
 this is more of a client-only feature. have a ?zones command that pops
 up an in-game list of zones in favorite.lst and let the user choose
-among them, just like ?arena.
+among them, just like ?arena. probably esc + Z should also do it.
 
 
 

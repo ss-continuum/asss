@@ -549,6 +549,9 @@ local void *DBThread(void *dummy)
 					}
 					/* if we're doing a lot of work, at least be nice
 					 * about it */
+					pthread_mutex_unlock(&dbmtx);
+					sched_yield();
+					pthread_mutex_lock(&dbmtx);
 				}
 
 				/* now sync all arenas */

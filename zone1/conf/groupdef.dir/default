@@ -40,6 +40,12 @@ cmd_passwd
 
 cmd_sheep
 
+privcmd_sendfile
+cmd_cancelfile
+cmd_acceptfile
+; this needs to be enabled for anyone who's going to be sending files:
+uploadfile
+
 ; turf:
 cmd_turftime
 cmd_turfinfo

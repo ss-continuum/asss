@@ -101,7 +101,10 @@ local inline void update_timer(stat_info *si, time_t tm)
 
 local inline void start_timer(stat_info *si, time_t tm)
 {
-	si->started = tm;
+	if (si->started)
+		update_timer(si, tm);
+	else
+		si->started = tm;
 }
 
 local inline void stop_timer(stat_info *si, time_t tm)
@@ -298,7 +301,7 @@ struct get_stats_clos
 {
 	struct stored_stat *ss;
 	int left;
-	unsigned gtc;
+	time_t tm;
 };
 
 local void get_stats_enum(TreapHead *node, void *clos_)
@@ -307,7 +310,7 @@ local void get_stats_enum(TreapHead *node, void *clos_)
 	struct stat_info *si = (stat_info*)node;
 	if (clos->left > 0)
 	{
-		update_timer(si, clos->gtc);
+		update_timer(si, clos->tm);
 		clos->ss->stat = node->key;
 		clos->ss->value = si->value;
 		clos->ss++;
@@ -329,7 +332,7 @@ local void clear_stats_enum(TreapHead *node, void *clos)
 local int get_##ival##_data(int pid, void *data, int len)                      \
 {                                                                              \
     struct get_stats_clos clos = { data, len / sizeof(struct stored_stat),     \
-        GTC() };                                                               \
+        time(NULL) };                                                          \
     LOCK_PLAYER(pid);                                                          \
     TrEnum((TreapHead*)ival##_stats[pid], get_stats_enum, &clos);              \
     UNLOCK_PLAYER(pid);                                                        \

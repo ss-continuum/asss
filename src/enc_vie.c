@@ -8,8 +8,8 @@
 
 typedef struct EncData
 {
-	int key, status;
-	char enctable[520];
+	int key;
+	char table[520];
 } EncData;
 
 
@@ -27,8 +27,8 @@ local int HandleResponse(int pid, byte *pkt, int len);
 
 /* globals */
 
-local EncData enc[MAXPLAYERS];
-local pthread_mutex_t statmtx;
+local EncData *enc[MAXPLAYERS+1]; /* plus one for the biller */
+local pthread_mutex_t mtx;
 
 local Inet *net;
 
@@ -45,7 +45,7 @@ EXPORT int MM_encrypt1(int action, Imodman *mm, int arena)
 	{
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		mm->RegCallback(CB_CONNINIT, ConnInit, ALLARENAS);
-		pthread_mutex_init(&statmtx, NULL);
+		pthread_mutex_init(&mtx, NULL);
 		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
@@ -55,7 +55,7 @@ EXPORT int MM_encrypt1(int action, Imodman *mm, int arena)
 			return MM_FAIL;
 		mm->UnregCallback(CB_CONNINIT, ConnInit, ALLARENAS);
 		mm->ReleaseInterface(net);
-		/* don't destroy statmtx here, because we may be asked to
+		/* don't destroy mtx here, because we may be asked to
 		 * encrypt a few more packets. yes, it's ugly. */
 		return MM_OK;
 	}
@@ -104,13 +104,20 @@ void ConnInit(struct sockaddr_in *sin, byte *pkt, int len)
 void Init(int pid, int k)
 {
 	int t, loop;
-	short *mytable = (short *) enc[pid].enctable;
+	short *mytable;
+	EncData *ed;
+	
+	pthread_mutex_lock(&mtx);
+	if (!enc[pid])
+		enc[pid] = amalloc(sizeof(*ed));
+	ed = enc[pid];
+	pthread_mutex_unlock(&mtx);
 
-	pthread_mutex_lock(&statmtx);
-	enc->key = k;
-	pthread_mutex_unlock(&statmtx);
+	ed->key = k;
 
 	if (k == 0) return;
+
+	mytable = (short*)(ed->table);
 
 	for (loop = 0; loop < 0x104; loop++)
 	{
@@ -137,8 +144,18 @@ void Init(int pid, int k)
 
 int Encrypt(int pid, byte *data, int len)
 {
-	int *mytable = (int *) enc[pid].enctable, *mydata;
-	int work, loop, until;
+	int *mytable, *mydata;
+	int work = 0, loop, until;
+
+	pthread_mutex_lock(&mtx);
+	if (enc[pid])
+	{
+		work = enc[pid]->key;
+		mytable = (int*)enc[pid]->table;
+	}
+	pthread_mutex_unlock(&mtx);
+
+	if (work == 0) return len;
 
 	if (data[0] == 0)
 	{
@@ -150,12 +167,6 @@ int Encrypt(int pid, byte *data, int len)
 		mydata = (int*)(data + 1);
 		until = (len-1)/4 + 1;
 	}
-
-	pthread_mutex_lock(&statmtx);
-	work = enc[pid].key;
-	pthread_mutex_unlock(&statmtx);
-
-	if (work == 0) return len;
 
 	for (loop = 0; loop < until; loop++)
 	{
@@ -168,8 +179,18 @@ int Encrypt(int pid, byte *data, int len)
 
 int Decrypt(int pid, byte *data, int len)
 {
-	int *mytable = (int *) enc[pid].enctable, *mydata;
-	int work, loop, until, esi, edx;
+	int *mytable, *mydata;
+	int work = 0, loop, until, esi, edx;
+
+	pthread_mutex_lock(&mtx);
+	if (enc[pid])
+	{
+		work = enc[pid]->key;
+		mytable = (int*)enc[pid]->table;
+	}
+	pthread_mutex_unlock(&mtx);
+
+	if (work == 0) return len;
 
 	if (data[0] == 0)
 	{
@@ -181,12 +202,6 @@ int Decrypt(int pid, byte *data, int len)
 		mydata = (int*)(data + 1);
 		until = (len-1)/4 + 1;
 	}
-
-	pthread_mutex_lock(&statmtx);
-	work = enc[pid].key;
-	pthread_mutex_unlock(&statmtx);
-
-	if (work == 0) return len;
 
 	for (loop = 0; loop < until; loop++)
 	{
@@ -203,9 +218,10 @@ int Decrypt(int pid, byte *data, int len)
 
 void Void(int pid)
 {
-	pthread_mutex_lock(&statmtx);
-	enc[pid].key = 0;
-	pthread_mutex_unlock(&statmtx);
+	pthread_mutex_lock(&mtx);
+	afree(enc[pid]);
+	enc[pid] = NULL;
+	pthread_mutex_unlock(&mtx);
 }
 
 
@@ -221,18 +237,25 @@ void Initiate(int pid)
 	if (pkt.key > 0) pkt.key = -pkt.key;
 	net->SendToOne(pid, (byte*)&pkt, 6, NET_UNRELIABLE | NET_PRI_P5);
 
-	pthread_mutex_lock(&statmtx);
-	enc[pid].key = pkt.key;
-	pthread_mutex_unlock(&statmtx);
+	pthread_mutex_lock(&mtx);
+	if (!enc[pid])
+		enc[pid] = amalloc(sizeof(EncData));
+	enc[pid]->key = pkt.key;
+	pthread_mutex_unlock(&mtx);
 }
 
 int HandleResponse(int pid, byte *pkt, int len)
 {
 	int mykey, rkey = *(int*)(pkt+2);
+	EncData *ed;
 
-	pthread_mutex_lock(&statmtx);
-	mykey = enc[pid].key;
-	pthread_mutex_unlock(&statmtx);
+	pthread_mutex_lock(&mtx);
+	ed = enc[pid];
+	pthread_mutex_unlock(&mtx);
+
+	if (!ed) return FALSE;
+
+	mykey = ed->key;
 
 	if (mykey == rkey)
 		/* no encryption */

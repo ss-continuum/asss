@@ -1249,13 +1249,15 @@ local helptext_t getfile_help = NULL;
 
 local void Cgetfile(const char *params, int pid, const Target *target)
 {
-	const char *basename = strrchr(params, '/');
-	basename = basename ? basename + 1 : params;
+	const char *t1 = strrchr(params, '/');
+	const char *t2 = strrchr(params, '\\');
+	if (t2 > t1) t1 = t2;
+	t1 = t1 ? t1 + 1 : params;
 
 	if (params[0] == '/' || strstr(params, ".."))
 		lm->LogP(L_MALICIOUS, "playercmd", pid, "Attempted ?getfile with bad path: '%s'", params);
 	else
-		filetrans->SendFile(pid, params, basename, 0);
+		filetrans->SendFile(pid, params, t1, 0);
 }
 
 
@@ -1263,9 +1265,11 @@ local helptext_t putfile_help = NULL;
 
 local void Cputfile(const char *params, int pid, const Target *target)
 {
-	const char *basename = strrchr(params, '/');
-	basename = basename ? basename + 1 : params;
-	filetrans->RequestFile(pid, params, basename);
+	const char *t1 = strrchr(params, '/');
+	const char *t2 = strrchr(params, '\\');
+	if (t2 > t1) t1 = t2;
+	t1 = t1 ? t1 + 1 : params;
+	filetrans->RequestFile(pid, params, t1);
 }
 
 

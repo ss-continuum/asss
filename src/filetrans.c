@@ -158,6 +158,7 @@ local void get_data(void *clos, int offset, byte *buf, int needed)
 	if (needed == 0)
 	{
 		/* done */
+		lm->Log(L_INFO, "<filetrans> Completed send of '%s'", dd->fname);
 		fclose(dd->fp);
 		if (dd->path)
 		{

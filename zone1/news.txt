@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 0.7.5.
+Welcome to asss (a small subspace server) 0.7.6.
 
 This news.txt will be used for updates about new features and other
 important information. If you have any suggestions of any kind, please
@@ -10,6 +10,8 @@ see it eventually (it all gets logged).
 
 
 Recent updates:
+    * players can send files to each other with /?sendfile
+
     * koth game in the default arena (?go 0)
 
     * an arena placing module that supports multiple "public" arenas

@@ -48,8 +48,9 @@ local void DefaultAuth(int, struct LoginPacket *, int, void (*)(int, AuthData *)
 
 /* GLOBALS */
 
-local AuthData bigauthdata[MAXPLAYERS];
-local struct LoginPacket bigloginpkt[MAXPLAYERS];
+local AuthData *authdata[MAXPLAYERS];
+local struct LoginPacket *loginpkt[MAXPLAYERS];
+local int lplen[MAXPLAYERS];
 
 local Imodman *mm;
 local Iplayerdata *pd;
@@ -229,22 +230,18 @@ void ProcessLoginQueue(void)
 			case S_NEED_AUTH:
 				{
 					Iauth *auth = mm->GetInterface(I_AUTH, ALLARENAS);
-					int len = LEN_LOGINPACKET_VIE;
-
-					/* figuring out the length this way is guaranteed to
-					 * work because of the length check in PLogin. */
-#ifndef CFG_RELAX_LENGTH_CHECKS
-					if (player->type == T_CONT)
-						len = LEN_LOGINPACKET_CONT;
-#endif
 
 					if (auth)
 					{
-						auth->Authenticate(pid, bigloginpkt + pid, len, AuthDone);
+						auth->Authenticate(pid, loginpkt[pid], lplen[pid], AuthDone);
 						mm->ReleaseInterface(auth);
 					}
 					else
 						lm->Log(L_ERROR, "<core> Missing auth module!");
+
+					afree(loginpkt[pid]);
+					loginpkt[pid] = NULL;
+					lplen[pid] = 0;
 				}
 				break;
 
@@ -332,7 +329,6 @@ void ProcessLoginQueue(void)
 					   (pid, PA_DISCONNECT, -1));
 				if (persist)
 					persist->PutPlayer(pid, PERSIST_GLOBAL, NULL);
-				pd->players[pid].loginpkt = NULL;
 				break;
 		}
 
@@ -363,7 +359,7 @@ void PLogin(int pid, byte *p, int l)
 		lm->Log(L_MALICIOUS, "<core> [pid=%d] Login request from wrong stage: %d", pid, players[pid].status);
 	else
 	{
-		struct LoginPacket *pkt = (struct LoginPacket*)p;
+		struct LoginPacket *pkt = (struct LoginPacket*)p, *lp;
 		int oldpid = pd->FindPlayer(pkt->name), c;
 
 		if (oldpid != -1 && oldpid != pid)
@@ -375,12 +371,15 @@ void PLogin(int pid, byte *p, int l)
 		}
 
 		/* copy into storage for use by authenticator */
-		memcpy(bigloginpkt + pid, p, l);
-		pd->players[pid].loginpkt = bigloginpkt + pid;
+		lp = loginpkt[pid] = amalloc(sizeof(*lp));
+		lplen[pid] = l;
+		memcpy(lp, p, l);
+		pd->players[pid].macid = pkt->macid;
+		pd->players[pid].permid = pkt->D2;
 		/* replace colons with underscores */
-		for (c = 0; c < sizeof(bigloginpkt->name); c++)
-			if (bigloginpkt[pid].name[c] == ':')
-				bigloginpkt[pid].name[c] = '_';
+		for (c = 0; c < sizeof(lp->name); c++)
+			if (lp->name[c] == ':')
+				lp->name[c] = '_';
 		/* set up status */
 		players[pid].status = S_NEED_AUTH;
 		lm->Log(L_DRIVEL, "<core> [pid=%d] Login request: '%s'", pid, pkt->name);
@@ -392,35 +391,34 @@ void MLogin(int pid, const char *line)
 {
 	const char *t;
 	char vers[16];
-	struct LoginPacket pkt;
+	struct LoginPacket *lp;
 	int oldpid;
 
-	memset(&pkt, 0, sizeof(pkt));
+	lp = loginpkt[pid] = amalloc(LEN_LOGINPACKET_VIE);
+	lplen[pid] = LEN_LOGINPACKET_VIE;
 
 	/* extract fields */
 	t = delimcpy(vers, line, 16, ':');
 	if (!t) return;
-	pkt.cversion = atoi(vers);
-	t = delimcpy(pkt.name, t, sizeof(pkt.name), ':');
+	lp->cversion = atoi(vers);
+	t = delimcpy(lp->name, t, sizeof(lp->name), ':');
 	if (!t) return;
-	astrncpy(pkt.password, t, sizeof(pkt.password));
+	astrncpy(lp->password, t, sizeof(lp->password));
 
-	oldpid = pd->FindPlayer(pkt.name);
+	oldpid = pd->FindPlayer(lp->name);
 
 	if (oldpid != -1 && oldpid != pid)
 	{
 		lm->Log(L_DRIVEL,"<core> [%s] Player already on, kicking him off "
 				"(pid %d replacing %d)",
-				pkt.name, pid, oldpid);
+				lp->name, pid, oldpid);
 		pd->KickPlayer(oldpid);
 	}
 
-	/* copy into storage for use by authenticator */
-	memcpy(bigloginpkt + pid, &pkt, sizeof(pkt));
-	pd->players[pid].loginpkt = NULL;
+	pd->players[pid].macid = pd->players[pid].permid = 101;
 	/* set up status */
 	players[pid].status = S_NEED_AUTH;
-	lm->Log(L_DRIVEL, "<core> [pid=%d] Login request: '%s'", pid, pkt.name);
+	lm->Log(L_DRIVEL, "<core> [pid=%d] Login request: '%s'", pid, lp->name);
 }
 
 
@@ -435,7 +433,8 @@ void AuthDone(int pid, AuthData *auth)
 	}
 
 	/* copy the authdata */
-	memcpy(bigauthdata + pid, auth, sizeof(AuthData));
+	authdata[pid] = amalloc(sizeof(AuthData));
+	memcpy(authdata[pid], auth, sizeof(AuthData));
 
 	if (AUTH_IS_OK(auth->code))
 	{
@@ -453,9 +452,9 @@ void AuthDone(int pid, AuthData *auth)
 	}
 	else
 	{
-		/* stuff other than AUTH_OK means the login didn't succeed.
-		 * status should go to S_CONNECTED instead of moving forward,
-		 * and send the login response now, since we won't do it later. */
+		/* if the login didn't succeed status should go to S_CONNECTED
+		 * instead of moving forward, and send the login response now,
+		 * since we won't do it later. */
 		SendLoginResponse(pid);
 		pd->LockStatus();
 		player->status = S_CONNECTED;
@@ -516,9 +515,14 @@ local const char *get_auth_code_msg(int code)
 
 void SendLoginResponse(int pid)
 {
-	AuthData *auth = bigauthdata + pid;
+	AuthData *auth = authdata[pid];
 
-	if (IS_STANDARD(pid))
+	if (!auth)
+	{
+		lm->Log(L_ERROR, "<core> Missing authdata for pid %d", pid);
+		pd->KickPlayer(pid);
+	}
+	else if (IS_STANDARD(pid))
 	{
 		struct LoginResponse lr =
 			{ S2C_LOGINRESPONSE, 0, 134, 0, EXECHECKSUM, {0, 0},
@@ -545,6 +549,9 @@ void SendLoginResponse(int pid)
 		else
 			chatnet->SendToOne(pid, "LOGINBAD:%s", get_auth_code_msg(auth->code));
 	}
+
+	afree(auth);
+	authdata[pid] = NULL;
 }
 
 
