@@ -469,7 +469,8 @@ local void count_players(Arena *a, int *totalp, int *playingp)
 	pd->Lock();
 	FOR_EACH_PLAYER(p)
 		if (p->status == S_PLAYING &&
-		    p->arena == a)
+		    p->arena == a &&
+		    p->type != T_FAKE)
 		{
 			total++;
 			if (p->p_ship != SPEC)
@@ -800,12 +801,49 @@ local void Unlock(void)
 }
 
 
+local void GetPopulationSummary(int *totalp, int *playingp)
+{
+	/* arena lock held (shared) here */
+	Link *link;
+	Arena *a;
+	Player *p;
+	int total = 0, playing = 0;
+
+	for (link = LLGetHead(&myint.arenalist); link; link = link->next)
+	{
+		a = link->data;
+		a->playing = a->total = 0;
+	}
+
+	pd->Lock();
+	FOR_EACH_PLAYER(p)
+		if (p->status == S_PLAYING &&
+		    p->type != T_FAKE &&
+		    p->arena)
+		{
+			total++;
+			p->arena->total++;
+			if (p->p_ship != SPEC)
+			{
+				playing++;
+				p->arena->playing++;
+			}
+		}
+	pd->Unlock();
+
+	if (totalp) *totalp = total;
+	if (playingp) *playingp = playing;
+}
+
+
+
 local Iarenaman myint =
 {
 	INTERFACE_HEAD_INIT(I_ARENAMAN, "arenaman")
 	SendArenaResponse, LeaveArena,
 	RecycleArena,
 	SendToArena, FindArena,
+	GetPopulationSummary,
 	AllocateArenaData, FreeArenaData,
 	Lock, Unlock
 };

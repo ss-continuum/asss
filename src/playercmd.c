@@ -85,66 +85,52 @@ local int check_arena(char *pkt, int len, char *check)
 
 local helptext_t arena_help =
 "Targets: none\n"
-"Args: [{all}]\n"
-"Lists the available arenas. Specifying {all} will also include\n"
-"empty arenas that the server knows about.\n";
+"Args: [{-a}] [{-t}]\n"
+"Lists the available arenas. Specifying {-a} will also include\n"
+"empty arenas that the server knows about. The {-t} switch forces\n"
+"the output to be in text even for regular clients (useful when using\n"
+"the Continuum chat window).\n";
 
 local void Carena(const char *params, Player *p, const Target *target)
 {
 	byte buf[MAXPACKET];
 	byte *pos = buf;
-	int l, seehid, *count;
-	Arena *arena = p->arena, *a;
-	Player *i;
+	int l, seehid;
+	Arena *a;
 	Link *link;
-	int key = aman->AllocateArenaData(sizeof(int));
-
-	if (key == -1) return;
 
 	*pos++ = S2C_ARENA;
 
 	aman->Lock();
 
-	/* zero all the player counts */
-	FOR_EACH_ARENA_P(a, count, key)
-		*count = 0;
-
-	pd->Lock();
-	/* count up players */
-	FOR_EACH_PLAYER(i)
-		if (i->status == S_PLAYING &&
-		    i->arena != NULL)
-			(*(int*)P_ARENA_DATA(i->arena, key))++;
-	pd->Unlock();
-
-	/* signify current arena */
-	if (arena)
-		*(int*)P_ARENA_DATA(arena, key) *= -1;
+	aman->GetPopulationSummary(NULL, NULL);
 
 	/* build arena info packet */
 	seehid = capman && capman->HasCapability(p, CAP_SEEPRIVARENA);
-	FOR_EACH_ARENA_P(a, count, key)
+	FOR_EACH_ARENA(a)
 	{
 		if ((pos-buf) > 480) break;
 
 		if (a->status == ARENA_RUNNING &&
-		    ( a->name[0] != '#' || seehid || a == arena ))
+		    ( a->name[0] != '#' || seehid || p->arena == a ))
 		{
+			int count = a->total;
+			/* signify current arena */
+			if (p->arena == a)
+				count = -count;
 			l = strlen(a->name) + 1;
 			strncpy(pos, a->name, l);
 			pos += l;
-			*pos++ = (*count >> 0) & 0xFF;
-			*pos++ = (*count >> 8) & 0xFF;
+			*pos++ = (count >> 0) & 0xFF;
+			*pos++ = (count >> 8) & 0xFF;
 		}
 	}
 
 	aman->Unlock();
 
-	aman->FreeArenaData(key);
-
 #ifdef CFG_DO_EXTRAARENAS
 	/* add in more arenas if requested */
-	if (!strcasecmp(params, "all"))
+	if (strstr(params, "-a"))
 	{
 		char aconf[PATH_MAX];
 		DIR *dir = opendir("arenas");
@@ -158,6 +144,7 @@ local void Carena(const char *params, Player *p, const Target *target)
 				snprintf(aconf, sizeof(aconf), "arenas/%s/arena.conf", de->d_name);
 				if (
 						(pos-buf+strlen(de->d_name)) < 480 &&
+						de->d_name[0] != '(' &&
 						access(aconf, R_OK) == 0 &&
 						(de->d_name[0] != '#' || seehid) &&
 						check_arena(buf, pos-buf, de->d_name)
@@ -176,10 +163,10 @@ local void Carena(const char *params, Player *p, const Target *target)
 #endif
 
 	/* send it */
-	if (IS_STANDARD(p))
-		net->SendToOne(p, buf, pos-buf, NET_RELIABLE);
-	else if (IS_CHAT(p)) /* send it as chat messages */
+	if (IS_CHAT(p) || strstr(params, "-t"))
 		translate_arena_packet(p, buf, pos-buf);
+	else if (IS_STANDARD(p))
+		net->SendToOne(p, buf, pos-buf, NET_RELIABLE);
 }
 
 

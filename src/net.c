@@ -312,6 +312,8 @@ local struct
 	int limit_low, limit_high;
 	/* ip/udp overhead, in bytes per physical packet */
 	int overhead;
+	/* how often to refresh the ping packet data */
+	int pingrefreshtime;
 
 } config;
 
@@ -411,6 +413,8 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		config.limit_low = cfg->GetInt(GLOBAL, "Net", "LimitMinimum", 1024);
 		config.limit_high = cfg->GetInt(GLOBAL, "Net", "LimitMaximum", 102400);
 		relthdcount = cfg->GetInt(GLOBAL, "Net", "ReliableThreads", 1);
+		config.overhead = cfg->GetInt(GLOBAL, "Net", "PerPacketOveread", 28);
+		config.pingrefreshtime = cfg->GetInt(GLOBAL, "Net", "PingDataRefreshTime", 200);
 
 		/* get the sockets */
 		if (InitSockets())
@@ -1023,20 +1027,82 @@ freebuf:
 }
 
 
+/* ping protocol described in doc/ping.txt */
 local void handle_ping_packet(ListenData *ld)
 {
-	int len, sinsize, dalen = ld->connectas ? strlen(ld->connectas) : 0;
+	/* this function is only ever called from one thread, so this static
+	 * data is safe. */
+	static struct {
+		ticks_t refresh;
+		struct { u32 total; u32 playing; } global;
+		byte aps[MAXPACKET];
+		int apslen;
+	} sdata = { 0 };
+
+	int len, sinsize;
 	struct sockaddr_in sin;
-	unsigned int data[2];
+	u32 data[2];
+	ticks_t now;
 
 	sinsize = sizeof(sin);
-	len = recvfrom(ld->pingsock, (char*)data, 4, 0,
+	len = recvfrom(ld->pingsock, (char*)data, 8, 0,
 			(struct sockaddr*)&sin, &sinsize);
+	if (len <= 0) return;
 
-	if (len == 4)
+	/* try updating current data if necessary */
+	now = current_ticks();
+	if (sdata.refresh == 0 ||
+	    TICK_DIFF(now, sdata.refresh) > config.pingrefreshtime)
 	{
-		Player *p;
+		byte *pos = sdata.aps;
+		Arena *a;
 		Link *link;
+		int total, playing;
+		Iarenaman *aman = mm->GetInterface(I_ARENAMAN, NULL);
+
+		if (!aman) return;
+
+		aman->Lock();
+		aman->GetPopulationSummary(&total, &playing);
+		FOR_EACH_ARENA(a)
+		{
+			if ((pos-sdata.aps) > 480) break;
+			if (a->status == ARENA_RUNNING && a->name[0] != '#')
+			{
+				int l = strlen(a->name) + 1;
+				strncpy(pos, a->name, l);
+				pos += l;
+				*pos++ = (a->total >> 0) & 0xFF;
+				*pos++ = (a->total >> 8) & 0xFF;
+				*pos++ = (a->playing >> 0) & 0xFF;
+				*pos++ = (a->playing >> 8) & 0xFF;
+			}
+		}
+		aman->Unlock();
+
+		*pos++ = 0;
+		sdata.apslen = pos - sdata.aps;
+
+		sdata.global.total = total;
+		sdata.global.playing = playing;
+
+		mm->ReleaseInterface(aman);
+
+		sdata.refresh = now;
+	}
+
+	if (len == 4 && ld->connectas == NULL)
+	{
+		data[1] = data[0];
+		data[0] = sdata.global.total;
+		sendto(ld->pingsock, (char*)data, 8, 0,
+				(struct sockaddr*)&sin, sinsize);
+	}
+	else if (len == 4)
+	{
+		int calen = strlen(ld->connectas);
+		Link *link;
+		Player *p;
 
 		data[1] = data[0];
 		data[0] = 0;
@@ -1046,14 +1112,48 @@ local void handle_ping_packet(ListenData *ld)
 			    p->type != T_FAKE &&
 			    p->arena &&
 			    ( !ld->connectas ||
-			      strncmp(p->arena->name, ld->connectas, dalen) == 0))
+			      strncmp(p->arena->name, ld->connectas, calen) == 0))
 				data[0]++;
 		pd->Unlock();
+
 		sendto(ld->pingsock, (char*)data, 8, 0,
 				(struct sockaddr*)&sin, sinsize);
-
-		global_stats.pcountpings++;
 	}
+	else if (len == 8)
+	{
+		byte buf[MAXPACKET], *pos = buf;
+		u32 optsin = data[1], optsout = 0;
+
+		/* always include header */
+		memcpy(pos, &data[0], 4);
+		/* fill in next 4 bytes later */
+		pos += 8;
+
+		/* the rest depends on the options */
+#define PING_GLOBAL_SUMMARY 0x01
+#define PING_ARENA_SUMMARY  0x02
+		if ((optsin & PING_GLOBAL_SUMMARY) &&
+		    (pos-buf+8) < sizeof(buf))
+		{
+			memcpy(pos, &sdata.global, 8);
+			pos += 8;
+			optsout |= PING_GLOBAL_SUMMARY;
+		}
+		if ((optsin & PING_ARENA_SUMMARY) &&
+		    (pos-buf+sdata.apslen) < sizeof(buf))
+		{
+			memcpy(pos, sdata.aps, sdata.apslen);
+			pos += sdata.apslen;
+			optsout |= PING_ARENA_SUMMARY;
+		}
+
+		/* fill in option bits here */
+		memcpy(buf+4, &optsout, 4);
+
+		sendto(ld->pingsock, buf, pos-buf, 0, (struct sockaddr*)&sin, sinsize);
+	}
+
+	global_stats.pcountpings++;
 }
 
 
@@ -1102,6 +1202,8 @@ local void handle_client_packet(void)
 				conn->lastpkt = current_ticks();
 				conn->byterecvd += len;
 				conn->pktrecvd++;
+				global_stats.byterecvd += len;
+				global_stats.pktrecvd++;
 #ifdef CFG_DUMP_RAW_PACKETS
 				printf("DECRYPTED CLIENT DATA: %d bytes\n", len);
 				dump_pk(buf->d.raw, len);

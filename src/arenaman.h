@@ -15,6 +15,8 @@ struct Arena
 	ConfigHandle cfg;
 	/* this setting is so commonly used, it deserves to be here. */
 	int specfreq;
+	/* some summary data maintained by the core modules */
+	int playing, total;
 	byte arenaextradata[0];
 };
 
@@ -66,18 +68,19 @@ enum
 };
 
 
-#define I_ARENAMAN "arenaman-5"
+#define I_ARENAMAN "arenaman-6"
 
 typedef struct Iarenaman
 {
 	INTERFACE_HEAD_DECL
-	
+
 	/* pyint: use */
 
 	void (*SendArenaResponse)(Player *p);
 	void (*LeaveArena)(Player *p);
 
 	void (*RecycleArena)(Arena *a);
+	/* pyint: arena -> void */
 
 	void (*SendToArena)(Player *p, const char *aname, int spawnx, int spawny);
 	/* works on cont clients only. set spawnx/y to 0 for default spawn. */
@@ -91,12 +94,20 @@ typedef struct Iarenaman
 	 * players in the arena. */
 	/* pyint: string, int out, int out -> arena */
 
+	void (*GetPopulationSummary)(int *total, int *playing);
+	/* this fills in the data in gps _and_ updates the playing and total
+	 * fields of each arena. you should be holding the arena lock when
+	 * calling this. */
+	/* pyint: int out, int out -> void */
+
 	int (*AllocateArenaData)(size_t bytes);
 	/* returns -1 on failure */
 	void (*FreeArenaData)(int key);
 
 	void (*Lock)(void);
+	/* pyint: void -> void */
 	void (*Unlock)(void);
+	/* pyint: void -> void */
 	/* these must always be used to iterate over all the arenas
 	 * (with the FOR_EACH_ARENA macro). */
 
