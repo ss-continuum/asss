@@ -68,7 +68,7 @@ EXPORT int MM_clientset(int action, Imodman *mm_, Arena *arena)
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
-		prng = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		prng = mm->GetInterface(I_PRNG, ALLARENAS);
 
 		if (!net || !cfg || !lm || !aman || !prng) return MM_FAIL;
 
