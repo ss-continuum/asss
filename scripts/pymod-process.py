@@ -18,7 +18,7 @@ re_pycb_dir = re.compile(r'/\* pycb: (.*?)(\*/)?$')
 # interfaces
 re_pyint_intdef = re.compile(r'#define (I_[A-Z_0-9]*)')
 re_pyint_typedef = re.compile(r'typedef struct (I[a-z_0-9]*)')
-re_pyint_func = re.compile(r'\t[A-Za-z].*\(\*([A-Za-z_0-9]*)\)')
+re_pyint_func = re.compile(r'\t[A-Za-z].*?\(\*([A-Za-z_0-9]*)\)')
 re_pyint_dir = re.compile(r'\s*/\* pyint: (.*?)(\*/)?$')
 re_pyint_done = re.compile(r'^}')
 
@@ -43,6 +43,83 @@ def const_callback(n):
 def const_interface(n):
 	const_file.write('PYINTERFACE(%s)\n' % n);
 
+
+def tokenize_signature(s):
+	out = []
+	t = ''
+	dash = 0
+	for c in s:
+		if ord(c) >= ord('a') and ord(c) <= ord('z'):
+			t += c
+		else:
+			if t:
+				out.append(t)
+				t = ''
+
+			if dash and c == '>':
+				out.append('->')
+				dash = 0
+			else:
+				dash = 0
+
+			if c in ',()':
+				out.append(c)
+			elif c == '-':
+				dash = 1
+
+	assert not dash
+
+	if t:
+		out.append(t)
+
+	return out
+
+class Arg:
+	def __init__(me, tp, flags):
+		me.tp = tp
+		me.flags = flags
+	def __str__(me):
+		return str(me.tp) + '[' + ', '.join(map(str, me.flags)) + ']'
+
+class Func:
+	def __init__(me, args, out):
+		me.args = args
+		me.out = out
+	def __str__(me):
+		return '(' + ', '.join(map(str, me.args)) + ' -> ' + str(me.out) + ')'
+
+def is_func(o):
+	return getattr(o, '__class__', None) is Func
+
+def parse_arg(tokens):
+	flags = []
+	if tokens[0] == '(':
+		tokens.pop(0)
+		tp = parse_func(tokens)
+		assert tokens[0] == ')'
+		tokens.pop(0)
+	else:
+		tp = tokens.pop(0)
+		while tokens and tokens[0] not in [',', '->', ')']:
+			flags.append(tokens.pop(0))
+
+	return Arg(tp, flags)
+
+def parse_func(tokens):
+	args = []
+	while tokens[0] != '->':
+		assert tokens[0] != ')'
+		args.append(parse_arg(tokens))
+		if tokens[0] == ',':
+			tokens.pop(0)
+	tokens.pop(0)
+	out = parse_arg(tokens)
+	return Func(args, out)
+
+
+def genid(state = [100]):
+	state[0] += 1
+	return 'py_genid_%d' % state[0]
 
 class type_gen:
 	def format_char(me):
@@ -110,9 +187,6 @@ class type_string(type_gen):
 		return '{0}'
 	def conv_to_buf(me, buf, val):
 		return '\tastrncpy(%s, %s, buflen);' % (buf, val)
-
-class type_formatted(type_string):
-	pass
 
 class type_zstring(type_gen):
 	def format_char(me):
@@ -198,17 +272,18 @@ class type_bufp(type_gen):
 
 
 def get_type(tp):
-	cname = 'type_' + tp
-	cls = globals()[cname]
-	return cls()
+	try:
+		cname = 'type_' + tp
+		cls = globals()[cname]
+		return cls()
+	except:
+		return None
 
 
-def create_c_to_py_func(name, args, out, code, description):
+def create_c_to_py_func(name, func, code, description):
 
-	args = map(string.strip, args.split(','))
-	if 'void' in args:
-		args.remove('void')
-	out = string.strip(out)
+	args = func.args
+	out = func.out
 
 	informat = []
 	outformat = []
@@ -220,12 +295,13 @@ def create_c_to_py_func(name, args, out, code, description):
 	extras3 = []
 	allargs = []
 
-	if out == 'void':
+	if out.tp == 'void':
 		retorblank = ''
 		rettype = type_void()
 		defretval = ''
 	else:
-		typ = get_type(out)
+		assert not out.flags
+		typ = get_type(out.tp)
 		argname = 'ret'
 		decls.append('\t%s;' % typ.decl(argname))
 		outformat.append(typ.format_char())
@@ -243,12 +319,17 @@ def create_c_to_py_func(name, args, out, code, description):
 		idx = idx + 1
 		argname = 'arg%d' % idx
 
-		opts = arg.split(' ')
-		tname = opts.pop(0)
+		opts = arg.flags
+		typ = get_type(arg.tp)
 
-		typ = get_type(tname)
+		if arg.tp == 'void':
+			continue
 
-		if 'in' in opts or not opts:
+		elif arg.tp == 'clos':
+			decls.append('\tPyObject *closobj = clos;')
+			allargs.append('void *clos')
+
+		elif 'in' in opts or not opts:
 			# this is an incoming arg
 			argname += '_in'
 			informat.append(typ.format_char())
@@ -319,7 +400,7 @@ def create_c_to_py_func(name, args, out, code, description):
 	extras3 = '\n'.join(extras3)
 	funcdecl = '%s(%s)' % (name, allargs)
 	funcdecl = rettype.decl(funcdecl)
-	func = """
+	code1 = """
 local %(funcdecl)s
 {
 	PyObject *args, *out = NULL;
@@ -335,7 +416,7 @@ local %(funcdecl)s
 %(code)s
 	Py_DECREF(args);"""
 	if outargs:
-		func2 = """
+		code2 = """
 	if (!out)
 	{
 		log_py_exception(L_ERROR, "python error calling "
@@ -356,20 +437,17 @@ local %(funcdecl)s
 }
 """
 	else:
-		func2 = """
+		code2 = """
 	Py_XDECREF(out);
 }
 """
 
-	return (func + func2) % vars()
+	return (code1 + code2) % vars()
 
 
-def create_py_to_c_func(args, out):
-
-	args = map(string.strip, args.split(','))
-	if 'void' in args:
-		args.remove('void')
-	out = string.strip(out)
+def create_py_to_c_func(func):
+	args = func.args
+	out = func.out
 
 	informat = []
 	outformat = []
@@ -379,12 +457,14 @@ def create_py_to_c_func(args, out):
 	extras1 = []
 	extras2 = []
 	extras3 = []
+	extracode = []
 	allargs = []
 
-	if out == 'void':
+	if out.tp == 'void':
 		asgntoret = ''
 	else:
-		typ = get_type(out)
+		assert not out.flags
+		typ = get_type(out.tp)
 		argname = 'ret'
 		decls.append('\t%s;' % typ.decl(argname))
 		outformat.append(typ.format_char())
@@ -400,21 +480,49 @@ def create_py_to_c_func(args, out):
 		idx = idx + 1
 		argname = 'arg%d' % idx
 
-		opts = arg.split(' ')
-		tname = opts.pop(0)
+		opts = arg.flags
 
-		typ = get_type(tname)
+		typ = get_type(arg.tp)
 
-		if tname == 'formatted':
+		if arg.tp == 'void':
+			continue
+
+		elif arg.tp == 'formatted':
 			# these are a little weird
 			if idx != len(args):
 				raise Exception, "formatted arg isn't last!"
+			typ = get_type('string')
 			argname += '_infmt'
 			informat.append(typ.format_char())
 			decls.append('\t%s;' % typ.decl(argname))
 			inargs.append('&%s' % argname)
 			allargs.append('"%s"')
 			allargs.append('%s' % argname)
+
+		elif arg.tp == 'clos':
+			# hardcoded value. this depends on the existence of exactly
+			# one function argument.
+			allargs.append('cbfunc')
+
+		elif is_func(arg.tp):
+			cbfuncname = genid()
+			code1 = create_c_to_py_func(cbfuncname, arg.tp,
+					'\tout = PyObject_Call(closobj, args, NULL);',
+					'callback function')
+			extracode.append(code1)
+
+			informat.append('O')
+			decls.append('\tPyObject *cbfunc;')
+			inargs.append('&cbfunc')
+			allargs.append(cbfuncname)
+			extras1.append("""
+	if (!PyCallable_Check(cbfunc))
+	{
+		PyErr_SetString(PyExc_TypeError, "func isn't callable");
+		return NULL;
+	}
+""")
+			extras2.append('\tPy_DECREF(cbfunc);')
 
 		elif 'in' in opts or not opts:
 			# this is an incoming arg
@@ -492,6 +600,7 @@ def create_py_to_c_func(args, out):
 	extras1 = '\n'.join(extras1)
 	extras2 = '\n'.join(extras2)
 	extras3 = '\n'.join(extras3)
+	extracode = '\n'.join(extracode)
 
 	return vars()
 
@@ -504,20 +613,23 @@ pycb_cb_names = []
 def translate_pycb(name, ctype, line):
 	pycb_cb_names.append((name, ctype))
 
+	tokens = tokenize_signature(line + '->void')
+	func = parse_func(tokens)
+
 	funcname = 'py_cb_%s' % name
-	func = create_c_to_py_func(
-		funcname, line, 'void',
+	code = create_c_to_py_func(
+		funcname, func,
 		'\tcall_gen_py_callbacks(PYCBPREFIX %s, args);' % name,
 		'callback %s' % name)
-	callback_file.write(func)
+	callback_file.write(code)
 
-	dict = create_py_to_c_func(line, 'void')
+	dict = create_py_to_c_func(func)
 	dict.update(vars())
 	if dict['extras1'] or dict['extras2'] or dict['extras3'] or \
 	   dict['outformat'] or dict['outargs']:
 		print "warning: %s: out or inout args not supported when " \
 				"calling cbs from python" % name
-	func = """
+	code = """
 local void py_cb_call_%(name)s(Arena *arena, PyObject *args)
 {
 %(decls)s
@@ -526,7 +638,7 @@ local void py_cb_call_%(name)s(Arena *arena, PyObject *args)
 	DO_CBS(%(name)s, arena, %(ctype)s, (%(allargs)s));
 }
 """ % dict
-	callback_file.write(func)
+	callback_file.write(code)
 
 
 def finish_pycb():
@@ -589,18 +701,18 @@ def translate_pyint(iid, ifstruct, dirs):
 		memberdecls = []
 
 		for name, thing in dirs:
-			argsout = thing.split('->')
-			if len(argsout) == 1:
-				# this is a member
-				pass
-			elif len(argsout) == 2:
-				# this is a method
-				args, out = argsout
+			try:
+				tokens = tokenize_signature(thing)
+				func = parse_func(tokens)
+			except:
+				print "couldn't parse '%s'" % thing
+				continue
 
-				dict = create_py_to_c_func(args, out)
-				mthdname = 'pyint_method_%s_%s' % (iid, name)
-				dict.update(vars())
-				mthd = """
+			dict = create_py_to_c_func(func)
+			mthdname = 'pyint_method_%s_%s' % (iid, name)
+			dict.update(vars())
+			mthd = """
+%(extracode)s
 local PyObject *
 %(mthdname)s(%(objstructname)s *me, PyObject *args)
 {
@@ -616,15 +728,12 @@ local PyObject *
 	return out;
 }
 """ % dict
-				methods.append(mthd)
+			methods.append(mthd)
 
-				decl = """\
+			decl = """\
 	{"%(name)s", (PyCFunction)%(mthdname)s, METH_VARARGS, NULL },
 """ % vars()
-				methoddecls.append(decl)
-
-			else:
-				print "bad interface directive: %s" % thing
+			methoddecls.append(decl)
 
 
 		objstructdecl = """
@@ -719,22 +828,18 @@ local PyTypeObject %(typestructname)s = {
 		funcidx = -1
 		for name, thing in dirs:
 			funcidx = funcidx + 1
-			argsout = thing.split('->')
-			if len(argsout) == 1:
-				# this is a member
-				pass
-			elif len(argsout) == 2:
-				# this is a method
-				args, out = argsout
-				funcname = 'pyint_func_%s_%s' % (iid, name)
-				func = create_c_to_py_func(funcname, args, out,
-					"\tout = call_gen_py_interface(PYINTPREFIX %(iid)s, %(funcidx)d, args);" % vars(),
-					'function %(name)s in interface %(iid)s' % vars())
-				funcs.append(func)
-				funcnames.append(funcname)
-
-			else:
-				print "bad interface directive: %s" % thing
+			try:
+				tokens = tokenize_signature(thing)
+				func = parse_func(tokens)
+			except:
+				print "bad declaration '%s'" % thing
+				continue
+			funcname = 'pyint_func_%s_%s' % (iid, name)
+			code = create_c_to_py_func(funcname, func,
+				"\tout = call_gen_py_interface(PYINTPREFIX %(iid)s, %(funcidx)d, args);" % vars(),
+				'function %(name)s in interface %(iid)s' % vars())
+			funcs.append(code)
+			funcnames.append(funcname)
 
 		funcnames = ',\n\t'.join(funcnames)
 		ifstructdecl = """
