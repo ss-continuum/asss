@@ -40,4 +40,5 @@ prefix_@
 
 ; setgroup:
 setgroup_smod
+setgroup_sysop
 

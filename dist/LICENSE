@@ -8,7 +8,10 @@ changes you made to it.
 There are a few exceptions: the files util.[ch], pathutil.[ch], and
 protutil.[ch] are placed in the public domain (do anything you want with
 them). The files md5.c and md5.h were not written by me, and are also in
-the public domain.
+the public domain. The files rwlock.c and rwlock.h were not written by
+me, but they were modified by me. I can't tell what their original
+license is, but they came from here:
+http://homepage.mac.com/dbutenhof/Threads/source.html
 
 
 The stuff after this line is a more offical statement of the above,

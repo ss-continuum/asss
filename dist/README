@@ -23,12 +23,8 @@ files in.
 If you want to connect to a billing server, you can either use the
 'billing_ssc' module or the 'billing' module with the proxy. The proxy
 requires a relatively recent (2.1+) version of Python. The billing_ssc
-module is slightly better tested than the alternative.
-
+module is somewhat better tested than the alternative.
 
 
 Known bugs:
-
-billing server support isn't well tested.
-greens that appear on death aren't randomized properly.
 
