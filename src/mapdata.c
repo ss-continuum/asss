@@ -193,7 +193,7 @@ local void FreeRegion(char *k, void *v, void *d)
 
 local int GetMapFilename(Arena *arena, char *buf, int buflen, const char *mapname)
 {
-	int islvl;
+	int islvl = 0;
 	const char *t;
 	struct replace_table repls[3] =
 	{

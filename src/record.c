@@ -1,5 +1,5 @@
 
-/* dist: notpublicyet */
+/* dist: public */
 
 #include <assert.h>
 #include <string.h>

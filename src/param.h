@@ -13,7 +13,7 @@
 
 
 /* whether to log private and chat messages */
-#define CFG_LOG_PRIVATE
+/* #define CFG_LOG_PRIVATE */
 
 
 /* whether to disallow allow loading modules from anywhere other than ./bin/ */

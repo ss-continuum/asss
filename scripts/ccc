@@ -287,7 +287,7 @@ class Player:
 
 class Colors:
 	def __init__(me):
-		from curses import init_pair, color_pair, A_BLINK, COLORS, COLOR_PAIRS
+		from curses import init_pair, color_pair, A_BOLD, COLORS, COLOR_PAIRS
 
 		me.colors = COLORS
 		me.pairs = COLOR_PAIRS
@@ -296,15 +296,15 @@ class Colors:
 			init_pair(c, c % COLORS, 0)
 
 		me.default = color_pair(0)
-		me.info = color_pair(14 % me.pairs) | A_BLINK
-		me.arena = color_pair(10 % me.pairs) | A_BLINK
+		me.info = color_pair(14 % me.pairs) | A_BOLD
+		me.arena = color_pair(10 % me.pairs) | A_BOLD
 		me.pub = color_pair(15 % me.pairs)
 		me.priv = color_pair(2)
 		me.rempriv = color_pair(10 % me.pairs)
 		me.freq = color_pair(11 % me.pairs)
 		me.chat = color_pair(9 % me.pairs)
 		me.mod = color_pair(12 % me.pairs)
-		me.sysop = color_pair(9 % me.pairs) | A_BLINK
+		me.sysop = color_pair(9 % me.pairs) | A_BOLD
 
 		# add colors that we couldn't do before
 		global deferred_color_args
@@ -314,7 +314,7 @@ class Colors:
 
 	def set_color(me, name, num, bold = 0):
 		if bold:
-			setattr(me, name, curses.color_pair(num) | curses.A_BLINK)
+			setattr(me, name, curses.color_pair(num) | curses.A_BOLD)
 		else:
 			setattr(me, name, curses.color_pair(num))
 

@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 1.0rc2.
+Welcome to asss (a small subspace server) 1.1.0.
 
 This news.txt will be used for updates about new features and other
 important information. If you have any suggestions of any kind, please
@@ -7,31 +7,10 @@ let me know.
 
 
 Recent updates:
-    * locking-to-ship for players and arenas.
-
-    * bug fixes in scores and billing stuff.
-
-    * new and improved billing server support.
-
-    * autoturrets are back: type ?dropturret
-
-    * continuum 0.38 support: new settings, correct version info, more
-      secure encryption
-
-    * additions to simple chat protocol.
-
-    * bunches of bug fixes.
-
-    * network layer improvements: faster and smoother downloads
-
-    * billing server support re-added (plus a proxy to connect
-      to older servers)
-
-    * improved ?putfile command, plus ?putzip
-
-
-Lots more detail at:
-http://asss.yi.org:2400/asss/timeline
+    * lots of changes were made between 1.0 and 1.1. the most
+      significant are: support for modules written in Python, a game
+      recorder module, updates to the console chat client, and lots of
+      bug fixes.
 
 
 Contact: grelminar@yahoo.com

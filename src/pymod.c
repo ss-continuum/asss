@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #include <Python.h>
 #include <structmember.h>
 
