@@ -22,7 +22,7 @@ typedef struct Imapdata
 	int (*GetFlagCount)(int arena);
 	/* gets the number of turf flags on the map */
 
-	int (*GetTile)(int arena, int x, int );
+	int (*GetTile)(int arena, int x, int y);
 	/* returns the contents of the given tile. */
 
 
