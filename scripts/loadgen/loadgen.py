@@ -35,7 +35,7 @@ def login_event():
 	else:
 		cp = random.choice(clients)
 		clients.remove(cp)
-		cp[0].disconnect()
+		cp.disconnect()
 		print "*** dropping connection -> %d" % len(clients)
 
 
