@@ -95,6 +95,8 @@ local void uploaded(const char *path, void *clos)
 
 		if (ft->SendFile(td->to, path, t1, 1) != MM_OK)
 			remove(path);
+		else
+			chat->SendMessage(td->from, "File sent.");
 	}
 	UNLOCK();
 	afree(td);
@@ -136,7 +138,8 @@ local void Csendfile(const char *tc, const char *params, Player *p, const Target
 
 	if (is_sending(p))
 	{
-		chat->SendMessage(p, "You are currently sending a file");
+		chat->SendMessage(p, "You are currently sending a file. "
+			"Use ?cancelfile to cancel the current file transfer.");
 		return;
 	}
 
@@ -163,6 +166,7 @@ local void Csendfile(const char *tc, const char *params, Player *p, const Target
 	td->to = t;
 	astrncpy(td->clientpath, params, sizeof(td->clientpath));
 
+	chat->SendMessage(p, "Waiting for %s to accept your file.", t->name);
 	chat->SendMessage(t, "%s wants to send you the file \"%s\". To accept it, type ?acceptfile.",
 			p->name, td->clientpath);
 	LOCK();
@@ -179,7 +183,7 @@ local helptext_t cancelfile_help =
 local void Ccancelfile(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (cancel_files(p))
-		chat->SendMessage(p, "Your file offers have been cancelled");
+		chat->SendMessage(p, "Your file offers have been cancelled.");
 }
 
 local helptext_t acceptfile_help =
@@ -198,7 +202,7 @@ local void Cacceptfile(const char *tc, const char *params, Player *p, const Targ
 		struct transfer_data *td = l->data;
 		if (td->to == p)
 		{
-			chat->SendMessage(td->from, "%s is accepting your file",
+			chat->SendMessage(td->from, "%s is accepting your file.",
 				td->to->name);
 			ft->RequestFile(td->from, td->clientpath, uploaded, td);
 			LLRemove(&offers, td);
