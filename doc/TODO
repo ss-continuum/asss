@@ -3,6 +3,13 @@ easy
 ----
 log filtering
 
+fixing various non-null-terminated bugs (supposedly one in cmdman).
+
+add a capability to control who can _send_ mod chat (as opposed to
+recieve it).
+
+unknown packet logging.
+
 
 moderate
 --------
@@ -27,10 +34,35 @@ locking. lots of options here:
 	finite "lives" also fits in here
 	must be able to be controlled by mod commands and other modules
 
+allow commands to be targeted to specific freqs (using nmefreq
+messages). this probably requires changes to the command interface.
+
+the config manager has to monitor config files for changes. it also
+needs some interface to inform clients when changes occur. there should
+be sufficiently fine granularity that the whole server doesn't need to
+stop and re-read settings every time someone touches a file, but it
+shouldn't be so fine that it's a pain in the ass to use.
+
+the config manager also needs a way to change settings in memory AND
+also write those updates back to disk, so that they aren't lost in a
+recycle or crash.
+
+fix flag drops at edges
+
+fix brick drop algorithm (it should snap to edges of other bricks)
+
 
 hard
 ----
 bandwith limiting and prioritization
+
+"rotating" packet structure: a grouped packet full of rels should become
+a single rel packet containing a group of unrels. the tricks here is
+to remove the individual packets that get grouped and add the new one to
+the outlist.
+
+fixing the timewait thing so people who try to immediately reconnect
+don't have to wait.
 
 tinyscheme interface
 
@@ -41,7 +73,7 @@ currently broken
 ----------------
 turret kicking
 
-ball sync
+ball sync?
 
 
 misc
