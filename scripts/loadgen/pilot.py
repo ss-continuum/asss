@@ -1,6 +1,7 @@
 
 import os, struct, random
 
+import timer
 import util
 log = util.log
 from pkt_types import *
@@ -22,15 +23,8 @@ def make_ppk(rot, x, y, xspeed, yspeed, status, bty, nrg):
 	return ppk1 + chr(cksum) + ppk2 + wpn + epd
 
 
-class Timer:
-	def __init__(me, iv, func):
-		me.interval = iv
-		me.func = func
-		me.last = util.ticks() + iv * random.random()
-
-
 class Pilot:
-	def __init__(me, conn, name = None, pwd = ''):
+	def __init__(me, conn, name = None, pwd = '', defarena = 0):
 		me.conn = conn
 
 		me.conn.add_handler(0x0200, me.handle_connected)
@@ -46,24 +40,19 @@ class Pilot:
 		else:
 			me.name = 'loadgen-%06d' % random.randint(0, 999999)
 		me.pwd = pwd
+		me.defarena = defarena
 
 		me.x = me.y = 512<<4
+		me.pid = None
 
 		me.reset_stats()
 
-		me.timers = []
+		me.timers = timer.Timers()
 
-		me.add_timer(500, me.print_stats)
-
-	def add_timer(me, iv, func):
-		me.timers.append(Timer(iv, func))
+		me.timers.add(500, me.print_stats)
 
 	def iter(me):
-		now = util.ticks()
-		for t in me.timers:
-			if (now - t.last) > t.interval:
-				t.last = now
-				t.func()
+		me.timers.iter()
 
 	def handle_connected(me, pkt):
 		log("sending login packet")
@@ -73,9 +62,7 @@ class Pilot:
 
 	def handle_loginresponse(me, pkt):
 		log("got login response, entering arena")
-		goarena = struct.pack('< B B 2x h h h 16s',
-			C2S_GOTOARENA, 0, 1024, 768, 0, '')
-		me.conn.send(goarena, 1)
+		me.goto_arena(me.defarena)
 
 	def handle_whoami(me, pkt):
 		(me.pid,) = struct.unpack('< x H', pkt)
@@ -83,8 +70,8 @@ class Pilot:
 
 	def handle_inarena(me, pkt):
 		log("in arena, starting ppks")
-		me.add_timer(10 + 10*random.random(), me.send_ppk)
-		me.add_timer(200 + 50*random.random(), me.send_chat)
+		me.timers.add(10 + 10*random.random(), me.send_ppk)
+		me.timers.add(200 + 50*random.random(), me.send_chat)
 
 	def handle_weapon(me, pkt):
 		#log("got weapon")
@@ -97,6 +84,18 @@ class Pilot:
 	def handle_chat(me, pkt):
 		#log("got chat msg")
 		me.chat_rcvd += 1
+
+	def goto_arena(me, arena):
+		me.pid = None
+		me.timers.remove(me.send_ppk)
+		me.timers.remove(me.send_chat)
+		if type(arena) == type(0):
+			goarena = struct.pack('< B B 2x h h h 16s',
+				C2S_GOTOARENA, 0, 1024, 768, arena, '')
+		else:
+			goarena = struct.pack('< B B 2x h h h 16s',
+				C2S_GOTOARENA, 0, 1024, 768, -3, arena)
+		me.conn.send(goarena, 1)
 
 	def send_ppk(me):
 		#log("sending ppk: (%4d, %4d)" % (me.x, me.y))
