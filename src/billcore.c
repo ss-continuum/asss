@@ -41,8 +41,8 @@ local Ilogman *log;
 local Iconfig *cfg;
 local Icmdman *cmd;
 local Iplayerdata *pd;
+local Imodman *mm;
 
-local int (*FindPlayer)(char *);
 local void (*CachedAuthDone)(int, AuthData*);
 local PlayerData *players;
 
@@ -53,10 +53,11 @@ local Ibillcore _ibillcore =
 local int cfg_pingtime, cfg_serverid, cfg_groupid, cfg_scoreid;
 
 
-int MM_billcore(int action, Imodman *mm)
+int MM_billcore(int action, Imodman *_mm)
 {
 	if (action == MM_LOAD)
 	{
+		mm = _mm;
 		mm->RegInterest(I_PLAYERDATA, &pd);
 		mm->RegInterest(I_NET, &net);
 		mm->RegInterest(I_MAINLOOP, &ml);
@@ -300,7 +301,7 @@ void BMessage(int pid, byte *p, int len)
 			}
 			else
 			{	/* normal priv msg */
-				targ = FindPlayer(msg+1);
+				targ = mm->FindPlayer(msg+1);
 				if (targ >= 0)
 					net->SendToOne(targ, (byte*)to, strlen(t+1)+6, NET_RELIABLE);
 			}
