@@ -14,11 +14,11 @@
 typedef struct periodic_msgs
 {
 	Arena *arena;
-	int die, count;
+	int count;
 	struct
 	{
 		const char *msg;
-		int interval;
+		int initialdelay, interval;
 	} msgs[MAXMSGS];
 } periodic_msgs;
 
@@ -38,7 +38,7 @@ local int msg_timer(void *v)
 	pm->count++;
 	for (i = 0; i < MAXMSGS; i++)
 		if (pm->msgs[i].msg && pm->msgs[i].interval > 0)
-			if ((pm->count % pm->msgs[i].interval) == 0)
+			if (((pm->count - pm->msgs[i].initialdelay) % pm->msgs[i].interval) == 0)
 				chat->SendArenaMessage(pm->arena, "%s", pm->msgs[i].msg);
 	return TRUE;
 }
@@ -74,13 +74,17 @@ local void paction(Player *p, int action, Arena *arena)
 /* starts timer to handle periodmessages */
 local void aaction(Arena *arena, int action)
 {
+	if (action == AA_DESTROY || action == AA_CONFCHANGED)
+	{
+		ml->CleanupTimer(msg_timer, arena, msg_cleanup);
+	}
+
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
 	{
 		int i, c = 0;
 		periodic_msgs *pm;
 
 		pm = amalloc(sizeof(*pm));
-		pm->die = 0;
 		pm->count = 0;
 		pm->arena = arena;
 
@@ -102,14 +106,14 @@ local void aaction(Arena *arena, int action)
 				int interval = strtol(v, &next, 0);
 				if (next)
 				{
-					/* we don't use this value */
-					strtol(next, &next, 0);
+					int initialdelay = strtol(next, &next, 0);
 					if (next)
 					{
 						/* skip spaces */
 						while (*next && isspace(*next)) next++;
 						if (*next)
 						{
+							pm->msgs[i].initialdelay = initialdelay;
 							pm->msgs[i].interval = interval;
 							pm->msgs[i].msg = astrdup(next);
 							c++;
@@ -123,10 +127,6 @@ local void aaction(Arena *arena, int action)
 			ml->SetTimer(msg_timer, 6000, 6000, pm, arena);
 		else
 			afree(pm);
-	}
-	else if (action == AA_DESTROY)
-	{
-		ml->CleanupTimer(msg_timer, arena, msg_cleanup);
 	}
 }
 
