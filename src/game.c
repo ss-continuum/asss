@@ -485,7 +485,8 @@ local void Cspec(const char *params, Player *p, const Target *target)
 	pd->Lock();
 	FOR_EACH_PLAYER_P(pp, data, pdkey)
 		if (data->speccing == t &&
-		    !capman->HasCapability(pp, CAP_INVISIBLE_SPECTATOR))
+		    (!capman->HasCapability(pp, CAP_INVISIBLE_SPECTATOR) ||
+		     capman->HigherThan(p, pp)))
 		{
 			if ((end - names) < sizeof(names) - 34)
 			{
