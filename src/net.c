@@ -2797,6 +2797,7 @@ fail:
 
 void SendPacket(ClientConnection *cc, byte *pkt, int len, int flags)
 {
+	if (!cc) return;
 	pthread_mutex_lock(&cc->c.olmtx);
 	if (len > MAXPACKET)
 	{

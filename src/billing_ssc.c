@@ -942,11 +942,13 @@ local void got_connection(void)
 		pkt.Port = 0;
 	astrncpy(pkt.Password, password?password:"", sizeof(pkt.Password));
 
+	pthread_mutex_lock(&mtx);
 	netcli->SendPacket(cc, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
-	lm->Log(L_INFO, "<billing_ssc> connected to user database server, logging in");
-
 	state = s_waitlogin;
 	lastevent = time(NULL);
+	pthread_mutex_unlock(&mtx);
+
+	lm->Log(L_INFO, "<billing_ssc> connected to user database server, logging in");
 }
 
 
