@@ -17,6 +17,8 @@ testzone = """
 
 default = testzone
 
+chatwindows = 1
+
 # bindings
 
 # these should bind ctrl-pgup/dn and alt-pgup/dn on a recent xfree86 xterm
