@@ -7,6 +7,9 @@
 #if (__STDC_VERSION__ >= 199901L)
 /* try c99 if we can */
 #include <stdint.h>
+#elif defined(__FreeBSD__)
+/* someone said this works on freebsd */
+#include <sys/types.h>
 #elif defined(__GNUC__)
 /* this might work on recent gcc too */
 #include <stdint.h>
@@ -20,9 +23,6 @@ typedef unsigned __int8 uint8_t;
 typedef unsigned __int16 uint16_t;
 typedef unsigned __int32 uint32_t;
 typedef unsigned __int64 uint64_t;
-#elif defined(__FreeBSD__)
-/* someone said this works on freebsd */
-#include <sys/types.h>
 #else
 /* this might work on other 32 bit platforms */
 typedef signed char int8_t;
