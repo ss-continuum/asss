@@ -1515,6 +1515,8 @@ local int pyloader(int action, mod_args_t *args, const char *line, Arena *arena)
 
 EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 {
+	Player *p;
+	Link *link;
 #ifdef CHECK_SIGS
 	struct sigaction sa_before;
 #endif
@@ -1570,8 +1572,17 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 			}
 		}
 
+		pd->Lock();
 		mm->RegCallback(CB_NEWPLAYER, py_newplayer, ALLARENAS);
+		FOR_EACH_PLAYER(p)
+			py_newplayer(p, TRUE);
+		pd->Unlock();
+
+		aman->Lock();
 		mm->RegCallback(CB_ARENAACTION, py_aaction, ALLARENAS);
+		FOR_EACH_ARENA(arena)
+			py_aaction(arena, AA_CREATE);
+		aman->Unlock();
 
 		mm->RegModuleLoader("py", pyloader);
 
@@ -1587,8 +1598,17 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 
 		mm->UnregModuleLoader("py", pyloader);
 
+		pd->Lock();
+		FOR_EACH_PLAYER(p)
+			py_newplayer(p, FALSE);
 		mm->UnregCallback(CB_NEWPLAYER, py_newplayer, ALLARENAS);
+		pd->Unlock();
+
+		aman->Lock();
+		FOR_EACH_ARENA(arena)
+			py_aaction(arena, AA_DESTROY);
 		mm->UnregCallback(CB_ARENAACTION, py_aaction, ALLARENAS);
+		aman->Unlock();
 
 		/* close down python */
 		Py_XDECREF(sysdict);
