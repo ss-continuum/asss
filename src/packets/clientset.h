@@ -8,10 +8,10 @@ struct WeaponBits
 {
 	unsigned ShrapnelMax    : 5;
 	unsigned ShrapnelRate   : 5;
-	unsigned AntiWarpStatus : 2;
-	unsigned StealthStatus  : 2;
 	unsigned CloakStatus    : 2;
+	unsigned StealthStatus  : 2;
 	unsigned XRadarStatus   : 2;
+	unsigned AntiWarpStatus : 2;
 	unsigned InitialGuns    : 2;
 	unsigned MaxGuns        : 2;
 	unsigned InitialBombs   : 2;

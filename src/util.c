@@ -350,7 +350,7 @@ inline unsigned Hash(const char *s, int maxlen, int modulus)
 	unsigned len = 0, ret = 1447;
 	while (*s && len++ < maxlen)
 		ret = (ret * tolower(*s++) + len*7) % modulus;
-	return ret;
+	return ret % modulus;
 }
 
 HashTable * HashAlloc(int req)

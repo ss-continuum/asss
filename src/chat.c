@@ -88,6 +88,7 @@ void PChat(int pid, byte *p, int len)
 	to = alloca(len + 30);
 	to->pktype = S2C_CHAT;
 	to->type = from->type;
+	to->sound = 0;
 	to->pid = pid;
 	strcpy(to->text, from->text);
 
@@ -116,14 +117,14 @@ void PChat(int pid, byte *p, int len)
 				sprintf(to->text, "%s> %s", players[pid].name, from->text+1);
 				pd->LockStatus();
 				for (i = 0; i < MAXPLAYERS; i++)
-					if (	players[i].status == S_CONNECTED &&
-							players[i].oplevel > 0 &&
-							i != pid)
+					if (    players[i].status == S_PLAYING
+					     && players[i].oplevel > 0
+					     && i != pid)
 						set[setc++] = i;
 				pd->UnlockStatus();
 				set[setc] = -1;
 				net->SendToSet(set, (byte*)to, len+30, NET_RELIABLE);
-				/* ugliness: sending garbage after null terminator */
+				/* FIXME: sending garbage after null terminator */
 			}
 			else /* normal pub message */
 			{

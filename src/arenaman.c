@@ -146,6 +146,34 @@ local void CallAA(int arena, int action)
 	mm->FreeLookupResult(funcs);
 }
 
+local void DoAttach(int arena, int action)
+{
+	void (*func)(char *name, int arena);
+	char *mods, *t, *_tok;
+
+	if (action == MM_ATTACH)
+		func = mm->AttachModule;
+	else if (action == MM_DETACH)
+		func = mm->DetachModule;
+	else
+		return;
+
+	t = cfg->GetStr(arenas[arena].cfg, "Modules", "AttachModules");
+	if (!t) return;
+
+	mods = alloca(strlen(t)+1);
+	strcpy(mods, t);
+
+#define DELIMS " \t:;,"
+
+	t = strtok_r(mods, DELIMS, &_tok);
+	while (t)
+	{
+		func(t, arena); /* attach or detach modules */
+		t = strtok_r(NULL, DELIMS, &_tok);
+	}
+}
+
 
 void ProcessArenaQueue()
 {
@@ -173,6 +201,7 @@ void ProcessArenaQueue()
 		{
 			case ARENA_DO_LOAD_CONFIG:
 				a->cfg = cfg->OpenConfigFile(a->name, NULL);
+				DoAttach(i, MM_ATTACH);
 				nextstatus = ARENA_DO_CREATE_CALLBACKS;
 				break;
 
@@ -196,6 +225,7 @@ void ProcessArenaQueue()
 				break;
 
 			case ARENA_DO_UNLOAD_CONFIG:
+				DoAttach(i, MM_DETACH);
 				cfg->CloseConfigFile(a->cfg);
 				a->cfg = NULL;
 				nextstatus = ARENA_NONE;

@@ -27,7 +27,7 @@ typedef struct MapData
 local void PMapRequest(int, byte *, int);
 
 /* arenaaction funcs */
-local int ArenaAction(int, int);
+local void ArenaAction(int, int);
 
 local int CompressMap(int);
 
@@ -143,19 +143,22 @@ char * GetMapFilename(int arena)
 }
 
 
-int ArenaAction(int arena, int action)
+void ArenaAction(int arena, int action)
 {
 	if (action == AA_CREATE)
 	{
 		if (mapdata[arena].cmpmap)
 			afree(mapdata[arena].cmpmap);
-		return CompressMap(arena);
+		CompressMap(arena);
 	}
 	else if (action == AA_DESTROY)
 	{
-		afree(mapdata[arena].cmpmap);
-		mapdata[arena].cmpmaplen = 0;
-		return MM_OK;
+		if (mapdata[arena].cmpmap)
+		{
+			afree(mapdata[arena].cmpmap);
+			mapdata[arena].cmpmap = NULL;
+			mapdata[arena].cmpmaplen = 0;
+		}
 	}
 }
 
@@ -169,6 +172,7 @@ int CompressMap(int arena)
 	char fname[64], *mapname;
 
 	mapname = cfg->GetStr(arenas[arena].cfg, "General", "Map");
+	if (!mapname) return MM_FAIL;
 
 	astrncpy(mapdata[arena].mapfname, mapname, 20);
 
@@ -178,6 +182,7 @@ int CompressMap(int arena)
 	if (mapfd == -1)
 	{
 		log->Log(LOG_ERROR,"Map file '%s' not found in current directory", fname);
+		return MM_FAIL;
 	}
 
 	/* find it's size */
@@ -204,15 +209,17 @@ int CompressMap(int arena)
 	strncpy(cmap+1, mapname, 16);
 	/* compress the stuff! */
 	compress(cmap+17, &csize, map, fsize);
+	csize += 17;
 
 	/* shrink the allocated memory */
-	mapdata[arena].cmpmap = realloc(cmap, csize+17);
+	mapdata[arena].cmpmap = realloc(cmap, csize);
 	if (mapdata[arena].cmpmap == NULL)
 	{
 		log->Log(LOG_ERROR,"realloc failed in CreateArena");
+		free(cmap);
 		return MM_FAIL;
 	}
-	mapdata[arena].cmpmaplen = csize+17;
+	mapdata[arena].cmpmaplen = csize;
 
 	munmap(map, fsize);
 	close(mapfd);

@@ -19,7 +19,7 @@ struct S2CWeapons
 {
 	i8 type; /* 0x05 */
 	i8 rotation;
-	i16 time;
+	u16 time;
 	i16 x;
 	i16 yspeed;
 	u8 playerid;
@@ -37,7 +37,7 @@ struct S2CPosition
 {
 	i8 type; /* 0x28 */
 	i8 rotation;
-	i16 time;
+	u16 time;
 	i16 x;
 	i16 unknown1; /* latency? */
 	u8 playerid;
@@ -52,7 +52,7 @@ struct C2SPosition
 {
 	i8 type;
 	i8 rotation;
-	i32 time;
+	u32 time;
 	i16 xspeed;
 	i16 y;
 	i8 checksum;

@@ -49,9 +49,9 @@ void MyKillFunc(int arena, int killer, int killed, int bounty, int flags)
 {
 	if (stats)
 	{
-		stats->IncrementScore(killer, STAT_KPOINTS, bounty + flags * 100);
-		stats->IncrementScore(killer, STAT_KILLS, 1);
-		stats->IncrementScore(killed, STAT_DEATHS, 1);
+		stats->IncrementStat(killer, STAT_KPOINTS, bounty + flags * 100);
+		stats->IncrementStat(killer, STAT_KILLS, 1);
+		stats->IncrementStat(killed, STAT_DEATHS, 1);
 		stats->SendUpdates(arena);
 	}
 }

@@ -20,6 +20,7 @@
 #include "persist.h"
 #include "game.h"
 #include "stats.h"
+#include "log_file.h"
 
 /* utility functions that are linked in directly */
 #include "util.h"

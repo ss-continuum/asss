@@ -20,7 +20,7 @@ struct ArenaStats /* 64 bytes */
 /* prototypes */
 
 local void IncrementStat(int, stat_t, int);
-local void SendUpdates(int);
+local void SendUpdates();
 
 local void GetA(int, void *);
 local void SetA(int, void *);
@@ -116,41 +116,39 @@ void IncrementStat(int pid, stat_t stat, int amount)
 
 #include "packets/scoreupd.h"
 
-void SendUpdates(int arena)
+void SendUpdates()
 {
 	int pid;
 	struct ScorePacket sp = { S2C_SCOREUPDATE };
 	struct ArenaStats *d;
+	struct PlayerData *p;
 
-	printf("DEBUG: SendUpdates running...\n");
-
-	pd->LockStatus();
+	/* printf("DEBUG: SendUpdates running...\n"); */
 
 	for (pid = 0; pid < MAXPLAYERS; pid++)
 	{
-		if ( adata_dirty[pid]
-		     && ( pd->players[pid].arena == arena
-		          || arena == -1 ) )
+		if (adata_dirty[pid])
 		{
 			adata_dirty[pid] = 0;
+
+			p = pd->players + pid;
 			d = adata + pid;
+
 			sp.pid = pid;
-			sp.killpoints = d->stats[STAT_KPOINTS];
-			sp.flagpoints = d->stats[STAT_FPOINTS];
-			sp.kills = d->stats[STAT_KILLS];
-			sp.deaths = d->stats[STAT_DEATHS];
+			p->killpoints = sp.killpoints = d->stats[STAT_KPOINTS];
+			p->flagpoints = sp.flagpoints = d->stats[STAT_FPOINTS];
+			p->wins = sp.kills = d->stats[STAT_KILLS];
+			p->losses = sp.deaths = d->stats[STAT_DEATHS];
 
 			net->SendToArena(
-					pd->players[pid].arena,
+					p->arena,
 					-1,
 					(char*)&sp,
 					sizeof(sp),
 					NET_UNRELIABLE);
-			printf("DEBUG: SendUpdates sent scores of %s\n", pd->players[pid].name);
+			/* printf("DEBUG: SendUpdates sent scores of %s\n", pd->players[pid].name); */
 		}
 	}
-
-	pd->UnlockStatus();
 }
 
 
@@ -201,7 +199,17 @@ void GetA(int pid, void *space)
 
 void SetA(int pid, void *space)
 {
+	struct ArenaStats *d = space;
+	struct PlayerData *p = pd->players + pid;
+
+	/* we have to set this in two places: the master */
 	memcpy(adata + pid, space, sizeof(struct ArenaStats));
+
+	/* and the player data */
+	p->killpoints = d->stats[STAT_KPOINTS];
+	p->flagpoints = d->stats[STAT_FPOINTS];
+	p->wins = d->stats[STAT_KILLS];
+	p->losses = d->stats[STAT_DEATHS];
 }
 
 void ClearA(int pid)

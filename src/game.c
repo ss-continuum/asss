@@ -2,25 +2,17 @@
 
 #include <stdlib.h>
 
-
 #include "asss.h"
 
 
+#define WEAPONCOUNT 32
 
 /* structs */
 
 #include "packets/ppk.h"
-
 #include "packets/kill.h"
-
 #include "packets/shipchange.h"
-
 #include "packets/green.h"
-
-struct WeaponBuffer
-{
-	int dummy;
-};
 
 
 /* prototypes */
@@ -37,9 +29,7 @@ local void PAttach(int, byte *, int);
 
 /* do weapons checksums */
 local inline void DoChecksum(struct S2CWeapons *, int);
-
-/* helper for SpecRequest, can be used by others */
-local void SendPPK(int, int);
+local inline long lhypot (register long dx, register long dy);
 
 /* helper for stuff */
 local int MyAssignFreq(int, int, byte);
@@ -62,16 +52,18 @@ local ArenaData *arenas;
 local Iassignfreq _myaf = { MyAssignFreq };
 
 local struct C2SPosition pos[MAXPLAYERS];
-/*local struct WeaponBuffer *wbuf; */
+local int speccing[MAXPLAYERS];
 
 local int cfg_bulletpix, cfg_wpnpix, cfg_wpnbufsize, cfg_pospix;
-
+local int wpnrange[WEAPONCOUNT]; /* there are 5 bits in the weapon type */
 
 
 int MM_game(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
+		int i;
+
 		mm = mm_;
 		mm->RegInterest(I_PLAYERDATA, &pd);
 		mm->RegInterest(I_CONFIG, &cfg);
@@ -79,16 +71,23 @@ int MM_game(int action, Imodman *mm_, int arena)
 		mm->RegInterest(I_NET, &net);
 		mm->RegInterest(I_ASSIGNFREQ, &afreq);
 		mm->RegInterest(I_ARENAMAN, &aman);
-		players = pd->players;
 
 		if (!net || !cfg || !log || !aman) return MM_FAIL;
-		
+
+		players = pd->players;
 		arenas = aman->data;
 
 		cfg_bulletpix = cfg->GetInt(GLOBAL, "Net", "BulletPixels", 1500);
 		cfg_wpnpix = cfg->GetInt(GLOBAL, "Net", "WeaponPixels", 2000);
 		cfg_wpnbufsize = cfg->GetInt(GLOBAL, "Net", "WeaponBuffer", 300);
 		cfg_pospix = cfg->GetInt(GLOBAL, "Net", "PositionExtraPixels", 8192);
+
+		for (i = 0; i < WEAPONCOUNT; i++)
+			wpnrange[i] = cfg_wpnpix;
+		/* exceptions: */
+		wpnrange[W_BULLET] = cfg_bulletpix;
+		wpnrange[W_BOUNCEBULLET] = cfg_bulletpix;
+		wpnrange[W_THOR] = 30000;
 
 		net->AddPacket(C2S_POSITION, Pppk);
 		net->AddPacket(C2S_SPECREQUEST, PSpecRequest);
@@ -131,84 +130,90 @@ void Pppk(int pid, byte *p2, int n)
 	 * this will be the most often-called handler by far, we can't
 	 * afford it. */
 	struct C2SPosition *p = (struct C2SPosition *)p2;
-	int arena = players[pid].arena, sp = 0, i;
-	int x1, y1, x2, y2, xr, yr, dist, cfg_pospix2 = cfg_pospix * cfg_pospix;
+	int arena = players[pid].arena, sp = 0, i, sendwpn;
+	int x1, y1;
 	static int set[MAXPLAYERS];
 
 	/* handle common errors */
 	if (arena < 0) return;
-	if (players[pid].shiptype == SPEC) goto copypos;
+
+	/* speccers don't get their position sent to anyone */
+	if (players[pid].shiptype == SPEC)
+	{
+		if (speccing[pid] > -1)
+			/* if he's speccing someone, set his position to be that
+			 * player */
+			memcpy(pos + pid, pos + speccing[pid], sizeof(pos[0]));
+		else
+			/* if not, he has his own position, so set it */
+			memcpy(pos + pid, p2, sizeof(pos[0]));
+		return;
+	}
 
 	x1 = p->x;
 	y1 = p->y;
 
-	if (p->weapon.type)
+	/* there are several reasons to send a weapon packet (05) instead of
+	 * just a position one (28) */
+	sendwpn = 0;
+	/* if there's a real weapon */
+	if (p->weapon.type > 0) sendwpn = 1;
+	/* if the bounty has changed */
+	if (p->bounty != pos[pid].bounty) sendwpn = 1;
+
+	if (sendwpn)
 	{
 		struct S2CWeapons wpn = {
-			S2C_WEAPON, p->rotation, (i16)p->time, p->x, p->yspeed,
-			(u8)pid, p->flags, p->xspeed, 0, 0, p->y, p->bounty
+			S2C_WEAPON, p->rotation, p->time & 0xFFFF, p->x, p->yspeed,
+			pid, p->flags, p->xspeed, 0, 0, p->y, p->bounty
 		};
-		* (i16*) &wpn.weapon = * (i16*) &p->weapon;
+		wpn.weapon = p->weapon;
 
 		for (i = 0; i < MAXPLAYERS; i++)
-			if (	players[i].status == S_PLAYING &&
-					players[i].arena == arena &&
-					i != pid)
+			if (	players[i].status == S_PLAYING
+			     && players[i].arena == arena
+			     && i != pid)
 			{
-				x2 = x1 - pos[i].x; y2 = y1 - pos[i].y;
-				if (x2 < 0) x2 = -x2; if (y2 < 0) y2 = -y2;
-
-				if (p->weapon.type < W_BOMB) /* HACK: bullet or bouncebullet */
-				{
-					if (x1 <= cfg_bulletpix || y1 <= cfg_bulletpix)
-						set[sp++] = i;
-				}
-				else
-				{
-					if ( (x1 <= cfg_wpnpix && y1 <= cfg_wpnpix) ||
-							p->weapon.type == W_THOR)
-						set[sp++] = i;
-				}
+				long dist = lhypot(x1 - pos[i].x, y1 - pos[i].y);
+				if ( dist <= wpnrange[p->weapon.type] ||
+				     /* send mines to everyone too */
+				     ( ( p->weapon.type == W_BOMB ||
+				         p->weapon.type == W_PROXBOMB) &&
+				       p->weapon.multimine))
+					set[sp++] = i;
 			}
 		set[sp] = -1;
 		DoChecksum(&wpn, sizeof(struct S2CWeapons));
 		net->SendToSet(set, (byte*)&wpn, sizeof(struct S2CWeapons),
 				NET_UNRELIABLE | NET_IMMEDIATE);
-		/*BufferWeapon(); */
 	}
 	else
 	{
 		struct S2CPosition sendpos = { 
-			S2C_POSITION, p->rotation, (i16)p->time, p->x, 0, (u8)pid,
-			p->flags, p->yspeed, p->y, p->xspeed
+			S2C_POSITION, p->rotation, p->time & 0xFFFF, p->x, 0,
+			pid, p->flags, p->yspeed, p->y, p->xspeed
 		};
 
 		for (i = 0; i < MAXPLAYERS; i++)
-			if (	players[i].status == S_PLAYING &&
-					players[i].arena == arena &&
-					i != pid)
+			if (players[i].status == S_PLAYING &&
+			    players[i].arena == arena &&
+			    i != pid)
 			{
-				x2 = x1 - pos[i].x; y2 = y1 - pos[i].y;
-				if (x2 < 0) x2 = -x2; if (y2 < 0) y2 = -y2;
-				xr = players[i].xres; yr = players[i].yres;
+				long dist = lhypot(x1 - pos[i].x, y1 - pos[i].y);
+				int res = players[i].xres + players[i].yres;
 
-				if (x2 <= xr && y2 <= yr)
+				if (dist < res)
 					set[sp++] = i;
-				else
-				{
-					dist = x2 - xr + y2 - yr;
-					if (dist < cfg_pospix &&
-							(rand() > (dist / cfg_pospix2 * dist * RAND_MAX)))
+				else if (
+				    dist < cfg_pospix
+				 && (rand() > (dist / cfg_pospix * RAND_MAX)))
 						set[sp++] = i;
-				}
 			}
 		set[sp] = -1;
 		net->SendToSet(set, (byte*)&sendpos, sizeof(struct S2CPosition),
 				NET_UNRELIABLE | NET_IMMEDIATE);
-		/*if (warped) SendOldWeapons(); */
 	}
 
-copypos:
 	memcpy(pos + pid, p2, sizeof(pos[0]));
 }
 
@@ -216,7 +221,7 @@ copypos:
 void PSpecRequest(int pid, byte *p, int n)
 {
 	int pid2 = ((struct SimplePacket*)p)->d1;
-	SendPPK(pid, pid2);
+	speccing[pid] = pid2;
 }
 
 
@@ -308,24 +313,20 @@ void PDie(int pid, byte *p, int n)
 	struct KillPacket kp = { S2C_KILL };
 	int killer = dead->d1;
 	int bty = dead->d2;
-	/* int flags = dead->d3; */
+	int flags = dead->d3;
 	int arena = players[pid].arena, reldeaths;
 
 	if (arena < 0) return;
 
+	kp.unknown = 0;
 	kp.killer = killer;
+	kp.killed = pid;
 	kp.bounty = bty;
-	/* kp->flags = flags; */
+	kp.flags = flags;
 
 	reldeaths = !!cfg->GetInt(arenas[arena].cfg,
 			"Misc", "ReliableKills", 1);
 	net->SendToArena(arena, pid, (byte*)&kp, sizeof(kp), NET_RELIABLE * reldeaths);
-
-	/* handle points
-	{
-		Igivepoints *gp = mm->GetArenaInterface(arena, I_GIVEPOINTS);
-		gp->Kill(arena, killer, pid, bty, flags);
-	} */
 
 	/* call callbacks */
 	{
@@ -367,25 +368,38 @@ void PAttach(int pid, byte *p2, int n)
 }
 
 
-void DoChecksum(struct S2CWeapons *p, int n)
+void DoChecksum(struct S2CWeapons *pkt, int n)
 {
 	int i;
-	u8 ck = 0;
-	for (i = 0; i < n; i++)
-		ck ^= ((u8*)p)[i];
-	p->checksum = ck;
+	u8 ck = 0, *p = (u8*)pkt;
+	for (i = 0; i < n; i++, p++)
+		ck ^= *p;
+	pkt->checksum = ck;
 }
 
 
-void SendPPK(int pid, int to)
+long lhypot (register long dx, register long dy)
 {
-	struct C2SPosition *p = pos + pid;
-	struct S2CPosition pos = { 
-		S2C_POSITION, p->rotation, (i16)p->time, p->x, 0, (u8)pid,
-		p->flags, p->yspeed, p->y, p->xspeed
-	};
-	net->SendToOne(pid, (byte*)&pos, sizeof(struct S2CPosition), NET_UNRELIABLE | NET_IMMEDIATE);
+	register unsigned long r, dd;
+
+	dd = dx*dx+dy*dy;
+
+	if (dx < 0) dx = -dx;
+	if (dy < 0) dy = -dy;
+
+	/* initial hypotenuse guess
+	 * (from Gems) */
+	r = (dx > dy) ? (dx+(dy>>1)) : (dy+(dx>>1));
+
+	if (r == 0) return (long)r;
+
+	/* converge
+	 * 3 times
+	 * */
+	r = (dd/r+r)>>1;
+	r = (dd/r+r)>>1;
+	r = (dd/r+r)>>1;
+
+	return (long)r;
 }
-
-
 

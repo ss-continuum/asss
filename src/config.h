@@ -31,7 +31,7 @@
 
 #define MAXNAMELEN 32
 #define MAXKEYLEN 32
-#define MAXVALUELEN 256
+#define MAXVALUELEN 512
 
 
 typedef struct ConfigFile *ConfigHandle;

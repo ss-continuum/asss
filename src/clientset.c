@@ -36,6 +36,9 @@ local ArenaData *arenas;
 /* interfaces */
 local Iclientset _myint = { SendClientSettings, Reconfigure };
 
+/* the client settings definition */
+#include "clientset.def"
+
 
 int MM_clientset(int action, Imodman *mm_, int arena)
 {
@@ -55,6 +58,21 @@ int MM_clientset(int action, Imodman *mm_, int arena)
 		mm->RegCallback(CALLBACK_ARENAACTION, ActionFunc, ALLARENAS);
 
 		mm->RegInterface(I_CLIENTSET, &_myint);
+
+		/* do these at least once */
+		{
+			struct ClientSettings cs;
+			struct ShipSettings ss;
+
+			assert(COUNT(cs.long_set) == COUNT(long_names));
+			assert(COUNT(cs.short_set) == COUNT(short_names));
+			assert(COUNT(cs.byte_set) == COUNT(byte_names));
+			assert(COUNT(cs.prizeweight_set) == COUNT(prizeweight_names));
+			assert(COUNT(ss.long_set) == COUNT(ship_long_names));
+			assert(COUNT(ss.short_set) == COUNT(ship_short_names));
+			assert(COUNT(ss.byte_set) == COUNT(ship_byte_names));
+		}
+
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
@@ -75,11 +93,8 @@ int MM_clientset(int action, Imodman *mm_, int arena)
 void LoadSettings(int arena)
 {
 	struct ClientSettings *cs = settings + arena;
-	struct ShipSettings *ss;
-	struct WeaponBits *wb;
 	ConfigHandle conf;
 	int i, j;
-#include "clientset.def"
 
 	/* get the file */
 	conf = arenas[arena].cfg;
@@ -89,28 +104,33 @@ void LoadSettings(int arena)
 	cs->type = S2C_SETTINGS;
 
 	/* do ships */
-	for (i = 0, ss = cs->ships; i < 8; i++, ss++)
+	for (i = 0; i < 8; i++)
 	{
+		struct WeaponBits wb;
+		struct ShipSettings *ss = cs->ships + i;
+		char *shipname = ship_names[i];
+
 		/* basic stuff */
 		for (j = 0; j < COUNT(ss->long_set); j++)
 			ss->long_set[j] = cfg->GetInt(conf,
-					ship_names[i], ship_long_names[j], 0);
+					shipname, ship_long_names[j], 0);
 		for (j = 0; j < COUNT(ss->short_set); j++)
 			ss->short_set[j] = cfg->GetInt(conf,
-					ship_names[i], ship_short_names[j], 0);
+					shipname, ship_short_names[j], 0);
 		for (j = 0; j < COUNT(ss->byte_set); j++)
 			ss->byte_set[j] = cfg->GetInt(conf,
-					ship_names[i], ship_byte_names[j], 0);
+					shipname, ship_byte_names[j], 0);
+
 		/* weapons bits */
-		wb = &(ss->Weapons);
 #define DO(x) \
-		wb->x = cfg->GetInt(conf, ship_names[i], #x, 0)
+		wb.x = cfg->GetInt(conf, shipname, #x, 0)
 		DO(ShrapnelMax); DO(ShrapnelRate);  DO(AntiWarpStatus);
 		DO(CloakStatus); DO(StealthStatus); DO(XRadarStatus);
 		DO(InitialGuns); DO(MaxGuns);       DO(InitialBombs);
 		DO(MaxBombs);    DO(DoubleBarrel);  DO(EmpBomb);
 		DO(SeeMines);    DO(Unused1);
 #undef DO
+		ss->Weapons = wb;
 	}
 
 	/* do settings */
@@ -123,6 +143,10 @@ void LoadSettings(int arena)
 	for (i = 0; i < COUNT(cs->prizeweight_set); i++)
 		cs->prizeweight_set[i] = cfg->GetInt(conf,
 				prizeweight_names[i], NULL, 0);
+
+	/* the funky ones */
+	cs->long_set[1] *= 1000; /* BombDamageLevel */
+	cs->long_set[11] *= 1000; /* BulletDamageLevel */
 }
 
 
