@@ -106,6 +106,19 @@ LinkedList *HashGet(HashTable *ht, const char *key);
 void *HashGetOne(HashTable *ht, const char *key);
 
 
+#ifndef NODQ
+
+typedef struct DQNode
+{
+	struct DQNode *prev, *next;
+} DQNode;
+
+void DQInit(DQNode *node);
+void DQAdd(DQNode *base, DQNode *node);
+void DQRemove(DQNode *node);
+
+#endif
+
 
 #ifndef NOTHREAD
 

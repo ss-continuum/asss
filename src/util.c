@@ -531,6 +531,29 @@ void *HashGetOne(HashTable *h, const char *s)
 /*  + *s; return( i % m ); */
 
 
+#ifndef NODQ
+
+void DQInit(DQNode *node)
+{
+	node->prev = node->next = node;
+}
+
+void DQAdd(DQNode *base, DQNode *node)
+{
+	base->prev->next = node;
+	node->prev = base->prev;
+	base->prev = node;
+	node->next = base;
+}
+
+void DQRemove(DQNode *node)
+{
+	node->prev->next = node->next;
+	node->next->prev = node->prev;
+	node->next = node->prev = node;
+}
+
+#endif
 
 
 #ifndef NOTHREAD
