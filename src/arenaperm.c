@@ -75,7 +75,13 @@ void MyPA(int pid, int action, int arena)
 				log->Log(L_WARN, "<arenaperm> [%s] Can't find any unrestricted arena!",
 						pd->players[pid].name);
 			else
+			{
 				pd->players[pid].arena = i; /* redirect him to new arena! */
+				chat->SendMessage(pid, "You don't have permission to enter arena %s!",
+						aman->arenas[arena].name);
+				log->Log(L_INFO, "<arenaperm> [%s] Redirected from arena {%s} to {%s}",
+						aman->arenas[arena].name, aman->arenas[i].name);
+			}
 		}
 	}
 }
