@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "pathutil.h"
 
@@ -119,21 +120,29 @@ int find_file_on_path(
 
 		/* check the file access */
 		if (res != -1)
+		{
+			/* printf("DEBUG: trying file %s\n", file); */
 			if (access(file, R_OK) == 0)
 			{
-				/* we hit one */
-				if (strlen(file) >= destlen)
+				struct stat st;
+				/* we hit one, check if it's a directory */
+				stat(file, &st);
+				if (!S_ISDIR(st.st_mode))
 				{
-					/* buffer isn't big enough */
-					return -1;
-				}
-				else
-				{
-					/* it's big enough. hurrah! */
-					strcpy(dest, file);
-					return 0;
+					if (strlen(file) >= destlen)
+					{
+						/* buffer isn't big enough */
+						return -1;
+					}
+					else
+					{
+						/* it's big enough. hurrah! */
+						strcpy(dest, file);
+						return 0;
+					}
 				}
 			}
+		}
 
 		/* line up for next try */
 		path = t+1;

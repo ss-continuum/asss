@@ -113,7 +113,7 @@ int LoadModule(char *filename)
 		name = (char*)NULL;
 		mod->myself = 1;
 	}
-	else if (strchr(filename, '/'))
+	else if (filename[0] == '/')
 	{
 		/* filename is an absolute path */
 		astrncpy(name, filename, 256);
@@ -129,7 +129,7 @@ int LoadModule(char *filename)
 	mod->hand = dlopen(name, RTLD_NOW);
 	if (!mod->hand)
 	{
-		if (log) log->Log(L_ERROR,"<module> LoadModule: error in dlopen");
+		if (log) log->Log(L_ERROR,"<module> LoadModule: error in dlopen: %s", dlerror());
 		goto die;
 	}
 
@@ -138,7 +138,7 @@ int LoadModule(char *filename)
 	mod->mm = dlsym(mod->hand, name);
 	if (!mod->mm)
 	{
-		if (log) log->Log(L_ERROR,"<module> LoadModule: error in dlsym");
+		if (log) log->Log(L_ERROR,"<module> LoadModule: error in dlsym: %s", dlerror());
 		if (!mod->myself) dlclose(mod->hand);
 		goto die;
 	}

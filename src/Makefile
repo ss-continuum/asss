@@ -6,7 +6,7 @@ LDFLAGS = -fPIC $(PROF_FLAGS)
 OPT_CFLAGS = -O2 -fomit-frame-pointer -Wall -fpedantic
 DEBUG_CFLAGS = -g -Wall -fpedantic
 
-CFLAGS = -D_REENTRANT -D_GNU_SOURCE -fPIC $(DEBUG_CFLAGS) $(PROF_FLAGS)
+CFLAGS = $(BUILDNO) -D_REENTRANT -D_GNU_SOURCE -fPIC $(DEBUG_CFLAGS) $(PROF_FLAGS)
 
 ASSSLIBS = -ldl -lz -lpthread
 
@@ -21,6 +21,7 @@ ALL_STUFF = asss $(EXTMODS) $(INCLUDE_ELDERD)
 
 
 INTMODS = config.o    \
+          pathutil.o  \
           player.o    \
           core.o      \
           logman.o    \
@@ -47,6 +48,7 @@ all: install
 loggers.so: log_file.o log_console.o
 
 game.so: game.o chat.o flags.o
+	$(CC) $(LDFLAGS) -shared -o $@ $^ -lm
 
 command.so: cmdman.o playercmd.o
 
@@ -59,7 +61,7 @@ scheme.so: scheme.o ooputils.o
 
 
 
-asss: main.o module.o util.o pathutil.o $(INTMODS)
+asss: main.o module.o util.o $(INTMODS)
 	$(CC) $(LDFLAGS) -rdynamic -o $@ $^ $(ASSSLIBS)
 
 
@@ -75,6 +77,14 @@ Makefile.deps: *.c *.h
 	$(CC) -I $(SCHEMEINC) -MM *.c > $@
 
 include Makefile.deps
+
+buildnumber: *.h
+	expr `cat buildnumber` + 1 > b.tmp
+	mv b.tmp buildnumber
+
+Makefile: buildnumber
+
+BUILDNO := -DBUILDNUMBER=$(shell cat buildnumber)
 
 
 

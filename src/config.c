@@ -72,18 +72,18 @@ int MM_config(int action, Imodman *mm, int arena)
 
 #define LINESIZE 512
 
-local int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashTable *defines, const char *fname)
+local int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashTable *defines, const char *arena, const char *name)
 {
 	FILE *f;
-	char _realbuf[LINESIZE], *buf, *t, *t2;
+	char realbuf[LINESIZE], *buf, *t, *t2;
 	char key[MAXNAMELEN+MAXKEYLEN+3], *thespot = NULL, *data;
 
-	/*printf("config: ProcessConfigFile(%s)\n", fname);*/
-
-	f = fopen(fname, "r");
+	if (LocateConfigFile(realbuf, PATH_MAX, arena, name) == -1)
+		return MM_FAIL;
+	f = fopen(realbuf, "r");
 	if (!f) return MM_FAIL;
 
-	while (buf = _realbuf, fgets(buf, LINESIZE, f))
+	while (buf = realbuf, fgets(buf, LINESIZE, f))
 	{
 		while (*buf && (*buf == ' ' || *buf == '\t')) buf++; /* kill leading spaces */
 		RemoveCRLF(buf); /* get rid of newlines */
@@ -106,30 +106,17 @@ local int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashTa
 			buf++;
 			/* strip trailing spaces */
 			t = buf + strlen(buf) - 1;
-			while (*t == ' ' || *t == '\t') t--;
+			while (*t == ' ' || *t == '\t' || *t == '"') t--;
 			*++t = 0;
 			/* process */
 			if (!strncmp(buf, "include", 7))
 			{
 				buf += 7;
-				while (*buf == ' ' || *buf == '\t') buf++;
-				/* first try straight filename */
-				if (ProcessConfigFile(thetable, thestrings, defines, buf) == MM_FAIL)
-				{
-					/* if not, try relative to current dir */
-					char *p = alloca(strlen(buf) + strlen(fname) + 1);
-					strcpy(p, fname);
-					t = strrchr(p, '/');
-					if (t)
-					{
-						t++; /* move past '/' */
-						strcpy(t, buf);
-						if (ProcessConfigFile(thetable, thestrings, defines, p) == MM_FAIL)
-							if (log) log->Log(L_WARN, "<config> Cannot find #included file '%s'", buf);
-					}
-					/* else, the original path had no /, so we've tried
-					 * the resulting filename already */
-				}
+				while (*buf == ' ' || *buf == '\t' || *buf == '"') buf++;
+				/* recur with name equal to the argument to #include.
+				 * because of the search path, this will allow absolute
+				 * filenames as name to be found. */
+				ProcessConfigFile(thetable, thestrings, defines, arena, buf);
 			}
 			else if (!strncmp(buf, "define", 6))
 			{
@@ -197,16 +184,6 @@ local int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashTa
 }
 
 
-local int FindAndProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashTable *defines, const char *arena, const char *name)
-{
-	char buf[PATH_MAX];
-
-	if (LocateConfigFile(buf, PATH_MAX, arena, name) == -1)
-		return MM_FAIL;
-	else
-		return ProcessConfigFile(thetable, thestrings, defines, buf);
-}
-
 
 ConfigHandle LoadConfigFile(const char *arena, const char *name)
 {
@@ -220,7 +197,7 @@ ConfigHandle LoadConfigFile(const char *arena, const char *name)
 
 	/*printf("config: LoadConfigFile(%s, %s)\n", arena, name);*/
 
-	if (FindAndProcessConfigFile(thefile->thetable, thefile->thestrings, defines, arena, name) == MM_OK)
+	if (ProcessConfigFile(thefile->thetable, thefile->thestrings, defines, arena, name) == MM_OK)
 	{
 		files++;
 		HashEnum(defines, afree);
@@ -251,7 +228,7 @@ void FreeConfigFile(ConfigHandle ch)
 
 
 
-#define DEFAULTSEARCHPATH "arenas/%a/%n.conf:defaultarena/%n.conf"
+#define DEFAULTSEARCHPATH "arenas/%a/%n.conf:arenas/%a/%n:defaultarena/%n.conf:defaultarena/%n:%n"
 
 int LocateConfigFile(char *dest, int destlen, const char *arena, const char *name)
 {

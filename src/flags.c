@@ -9,9 +9,9 @@
 #define MODULE "flags"
 
 #define LOCK_STATUS(arena) \
-	pthread_mutex_lock(&pflagdata[arena].mutex)
+	pthread_mutex_lock(flagmtx + arena)
 #define UNLOCK_STATUS(arena) \
-	pthread_mutex_unlock(&pflagdata[arena].mutex)
+	pthread_mutex_unlock(flagmtx + arena)
 
 
 /* internal structs */
@@ -21,7 +21,6 @@ struct MyArenaData
 	int resetdelay, spawnx, spawny;
 	int spawnr, dropr, neutr;
 	int friendlytransfer, dropowned, neutowned;
-	pthread_mutex_t mutex;
 };
 
 /* prototypes */
@@ -58,6 +57,7 @@ local Imainloop *ml;
 /* the big flagdata array */
 local struct ArenaFlagData flagdata[MAXARENA];
 local struct MyArenaData pflagdata[MAXARENA];
+local pthread_mutex_t flagmtx[MAXARENA];
 
 local Iflags _myint =
 { MoveFlag, FlagVictory, LockFlagStatus, UnlockFlagStatus, flagdata };
@@ -96,7 +96,7 @@ int MM_flags(int action, Imodman *_mm, int arena)
 			pthread_mutexattr_init(&attr);
 			pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 			for (i = 0; i < MAXARENA; i++)
-				pthread_mutex_init(&pflagdata[i].mutex, &attr);
+				pthread_mutex_init(flagmtx + i, &attr);
 			pthread_mutexattr_destroy(&attr);
 		}
 
@@ -170,40 +170,50 @@ void ShipChange(int pid, int ship)
 
 void LoadFlagSettings(int arena)
 {
+	char *count, *c2;
 	struct MyArenaData d;
 	ConfigHandle c = aman->arenas[arena].cfg;
 
-	d.gametype = cfg->GetInt(c, "Flags", "GameType", FLAGGAME_NONE);
-	d.resetdelay = cfg->GetInt(c, "Flags", "ResetDelay", 0);
-	d.spawnx = cfg->GetInt(c, "Flags", "SpawnX", 512);
-	d.spawny = cfg->GetInt(c, "Flags", "SpawnY", 512);
-	d.spawnr = cfg->GetInt(c, "Flags", "SpawnRadius", 1024);
-	d.dropr = cfg->GetInt(c, "Flags", "DropRadius", 2);
-	d.neutr = cfg->GetInt(c, "Flags", "NeutRadius", 2);
-	d.friendlytransfer = cfg->GetInt(c, "Flags", "FriendlyTransfer", 1);
-	d.dropowned = cfg->GetInt(c, "Flags", "DropOwned", 1);
-	d.neutowned = cfg->GetInt(c, "Flags", "NeutOwned", 0);
+	d.gametype = cfg->GetInt(c, "Flag", "GameType", FLAGGAME_NONE);
+	d.resetdelay = cfg->GetInt(c, "Flag", "ResetDelay", 0);
+	d.spawnx = cfg->GetInt(c, "Flag", "SpawnX", 512);
+	d.spawny = cfg->GetInt(c, "Flag", "SpawnY", 512);
+	d.spawnr = cfg->GetInt(c, "Flag", "SpawnRadius", 1024);
+	d.dropr = cfg->GetInt(c, "Flag", "DropRadius", 2);
+	d.neutr = cfg->GetInt(c, "Flag", "NeutRadius", 2);
+	d.friendlytransfer = cfg->GetInt(c, "Flag", "FriendlyTransfer", 1);
+	d.dropowned = cfg->GetInt(c, "Flag", "DropOwned", 1);
+	d.neutowned = cfg->GetInt(c, "Flag", "NeutOwned", 0);
+
+	count = cfg->GetStr(c, "Flag", "FlagCount");
+	if (count)
 	{
-		char *count = cfg->GetStr(c, "Flags", "FlagCount"), *c2;
-		if (count)
+		d.minflags = strtol(count, NULL, 0);
+		if (d.minflags < 0) d.minflags = 0;
+		c2 = strchr(count, '-');
+		if (c2)
 		{
-			d.minflags = strtol(count, NULL, 0);
-			c2 = strchr(count, '-');
-			if (c2)
-			{
-				d.maxflags = strtol(c2, NULL, 0);
-				if (d.maxflags < d.minflags)
-					d.maxflags = d.minflags;
-			}
-			else
+			d.maxflags = strtol(c2+1, NULL, 0);
+			if (d.maxflags < d.minflags)
 				d.maxflags = d.minflags;
 		}
 		else
-			d.maxflags = d.minflags = 0;
-		d.currentflags = 0;
+			d.maxflags = d.minflags;
 	}
+	else
+		d.maxflags = d.minflags = 0;
 
+	d.currentflags = 0;
+
+	LOCK_STATUS(arena);
 	pflagdata[arena] = d;
+	UNLOCK_STATUS(arena);
+
+	logm->Log(L_INFO, "<flags> {%s} Arena has flaggame %d (%d-%d flags)",
+			aman->arenas[arena].name,
+			d.gametype,
+			d.minflags,
+			d.maxflags);
 }
 
 
@@ -293,6 +303,8 @@ void MoveFlag(int arena, int fid, int x, int y, int freq)
 		for (l = LLGetHead(lst); l; l = l->next)
 			((FlagPosFunc)l->data)(arena, fid, x, y, freq);
 	}
+	logm->Log(L_DRIVEL, "<flags> {%s} Flag %d is at (%d, %d) owned by %d",
+			aman->arenas[arena].name, fid, x, y, freq);
 }
 
 
@@ -332,7 +344,7 @@ void UnlockFlagStatus(int arena)
 void PPickupFlag(int pid, byte *p, int len)
 {
 	int arena, oldfreq;
-	struct S2CFlagPickup sfp;
+	struct S2CFlagPickup sfp = { S2C_FLAGPICKUP };
 	struct FlagData fd;
 	struct C2SFlagPickup *cfp = (struct C2SFlagPickup*)p;
 
@@ -400,13 +412,18 @@ void PPickupFlag(int pid, byte *p, int len)
 		for (l = LLGetHead(lst); l; l = l->next)
 			((FlagPickupFunc)l->data)(arena, pid, cfp->fid, oldfreq);
 	}
+
+	logm->Log(L_DRIVEL, "<flags> {%s} [%s] Player picked up flag %d",
+			aman->arenas[arena].name,
+			pd->players[pid].name,
+			cfp->fid);
 }
 
 
 void PDropFlag(int pid, byte *p, int len)
 {
 	int arena, fid;
-	struct S2CFlagDrop sfd;
+	struct S2CFlagDrop sfd = { S2C_FLAGDROP };
 	struct FlagData *fd;
 
 	arena = pd->players[pid].arena;
@@ -461,6 +478,10 @@ void PDropFlag(int pid, byte *p, int len)
 		for (l = LLGetHead(lst); l; l = l->next)
 			((FlagDropFunc)l->data)(arena, pid);
 	}
+
+	logm->Log(L_DRIVEL, "<flags> {%s} [%s] Player dropped flags",
+			aman->arenas[arena].name,
+			pd->players[pid].name);
 }
 
 
