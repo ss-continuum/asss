@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "asss.h"
+#include "objects.h"
 
 #include "packets/objects.h"
 

@@ -17,6 +17,7 @@
 
 
 #include "asss.h"
+#include "filetrans.h"
 
 
 #define CAP_UPLOADFILE "uploadfile"
@@ -31,7 +32,9 @@ struct upload_data
 struct download_data
 {
 	FILE *fp;
-	char *fname;
+	char *fname, *path;
+	/* path should only be set if we want to delete the file when we're
+	 * done. */
 };
 
 
@@ -89,7 +92,7 @@ local void cleanup_ud(int pid, int success)
 	}
 	else
 	{
-		if (unlink(ud->fname) == -1)
+		if (remove(ud->fname) == -1)
 			lm->Log(L_WARN, "<filetrans> Can't unlink '%s': %s",
 					ud->fname, strerror(errno));
 	}
@@ -154,6 +157,11 @@ local void get_data(void *clos, int offset, byte *buf, int needed)
 	{
 		/* done */
 		fclose(dd->fp);
+		if (dd->path)
+		{
+			remove(dd->path);
+			afree(dd->path);
+		}
 		afree(dd->fname);
 		afree(dd);
 	}
@@ -171,7 +179,7 @@ local void get_data(void *clos, int offset, byte *buf, int needed)
 }
 
 
-local int SendFile(int pid, const char *path, const char *fname)
+local int SendFile(int pid, const char *path, const char *fname, int delafter)
 {
 	struct download_data *dd;
 	struct stat st;
@@ -195,9 +203,18 @@ local int SendFile(int pid, const char *path, const char *fname)
 	dd = amalloc(sizeof(*dd));
 	dd->fp = fp;
 	dd->fname = astrdup(fname);
+	dd->path = NULL;
 
 	net->SendSized(pid, dd, st.st_size + 17, get_data);
 	lm->LogP(L_INFO, "filetrans", pid, "Sending '%s' (as '%s')", path, fname);
+
+	if (delafter)
+#ifdef WIN32
+		dd->path = astrdup(path);
+#else
+		/* on unix, we can unlink now because we keep it open */
+		remove(path);
+#endif
 	return MM_OK;
 }
 

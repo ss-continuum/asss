@@ -9,6 +9,7 @@
 #endif
 
 #include "asss.h"
+#include "clientset.h"
 
 
 #include "packets/goarena.h"

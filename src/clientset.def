@@ -131,13 +131,13 @@ static char *short_names[] =
 	 * A number representing how far you can see on radar */
 	"Radar:MapZoomFactor",
 	/* cfghelp: Kill:MaxBonus, arena, int
-	 */
+	 * FIXME: fill this in */
 	"Kill:MaxBonus",
 	/* cfghelp: Kill:MaxPenalty, arena, int
-	 */
+	 * FIXME: fill this in */
 	"Kill:MaxPenalty",
 	/* cfghelp: Kill:RewardBase, arena, int
-	 */
+	 * FIXME: fill this in */
 	"Kill:RewardBase",
 	/* cfghelp: Repel:RepelTime, arena, int
 	 * Time players are affected by the repel (in ticks) */

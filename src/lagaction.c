@@ -247,7 +247,7 @@ local void arenaaction(int arena, int action)
 		/* cfghelp: Lag:SpikeToSpec, arena, int, def: 3000
 		 * The amount of time the server can get no data from a player
 		 * before forcing him to spectator mode (in ticks). */
-		DOINT(spiketospec, "SpikeToSpec", 300);
+		DOINT(spiketospec, "SpikeToSpec", 3000);
 
 		/* cache this for later */
 		ll->specfreq = cfg->GetInt(ch, "Team", "SpectatorFrequency", 8025);

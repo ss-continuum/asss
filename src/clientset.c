@@ -4,6 +4,7 @@
 #include <assert.h>
 
 #include "asss.h"
+#include "clientset.h"
 
 
 #include "packets/clientset.h"
@@ -175,6 +176,7 @@ void ActionFunc(int arena, int action)
 		byte *data = (byte*)(settings + arena);
 		LoadSettings(arena);
 		net->SendToArena(arena, -1, data, sizeof(struct ClientSettings), NET_RELIABLE);
+		lm->LogA(L_INFO, "clientset", arena, "Sending modified settings");
 	}
 	else if (action == AA_DESTROY)
 	{

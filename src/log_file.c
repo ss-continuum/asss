@@ -4,6 +4,7 @@
 #include <time.h>
 
 #include "asss.h"
+#include "log_file.h"
 
 
 local void LogFile(const char *);

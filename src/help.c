@@ -2,9 +2,11 @@
 #include <string.h>
 
 #include "asss.h"
+#include "cfghelp.h"
 
 local Ichat *chat;
 local Icmdman *cmdman;
+local Icfghelp *cfghelp;
 
 
 local void do_cmd_help(int pid, const char *cmd)
@@ -31,45 +33,24 @@ local void do_cmd_help(int pid, const char *cmd)
 }
 
 
-#include "cfghelp.inc"
-
 local void send_msg_cb(const char *line, void *clos)
 {
 	chat->SendMessage(*(int*)clos, "  %s", line);
 }
 
-/* possible fixme: rewrite these two functions to use binary search */
-local const struct section_help *find_sec(const char *sec)
-{
-	int i;
-	for (i = 0; i < cfg_help_section_count; i++)
-		if (strcasecmp(sec, cfg_help_sections[i].name) == 0)
-			return &cfg_help_sections[i];
-	return NULL;
-}
-
-local const struct key_help *find_key(const struct section_help *sh, const char *key)
-{
-	int i;
-	for (i = 0; i < sh->keycount; i++)
-		if (strcasecmp(key, sh->keys[i].name) == 0)
-			return &sh->keys[i];
-	return NULL;
-}
-
 local void do_list_sections(int pid)
 {
 	chat->SendMessage(pid, "Known config file sections:");
-	wrap_text(cfg_help_all_section_names, 100, ' ', send_msg_cb, &pid);
+	wrap_text(cfghelp->all_section_names, 80, ' ', send_msg_cb, &pid);
 }
 
 local void do_list_keys(int pid, const char *sec)
 {
-	const struct section_help *sh = find_sec(sec);
+	const struct section_help *sh = cfghelp->find_sec(sec);
 	if (sh)
 	{
 		chat->SendMessage(pid, "Known keys in section %s:", sec);
-		wrap_text(sh->all_key_names, 100, ' ', send_msg_cb, &pid);
+		wrap_text(sh->all_key_names, 80, ' ', send_msg_cb, &pid);
 	}
 	else
 		chat->SendMessage(pid, "I don't know anything about section %s", sec);
@@ -77,10 +58,10 @@ local void do_list_keys(int pid, const char *sec)
 
 local void do_setting_help(int pid, const char *sec, const char *key)
 {
-	const struct section_help *sh = find_sec(sec);
+	const struct section_help *sh = cfghelp->find_sec(sec);
 	if (sh)
 	{
-		const struct key_help *kh = find_key(sh, key);
+		const struct key_help *kh = cfghelp->find_key(sh, key);
 		if (kh)
 		{
 			chat->SendMessage(pid, "Help on setting %s:%s",
@@ -93,7 +74,7 @@ local void do_setting_help(int pid, const char *sec, const char *key)
 				chat->SendMessage(pid, "  Range: %s", kh->range);
 			if (kh->def)
 				chat->SendMessage(pid, "  Default: %s", kh->def);
-			wrap_text(kh->helptext, 100, ' ', send_msg_cb, &pid);
+			wrap_text(kh->helptext, 80, ' ', send_msg_cb, &pid);
 		}
 		else
 			chat->SendMessage(pid, "I don't know anything about key %s", key);
@@ -125,6 +106,12 @@ local void Chelp(const char *params, int pid, const Target *target)
 		char secname[MAXSECTIONLEN];
 		const char *keyname;
 
+		if (!cfghelp)
+		{
+			chat->SendMessage(pid, "Config file settings help isn't loaded.");
+			return;
+		}
+
 		keyname = delimcpy(secname, params, MAXSECTIONLEN, ':');
 
 		if (secname[0] == '\0')
@@ -146,6 +133,7 @@ EXPORT int MM_help(int action, Imodman *mm, int arena)
 	{
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		cmdman = mm->GetInterface(I_CMDMAN, ALLARENAS);
+		cfghelp = mm->GetInterface(I_CFGHELP, ALLARENAS);
 		if (!chat || !cmdman)
 			return MM_FAIL;
 
@@ -155,8 +143,9 @@ EXPORT int MM_help(int action, Imodman *mm, int arena)
 	else if (action == MM_UNLOAD)
 	{
 		cmdman->RemoveCommand("help", Chelp);
-		mm->ReleaseInterface(cmdman);
 		mm->ReleaseInterface(chat);
+		mm->ReleaseInterface(cmdman);
+		mm->ReleaseInterface(cfghelp);
 		return MM_OK;
 	}
 	return MM_FAIL;

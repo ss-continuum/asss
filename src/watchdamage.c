@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "asss.h"
+#include "watchdamage.h"
 
 
 #define WATCHCOUNT(pid) \

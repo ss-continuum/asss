@@ -1,6 +1,6 @@
 
 #include "asss.h"
-
+#include "fake.h"
 
 local Imodman *mm;
 local Iplayerdata *pd;

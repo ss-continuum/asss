@@ -1,7 +1,6 @@
 
-
 #include "asss.h"
-
+#include "encrypt.h"
 
 /* structs */
 
@@ -34,7 +33,6 @@ local Iencrypt _int =
 	INTERFACE_HEAD_INIT(NULL, "vieenc")
 	Encrypt, Decrypt, Void
 };
-
 
 
 EXPORT int MM_encrypt1(int action, Imodman *mm, int arena)

@@ -10,7 +10,9 @@
 #endif
 
 #include "asss.h"
-
+#include "filetrans.h"
+#include "jackpot.h"
+#include "log_file.h"
 
 #ifdef CFG_EXTRA_VERSION_INFO
 #ifndef WIN32
@@ -388,7 +390,7 @@ local void Clsmod(const char *params, int pid, const Target *target)
 	mm->EnumModules(add_mod, (void*)data);
 	data[strlen(data)-2] = 0; /* kill last ', ' */
 	chat->SendMessage(pid, "Loaded modules:");
-	wrap_text(data, 100, ' ', send_msg_cb, &pid);
+	wrap_text(data, 80, ' ', send_msg_cb, &pid);
 }
 
 
@@ -1217,7 +1219,7 @@ local void Cgetfile(const char *params, int pid, const Target *target)
 	if (params[0] == '/' || strstr(params, ".."))
 		lm->LogP(L_MALICIOUS, "playercmd", pid, "Attempted ?getfile with bad path: '%s'", params);
 	else
-		filetrans->SendFile(pid, params, basename);
+		filetrans->SendFile(pid, params, basename, 0);
 }
 
 

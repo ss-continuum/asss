@@ -17,6 +17,8 @@
 #endif
 
 #include "asss.h"
+#include "encrypt.h"
+#include "billcore.h"
 
 /* defines */
 

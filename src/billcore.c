@@ -11,6 +11,7 @@
 #endif
 
 #include "asss.h"
+#include "billcore.h"
 
 #include "packets/login.h"
 

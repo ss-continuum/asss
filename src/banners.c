@@ -1,5 +1,6 @@
 
 #include "asss.h"
+#include "billcore.h"
 
 #include "packets/billmisc.h"
 #include "packets/banners.h"

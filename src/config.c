@@ -87,10 +87,10 @@ local int write_dirty_values(void *dummy)
 					afree(e->info);
 					afree(e);
 				}
-				/* set lastmod so that we don't think it's dirty */
-				if (fstat(fileno(fp), &st) == 0)
-					ch->lastmod = st.st_mtime;
 				fclose(fp);
+				/* set lastmod so that we don't think it's dirty */
+				if (stat(ch->filename, &st) == 0)
+					ch->lastmod = st.st_mtime;
 			}
 			else
 				if (lm)

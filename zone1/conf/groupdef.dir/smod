@@ -13,6 +13,8 @@ cmd_moveflag
 cmd_watchdamage
 privcmd_watchdamage
 
+cmd_quickfix
+
 ; bypass checksums
 bypass_security
 

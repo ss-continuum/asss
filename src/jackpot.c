@@ -1,5 +1,6 @@
 
 #include "asss.h"
+#include "jackpot.h"
 
 #define KEY_JACKPOT 12
 

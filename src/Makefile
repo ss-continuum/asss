@@ -55,7 +55,7 @@ game.so: game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
 	banners.o objects.o messages.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -lm
 
-command.so: cmdman.o help.o playercmd.o watchdamage.o buy.o
+command.so: cmdman.o playercmd.o watchdamage.o buy.o help.o cfghelp.o
 
 external.so: billcore.o directory.o
 
@@ -63,7 +63,7 @@ scoring.so: persist.o stats.o statcodes.o points_kill.o points_flag.o \
 	points_goal.o jackpot.o periodic.o points_periodic.o basicstats.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(DBLIB) -Wl,-rpath,$(DBLIB) -ldb-4
 
-admin.so: filetrans.o
+admin.so: filetrans.o quickfix.o
 
 database.so: mysql.o aliasdb.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(MYSQLLIB) -lmysqlclient_r -lz
@@ -76,19 +76,23 @@ funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
 sparse.inc: $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py
 	$(SCRIPTS)/gensparse.py $@ $(SCRIPTS)/sparse_params.py
 
+mapdata.o: sparse.inc
+
 letters.inc: $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font
 	$(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font > $@
 
-cfghelp.inc: $(SCRIPTS)/extract-cfg-docs.py *.c *.def
+bricklayer.o: letters.inc
+
+cfghelp.inc: $(SCRIPTS)/extract-cfg-docs.py
 	cat *.c *.def | $(SCRIPTS)/extract-cfg-docs.py -c > $@
 
-help.o: cfghelp.inc
+cfghelp.o: cfghelp.inc
 
 arpc_stubs.c: $(SCRIPTS)/arpc.py *.h
 	$(SCRIPTS)/arpc.py makestubs > $@
 
 
-Makefile.deps: sparse.inc letters.inc # *.c *.h
+Makefile.deps: sparse.inc letters.inc cfghelp.inc # *.c *.h
 	-$(CC) $(ALL_CFLAGS) -MM *.c > $@
 
 
