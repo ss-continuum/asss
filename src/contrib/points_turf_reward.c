@@ -8,7 +8,6 @@
 #include <string.h>
 #include "asss.h"
 #include "turf_reward.h"
-#include "settings/turfreward.h"  /* bring in the settings for reward types */
 
 
 local Iplayerdata *playerdata; /* player data */

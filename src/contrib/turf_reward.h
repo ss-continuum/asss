@@ -15,6 +15,18 @@
  * used by points_turf_reward for multiarena scoring locking/unlocking
  */
 
+#include "util.h"
+
+/* reward mode settings */
+#define TURF_REWARD_MAP(F) \
+	F(TR_STYLE_DISABLED)  /* disable rewards */  \
+	F(TR_STYLE_PERIODIC)  /* simple periodic scoring */  \
+	F(TR_STYLE_STANDARD)  /* standard weighted scoring method */  \
+	F(TR_STYLE_WEIGHTS)   /* # of weights = points awarded */  \
+	F(TR_STYLE_FIXED_PTS) /* each team gets a fixed # of points rank */
+
+DEFINE_ENUM(TURF_REWARD_MAP)
+
 
 /* prototypes */
 struct TurfArena;
