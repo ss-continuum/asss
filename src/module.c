@@ -130,6 +130,21 @@ local void UnregModuleLoader(const char *sig, ModuleLoaderFunc func)
 	pthread_mutex_unlock(&modmtx);
 }
 
+
+/* call with modmtx held */
+local ModuleData *get_module_by_name(const char *name)
+{
+	Link *l;
+	for (l = LLGetHead(&mods); l; l = l->next)
+	{
+		ModuleData *mod = (ModuleData*)(l->data);
+		if (!strcasecmp(mod->args.name, name))
+			return mod;
+	}
+	return NULL;
+}
+
+
 local int LoadModule_(const char *spec)
 {
 	int ret = MM_FAIL;
@@ -151,13 +166,19 @@ local int LoadModule_(const char *spec)
 		while (*t && isspace(*t)) t++;
 	}
 
-	mod = amalloc(sizeof(*mod));
-
 	pthread_mutex_lock(&modmtx);
+
+	/* check if already loaded */
+	if (get_module_by_name(t))
+	{
+		fprintf(stderr, "E <module> tried to load '%s' twice\n", t);
+		return MM_FAIL;
+	}
 
 	loader = HashGetOne(loaders, loadername);
 	if (loader)
 	{
+		mod = amalloc(sizeof(*mod));
 		ret = loader(MM_LOAD, &mod->args, t, NULL);
 		if (ret == MM_OK)
 		{
@@ -198,20 +219,6 @@ local int unload_by_ptr(ModuleData *mod)
 	}
 
 	return ret;
-}
-
-
-/* call with modmtx held */
-local ModuleData *get_module_by_name(const char *name)
-{
-	Link *l;
-	for (l = LLGetHead(&mods); l; l = l->next)
-	{
-		ModuleData *mod = (ModuleData*)(l->data);
-		if (!strcasecmp(mod->args.name, name))
-			return mod;
-	}
-	return NULL;
 }
 
 
@@ -292,12 +299,13 @@ int AttachModule(const char *name, Arena *arena)
 	int ret = MM_FAIL;
 	pthread_mutex_lock(&modmtx);
 	mod = get_module_by_name(name);
-	if (mod)
-		if (mod->loader(MM_ATTACH, &mod->args, NULL, arena) == MM_OK)
-		{
-			LLAdd(&mod->attached, arena);
-			ret = MM_OK;
-		}
+	if (mod &&
+	    !LLMember(&mod->attached, arena) &&
+	    mod->loader(MM_ATTACH, &mod->args, NULL, arena) == MM_OK)
+	{
+		LLAdd(&mod->attached, arena);
+		ret = MM_OK;
+	}
 	pthread_mutex_unlock(&modmtx);
 	return ret;
 }
@@ -308,12 +316,12 @@ int DetachModule(const char *name, Arena *arena)
 	int ret = MM_FAIL;
 	pthread_mutex_lock(&modmtx);
 	mod = get_module_by_name(name);
-	if (mod)
-		if (LLRemove(&mod->attached, arena))
-		{
-			mod->loader(MM_DETACH, &mod->args, NULL, arena);
-			ret = MM_OK;
-		}
+	if (mod &&
+	    LLRemove(&mod->attached, arena))
+	{
+		mod->loader(MM_DETACH, &mod->args, NULL, arena);
+		ret = MM_OK;
+	}
 	pthread_mutex_unlock(&modmtx);
 	return ret;
 }
