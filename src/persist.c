@@ -592,7 +592,7 @@ local void *DBThread(void *dummy)
 		afree(msg);
 
 		/* and give up some time */
-		sched_yield();
+		usleep(1000);
 	}
 
 	return NULL;
