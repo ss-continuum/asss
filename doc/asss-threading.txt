@@ -1,8 +1,8 @@
 
-new threading model for asss (TENATIVE!)
-----------------------------------------
+new threading model for asss
+----------------------------
 
-some new ideas:
+how the net module works:
 
 buffer lists are maintained as doubly linked circular linked lists
 there is a free list, a reliable list, and an outgoing list
@@ -52,4 +52,7 @@ arena status
 player status
 (network hash tables)
 
+Acquire locks in this order to avoid deadlock.
+
+Use the pthreads api for anything thread-related. It's portable.
 
