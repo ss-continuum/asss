@@ -18,7 +18,8 @@
 #define MAXTYPES 128
 #define MAXENCRYPT 4
 
-
+#define NET_INPRESIZE 2
+#define NET_INBIGPKT 4
 
 /* STRUCTS */
 
@@ -32,7 +33,7 @@ typedef struct ClientData
 	struct sockaddr_in sin;
 	unsigned int lastpkt, key;
 	short enctype;
-	int bigpktsize;
+	int bigpktsize, bigpktroom;
 	byte *bigpktbuf;
 } ClientData;
 
@@ -93,8 +94,6 @@ local void InitSockets();
 
 local Ilogman *log;
 local Iconfig *cfg;
-local Imainloop *ml;
-local Imodman *mm_;
 local PlayerData *players;
 
 local int mysock, myothersock, mybillingsock;
@@ -152,10 +151,8 @@ int MM_net(int action, Imodman *mm)
 	if (action == MM_LOAD)
 	{
 		players = mm->players;
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_LOGMAN, &log);
-		mm->RegInterest(I_MAINLOOP, &ml);
-		mm_ = mm;
+		mm->RegInterest(I_CONFIG, (void**)&cfg);
+		mm->RegInterest(I_LOGMAN, (void**)&log);
 		if (!cfg || !log) return MM_FAIL;
 
 		for (i = 0; i < MAXTYPES; i++)
@@ -197,15 +194,13 @@ int MM_net(int action, Imodman *mm)
 	else if (action == MM_UNLOAD)
 	{
 		/* uninstall ourself */
-		mm->UnregInterface(&_int);
+		mm->UnregInterface(I_NET, &_int);
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_LOGMAN, &log);
-		mm->UnregInterest(I_MAINLOOP, &ml);
 		for (i = 0; i < MAXENCRYPT; i++)
 			mm->UnregInterest(I_ENCRYPTBASE + i, encrypt + i);
 
 		/* get rid of main loop entries */
-		ml = mm->GetInterface(I_MAINLOOP);
 		for (i = 0; i < cfg_process; i++)
 			mm->UnregCallback(CALLBACK_MAINLOOP, RecvPacket);
 		mm->UnregCallback(CALLBACK_MAINLOOP, CheckBuffers);
@@ -587,7 +582,15 @@ void ProcessDrop(int pid, byte *p, int n)
 void ProcessBigData(int pid, byte *p, int n)
 {
 	int newsize = clients[pid].bigpktsize + n - 2;
-	byte *newbuf, *oldbuf;
+	byte *newbuf;
+
+	if (clients[pid].flags & NET_INPRESIZE)
+	{
+		log->Log(LOG_BADDATA, "Recieved bigpacket while handling presized data! (%s)",
+				players[pid].name);
+	}
+
+	clients[pid].flags |= NET_INBIGPKT;
 	
 	if (newsize > MAXBIGPACKET)
 	{
@@ -597,21 +600,26 @@ void ProcessBigData(int pid, byte *p, int n)
 		goto freebigbuf;
 	}
 
-	clients[pid].bigpktbuf = newbuf = realloc(clients[pid].bigpktbuf, newsize);
-
-	if (!newbuf)
+	if (clients[pid].bigpktroom < newsize)
 	{
-		log->Log(LOG_ERROR,"Cannot allocate %i for bigpacket (%s)",
-			newsize, players[pid].name);
-		goto freebigbuf;
+		clients[pid].bigpktroom *= 2;
+		if (clients[pid].bigpktroom < newsize) clients[pid].bigpktroom = newsize;
+		newbuf = realloc(clients[pid].bigpktbuf, clients[pid].bigpktroom); 
+		if (!newbuf)
+		{
+			log->Log(LOG_ERROR,"Cannot allocate %i for bigpacket (%s)",
+				newsize, players[pid].name);
+			goto freebigbuf;
+		}
+		clients[pid].bigpktbuf = newbuf;
 	}
-	
-	oldbuf = newbuf + clients[pid].bigpktsize; /* the old size */
+	else
+		newbuf = clients[pid].bigpktbuf;
+
+	memcpy(newbuf + clients[pid].bigpktsize, p+2, n-2);
 
 	clients[pid].bigpktbuf = newbuf;
 	clients[pid].bigpktsize = newsize;
-
-	memcpy(oldbuf, p+2, n-2);
 
 	if (p[1] == 0x08) return;
 
@@ -621,6 +629,8 @@ freebigbuf:
 	free(clients[pid].bigpktbuf);
 	clients[pid].bigpktbuf = NULL;
 	clients[pid].bigpktsize = 0;
+	clients[pid].bigpktroom = 0;
+	clients[pid].flags &= ~NET_INBIGPKT;
 }
 
 
@@ -629,8 +639,21 @@ void ProcessPresize(int pid, byte *p, int len)
 	struct ReliablePacket *pk = (struct ReliablePacket *)p;
 	int size = pk->seqnum;
 
+	if (clients[pid].flags & NET_INBIGPKT)
+	{
+		log->Log(LOG_BADDATA,"Recieved presized data while handling bigpacket! (%s)",
+				players[pid].name);
+		return;
+	}
+
 	if (clients[pid].bigpktbuf)
 	{	/* copy data */
+		if (size != clients[pid].bigpktroom)
+		{
+			log->Log(LOG_BADDATA, "Presized data length mismatch! (%s)",
+					players[pid].name);
+			goto freepacket;
+		}
 		memcpy(clients[pid].bigpktbuf+clients[pid].bigpktsize, pk->data, len-6);
 		clients[pid].bigpktsize += (len-6);
 	}
@@ -645,17 +668,21 @@ void ProcessPresize(int pid, byte *p, int len)
 		else
 		{	/* copy initial segment	 */
 			clients[pid].bigpktbuf = amalloc(size);
+			clients[pid].bigpktroom = size;
 			memcpy(clients[pid].bigpktbuf, pk->data, len-6);
 			clients[pid].bigpktsize = len-6;
 		}
 	}
-	if (clients[pid].bigpktsize >= size)
-	{	/* process it */
-		ProcessPacket(pid, clients[pid].bigpktbuf, size);
-		free(clients[pid].bigpktbuf);
-		clients[pid].bigpktbuf = NULL;
-		clients[pid].bigpktsize = 0;
-	}
+	if (clients[pid].bigpktsize < size) return;
+
+	ProcessPacket(pid, clients[pid].bigpktbuf, size);
+
+freepacket:
+	free(clients[pid].bigpktbuf);
+	clients[pid].bigpktbuf = NULL;
+	clients[pid].bigpktsize = 0;
+	clients[pid].bigpktroom = 0;
+	clients[pid].flags &= ~NET_INPRESIZE;
 }
 
 
@@ -668,9 +695,6 @@ void CheckBuffers()
 	unsigned int gtc = GTC(), i, j;
 	byte *current;
 
-	/* get new encryption interfaces */
-	for (i = 0; i < MAXENCRYPT; i++)
-		encrypt[i] = mm_->GetInterface(I_ENCRYPTBASE + i);
 	/* zero some arrays */
 	memset(pcount, 0, (MAXPLAYERS+1) * sizeof(unsigned int));
 	memset(bigcount, 0, (MAXPLAYERS+1) * sizeof(unsigned int));
