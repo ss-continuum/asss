@@ -53,6 +53,7 @@ local Iflags *flags;
 local Iballs *balls;
 local Ilagquery *lagq;
 local Ipersist *persist;
+local Istats *stats;
 local Imodman *mm;
 
 
@@ -1703,6 +1704,8 @@ local void Cendinterval(const char *params, Player *p, const Target *target)
 		persist->EndInterval(ag, NULL, interval);
 	else if (p->arena)
 		persist->EndInterval(NULL, p->arena, interval);
+
+	stats->SendUpdates();
 }
 
 
@@ -2040,6 +2043,7 @@ local const struct cmd_info lag_commands[] =
 local const struct interface_info stats_requires[] =
 {
 	REQUIRE(persist, I_PERSIST)
+	REQUIRE(stats, I_STATS)
 	END()
 };
 

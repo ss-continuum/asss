@@ -762,7 +762,7 @@ local void *playback_thread(void *v)
 	Arena *a = v;
 	rec_adata *ra = P_ARENA_DATA(a, adkey);
 	int cmd, r, isrel;
-	ticks_t started, now, paused;
+	ticks_t started, now, paused = 0;
 
 	Player **pidmap;
 	int pidmaplen;
@@ -804,7 +804,8 @@ local void *playback_thread(void *v)
 				LOCK(a);
 				ra->ispaused = FALSE;
 				UNLOCK(a);
-				started = TICK_MAKE(started + TICK_DIFF(current_ticks(), paused));
+				if (paused)
+					started = TICK_MAKE(started + TICK_DIFF(current_ticks(), paused));
 				chat->SendArenaMessage(a, "Game playback resumed");
 				break;
 		}

@@ -90,8 +90,6 @@ void MyFlagWin(Arena *arena, int freq)
 
 	points = players * players * reward / 1000;
 
-	flags->FlagVictory(arena, freq, points);
-
 	if (splitpts && LLCount(&set) > 0)
 		points /= LLCount(&set);
 
@@ -99,6 +97,17 @@ void MyFlagWin(Arena *arena, int freq)
 		stats->IncrementStat(link->data, STAT_FLAG_POINTS, points);
 	LLEmpty(&set);
 
+	/* this isn't obvious: we have to call FlagVictory _after_ all the
+	 * IncrementStat calls, because FlagVictory calls
+	 * persist->EndInterval, which swaps out the current scores for the
+	 * next game's scores. so to get the points to go in the right
+	 * place, we do them in the current game, then switch games. */
+	flags->FlagVictory(arena, freq, points);
+
+	/* for more or less the same reason, we SendUpdates after
+	 * FlagVictory so that if the arena uses game interval stats in one
+	 * of its boxes, we're sending the current values, not the values
+	 * from the last game. */
 	stats->SendUpdates();
 }
 

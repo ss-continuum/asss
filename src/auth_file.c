@@ -6,6 +6,7 @@
 
 [General]
 AllowUnknown = yes
+AutoAdd = yes
 
 [Users]
 Grelminar = 561fb382be64fdfd6c4bc4450577b966
@@ -116,9 +117,25 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 		int allow = cfg->GetInt(pwdfile, "General", "AllowUnknown", 1);
 
 		if (allow)
+		{
 			ad.code = AUTH_OK;
+
+			/* cfghelp: General:AutoAdd, passwd.conf, bool, def: 0, \
+			 * mod: auth_file
+			 * Determines whether to automatically add players with
+			 * no password entries to the password file. */
+			if (cfg->GetInt(pwdfile, "General", "AutoAdd", 0))
+			{
+				char hex[33];
+
+				hash_password(lp->name, lp->password, hex);
+
+				cfg->SetStr(pwdfile, "users", lp->name, hex, NULL);
+				ad.authenticated = TRUE;
+			}
+		}
 		else
-			ad.code = AUTH_NOPERMISSION;
+			ad.code = AUTH_NOPERMISSION2;
 	}
 
 	done(p, &ad);
@@ -134,7 +151,6 @@ local helptext_t passwd_help =
 
 local void Cpasswd(const char *params, Player *p, const Target *target)
 {
-	Ichat *chat = mm->GetInterface(I_CHAT, ALLARENAS);
 	char hex[33];
 
 	if (!*params)
@@ -144,8 +160,11 @@ local void Cpasswd(const char *params, Player *p, const Target *target)
 
 	cfg->SetStr(pwdfile, "users", p->name, hex, NULL);
 
-	if (chat) chat->SendMessage(p, "Password set");
-	mm->ReleaseInterface(chat);
+	{
+		Ichat *chat = mm->GetInterface(I_CHAT, ALLARENAS);
+		if (chat) chat->SendMessage(p, "Password set");
+		mm->ReleaseInterface(chat);
+	}
 }
 
 
@@ -191,4 +210,5 @@ EXPORT int MM_auth_file(int action, Imodman *mm_, Arena *arena)
 	}
 	return MM_FAIL;
 }
+
 

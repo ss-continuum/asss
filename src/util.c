@@ -504,9 +504,9 @@ local inline HashEntry *GetAnEntry(const char *key)
 /* note: this is a case-insensitive hash! */
 inline unsigned Hash(const char *s, int modulus)
 {
-	unsigned len = 3, ret = 1447;
+	unsigned len = 3, ret = 17;
 	while (*s)
-		ret = (ret * tolower(*s++) + len++ *7);
+		ret = ret * ((*s++)|32) + len++;
 	return ret % modulus;
 }
 

@@ -361,7 +361,7 @@ void RewardPoints(Arena *arena, int winfreq)
 		stats->IncrementStat(link->data, STAT_FLAG_POINTS, points);
 	LLEmpty(&set);
 
-	stats->SendUpdates();
+	/* don't SendUpdates here, wait until after the balls->EndGame */
 }
 
 void CheckGameOver(Arena *arena, int bid)
@@ -383,6 +383,7 @@ void CheckGameOver(Arena *arena, int bid)
 			chat->SendArenaSoundMessage(arena, SOUND_DING, "Soccer game over.");
 			RewardPoints(arena, freq);
 			balls->EndGame(arena);
+			stats->SendUpdates();
 			for(i=0;i < MAXFREQ;i++)
 				scores->score[i] = scores->stealpts;
 		}
@@ -397,6 +398,7 @@ void CheckGameOver(Arena *arena, int bid)
 			chat->SendArenaSoundMessage(arena, SOUND_DING, "Soccer game over.");
 			RewardPoints(arena, freq);
 			balls->EndGame(arena);
+			stats->SendUpdates();
 			for(i=0;i < MAXFREQ;i++)
 				scores->score[i] = scores->stealpts;
 		}
@@ -416,6 +418,7 @@ void CheckGameOver(Arena *arena, int bid)
 			chat->SendArenaSoundMessage(arena, SOUND_DING, "Soccer game over.");
 			RewardPoints(arena, freq);
 			balls->EndGame(arena);
+			stats->SendUpdates();
 			for(i=0;i < MAXFREQ;i++)
 				scores->score[i] = 0;
 
@@ -509,6 +512,7 @@ void Cresetgame(const char *params, Player *p, const Target *target)
 		chat->SendArenaMessage(arena, "Resetting game. -%s", p->name);
 		chat->SendArenaSoundMessage(arena, SOUND_DING, "Soccer game over.");
 		balls->EndGame(arena);
+		stats->SendUpdates();
 		if (scores->stealpts) j = scores->stealpts;
 		for(i = 0; i < MAXFREQ; i++)
 			scores->score[i] = j;

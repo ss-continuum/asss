@@ -605,8 +605,7 @@ local void CheckWin(Arena *arena)
 	{
 		/* signal a win by calling callbacks. they should at least call
 		 * flags->FlagVictory to reset the game. */
-		DO_CBS(CB_FLAGWIN, arena, FlagWinFunc,
-				(arena, freq));
+		DO_CBS(CB_FLAGWIN, arena, FlagWinFunc, (arena, freq));
 
 		logm->Log(L_INFO, "<flags> {%s} flag victory: freq %d won",
 				arena->name, freq);

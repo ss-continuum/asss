@@ -11,7 +11,7 @@ bypasslock
 
 cmd_ballcount
 cmd_flagreset
-cmd_listmods
+cmd_listmod
 cmd_a
 privcmd_a
 cmd_z
