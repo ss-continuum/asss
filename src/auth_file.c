@@ -151,7 +151,7 @@ local helptext_t passwd_help =
 "the password used by the auth_file authentication mechanism (used when the\n"
 "billing server is disconnected. This command does involve the billing server.\n";
 
-local void Cpasswd(const char *params, Player *p, const Target *target)
+local void Cpasswd(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Ichat *chat;
 	char hex[33];
@@ -176,7 +176,7 @@ local helptext_t addallowed_help =
 "Adds a player to passwd.conf with no set password. This will allow them\n"
 "to log in when AllowUnknown is set to false, and has no use otherwise.\n";
 
-local void Caddallowed(const char *params, Player *p, const Target *target)
+local void Caddallowed(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Ichat *chat;
 	const char *pwd;
@@ -229,8 +229,8 @@ EXPORT int MM_auth_file(int action, Imodman *mm_, Arena *arena)
 
 		if (!pwdfile) return MM_FAIL;
 
-		cmd->AddCommand("passwd", Cpasswd, passwd_help);
-		cmd->AddCommand("addallowed", Caddallowed, addallowed_help);
+		cmd->AddCommand("passwd", Cpasswd, ALLARENAS, passwd_help);
+		cmd->AddCommand("addallowed", Caddallowed, ALLARENAS, addallowed_help);
 
 		mm->RegInterface(&myauth, ALLARENAS);
 
@@ -240,8 +240,8 @@ EXPORT int MM_auth_file(int action, Imodman *mm_, Arena *arena)
 	{
 		if (mm->UnregInterface(&myauth, ALLARENAS))
 			return MM_FAIL;
-		cmd->RemoveCommand("passwd", Cpasswd);
-		cmd->RemoveCommand("addallowed", Caddallowed);
+		cmd->RemoveCommand("passwd", Cpasswd, ALLARENAS);
+		cmd->RemoveCommand("addallowed", Caddallowed, ALLARENAS);
 		cfg->CloseConfigFile(pwdfile);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(cmd);

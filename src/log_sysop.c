@@ -9,7 +9,7 @@
 
 local void LogSysop(const char *);
 local void PA(Player *p, int action, Arena *arena);
-local void Clastlog(const char *params, Player *p, const Target *target);
+local void Clastlog(const char *cmd, const char *params, Player *p, const Target *target);
 local helptext_t lastlog_help;
 
 enum { SEE_NONE, SEE_ARENA, SEE_ALL };
@@ -56,13 +56,13 @@ EXPORT int MM_log_sysop(int action, Imodman *mm, Arena *arena)
 		mm->RegCallback(CB_LOGFUNC, LogSysop, ALLARENAS);
 		mm->RegCallback(CB_PLAYERACTION, PA, ALLARENAS);
 
-		cmd->AddCommand("lastlog", Clastlog, lastlog_help);
+		cmd->AddCommand("lastlog", Clastlog, ALLARENAS, lastlog_help);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		cmd->RemoveCommand("lastlog", Clastlog);
+		cmd->RemoveCommand("lastlog", Clastlog, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, PA, ALLARENAS);
 		mm->UnregCallback(CB_LOGFUNC, LogSysop, ALLARENAS);
 		pd->FreePlayerData(seewhatkey);
@@ -151,7 +151,7 @@ local helptext_t lastlog_help =
 "display will be limited to lines that contain that text. You can specify\n"
 "both a number and limiting text, just put the number first.\n";
 
-void Clastlog(const char *params, Player *p, const Target *target)
+void Clastlog(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	int count, c;
 	char *end;

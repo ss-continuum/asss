@@ -93,7 +93,7 @@ local helptext_t objon_help =
 "Toggles the specified object on.\n"
 "Object commands: ?objon ?objoff ?objset ?objmove ?objimage ?objlayer ?objtimer ?objmode ?objinfo ?objlist\n";
 
-local void Cobjon(const char *params, Player *p, const Target *target)
+local void Cobjon(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	Toggle(target, atoi(params), 1);
 }
@@ -104,7 +104,7 @@ local helptext_t objoff_help =
 "Toggles the specified object off.\n"
 "Object commands: ?objon ?objoff ?objset ?objmove ?objimage ?objlayer ?objtimer ?objmode ?objinfo ?objlist\n";
 
-local void Cobjoff(const char *params, Player *p, const Target *target)
+local void Cobjoff(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	Toggle(target, atoi(params), 0);
 }
@@ -115,7 +115,7 @@ local helptext_t objset_help =
 "Toggles the specified objects on/off.\n"
 "Object commands: ?objon ?objoff ?objset ?objmove ?objimage ?objlayer ?objtimer ?objmode ?objinfo ?objlist\n";
 
-local void Cobjset(const char *params, Player *p, const Target *target)
+local void Cobjset(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	int l = strlen(params) + 1;
 	const char *c = params;
@@ -150,7 +150,7 @@ local helptext_t objmove_help =
 "Moves an LVZ map or screen object. Coordinates are in pixels.\n"
 "Object commands: ?objon ?objoff ?objset ?objmove ?objimage ?objlayer ?objtimer ?objmode ?objinfo ?objlist\n";
 
-local void Cobjmove(const char *params, Player *p, const Target *target)
+local void Cobjmove(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	int offset, i = 0, j = 0, v[5] = {0,0,0,0,0};
 	char ch, field[256];
@@ -204,7 +204,7 @@ local helptext_t objimage_help =
 "Change the image associated with an object id.\n"
 "Object commands: ?objon ?objoff ?objset ?objmove ?objimage ?objlayer ?objtimer ?objmode ?objinfo ?objlist\n";
 
-local void Cobjimage(const char *params, Player *p, const Target *target)
+local void Cobjimage(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	char id[256];
 	const char *image = delimcpy(id, params, sizeof(id), ' ');
@@ -220,7 +220,7 @@ local helptext_t objlayer_help =
 "AfterShips  AfterGauges  AfterChat  TopMost\n"
 "Object commands: ?objon ?objoff ?objset ?objmove ?objimage ?objlayer ?objtimer ?objmode ?objinfo ?objlist\n";
 
-local void Cobjlayer(const char *params, Player *p, const Target *target)
+local void Cobjlayer(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	int code;
 	char id[256];
@@ -246,7 +246,7 @@ local helptext_t objtimer_help =
 "Change the timer associated with an object id.\n"
 "Object commands: ?objon ?objoff ?objset ?objmove ?objimage ?objlayer ?objtimer ?objmode ?objinfo ?objlist\n";
 
-local void Cobjtimer(const char *params, Player *p, const Target *target)
+local void Cobjtimer(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	char id[256];
 	const char *timer = delimcpy(id, params, sizeof(id), ' ');
@@ -261,7 +261,7 @@ local helptext_t objmode_help =
 "ShowAlways  EnterZone  EnterArena  Kill  Death  ServerControlled\n"
 "Object commands: ?objon ?objoff ?objset ?objmove ?objimage ?objlayer ?objtimer ?objmode ?objinfo ?objlist\n";
 
-local void Cobjmode(const char *params, Player *p, const Target *target)
+local void Cobjmode(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	int code;
 	char id[256];
@@ -310,7 +310,7 @@ local const char *OFFSET_String[] = {
 	"V - Bottom left corner of weapons",
 };
 
-local void Cobjinfo(const char *params, Player *p, const Target *target)
+local void Cobjinfo(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	int id = atoi(params);
 	if (p->status == S_PLAYING)
@@ -348,7 +348,7 @@ local void send_msg_cb(const char *line, void *clos)
 	chat->SendMessage((Player*)clos, "  %s", line);
 }
 
-local void Cobjlist(const char *params, Player *p, const Target *target)
+local void Cobjlist(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	char objects[512], *c = objects;
 	aodata *ad = P_ARENA_DATA(p->arena, aokey);
@@ -429,16 +429,16 @@ EXPORT int MM_objects(int action, Imodman *mm_, Arena *arena)
 		mm->RegCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
 		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
-		cmd->AddCommand("objon", Cobjon, objon_help);
-		cmd->AddCommand("objoff", Cobjoff, objoff_help);
-		cmd->AddCommand("objset", Cobjset, objset_help);
-		cmd->AddCommand("objmove", Cobjmove, objmove_help);
-		cmd->AddCommand("objimage", Cobjimage, objimage_help);
-		cmd->AddCommand("objlayer", Cobjlayer, objlayer_help);
-		cmd->AddCommand("objtimer", Cobjtimer, objtimer_help);
-		cmd->AddCommand("objmode", Cobjmode, objmode_help);
-		cmd->AddCommand("objinfo", Cobjinfo, objinfo_help);
-		cmd->AddCommand("objlist", Cobjlist, objlist_help);
+		cmd->AddCommand("objon", Cobjon, ALLARENAS, objon_help);
+		cmd->AddCommand("objoff", Cobjoff, ALLARENAS, objoff_help);
+		cmd->AddCommand("objset", Cobjset, ALLARENAS, objset_help);
+		cmd->AddCommand("objmove", Cobjmove, ALLARENAS, objmove_help);
+		cmd->AddCommand("objimage", Cobjimage, ALLARENAS, objimage_help);
+		cmd->AddCommand("objlayer", Cobjlayer, ALLARENAS, objlayer_help);
+		cmd->AddCommand("objtimer", Cobjtimer, ALLARENAS, objtimer_help);
+		cmd->AddCommand("objmode", Cobjmode, ALLARENAS, objmode_help);
+		cmd->AddCommand("objinfo", Cobjinfo, ALLARENAS, objinfo_help);
+		cmd->AddCommand("objlist", Cobjlist, ALLARENAS, objlist_help);
 
 		return MM_OK;
 	}
@@ -455,16 +455,16 @@ EXPORT int MM_objects(int action, Imodman *mm_, Arena *arena)
 		pd->FreePlayerData(pokey);
 		aman->FreeArenaData(aokey);
 
-		cmd->RemoveCommand("objon", Cobjon);
-		cmd->RemoveCommand("objoff", Cobjoff);
-		cmd->RemoveCommand("objset", Cobjset);
-		cmd->RemoveCommand("objmove", Cobjmove);
-		cmd->RemoveCommand("objimage", Cobjimage);
-		cmd->RemoveCommand("objlayer", Cobjlayer);
-		cmd->RemoveCommand("objtimer", Cobjtimer);
-		cmd->RemoveCommand("objmode", Cobjmode);
-		cmd->RemoveCommand("objinfo", Cobjinfo);
-		cmd->RemoveCommand("objlist", Cobjlist);
+		cmd->RemoveCommand("objon", Cobjon, ALLARENAS);
+		cmd->RemoveCommand("objoff", Cobjoff, ALLARENAS);
+		cmd->RemoveCommand("objset", Cobjset, ALLARENAS);
+		cmd->RemoveCommand("objmove", Cobjmove, ALLARENAS);
+		cmd->RemoveCommand("objimage", Cobjimage, ALLARENAS);
+		cmd->RemoveCommand("objlayer", Cobjlayer, ALLARENAS);
+		cmd->RemoveCommand("objtimer", Cobjtimer, ALLARENAS);
+		cmd->RemoveCommand("objmode", Cobjmode, ALLARENAS);
+		cmd->RemoveCommand("objinfo", Cobjinfo, ALLARENAS);
+		cmd->RemoveCommand("objlist", Cobjlist, ALLARENAS);
 
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(mapdata);

@@ -384,7 +384,7 @@ local void rewrite_chat_command(Player *p, const char *line, struct S2B_UserComm
 	*d = 0;
 }
 
-local void Cdefault(const char *line, Player *p, const Target *target)
+local void Cdefault(const char *tc, const char *line, Player *p, const Target *target)
 {
 	pdata *data = PPDATA(p, pdkey);
 	struct S2B_UserCommand pkt = { S2B_USER_COMMAND, p->pid };
@@ -424,7 +424,7 @@ local helptext_t usage_help =
 "total hours and minutes logged in), as well as the first login time, of\n"
 "the target player, or you if no target.\n";
 
-local void Cusage(const char *params, Player *p, const Target *target)
+local void Cusage(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Player *t = target->type == T_PLAYER ? target->u.p : p;
 	pdata *tdata = PPDATA(t, pdkey);
@@ -455,7 +455,7 @@ local helptext_t userid_help =
 "Displays the user database id of the target player, or yours if no\n"
 "target.\n";
 
-local void Cuserid(const char *params, Player *p, const Target *target)
+local void Cuserid(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Player *t = target->type == T_PLAYER ? target->u.p : p;
 	pdata *tdata = PPDATA(t, pdkey);
@@ -474,7 +474,7 @@ local helptext_t userdbadm_help =
 "connection. 'drop' disconnects the connection if it's up, and 'connect'\n"
 "reconnects after dropping or failed login.\n";
 
-local void Cuserdbadm(const char *params, Player *p, const Target *target)
+local void Cuserdbadm(const char *tc, const char *params, Player *p, const Target *target)
 {
 	pthread_mutex_lock(&mtx);
 
@@ -1172,10 +1172,10 @@ EXPORT int MM_billing_ssc(int action, Imodman *mm_, Arena *arena)
 		mm->RegCallback(CB_CHATMSG, onchatmsg, ALLARENAS);
 		mm->RegCallback(CB_SET_BANNER, setbanner, ALLARENAS);
 
-		cmd->AddCommand("usage", Cusage, usage_help);
-		cmd->AddCommand("userid", Cuserid, userid_help);
-		cmd->AddCommand("userdbadm", Cuserdbadm, userdbadm_help);
-		cmd->AddCommand(NULL, Cdefault, NULL);
+		cmd->AddCommand("usage", Cusage, ALLARENAS, usage_help);
+		cmd->AddCommand("userid", Cuserid, ALLARENAS, userid_help);
+		cmd->AddCommand("userdbadm", Cuserdbadm, ALLARENAS, userdbadm_help);
+		cmd->AddCommand(NULL, Cdefault, ALLARENAS, NULL);
 
 		mm->RegInterface(&myauth, ALLARENAS);
 		mm->RegInterface(&billingint, ALLARENAS);
@@ -1193,10 +1193,10 @@ EXPORT int MM_billing_ssc(int action, Imodman *mm_, Arena *arena)
 		/* make sure net won't be calling back into us anymore */
 		drop_connection(s_disabled);
 
-		cmd->RemoveCommand("usage", Cusage);
-		cmd->RemoveCommand("userid", Cuserid);
-		cmd->RemoveCommand("userdbadm", Cuserdbadm);
-		cmd->RemoveCommand(NULL, Cdefault);
+		cmd->RemoveCommand("usage", Cusage, ALLARENAS);
+		cmd->RemoveCommand("userid", Cuserid, ALLARENAS);
+		cmd->RemoveCommand("userdbadm", Cuserdbadm, ALLARENAS);
+		cmd->RemoveCommand(NULL, Cdefault, ALLARENAS);
 
 		net->RemovePacket(C2S_REGDATA, PDemographics);
 

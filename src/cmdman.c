@@ -12,7 +12,6 @@
 typedef struct cmddata_t
 {
 	CommandFunc func;
-	CommandFunc2 func2;
 	Arena *arena;
 	helptext_t helptext;
 } cmddata_t;
@@ -20,10 +19,8 @@ typedef struct cmddata_t
 
 /* prototypes */
 
-local void AddCommand(const char *, CommandFunc, helptext_t);
-local void RemoveCommand(const char *, CommandFunc);
-local void AddCommand2(const char *, CommandFunc2, Arena *, helptext_t);
-local void RemoveCommand2(const char *, CommandFunc2, Arena *);
+local void AddCommand(const char *, CommandFunc, Arena *, helptext_t);
+local void RemoveCommand(const char *, CommandFunc, Arena *);
 local void Command(const char *, Player *, const Target *);
 local helptext_t GetHelpText(const char *, Arena *);
 
@@ -37,13 +34,11 @@ local Imodman *mm;
 local pthread_mutex_t cmdmtx;
 local HashTable *cmds;
 local CommandFunc defaultfunc;
-local CommandFunc2 defaultfunc2;
 
 local Icmdman _int =
 {
 	INTERFACE_HEAD_INIT(I_CMDMAN, "cmdman")
-	AddCommand, AddCommand2,
-	RemoveCommand, RemoveCommand2,
+	AddCommand, RemoveCommand,
 	Command, GetHelpText
 };
 
@@ -68,7 +63,6 @@ EXPORT int MM_cmdman(int action, Imodman *mm_, Arena *arena)
 		cmds = HashAlloc();
 
 		defaultfunc = NULL;
-		defaultfunc2 = NULL;
 
 		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
@@ -89,7 +83,8 @@ EXPORT int MM_cmdman(int action, Imodman *mm_, Arena *arena)
 }
 
 
-void AddCommand(const char *cmd, CommandFunc f, helptext_t helptext)
+void AddCommand(const char *cmd, CommandFunc f, Arena *arena,
+		helptext_t helptext)
 {
 	if (!cmd)
 		defaultfunc = f;
@@ -97,26 +92,6 @@ void AddCommand(const char *cmd, CommandFunc f, helptext_t helptext)
 	{
 		cmddata_t *data = amalloc(sizeof(*data));
 		data->func = f;
-		data->func2 = NULL;
-		data->arena = ALLARENAS;
-		data->helptext = helptext;
-		pthread_mutex_lock(&cmdmtx);
-		HashAdd(cmds, cmd, data);
-		pthread_mutex_unlock(&cmdmtx);
-	}
-}
-
-
-void AddCommand2(const char *cmd, CommandFunc2 f2, Arena *arena,
-		helptext_t helptext)
-{
-	if (!cmd)
-		defaultfunc2 = f2;
-	else
-	{
-		cmddata_t *data = amalloc(sizeof(*data));
-		data->func = NULL;
-		data->func2 = f2;
 		data->arena = arena;
 		data->helptext = helptext;
 		pthread_mutex_lock(&cmdmtx);
@@ -126,7 +101,7 @@ void AddCommand2(const char *cmd, CommandFunc2 f2, Arena *arena,
 }
 
 
-void RemoveCommand(const char *cmd, CommandFunc f)
+void RemoveCommand(const char *cmd, CommandFunc f, Arena *arena)
 {
 	if (!cmd)
 	{
@@ -143,39 +118,7 @@ void RemoveCommand(const char *cmd, CommandFunc f)
 		for (l = LLGetHead(&lst); l; l = l->next)
 		{
 			cmddata_t *data = l->data;
-			if (data->func == f && data->arena == ALLARENAS)
-			{
-				HashRemove(cmds, cmd, data);
-				pthread_mutex_unlock(&cmdmtx);
-				LLEmpty(&lst);
-				afree(data);
-				return;
-			}
-		}
-		pthread_mutex_unlock(&cmdmtx);
-		LLEmpty(&lst);
-	}
-}
-
-
-void RemoveCommand2(const char *cmd, CommandFunc2 f2, Arena *arena)
-{
-	if (!cmd)
-	{
-		if (defaultfunc2 == f2)
-			defaultfunc2 = NULL;
-	}
-	else
-	{
-		LinkedList lst = LL_INITIALIZER;
-		Link *l;
-
-		pthread_mutex_lock(&cmdmtx);
-		HashGetAppend(cmds, cmd, &lst);
-		for (l = LLGetHead(&lst); l; l = l->next)
-		{
-			cmddata_t *data = l->data;
-			if (data->func2 == f2 && data->arena == arena)
+			if (data->func == f && data->arena == arena)
 			{
 				HashRemove(cmds, cmd, data);
 				pthread_mutex_unlock(&cmdmtx);
@@ -236,7 +179,7 @@ local void log_command(Player *p, const Target *target, const char *cmd, const c
 }
 
 
-local int allowed(Player *p, const char *cmd, int private)
+local int allowed(Player *p, const char *cmd, const char *prefix)
 {
 	char cap[40];
 	
@@ -251,8 +194,8 @@ local int allowed(Player *p, const char *cmd, int private)
 #endif
 	}
 
-	snprintf(cap, sizeof(cap), "privcmd_%s", cmd);
-	return capman->HasCapability(p, private ? cap : cap + 4);
+	snprintf(cap, sizeof(cap), "%s_%s", prefix, cmd);
+	return capman->HasCapability(p, cap);
 }
 
 
@@ -260,8 +203,8 @@ void Command(const char *line, Player *p, const Target *target)
 {
 	LinkedList lst = LL_INITIALIZER;
 	char cmd[40], *t;
-	int private, skiplocal = FALSE;
-	const char *origline;
+	int skiplocal = FALSE;
+	const char *origline, *prefix;
 
 	/* almost all commands assume p->arena is non-null */
 	if (p->arena == NULL)
@@ -284,7 +227,12 @@ void Command(const char *line, Player *p, const Target *target)
 	while (*line && (*line == ' ' || *line == '='))
 		line++;
 
-	private = target->type != T_ARENA && target->type != T_NONE;
+	if (target->type == T_ARENA || target->type == T_NONE)
+		prefix = "cmd";
+	else if (target->type == T_PLAYER)
+		prefix = (target->u.p->arena == p->arena) ? "privcmd" : "rprivcmd";
+	else
+		prefix = "privcmd";
 
 	pthread_mutex_lock(&cmdmtx);
 	HashGetAppend(cmds, cmd, &lst);
@@ -292,12 +240,10 @@ void Command(const char *line, Player *p, const Target *target)
 	if (skiplocal || LLIsEmpty(&lst))
 	{
 		/* we don't know about this, send it to the biller */
-		if (defaultfunc2)
-			defaultfunc2(cmd, line, p, target);
-		else if (defaultfunc)
-			defaultfunc(origline, p, target);
+		if (defaultfunc)
+			defaultfunc(cmd, line, p, target);
 	}
-	else if (allowed(p, cmd, private))
+	else if (allowed(p, cmd, prefix))
 	{
 		Link *l;
 		for (l = LLGetHead(&lst); l; l = l->next)
@@ -306,9 +252,7 @@ void Command(const char *line, Player *p, const Target *target)
 			if (data->arena != ALLARENAS && data->arena != p->arena)
 				continue;
 			else if (data->func)
-				data->func(line, p, target);
-			else if (data->func2)
-				data->func2(cmd, line, p, target);
+				data->func(cmd, line, p, target);
 		}
 		log_command(p, target, cmd, line);
 	}

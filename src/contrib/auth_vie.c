@@ -67,7 +67,7 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 
 local Iauth myauth =
 {
-	INTERFACE_HEAD_INIT_PRI(I_AUTH, "auth-vie", 25)
+	INTERFACE_HEAD_INIT(I_AUTH, "auth-vie")
 	authenticate
 };
 

@@ -234,17 +234,17 @@ local void postRewardCleanup(TurfArena *ta);
  *    C_turfTime: to find out how much time till next ding
  *    C_turfIndo: to get settings info on minimum requirements, etc
  */
-local void C_turfTime(const char *, Player *, const Target *);
-local void C_turfInfo(const char *, Player *, const Target *);
+local void C_turfTime(const char *, const char *, Player *, const Target *);
+local void C_turfInfo(const char *, const char *, Player *, const Target *);
 
 /* mod commands:
  *    C_turfResetFlags: to reset the flag data on all flags
  *    C_forceDing: to force a ding to occur, does not change the timer
  *    C_turfResetTimer: to reset the timer
  */
-local void C_turfResetFlags(const char *, Player *, const Target *);
-local void C_forceDing(const char *, Player *, const Target *);
-local void C_turfResetTimer(const char *, Player *, const Target *);
+local void C_turfResetFlags(const char *, const char *, Player *, const Target *);
+local void C_forceDing(const char *, const char *, Player *, const Target *);
+local void C_turfResetTimer(const char *, const char *, Player *, const Target *);
 
 /* help text for commands */
 local helptext_t turftime_help, turfinfo_help, turfresetflags_help,
@@ -310,11 +310,11 @@ EXPORT int MM_turf_reward(int action, Imodman *_mm, Arena *arena)
 		if( trkey == -1 || mtxkey == -1 ) return MM_FAIL;
 
 		/* special turf_reward commands */
-		cmdman->AddCommand("turftime",       C_turfTime,       turftime_help);
-		cmdman->AddCommand("turfinfo",       C_turfInfo,       turfinfo_help);
-		cmdman->AddCommand("forceding",      C_forceDing,      forceding_help);
-		cmdman->AddCommand("turfresetflags", C_turfResetFlags, turfresetflags_help);
-		cmdman->AddCommand("turfresettimer", C_turfResetTimer, turfresettimer_help);
+		cmdman->AddCommand("turftime",       C_turfTime,       ALLARENAS, turftime_help);
+		cmdman->AddCommand("turfinfo",       C_turfInfo,       ALLARENAS, turfinfo_help);
+		cmdman->AddCommand("forceding",      C_forceDing,      ALLARENAS, forceding_help);
+		cmdman->AddCommand("turfresetflags", C_turfResetFlags, ALLARENAS, turfresetflags_help);
+		cmdman->AddCommand("turfresettimer", C_turfResetTimer, ALLARENAS, turfresettimer_help);
 
 		/* register the interface for turf_reward */
 		mm->RegInterface(&_myint, ALLARENAS);
@@ -331,11 +331,11 @@ EXPORT int MM_turf_reward(int action, Imodman *_mm, Arena *arena)
 		mainloop->CleanupTimer(turfRewardTimer, NULL, cleanup);
 
 		/* get rid of turf_reward commands */
-		cmdman->RemoveCommand("turftime",       C_turfTime);
-		cmdman->RemoveCommand("turfinfo",       C_turfInfo);
-		cmdman->RemoveCommand("forceding",      C_forceDing);
-		cmdman->RemoveCommand("turfresetflags", C_turfResetFlags);
-		cmdman->RemoveCommand("turfresettimer", C_turfResetTimer);
+		cmdman->RemoveCommand("turftime",       C_turfTime,       ALLARENAS);
+		cmdman->RemoveCommand("turfinfo",       C_turfInfo,       ALLARENAS);
+		cmdman->RemoveCommand("forceding",      C_forceDing,      ALLARENAS);
+		cmdman->RemoveCommand("turfresetflags", C_turfResetFlags, ALLARENAS);
+		cmdman->RemoveCommand("turfresettimer", C_turfResetTimer, ALLARENAS);
 
 		arenaman->FreeArenaData(trkey);
 		arenaman->FreeArenaData(mtxkey);
@@ -1681,7 +1681,7 @@ local helptext_t turftime_help =
 "Targets: none\n"
 "Args: none\n"
 "Displays the amount of time till next ding.\n";
-local void C_turfTime(const char *params, Player *p, const Target *target)
+local void C_turfTime(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	unsigned int days, hours, minutes, seconds;
@@ -1736,7 +1736,7 @@ local helptext_t turfinfo_help =
 "Targets: none\n"
 "Args: none\n"
 "Displays the current settings / requirements to recieve awards.\n";
-local void C_turfInfo(const char *params, Player *p, const Target *target)
+local void C_turfInfo(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	TurfArena *ta, **p_ta = P_ARENA_DATA(arena, trkey);
@@ -1765,7 +1765,7 @@ local helptext_t turfresetflags_help =
 "Targets: none\n"
 "Args: none\n"
 "Resets the turf_reward module's and flags module's flag data in your current arena.\n";
-local void C_turfResetFlags(const char *params, Player *p, const Target *target)
+local void C_turfResetFlags(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	if (!arena) return;
@@ -1778,7 +1778,7 @@ local helptext_t forceding_help =
 "Targets: none\n"
 "Args: none\n"
 "Forces a reward to take place immediately in your current arena.\n";
-local void C_forceDing(const char *params, Player *p, const Target *target)
+local void C_forceDing(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	if (!arena) return;
@@ -1791,7 +1791,7 @@ local helptext_t turfresettimer_help =
 "Targets: none\n"
 "Args: none\n"
 "Resets the ding timer in your current arena.\n";
-local void C_turfResetTimer(const char *params, Player *p, const Target *target)
+local void C_turfResetTimer(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	if (!arena) return;

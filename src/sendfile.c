@@ -107,7 +107,7 @@ local helptext_t sendfile_help =
 "Offer someone a file from your client's directory.\n"
 "Only one file can be offered at once.\n";
 
-local void Csendfile(const char *params, Player *p, const Target *target)
+local void Csendfile(const char *tc, const char *params, Player *p, const Target *target)
 {
 	struct transfer_data *td;
 	Player *t = target->u.p;
@@ -176,7 +176,7 @@ local helptext_t cancelfile_help =
 "Args: none\n"
 "Withdraw your previously offered files.\n";
 
-local void Ccancelfile(const char *params, Player *p, const Target *target)
+local void Ccancelfile(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (cancel_files(p))
 		chat->SendMessage(p, "Your file offers have been cancelled");
@@ -188,7 +188,7 @@ local helptext_t acceptfile_help =
 "Args: none\n"
 "Accept a file that has been offered to you.\n";
 
-local void Cacceptfile(const char *params, Player *p, const Target *t)
+local void Cacceptfile(const char *tc, const char *params, Player *p, const Target *t)
 {
 	Link *l;
 
@@ -231,9 +231,9 @@ EXPORT int MM_sendfile(int action, Imodman *mm, Arena *arena)
 		if (!ft || !cmd || !chat || !pd || !lm)
 			return MM_FAIL;
 
-		cmd->AddCommand("sendfile", Csendfile, sendfile_help);
-		cmd->AddCommand("acceptfile", Cacceptfile, acceptfile_help);
-		cmd->AddCommand("cancelfile", Ccancelfile, cancelfile_help);
+		cmd->AddCommand("sendfile", Csendfile, ALLARENAS, sendfile_help);
+		cmd->AddCommand("acceptfile", Cacceptfile, ALLARENAS, acceptfile_help);
+		cmd->AddCommand("cancelfile", Ccancelfile, ALLARENAS, cancelfile_help);
 
 		mm->RegCallback(CB_PLAYERACTION, paction, ALLARENAS);
 
@@ -244,9 +244,9 @@ EXPORT int MM_sendfile(int action, Imodman *mm, Arena *arena)
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
-		cmd->RemoveCommand("sendfile", Csendfile);
-		cmd->RemoveCommand("acceptfile", Cacceptfile);
-		cmd->RemoveCommand("cancelfile", Ccancelfile);
+		cmd->RemoveCommand("sendfile", Csendfile, ALLARENAS);
+		cmd->RemoveCommand("acceptfile", Cacceptfile, ALLARENAS);
+		cmd->RemoveCommand("cancelfile", Ccancelfile, ALLARENAS);
 		LLEnum(&offers, afree);
 		LLEmpty(&offers);
 		mm->ReleaseInterface(ft);

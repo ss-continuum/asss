@@ -183,7 +183,7 @@ local helptext_t alias_help =
 "Queries the alias database for players matching from the name, ip, or\n"
 "macid of the target. Only works on MySQL 4 or later.\n";
 
-local void Calias(const char *params, Player *p, const Target *target)
+local void Calias(const char *tc, const char *params, Player *p, const Target *target)
 {
 	const char *name = NULL;
 
@@ -230,7 +230,7 @@ local helptext_t qip_help =
 "Queries the alias database for players connecting from that ip.\n"
 "Queries can be an exact addreess, ?qip 216.34.65.%, or ?qip 216.34.65.0/24.\n";
 
-local void Cqip(const char *params, Player *p, const Target *target)
+local void Cqip(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (target->type != T_ARENA)
 		return;
@@ -287,7 +287,7 @@ local helptext_t rawquery_help =
 "Examples:  ?rawquery name like '%blah%'\n"
 "           ?rawquery macid = 34127563 order by lastseen desc\n";
 
-local void Crawquery(const char *params, Player *p, const Target *target)
+local void Crawquery(const char *tc, const char *params, Player *p, const Target *target)
 {
 	char qbuf[512];
 
@@ -372,7 +372,7 @@ local helptext_t last_help =
 "Args: none\n"
 "Tells you the last 10 people to log in.\n";
 
-local void Clast(const char *params, Player *p, const Target *target)
+local void Clast(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (target->type != T_ARENA)
 		return;
@@ -406,10 +406,10 @@ EXPORT int MM_aliasdb(int action, Imodman *mm_, Arena *arena)
 
 		/* make sure table exists */
 		init_db();
-		cmd->AddCommand("alias", Calias, alias_help);
-		cmd->AddCommand("qip", Cqip, qip_help);
-		cmd->AddCommand("rawquery", Crawquery, rawquery_help);
-		cmd->AddCommand("last", Clast, last_help);
+		cmd->AddCommand("alias", Calias, ALLARENAS, alias_help);
+		cmd->AddCommand("qip", Cqip, ALLARENAS, qip_help);
+		cmd->AddCommand("rawquery", Crawquery, ALLARENAS, rawquery_help);
+		cmd->AddCommand("last", Clast, ALLARENAS, last_help);
 
 		mm->RegCallback(CB_PLAYERACTION, playera, ALLARENAS);
 
@@ -418,10 +418,10 @@ EXPORT int MM_aliasdb(int action, Imodman *mm_, Arena *arena)
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregCallback(CB_PLAYERACTION, playera, ALLARENAS);
-		cmd->RemoveCommand("alias",Calias);
-		cmd->RemoveCommand("qip", Cqip);
-		cmd->RemoveCommand("rawquery", Crawquery);
-		cmd->RemoveCommand("last", Clast);
+		cmd->RemoveCommand("alias",Calias, ALLARENAS);
+		cmd->RemoveCommand("qip", Cqip, ALLARENAS);
+		cmd->RemoveCommand("rawquery", Crawquery, ALLARENAS);
+		cmd->RemoveCommand("last", Clast, ALLARENAS);
 
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(lm);

@@ -8,8 +8,8 @@
 #define KICKDELAY 300
 
 /* commands */
-local void Cgiveowner(const char *, Player *, const Target *);
-local void Cfreqkick(const char *, Player *, const Target *);
+local void Cgiveowner(const char *, const char *, Player *, const Target *);
+local void Cfreqkick(const char *, const char *, Player *, const Target *);
 local helptext_t giveowner_help, freqkick_help;
 
 /* callbacks */
@@ -52,15 +52,15 @@ EXPORT int MM_freqowners(int action, Imodman *mm_, Arena *arena)
 		mm->RegCallback(CB_FREQCHANGE, MyFreqCh, ALLARENAS);
 		mm->RegCallback(CB_SHIPCHANGE, MyShipCh, ALLARENAS);
 
-		cmd->AddCommand("giveowner", Cgiveowner, giveowner_help);
-		cmd->AddCommand("freqkick", Cfreqkick, freqkick_help);
+		cmd->AddCommand("giveowner", Cgiveowner, ALLARENAS, giveowner_help);
+		cmd->AddCommand("freqkick", Cfreqkick, ALLARENAS, freqkick_help);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		cmd->RemoveCommand("giveowner", Cgiveowner);
-		cmd->RemoveCommand("freqkick", Cfreqkick);
+		cmd->RemoveCommand("giveowner", Cgiveowner, ALLARENAS);
+		cmd->RemoveCommand("freqkick", Cfreqkick, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, MyPA, ALLARENAS);
 		mm->UnregCallback(CB_FREQCHANGE, MyFreqCh, ALLARENAS);
 		mm->UnregCallback(CB_SHIPCHANGE, MyShipCh, ALLARENAS);
@@ -117,7 +117,7 @@ local helptext_t giveowner_help =
 "private freq. You can't remove ownership once you give it out, but you\n"
 "are safe from being kicked off yourself, as long as you have ownership.\n";
 
-void Cgiveowner(const char *params, Player *p, const Target *target)
+void Cgiveowner(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (target->type != T_PLAYER)
 		return;
@@ -137,7 +137,7 @@ local helptext_t freqkick_help =
 "must not be an owner himself. The player giving the command, of course,\n"
 "must be an owner.\n";
 
-void Cfreqkick(const char *params, Player *p, const Target *target)
+void Cfreqkick(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Player *t = target->u.p;
 

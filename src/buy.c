@@ -69,7 +69,7 @@ local void print_costs(ConfigHandle ch, Player *p)
 }
 
 
-local void Cbuy(const char *params, Player *p, const Target *target)
+local void Cbuy(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	ConfigHandle ch = arena->cfg;
@@ -146,12 +146,12 @@ EXPORT int MM_buy(int action, Imodman *mm, Arena *arena)
 		stats = mm->GetInterface(I_STATS, ALLARENAS);
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
-		cmd->AddCommand("buy", Cbuy, NULL);
+		cmd->AddCommand("buy", Cbuy, ALLARENAS, NULL);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		cmd->RemoveCommand("buy", Cbuy);
+		cmd->RemoveCommand("buy", Cbuy, ALLARENAS);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);

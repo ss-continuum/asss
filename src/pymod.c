@@ -944,14 +944,14 @@ local void deinit_py_commands(void)
 	HashFree(pycmd_cmds);
 }
 
-local void pycmd_command2(const char *cmd, const char *params, Player *p, const Target *t)
+local void pycmd_command(const char *tc, const char *params, Player *p, const Target *t)
 {
 	PyObject *args;
 	LinkedList cmds = LL_INITIALIZER;
 	Link *l;
 
 	args = Py_BuildValue("ssO&O&",
-			cmd,
+			tc,
 			params,
 			cvt_c2p_player,
 			p,
@@ -959,7 +959,7 @@ local void pycmd_command2(const char *cmd, const char *params, Player *p, const 
 			t);
 	if (args)
 	{
-		HashGetAppend(pycmd_cmds, cmd, &cmds);
+		HashGetAppend(pycmd_cmds, tc, &cmds);
 		for (l = LLGetHead(&cmds); l; l = l->next)
 			PyObject_Call(l->data, args, NULL);
 		Py_DECREF(args);
@@ -977,7 +977,7 @@ local void remove_command(void *v)
 {
 	struct pycmd_ticket *t = v;
 
-	cmd->RemoveCommand2(t->cmd, pycmd_command2, t->arena);
+	cmd->RemoveCommand(t->cmd, pycmd_command, t->arena);
 	HashRemove(pycmd_cmds, t->cmd, t->func);
 	Py_DECREF(t->func);
 	Py_XDECREF(t->htobj);
@@ -1016,7 +1016,7 @@ local PyObject *mthd_add_command(PyObject *self, PyObject *args)
 	else
 		Py_XDECREF(helptextobj);
 
-	cmd->AddCommand2(cmdname, pycmd_command2, arena, helptext);
+	cmd->AddCommand(cmdname, pycmd_command, arena, helptext);
 	HashAdd(pycmd_cmds, cmdname, func);
 
 	return PyCObject_FromVoidPtr(t, remove_command);

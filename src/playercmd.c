@@ -87,7 +87,7 @@ local helptext_t arena_help =
 "the output to be in text even for regular clients (useful when using\n"
 "the Continuum chat window).\n";
 
-local void Carena(const char *params, Player *p, const Target *target)
+local void Carena(const char *tc, const char *params, Player *p, const Target *target)
 {
 	byte buf[MAXPACKET];
 	byte *pos = buf;
@@ -174,7 +174,7 @@ local helptext_t shutdown_help =
 "script, if it is being used, will notice {EXIT_RECYCLE} and restart\n"
 "the server.\n";
 
-local void Cshutdown(const char *params, Player *p, const Target *target)
+local void Cshutdown(const char *tc, const char *params, Player *p, const Target *target)
 {
 	int code = EXIT_NONE;
 
@@ -190,7 +190,7 @@ local helptext_t flagreset_help =
 "Args: none\n"
 "Causes the flag game to immediately reset.\n";
 
-local void Cflagreset(const char *params, Player *p, const Target *target)
+local void Cflagreset(const char *tc, const char *params, Player *p, const Target *target)
 {
 	flags->FlagVictory(p->arena, -1, 0);
 }
@@ -204,7 +204,7 @@ local helptext_t ballcount_help =
 "that many, and a minus removes that many. Continuum currently supports\n"
 "only eight balls.\n";
 
-local void Cballcount(const char *params, Player *p, const Target *target)
+local void Cballcount(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	if (arena)
@@ -226,7 +226,7 @@ local helptext_t setfreq_help =
 "Args: <freq number>\n"
 "Moves the targets to the specified freq.\n";
 
-local void Csetfreq(const char *params, Player *p, const Target *target)
+local void Csetfreq(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (!*params)
 		return;
@@ -253,7 +253,7 @@ local helptext_t setship_help =
 "Sets the targets to the specified ship. The argument must be a\n"
 "number from 1 (Warbird) to 8 (Shark), or 9 (Spec).\n";
 
-local void Csetship(const char *params, Player *p, const Target *target)
+local void Csetship(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (!*params)
 		return;
@@ -283,7 +283,7 @@ local helptext_t version_help =
 "Prints out the version and compilation date of the server. It might also\n"
 "print out some information about the machine that it's running on.\n";
 
-local void Cversion(const char *params, Player *p, const Target *target)
+local void Cversion(const char *tc, const char *params, Player *p, const Target *target)
 {
 	chat->SendMessage(p, "asss %s built on %s", ASSSVERSION, BUILDDATE);
 #ifdef CFG_EXTRA_VERSION_INFO
@@ -349,7 +349,7 @@ local helptext_t lsmod_help =
 "Lists all the modules currently loaded into the server. With {-a}, lists\n"
 "only modules attached to this arena.\n";
 
-local void Clsmod(const char *params, Player *p, const Target *target)
+local void Clsmod(const char *tc, const char *params, Player *p, const Target *target)
 {
 	char data[MAXDATA+6];
 	memset(data, 0, sizeof(data));
@@ -373,7 +373,7 @@ local helptext_t insmod_help =
 "Args: <module specifier>\n"
 "Immediately loads the specified module into the server.\n";
 
-local void Cinsmod(const char *params, Player *p, const Target *target)
+local void Cinsmod(const char *tc, const char *params, Player *p, const Target *target)
 {
 	int ret;
 	ret = mm->LoadModule(params);
@@ -390,7 +390,7 @@ local helptext_t rmmod_help =
 "Args: <module name>\n"
 "Attempts to unload the specified module from the server.\n";
 
-local void Crmmod(const char *params, Player *p, const Target *target)
+local void Crmmod(const char *tc, const char *params, Player *p, const Target *target)
 {
 	int ret;
 	ret = mm->UnloadModule(params);
@@ -407,7 +407,7 @@ local helptext_t attmod_help =
 "Attaches the specified module to this arena. Or with {-d},\n"
 "detaches the module from the arena.\n";
 
-local void Cattmod(const char *params, Player *p, const Target *target)
+local void Cattmod(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (strncmp(params, "-d", 2) == 0)
 	{
@@ -427,7 +427,7 @@ local helptext_t find_help =
 "only part of a player name, it will try to find a matching name\n"
 "using a case insensitive substring search.\n";
 
-local void Cfind(const char *params, Player *p, const Target *target)
+local void Cfind(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Link *link;
 	Player *i;
@@ -464,7 +464,7 @@ local helptext_t getgroup_help =
 "Args: none\n"
 "Displays the group of the player, or if none specified, you.\n";
 
-local void Cgetgroup(const char *params, Player *p, const Target *target)
+local void Cgetgroup(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (target->type == T_PLAYER)
 		chat->SendMessage(p, "%s is in group %s",
@@ -493,7 +493,7 @@ local helptext_t setgroup_help =
 "The optional {-a} means to make the assignment local to the current\n"
 "arena, rather than being valid in the entire zone.\n";
 
-local void Csetgroup(const char *params, Player *p, const Target *target)
+local void Csetgroup(const char *tc, const char *params, Player *p, const Target *target)
 {
 	int perm = 0, global = 1;
 	Player *t = target->u.p;
@@ -566,7 +566,7 @@ local helptext_t rmgroup_help =
 "for this session; if it is a global group, it will be removed globally;\n"
 "and if it is an arena group, it will be removed for this arena.\n";
 
-local void Crmgroup(const char *params, Player *p, const Target *target)
+local void Crmgroup(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Player *t = target->u.p;
 	char cap[MAXGROUPLEN+16], info[128];
@@ -611,7 +611,7 @@ local helptext_t grplogin_help =
 "Args: <group name> <password>\n"
 "Logs you in to the specified group, if the password is correct.\n";
 
-local void Cgrplogin(const char *params, Player *p, const Target *target)
+local void Cgrplogin(const char *tc, const char *params, Player *p, const Target *target)
 {
 	char grp[MAXGROUPLEN+1];
 	const char *pw;
@@ -635,7 +635,7 @@ local helptext_t listmod_help =
 "Lists all staff members logged on, which arena they are in, and\n"
 "which group they belong to.\n";
 
-local void Clistmod(const char *params, Player *p, const Target *target)
+local void Clistmod(const char *tc, const char *params, Player *p, const Target *target)
 {
 	int seehid = capman->HasCapability(p, CAP_SEEPRIVARENA);
 	int seeallstaff = capman->HasCapability(p, CAP_SEE_ALL_STAFF);
@@ -672,7 +672,7 @@ local helptext_t netstats_help =
 "Args: none\n"
 "Prints out some statistics from the network layer.\n";
 
-local void Cnetstats(const char *params, Player *p, const Target *target)
+local void Cnetstats(const char *tc, const char *params, Player *p, const Target *target)
 {
 	ticks_t secs = TICK_DIFF(current_ticks(), startedat) / 100;
 	unsigned long bwin, bwout;
@@ -698,7 +698,7 @@ local helptext_t info_help =
 "client they are using, their resolution, IP address, how long they have\n"
 "been connected, and bandwidth usage information.\n";
 
-local void Cinfo(const char *params, Player *p, const Target *target)
+local void Cinfo(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (target->type != T_PLAYER)
 		chat->SendMessage(p, "info: must use on a player");
@@ -779,7 +779,7 @@ local helptext_t setcm_help =
 "frequency. Leaving and entering an arena will remove a player's chat\n"
 "mask, unless it has a timeout.\n";
 
-local void Csetcm(const char *params, Player *p, const Target *target)
+local void Csetcm(const char *tc, const char *params, Player *p, const Target *target)
 {
 	chat_mask_t mask;
 	int timeout = 0;
@@ -851,7 +851,7 @@ local helptext_t getcm_help =
 "current arena. The chat mask specifies which types of chat messages are\n"
 "allowed.\n";
 
-local void Cgetcm(const char *params, Player *p, const Target *target)
+local void Cgetcm(const char *tc, const char *params, Player *p, const Target *target)
 {
 	chat_mask_t mask;
 
@@ -883,7 +883,7 @@ local helptext_t a_help =
 "Args: <text>\n"
 "Displays the text as an arena (green) message to the targets.\n";
 
-local void Ca(const char *params, Player *p, const Target *target)
+local void Ca(const char *tc, const char *params, Player *p, const Target *target)
 {
 	LinkedList set = LL_INITIALIZER;
 	pd->TargetToSet(target, &set);
@@ -897,7 +897,7 @@ local helptext_t aa_help =
 "Args: <text>\n"
 "Displays the text as an anonymous arena (green) message to the targets.\n";
 
-local void Caa(const char *params, Player *p, const Target *target)
+local void Caa(const char *tc, const char *params, Player *p, const Target *target)
 {
 	LinkedList set = LL_INITIALIZER;
 	pd->TargetToSet(target, &set);
@@ -911,7 +911,7 @@ local helptext_t z_help =
 "Args: <text>\n"
 "Displays the text as an arena (green) message to the whole zone.\n";
 
-local void Cz(const char *params, Player *p, const Target *target)
+local void Cz(const char *tc, const char *params, Player *p, const Target *target)
 {
 	chat->SendArenaMessage(NULL, "%s  -%s", params, p->name);
 }
@@ -922,7 +922,7 @@ local helptext_t az_help =
 "Args: <text>\n"
 "Displays the text as an anonymous arena (green) message to the whole zone.\n";
 
-local void Caz(const char *params, Player *p, const Target *target)
+local void Caz(const char *tc, const char *params, Player *p, const Target *target)
 {
 	chat->SendArenaMessage(NULL, "%s", params);
 }
@@ -933,7 +933,7 @@ local helptext_t cheater_help =
 "Args: <message>\n"
 "Sends the message to all online staff members.\n";
 
-local void Ccheater(const char *params, Player *p, const Target *target)
+local void Ccheater(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	if (IS_ALLOWED(chat->GetPlayerChatMask(p), MSG_MODCHAT))
@@ -950,7 +950,7 @@ local helptext_t warn_help =
 "Args: <message>\n"
 "Send a red warning message to a player.\n";
 
-local void Cwarn(const char *params, Player *p, const Target *target)
+local void Cwarn(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (target->type != T_PLAYER)
 		chat->SendMessage(p, "You must target a player.");
@@ -970,7 +970,7 @@ local helptext_t warpto_help =
 "Args: <x coord> <y coord>\n"
 "Warps target player to coordinate x,y.\n";
 
-local void Cwarpto(const char *params, Player *p, const Target *target)
+local void Cwarpto(const char *tc, const char *params, Player *p, const Target *target)
 {
 	char *next;
 	int x, y;
@@ -989,7 +989,7 @@ local helptext_t send_help =
 "Args: <arena name>\n"
 "Sends target player to the named arena. (Works on Continuum users only.)\n";
 
-local void Csend(const char *params, Player *p, const Target *target)
+local void Csend(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Player *t = target->u.p;
 	if (target->type != T_PLAYER || *params == '\0')
@@ -1006,7 +1006,7 @@ local helptext_t recyclearena_help =
 "Args: none\n"
 "Recycles the current arena without kicking players off.\n";
 
-local void Crecyclearena(const char *params, Player *p, const Target *target)
+local void Crecyclearena(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (aman->RecycleArena(p->arena) == MM_FAIL)
 		chat->SendMessage(p, "Arena recycle failed; check the log for details.");
@@ -1018,7 +1018,7 @@ local helptext_t shipreset_help =
 "Args: none\n"
 "Resets the target players' ship(s).\n";
 
-local void Cshipreset(const char *params, Player *p, const Target *target)
+local void Cshipreset(const char *tc, const char *params, Player *p, const Target *target)
 {
 	byte pkt = S2C_SHIPRESET;
 	net->SendToTarget(target, &pkt, 1, NET_RELIABLE);
@@ -1027,7 +1027,7 @@ local void Cshipreset(const char *params, Player *p, const Target *target)
 
 local helptext_t sheep_help = NULL;
 
-local void Csheep(const char *params, Player *p, const Target *target)
+local void Csheep(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	const char *sheepmsg = NULL;
@@ -1052,7 +1052,7 @@ local helptext_t specall_help =
 "Args: none\n"
 "Sends all of the targets to spectator mode.\n";
 
-local void Cspecall(const char *params, Player *p, const Target *target)
+local void Cspecall(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	LinkedList set = LL_INITIALIZER;
@@ -1073,7 +1073,7 @@ local helptext_t getg_help =
 "Displays the value of a global setting. Make sure there are no\n"
 "spaces around the colon.\n";
 
-local void Cgetg(const char *params, Player *p, const Target *target)
+local void Cgetg(const char *tc, const char *params, Player *p, const Target *target)
 {
 	const char *res = cfg->GetStr(GLOBAL, params, NULL);
 	if (res)
@@ -1090,7 +1090,7 @@ local helptext_t setg_help =
 "spaces around either the colon or the equals sign. A {-t} makes\n"
 "the setting temporary.\n";
 
-local void Csetg(const char *params, Player *p, const Target *target)
+local void Csetg(const char *tc, const char *params, Player *p, const Target *target)
 {
 	time_t tm = time(NULL);
 	char info[128], key[MAXSECTIONLEN+MAXKEYLEN+2], *k = key;
@@ -1123,7 +1123,7 @@ local helptext_t geta_help =
 "Displays the value of an arena setting. Make sure there are no\n"
 "spaces around the colon.\n";
 
-local void Cgeta(const char *params, Player *p, const Target *target)
+local void Cgeta(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	const char *res;
@@ -1144,7 +1144,7 @@ local helptext_t seta_help =
 "spaces around either the colon or the equals sign. A {-t} makes\n"
 "the setting temporary.\n";
 
-local void Cseta(const char *params, Player *p, const Target *target)
+local void Cseta(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	time_t tm = time(NULL);
@@ -1187,7 +1187,7 @@ local helptext_t prize_help =
 "name means {random}. For compatability, numerical prize ids with {#} are\n"
 "supported.\n";
 
-local void Cprize(const char *params, Player *p, const Target *target)
+local void Cprize(const char *tc, const char *params, Player *p, const Target *target)
 {
 #define BAD_TYPE 10000
 	const char *tmp = NULL;
@@ -1292,7 +1292,7 @@ local helptext_t lock_help =
 "it will notify players of their change in status. If {-t} is present, you\n"
 "can specify a timeout in seconds for the lock to be effective.\n";
 
-local void Clock(const char *params, Player *p, const Target *target)
+local void Clock(const char *tc, const char *params, Player *p, const Target *target)
 {
 	const char *t = strstr(params, "-t");
 	game->Lock(
@@ -1309,7 +1309,7 @@ local helptext_t unlock_help =
 "Unlocks the specified targets so that they can now change ships. An optional\n"
 "{-n} notifies players of their change in status.\n";
 
-local void Cunlock(const char *params, Player *p, const Target *target)
+local void Cunlock(const char *tc, const char *params, Player *p, const Target *target)
 {
 	game->Unlock(target, strstr(params, "-n") != NULL);
 }
@@ -1325,7 +1325,7 @@ local helptext_t lockarena_help =
 "only lock entering players to their initial ships, instead of spectator mode. The {-s}\n"
 "means to spec all players before locking the arena.\n";
 
-local void Clockarena(const char *params, Player *p, const Target *target)
+local void Clockarena(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (target->type != T_ARENA) return;
 	game->LockArena(target->u.arena,
@@ -1344,7 +1344,7 @@ local helptext_t unlockarena_help =
 "The {-n} options means to notify players of their change in status. The {-a} option\n"
 "means to only change the arena's state, and not unlock current players.\n";
 
-local void Cunlockarena(const char *params, Player *p, const Target *target)
+local void Cunlockarena(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (target->type != T_ARENA) return;
 	game->UnlockArena(target->u.arena,
@@ -1359,7 +1359,7 @@ local helptext_t flaginfo_help =
 "Displays information (status, location, carrier) about all the flags in\n"
 "the arena.\n";
 
-local void Cflaginfo(const char *params, Player *p, const Target *target)
+local void Cflaginfo(const char *tc, const char *params, Player *p, const Target *target)
 {
 	ArenaFlagData *fd;
 	Arena *arena;
@@ -1415,7 +1415,7 @@ local helptext_t neutflag_help =
 "Args: <flag id>\n"
 "Neuts the specified flag in the middle of the arena.\n";
 
-local void Cneutflag(const char *params, Player *p, const Target *target)
+local void Cneutflag(const char *tc, const char *params, Player *p, const Target *target)
 {
 	ArenaFlagData *fd;
 	Arena *arena = p->arena;
@@ -1450,7 +1450,7 @@ local helptext_t moveflag_help =
 "the flag. The coordinates are optional: if they are specified, the flag\n"
 "will be moved there, otherwise it will remain where it is.\n";
 
-local void Cmoveflag(const char *params, Player *p, const Target *target)
+local void Cmoveflag(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	ArenaFlagData *fd;
@@ -1508,7 +1508,7 @@ local helptext_t reloadconf_help =
 "Causes the server to check all config files for modifications since\n"
 "they were last loaded, and reload any modified files.\n";
 
-local void Creloadconf(const char *params, Player *p, const Target *target)
+local void Creloadconf(const char *tc, const char *params, Player *p, const Target *target)
 {
 	cfg->CheckModifiedFiles();
 	chat->SendMessage(p, "Reloading all modified config files");
@@ -1521,7 +1521,7 @@ local helptext_t jackpot_help =
 "Args: none or <arena name> or {all}\n"
 "Displays the current jackpot for this arena, the named arena, or all arenas.\n";
 
-local void Cjackpot(const char *params, Player *p, const Target *target)
+local void Cjackpot(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (!strcasecmp(params, "all"))
 	{
@@ -1555,7 +1555,7 @@ local helptext_t setjackpot_help =
 "Args: <new jackpot value>\n"
 "Sets the jackpot for this arena to a new value.\n";
 
-local void Csetjackpot(const char *params, Player *p, const Target *target)
+local void Csetjackpot(const char *tc, const char *params, Player *p, const Target *target)
 {
 	char *next;
 	int new = strtol(params, &next, 0);
@@ -1575,7 +1575,7 @@ local helptext_t uptime_help =
 "Args: none\n"
 "Displays how long the server has been running.\n";
 
-local void Cuptime(const char *params, Player *p, const Target *target)
+local void Cuptime(const char *tc, const char *params, Player *p, const Target *target)
 {
 	ticks_t secs = TICK_DIFF(current_ticks(), startedat) / 100;
 	int days, hours, mins;
@@ -1599,7 +1599,7 @@ local helptext_t lag_help =
 "Args: none\n"
 "Displays basic lag information about you or a target player.\n";
 
-local void Clag(const char *params, Player *p, const Target *target)
+local void Clag(const char *tc, const char *params, Player *p, const Target *target)
 {
 	struct PingSummary pping, cping;
 	struct PLossSummary ploss;
@@ -1630,7 +1630,7 @@ local helptext_t laginfo_help =
 "Args: none\n"
 "Displays tons of lag information about a player.\n";
 
-local void Claginfo(const char *params, Player *p, const Target *target)
+local void Claginfo(const char *tc, const char *params, Player *p, const Target *target)
 {
 	struct PingSummary pping, cping, rping;
 	struct PLossSummary ploss;
@@ -1666,7 +1666,7 @@ local helptext_t laghist_help =
 "Displays lag histograms. If a {-r} is given, do this histogram for\n"
 "\"reliable\" latency instead of c2s pings.\n";
 
-local void Claghist(const char *params, Player *p, const Target *target)
+local void Claghist(const char *tc, const char *params, Player *p, const Target *target)
 {
 	/* FIXME: write this */
 }
@@ -1677,7 +1677,7 @@ local helptext_t listarena_help =
 "Args: <arena name>\n"
 "Lists the players in the given arena.\n";
 
-local void Clistarena(const char *params, Player *p, const Target *target)
+local void Clistarena(const char *tc, const char *params, Player *p, const Target *target)
 {
 	char text[850], *pos = text;
 	int total = 0, playing = 0, donedots = 0;
@@ -1733,7 +1733,7 @@ local helptext_t endinterval_help =
 "at the global scope. If {-a} is specified, use the named arena group. Otherwise, use\n"
 "the current arena's scope. Interval names can be \"game\", \"reset\", or \"maprotation\".\n";
 
-local void Cendinterval(const char *params, Player *p, const Target *target)
+local void Cendinterval(const char *tc, const char *params, Player *p, const Target *target)
 {
 	char word[128];
 	const char *tmp = NULL;
@@ -1786,7 +1786,7 @@ local helptext_t scorereset_help =
 "Args: none\n"
 "Resets your own score, or the target player's score.\n";
 
-local void Cscorereset(const char *params, Player *p, const Target *target)
+local void Cscorereset(const char *tc, const char *params, Player *p, const Target *target)
 {
 	/* for now, only reset INTERVAL_RESET scores, since those are
 	 * the only ones that cont sees. */
@@ -1822,7 +1822,7 @@ local void mapinfo_count_rgns(void *clos, Region *reg)
 	(*(int*)clos)++;
 }
 
-local void Cmapinfo(const char *params, Player *p, const Target *target)
+local void Cmapinfo(const char *tc, const char *params, Player *p, const Target *target)
 {
 	struct mapdata_memory_stats_t stats;
 	const char *name, *vers, *mapc, *tsetc, *prog;
@@ -1906,7 +1906,7 @@ local int load_cmd_group(struct cmd_group *grp)
 	}
 
 	for (ci = grp->cmds; ci->cmdname; ci++)
-		cmd->AddCommand(ci->cmdname, ci->func, *ci->phelptext);
+		cmd->AddCommand(ci->cmdname, ci->func, ALLARENAS, *ci->phelptext);
 
 	grp->loaded = 1;
 
@@ -1925,7 +1925,7 @@ local void unload_cmd_group(struct cmd_group *grp)
 		mm->ReleaseInterface(*(ii->ptr));
 
 	for (ci = grp->cmds; ci->cmdname; ci++)
-		cmd->RemoveCommand(ci->cmdname, ci->func);
+		cmd->RemoveCommand(ci->cmdname, ci->func, ALLARENAS);
 
 	grp->loaded = 0;
 }
@@ -1940,7 +1940,7 @@ local helptext_t enablecmdgroup_help =
 "Enables all the commands in the specified command group. This is only\n"
 "useful after using ?disablecmdgroup.\n";
 
-local void Cenablecmdgroup(const char *params, Player *p, const Target *target)
+local void Cenablecmdgroup(const char *tc, const char *params, Player *p, const Target *target)
 {
 	struct cmd_group *grp = find_group(params);
 	if (grp)
@@ -1965,7 +1965,7 @@ local helptext_t disablecmdgroup_help =
 "modules can be unloaded or upgraded without unloading playercmd (which would\n"
 "be irreversable).\n";
 
-local void Cdisablecmdgroup(const char *params, Player *p, const Target *target)
+local void Cdisablecmdgroup(const char *tc, const char *params, Player *p, const Target *target)
 {
 	struct cmd_group *grp = find_group(params);
 	if (grp)
@@ -1988,7 +1988,7 @@ local helptext_t owner_help =
 "Args: none\n"
 "Displays the arena owner.\n";
 
-local void Cowner(const char *params, Player *p, const Target *target)
+local void Cowner(const char *tc, const char *params, Player *p, const Target *target)
 {
 	const char *owner_str;
 

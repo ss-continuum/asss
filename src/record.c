@@ -1126,7 +1126,7 @@ local helptext_t gamerecord_help =
 "Args: status | record <file> | play <file> | pause | restart | stop\n"
 "TODO: write more here.\n";
 
-local void Cgamerecord(const char *params, Player *p, const Target *target)
+local void Cgamerecord(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *a = p->arena;
 	rec_adata *ra = P_ARENA_DATA(a, adkey);
@@ -1279,8 +1279,8 @@ EXPORT int MM_record(int action, Imodman *mm_, Arena *arena)
 			return MM_FAIL;
 		adkey = aman->AllocateArenaData(sizeof(rec_adata));
 		if (adkey == -1) return MM_FAIL;
-		cmd->AddCommand("gamerecord", Cgamerecord, gamerecord_help);
-		cmd->AddCommand("rec", Cgamerecord, gamerecord_help);
+		cmd->AddCommand("gamerecord", Cgamerecord, ALLARENAS, gamerecord_help);
+		cmd->AddCommand("rec", Cgamerecord, ALLARENAS, gamerecord_help);
 		net->AddPacket(C2S_POSITION, ppk);
 		mm->RegCallback(CB_ARENAACTION, cb_aaction, ALLARENAS);
 		return MM_OK;
@@ -1305,8 +1305,8 @@ EXPORT int MM_record(int action, Imodman *mm_, Arena *arena)
 		aman->FreeArenaData(adkey);
 		mm->UnregCallback(CB_ARENAACTION, cb_aaction, ALLARENAS);
 		net->RemovePacket(C2S_POSITION, ppk);
-		cmd->RemoveCommand("gamerecord", Cgamerecord);
-		cmd->RemoveCommand("rec", Cgamerecord);
+		cmd->RemoveCommand("gamerecord", Cgamerecord, ALLARENAS);
+		cmd->RemoveCommand("rec", Cgamerecord, ALLARENAS);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(cmd);

@@ -298,7 +298,7 @@ local void pdemographics(Player *p, byte *pkt, int len)
 
 /* and command that go to the biller */
 
-local void Cdefault(const char *cmd, const char *params, Player *p, const Target *target)
+local void Cdefault(const char *tc, const char *line, Player *p, const Target *target)
 {
 	pdata *data = PPDATA(p, pdkey);
 	char buf[MAXMSGSIZE];
@@ -307,12 +307,15 @@ local void Cdefault(const char *cmd, const char *params, Player *p, const Target
 	if (!data->knowntobiller)
 		;
 	else if (target->type != T_ARENA)
-		lm->LogP(L_DRIVEL, "billing", p, "unknown command with bad target: %s %s", cmd, params);
+		lm->LogP(L_DRIVEL, "billing", p, "unknown command with bad target: %s", line);
 	else if (IS_RESTRICTED(chat->GetPlayerChatMask(p), MSG_BCOMMAND))
 		;
 	else
 	{
-		snprintf(buf, sizeof(buf), "CMD:%d:%s:%s", p->pid, cmd, params);
+		const char *params = line + strlen(tc);
+		while (*params && (*params == ' ' || *params == '='))
+			params++;
+		snprintf(buf, sizeof(buf), "CMD:%d:%s:%s", p->pid, tc, params);
 		sp_send(&conn, buf);
 	}
 	pthread_mutex_unlock(&mtx);
@@ -328,7 +331,7 @@ local helptext_t usage_help =
 "total hours and minutes logged in), as well as the first login time, of\n"
 "the target player, or you if no target.\n";
 
-local void Cusage(const char *params, Player *p, const Target *target)
+local void Cusage(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Player *t = target->type == T_PLAYER ? target->u.p : p;
 	pdata *tdata = PPDATA(t, pdkey);
@@ -361,7 +364,7 @@ local helptext_t userdbid_help =
 "Displays the user database server id of the target player,\n"
 "or yours if no target.\n";
 
-local void Cuserdbid(const char *params, Player *p, const Target *target)
+local void Cuserdbid(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Player *t = target->type == T_PLAYER ? target->u.p : p;
 	pdata *tdata = PPDATA(t, pdkey);
@@ -382,7 +385,7 @@ local helptext_t userdbadm_help =
 "connection. 'drop' disconnects the connection if it's up, and 'connect'\n"
 "reconnects after dropping or failed login.\n";
 
-local void Cuserdbadm(const char *params, Player *p, const Target *target)
+local void Cuserdbadm(const char *tc, const char *params, Player *p, const Target *target)
 {
 	pthread_mutex_lock(&mtx);
 	if (!strcmp(params, "drop"))
@@ -1100,10 +1103,10 @@ EXPORT int MM_billing(int action, Imodman *mm_, Arena *arena)
 		mm->RegCallback(CB_CHATMSG, onchatmsg, ALLARENAS);
 		mm->RegCallback(CB_SET_BANNER, setbanner, ALLARENAS);
 
-		cmd->AddCommand("usage", Cusage, usage_help);
-		cmd->AddCommand("userdbid", Cuserdbid, userdbid_help);
-		cmd->AddCommand("userdbadm", Cuserdbadm, userdbadm_help);
-		cmd->AddCommand2(NULL, Cdefault, ALLARENAS, NULL);
+		cmd->AddCommand("usage", Cusage, ALLARENAS, usage_help);
+		cmd->AddCommand("userdbid", Cuserdbid, ALLARENAS, userdbid_help);
+		cmd->AddCommand("userdbadm", Cuserdbadm, ALLARENAS, userdbadm_help);
+		cmd->AddCommand(NULL, Cdefault, ALLARENAS, NULL);
 
 		if (net) net->AddPacket(C2S_REGDATA, pdemographics);
 
@@ -1120,10 +1123,10 @@ EXPORT int MM_billing(int action, Imodman *mm_, Arena *arena)
 		drop_connection(s_disabled);
 
 		if (net) net->RemovePacket(C2S_REGDATA, pdemographics);
-		cmd->RemoveCommand("usage", Cusage);
-		cmd->RemoveCommand("userdbid", Cuserdbid);
-		cmd->RemoveCommand("userdbadm", Cuserdbadm);
-		cmd->RemoveCommand2(NULL, Cdefault, ALLARENAS);
+		cmd->RemoveCommand("usage", Cusage, ALLARENAS);
+		cmd->RemoveCommand("userdbid", Cuserdbid, ALLARENAS);
+		cmd->RemoveCommand("userdbadm", Cuserdbadm, ALLARENAS);
+		cmd->RemoveCommand(NULL, Cdefault, ALLARENAS);
 		mm->UnregCallback(CB_SET_BANNER, setbanner, ALLARENAS);
 		mm->UnregCallback(CB_CHATMSG, onchatmsg, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);

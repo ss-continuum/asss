@@ -118,7 +118,7 @@ local helptext_t quickfix_help =
 "argument to this command can be used to limit the list of settings\n"
 "displayed. (With no arguments, equivalent to ?getsettings in subgame.)\n";
 
-local void Cquickfix(const char *params, Player *p, const Target *target)
+local void Cquickfix(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (capman->HasCapability(p, CAP_CHANGESETTINGS))
 		do_quickfix(p, params[0] ? params : NULL);
@@ -192,16 +192,16 @@ EXPORT int MM_quickfix(int action, Imodman *mm, Arena *arena)
 			return MM_FAIL;
 
 		net->AddPacket(C2S_SETTINGCHANGE, p_settingchange);
-		cmd->AddCommand("quickfix", Cquickfix, quickfix_help);
-		cmd->AddCommand("getsettings", Cquickfix, quickfix_help);
+		cmd->AddCommand("quickfix", Cquickfix, ALLARENAS, quickfix_help);
+		cmd->AddCommand("getsettings", Cquickfix, ALLARENAS, quickfix_help);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		net->RemovePacket(C2S_SETTINGCHANGE, p_settingchange);
-		cmd->RemoveCommand("quickfix", Cquickfix);
-		cmd->RemoveCommand("getsettings", Cquickfix);
+		cmd->RemoveCommand("quickfix", Cquickfix, ALLARENAS);
+		cmd->RemoveCommand("getsettings", Cquickfix, ALLARENAS);
 
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);

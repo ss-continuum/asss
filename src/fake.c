@@ -84,13 +84,13 @@ local int EndFaked(Player *p)
 }
 
 
-local void Cmakefake(const char *params, Player *p, const Target *target)
+local void Cmakefake(const char *tc, const char *params, Player *p, const Target *target)
 {
 	CreateFakePlayer(params, p->arena, SHIP_SPEC, 9999);
 }
 
 
-local void Ckillfake(const char *params, Player *p, const Target *target)
+local void Ckillfake(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (target->type == T_PLAYER)
 		EndFaked(target->u.p);
@@ -118,8 +118,8 @@ EXPORT int MM_fake(int action, Imodman *mm_, Arena *arena)
 
 		if (!pd || !aman || !cmd) return MM_FAIL;
 
-		cmd->AddCommand("makefake", Cmakefake, NULL);
-		cmd->AddCommand("killfake", Ckillfake, NULL);
+		cmd->AddCommand("makefake", Cmakefake, ALLARENAS, NULL);
+		cmd->AddCommand("killfake", Ckillfake, ALLARENAS, NULL);
 		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
@@ -127,8 +127,8 @@ EXPORT int MM_fake(int action, Imodman *mm_, Arena *arena)
 	{
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
-		cmd->RemoveCommand("makefake", Cmakefake);
-		cmd->RemoveCommand("killfake", Ckillfake);
+		cmd->RemoveCommand("makefake", Cmakefake, ALLARENAS);
+		cmd->RemoveCommand("killfake", Ckillfake, ALLARENAS);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cmd);

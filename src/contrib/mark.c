@@ -131,7 +131,7 @@ local helptext_t mark_help =
 	"Syntax: /?mark, ?mark <player>, ?mark (list only)\n"
 	"Marks player in purple on your radar.";
 
-local void Cmark(const char *params, Player *p, const Target *target)
+local void Cmark(const char *tc, const char *params, Player *p, const Target *target)
 {
 	kothmark *md;
 
@@ -210,7 +210,7 @@ local helptext_t unmark_help =
 	"Syntax: /?unmark, ?unmark <player>\n"
 	"Removes mark on a player.";
 
-local void Cunmark(const char *params, Player *p, const Target *target)
+local void Cunmark(const char *tc, const char *params, Player *p, const Target *target)
 {
 	kothmark *md;
 
@@ -276,7 +276,7 @@ local helptext_t destroy_help =
 	"Syntax: /?destroy\n"
 	"Simulates the player getting killed.";
 
-local void Cdestroy(const char *params, Player *p, const Target *target)
+local void Cdestroy(const char *tc, const char *params, Player *p, const Target *target)
 {
 
 	if (target->type == T_PLAYER)
@@ -341,7 +341,7 @@ local helptext_t bounty_help =
 	"Syntax: /?bounty <points>\n"
 	"Set a bounty on another player.";
 
-local void Cbounty(const char *params, Player *p, const Target *target)
+local void Cbounty(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (target->type != T_PLAYER || target->u.p == p)
 	{
@@ -365,9 +365,9 @@ EXPORT int MM_mark(int action, Imodman *_mm, Arena *arena)
 		markey = pd->AllocatePlayerData(sizeof(kothmark));
 		if (markey == -1) return MM_FAIL;
 
-		cmd->AddCommand("mark", Cmark, mark_help);
-		cmd->AddCommand("unmark", Cunmark, unmark_help);
-		cmd->AddCommand("destroy", Cdestroy, destroy_help);
+		cmd->AddCommand("mark", Cmark, ALLARENAS, mark_help);
+		cmd->AddCommand("unmark", Cunmark, ALLARENAS, unmark_help);
+		cmd->AddCommand("destroy", Cdestroy, ALLARENAS, destroy_help);
 
 		mm->RegCallback(CB_PLAYERACTION, MyPA, ALLARENAS);
 
@@ -381,9 +381,9 @@ EXPORT int MM_mark(int action, Imodman *_mm, Arena *arena)
 
 		mm->UnregCallback(CB_PLAYERACTION, MyPA, ALLARENAS);
 
-		cmd->RemoveCommand("mark", Cmark);
-		cmd->RemoveCommand("unmark", Cunmark);
-		cmd->RemoveCommand("destroy", Cdestroy);
+		cmd->RemoveCommand("mark", Cmark, ALLARENAS);
+		cmd->RemoveCommand("unmark", Cunmark, ALLARENAS);
+		cmd->RemoveCommand("destroy", Cdestroy, ALLARENAS);
 
 		pd->Lock();
 		FOR_EACH_PLAYER_P(p, md, markey)

@@ -58,9 +58,9 @@ local int  IdGoalScored(int, int, int);
 local int  RewardPoints(Arena *, int);
 local void CheckGameOver(Arena *, int);
 local void ScoreMsg(Arena *, Player *);
-local void Csetscore(const char *,Player *, const Target *);
-local void Cscore(const char *, Player *, const Target *);
-local void Cresetgame(const char *, Player *, const Target *);
+local void Csetscore(const char *, const char *,Player *, const Target *);
+local void Cscore(const char *, const char *, Player *, const Target *);
+local void Cresetgame(const char *, const char *, Player *, const Target *);
 local helptext_t setscore_help, score_help, resetgame_help;
 
 /* global data */
@@ -92,16 +92,16 @@ EXPORT int MM_points_goal(int action, Imodman *mm_, Arena *arena)
 		scrkey = aman->AllocateArenaData(sizeof(struct ArenaScores));
 		if (scrkey == -1) return MM_FAIL;
 
-		cmd->AddCommand("setscore",Csetscore, setscore_help);
-		cmd->AddCommand("score",Cscore, score_help);
-		cmd->AddCommand("resetgame",Cresetgame, resetgame_help);
+		cmd->AddCommand("setscore",Csetscore, ALLARENAS, setscore_help);
+		cmd->AddCommand("score",Cscore, ALLARENAS, score_help);
+		cmd->AddCommand("resetgame",Cresetgame, ALLARENAS, resetgame_help);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		cmd->RemoveCommand("setscore",Csetscore);
-		cmd->RemoveCommand("score",Cscore);
-		cmd->RemoveCommand("resetgame",Cresetgame);
+		cmd->RemoveCommand("setscore",Csetscore, ALLARENAS);
+		cmd->RemoveCommand("score",Cscore, ALLARENAS);
+		cmd->RemoveCommand("resetgame",Cresetgame, ALLARENAS);
 		aman->FreeArenaData(scrkey);
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(cfg);
@@ -505,7 +505,7 @@ local helptext_t setscore_help =
 "first eight freqs, and arena must be in absolute scoring mode \n"
 "(Soccer:CapturePoints < 0).\n";
 
-void Csetscore(const char *params, Player *p, const Target *target)
+void Csetscore(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	struct ArenaScores *scores = P_ARENA_DATA(arena, scrkey);
@@ -540,7 +540,7 @@ local helptext_t score_help =
 "Args: none\n"
 "Returns current score of the soccer game in progress.\n";
 
-void Cscore(const char *params, Player *p, const Target *target)
+void Cscore(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	struct ArenaScores *scores = P_ARENA_DATA(arena, scrkey);
@@ -554,7 +554,7 @@ local helptext_t resetgame_help =
 "Args: none\n"
 "Resets soccer game scores and balls.\n";
 
-void Cresetgame(const char *params, Player *p, const Target *target)
+void Cresetgame(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	struct ArenaScores *scores = P_ARENA_DATA(arena, scrkey);

@@ -312,7 +312,7 @@ local void p_kothexpired(Player *p, byte *pkt, int len)
 }
 
 
-local void Cresetkoth(const char *params, Player *p, const Target *t)
+local void Cresetkoth(const char *cmd, const char *params, Player *p, const Target *t)
 {
 	Arena *arena = p->arena;
 	struct koth_arena_data *adata = P_ARENA_DATA(arena, akey);
@@ -347,7 +347,7 @@ EXPORT int MM_koth(int action, Imodman *mm_, Arena *arena)
 		pkey = pd->AllocatePlayerData(sizeof(struct koth_player_data));
 		if (akey == -1 || pkey == -1) return MM_FAIL;
 
-		cmd->AddCommand("resetkoth", Cresetkoth, NULL);
+		cmd->AddCommand("resetkoth", Cresetkoth, ALLARENAS, NULL);
 
 		net->AddPacket(C2S_KOTHEXPIRED, p_kothexpired);
 
@@ -355,7 +355,7 @@ EXPORT int MM_koth(int action, Imodman *mm_, Arena *arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		cmd->RemoveCommand("resetkoth", Cresetkoth);
+		cmd->RemoveCommand("resetkoth", Cresetkoth, ALLARENAS);
 		net->RemovePacket(C2S_KOTHEXPIRED, p_kothexpired);
 		ml->ClearTimer(timer, NULL);
 

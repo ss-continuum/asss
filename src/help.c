@@ -93,7 +93,7 @@ local helptext_t help_help =
 "to list known keys in that section. Use {?help :} to list known section\n"
 "names.\n";
 
-local void Chelp(const char *params, Player *p, const Target *target)
+local void Chelp(const char *tc, const char *params, Player *p, const Target *target)
 {
 
 	if (params[0] == '?' || params[0] == '*' || params[0] == '!')
@@ -139,12 +139,12 @@ EXPORT int MM_help(int action, Imodman *mm, Arena *arena)
 		if (!chat || !cmdman)
 			return MM_FAIL;
 
-		cmdman->AddCommand("help", Chelp, help_help);
+		cmdman->AddCommand("help", Chelp, ALLARENAS, help_help);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		cmdman->RemoveCommand("help", Chelp);
+		cmdman->RemoveCommand("help", Chelp, ALLARENAS);
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(cmdman);
 		mm->ReleaseInterface(cfghelp);

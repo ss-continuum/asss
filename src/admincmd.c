@@ -43,7 +43,7 @@ local helptext_t admlogfile_help =
 "copying it, for example), and {reopen} tells the server to close and\n"
 "re-open the log file (to rotate the log while the server is running).\n";
 
-local void Cadmlogfile(const char *params, Player *p, const Target *target)
+local void Cadmlogfile(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (!strcasecmp(params, "flush"))
 		logfile->FlushLog();
@@ -58,7 +58,7 @@ local helptext_t delfile_help =
 "Delete a file from the server. Paths are relative to the current working\n"
 "directory.\n";
 
-local void Cdelfile(const char *params, Player *p, const Target *target)
+local void Cdelfile(const char *tc, const char *params, Player *p, const Target *target)
 {
 	char wd[PATH_MAX], path[PATH_MAX];
 
@@ -80,7 +80,7 @@ local helptext_t renfile_help =
 "Rename a file on the server. Paths are relative to the current working\n"
 "directory.\n";
 
-local void Crenfile(const char *params, Player *p, const Target *target)
+local void Crenfile(const char *tc, const char *params, Player *p, const Target *target)
 {
 	char wd[PATH_MAX], oldpath[PATH_MAX], newpath[PATH_MAX];
 	const char *newfile;
@@ -115,7 +115,7 @@ local helptext_t getfile_help =
 "Transfers the specified file from the server to the client. The filename\n"
 "is considered relative to the current working directory.\n";
 
-local void Cgetfile(const char *params, Player *p, const Target *target)
+local void Cgetfile(const char *tc, const char *params, Player *p, const Target *target)
 {
 	char wd[PATH_MAX], path[PATH_MAX];
 
@@ -232,7 +232,7 @@ local helptext_t putfile_help =
 "current working directory. If omitted, the uploaded file will be placed\n"
 "in the current working directory and named the same as on the client.\n";
 
-local void Cputfile(const char *params, Player *p, const Target *target)
+local void Cputfile(const char *tc, const char *params, Player *p, const Target *target)
 {
 	char clientfile[256], wd[PATH_MAX], serverpath[PATH_MAX];
 	const char *t;
@@ -279,7 +279,7 @@ local helptext_t putzip_help =
 "efficiently send a large number of files to the server at once, while\n"
 "preserving directory structure.\n";
 
-local void Cputzip(const char *params, Player *p, const Target *target)
+local void Cputzip(const char *tc, const char *params, Player *p, const Target *target)
 {
 	char clientfile[256], wd[PATH_MAX], serverpath[PATH_MAX];
 	const char *t;
@@ -314,7 +314,7 @@ local helptext_t putmap_help =
 "and the setting General:Map will be changed to the name of the\n"
 "uploaded file.\n";
 
-local void Cputmap(const char *params, Player *p, const Target *target)
+local void Cputmap(const char *tc, const char *params, Player *p, const Target *target)
 {
 	char serverpath[256];
 	upload_t *u;
@@ -345,7 +345,7 @@ local helptext_t cd_help =
 "working directory. If no arguments are specified, return to the server's\n"
 "root directory.\n";
 
-local void Ccd(const char *params, Player *p, const Target *target)
+local void Ccd(const char *tc, const char *params, Player *p, const Target *target)
 {
 	struct stat st;
 	if (!*params)
@@ -370,7 +370,7 @@ local helptext_t pwd_help =
 "Prints the current working directory. A working directory of \".\"\n"
 "indicates the server's root directory.\n";
 
-local void Cpwd(const char *params, Player *p, const Target *target)
+local void Cpwd(const char *tc, const char *params, Player *p, const Target *target)
 {
 	char wd[PATH_MAX];
 	filetrans->GetWorkingDirectory(p, wd, sizeof(wd));
@@ -383,7 +383,7 @@ local helptext_t makearena_help =
 "Args: <arena name>\n"
 "Creates a directory for the new directory under 'arenas/'\n";
 
-local void Cmakearena(const char *params, Player *p, const Target *target)
+local void Cmakearena(const char *tc, const char *params, Player *p, const Target *target)
 {
 	char buf[128];
 	const char *c;
@@ -433,7 +433,7 @@ local helptext_t botfeature_help =
 "the bot gets to see all position packets. {seeownposn} controls whether\n"
 "you get your own mirror position packets.\n";
 
-local void Cbotfeature(const char *params, Player *p, const Target *target)
+local void Cbotfeature(const char *tc, const char *params, Player *p, const Target *target)
 {
 	char buf[64];
 	const char *tmp = NULL;
@@ -479,33 +479,33 @@ EXPORT int MM_admincmd(int action, Imodman *mm_, Arena *arena)
 		if (!pd || !chat || !lm || !cmd || !capman || !logfile || !filetrans)
 			return MM_FAIL;
 
-		cmd->AddCommand("admlogfile", Cadmlogfile, admlogfile_help);
-		cmd->AddCommand("getfile", Cgetfile, getfile_help);
-		cmd->AddCommand("putfile", Cputfile, putfile_help);
-		cmd->AddCommand("putzip", Cputzip, putzip_help);
-		cmd->AddCommand("putmap", Cputmap, putmap_help);
-		cmd->AddCommand("makearena", Cmakearena, makearena_help);
-		cmd->AddCommand("botfeature", Cbotfeature, botfeature_help);
-		cmd->AddCommand("cd", Ccd, cd_help);
-		cmd->AddCommand("pwd", Cpwd, pwd_help);
-		cmd->AddCommand("delfile", Cdelfile, delfile_help);
-		cmd->AddCommand("renfile", Crenfile, renfile_help);
+		cmd->AddCommand("admlogfile", Cadmlogfile, ALLARENAS, admlogfile_help);
+		cmd->AddCommand("getfile", Cgetfile, ALLARENAS, getfile_help);
+		cmd->AddCommand("putfile", Cputfile, ALLARENAS, putfile_help);
+		cmd->AddCommand("putzip", Cputzip, ALLARENAS, putzip_help);
+		cmd->AddCommand("putmap", Cputmap, ALLARENAS, putmap_help);
+		cmd->AddCommand("makearena", Cmakearena, ALLARENAS, makearena_help);
+		cmd->AddCommand("botfeature", Cbotfeature, ALLARENAS, botfeature_help);
+		cmd->AddCommand("cd", Ccd, ALLARENAS, cd_help);
+		cmd->AddCommand("pwd", Cpwd, ALLARENAS, pwd_help);
+		cmd->AddCommand("delfile", Cdelfile, ALLARENAS, delfile_help);
+		cmd->AddCommand("renfile", Crenfile, ALLARENAS, renfile_help);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		cmd->RemoveCommand("admlogfile", Cadmlogfile);
-		cmd->RemoveCommand("getfile", Cgetfile);
-		cmd->RemoveCommand("putfile", Cputfile);
-		cmd->RemoveCommand("putzip", Cputzip);
-		cmd->RemoveCommand("putmap", Cputmap);
-		cmd->RemoveCommand("makearena", Cmakearena);
-		cmd->RemoveCommand("botfeature", Cbotfeature);
-		cmd->RemoveCommand("cd", Ccd);
-		cmd->RemoveCommand("pwd", Cpwd);
-		cmd->RemoveCommand("delfile", Cdelfile);
-		cmd->RemoveCommand("renfile", Crenfile);
+		cmd->RemoveCommand("admlogfile", Cadmlogfile, ALLARENAS);
+		cmd->RemoveCommand("getfile", Cgetfile, ALLARENAS);
+		cmd->RemoveCommand("putfile", Cputfile, ALLARENAS);
+		cmd->RemoveCommand("putzip", Cputzip, ALLARENAS);
+		cmd->RemoveCommand("putmap", Cputmap, ALLARENAS);
+		cmd->RemoveCommand("makearena", Cmakearena, ALLARENAS);
+		cmd->RemoveCommand("botfeature", Cbotfeature, ALLARENAS);
+		cmd->RemoveCommand("cd", Ccd, ALLARENAS);
+		cmd->RemoveCommand("pwd", Cpwd, ALLARENAS);
+		cmd->RemoveCommand("delfile", Cdelfile, ALLARENAS);
+		cmd->RemoveCommand("renfile", Crenfile, ALLARENAS);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(chat);

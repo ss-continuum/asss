@@ -8,7 +8,7 @@
 #include "letters.inc"
 
 
-local void Cbrickwrite(const char *params, Player *p, const Target *target);
+local void Cbrickwrite(const char *tc, const char *params, Player *p, const Target *target);
 
 local Iplayerdata *pd;
 local Ibricks *bricks;
@@ -22,7 +22,7 @@ EXPORT int MM_bricklayer(int action, Imodman *mm, Arena *arena)
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		bricks = mm->GetInterface(I_BRICKS, ALLARENAS);
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
-		cmd->AddCommand("brickwrite", Cbrickwrite, NULL);
+		cmd->AddCommand("brickwrite", Cbrickwrite, ALLARENAS, NULL);
 
 		if (!bricks) return MM_FAIL;
 
@@ -30,7 +30,7 @@ EXPORT int MM_bricklayer(int action, Imodman *mm, Arena *arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		cmd->RemoveCommand("brickwrite", Cbrickwrite);
+		cmd->RemoveCommand("brickwrite", Cbrickwrite, ALLARENAS);
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(bricks);
 		mm->ReleaseInterface(pd);
@@ -40,7 +40,7 @@ EXPORT int MM_bricklayer(int action, Imodman *mm, Arena *arena)
 }
 
 
-void Cbrickwrite(const char *params, Player *p, const Target *target)
+void Cbrickwrite(const char *tc, const char *params, Player *p, const Target *target)
 {
 	int i, wid;
 	Arena *arena = p->arena;

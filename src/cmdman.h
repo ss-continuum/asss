@@ -37,26 +37,19 @@
  * the server keeps track of a "default" command handler, which will get
  * called if no commands know to the server match a typed command. to
  * set or remove the default handler, pass NULL as cmdname to any of the
- * Add/RemoveCommand/2 functions. this feature should only be used by
+ * Add/RemoveCommand functions. this feature should only be used by
  * billing server modules.
  */
 
 
-/** the type of the first flavor of command handler.
- * @param params the stuff that the player typed after the command name
- * @param p the player issuing the command
- * @param target describes how the command was issued (public, private,
- * etc.)
- */
-typedef void (*CommandFunc)(const char *params, Player *p, const Target *target);
-/** the type of the second flavor of command handler.
+/** the type of command handlers.
  * @param command the name of the command that was issued
  * @param params the stuff that the player typed after the command name
  * @param p the player issuing the command
  * @param target describes how the command was issued (public, private,
  * etc.)
  */
-typedef void (*CommandFunc2)(const char *command, const char *params,
+typedef void (*CommandFunc)(const char *command, const char *params,
 		Player *p, const Target *target);
 
 
@@ -65,7 +58,7 @@ typedef void (*CommandFunc2)(const char *command, const char *params,
 typedef const char *helptext_t;
 
 /** the interface id for Icmdman */
-#define I_CMDMAN "cmdman-7"
+#define I_CMDMAN "cmdman-8"
 
 /** the interface struct for Icmdman */
 typedef struct Icmdman
@@ -78,27 +71,12 @@ typedef struct Icmdman
 	 * @param func the handler function
 	 * @param ht some help text for this command, or NULL for none
 	 */
-	void (*AddCommand)(const char *cmdname, CommandFunc func, helptext_t ht);
-
-	/** Registers a command handler, of a slightly different flavor.
-	 * @param cmdname the name of the command being registered
-	 * @param func the handler function
-	 * @param arena the arena the command should have effect in, or
-	 * ALLARENAS
-	 * @param ht some help text for this command, or NULL for none
-	 */
-	void (*AddCommand2)(const char *cmdname, CommandFunc2 func,
-			Arena *arena, helptext_t ht);
+	void (*AddCommand)(const char *cmdname, CommandFunc func, Arena *arena, helptext_t ht);
 
 	/** Unregisters a command handler.
 	 * Use this to unregister handlers registered with AddCommand.
 	 */
-	void (*RemoveCommand)(const char *cmdname, CommandFunc func);
-	/** Unregisters a command handler.
-	 * Use this to unregister handlers registered with AddCommand2.
-	 */
-	void (*RemoveCommand2)(const char *cmdname, CommandFunc2 func,
-			Arena *arena);
+	void (*RemoveCommand)(const char *cmdname, CommandFunc func, Arena *arena);
 
 	/** Dispatches an incoming command.
 	 * This is generally only called by the chat module and billing

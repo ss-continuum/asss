@@ -64,7 +64,7 @@ local helptext_t kick_help =
 "Args: [<timeout>]\n"
 "Kicks the player off of the server, with an optional timeout (in minutes).\n";
 
-local void Ckick(const char *params, Player *p, const Target *target)
+local void Ckick(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Player *t = target->u.p;
 
@@ -131,7 +131,7 @@ local helptext_t listmidbans_help =
 "Args: none\n"
 "Lists the current machine id bans in effect.\n";
 
-local void Clistmidbans(const char *params, Player *p, const Target *target)
+local void Clistmidbans(const char *tc, const char *params, Player *p, const Target *target)
 {
 	char data[MAXDATA+6];
 	pthread_mutex_lock(&banmtx);
@@ -148,7 +148,7 @@ local helptext_t delmidban_help =
 "Args: <machine id>\n"
 "Removes a machine id ban.\n";
 
-local void Cdelmidban(const char *params, Player *p, const Target *target)
+local void Cdelmidban(const char *tc, const char *params, Player *p, const Target *target)
 {
 	int mid = (int)strtoul(params, NULL, 0);
 	if (mid == 0)
@@ -184,9 +184,9 @@ EXPORT int MM_auth_ban(int action, Imodman *mm_, Arena *arena)
 		if (!oldauth || !capman || !cmd || !chat || !pd)
 			return MM_FAIL;
 
-		cmd->AddCommand("kick", Ckick, kick_help);
-		cmd->AddCommand("listmidbans", Clistmidbans, listmidbans_help);
-		cmd->AddCommand("delmidban", Cdelmidban, delmidban_help);
+		cmd->AddCommand("kick", Ckick, ALLARENAS, kick_help);
+		cmd->AddCommand("listmidbans", Clistmidbans, ALLARENAS, listmidbans_help);
+		cmd->AddCommand("delmidban", Cdelmidban, ALLARENAS, delmidban_help);
 
 		mm->RegInterface(&myauth, ALLARENAS);
 		return MM_OK;
@@ -195,9 +195,9 @@ EXPORT int MM_auth_ban(int action, Imodman *mm_, Arena *arena)
 	{
 		if (mm->UnregInterface(&myauth, ALLARENAS))
 			return MM_FAIL;
-		cmd->RemoveCommand("kick", Ckick);
-		cmd->RemoveCommand("listmidbans", Clistmidbans);
-		cmd->RemoveCommand("delmidban", Cdelmidban);
+		cmd->RemoveCommand("kick", Ckick, ALLARENAS);
+		cmd->RemoveCommand("listmidbans", Clistmidbans, ALLARENAS);
+		cmd->RemoveCommand("delmidban", Cdelmidban, ALLARENAS);
 		TrEnum(banroot, tr_enum_afree, NULL);
 		mm->ReleaseInterface(oldauth);
 		mm->ReleaseInterface(capman);

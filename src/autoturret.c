@@ -87,7 +87,7 @@ local helptext_t dropturret_help =
 "Drops a turret right where your ship is. The turret will fire 10 level 1\n"
 "bombs, 1.5 seconds apart, and then disappear.\n";
 
-local void Cdropturret(const char *params, Player *p, const Target *target)
+local void Cdropturret(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Player *turret;
 	int count;
@@ -108,7 +108,7 @@ local void Cdropturret(const char *params, Player *p, const Target *target)
 }
 
 
-local void Cresetturrets(const char *params, Player *p, const Target *target)
+local void Cresetturrets(const char *tc, const char *params, Player *p, const Target *target)
 {
 	ticks_t now = current_ticks();
 	Link *l;
@@ -310,14 +310,14 @@ EXPORT int MM_autoturret(int action, Imodman *mm_, Arena *arena)
 		if (!pd || !cmd || !game || !fake) return MM_FAIL;
 		LLInit(&turrets);
 		mm->RegCallback(CB_MAINLOOP, mlfunc, ALLARENAS);
-		cmd->AddCommand("dropturret", Cdropturret, dropturret_help);
-		cmd->AddCommand("resetturrets", Cresetturrets, NULL);
+		cmd->AddCommand("dropturret", Cdropturret, ALLARENAS, dropturret_help);
+		cmd->AddCommand("resetturrets", Cresetturrets, ALLARENAS, NULL);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		cmd->RemoveCommand("dropturret", Cdropturret);
-		cmd->RemoveCommand("resetturrets", Cresetturrets);
+		cmd->RemoveCommand("dropturret", Cdropturret, ALLARENAS);
+		cmd->RemoveCommand("resetturrets", Cresetturrets, ALLARENAS);
 		mm->UnregCallback(CB_MAINLOOP, mlfunc, ALLARENAS);
 		LLEmpty(&turrets);
 		mm->ReleaseInterface(pd);

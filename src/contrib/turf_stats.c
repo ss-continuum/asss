@@ -86,11 +86,11 @@ local helptext_t turfstats_help, forcestats_help;
  * C_turfStats: to get stats for all teams
  */
 
- local void C_turfStats(const char *, Player *, const Target *);
+ local void C_turfStats(const char *, const char *, Player *, const Target *);
 /* mod commands
  * C_forceStats: to force the stats to be outputted to everyone instantly
  */
-local void C_forceStats(const char *, Player *, const Target *);
+local void C_forceStats(const char *, const char *, Player *, const Target *);
 
 
 /* helper functions */
@@ -122,15 +122,15 @@ EXPORT int MM_turf_stats(int action, Imodman *_mm, Arena *arena)
 		mtxkey = arenaman->AllocateArenaData(sizeof(pthread_mutex_t));
 		if (tskey == -1 || mtxkey == -1) return MM_FAIL;
 
-		cmdman->AddCommand("turfstats", C_turfStats, turfstats_help);
-		cmdman->AddCommand("forcestats", C_forceStats, forcestats_help);
+		cmdman->AddCommand("turfstats", C_turfStats, ALLARENAS, turfstats_help);
+		cmdman->AddCommand("forcestats", C_forceStats, ALLARENAS, forcestats_help);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)  /* when the module is to be unloaded */
 	{
-		cmdman->RemoveCommand("turfstats", C_turfStats);
-		cmdman->RemoveCommand("forcestats", C_forceStats);
+		cmdman->RemoveCommand("turfstats", C_turfStats, ALLARENAS);
+		cmdman->RemoveCommand("forcestats", C_forceStats, ALLARENAS);
 
 		arenaman->FreeArenaData(tskey);
 		arenaman->FreeArenaData(mtxkey);
@@ -479,7 +479,7 @@ local helptext_t turfstats_help =
 "Targets: none\n"
 "Args: none\n"
 "Gets stats to previous dings.\n";
-local void C_turfStats(const char *params, Player *p, const Target *target)
+local void C_turfStats(const char *tc, const char *params, Player *p, const Target *target)
 {
 	int histNum = 0;
 	Arena *arena = p->arena;
@@ -499,7 +499,7 @@ local helptext_t forcestats_help =
 "Targets: none\n"
 "Args: none\n"
 "Displays stats to arena for previous dings.\n";
-local void C_forceStats(const char *params, Player *p, const Target *target)
+local void C_forceStats(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
@@ -521,4 +521,5 @@ local void C_forceStats(const char *params, Player *p, const Target *target)
 	ADisplay(arena, histNum);
 	UNLOCK_STATUS(arena);
 }
+
 

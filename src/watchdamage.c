@@ -122,7 +122,7 @@ local helptext_t watchdamage_help =
 "public command, only {?watchdamage 0} is meaningful, and it turns off\n"
 "damage watching on all players.\n";
 
-local void Cwatchdamage(const char *params, Player *p, const Target *target)
+local void Cwatchdamage(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (p->type != T_CONT)
 	{
@@ -180,7 +180,7 @@ local void Cwatchdamage(const char *params, Player *p, const Target *target)
 
 local helptext_t watchwatchdamage_help = NULL;
 
-local void Cwatchwatchdamage(const char *params, Player *p, const Target *target)
+local void Cwatchwatchdamage(const char *tc, const char *params, Player *p, const Target *target)
 {
 	int mw = 0, tot = 0;
 	Link *link, *l;
@@ -288,8 +288,8 @@ EXPORT int MM_watchdamage(int action, Imodman *mm_, Arena *arena)
 
 		net->AddPacket(C2S_DAMAGE, PDamage);
 
-		cmd->AddCommand("watchdamage", Cwatchdamage, watchdamage_help);
-		cmd->AddCommand("watchwatchdamage", Cwatchwatchdamage, watchwatchdamage_help);
+		cmd->AddCommand("watchdamage", Cwatchdamage, ALLARENAS, watchdamage_help);
+		cmd->AddCommand("watchwatchdamage", Cwatchwatchdamage, ALLARENAS, watchwatchdamage_help);
 
 		mm->RegInterface(&_int, ALLARENAS);
 
@@ -300,8 +300,8 @@ EXPORT int MM_watchdamage(int action, Imodman *mm_, Arena *arena)
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 
-		cmd->RemoveCommand("watchdamage", Cwatchdamage);
-		cmd->RemoveCommand("watchwatchdamage", Cwatchwatchdamage);
+		cmd->RemoveCommand("watchdamage", Cwatchdamage, ALLARENAS);
+		cmd->RemoveCommand("watchwatchdamage", Cwatchwatchdamage, ALLARENAS);
 
 		net->RemovePacket(C2S_DAMAGE, PDamage);
 

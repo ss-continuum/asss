@@ -122,7 +122,7 @@ local helptext_t time_help =
 "Args: none\n"
 "Returns amount of time left in current game.\n";
 
-local void Ctime(const char *params, Player *p, const Target *target)
+local void Ctime(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	int mins, secs;
@@ -154,7 +154,7 @@ local helptext_t timer_help =
 "off. Note, that the seconds part is optional, but minutes must always\n"
 "be defined (even if zero). If successful, server replies with ?time response.\n";
 
-local void Ctimer(const char *params, Player *p, const Target *target)
+local void Ctimer(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	int mins = 0, secs = 0;
@@ -170,7 +170,7 @@ local void Ctimer(const char *params, Player *p, const Target *target)
 				secs = strtol(end+1, NULL, 10);
 			td->enabled = 1;
 			td->timeout = TICK_MAKE(current_ticks()+(60*100*mins)+(100*secs));
-			Ctime(params, p, target);
+			Ctime(cmd, params, p, target);
 		}
 		else chat->SendMessage(p, "timer format is: '?timer mins[:secs]'");
 	}
@@ -183,7 +183,7 @@ local helptext_t timereset_help =
 "Args: none\n"
 "Reset a timed game, but only in arenas with Misc:TimedGame in use.\n";
 
-local void Ctimereset(const char *params, Player *p, const Target *target)
+local void Ctimereset(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	timerdata *td = P_ARENA_DATA(arena, tdkey);
@@ -192,7 +192,7 @@ local void Ctimereset(const char *params, Player *p, const Target *target)
 	if (gamelen)
 	{
 		td->timeout = TICK_MAKE(current_ticks() + gamelen);
-		Ctime(params, p, target);
+		Ctime(cmd, params, p, target);
 	}
 }
 
@@ -203,7 +203,7 @@ local helptext_t pausetimer_help =
 "Toggles the timer between paused and unpaused. The timer must have been\n"
 "created with ?timer.\n";
 
-local void Cpausetimer(const char *params, Player *p, const Target *target)
+local void Cpausetimer(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
 	timerdata *td = P_ARENA_DATA(arena, tdkey);
@@ -250,19 +250,19 @@ EXPORT int MM_game_timer(int action, Imodman *mm_, Arena *arena)
 
 		ml->SetTimer(TimerMaster, 100, 100, NULL, NULL);
 
-		cmd->AddCommand("timer", Ctimer, timer_help);
-		cmd->AddCommand("time", Ctime, time_help);
-		cmd->AddCommand("timereset", Ctimereset, timereset_help);
-		cmd->AddCommand("pausetimer", Cpausetimer, pausetimer_help);
+		cmd->AddCommand("timer", Ctimer, ALLARENAS, timer_help);
+		cmd->AddCommand("time", Ctime, ALLARENAS, time_help);
+		cmd->AddCommand("timereset", Ctimereset, ALLARENAS, timereset_help);
+		cmd->AddCommand("pausetimer", Cpausetimer, ALLARENAS, pausetimer_help);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		cmd->RemoveCommand("timer", Ctimer);
-		cmd->RemoveCommand("time", Ctime);
-		cmd->RemoveCommand("timereset", Ctimereset);
-		cmd->RemoveCommand("pausetimer", Cpausetimer);
+		cmd->RemoveCommand("timer", Ctimer, ALLARENAS);
+		cmd->RemoveCommand("time", Ctime, ALLARENAS);
+		cmd->RemoveCommand("timereset", Ctimereset, ALLARENAS);
+		cmd->RemoveCommand("pausetimer", Cpausetimer, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 		ml->ClearTimer(TimerMaster, NULL);
 		aman->FreeArenaData(tdkey);

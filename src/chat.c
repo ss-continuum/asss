@@ -494,7 +494,7 @@ local void handle_remote_priv(Player *p, const char *msg, int isallcmd, int soun
 		if (OK(MSG_COMMAND))
 		{
 			Player *d = pd->FindPlayer(dest);
-			if (d)
+			if (d && d->status == S_PLAYING)
 			{
 				Target target;
 				target.type = T_PLAYER;
@@ -508,6 +508,8 @@ local void handle_remote_priv(Player *p, const char *msg, int isallcmd, int soun
 		Player *d = pd->FindPlayer(dest);
 		if (d)
 		{
+			if (d->status != S_PLAYING)
+				return;
 			if (IS_STANDARD(d))
 			{
 				struct ChatPacket *to = alloca(strlen(msg) + 40);

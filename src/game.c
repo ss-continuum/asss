@@ -530,7 +530,7 @@ local helptext_t spec_help =
 "Displays players spectating you. When private, displays players\n"
 "spectating the target.\n";
 
-local void Cspec(const char *params, Player *p, const Target *target)
+local void Cspec(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	char names[500], *end = names;
 	int scnt = 0;
@@ -1334,7 +1334,7 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 			chatnet->AddHandler("CHANGEFREQ", MChangeFreq);
 
 		if (cmd)
-			cmd->AddCommand("spec", Cspec, spec_help);
+			cmd->AddCommand("spec", Cspec, ALLARENAS, spec_help);
 
 		mm->RegInterface(&_myint, ALLARENAS);
 
@@ -1347,7 +1347,7 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		if (chatnet)
 			chatnet->RemoveHandler("CHANGEFREQ", MChangeFreq);
 		if (cmd)
-			cmd->RemoveCommand("spec", Cspec);
+			cmd->RemoveCommand("spec", Cspec, ALLARENAS);
 		net->RemovePacket(C2S_SPECREQUEST, PSpecRequest);
 		net->RemovePacket(C2S_POSITION, Pppk);
 		net->RemovePacket(C2S_SETSHIP, PSetShip);

@@ -455,7 +455,7 @@ local void enum_send_msg(TreapHead *node, void *clos)
 	chat->SendMessage((Player*)clos, "  %s: %d", get_stat_name(si->head.key), si->value);
 }
 
-local void Cstats(const char *params, Player *p, const Target *target)
+local void Cstats(const char *tc, const char *params, Player *p, const Target *target)
 {
     stat_info *arr;
 	Player *t = target->type == T_PLAYER ? target->u.p : p;
@@ -504,7 +504,7 @@ EXPORT int MM_stats(int action, Imodman *mm_, Arena *arena)
 		pdkey = pd->AllocatePlayerData(sizeof(pdata));
 		if (pdkey == -1) return MM_FAIL;
 
-		cmd->AddCommand("stats", Cstats, stats_help);
+		cmd->AddCommand("stats", Cstats, ALLARENAS, stats_help);
 
 		persist->RegPlayerPD(&my_forever_data);
 		persist->RegPlayerPD(&my_reset_data);
@@ -530,7 +530,7 @@ EXPORT int MM_stats(int action, Imodman *mm_, Arena *arena)
 		persist->UnregArenaPD(&my_reset_end_time_data);
 		persist->UnregArenaPD(&my_game_end_time_data);
 
-		cmd->RemoveCommand("stats", Cstats);
+		cmd->RemoveCommand("stats", Cstats, ALLARENAS);
 
 		pd->FreePlayerData(pdkey);
 		mm->ReleaseInterface(chat);
