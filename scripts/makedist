@@ -12,7 +12,7 @@ d="asss-`date +%Y%m%d`"
 rm -rf $d
 cp -a dist $d
 
-tar cf - `grep -lr '[d]ist: public' src scripts` scripts/banner.font | \
+tar cf - `grep -lr '[d]ist: public' src scripts doc` scripts/banner.font | \
 	(cd $d ; tar xf -)
 cp src/Makefile.dist $d/src/Makefile
 
@@ -25,10 +25,8 @@ cp bin/security.so $d/bin
 ln -s '../scripts/bproxy/bproxy' $d/bin/bproxy
 
 make -C doc/userguide all
-cp doc/userguide/userguide.{dvi,pdf,html,txt} $d/doc
+cp doc/userguide/userguide.{pdf,html,txt} $d/doc
 make -C doc/userguide clean
-
-cp doc/tutorial.txt $d/doc
 
 find $d -exec touch -r $d/bin/asss {} \;
 tar --numeric-owner -czvf $d.tar.gz $d

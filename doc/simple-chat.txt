@@ -88,3 +88,5 @@ server sends:
 	MSG:SYSOP:msg
 
 
+# dist: public
+

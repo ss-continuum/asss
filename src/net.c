@@ -593,11 +593,15 @@ int InitSockets(void)
 #ifdef CFG_DUMP_RAW_PACKETS
 local void dump_pk(byte *d, int len)
 {
-	char str[256];
-	int c, i;
-	for (c = 0, i = 0; c < len && i < 250; c++, i += 3)
-		sprintf(&str[i], "%02X ", d[c]);
-	puts(str);
+	char str[80];
+	int c;
+	while (len > 0)
+	{
+		for (c = 0; c < 16 && len > 0; c++, len--)
+			sprintf(str + 3*c, "%02x ", *d++);
+		str[strlen(str)-1] = 0;
+		puts(str);
+	}
 }
 #endif
 

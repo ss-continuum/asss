@@ -86,13 +86,6 @@ game cleanup:
 
 file format:
 
-struct initial_player
-{
-	char name[24], squad[24];
-	int ship, freq, pid;
-};
-
-
 struct event_header
 {
 	unsigned long tm;
@@ -162,8 +155,6 @@ struct event_pos
 struct game_file
 {
 	char header[8] = "asssgame";
-	int numplayers;
-	initial_player players[numplayers];
 	struct
 	{
 		event_header head;

@@ -190,7 +190,7 @@ int Encrypt(Player *p, byte *data, int len)
 int do_dec(EncData *ed, byte *data, int len)
 {
 	int work = ed->key, *mytable = (int*)ed->table;
-	int *mydata, loop, until, esi, edx;
+	int *mydata, loop, until;
 
 	if (work == 0 || mytable == NULL) return len;
 
@@ -207,12 +207,9 @@ int do_dec(EncData *ed, byte *data, int len)
 
 	for (loop = 0; loop < until; loop++)
 	{
-		esi = mytable[loop];
-		edx = mydata[loop];
-		esi ^= work;
-		esi ^= edx;
-		mydata[loop] = esi;
-		work = edx;
+		int tmp = mydata[loop];
+		mydata[loop] = mytable[loop] ^ work ^ tmp;
+		work = tmp;
 	}
 	return len;
 }

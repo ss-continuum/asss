@@ -221,4 +221,5 @@ because they are called through function pointers and not directly by
 name, and you don't want to confuse the linker by exporting lots of
 functions whose names may clash.
 
+# dist: public
 
