@@ -34,7 +34,7 @@ local void PBrick(int, byte *, int);
 
 local void Creport(const char *params, int pid, int target);
 
-local inline void DoChecksum(struct S2CWeapons *, int);
+local inline void DoChecksum(struct S2CWeapons *);
 local inline long lhypot (register long dx, register long dy);
 
 /* interface? */
@@ -288,7 +288,7 @@ void Pppk(int pid, byte *p2, int n)
 					set[set[0]++] = i;
 			}
 		/* send regular */
-		DoChecksum(&wpn, sizeof(struct S2CWeapons) - sizeof(struct ExtraPosData));
+		DoChecksum(&wpn);
 		regset[regset[0]] = -1;
 		net->SendToSet(regset + 1,
 		               (byte*)&wpn,
@@ -633,13 +633,13 @@ void Creport(const char *params, int pid, int target)
 }
 
 
-void DoChecksum(struct S2CWeapons *pkt, int n)
+void DoChecksum(struct S2CWeapons *pkt)
 {
 	int i;
-	u8 ck = 0, *p = (u8*)pkt;
+	u8 ck = 0;
 	pkt->checksum = 0;
-	for (i = 0; i < n; i++, p++)
-		ck ^= *p;
+	for (i = 0; i < 21; i++)
+		ck ^= ((unsigned char*)pkt)[i];
 	pkt->checksum = ck;
 }
 

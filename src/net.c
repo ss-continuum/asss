@@ -642,7 +642,8 @@ donehere:
 				data[0] = 0;
 				pd->LockStatus();
 				for (n = 0; n < MAXPLAYERS; n++)
-					if (players[n].status == S_PLAYING)
+					if (players[n].status == S_PLAYING &&
+					    (clients[n].flags & NET_FAKE) == 0)
 						data[0]++;
 				pd->UnlockStatus();
 				sendto(myothersock, (char*)data, 8, 0,
