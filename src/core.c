@@ -366,13 +366,19 @@ int process_player_states(void *v)
 				break;
 
 			case S_SEND_ARENA_RESPONSE:
-				/* try to get scores in pdata packet */
 				if (stats)
 				{
-					player->pkt.killpoints = stats->GetStat(player, STAT_KILL_POINTS, INTERVAL_RESET);
-					player->pkt.flagpoints = stats->GetStat(player, STAT_FLAG_POINTS, INTERVAL_RESET);
-					player->pkt.wins = stats->GetStat(player, STAT_KILLS, INTERVAL_RESET);
-					player->pkt.losses = stats->GetStat(player, STAT_DEATHS, INTERVAL_RESET);
+					/* try to get scores in pdata packet */
+					player->pkt.killpoints =
+						stats->GetStat(player, STAT_KILL_POINTS, INTERVAL_RESET);
+					player->pkt.flagpoints =
+						stats->GetStat(player, STAT_FLAG_POINTS, INTERVAL_RESET);
+					player->pkt.wins =
+						stats->GetStat(player, STAT_KILLS, INTERVAL_RESET);
+					player->pkt.losses =
+						stats->GetStat(player, STAT_DEATHS, INTERVAL_RESET);
+					/* also get other player's scores into their pdatas */
+					stats->SendUpdates();
 				}
 				aman->SendArenaResponse(player);
 				player->flags.sent_ppk = 0;
