@@ -92,8 +92,9 @@ EXPORT int MM_auth_vie(int action, Imodman *mm_, Arena *arena)
 	{
 		if (mm->UnregInterface(&myauth, ALLARENAS))
 			return MM_FAIL;
-		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(oldauth);
 		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(lm);
 		return MM_OK;
 	}
