@@ -146,6 +146,8 @@ void ArenaAction(Arena *arena, int action)
 	}
 	else if (action == AA_DESTROY)
 	{
+		LLEnum(&bd->list, afree);
+		LLEmpty(&bd->list);
 		pthread_mutex_destroy(&bd->mtx);
 	}
 }
