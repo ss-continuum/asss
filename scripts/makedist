@@ -29,6 +29,9 @@ make -C doc/userguide all
 cp doc/userguide/userguide.{pdf,html,txt} $d/doc
 make -C doc/userguide clean
 
+test -d freebsd && cp -a freebsd $d
+test -d freebsd || rm -f $d/*freebsd*
+
 find $d -exec touch -r $d/bin/asss {} \;
 tar --numeric-owner --exclude CVS -czvf $d.tar.gz $d
 #rm -rf $d

@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 1.0rc1.
+Welcome to asss (a small subspace server) 1.0rc2.
 
 This news.txt will be used for updates about new features and other
 important information. If you have any suggestions of any kind, please
