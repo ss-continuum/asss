@@ -98,7 +98,6 @@ void Pppk(int pid, byte *p2, int n)
 			S2C_WEAPON, p->rotation, p->time & 0xFFFF, p->x, p->yspeed,
 			pid, p->xspeed, 0, p->status, 0, p->y + warpy, p->bounty
 		};
-		wpn.weapon = p->weapon;
 
 		DoChecksum(&wpn);
 		net->SendToOne(pid, (byte*)&wpn, sizeof(wpn), NET_PRI_P4);

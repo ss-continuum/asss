@@ -24,6 +24,7 @@
 struct koth_arena_data
 {
 	int deathcount, expiretime, /* killadjusttime, killminbty, */ recoverkills;
+	int minplaying;
 };
 
 struct koth_player_data
@@ -136,12 +137,15 @@ local void check_koth(int arena)
 					pd->players[*p].name, pts);
 			lm->LogP(L_DRIVEL, "koth", *p, "won koth game");
 		}
+		stats->SendUpdates();
 
-		start_koth(arena);
+		if (playing >= adata[arena].minplaying)
+			start_koth(arena);
 	}
 	else if (crowncount == 0)
 	{
-		start_koth(arena);
+		if (playing >= adata[arena].minplaying)
+			start_koth(arena);
 	}
 
 	/* now mark anyone without a crown as not having had a crown */
@@ -200,6 +204,7 @@ local void load_settings(int arena)
 	adata[arena].killminbty = cfg->GetInt(ch, "King", "NonCrownMininumBounty", 0);
 	*/
 	adata[arena].recoverkills = cfg->GetInt(ch, "King", "CrownRecoverKills", 0);
+	adata[arena].minplaying = cfg->GetInt(ch, "King", "MinPlaying", 3);
 	UNLOCK();
 }
 

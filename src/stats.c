@@ -101,10 +101,7 @@ local inline void update_timer(stat_info *si, time_t tm)
 
 local inline void start_timer(stat_info *si, time_t tm)
 {
-	if (si->started)
-		update_timer(si, tm);
-	else
-		si->started = tm;
+	si->started = tm;
 }
 
 local inline void stop_timer(stat_info *si, time_t tm)

@@ -40,7 +40,7 @@
 #define QUEUE_THRESHOLD 5
 
 /* we need to know how many packets the client is able to buffer */
-#define CLIENT_CAN_BUFFER 40
+#define CLIENT_CAN_BUFFER 30
 
 /* check whether we manage this client */
 #define IS_OURS(pid) (players[(pid)].type == T_CONT || players[(pid)].type == T_VIE)
