@@ -22,8 +22,9 @@
 #include "koth.h"
 #include "watchdamage.h"
 #include "objects.h"
-#include "turf_reward.h"
 #include "reldb.h"
+
+#include "contrib/turf_reward.h"
 
 
 #define PYCBPREFIX "PY-"

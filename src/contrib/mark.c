@@ -1,14 +1,16 @@
 
 /* dist: public */
 
-EXPORT const char info_mark[] = "v?.? by Catid <cat02e@fsu.edu>"
-
 /* FIXME: KoTH game screws with the marks, so only one of the two may be used at a time */
 /* FIXME: race conditions(?) */
+
+#include <string.h>
 
 #include "asss.h"
 
 #include "packets/koth.h"
+
+EXPORT const char info_mark[] = "v?.? by Catid <cat02e@fsu.edu>";
 
 
 /* callbacks */
@@ -92,7 +94,7 @@ local int markExists(kothmark *md, const char *name)
 	Link *link;
 
 	for (link = LLGetHead(&md->listed); link; link = link->next)
-		if (strcmpi(name,((marklistednode*)link->data)->name) == 0)
+		if (strcasecmp(name,((marklistednode*)link->data)->name) == 0)
 			return 1;
 
 	return 0;
@@ -103,7 +105,7 @@ local int unmarkPlayer(kothmark *md, const char *name)
 	Link *link;
 
 	for (link = LLGetHead(&md->listed); link; link = link->next)
-		if (strcmpi(name,((marklistednode*)link->data)->name) == 0)
+		if (strcasecmp(name,((marklistednode*)link->data)->name) == 0)
 		{
 			afree(link->data);
 			LLRemove(&md->listed, link->data);
@@ -129,8 +131,8 @@ local helptext_t mark_help =
 	"Syntax: /?mark, ?mark <player>, ?mark (list only)\n"
 	"Marks player in purple on your radar.";
 
-local void Cmark(const char *params, Player *p,
-	const Target *target) {
+local void Cmark(const char *params, Player *p, const Target *target)
+{
 	kothmark *md;
 
 	md = (kothmark*)PPDATA(p, markey);
@@ -153,7 +155,7 @@ local void Cmark(const char *params, Player *p,
 		}
 
 #ifdef MARK_SELF_MESSAGE
-		if (strcmpi(p->name, name) == 0) {
+		if (strcasecmp(p->name, name) == 0) {
 			chat->SendMessage(p,MARK_SELF_MESSAGE);
 			return;
 		}
@@ -208,8 +210,8 @@ local helptext_t unmark_help =
 	"Syntax: /?unmark, ?unmark <player>\n"
 	"Removes mark on a player.";
 
-local void Cunmark(const char *params, Player *p,
-	const Target *target) {
+local void Cunmark(const char *params, Player *p, const Target *target)
+{
 	kothmark *md;
 
 	md = (kothmark*)PPDATA(p, markey);
@@ -274,8 +276,8 @@ local helptext_t destroy_help =
 	"Syntax: /?destroy\n"
 	"Simulates the player getting killed.";
 
-local void Cdestroy(const char *params, Player *p,
-	const Target *target) {
+local void Cdestroy(const char *params, Player *p, const Target *target)
+{
 
 	if (target->type == T_PLAYER)
 	{
@@ -339,8 +341,8 @@ local helptext_t bounty_help =
 	"Syntax: /?bounty <points>\n"
 	"Set a bounty on another player.";
 
-local void Cbounty(const char *params, Player *p,
-	const Target *target) {
+local void Cbounty(const char *params, Player *p, const Target *target)
+{
 	if (target->type != T_PLAYER || target->u.p == p)
 	{
 		chat->SendMessage(p,"Only valid target for ?bounty is another player.");

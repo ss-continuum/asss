@@ -107,7 +107,7 @@ OPT_CFLAGS = -O2 -fomit-frame-pointer -Wall -fpedantic -DNDEBUG
 endif
 
 CC = gcc -pipe
-STD_CFLAGS = -D_REENTRANT -D_GNU_SOURCE $(DASH_F_PIC)
+STD_CFLAGS = -I. -D_REENTRANT -D_GNU_SOURCE $(DASH_F_PIC)
 CFLAGS = $(STD_CFLAGS) $(DEBUG_CFLAGS) $(PROF_FLAGS) $(OPT_CFLAGS)
 LDFLAGS = $(DASH_PTHREAD) $(DASH_F_PIC) $(PROF_FLAGS)
 
@@ -119,7 +119,7 @@ BINARIES += dbtool$(EXE)
 endif
 
 # dynamic libraries to build
-DLS := core.so loggers.so game.so command.so external.so admin.so funky.so turf.so
+DLS := core.so loggers.so game.so command.so external.so admin.so funky.so
 ifndef no_bdb
 DLS += scoring.so
 endif
@@ -130,7 +130,7 @@ ifndef no_python
 DLS += pymod.so
 endif
 
-ALL_STUFF := $(BINARIES) $(DLS)
+ALL_STUFF = $(BINARIES) $(DLS)
 
 UTIL_OBJS = util.o pathutil.o protutil.o region.o rwlock.o app.o
 
@@ -174,16 +174,15 @@ admin.so: filetrans.o quickfix.o $(DL_UTIL_OBJS)
 database.so: mysql.o aliasdb.o $(DL_UTIL_OBJS)
 	$(CC) $(LDFLAGS) -shared -o $@ $^ $(MYSQL_LDFLAGS) -lz
 
-turf.so: turf_reward.o points_turf_reward.o turf_stats.o $(DL_UTIL_OBJS)
-
 pymod.so: pymod.o $(DL_UTIL_OBJS)
 	$(CC) $(LDFLAGS) -shared -o $@ $^ $(PYTHON_LDFLAGS)
 
+include */*.mk
+
 funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
 	fake.o autoturret.o chatnet.o md5.o auth_file.o ap_multipub.o sendfile.o \
-	record.o $(DL_UTIL_OBJS)
+	record.o $(EXTRA_FUNKY_OBJS) $(DL_UTIL_OBJS)
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -lz -lm
-
 
 
 sparse.inc: $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py
@@ -195,8 +194,8 @@ letters.inc: $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font
 cfghelp.inc: $(SCRIPTS)/extract-cfg-docs.py
 	cat *.c *.def | $(SCRIPTS)/extract-cfg-docs.py -c > $@
 
-py_constants.inc py_callbacks.inc py_interfaces.inc: $(SCRIPTS)/pymod-process.py *.h
-	cat *.h | $(SCRIPTS)/pymod-process.py
+py_constants.inc py_callbacks.inc py_interfaces.inc: $(SCRIPTS)/pymod-process.py *.h */*.h
+	cat *.h */*.h | $(SCRIPTS)/pymod-process.py
 
 
 # c files that need special options
@@ -217,15 +216,15 @@ install: $(ALL_STUFF)
 	install $(ALL_STUFF) $(ASSSHOME)/bin
 
 clean:
-	-rm -f asss$(EXE) dbtool$(EXE) *.o *.so *.inc core Makefile.deps
+	-rm -f asss$(EXE) dbtool$(EXE) *.o */*.o *.so */*.so *.inc core Makefile.deps
 
 
 .PHONY: clean install all
 
 
 Makefile.deps: sparse.inc letters.inc cfghelp.inc py_constants.inc \
-	py_callbacks.inc py_interfaces.inc # *.c *.h
-	-$(CC) $(STD_CFLAGS) $(DB_CFLAGS) $(MYSQL_CFLAGS) $(PYTHON_CFLAGS) -MM *.c > $@
+	py_callbacks.inc py_interfaces.inc # *.c */*.c *.h */*.h
+	-$(CC) $(STD_CFLAGS) $(DB_CFLAGS) $(MYSQL_CFLAGS) $(PYTHON_CFLAGS) -MM *.c */*.c > $@
 
 include Makefile.deps
 

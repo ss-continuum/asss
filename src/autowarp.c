@@ -1,4 +1,9 @@
 
+/* dist: public
+ * but it won't likely be very much use to anyone, since it's so ugly
+ * and hacked together.
+ */
+
 #include <stdlib.h>
 
 #include "asss.h"
@@ -17,8 +22,6 @@ local void Pppk(Player *, byte *, int);
 /* global data */
 local int adkey;
 local Imodman *mm;
-local Iplayerdata *pd;
-local Iconfig *cfg;
 local Inet *net;
 local Imapdata *mapdata;
 local Iarenaman *aman;
@@ -29,12 +32,10 @@ EXPORT int MM_autowarp(int action, Imodman *mm_, Arena *arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
-		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
-		if (!net || !cfg || !pd || !mapdata) return MM_FAIL;
+		if (!net || !mapdata || !aman) return MM_FAIL;
 
 		adkey = aman->AllocateArenaData(sizeof(struct adata));
 		if (adkey == -1) return MM_FAIL;
@@ -47,8 +48,6 @@ EXPORT int MM_autowarp(int action, Imodman *mm_, Arena *arena)
 	{
 		net->RemovePacket(C2S_POSITION, Pppk);
 		aman->FreeArenaData(adkey);
-		mm->ReleaseInterface(pd);
-		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(mapdata);
 		mm->ReleaseInterface(aman);
