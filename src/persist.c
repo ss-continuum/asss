@@ -19,12 +19,12 @@
 
 #ifdef DB_VERSION_MAJOR
 #if DB_VERSION_MAJOR < 4
-#error This version of bdb is too old.
+#error "This version of bdb is too old."
 #elif DB_VERSION_MAJOR > 5
-#warning Your version of bdb is too new. Things might not work right.
+#warning "Your version of bdb is too new. Things might not work right."
 #endif
 #else
-#error This version of bdb is too old.
+#error "This version of bdb is too old."
 #endif
 
 #include "asss.h"
