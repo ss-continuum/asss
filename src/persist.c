@@ -93,7 +93,7 @@ int MM_persist(int action, Imodman *_mm, int arena)
 		mm->RegInterest(I_ARENAMAN, &aman);
 		mm->RegInterest(I_MAINLOOP, &ml);
 
-		arenas = aman->data;
+		arenas = aman->arenas;
 
 		mm->RegCallback(CALLBACK_ARENAACTION, ScoreAA, ALLARENAS);
 
@@ -191,10 +191,12 @@ local void DoPut(int pid, int arena)
 	val.size = size;
 
 	if (!db)
-		log->Log(LOG_ERROR, "persist: Database not open for arena %i", arena);
+		log->Log(L_ERROR, "<persist> {%s} Database not open when we need it",
+				(arena == PERSIST_GLOBAL) ? "<global>" : arenas[arena].name);
 	else /* do it! */ 
 		if (db->put(db, &key, &val, 0) == -1)
-			log->Log(LOG_ERROR, "persist: Error entering key in database");
+			log->Log(L_ERROR, "<persist> {%s} Error entering key in database",
+				(arena == PERSIST_GLOBAL) ? "<global>" : arenas[arena].name);
 }
 
 
@@ -332,11 +334,10 @@ void ScoreAA(int arena, int action)
 		if (databases[arena])
 		{
 			DB *db = databases[arena];
-			log->Log(LOG_ERROR, "persist: Score database already exists for new arena '%s'", arenas[arena].name);
+			log->Log(L_ERROR, "<persist> {%s} Score database already exists for new arena", arenas[arena].name);
 			db->close(db);
 		}
 
-		log->Log(LOG_DEBUG, "Opening db '%s'", fname);
 		db = OpenDB(fname);
 
 		if (!db)
@@ -344,11 +345,10 @@ void ScoreAA(int arena, int action)
 			/* this db doesn't exist, try default */
 			/* sprintf(fname, template, "default"); */
 			astrncpy(fname, "defaultarena/scores.db", PATH_MAX);
-			log->Log(LOG_DEBUG, "Opening db '%s'", fname);
 			db = OpenDB(fname);
 
 			if (!db)
-				log->Log(LOG_ERROR, "persist: Error opening scores database '%s'", fname);
+				log->Log(L_ERROR, "<persist> Error opening scores database '%s'", fname);
 		}
 
 		/* enter in db array */
@@ -365,12 +365,11 @@ void ScoreAA(int arena, int action)
 
 		if (db)
 		{
-			log->Log(LOG_DEBUG, "Closing db");
 			db->close(db);
 		}
 		else
 		{
-			log->Log(LOG_ERROR, "persist: Score database doesn't exist for closing arena '%s'", arenas[arena].name);
+			log->Log(L_ERROR, "<persist> {%s} Score database doesn't exist for closing arena", arenas[arena].name);
 		}
 
 		databases[arena] = NULL;

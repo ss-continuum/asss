@@ -9,7 +9,7 @@ struct MapFilename
 {
     i8 type;
     char filename[16];
-    i32 checksum;
+    u32 checksum;
 };
 
 #endif

@@ -166,7 +166,7 @@ void ProcessLoginQueue()
 				/* check if the player's arena is ready.
 				 * LOCK: we don't grab the arena status lock because it
 				 * doesn't matter if we miss it this time around */
-				if (aman->data[player->arena].status == ARENA_RUNNING)
+				if (aman->arenas[player->arena].status == ARENA_RUNNING)
 					player->status = S_DO_FREQ_AND_ARENA_SYNC;
 
 				/* check whenloggedin. this is used to move players to
@@ -178,7 +178,7 @@ void ProcessLoginQueue()
 				continue;
 
 			default:
-				log->Log(LOG_ERROR,"Internal error: unknown player status!");
+				log->Log(L_ERROR,"<core> [pid=%d] Internal error: unknown player status %d", pid, oldstatus);
 				break;
 		}
 		player->status = ns; /* set it */
@@ -188,8 +188,6 @@ void ProcessLoginQueue()
 		 * finally perform the actual action */
 		pd->UnlockStatus();
 		pd->LockPlayer(pid);
-
-		/*log->Log(LOG_DEBUG,"Processing status %i for pid %i",oldstatus,pid);*/
 
 		switch (oldstatus)
 		{
@@ -208,7 +206,7 @@ void ProcessLoginQueue()
 
 			case S_SEND_LOGIN_RESPONSE:
 				SendLoginResponse(pid);
-				log->Log(LOG_INFO, "core: Player logged on (%s)", player->name);
+				log->Log(L_INFO, "<core> [%s] Player logged in", player->name);
 				break;
 
 			case S_DO_FREQ_AND_ARENA_SYNC:
@@ -255,9 +253,9 @@ void ProcessLoginQueue()
 void PLogin(int pid, byte *p, int l)
 {
 	if (l != sizeof(struct LoginPacket))
-		log->Log(LOG_BADDATA,"Bad login packet length (%i)",pid);
+		log->Log(L_MALICIOUS,"<core> [pid=%d] Bad login packet length",pid);
 	else if (players[pid].status != S_CONNECTED)
-		log->Log(LOG_BADDATA,"Login request in wrong stage: %i (%i)", players[pid].status, pid);
+		log->Log(L_MALICIOUS,"<core> [pid=%d] Login request from wrong stage: %d", pid, players[pid].status);
 	else
 	{
 		memcpy(bigloginpkt + pid, p, sizeof(struct LoginPacket));
@@ -284,7 +282,7 @@ void AuthDone(int pid, AuthData *auth)
 
 	if (player->status != S_WAIT_AUTH)
 	{
-		log->Log(LOG_BADDATA, "AuthDone called from wrong stage: %i (%i)", player->status, pid);
+		log->Log(L_WARN, "<core> [pid=%d] AuthDone called from wrong stage: %d", pid, player->status);
 		return;
 	}
 
@@ -308,7 +306,7 @@ void GSyncDone(int pid)
 {
 	pd->LockStatus();
 	if (players[pid].status != S_WAIT_GLOBAL_SYNC)
-		log->Log(LOG_BADDATA, "GSyncDone called from wrong stage: %i (%i)", players[pid].status, pid);
+		log->Log(L_WARN, "<core> GSyncDone called from wrong stage: %d", pid, players[pid].status);
 	else
 		players[pid].status = S_DO_GLOBAL_CALLBACKS;
 	pd->UnlockStatus();
@@ -319,7 +317,7 @@ void ASyncDone(int pid)
 {
 	pd->LockStatus();
 	if (players[pid].status != S_WAIT_ARENA_SYNC)
-		log->Log(LOG_BADDATA, "ASyncDone called from wrong stage: %i (%i)", players[pid].status, pid);
+		log->Log(L_WARN, "<core> ASyncDone called from wrong stage: %d", pid, players[pid].status);
 	else
 		players[pid].status = S_DO_ARENA_CALLBACKS;
 	pd->UnlockStatus();

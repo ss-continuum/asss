@@ -14,7 +14,7 @@ typedef struct LogLine
 } LogLine;
 
 
-local void Log(int, char *, ...);
+local void Log(char, char *, ...);
 local void * LoggingThread(void *);
 
 
@@ -69,7 +69,7 @@ void * LoggingThread(void *dummy)
 }
 
 
-void Log(int level, char *format, ...)
+void Log(char level, char *format, ...)
 {
 	LogLine *ll;
 	int len;

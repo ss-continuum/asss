@@ -56,7 +56,7 @@ int MM_scheme(int action, Imodman *_mm, int arena)
 		if (!cmd || !net || !cfg || !aman) return MM_FAIL;
 
 		players = pd->players;
-		arenas = aman->data;
+		arenas = aman->arenas;
 
 		schemesock = ConnectToSchemeServer();
 		if (schemesock == -1) return MM_FAIL;
@@ -124,7 +124,6 @@ void * SchemeThread(void *dummy)
 		eval = MPTryRemove(&toscm);
 		if (eval)
 		{
-			/* log->Log(LOG_DEBUG, "Sending string to eval: %s", eval->string); */
 			size = sizeof(struct data_a2e_evalstring) + strlen(eval->string);
 			write_message(schemesock, eval, size);
 			afree(eval);
@@ -167,7 +166,7 @@ void * SchemeThread(void *dummy)
 
 						if (!testbuf)
 						{	/* failed, eat data */
-							log->Log(LOG_ERROR, "realloc failed in SchemeThread, cannot process data");
+							log->Log(L_ERROR, "<scheme> realloc failed in SchemeThread, cannot process data");
 							while (size > bufroom)
 							{
 								read_full(schemesock, buf, bufroom);
@@ -211,7 +210,6 @@ void SendPlayerData(int pid)
 
 int ProcessMessage(void *data, int size)
 {
-	/* log->Log(LOG_DEBUG, "Processing scheme message: %i (%i bytes)", *(int*)data, size); */
 	switch(*(int*)data)
 	{
 		case E2A_NULL:

@@ -113,10 +113,22 @@ local int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashTa
 			{
 				buf += 7;
 				while (*buf == ' ' || *buf == '\t') buf++;
+				/* first try straight filename */
 				if (ProcessConfigFile(thetable, thestrings, defines, buf) == MM_FAIL)
 				{
-					if (log) log->Log(LOG_ERROR, "Cannot find #included file '%s'", buf);
-					/* return MM_FAIL; let's not abort on #include error */ 
+					/* if not, try relative to current dir */
+					char *p = alloca(strlen(buf) + strlen(fname) + 1);
+					strcpy(p, fname);
+					t = strrchr(p, '/');
+					if (t)
+					{
+						t++; /* move past '/' */
+						strcpy(t, buf);
+						if (ProcessConfigFile(thetable, thestrings, defines, p) == MM_FAIL)
+							if (log) log->Log(L_WARN, "<config> Cannot find #included file '%s'", buf);
+					}
+					/* else, the original path had no /, so we've tried
+					 * the resulting filename already */
 				}
 			}
 			else if (!strncmp(buf, "define", 6))
@@ -152,7 +164,7 @@ local int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashTa
 #endif
 			else
 			{
-				if (log) log->Log(LOG_ERROR, "Unexpected configuration directive '%s'", buf);
+				if (log) log->Log(L_WARN, "<config> Unexpected configuration directive '%s'", buf);
 			}
 		}
 		else if (thespot && !(*buf == '/' || *buf == ';' || *buf == '}'))

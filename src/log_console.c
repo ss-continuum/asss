@@ -4,7 +4,7 @@
 #include "asss.h"
 
 
-local void LogConsole(int, char *);
+local void LogConsole(char, char *);
 
 
 int MM_log_console(int action, Imodman *mm, int arena)
@@ -23,7 +23,7 @@ int MM_log_console(int action, Imodman *mm, int arena)
 }
 
 
-void LogConsole(int lev, char *s)
+void LogConsole(char lev, char *s)
 {
 	puts(s);
 }

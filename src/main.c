@@ -68,11 +68,11 @@ int main(int argc, char *argv[])
 	mm->RegInterest(I_LOGMAN, &log);
 	mm->RegInterest(I_MAINLOOP, &ml);
 
-	log->Log(LOG_DEBUG,"Entering main loop");
+	log->Log(L_DRIVEL,"<main> Entering main loop");
 
 	ml->RunLoop();
 
-	log->Log(LOG_DEBUG,"Exiting main loop");
+	log->Log(L_DRIVEL,"<main> Exiting main loop");
 
 	mm->UnregInterest(I_LOGMAN, &log);
 	mm->UnregInterest(I_MAINLOOP, &ml);

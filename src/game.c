@@ -79,7 +79,7 @@ int MM_game(int action, Imodman *mm_, int arena)
 		if (!net || !cfg || !log || !aman) return MM_FAIL;
 
 		players = pd->players;
-		arenas = aman->data;
+		arenas = aman->arenas;
 
 		cfg_bulletpix = cfg->GetInt(GLOBAL, "Net", "BulletPixels", 1500);
 		cfg_wpnpix = cfg->GetInt(GLOBAL, "Net", "WeaponPixels", 2000);
@@ -169,6 +169,8 @@ void Pppk(int pid, byte *p2, int n)
 	if (p->weapon.type > 0) sendwpn = 1;
 	/* if the bounty is over 255 */
 	if (p->bounty & 0xFF00) sendwpn = 1;
+	/* if the pid is over 255 */
+	if (pid & 0xFF00) sendwpn = 1;
 
 	if (sendwpn)
 	{
@@ -279,8 +281,10 @@ void PSetShip(int pid, byte *p, int n)
 
 	if (/* ship < WARBIRD || */ ship > SPEC)
 	{
-		log->Log(LOG_BADDATA, "Bad ship number: %i (%s)", ship,
-				players[pid].name);
+		log->Log(L_MALICIOUS, "<game> {%s} [%s] Bad ship number: %d",
+				arenas[arena].name,
+				players[pid].name,
+				ship);
 		return;
 	}
 
@@ -293,7 +297,8 @@ void PSetShip(int pid, byte *p, int n)
 		players[pid].shiptype = ship;
 		players[pid].freq = to.freq;
 		net->SendToArena(arena, -1, (byte*)&to, 6, NET_RELIABLE);
-		log->Log(LOG_USELESSINFO, "game: '%s' changed ship to %d",
+		log->Log(L_DRIVEL, "<game> {%s} [%s] Changed ship to %d",
+				arenas[arena].name,
 				players[pid].name,
 				ship);
 	}
@@ -331,6 +336,8 @@ void PDie(int pid, byte *p, int n)
 	int arena = players[pid].arena, reldeaths;
 
 	if (arena < 0) return;
+	if (killer < 0 || killer >= MAXPLAYERS) return;
+	if (players[killer].status != S_PLAYING) return;
 
 	kp.unknown = 0;
 	kp.killer = killer;
@@ -342,11 +349,12 @@ void PDie(int pid, byte *p, int n)
 			"Misc", "ReliableKills", 1);
 	net->SendToArena(arena, pid, (byte*)&kp, sizeof(kp), NET_RELIABLE * reldeaths);
 
-	log->Log(LOG_INFO, "game: '%s(%d:%d)' killed '%s'",
+	log->Log(L_DRIVEL, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d)",
+			arenas[arena].name,
 			players[pid].name,
+			players[killer].name,
 			bty,
-			flags,
-			players[killer].name);
+			flags);
 
 	/* call callbacks */
 	{

@@ -48,7 +48,7 @@ int MM_chat(int action, Imodman *mm_, int arena)
 		if (!net || !cfg || !aman) return MM_FAIL;
 
 		players = pd->players;
-		arenas = aman->data;
+		arenas = aman->arenas;
 
 		cfg_msgrel = cfg->GetInt(GLOBAL, "Chat", "MessageReliable", 1);
 		net->AddPacket(C2S_CHAT, PChat);
@@ -95,7 +95,7 @@ void PChat(int pid, byte *p, int len)
 	switch (from->type)
 	{
 		case MSG_ARENA:
-			log->Log(LOG_BADDATA,"Recieved arena message (%s) (%s)",
+			log->Log(L_MALICIOUS, "<chat> {%s} [%s] Recieved arena message",
 				arenas[arena].name, players[pid].name);
 			break;
 
@@ -105,13 +105,11 @@ void PChat(int pid, byte *p, int len)
 		case MSG_PUB:
 			if (from->text[0] == CMD_CHAR_1 || from->text[0] == CMD_CHAR_2)
 			{
-/*				log->Log(LOG_DEBUG,"Command (%s:<arena>) %s", */
-/*						players[pid].name, from->text+1); */
 				if (cmd) cmd->Command(from->text+1, pid, TARGET_ARENA);
 			}
 			else if (from->text[0] == MOD_CHAT_CHAR)
 			{
-				log->Log(LOG_DEBUG,"Mod chat: (%s) %s> %s",
+				log->Log(L_DRIVEL, "<chat> {%s} [%s] Mod chat: %s",
 					arenas[arena].name, players[pid].name, from->text+1);
 				to->type = MSG_SYSOPWARNING;
 				sprintf(to->text, "%s> %s", players[pid].name, from->text+1);
@@ -128,7 +126,7 @@ void PChat(int pid, byte *p, int len)
 			}
 			else /* normal pub message */
 			{
-				log->Log(LOG_DEBUG,"Pub message: (%s) %s> %s",
+				log->Log(L_DRIVEL,"<chat> {%s} [%s] Pub message: %s",
 					arenas[arena].name, players[pid].name, from->text);
 				net->SendToArena(arena, pid, (byte*)to, len, cfg_msgrel);
 			}
@@ -141,14 +139,12 @@ void PChat(int pid, byte *p, int len)
 		case MSG_FREQ:
 			if (from->text[0] == CMD_CHAR_1 || from->text[0] == CMD_CHAR_2)
 			{
-/*				log->Log(LOG_DEBUG,"Command (%s:<freq>) %s", */
-/*						players[pid].name, from->text+1); */
 				if (cmd) cmd->Command(from->text+1, pid, TARGET_FREQ);
 			}
 			else
 			{
-				log->Log(LOG_DEBUG,"Freq message: (%s:%i) %s> %s",
-					arenas[arena].name, freq, players[pid].name, from->text);
+				log->Log(L_DRIVEL,"<chat> {%s} [%s] (freq=%i) Freq message: %s",
+					arenas[arena].name, players[pid].name, freq, from->text);
 				pd->LockStatus();
 				for (i = 0; i < MAXPLAYERS; i++)
 					if (	players[i].freq == freq &&
@@ -164,19 +160,17 @@ void PChat(int pid, byte *p, int len)
 		case MSG_PRIV:
 			if (from->text[0] == CMD_CHAR_1 || from->text[0] == CMD_CHAR_2)
 			{
-/*				log->Log(LOG_DEBUG,"Command (%s:%s) %s", */
-/*						players[pid].name, players[from->pid].name, from->text+1); */
 				if (cmd) cmd->Command(from->text+1, pid, from->pid);
 			}
-			else
+			else if (from->pid >= 0 && from->pid < MAXPLAYERS)
 			{
-				log->Log(LOG_DEBUG,"Priv message: (%s) %s:%s> %s",
+				log->Log(L_DRIVEL,"<chat> {%s} [%s] to [%s] Priv message: %s",
 					arenas[arena].name, players[pid].name,
 					players[from->pid].name, from->text);
 				net->SendToOne(from->pid, (byte*)to, len, cfg_msgrel);
 			}
 			break;
-				
+
 		case MSG_INTERARENAPRIV:
 			/* FIXME
 			 * billcore handles these, but they need to be handled
@@ -184,12 +178,12 @@ void PChat(int pid, byte *p, int len)
 			break;
 
 		case MSG_SYSOPWARNING:
-			log->Log(LOG_BADDATA,"Recieved sysop message (%s) (%s)",
+			log->Log(L_MALICIOUS,"<chat> {%s} [%s] Recieved sysop message",
 					arenas[arena].name, players[pid].name);
 			break;
 
 		case MSG_CHAT:
-			log->Log(LOG_DEBUG,"Chat message: (%s) %s> %s",
+			log->Log(L_DRIVEL,"<chat> {%s} [%s] Chat message: %s",
 				arenas[arena].name, players[pid].name, from->text);
 			/* the billcore module picks these up, so nothing more here */
 			break;

@@ -1,10 +1,15 @@
 
 #include <stdio.h>
+#include <time.h>
 
 #include "asss.h"
 
 
-local void LogFile(int, char *);
+#define TIMEFORMAT "%b %d %H:%M:%S"
+#define TIMEFORMATLEN 20
+
+
+local void LogFile(char, char *);
 local void FlushLog();
 local void ReopenLog();
 
@@ -45,14 +50,18 @@ int MM_log_file(int action, Imodman *mm, int arenas)
 }
 
 
-void LogFile(int lev, char *s)
+void LogFile(char lev, char *s)
 {
 	pthread_mutex_lock(&logmtx);
 
 	if (logfile)
 	{
-		fputs(s, logfile);
-		fputc('\n', logfile);
+		time_t t1;
+		char t3[TIMEFORMATLEN];
+
+		time(&t1);
+		strftime(t3, TIMEFORMATLEN, TIMEFORMAT, localtime(&t1));
+		fprintf(logfile, "%s %c %s\n", t3, lev, s);
 	}
 
 	pthread_mutex_unlock(&logmtx);

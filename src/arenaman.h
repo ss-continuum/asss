@@ -50,7 +50,7 @@ typedef struct Iarenaman
 	void (*SendArenaResponse)(int pid);
 	void (*LockStatus)();
 	void (*UnlockStatus)();
-	ArenaData *data;
+	ArenaData *arenas;
 } Iarenaman;
 
 

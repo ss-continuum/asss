@@ -14,7 +14,7 @@
 
 typedef struct MapData
 {
-	i32 mapchecksum;
+	u32 mapchecksum;
 	char mapfname[20];
 	byte *cmpmap;
 	int cmpmaplen;
@@ -34,9 +34,9 @@ local int CompressMap(int);
 /* newstxt management */
 local int RefreshNewsTxt(void *);
 
-local i32 GetMapChecksum(int arena);
+local u32 GetMapChecksum(int arena);
 local char * GetMapFilename(int arena);
-local i32 GetNewsChecksum();
+local u32 GetNewsChecksum();
 
 
 /* GLOBALS */
@@ -56,7 +56,7 @@ local ArenaData *arenas;
 local MapData mapdata[MAXARENA];
 
 local char *cfg_newsfile;
-local i32 newschecksum, cmpnewssize;
+local u32 newschecksum, cmpnewssize;
 local byte *cmpnews;
 local time_t newstime;
 
@@ -82,7 +82,7 @@ int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 
 		if (!net || !cfg || !log || !ml || !aman) return MM_FAIL;
 
-		arenas = aman->data;
+		arenas = aman->arenas;
 
 		/* set up callbacks */
 		net->AddPacket(C2S_MAPREQUEST, PMapRequest);
@@ -124,13 +124,13 @@ int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 }
 
 
-i32 GetMapChecksum(int arena)
+u32 GetMapChecksum(int arena)
 {
 	return mapdata[arena].mapchecksum;
 }
 
 
-i32 GetNewsChecksum()
+u32 GetNewsChecksum()
 {
 	if (!cmpnews)
 		RefreshNewsTxt(0);
@@ -181,7 +181,7 @@ int CompressMap(int arena)
 	mapfd = open(fname,O_RDONLY);
 	if (mapfd == -1)
 	{
-		log->Log(LOG_ERROR,"Map file '%s' not found in current directory", fname);
+		log->Log(L_WARN,"<mapnewsdl> Map file '%s' not found in current directory", fname);
 		return MM_FAIL;
 	}
 
@@ -194,7 +194,7 @@ int CompressMap(int arena)
 	map = mmap(NULL, fsize, PROT_READ, MAP_SHARED, mapfd, 0);
 	if (map == (void*)-1)
 	{
-		log->Log(LOG_ERROR,"mmap failed in CreateArena");
+		log->Log(L_ERROR,"<mapnewsdl> mmap failed for map '%s'", fname);
 		return MM_FAIL;
 	}
 
@@ -215,7 +215,7 @@ int CompressMap(int arena)
 	mapdata[arena].cmpmap = realloc(cmap, csize);
 	if (mapdata[arena].cmpmap == NULL)
 	{
-		log->Log(LOG_ERROR,"realloc failed in CreateArena");
+		log->Log(L_ERROR,"<mapnewsdl> realloc failed in CompressMap");
 		free(cmap);
 		return MM_FAIL;
 	}
@@ -233,23 +233,29 @@ void PMapRequest(int pid, byte *p, int q)
 	int arena = players[pid].arena;
 	if (p[0] == C2S_MAPREQUEST)
 	{
-		log->Log(LOG_DEBUG,"mapnewsdl: Sending map (%s)", players[pid].name);
-		if (arena < 0)
-			log->Log(LOG_BADDATA, "Map request before entering arena (%s)",
+		if (arena < 0 || arena >= MAXARENA)
+			log->Log(L_MALICIOUS, "<mapnewsdl> [%s] Map request before entering arena",
 					players[pid].name);
 		else if (!mapdata[arena].cmpmap)
-			log->Log(LOG_BADDATA, "Map request, but compressed map doesn't exist!");
+			log->Log(L_WARN, "<mapnewsdl> {%s} Map request, but compressed map doesn't exist", arenas[arena].name);
 		else
+		{
 			net->SendToOne(pid, mapdata[arena].cmpmap,
-				mapdata[arena].cmpmaplen, NET_RELIABLE | NET_PRESIZE);
+					mapdata[arena].cmpmaplen, NET_RELIABLE | NET_PRESIZE);
+			log->Log(L_DRIVEL,"<mapnewsdl> {%s} [%s] Sending compressed map",
+					arenas[arena].name,
+					players[pid].name);
+		}
 	}
 	else if (p[0] == C2S_NEWSREQUEST)
 	{
-		log->Log(LOG_DEBUG,"mapnewsdl: Sending news (%s)", players[pid].name);
 		if (cmpnews)
+		{
 			net->SendToOne(pid, cmpnews, cmpnewssize, NET_RELIABLE | NET_PRESIZE);
+			log->Log(L_DRIVEL,"<mapnewsdl> [%s] Sending news.txt", players[pid].name);
+		}
 		else
-			log->Log(LOG_ERROR, "News request, but compressed news doesn't exist!");
+			log->Log(L_WARN, "<mapnewsdl> News request, but compressed news doesn't exist");
 	}
 }
 
@@ -265,7 +271,7 @@ int RefreshNewsTxt(void *dummy)
 	fd = open(cfg_newsfile, O_RDONLY);
     if (fd == -1)
     {
-        log->Log(LOG_ERROR,"News file '%s' not found in current directory", cfg_newsfile);
+        log->Log(L_WARN,"<mapnewsdl> News file '%s' not found in current directory", cfg_newsfile);
 		return 1; /* let's get called again in case the file's been replaced */
     }
 
@@ -282,7 +288,7 @@ int RefreshNewsTxt(void *dummy)
 		news = mmap(NULL, fsize, PROT_READ, MAP_SHARED, fd, 0);
 		if (news == (void*)-1)
 		{
-			log->Log(LOG_ERROR,"mmap failed in RefreshNewsTxt");
+			log->Log(L_ERROR,"<mapnewsdl> mmap failed in RefreshNewsTxt");
 			close(fd);
 			return 1;
 		}
@@ -304,7 +310,7 @@ int RefreshNewsTxt(void *dummy)
 		cnews = realloc(cnews, csize+17);
 		if (!cnews)
 		{
-			log->Log(LOG_ERROR,"realloc failed in RefreshNewsTxt");
+			log->Log(L_ERROR,"<mapnewsdl> realloc failed in RefreshNewsTxt");
 			close(fd);
 			return 1;
 		}
@@ -314,7 +320,7 @@ int RefreshNewsTxt(void *dummy)
 
 		if (cmpnews) afree(cmpnews);
 		cmpnews = cnews;
-		log->Log(LOG_USELESSINFO,"News file '%s' reread", cfg_newsfile);
+		log->Log(L_DRIVEL,"<mapnewsdl> News file '%s' reread", cfg_newsfile);
 	}
 	close(fd);
 	return 1;

@@ -53,7 +53,7 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		if (!cmd || !net || !cfg || !aman) return MM_FAIL;
 		
 		players = pd->players;
-		arenas = aman->data;
+		arenas = aman->arenas;
 
 		configops = cfg->OpenConfigFile(NULL, "oplevels");
 
@@ -140,7 +140,7 @@ void Clogin(const char *params, int pid, int target)
 	{
 		players[pid].oplevel = cfg->GetInt(
 				configops, "Passwords", params, 0);
-		log->Log(LOG_INFO, "Player '%s' got oplevel %i with a password",
+		log->Log(L_INFO, "<command> [%s] 'login' Player got oplevel %i with a password",
 				players[pid].name, players[pid].oplevel);
 	}
 	else
@@ -159,7 +159,7 @@ void Clogin(const char *params, int pid, int target)
 				where = "arena";
 			}
 		}
-		log->Log(LOG_INFO, "Player '%s' got oplevel %i from the %s staff list",
+		log->Log(L_INFO, "<command> [%s] 'login' Player got oplevel %i from the %s staff list",
 				players[pid].name, players[pid].oplevel, where);
 	}
 	chat->SendMessage(pid, "Your current oplevel is %i", players[pid].oplevel);
@@ -178,7 +178,7 @@ void Csetop(const char *params, int pid, int target)
 	chat->SendMessage(pid, "You have assigned oplevel %i to %s", op, players[target].name);
 	chat->SendMessage(target, "Your have been given oplevel %i by %s",
 			op, players[pid].name);
-	log->Log(LOG_INFO, "Player '%s' assigned oplevel %i to '%s'",
+	log->Log(L_INFO, "<command> [%s] to [%s] 'setop' Player assigned oplevel %i",
 			players[pid].name, op, players[target].name);
 }
 

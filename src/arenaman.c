@@ -195,8 +195,6 @@ void ProcessArenaQueue()
 
 		UNLOCK_STATUS();
 
-		/*log->Log(LOG_DEBUG,"Processing stage %i for arena %i", nextstatus, i);*/
-
 		switch (nextstatus)
 		{
 			case ARENA_DO_LOAD_CONFIG:
@@ -248,7 +246,7 @@ int CreateArena(char *name)
 
 	if (i == MAXARENA)
 	{
-		log->Log(LOG_IMPORTANT, "There are too many arenas, cannot create a new arena.");
+		log->Log(L_WARN, "<arenaman> Cannot create a new arena: too many arenas");
 		UNLOCK_STATUS();
 		return -1;
 	}
@@ -273,8 +271,8 @@ void SendArenaResponse(int pid)
 
 	arena = p->arena;
 
-	log->Log(LOG_USELESSINFO, "Player '%s' entering arena '%s'",
-				p->name, arenas[arena].name);
+	log->Log(L_INFO, "<arenaman> {%s} [%s] entering arena",
+				arenas[arena].name, p->name);
 
 	/* send whoami packet */
 	whoami.d1 = pid;
@@ -305,8 +303,8 @@ void SendArenaResponse(int pid)
 
 	/* send mapfilename */
 	mapfname.type = S2C_MAPFILENAME;
-	mapfname.checksum = map->GetMapChecksum(arena);
 	astrncpy(mapfname.filename, map->GetMapFilename(arena), 16);
+	mapfname.checksum = map->GetMapChecksum(arena);
 	net->SendToOne(pid, (byte*)&mapfname, sizeof(struct MapFilename), NET_RELIABLE);
 
 	/* send brick clear and finisher */
@@ -316,64 +314,6 @@ void SendArenaResponse(int pid)
 	net->SendToOne(pid, (byte*)&mapfname, 1, NET_RELIABLE);
 }
 
-#if 0
-
-unused. all responses will be sent by the function above
-
-void SendMultipleArenaResponses(int arena)
-{
-	int pidset[MAXPLAYERS], pidc = 0, i;
-	struct SimplePacket whoami = { S2C_WHOAMI, 0 };
-	struct MapFilename mapfname;
-
-	/* enumerate all the pids first */
-	for (i = 0; i < MAXPLAYERS; i++)
-		if (   players[i].status == S_CONNECTED
-		    && players[i].arena == arena)
-			pidset[pidc++] = i;
-	pidset[pidc] = -1;
-
-	/* pass 1: whoami, freq, settings */
-	for (i = 0; i < pidc; i++)
-	{
-		int pid;
-		
-		pid = pidset[i];
-		/* log this banal event */
-		log->Log(LOG_USELESSINFO, "Player '%s' entering arena '%s' (M)",
-				players[pid].name, arenas[arena].name);
-		/* send whoami */
-		whoami.d1 = pid;
-		net->SendToOne(pid, (byte*)&whoami, 3, NET_RELIABLE);
-		/* assign freq */
-		players[pid].freq = afreq->AssignFreq(pid, BADFREQ, players[pid].shiptype);
-		/* send settings */
-		/* FIxME: see above */
-	}
-
-	/* pass 2: player data */
-	for (i = 0; i < pidc; i++)
-	{
-		/* send player lists */
-		net->SendToSet(pidset, (byte*)(players+pidset[i]), 64, NET_RELIABLE);
-	}
-
-	/* remainder:
-	 *   mapfilename   */
-	mapfname.type = S2C_MAPFILENAME;
-	mapfname.checksum = map->GetMapChecksum(arena);
-	astrncpy(mapfname.filename, map->GetMapFilename(arena), 16);
-	net->SendToSet(pidset, (byte*)&mapfname, sizeof(struct MapFilename), NET_RELIABLE);
-
-	/*    brick clear and finisher*/
-	mapfname.type = S2C_BRICK;
-	net->SendToSet(pidset, (byte*)&mapfname, 1, NET_RELIABLE);
-	mapfname.type = S2C_ENTERINGARENA;
-	net->SendToSet(pidset, (byte*)&mapfname, 1, NET_RELIABLE);
-	
-}
-
-#endif
 
 int FindArena(char *name, int min, int max)
 {
@@ -401,13 +341,13 @@ void PArena(int pid, byte *p, int l)
 	/* check for bad packets */
 	if (l != sizeof(struct GoArenaPacket))
 	{
-		log->Log(LOG_BADDATA, "Wrong size arena packet recvd (%s)", players[pid].name);
+		log->Log(L_MALICIOUS, "<arenaman> [%s] Wrong size arena packet recvd", players[pid].name);
 		return;
 	}
 
 	if (players[pid].arena != -1)
 	{
-		log->Log(LOG_BADDATA, "Player '%s' sent arena request but is already in an arena", players[pid].name);
+		log->Log(L_MALICIOUS, "<arenaman> [%s] Recvd arena request from player already in an arena", players[pid].name);
 		return;
 	}
 
@@ -415,7 +355,7 @@ void PArena(int pid, byte *p, int l)
 
 	if (go->shiptype < 0 || go->shiptype > SPEC)
 	{
-		log->Log(LOG_BADDATA, "Bad shiptype in request (%s)", players[pid].name);
+		log->Log(L_MALICIOUS, "<arenaman> [%s] Bad shiptype in arena request", players[pid].name);
 		return;
 	}
 
@@ -436,7 +376,7 @@ void PArena(int pid, byte *p, int l)
 	}
 	else
 	{
-		log->Log(LOG_BADDATA, "Bad arenatype in request (%s)", players[pid].name);
+		log->Log(L_MALICIOUS, "<arenaman> [%s] Bad arenatype in arena request", players[pid].name);
 		return;
 	}
 
@@ -447,7 +387,7 @@ void PArena(int pid, byte *p, int l)
 
 	if (arena == -1)
 	{
-		log->Log(LOG_INFO, "Creating arena '%s'", name);
+		log->Log(L_INFO, "<arenaman> {%s} Creating arena", name);
 		arena = CreateArena(name);
 		if (arena == -1)
 		{
@@ -456,7 +396,7 @@ void PArena(int pid, byte *p, int l)
 			while (arenas[arena].status != ARENA_RUNNING && arena < MAXARENA) arena++;
 			if (arena == MAXARENA)
 			{
-				log->Log(LOG_ERROR, "Internal error: no running arenas but cannot create new one!");
+				log->Log(L_ERROR, "<arenaman> Internal error: no running arenas but cannot create new one");
 				UNLOCK_STATUS();
 				return;
 			}
@@ -501,8 +441,8 @@ void PLeaving(int pid, byte *p, int q)
 	pd->UnlockStatus();
 
 	net->SendToArena(arena, pid, (byte*)&pk, 3, NET_RELIABLE);
-	log->Log(LOG_USELESSINFO, "Player '%s' leaving arena '%s'",
-			players[pid].name, arenas[arena].name);
+	log->Log(L_INFO, "<arenaman> {%s} [%s] Player leaving arena",
+			arenas[arena].name, players[pid].name);
 }
 
 
@@ -522,7 +462,7 @@ int ReapArenas(void *q)
 						players[j].arena == i)
 					goto skip;
 
-			log->Log(LOG_USELESSINFO, "Arena '%s' (%i) being reaped",
+			log->Log(L_DRIVEL, "<arenaman> {%s} Arena being destroyed (id=%d)",
 					arenas[i].name, i);
 			/* set its status so that the arena processor will do
 			 * appropriate things */

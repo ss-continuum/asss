@@ -99,11 +99,11 @@ int LoadModule(char *filename)
 	}
 	else
 	{
-		if (log) log->Log(LOG_ERROR,"Bad module locator string");
+		if (log) log->Log(L_ERROR,"<module> Bad module locator string");
 		return MM_FAIL;
 	}
 
-	if (log) log->Log(LOG_DEBUG,"Loading module '%s' from '%s'", modname, filename);
+	if (log) log->Log(L_DRIVEL,"<module> Loading module '%s' from '%s'", modname, filename);
 
 
 	mod = amalloc(sizeof(ModuleData));
@@ -129,7 +129,7 @@ int LoadModule(char *filename)
 	mod->hand = dlopen(name, RTLD_NOW);
 	if (!mod->hand)
 	{
-		if (log) log->Log(LOG_ERROR,"LoadModule: error in dlopen");
+		if (log) log->Log(L_ERROR,"<module> LoadModule: error in dlopen");
 		goto die;
 	}
 
@@ -138,20 +138,20 @@ int LoadModule(char *filename)
 	mod->mm = dlsym(mod->hand, name);
 	if (!mod->mm)
 	{
-		if (log) log->Log(LOG_ERROR,"LoadModule: error in dlsym");
+		if (log) log->Log(L_ERROR,"<module> LoadModule: error in dlsym");
 		if (!mod->myself) dlclose(mod->hand);
 		goto die;
 	}
 
 	astrncpy(mod->name, modname, MAXNAME-2);
-	modname--; *modname = DELIM;
+	modname--; *modname = DELIM; modname++;
 
 	ret = mod->mm(MM_LOAD, &mmint, -1);
 
 	if (ret != MM_OK)
 	{
-		if (log) log->Log(LOG_ERROR,
-				"Error loading module string '%s'", filename);
+		if (log) log->Log(L_ERROR,
+				"<module> Error loading module '%s'", modname);
 		if (!mod->myself) dlclose(mod->hand);
 		goto die2;
 	}
@@ -171,9 +171,9 @@ void ReportFailedRequire(char *mod, char *req)
 {
 	Ilogman *log = ints[I_LOGMAN];
 	if (log)
-		log->Log(LOG_ERROR, "module: Module '%s' couldn't find interface for '%s'", mod, req);
+		log->Log(L_ERROR, "<module> Module '%s' couldn't find interface for '%s'", mod, req);
 	else
-		printf("module: Module '%s' couldn't find interface for '%s'", mod, req);
+		printf("<module> Module '%s' couldn't find interface for '%s'", mod, req);
 }
 
 
@@ -181,9 +181,6 @@ local void UnloadModuleByPtr(ModuleData *mod)
 {
 	if (mod)
 	{
-		printf("Unloading module '%s'\n", mod->name);
-	/*	if (ints[I_LOGMAN]) */
-	/*		((Ilogman*)ints[I_LOGMAN])->Log(LOG_DEBUG, "Unloading module %s", mod->name); */
 		if (mod->mm) (mod->mm)(MM_UNLOAD, &mmint, ALLARENAS);
 		if (mod->hand && !mod->myself) dlclose(mod->hand);
 		afree(mod);

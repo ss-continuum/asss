@@ -53,7 +53,7 @@ int MM_clientset(int action, Imodman *mm_, int arena)
 
 		if (!net || !cfg || !log || !aman) return MM_FAIL;
 
-		arenas = aman->data;
+		arenas = aman->arenas;
 
 		mm->RegCallback(CALLBACK_ARENAACTION, ActionFunc, ALLARENAS);
 

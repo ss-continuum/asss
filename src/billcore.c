@@ -152,7 +152,7 @@ int SendPing(void *dummy)
 	{	/* no communication yet, send initiation packet */
 		byte initiate[8] = { 0x00, 0x01, 0xDA, 0x8F, 0xFD, 0xFF, 0x01, 0x00 };
 		SendToBiller(initiate, 8, NET_UNRELIABLE);
-		log->Log(LOG_INFO, "Attempting to connect to billing server...");
+		log->Log(L_INFO, "<billcore> Attempting to connect to billing server");
 	}
 	else if (status == BNET_CONNECTED)
 	{	/* connection established, send ping */
@@ -172,7 +172,7 @@ void SendLogin(int pid, byte *p, int n)
 	};
 	char *t;
 
-	log->Log(LOG_INFO, "Billing server contacted, sending zone information");
+	log->Log(L_INFO, "<billcore> Billing server contacted, sending zone information");
 	t = cfg->GetStr(GLOBAL, "Billing", "ServerName");
 	if (t) astrncpy(to.name, t, 0x80);
 	t = cfg->GetStr(GLOBAL, "Billing", "Password");
@@ -278,7 +278,7 @@ void BMessage(int pid, byte *p, int len)
 		t = strchr(msg+1, ':');
 		if (!t)
 		{	/* no matching : */
-			log->Log(LOG_BADDATA, "Malformed remote private message from biller");
+			log->Log(L_MALICIOUS, "<billcore> Malformed remote private message from biller");
 		}
 		else
 		{
@@ -311,9 +311,10 @@ void BMessage(int pid, byte *p, int len)
 	{	/* ** or *szone message, send to all */
 		to->pktype = S2C_CHAT;
 		to->type = MSG_ARENA;
+		to->sound = 0;
 		strcpy(to->text, msg);
 		net->SendToAll((byte*)to, strlen(msg)+6, NET_RELIABLE);
-		log->Log(LOG_IMPORTANT, "Broadcast message from biller: %s", msg);
+		log->Log(L_WARN, "<billcore> Broadcast message from biller: '%s'", msg);
 	}
 }
 
@@ -365,8 +366,7 @@ void PChat(int pid, byte *p, int len)
 		t = strchr(from->text+1, ':');
 		if (from->text[0] != ':' || !t)
 		{
-			log->Log(LOG_BADDATA,"Malformed remote priv (%s) '%s'", players[pid].name,
-					from->text);
+			log->Log(L_MALICIOUS,"<billcore> [%s] Malformed remote private message '%s'", players[pid].name, from->text);
 		}
 		else
 		{
