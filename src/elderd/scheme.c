@@ -74,6 +74,7 @@ int MM_scheme(int action, Imodman *_mm)
 	{
 		cmd->RemoveCommand("scm", Cscm);
 
+		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_CHAT, &chat);
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_CMDMAN, &cmd);

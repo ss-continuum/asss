@@ -111,6 +111,7 @@ int MM_mapnewsdl(int action, Imodman *mm_)
 		afree(cmpnews);
 		ml->ClearTimer(RefreshNewsTxt);
 
+		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_CONFIG, &cfg);

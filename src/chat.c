@@ -58,6 +58,7 @@ int MM_chat(int action, Imodman *mm_)
 	{
 		mm->UnregInterface(I_CHAT, &_int);
 		net->RemovePacket(C2S_CHAT, PChat);
+		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_LOGMAN, &log);

@@ -16,6 +16,7 @@
 #include "encrypt.h"
 #include "billcore.h"
 #include "mapnewsdl.h"
+#include "clientset.h"
 
 /* utility functions that are linked in directly */
 #include "util.h"

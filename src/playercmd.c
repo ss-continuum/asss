@@ -66,6 +66,7 @@ int MM_playercmd(int action, Imodman *mm)
 		cmd->RemoveCommand("shutdown", Cshutdown);
 
 		cfg->CloseConfigFile(configops);
+		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_CHAT, &chat);
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_CMDMAN, &cmd);

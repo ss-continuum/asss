@@ -27,7 +27,8 @@ INTMODS = config.o    \
           encrypt1.o  \
           arenaman.o  \
           player.o    \
-          mapnewsdl.o
+          mapnewsdl.o \
+          clientset.o
 
 EXTMODS = loggers.so  \
           game.so     \

@@ -49,6 +49,7 @@ local Imodman *mm;
 local Ilogman *log;
 local Imapnewsdl *map;
 local Iassignfreq *afreq;
+local Iclientset *clientset;
 
 local PlayerData *players;
 
@@ -77,6 +78,7 @@ int MM_arenaman(int action, Imodman *mm_)
 		mm->RegInterest(I_MAINLOOP, &ml);
 		mm->RegInterest(I_MAPNEWSDL, &map);
 		mm->RegInterest(I_ASSIGNFREQ, &afreq);
+		mm->RegInterest(I_CLIENTSET, &clientset);
 
 		if (!net || !log || !ml) return MM_FAIL;
 
@@ -105,12 +107,14 @@ int MM_arenaman(int action, Imodman *mm_)
 		net->RemovePacket(C2S_LEAVING, PLeaving);
 		mm->UnregCallback(CALLBACK_MAINLOOP, ProcessArenaQueue);
 		ml->ClearTimer(ReapArenas);
+		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_MAINLOOP, &ml);
 		mm->UnregInterest(I_MAPNEWSDL, &map);
 		mm->UnregInterest(I_ASSIGNFREQ, &afreq);
+		mm->UnregInterest(I_CLIENTSET, &clientset);
 	}
 	else if (action == MM_DESCRIBE)
 	{
@@ -256,9 +260,7 @@ void SendArenaResponse(int pid)
 	net->SendToOne(pid, (byte*)&whoami, 3, NET_RELIABLE);
 
 	/* send settings */
-	/* net->SendToOne(pid, (byte*)aset->GetSettingData(arena),         FIXME
-	 *                   aset->GetSettingDataSize(), NET_RELIABLE);
-	 */
+	clientset->SendClientSettings(pid);
 
 	/* send player list */
 	/* note: the current player's status should be S_SEND_ARENA_RESPONSE

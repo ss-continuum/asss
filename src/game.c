@@ -108,6 +108,7 @@ int MM_game(int action, Imodman *mm_)
 		net->RemovePacket(C2S_DIE, PDie);
 		net->RemovePacket(C2S_GREEN, PGreen);
 		net->RemovePacket(C2S_ATTACHTO, PAttach);
+		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_NET, &net);

@@ -42,6 +42,7 @@ int MM_cmdman(int action, Imodman *mm)
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregInterface(I_CMDMAN, &_int);
+		mm->UnregInterest(I_PLAYERDATA, &pd);
 		HashFree(cmds);
 	}
 	else if (action == MM_DESCRIBE)

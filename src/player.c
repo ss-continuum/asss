@@ -43,6 +43,7 @@ int MM_playerdata(int action, Imodman *mm)
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregInterface(I_PLAYERDATA, &_myint);
+
 		/* destroy mutexes */
 		for (i = 0; i < MAXPLAYERS; i++)
 			pthread_mutex_destroy(playermtx + i);

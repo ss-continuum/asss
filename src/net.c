@@ -235,6 +235,7 @@ int MM_net(int action, Imodman *mm)
 	else if (action == MM_UNLOAD)
 	{
 		/* uninstall ourself */
+		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterface(I_NET, &_int);
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_LOGMAN, &log);

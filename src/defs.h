@@ -38,6 +38,7 @@
 #define I_AUTH          10
 #define I_BILLCORE      11
 #define I_MAPNEWSDL     12
+#define I_CLIENTSET     13
 #define I_ENCRYPTBASE   90
 /*#define I_FLAG */
 /*#define I_BALL */

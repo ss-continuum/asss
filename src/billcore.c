@@ -108,6 +108,7 @@ int MM_billcore(int action, Imodman *mm)
 		mm->UnregInterface(I_AUTH, &_iauth);
 		mm->UnregInterface(I_BILLCORE, &_ibillcore);
 
+		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_MAINLOOP, &ml);
 		mm->UnregInterest(I_LOGMAN, &log);
