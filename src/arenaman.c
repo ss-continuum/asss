@@ -7,6 +7,7 @@
 #include <stdlib.h>
 
 #include "asss.h"
+#include "rwlock.h"
 #include "clientset.h"
 #include "persist.h"
 
@@ -15,9 +16,10 @@
 
 /* macros */
 
-#define RDLOCK() pthread_rwlock_rdlock(&arenalock)
-#define WRLOCK() pthread_rwlock_wrlock(&arenalock)
-#define UNLOCK() pthread_rwlock_unlock(&arenalock)
+#define RDLOCK() rwl_readlock(&arenalock)
+#define WRLOCK() rwl_writelock(&arenalock)
+#define RDUNLOCK() rwl_readunlock(&arenalock)
+#define WRUNLOCK() rwl_writeunlock(&arenalock)
 
 /* let us use arenaman.h macros normally */
 #define aman (&myint)
@@ -37,7 +39,7 @@ typedef struct { short x, y; } spawnloc;
 local int spawnkey;
 
 /* the read-write lock for the global arena list */
-local pthread_rwlock_t arenalock;
+local rwlock_t arenalock;
 
 /* stuff to keep track of private per-arena memory */
 local int perarenaspace;
@@ -85,7 +87,7 @@ local void arena_sync_done(Arena *a)
 		a->status = ARENA_DO_DEINIT;
 	else
 		lm->LogA(L_WARN, "arenaman", a, "arena_sync_done called from wrong state");
-	UNLOCK();
+	WRUNLOCK();
 }
 
 
@@ -186,7 +188,7 @@ local int ProcessArenaStates(void *dummy)
 				break;
 		}
 	}
-	UNLOCK();
+	WRUNLOCK();
 
 	return TRUE;
 }
@@ -411,7 +413,7 @@ local int RecycleArena(Arena *a)
 
 	if (a->status != ARENA_RUNNING)
 	{
-		UNLOCK();
+		WRUNLOCK();
 		return MM_FAIL;
 	}
 
@@ -423,7 +425,7 @@ local int RecycleArena(Arena *a)
 		    !IS_CHAT(p))
 		{
 			pd->WriteUnlock();
-			UNLOCK();
+			WRUNLOCK();
 			lm->LogA(L_WARN, "arenaman", a, "can't recycle arena with fake players");
 			return MM_FAIL;
 		}
@@ -457,7 +459,7 @@ local int RecycleArena(Arena *a)
 	a->status = ARENA_CLOSING;
 	ad->resurrect = TRUE;
 
-	UNLOCK();
+	WRUNLOCK();
 
 	return MM_OK;
 }
@@ -546,7 +548,7 @@ local void complete_go(Player *p, const char *reqname, int ship,
 			{
 				lm->Log(L_ERROR,
 						"<arenaman> internal error: no running arenas but cannot create new one");
-				UNLOCK();
+				WRUNLOCK();
 				return;
 			}
 			a = l->data;
@@ -573,7 +575,7 @@ local void complete_go(Player *p, const char *reqname, int ship,
 	sp->x = spawnx;
 	sp->y = spawny;
 
-	UNLOCK();
+	WRUNLOCK();
 
 	/* don't mess with player status yet, let him stay in S_LOGGEDIN.
 	 * it will be incremented when the arena is ready. */
@@ -712,7 +714,7 @@ local int ReapArenas(void *q)
 skip: ;
 		}
 	pd->Unlock();
-	UNLOCK();
+	RDUNLOCK();
 
 	return TRUE;
 }
@@ -724,7 +726,7 @@ local Arena * FindArena(const char *name, int *totalp, int *playingp)
 
 	RDLOCK();
 	arena = do_find_arena(name, ARENA_RUNNING, ARENA_RUNNING);
-	UNLOCK();
+	RDUNLOCK();
 
 	if (arena && (totalp || playingp))
 		count_players(arena, totalp, playingp);
@@ -767,7 +769,7 @@ local int AllocateArenaData(size_t bytes)
 	if ((size_t)(perarenaspace - current) >= bytes)
 		goto found;
 
-	UNLOCK();
+	WRUNLOCK();
 	return -1;
 
 found:
@@ -781,7 +783,7 @@ found:
 	FOR_EACH_ARENA_P(a, data, current)
 		memset(data, 0, bytes);
 
-	UNLOCK();
+	WRUNLOCK();
 
 	return current;
 }
@@ -801,7 +803,7 @@ local void FreeArenaData(int key)
 			break;
 		}
 	}
-	UNLOCK();
+	WRUNLOCK();
 }
 
 
@@ -812,7 +814,7 @@ local void Lock(void)
 
 local void Unlock(void)
 {
-	UNLOCK();
+	RDUNLOCK();
 }
 
 
@@ -878,7 +880,7 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 
 		LLInit(&aman->arenalist);
 
-		pthread_rwlock_init(&arenalock, NULL);
+		rwl_init(&arenalock);
 
 		LLInit(&blocks);
 		perarenaspace = cfg->GetInt(GLOBAL, "General", "PerArenaBytes", 10000);
@@ -938,7 +940,7 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 
 		FreeArenaData(adkey);
 
-		pthread_rwlock_destroy(&arenalock);
+		rwl_destroy(&arenalock);
 		LLEnum(&aman->arenalist, afree);
 		LLEmpty(&aman->arenalist);
 		return MM_OK;
