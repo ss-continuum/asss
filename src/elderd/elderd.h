@@ -35,6 +35,8 @@
 
 /* structs of all sizes. asss->extension first */
 
+#pragma pack(1)
+
 struct data_a2e_null
 {
 	int type;

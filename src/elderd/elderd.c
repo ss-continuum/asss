@@ -393,12 +393,12 @@ Scheme_Object * prim_sendmessage(int argc, Scheme_Object **argv)
 
 void install_primitives()
 {
-#define ADD_PRIM(name, mina, maxa) \
-	scheme_add_global(#name, scheme_make_prim_w_arity(prim_##name, #name, mina, maxa), global)
+#define ADD_PRIM(fname, name, mina, maxa) \
+	scheme_add_global(name, scheme_make_prim_w_arity(prim_##fname, name, mina, maxa), global)
 
-	ADD_PRIM(test, 0, 0);
-	ADD_PRIM(findplayer, 1, 1);
-	ADD_PRIM(sendmessage, 2, 2);
+	ADD_PRIM(test, "test", 0, 0);
+	ADD_PRIM(findplayer, "find-player", 1, 1);
+	ADD_PRIM(sendmessage, "send-message", 2, 2);
 #undef ADD_PRIM
 }
 
