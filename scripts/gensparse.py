@@ -272,6 +272,7 @@ def emit_insert(o):
 		'inl': inline_insert
 	})
 
+
 def emit_clean(o):
 	"clean up and minimize the memory usage"
 
@@ -337,9 +338,57 @@ def emit_clean(o):
 	})
 
 
+def emit_allocated(o):
+	"figure out how much memory this is using"
+
+	def gen_loop(body, idx):
+		if idx == 0:
+			return '(void)(x+y); /* shut up compiler warning */'
+		else:
+			return """\
+	for (x = 0; x < %(max)d; x++)
+		for (y = 0; y < %(max)d; y++)
+		{
+			%(type)s *%(c0)s = (*%(c1)s)[x][y];
+			if (%(c0)s)
+			{
+				int x, y;
+				bytes += sizeof(%(type)s);
+				blocks++;
+%(body)s
+			}
+		}""" % \
+		{
+			'max': maxcoord(idx),
+			'body': body,
+			'type': gen_name(idx),
+			'c0': 'c_%d' % idx,
+			'c1': 'c_%d' % (idx + 1),
+		}
+
+	o.write("""
+%(static)s void sparse_allocated(%(target)s %(c1)s, int *bytesp, int *blocksp)
+{
+	int x, y, bytes = *bytesp, blocks = *blocksp;
+	bytes += sizeof(%(type)s);
+	blocks++;
+%(body)s
+	*bytesp = bytes;
+	*blocksp = blocks;
+}
+""" % \
+	{
+		'type': gen_name(len(bits)),
+		'target': targettype,
+		'c1': 'c_%d' % len(bits),
+		'body': reduce(gen_loop, range(len(bits)), ''),
+		'static': static
+	})
+
+
 def emit_all(o):
 	for f in [emit_types, emit_init, emit_delete, emit_lookup,
-			emit_insert, emit_clean]:
+			emit_insert, emit_clean, emit_allocated]:
 		o.write('\n/* section: %s */\n' % f.__doc__)
 		f(o)
 	o.write('\n/* done */\n')
