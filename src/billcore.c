@@ -86,8 +86,8 @@ int MM_billcore(int action, Imodman *mm)
 
 		cmd->AddCommand(NULL, DefaultCmd, 0);
 
-		mm->RegisterInterface(I_AUTH, &_iauth);
-		mm->RegisterInterface(I_BILLCORE, &_ibillcore);
+		mm->RegInterface(I_AUTH, &_iauth);
+		mm->RegInterface(I_BILLCORE, &_ibillcore);
 	}
 	else if (action == MM_UNLOAD)
 	{
@@ -103,7 +103,7 @@ int MM_billcore(int action, Imodman *mm)
 		RemovePacket(0, SendLogin);
 		RemovePacket(B2S_PLAYERDATA, BAuthResponse);
 		ml->ClearTimer(SendPing);
-		mm->UnregisterInterface(&_iauth);
+		mm->UnregInterface(&_iauth);
 	}
 	else if (action == MM_DESCRIBE)
 	{

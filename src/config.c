@@ -50,11 +50,11 @@ int MM_config(int action, Imodman *mm)
 		if (!global) global = LoadConfigFile("asss");
 		if (!global) global = LoadConfigFile("zone");
 		if (!global) return MM_FAIL;
-		mm->RegisterInterface(I_CONFIG, &_int);
+		mm->RegInterface(I_CONFIG, &_int);
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregisterInterface(&_int);
+		mm->UnregInterface(&_int);
 		FreeConfigFile(global);
 		if (files && (log = mm->GetInterface(I_LOGMAN)))
 			log->Log(LOG_ERROR,"Some config files were not freed!");

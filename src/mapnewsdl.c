@@ -95,11 +95,11 @@ int MM_mapnewsdl(int action, Imodman *mm_)
 		if (!cfg_newsfile) cfg_newsfile = "news.txt";
 		newstime = 0; cmpnews = NULL;
 
-		mm->RegisterInterface(I_MAPNEWSDL, &_int);
+		mm->RegInterface(I_MAPNEWSDL, &_int);
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregisterInterface(I_MAPNEWSDL, &_int);
+		mm->UnregInterface(I_MAPNEWSDL, &_int);
 		net->RemovePacket(C2S_MAPREQUEST, PMapRequest);
 		net->RemovePacket(C2S_NEWSREQUEST, PMapRequest);
 		free(cmpnews);

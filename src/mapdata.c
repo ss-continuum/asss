@@ -48,11 +48,11 @@ int MM_mapdata(int action, Imodman *mm)
 
 		arenas = core->arenas;
 
-		mm->RegisterInterface(I_MAPDATA, &_int);
+		mm->RegInterface(I_MAPDATA, &_int);
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregisterInterface(&_int);
+		mm->UnregInterface(&_int);
 	}
 	else if (action == MM_DESCRIBE)
 	{

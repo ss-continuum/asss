@@ -36,11 +36,11 @@ int MM_encrypt1(int action, Imodman *mm)
 {
 	if (action == MM_LOAD)
 	{
-		mm->RegisterInterface(I_ENCRYPTBASE + MYTYPE, &_int);
+		mm->RegInterface(I_ENCRYPTBASE + MYTYPE, &_int);
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregisterInterface(&_int);
+		mm->UnregInterface(&_int);
 	}
 	else if (action == MM_DESCRIBE)
 	{

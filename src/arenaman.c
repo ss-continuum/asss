@@ -62,11 +62,11 @@ int MM_arenaman(int action, Imodman *mm_)
 
 		ml->SetTimer(ReapArenas, 1000, 3000, NULL);
 
-		mm->RegisterInterface(I_ARENAMAN, &_int);
+		mm->RegInterface(I_ARENAMAN, &_int);
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregisterInterface(I_ARENAMAN, &_int);
+		mm->UnregInterface(I_ARENAMAN, &_int);
 		net->RemovePacket(C2S_GOTOARENA, PArena);
 		ml->ClearTimer(ReapArenas);
 	}
@@ -84,7 +84,7 @@ local void CallAA(int action, int arena)
 	LinkedList *funcs;
 	Link *l;
 
-	funcs = mm->LookupGenCallback(CALLBACK_ARENAACTION);
+	funcs = mm->LookupCallback(CALLBACK_ARENAACTION);
 
 	for (l = GetHead(funcs); l; l = l->next)
 		((ArenaActionFunc)l->data)(action, arena);

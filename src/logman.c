@@ -19,11 +19,11 @@ int MM_logman(int action, Imodman *mm_)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		mm->RegisterInterface(I_LOGMAN, &_int);
+		mm->RegInterface(I_LOGMAN, &_int);
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregisterInterface(&_int);
+		mm->UnregInterface(&_int);
 	}
 	else if (action == MM_DESCRIBE)
 	{
@@ -45,7 +45,7 @@ void Log(int level, char *format, ...)
 	vsprintf(buf, format, argptr);
 	va_end(argptr);
 
-	lst = mm->LookupGenCallback(CALLBACK_LOGFUNC);
+	lst = mm->LookupCallback(CALLBACK_LOGFUNC);
 	for (l = LLGetHead(lst); l; l = l->next)
 		((LogFunc)(l->data))(level, buf);
 	mm->FreeLookupResult(lst);

@@ -38,12 +38,12 @@ int MM_mainloop(int action, Imodman *mm_)
 		mm = mm_;
 		privatequit = 0;
 		timers = LLAlloc();
-		mm->RegisterInterface(I_MAINLOOP, &_int);
+		mm->RegInterface(I_MAINLOOP, &_int);
 	}
 	else if (action == MM_UNLOAD)
 	{
 		LLFree(timers);
-		mm->UnregisterInterface(&_int);
+		mm->UnregInterface(&_int);
 	}
 	else if (action == MM_DESCRIBE)
 	{
@@ -64,7 +64,7 @@ void RunLoop()
 	while (!privatequit)
 	{
 		/* call all funcs */
-		lst = mm->LookupGenCallback(CALLBACK_MAINLOOP);
+		lst = mm->LookupCallback(CALLBACK_MAINLOOP);
 		for (l = LLGetHead(lst); l; l = l->next)
 			((MainLoopFunc)l->data)();
 		mm->FreeLookupResult(lst);

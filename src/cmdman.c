@@ -35,12 +35,12 @@ int MM_cmdman(int action, Imodman *mm)
 	{
 		cmds = HashAlloc(47);
 		defaultfunc = NULL;
-		mm->RegisterInterface(I_CMDMAN, &_int);
+		mm->RegInterface(I_CMDMAN, &_int);
 		players = mm->players;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregisterInterface(&_int);
+		mm->UnregInterface(&_int);
 		HashFree(cmds);
 	}
 	else if (action == MM_DESCRIBE)

@@ -53,7 +53,7 @@ local Inet *net;
 local Ilogman *log;
 local Imodman *mm;
 local PlayerData *players;
-local ArenaData **arenas;
+local ArenaData *arenas;
 
 local Iassignfreq _myaf = { MyAssignFreq };
 
@@ -73,8 +73,8 @@ int MM_game(int action, Imodman *mm_)
 		log = mm->GetInterface(I_LOGMAN);
 		net = mm->GetInterface(I_NET);
 		players = mm->players;
-		if (!net || !cfg || !log || !mm->GetInterface(I_CORE)) return MM_FAIL;
-		arenas = ((Icore*)mm->GetInterface(I_CORE))->arenas;
+		if (!net || !cfg || !log || !mm->GetInterface(I_ARENAMAN)) return MM_FAIL;
+		arenas = ((Iarenaman*)mm->GetInterface(I_ARENAMAN))->data;
 
 		cfg_bulletpix = cfg->GetInt(GLOBAL, "Net", "BulletPixels", 1024);
 		cfg_wpnpix = cfg->GetInt(GLOBAL, "Net", "WeaponPixels", 2048);
@@ -89,11 +89,11 @@ int MM_game(int action, Imodman *mm_)
 		net->AddPacket(C2S_GREEN, PGreen);
 		net->AddPacket(C2S_ATTACHTO, PAttach);
 
-		mm->RegisterInterface(I_ASSIGNFREQ, &_myaf);
+		mm->RegInterface(I_ASSIGNFREQ, &_myaf);
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregisterInterface(&_myaf);
+		mm->UnregInterface(&_myaf);
 		net->RemovePacket(C2S_POSITION, Pppk);
 		net->RemovePacket(C2S_SETSHIP, PSetShip);
 		net->RemovePacket(C2S_SETFREQ, PSetFreq);
@@ -131,7 +131,7 @@ void Pppk(int pid, byte *p2, int n)
 		* (i16*) &wpn.weapon = * (i16*) &p->weapon;
 
 		for (i = 0; i < MAXPLAYERS; i++)
-			if (	net->GetStatus(i) == S_CONNECTED &&
+			if (	players[i].status == S_CONNECTED &&
 					players[i].arena == arena &&
 					i != pid)
 			{
@@ -164,7 +164,7 @@ void Pppk(int pid, byte *p2, int n)
 		};
 
 		for (i = 0; i < MAXPLAYERS; i++)
-			if (	net->GetStatus(i) == S_CONNECTED &&
+			if (	players[i].status == S_CONNECTED &&
 					players[i].arena == arena &&
 					i != pid)
 			{
@@ -204,7 +204,7 @@ int MyAssignFreq(int pid, int requested, byte ship)
 	ConfigHandle ch;
 
 	if (arena < 0) return BADFREQ;
-	ch = arenas[arena]->config;
+	ch = arenas[arena].cfg;
 
 	if (requested == BADFREQ)
 	{
@@ -282,7 +282,7 @@ void PDie(int pid, byte *p, int n)
 
 	if (arena < 0) return;
 
-	reldeaths = cfg->GetInt(arenas[arena]->config,
+	reldeaths = cfg->GetInt(arenas[arena].cfg,
 			"Misc", "ReliableKills", 1);
 	net->SendToArena(arena, pid, (byte*)&kp, sizeof(kp), NET_RELIABLE * reldeaths);
 }

@@ -13,8 +13,10 @@
 #include "net.h"
 #include "chat.h"
 #include "core.h"
+#include "arenaman.h"
 #include "encrypt.h"
 #include "billcore.h"
+#include "mapnewsdl.h"
 
 /* utility functions that are linked in directly */
 #include "util.h"

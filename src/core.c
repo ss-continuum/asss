@@ -34,8 +34,8 @@ local void SendLoginResponse(int, AuthData *);
 local int SendKeepalive(void *);
 
 /* default auth, can be replaced */
-local void DefaultAuth(int, struct LoginPacket *);
-
+local int DefaultAuth(int, struct LoginPacket *, void (*)(int, AuthData *));
+local int DefaultAssignFreq(int, int, byte);
 
 
 /* GLOBALS */
@@ -46,6 +46,7 @@ local Iconfig *cfg;
 local Inet *net;
 local Imodman *mm;
 local Ilogman *log;
+local Imapnewsdl *map;
 
 local PlayerData *players;
 
@@ -65,17 +66,18 @@ int MM_core(int action, Imodman *mm_)
 		log = mm->GetInterface(I_LOGMAN);
 		cfg = mm->GetInterface(I_CONFIG);
 		ml = mm->GetInterface(I_MAINLOOP);
+		map = mm->GetInterface(I_MAPNEWSDL);
 		players = mm->players;
 
-		if (!net || !cfg || !log || !ml) return MM_FAIL;
+		if (!net || !cfg || !log || !ml || !map) return MM_FAIL;
 
 		/* set up callbacks */
 		net->AddPacket(C2S_LOGIN, PLogin);
 		net->AddPacket(C2S_LEAVING, PLeaving);
 
 		/* register default interfaces which may be replaced later */
-		mm->RegisterInterface(I_AUTH, &_iauth);
-		mm->RegisterInterface(I_ASSIGNFREQ, &_iaf);
+		mm->RegInterface(I_AUTH, &_iauth);
+		mm->RegInterface(I_ASSIGNFREQ, &_iaf);
 
 		/* set up periodic events */
 		ml->SetTimer(SendKeepalive, 500, 500, NULL);
@@ -83,8 +85,8 @@ int MM_core(int action, Imodman *mm_)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregisterInterface(&_iaf);
-		mm->UnregisterInterface(&_iauth);
+		mm->UnregInterface(&_iaf);
+		mm->UnregInterface(&_iauth);
 		net->RemovePacket(C2S_LOGIN, PLogin);
 		net->RemovePacket(C2S_LEAVING, PLeaving);
 	}
@@ -115,7 +117,7 @@ void SendLoginResponse(int pid, AuthData *auth)
 
 	lr.code = auth->code;
 	lr.demodata = auth->demodata;
-	lr.newschecksum = newschecksum; /* FIXME NOW: get mapnewsdl interface and use GetNewsChecksum */
+	lr.newschecksum = map->GetNewsChecksum();
 
 	/* set up player struct */
 	memset(players + pid, 0, sizeof(PlayerData));
@@ -136,7 +138,7 @@ void SendLoginResponse(int pid, AuthData *auth)
 }
 
 
-void DefaultAuth(int pid, struct LoginPacket *p)
+int DefaultAuth(int pid, struct LoginPacket *p, void (*SendLoginResponse)(int, AuthData *))
 {
 	AuthData auth;
 
@@ -146,6 +148,7 @@ void DefaultAuth(int pid, struct LoginPacket *p)
 	auth.squad[0] = 0;
 
 	SendLoginResponse(pid, &auth);
+	return 0;
 }
 
 
@@ -154,23 +157,6 @@ int DefaultAssignFreq(int pid, int freq, byte ship)
 	return freq;
 }
 
-
-int AssignArena(struct GoArenaPacket *p)
-{
-	char _buf[2] = {'0', 0}, *name = _buf;
-	int arena;
-
-	if (p->arenatype == -3)
-		name = p->arenaname;
-	else if (p->arenatype >= 0 && p->arenatype <= 9)
-		name[0] = '0' + p->arenatype;
-
-	if ((arena = FindArena(name)) == -1)
-		if ((arena = CreateArena(name)) == -1)
-			arena = 0;
-
-	return arena;
-}
 
 
 void PLeaving(int pid, byte *p, int q)

@@ -35,8 +35,9 @@
 #define I_CHAT			6
 #define I_ARENAMAN		7
 #define I_ASSIGNFREQ	8
-#define I_AUTHENTICATE	9
+#define I_AUTH			9
 #define I_BILLCORE		10
+#define I_MAPNEWSDL		11
 #define I_ENCRYPTBASE	90
 /*#define I_FLAG */
 /*#define I_BALL */

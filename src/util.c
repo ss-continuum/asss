@@ -21,11 +21,6 @@
 
 
 
-struct LinkedList
-{
-	Link *start, *end;
-};
-
 typedef struct HashEntry
 {
 	void *p;
@@ -127,7 +122,7 @@ local void GetSomeLinks()
 	freelinks = start;
 }
 
-local void LLInit(LinkedList *lst)
+void LLInit(LinkedList *lst)
 {
 	lst->start = lst->end = NULL;
 }

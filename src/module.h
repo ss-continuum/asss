@@ -14,7 +14,7 @@
  * GetInterface is used to get access to another module's interface. you
  * obviously have to cast the return value to the correct type.
  *
- * (Un)RegisterInterface are used to make interfaces available to other
+ * (Un)RegInterface are used to make interfaces available to other
  * modules. don't forget to make sure you have a unique id.
  *
  * FindPlayer is just a damn useful function. i'm not sure what it's
@@ -42,13 +42,14 @@ typedef struct Imodman
 	void (*UnloadModule)(char *name);
 	void (*UnloadAllModules)();
 
-	void * (*GetInterface)(int id);
-	void (*RegisterInterface)(int id, void *iface);
-	void (*UnregisterInterface)(void *iface);
+	void (*RegInterest)(int id, void **intpointer);
+	void (*UnregInterest)(void **intpointer);
+	void (*RegInterface)(int id, void *iface);
+	void (*UnregInterface)(void *iface);
 
-	void (*AddGenCallback)(char *id, void *func);
-	void (*RemoveGenCallback)(char *id, void *func);
-	LinkedList * (*LookupGenCallback)(char *id);
+	void (*AddCallback)(char *id, void *func);
+	void (*RemoveCallback)(char *id, void *func);
+	LinkedList * (*LookupCallback)(char *id);
 	void (*FreeLookupResult)(LinkedList *lst);
 
 	int (*FindPlayer)(char *name);

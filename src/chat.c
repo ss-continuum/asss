@@ -22,7 +22,7 @@ local Icmdman *cmd;
 local Imodman *mm;
 
 local PlayerData *players;
-local ArenaData **arenas;
+local ArenaData *arenas;
 
 local int cfg_msgrel;
 
@@ -34,7 +34,6 @@ int MM_chat(int action, Imodman *mm_)
 {
 	if (action == MM_LOAD)
 	{
-		Icore *core;
 
 		mm = mm_;
 		net = mm->GetInterface(I_NET);
@@ -50,11 +49,11 @@ int MM_chat(int action, Imodman *mm_)
 
 		cfg_msgrel = cfg->GetInt(GLOBAL, "Chat", "MessageReliable", 1);
 		net->AddPacket(C2S_CHAT, PChat);
-		mm->RegisterInterface(I_CHAT, &_int);
+		mm->RegInterface(I_CHAT, &_int);
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregisterInterface(&_int);
+		mm->UnregInterface(&_int);
 		net->RemovePacket(C2S_CHAT, PChat);
 	}
 	else if (action == MM_DESCRIBE)

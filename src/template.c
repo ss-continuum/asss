@@ -50,11 +50,11 @@ int MM_xxx(int action, Imodman *mm_)
 		players = mm->players;
 		arenas = core->arenas;
 
-		mm->RegisterInterface(I_XXX, &_int);
+		mm->RegInterface(I_XXX, &_int);
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregisterInterface(&_int);
+		mm->UnregInterface(&_int);
 	}
 	else if (action == MM_DESCRIBE)
 	{

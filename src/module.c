@@ -24,16 +24,16 @@ typedef struct ModuleData
 
 
 
-
 local int LoadModule(char *);
 local void UnloadAllModules();
 local void UnloadModule(char *);
-local void * GetInterface(int);
-local void RegisterInterface(int, void *);
-local void UnregisterInterface(void *);
-local void AddGenCallback(char *, void *);
-local void RemoveGenCallback(char *, void *);
-local LinkedList * LookupGenCallback(char *);
+local void RegInterest(int, void**);
+local void UnregInterest(int, void**);
+local void RegInterface(int, void *);
+local void UnregInterface(void *);
+local void AddCallback(char *, void *);
+local void RemoveCallback(char *, void *);
+local LinkedList * LookupCallback(char *);
 local void FreeLookupResult(LinkedList *);
 
 
@@ -45,17 +45,20 @@ local PlayerData players[MAXPLAYERS+EXTRA_PID_COUNT];
 
 local HashTable *callbacks;
 
+local LinkedList *mods;
+
+local void *ints[MAXINTERFACE];
+local LinkedList intupdates[MAXINTERFACE];
+
 
 local Imodman mmint =
 {
 	LoadModule, UnloadModule, UnloadAllModules,
-	GetInterface, RegisterInterface, UnregisterInterface,
-	AddGenCallback, RemoveGenCallback, LookupGenCallback, FreeLookupResult,
+	RegInterest, UnregInterest, RegInterface, UnregInterface,
+	AddCallback, RemoveCallback, LookupCallback, FreeLookupResult,
 	FindPlayer, players, NULL
 };
 
-local LinkedList *mods;
-local void *ints[MAXINTERFACE];
 
 
 
@@ -67,7 +70,10 @@ Imodman * InitModuleManager()
 	mods = LLAlloc();
 	callbacks = HashAlloc(233);
 	for (i = 0; i < MAXINTERFACE; i++)
+	{
+		LLInit(intupdates[i]);
 		ints[i] = NULL;
+	}
 	return &mmint;
 }
 
@@ -193,44 +199,66 @@ void UnloadAllModules()
 }
 
 
-/* interface managements stuff */
+/* interface management stuff */
 
 
-void * GetInterface(int ii)
+int RegInterest(int ii, void **intp)
 {
 	if (ii >= 0 && ii < MAXINTERFACE)
-		return ints[ii];
+	{
+		LLAdd(intupdates[ii], intp);
+		*intp = ints[ii];
+	}
 	else
-		return NULL;
+		return 0;
+}
+
+void UnregInterest(int ii, void **intp)
+{
+	LLRemove(intupdates[ii], intp);
 }
 
 
-void RegisterInterface(int ii, void *face)
+void RegInterface(int ii, void *face)
 {
 	if (ii >= 0 && ii < MAXINTERFACE)
+	{
+		Link *l;
+
 		ints[ii] = face;
+
+		for (l = LLGetHead(intupdates[ii]); l; l = l->next)
+			*((void**)l->data) = face;
+	}
 }
 
 
-void UnregisterInterface(void *face)
+int UnregInterface(int ii, void *face)
 {
-	int i;
-	for (i = 0; i < MAXINTERFACE; i++)
-		if (ints[i] == face)
+	int c = 0;
+	if (ints[i] == face)
+	{
+		Link *l;
+
+		for (l = LLGetHead(intupdates[ii]); l; l = l->next)
+			c++;
+		if (c == 0)
 			ints[i] = NULL;
+	}
+	return c;
 }
 
-void AddGenCallback(char *id, void *f)
+void AddCallback(char *id, void *f)
 {
 	HashAdd(callbacks, id, f);
 }
 
-void RemoveGenCallback(char *id, void *f)
+void RemoveCallback(char *id, void *f)
 {
 	HashRemove(callbacks, id, f);
 }
 
-LinkedList * LookupGenCallback(char *id)
+LinkedList * LookupCallback(char *id)
 {
 	return HashGet(callbacks, id);
 }
@@ -246,11 +274,9 @@ void FreeLookupResult(LinkedList *lst)
 int FindPlayer(char *name)
 {
 	int i;
-	Inet *net = ints[I_NET]; /* HACK: be sure to change this if GetInterface changes */
-	if (!net) return -1;
 
 	for (i = 0; i < MAXPLAYERS; i++)
-		if (	net->GetStatus(i) == S_CONNECTED &&
+		if (	players[i].status == S_CONNECTED &&
 				strcasecmp(name, players[i].name) == 0)
 			return i;
 	return -1;

@@ -69,9 +69,15 @@ typedef struct Link
 	void *data;
 } Link;
 
+struct LinkedList
+{
+	Link *start, *end;
+};
+
 typedef struct LinkedList LinkedList;
 
 LinkedList * LLAlloc();
+void LLInit(LinkedList *);
 void LLFree(LinkedList *);
 void LLAdd(LinkedList *, void *);
 int LLRemove(LinkedList *, void *);
