@@ -153,7 +153,7 @@ class Line:
 				cl= [time.strftime('[%I:%M]', time.localtime(me.time))]
 			else:
 				cl = []
-			
+
 			for w in words:
 				# too big to fit on a line alone
 				while len(w) > width:
