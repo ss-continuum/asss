@@ -1,0 +1,72 @@
+#!/bin/sh
+
+# change this to the root of your asss installation
+ASSSHOME=$HOME/src/asss
+
+# start of stuff not to change
+
+# possible exit values. these should match those in defs.h
+E_SHUTDOWN=0
+E_RECYCLE=1
+E_GENERAL=2
+E_OOM=3
+E_BIND=4
+
+DATEFORM='+%Y.%m.%d %H:%M:%S'
+pdate () { date "$DATEFORM"; }
+
+ASSS=$ASSSHOME/bin/asss
+
+ZONE=$1
+ZONEDIR=$ASSSHOME/zone-$1
+
+SCRIPTLOG=$ZONEDIR/log/wrapper-log
+
+if [ ! -d $ZONEDIR ]; then
+  echo "Zone '$ZONE' not found. Please run $0 with a valid zone name."
+  exit 1
+fi
+
+cd $ZONEDIR
+
+CONTINUE=true
+
+while $CONTINUE; do
+
+  echo "`pdate`: $ZONE: asss started" >> $SCRIPTLOG
+
+  $ASSS
+  EXIT=$?
+
+  if [ -f core ]; then
+    mv -f core core-`date +%m%d%H%M`
+  fi
+
+  SLEEP=3
+
+  if [ $EXIT -eq $E_SHUTDOWN ]; then
+    MSG="shutdown"
+    CONTINUE=false
+  elif [ $EXIT -eq $E_RECYCLE ]; then
+    MSG="recycle, restarting"
+  elif [ $EXIT -eq $E_GENERAL ]; then
+    MSG="unknown general error"
+    CONTINUE=false
+  elif [ $EXIT -eq $E_OOM ]; then
+    MSG="out of memory, restarting"
+  elif [ $EXIT -eq $E_BIND ]; then
+    MSG="cannot bind to port, waiting longer"
+    SLEEP=15
+  elif [ $EXIT -gt 128 ]; then
+    MSG="due to signal `expr $EXIT - 128`, restarting"
+  else
+    MSG="UNKNOWN EXIT CODE: $EXIT"
+    CONTINUE=false
+  fi
+
+  echo "`pdate`: $ZONE: asss exited: $MSG" >> $SCRIPTLOG
+
+  sleep $SLEEP
+
+done
+
