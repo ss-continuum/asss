@@ -61,13 +61,10 @@ local void check_and_send_banner(Player *p, int callothers)
 	if (bd->status == 2)
 	{
 		/* send to everyone */
-		struct S2CBanner send;
+		struct S2CBanner send = { S2C_BANNER, p->pid, bd->banner };
 
-		if (bd->status != 2 || !p->arena)
+		if (!p->arena)
 			return;
-		send.type = S2C_BANNER;
-		send.pid = p->pid;
-		send.banner = bd->banner;
 
 		net->SendToArena(p->arena, NULL, (byte*)&send, sizeof(send),
 				NET_RELIABLE | NET_PRI_N1);
@@ -154,8 +151,7 @@ local void paction(Player *p, int action, Arena *arena)
 			    ibd->status == 2 &&
 			    i != p)
 			{
-				struct S2CBanner send = { S2C_BANNER, i->pid };
-				send.banner = ibd->banner;
+				struct S2CBanner send = { S2C_BANNER, i->pid, ibd->banner };
 				net->SendToOne(p, (byte*)&send, sizeof(send), NET_RELIABLE | NET_PRI_N1);
 			}
 		pd->Unlock();
