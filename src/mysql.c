@@ -35,7 +35,7 @@ struct db_cmd
 local Iconfig *cfg;
 local Ilogman *lm;
 
-const char *host, *user, *pw, *dbname;
+local const char *host, *user, *pw, *dbname;
 
 local MPQueue dbq;
 local pthread_t wthd;
