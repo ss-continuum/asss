@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #include <scheme.h>
 #include "elderd.h"
@@ -41,8 +42,11 @@ FILE *logfile;
 void die_with_error(char *s)
 {
 	perror(s);
-	fprintf(logfile, "die_with_error called: %s\n", s);
-	exit(0);
+	if (errno >= 0 && errno < sys_nerr)
+		fprintf(logfile, "fatal error: (%i) %s: %s\n", getpid(), s, sys_errlist[errno]);
+	else
+		fprintf(logfile, "fatal error: (%i) %s: <errno out of range>\n", getpid(), s);
+	exit(1);
 }
 
 
@@ -79,18 +83,19 @@ int open_listening_port(unsigned short port)
 
 	sock = socket(PF_INET, SOCK_STREAM, 0);
 	if (sock == -1)
-		die_with_error("elderd: open_listening_port: socket");
+		die_with_error("open_listening_port: socket");
 
 	memset(&sin.sin_zero, 0, sizeof(sin.sin_zero));
+	sin.sin_family = AF_INET;
 	sin.sin_port = htons(port);
-	sin.sin_addr.s_addr = INADDR_LOOPBACK;
+	sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 	ret = bind(sock, &sin, sizeof(sin));
 	if (ret == -1)
-		die_with_error("elderd: open_listening_port: bind");
+		die_with_error("open_listening_port: bind");
 
 	ret = listen(sock, 5);
 	if (ret == -1)
-		die_with_error("elderd: open_listening_port: listen");
+		die_with_error("open_listening_port: listen");
 
 	return sock;
 }
@@ -130,7 +135,8 @@ int main(int argc, char *argv[])
 	int sock, newsock;
 
 	printf("Elder Daemon " VERSION "\n");
-	printf("Forking\n");
+	printf("Logging to " DEFAULT_LOG_FILE "\n");
+	printf("Forking... (use -n to prevent)\n");
 
 	if (argc < 2 || strcmp(argv[1], "-n"))
 		daemonize(0);
