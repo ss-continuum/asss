@@ -33,3 +33,12 @@ settings. "seeepd" allows players to see energy/inventory from spec, and
 "seenrg" allows energy viewing while playing.
 
 
+
+CAPABILITIES
+------------
+
+Any arena can specify a General:NeedCap value. If present, players will
+not be allowed to enter the arena unless they have the specified
+capability.
+
+

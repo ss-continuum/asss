@@ -56,12 +56,7 @@ a single rel packet containing a group of unrels. the tricks here is
 to remove the individual packets that get grouped and add the new one to
 the outlist.
 
-fixing the timewait thing so people who try to immediately reconnect
-don't have to wait.
-
-tinyscheme interface
-
-python interface?
+tinyscheme/python/other-random-language interface
 
 
 currently broken
@@ -74,8 +69,6 @@ ball sync?
 misc
 ----
 arenas:
-persistant arena names for ?arena
-permissions to enter certain arenas
 *go command
 
 balls:

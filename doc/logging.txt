@@ -192,13 +192,13 @@ sample config file:
 ;; within each section, specific class names always take precedence over
 ;; "all", if it is present.
 
-[sysop]
+[log_sysop]
 all = ME
 
-[file]
+[log_file]
 all = DIMWE
 
-[console]
+[log_console]
 all = IMWE
 net = DIMWE
 
