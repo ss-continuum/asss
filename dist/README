@@ -1,0 +1,37 @@
+
+Hi. This is a beta release of asss (it stands for "a small subspace
+server"). If you have any questions or comments, mail them to
+grelminar@yahoo.com.
+
+Most of the documentation is available in the user guide, in directory
+"doc". You might want to read it before you try playing with this.
+
+To start using this thing, make sure you're in the root directory of
+this distribution (the directory that this file is in), and run
+"bin/asss". You might want to run it in a screen session so it can be
+detached easily. Or you can run "bin/asss -d" to make it fork into the
+background.
+
+You can close it with the sysop command ?shutdown, or just with a
+Ctrl-C. The Ctrl-C isn't a clean shutdown, so you risk losing some data.
+
+Note the presence of several empty directories: log, data, and tmp.
+Don't remove any of them, the server needs them to be there to create
+files in.
+
+
+If you want to connect to a billing server: Since there are no existing
+billing servers that support the new billing protocol that I made,
+you'll have to use the bproxy thingy that translates between the new and
+old protocols. Set Billing:Proxy in global.conf to the path of the
+bproxy script (in the scripts dir). Set the rest of the settings (IP,
+Port, ServerName, Password) in Billing as appropriate. You'll need a
+relatively recent version of Python (2.1+ should work).
+
+
+
+Known bugs:
+
+billing server support isn't well tested.
+a few things are missing from the billing interface (like banners).
+

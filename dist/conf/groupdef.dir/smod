@@ -1,0 +1,30 @@
+; conf/groups/smod
+
+seesysoplogarena
+privcmd_info
+
+; not implemented
+cmd_zone
+cmd_recycle
+cmd_restart
+
+cmd_moveflag
+
+cmd_watchdamage
+privcmd_watchdamage
+
+cmd_quickfix
+
+cmd_billingadm
+
+privcmd_send
+
+; bypass checksums
+bypass_security
+
+; prefix chars
+prefix_>
+
+; setgroup
+setgroup_mod
+

@@ -1,0 +1,58 @@
+; conf/groups/mod
+
+seemodchat
+sendmodchat
+sendsoundmessages
+seeprivfreq
+seeprivarena
+seeepd
+findinprivs
+
+cmd_ballcount
+cmd_flagreset
+cmd_listmods
+cmd_a
+cmd_timer
+cmd_timereset
+cmd_pausetimer
+
+cmd_flaginfo
+cmd_neutflag
+
+privcmd_report
+
+privcmd_setship
+privcmd_setfreq
+cmd_specall
+privcmd_specall
+
+privcmd_prize
+privcmd_shipreset
+
+privcmd_laginfo
+
+privcmd_usage
+privcmd_billingid
+
+; turf commands
+cmd_turfresetflags
+cmd_turfresettimer
+cmd_forceding
+cmd_forcestats
+
+; koth
+cmd_resetkoth
+
+; fun stuff
+cmd_brickwrite
+privcmd_warpto
+
+; shutup, etc.
+cmd_getcm
+cmd_setcm
+privcmd_getcm
+privcmd_setcm
+
+; prefix chars
+prefix_+
+

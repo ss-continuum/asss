@@ -291,7 +291,7 @@ library can contain any number of modules.
 
 There are currently
 % grep 'EXPORT *int *MM_[a-z]' ~/src/asss/src/*.c | wc -l
-64
+65
 modules that are part of \asss{}, but each zone might have some
 custom-developed modules for their zone as well.
 
@@ -478,11 +478,11 @@ servers or bugs in the server itself.
 
 There are currently
 % cat ~/src/asss/src/*.c | grep ">Log[AP]\?(L_" -c
-240
+241
 % cat ~/src/asss/src/*.c | grep ">Log[AP]\?(L_" | sed 's/.*>Log[AP]\?(L_\([A-Z]*\).*/\1/' | sort | uniq -c
 distinct log messages in the server. By type, there are 21 ERROR
-messages, 60 WARN messages, 61 MALICIOUS messages, 40 INFO messages, and
-58 DRIVEL messages.
+messages, 60 WARN messages, 60 MALICIOUS messages, 40 INFO messages, and
+60 DRIVEL messages.
 
 \subsection{Filtering}
 
@@ -680,17 +680,10 @@ General:DesiredPlaying, which is a count of \emph{playing} players
 To make the game fairer, packets are prioritized depending on their
 function. For example, weapons packets will be preferred over chat
 messages when deciding how to use up the last few bytes of alloted
-bandwidth.
-
-To avoid problems associated with the discontinuity of measuring
-bandwith, the server will reserve a certain percentage of the total
-bandwith for packets of certain priorities. For example, if a player's
-bandwidth limit is 2500 bytes, the server will refuse to use up all 2500
-bytes for chat messages in the first half of the monitoring period to
-leave space for more important packets that will probably come in the
-second half.
-
-% FIXME: include description of the ?{get,set}bandwidth commands
+bandwidth. The server will also reserve a certain percentage of the
+total bandwith for packets of certain priorities. Techniques similar to
+those used in modern TCP implementations are used to dynamically adjust
+the bandwith limit to players based on their connection quality.
 
 
 \section{Lag Control}
