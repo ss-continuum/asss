@@ -119,10 +119,10 @@ void Command(const char *line, int pid, int target)
 	/* first log it. this shouldn't be so complicated... */
 	if (log)
 	{
-		if (pid >= 0 && pid < MAXPLAYERS)
+		if (PID_OK(pid >= 0))
 		{
 			int arena = pd->players[pid].arena;
-			if (arena >= 0 && arena < MAXARENA)
+			if (ARENA_OK(arena))
 				log->Log(L_INFO, "<cmdman> {%s} [%s] Command '%s'",
 						aman->arenas[arena].name,
 						pd->players[pid].name,

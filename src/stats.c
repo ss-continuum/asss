@@ -108,7 +108,7 @@ void IncrementStat(int pid, stat_t stat, int amount)
 {
 	struct ArenaStats *d = adata + pid;
 
-	if (pid >= 0 && pid < MAXPLAYERS)
+	if (PID_OK(pid))
 	{
 		d->stats[stat] += amount;
 		adata_dirty[pid] = 1;
@@ -228,7 +228,7 @@ void CStats(const char *params, int pid, int target)
 
 	d = gdata + target;
 
-	if (target >= 0 && target < MAXPLAYERS && chat)
+	if (PID_OK(target) && chat)
 	{
 		chat->SendMessage(pid, "%6d logins", d->logins);
 		chat->SendMessage(pid, "%6d public messages", d->messages[MSG_PUB]);
@@ -250,7 +250,7 @@ void CScores(const char *params, int pid, int target)
 
 	d = adata + target;
 
-	if (target >= 0 && target < MAXPLAYERS && chat)
+	if (PID_OK(target) && chat)
 	{
 		chat->SendMessage(pid, "%d kill points, %d flag points",
 				d->stats[STAT_KPOINTS], d->stats[STAT_FPOINTS]);

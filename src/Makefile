@@ -10,14 +10,7 @@ CFLAGS = $(BUILDNO) -D_REENTRANT -D_GNU_SOURCE -fPIC $(DEBUG_CFLAGS) $(PROF_FLAG
 
 ASSSLIBS = -ldl -lz -lpthread
 
-SCHEMEROOT = /home/david/scheme/plt
-SCHEMEINC = $(SCHEMEROOT)/include
-SCHEMELIB = $(SCHEMEROOT)/lib/i386-linux
-
 SCRIPTS = ../scripts
-
-INCLUDE_ELDERD =
-#INCLUDE_ELDERD = elderd
 
 ALL_STUFF = asss $(EXTMODS) $(INCLUDE_ELDERD)
 
@@ -66,7 +59,12 @@ billing.so: billcore.o
 scoring.so: persist.o stats.o points_kill.o points_flag.o points_goal.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -ldb1
 
-scheme.so: scheme.o ooputils.o
+
+tinyscheme/scheme.o:
+	cd tinyscheme && $(MAKE) scheme.o
+
+scheme.so: tscheme.o tinyscheme/scheme.o
+	$(CC) $(LDFLAGS) -shared -o $@ $^ -lm
 
 funky.so: autowarp.o bricklayer.o freqowners.o
 
@@ -74,13 +72,6 @@ funky.so: autowarp.o bricklayer.o freqowners.o
 asss: main.o $(INTMODS) $(EXTRAOBJS)
 	$(CC) $(LDFLAGS) -rdynamic -o $@ $^ $(ASSSLIBS)
 
-
-elderd: elderd.c util-elderd.o ooputils.o
-	$(CC) $(CFLAGS) -L$(SCHEMELIB) -I $(SCHEMEINC) -o $@ $^ -lmzscheme -lgc -ldl
-
-
-util-elderd.o: util.c
-	$(CC) $(CFLAGS) -DNOTHREAD -DUSE_GC -DMALLOC=GC_malloc -c -o $@ $^
 
 sparse.inc: $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py
 	$(SCRIPTS)/gensparse.py $@ $(SCRIPTS)/sparse_params.py
@@ -90,7 +81,7 @@ letters.inc: $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font
 
 
 Makefile.deps: # *.c *.h
-	$(CC) -I $(SCHEMEINC) -MM *.c > $@
+	$(CC) -MM *.c > $@
 
 
 include Makefile.deps
@@ -112,7 +103,7 @@ install: $(ALL_STUFF)
 	-cp -f $(ALL_STUFF) ../bin
 
 clean:
-	-rm -f asss *.o *.so elderd elderd.log core
+	-rm -f asss *.o *.so core
 
 tags:
 	flist -d *.c

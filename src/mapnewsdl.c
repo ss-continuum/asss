@@ -235,7 +235,7 @@ void PMapRequest(int pid, byte *p, int q)
 	int arena = players[pid].arena;
 	if (p[0] == C2S_MAPREQUEST)
 	{
-		if (arena < 0 || arena >= MAXARENA)
+		if (ARENA_BAD(arena))
 			log->Log(L_MALICIOUS, "<mapnewsdl> [%s] Map request before entering arena",
 					players[pid].name);
 		else if (!mapdldata[arena].cmpmap)

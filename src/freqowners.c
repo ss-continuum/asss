@@ -81,7 +81,7 @@ local int CountFreq(int arena, int freq, int excl)
 
 void Cgiveowner(const char *params, int pid, int target)
 {
-	if (pid < 0 || pid >= MAXPLAYERS || target < 0 || target >= MAXPLAYERS)
+	if (PID_BAD(pid) || PID_BAD(target))
 		return;
 
 	if (ownsfreq[pid] &&
@@ -92,7 +92,7 @@ void Cgiveowner(const char *params, int pid, int target)
 
 void Cfreqkick(const char *params, int pid, int target)
 {
-	if (pid < 0 || pid >= MAXPLAYERS || target < 0 || target >= MAXPLAYERS)
+	if (PID_BAD(pid) || PID_BAD(target))
 		return;
 
 	if (ownsfreq[pid] &&

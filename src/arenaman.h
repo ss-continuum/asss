@@ -4,6 +4,12 @@
 
 #include "config.h"
 
+#define ARENA_OK(arena) \
+	((arena) >= 0 && (arena) < MAXARENA)
+
+#define ARENA_BAD(arena) \
+	((arena) < 0 || (arena) >= MAXARENA)
+
 /* ArenaAction funcs are called when arenas are created or destroyed */
 
 #define CB_ARENAACTION "arenaaction"

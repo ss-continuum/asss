@@ -4,6 +4,12 @@
 
 #include "packets/pdata.h"
 
+#define PID_OK(pid) \
+	((pid) >= 0 && (pid) < MAXPLAYERS)
+
+#define PID_BAD(pid) \
+	((pid) < 0 || (pid) >= MAXPLAYERS)
+
 typedef struct Iplayerdata
 {
 	PlayerData *players;
@@ -12,8 +18,6 @@ typedef struct Iplayerdata
 	void (*LockStatus)(void);
 	void (*UnlockStatus)(void);
 	int (*FindPlayer)(char *name);
-	/* this is a useful function that doesn't belong here. but it is
-	 * anyway. */
 } Iplayerdata;
 
 #endif

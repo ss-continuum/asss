@@ -87,7 +87,7 @@ void PChat(int pid, byte *p, int len)
 {
 	struct ChatPacket *from = (struct ChatPacket *)p, *to;
 	int setc = 0, i, arena, freq;
-	static int set[MAXPLAYERS];
+	int set[MAXPLAYERS];
 
 	freq = players[pid].freq;
 	arena = players[pid].arena;
@@ -174,7 +174,7 @@ void PChat(int pid, byte *p, int len)
 			{
 				if (cmd) cmd->Command(from->text+1, pid, from->pid);
 			}
-			else if (from->pid >= 0 && from->pid < MAXPLAYERS)
+			else if (PID_OK(from->pid))
 			{
 				log->Log(L_DRIVEL,"<chat> {%s} [%s] to [%s] Priv msg: %s",
 					arenas[arena].name, players[pid].name,

@@ -164,7 +164,7 @@ void ProcessLoginQueue(void)
 				/* check if the player's arena is ready.
 				 * LOCK: we don't grab the arena status lock because it
 				 * doesn't matter if we miss it this time around */
-				if (player->arena >= 0 && player->arena < MAXARENA)
+				if (ARENA_OK(player->arena))
 					if (aman->arenas[player->arena].status == ARENA_RUNNING)
 						player->status = S_DO_FREQ_AND_ARENA_SYNC;
 

@@ -132,7 +132,7 @@ void UnlockStatus(void)
 
 local void DoAttach(int arena, int action)
 {
-	void (*func)(char *name, int arena);
+	void (*func)(const char *name, int arena);
 	char *mods, *t, *_tok;
 
 	if (action == MM_ATTACH)

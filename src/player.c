@@ -70,13 +70,13 @@ int MM_playerdata(int action, Imodman *mm, int arena)
 
 void LockPlayer(int pid)
 {
-	if (pid >= 0 && pid < MAXPLAYERS)
+	if (PID_OK(pid))
 		pthread_mutex_lock(playermtx + pid);
 }
 
 void UnlockPlayer(int pid)
 {
-	if (pid >= 0 && pid < MAXPLAYERS)
+	if (PID_OK(pid))
 		pthread_mutex_unlock(playermtx + pid);
 }
 

@@ -36,7 +36,7 @@ local void RegInterface(int, void *);
 local void UnregInterface(int, void *);
 local void RegCallback(const char *, void *, int);
 local void UnregCallback(const char *, void *, int);
-local LinkedList * LookupCallback(char *, int);
+local LinkedList * LookupCallback(const char *, int);
 local void FreeLookupResult(LinkedList *);
 
 
@@ -188,7 +188,7 @@ local int UnloadModuleByPtr(ModuleData *mod)
 }
 
 
-local ModuleData *GetModuleByName(char *name)
+local ModuleData *GetModuleByName(const char *name)
 {
 	ModuleData *mod;
 	Link *l;
@@ -325,7 +325,7 @@ void UnregCallback(const char *id, void *f, int arena)
 	}
 }
 
-LinkedList * LookupCallback(char *id, int arena)
+LinkedList * LookupCallback(const char *id, int arena)
 {
 	if (arena == ALLARENAS)
 	{

@@ -92,7 +92,7 @@ local void UpdateGroup(int pid, int arena)
 			groups[pid], \
 			from)
 
-	if (arena < 0 || arena >= MAXARENA)
+	if (ARENA_BAD(arena))
 	{
 		/* only global groups available for now */
 		char *gg = cfg->GetStr(gstaff, "Staff", pd->players[pid].name);

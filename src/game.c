@@ -392,7 +392,7 @@ void PSetShip(int pid, byte *p, int n)
 		return;
 	}
 
-	if (arena < 0 || arena >= MAXARENA)
+	if (ARENA_BAD(arena))
 	{
 		log->Log(L_MALICIOUS, "<game> [%s] Ship request from bad arena",
 				players[pid].name);
@@ -429,7 +429,7 @@ void PSetFreq(int pid, byte *p, int n)
 	freq = ((struct SimplePacket*)p)->d1;
 	ship = players[pid].shiptype;
 
-	if (arena < 0 || arena >= MAXARENA) return;
+	if (ARENA_BAD(arena)) return;
 
 	DO_CBS(CB_FREQMANAGER,
 	       arena,
@@ -453,7 +453,7 @@ void PDie(int pid, byte *p, int n)
 	int arena = players[pid].arena, reldeaths;
 
 	if (arena < 0) return;
-	if (killer < 0 || killer >= MAXPLAYERS) return;
+	if (PID_BAD(killer)) return;
 	if (players[killer].status != S_PLAYING) return;
 
 	kp.unknown = 0;
@@ -555,7 +555,7 @@ void ArenaAction(int arena, int action)
 
 void Creport(const char *params, int pid, int target)
 {
-	if (target < 0 || target >= MAXPLAYERS) return;
+	if (PID_BAD(target)) return;
 
 	if (chat)
 	{
@@ -712,7 +712,7 @@ void PBrick(int pid, byte *p, int len)
 	int arena = players[pid].arena;
 	int l;
 
-	if (arena < 0 || arena >= MAXARENA) return;
+	if (ARENA_BAD(arena)) return;
 
 	l = cfg->GetInt(arenas[arena].cfg, "Brick", "BrickSpan", 10);
 

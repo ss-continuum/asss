@@ -428,7 +428,7 @@ void PPickupBall(int pid, byte *p, int len)
 		return;
 	}
 
-	if (arena < 0 || arena >= MAXARENA || pd->players[pid].status != S_PLAYING)
+	if (ARENA_BAD(arena) || pd->players[pid].status != S_PLAYING)
 	{
 		logm->Log(L_WARN, "<balls> [%s] Ball pickup packet from bad arena or status", pd->players[pid].name);
 		return;
@@ -498,7 +498,7 @@ void PFireBall(int pid, byte *p, int len)
 		return;
 	}
 
-	if (arena < 0 || arena >= MAXARENA || pd->players[pid].status != S_PLAYING)
+	if (ARENA_BAD(arena) || pd->players[pid].status != S_PLAYING)
 	{
 		logm->Log(L_WARN, "<balls> [%s] Ball fire packet from bad arena or status", pd->players[pid].name);
 		return;
@@ -560,7 +560,7 @@ void PGoal(int pid, byte *p, int len)
 		return;
 	}
 
-	if (arena < 0 || arena >= MAXARENA || pd->players[pid].status != S_PLAYING)
+	if (ARENA_BAD(arena) || pd->players[pid].status != S_PLAYING)
 	{
 		logm->Log(L_WARN, "<balls> [%s] Goal packet from bad arena or status", pd->players[pid].name);
 		return;

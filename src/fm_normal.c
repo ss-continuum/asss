@@ -130,7 +130,7 @@ void MyFreqManager(int pid, int request, int *ship, int *freq)
 
 	arena = pd->players[pid].arena;
 
-	if (arena < 0 || arena >= MAXARENA) return;
+	if (ARENA_BAD(arena)) return;
 
 	ch = aman->arenas[arena].cfg;
 	specfreq = cfg->GetInt(ch, "Team", "SpectatorFrequency", 8025);

@@ -290,7 +290,7 @@ int GetCarriedFlags(int pid)
 	int tot = 0, arena = pd->players[pid].arena, i, fc;
 	struct FlagData *f;
 
-	if (arena < 0 || arena >= MAXARENA) return -1;
+	if (ARENA_BAD(arena)) return -1;
 
 	LOCK_STATUS(arena);
 	f = flagdata[arena].flags;
@@ -308,7 +308,7 @@ int GetFreqFlags(int arena, int freq)
 	int tot = 0, i, fc;
 	struct FlagData *f;
 
-	if (arena < 0 || arena >= MAXARENA) return -1;
+	if (ARENA_BAD(arena)) return -1;
 
 	f = flagdata[arena].flags;
 	LOCK_STATUS(arena);
@@ -580,7 +580,7 @@ void PPickupFlag(int pid, byte *p, int len)
 		return;
 	}
 
-	if (arena < 0 || arena >= MAXARENA || pd->players[pid].status != S_PLAYING)
+	if (ARENA_BAD(arena) || pd->players[pid].status != S_PLAYING)
 	{
 		logm->Log(L_WARN, "<flags> [%s] Flag pickup packet from bad arena or status", pd->players[pid].name);
 		return;
@@ -658,7 +658,7 @@ void PDropFlag(int pid, byte *p, int len)
 
 	arena = pd->players[pid].arena;
 
-	if (arena < 0 || arena >= MAXARENA || pd->players[pid].status != S_PLAYING)
+	if (ARENA_BAD(arena) || pd->players[pid].status != S_PLAYING)
 	{
 		logm->Log(L_WARN, "<flags> [%s] Flag drop packet from bad arena or status", pd->players[pid].name);
 		return;

@@ -146,7 +146,7 @@ void Carena(const char *params, int pid, int target)
 			pcount[players[i].arena]++;
 
 	/* signify current arena */
-	if (players[pid].arena >= 0 && players[pid].arena < MAXARENA)
+	if (ARENA_OK(players[pid].arena))
 		pcount[arena] *= -1;
 
 	pd->UnlockStatus();
@@ -195,7 +195,7 @@ void Cflagreset(const char *params, int pid, int target)
 void Cballcount(const char *params, int pid, int target)
 {
 	int bc, arena = players[pid].arena, add;
-	if (arena >= 0 && arena < MAXARENA)
+	if (ARENA_OK(arena))
 	{
 		balls->LockBallStatus(arena);
 		bc = balls->balldata[arena].ballcount;
@@ -210,7 +210,7 @@ void Cballcount(const char *params, int pid, int target)
 
 void Csetfreq(const char *params, int pid, int target)
 {
-	if (target < 0 || target >= MAXPLAYERS)
+	if (PID_BAD(target))
 		return;
 
 	if (!*params)
@@ -222,7 +222,7 @@ void Csetfreq(const char *params, int pid, int target)
 
 void Csetship(const char *params, int pid, int target)
 {
-	if (target < 0 || target >= MAXPLAYERS)
+	if (PID_BAD(target))
 		return;
 
 	if (!*params)
