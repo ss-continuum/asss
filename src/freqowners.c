@@ -104,7 +104,7 @@ local int kick_timer(void *param)
 {
 	Player *t = param;
 	chat->SendMessage(t, "You have been kicked off your freq.");
-	game->SetShip(t, SPEC);
+	game->SetFreqAndShip(t, SPEC, t->arena->specfreq);
 	return FALSE;
 }
 
