@@ -1092,70 +1092,22 @@ local void Cspecall(const char *tc, const char *params, Player *p, const Target 
 }
 
 
-local helptext_t getg_help =
-"Targets: none\n"
-"Args: section:key\n"
-"Displays the value of a global setting. Make sure there are no\n"
-"spaces around the colon.\n";
-
-local void Cgetg(const char *tc, const char *params, Player *p, const Target *target)
-{
-	const char *res = cfg->GetStr(GLOBAL, params, NULL);
-	if (res)
-		chat->SendMessage(p, "%s=%s", params, res);
-	else
-		chat->SendMessage(p, "%s not found", params);
-}
-
-
-local helptext_t setg_help =
-"Targets: none\n"
-"Args: [{-t}] section:key=value\n"
-"Sets the value of a global setting. Make sure there are no\n"
-"spaces around either the colon or the equals sign. A {-t} makes\n"
-"the setting temporary.\n";
-
-local void Csetg(const char *tc, const char *params, Player *p, const Target *target)
-{
-	time_t tm = time(NULL);
-	char info[128], key[MAXSECTIONLEN+MAXKEYLEN+2], *k = key;
-	const char *t = params;
-	int perm = TRUE;
-
-	snprintf(info, sizeof(info), "set by %s on ", p->name);
-	ctime_r(&tm, info + strlen(info));
-	RemoveCRLF(info);
-
-	if (strncmp(t, "-t", 2) == 0)
-	{
-		perm = FALSE;
-		t += 2;
-		while (*t && *t == ' ') t++;
-	}
-
-	while (*t && *t != '=' && (k-key) < (MAXSECTIONLEN+MAXKEYLEN))
-		*k++ = *t++;
-	if (*t != '=') return;
-	*k = '\0'; /* terminate key */
-	t++; /* skip over = */
-
-	cfg->SetStr(GLOBAL, key, NULL, t, info, perm);
-}
-
 local helptext_t geta_help =
 "Targets: none\n"
 "Args: section:key\n"
 "Displays the value of an arena setting. Make sure there are no\n"
 "spaces around the colon.\n";
 
-local void Cgeta(const char *tc, const char *params, Player *p, const Target *target)
+local helptext_t getg_help =
+"Targets: none\n"
+"Args: section:key\n"
+"Displays the value of a global setting. Make sure there are no\n"
+"spaces around the colon.\n";
+
+local void Cget_generic(const char *tc, const char *params, Player *p, const Target *target)
 {
-	Arena *arena = p->arena;
-	const char *res;
-
-	if (!arena) return;
-
-	res = cfg->GetStr(arena->cfg, params, NULL);
+	ConfigHandle ch = strcasecmp(tc, "geta") == 0 ? p->arena->cfg : GLOBAL;
+	const char *res = cfg->GetStr(ch, params, NULL);
 	if (res)
 		chat->SendMessage(p, "%s=%s", params, res);
 	else
@@ -1169,15 +1121,20 @@ local helptext_t seta_help =
 "spaces around either the colon or the equals sign. A {-t} makes\n"
 "the setting temporary.\n";
 
-local void Cseta(const char *tc, const char *params, Player *p, const Target *target)
+local helptext_t setg_help =
+"Targets: none\n"
+"Args: [{-t}] section:key=value\n"
+"Sets the value of a global setting. Make sure there are no\n"
+"spaces around either the colon or the equals sign. A {-t} makes\n"
+"the setting temporary.\n";
+
+local void Cset_generic(const char *tc, const char *params, Player *p, const Target *target)
 {
-	Arena *arena = p->arena;
+	ConfigHandle ch = strcasecmp(tc, "seta") == 0 ? p->arena->cfg : GLOBAL;
 	time_t tm = time(NULL);
 	char info[128], key[MAXSECTIONLEN+MAXKEYLEN+2], *k = key;
 	const char *t = params;
-	int perm = TRUE;
-
-	if (!arena) return;
+	int perm = TRUE, colons = 0;
 
 	snprintf(info, sizeof(info), "set by %s on ", p->name);
 	ctime_r(&tm, info + strlen(info));
@@ -1190,13 +1147,14 @@ local void Cseta(const char *tc, const char *params, Player *p, const Target *ta
 		while (*t && *t == ' ') t++;
 	}
 
-	while (*t && *t != '=' && (k-key) < (MAXSECTIONLEN+MAXKEYLEN))
-		*k++ = *t++;
-	if (*t != '=') return;
+	while (*t && *t != '=' && (*t != ':' || colons != 1) && (k-key) < (MAXSECTIONLEN+MAXKEYLEN))
+		if ((*k++ = *t++) == ':')
+			colons++;
+	if (*t != '=' && (*t != ':' || colons != 1)) return;
 	*k = '\0'; /* terminate key */
-	t++; /* skip over = */
+	t++; /* skip over = or : */
 
-	cfg->SetStr(arena->cfg, key, NULL, t, info, perm);
+	cfg->SetStr(ch, key, NULL, t, info, perm);
 }
 
 
@@ -2017,6 +1975,7 @@ local void Cowner(const char *tc, const char *params, Player *p, const Target *t
 /* actual group definitions */
 
 #define CMD(x) {#x, C ## x, & x ## _help},
+#define CMDALIAS(x, y) {#x, C ## y, & x ## _help},
 #define CMD_GROUP(x) {#x, x ## _requires, x ## _commands, 0},
 #define REQUIRE(name, iid) {(void**)&name, iid},
 #define END() {0}
@@ -2106,10 +2065,10 @@ local const struct interface_info config_requires[] =
 };
 local const struct cmd_info config_commands[] =
 {
-	CMD(setg)
-	CMD(getg)
-	CMD(seta)
-	CMD(geta)
+	CMDALIAS(setg, set_generic)
+	CMDALIAS(getg, get_generic)
+	CMDALIAS(seta, set_generic)
+	CMDALIAS(geta, get_generic)
 	CMD(reloadconf)
 	END()
 };
