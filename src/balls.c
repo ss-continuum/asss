@@ -452,12 +452,6 @@ void PPickupBall(int pid, byte *p, int len)
 		return;
 	}
 
-	if (pd->players[pid].shiptype >= SPEC)
-	{
-		logm->Log(L_MALICIOUS, "<balls> [%s] Ball pickup packet from spec", pd->players[pid].name);
-		return;
-	}
-
 	LOCK_STATUS(arena);
 
 	if (bp->ballid >= balldata[arena].ballcount)

@@ -61,7 +61,8 @@ local void Cdropturret(const char *params, int pid, int target)
 			"<autoturret>",
 			pd->players[pid].arena,
 			WARBIRD,
-			pd->players[pid].freq);
+			pd->players[pid].freq,
+			NULL);
 	new_turret(tpid, 1500, 150, pid);
 }
 

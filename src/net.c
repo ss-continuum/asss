@@ -187,8 +187,7 @@ local struct
 {
 	int port, timeout, selectusec, process;
 	int usebilling, droptimeout, billping;
-	int encmode, bufferdelta;
-	int deflimit;
+	int bufferdelta, deflimit;
 } config;
 
 local volatile struct net_stats global_stats;
@@ -248,7 +247,6 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		config.timeout = cfg->GetInt(GLOBAL, "Net", "ReliableTimeout", 150);
 		config.selectusec = cfg->GetInt(GLOBAL, "Net", "SelectUSec", 10000);
 		config.process = cfg->GetInt(GLOBAL, "Net", "ProcessGroup", 5);
-		config.encmode = cfg->GetInt(GLOBAL, "Net", "EncryptMode", 0);
 		config.droptimeout = cfg->GetInt(GLOBAL, "Net", "DropTimeout", 3000);
 		config.bufferdelta = cfg->GetInt(GLOBAL, "Net", "MaxBufferDelta", 15);
 		config.usebilling = cfg->GetInt(GLOBAL, "Billing", "UseBilling", 0);
@@ -1453,6 +1451,10 @@ void ProcessCancel(Buffer *req)
 
 void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len)
 {
+#ifdef CFG_DUMP_RAW_PACKETS
+	printf("SENDRAW: %d bytes\n", len);
+	dump_pk(pkt, len);
+#endif
 	sendto(mysock, pkt, len, 0,
 			(struct sockaddr*)sin, sizeof(struct sockaddr_in));
 }
@@ -1465,8 +1467,6 @@ void SendRaw(int pid, byte *data, int len)
 {
 	byte encbuf[MAXPACKET];
 	Iencrypt *enc = clients[pid].enc;
-
-	if (clients[pid].flags & NET_FAKE) return;
 
 	if (pid != PID_BILLER)
 	{
@@ -1484,6 +1484,8 @@ void SendRaw(int pid, byte *data, int len)
 		printf("SEND: %d bytes (after encryption):\n", len);
 		dump_pk(encbuf, len);
 #endif
+
+		if (clients[pid].flags & NET_FAKE) return;
 
 		sendto(mysock, encbuf, len, 0,
 				(struct sockaddr*)&clients[pid].sin, sizeof(struct sockaddr_in));
