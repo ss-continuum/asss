@@ -10,6 +10,18 @@
 #include "util.h"
 
 
+typedef struct Imodman Imodman;
+
+
+Imodman * InitModuleManager(void);
+/* this is the entry point to the module manager. only main should call
+ * this. */
+
+
+typedef int (*ModMain)(int action, Imodman *mm, int arena);
+/* all module entry points must be of this type */
+
+
 /* action codes for module main functions */
 
 #define MM_LOAD       1
@@ -39,29 +51,28 @@
 #define MM_OK   0
 
 
-typedef struct Imodman
+struct Imodman
 {
-	int (*LoadModule)(char *specifier);
+	int (*LoadModule)(const char *specifier);
 	/* load a module. the specifier is of the form 'file:modname'. file
 	 * is the filename (without the .so) or 'int' for internal modules.
 	 */
 
-	void (*ReportFailedRequire)(char *module, char *variable);
-	/* modules should call this when an interface that they require for
-	 * initialization isn't provided. this is for informative purposes
-	 * only: it will log an appropriate message. it's mean to be used by
-	 * the macro REQUIRE. */
-
-	void (*UnloadModule)(char *name);
-	/* unloads a module. only the name should be given (not the file).
-	 */
+	int (*UnloadModule)(const char *name);
+	/* unloads a module. only the name should be given (not the file). */
 
 	void (*UnloadAllModules)(void);
 	/* unloads all modules (in reverse order). this is only called by
 	 * main to clean up before shutting down. */
 
-	void (*AttachModule)(char *modname, int arena);
-	void (*DetachModule)(char *modname, int arena);
+	void (*EnumModules)(void (*func)(const char *name, const char *info,
+				void *clos), void *clos);
+	/* calls the given function for each loaded module, passing it the
+	 * module name any extra info, and a closure pointer for it to use.
+	 */
+
+	void (*AttachModule)(const char *modname, int arena);
+	void (*DetachModule)(const char *modname, int arena);
 	/* these are called by the arena manager to attach and detach
 	 * modules to arenas that are loaded and destroyed. */
 
@@ -80,13 +91,13 @@ typedef struct Imodman
 	 * should be called with an interface id and a pointer to the
 	 * interface. */
 
-	void (*RegCallback)(char *id, void *func, int arena);
-	void (*UnregCallback)(char *id, void *func, int arena);
+	void (*RegCallback)(const char *id, void *func, int arena);
+	void (*UnregCallback)(const char *id, void *func, int arena);
 	/* these manage callback functions. putting this functionality in
 	 * here keeps every other module that wants to call callbacks from
 	 * implementing it themselves. */
 
-	LinkedList * (*LookupCallback)(char *id, int arena);
+	LinkedList * (*LookupCallback)(const char *id, int arena);
 	void (*FreeLookupResult)(LinkedList *lst);
 	/* these are how callbacks are called. LookupCallback will return a
 	 * list of functions to call. when you're done calling them all,
@@ -101,14 +112,7 @@ typedef struct Imodman
 	 * specifically registered with ALLARENAS. (that is, it doesn't
 	 * return callbacks that are specific to an arena. if you think the
 	 * behaviour doesn't make sense, tell me.) */
-} Imodman;
-
-
-typedef int (*ModMain)(int action, Imodman *mm, int arena);
-/* all module entry points must be of this type */
-
-
-Imodman * InitModuleManager(void);
+};
 
 
 /* this might be a useful macro */
@@ -121,28 +125,6 @@ do {                                                   \
 	mm->FreeLookupResult(lst);                         \
 } while (0)
 
-
-/* nice macros to set interface variables */
-
-/* use this one if you want an interface, but don't need it for
- * initialization */
-#define WANTIFACE(iface, var) \
-	mm->RegInterest(iface, &(var));
-
-/* use this one if you need the interface for initialization. it will
- * fail if the interface isn't available. */
-#define NEEDIFACE(iface, var) \
-	mm->RegInterest(iface, &(var)); \
-	if (!(var)) \
-	{ \
-		mm->ReportFailedRequire(MODULE, #var); \
-		mm->UnregInterest(iface, &(var)); \
-		return MM_FAIL; \
-	}
-
-/* use this in the unload section */
-#define FORGETIFACE(iface, var) \
-	mm->UnregInterest(iface, &(var));
 
 #endif
 

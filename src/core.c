@@ -54,6 +54,7 @@ local Imapnewsdl *map;
 local Iauth *auth;
 local Iarenaman *aman;
 local Ipersist *persist;
+local Icapman *capman;
 
 local PlayerData *players;
 
@@ -77,6 +78,7 @@ int MM_core(int action, Imodman *mm_, int arena)
 		mm->RegInterest(I_AUTH, &auth);
 		mm->RegInterest(I_ARENAMAN, &aman);
 		mm->RegInterest(I_PERSIST, &persist);
+		mm->RegInterest(I_CAPMAN, &capman);
 
 		players = pd->players;
 
@@ -107,6 +109,7 @@ int MM_core(int action, Imodman *mm_, int arena)
 		mm->UnregInterest(I_MAPNEWSDL, &map);
 		mm->UnregInterest(I_AUTH, &auth);
 		mm->UnregInterest(I_PERSIST, &persist);
+		mm->UnregInterest(I_CAPMAN, &capman);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -210,7 +213,8 @@ void ProcessLoginQueue(void)
 
 			case S_SEND_LOGIN_RESPONSE:
 				SendLoginResponse(pid);
-				log->Log(L_INFO, "<core> [%s] Player logged in", player->name);
+				log->Log(L_INFO, "<core> [%s] [pid=%d] Player logged in",
+						pid, player->name);
 				break;
 
 			case S_DO_FREQ_AND_ARENA_SYNC:
@@ -287,6 +291,17 @@ void PLogin(int pid, byte *p, int l)
 		log->Log(L_MALICIOUS,"<core> [pid=%d] Login request from wrong stage: %d", pid, players[pid].status);
 	else
 	{
+		struct LoginPacket *pkt = (struct LoginPacket*)p;
+		int oldpid = pd->FindPlayer(pkt->name);
+
+		if (oldpid != -1)
+		{
+			log->Log(L_DRIVEL,"<core> [%s] Player already on, kicking him off "
+					"(pid %d replacing %d)",
+					pkt->name, pid, oldpid);
+			net->DropClient(oldpid);
+		}
+
 		memcpy(bigloginpkt + pid, p, sizeof(struct LoginPacket));
 		players[pid].status = S_NEED_AUTH;
 	}
@@ -323,7 +338,7 @@ void GSyncDone(int pid)
 {
 	pd->LockStatus();
 	if (players[pid].status != S_WAIT_GLOBAL_SYNC)
-		log->Log(L_WARN, "<core> GSyncDone called from wrong stage: %d", pid, players[pid].status);
+		log->Log(L_WARN, "<core> [pid=%s] GSyncDone called from wrong stage", pid, players[pid].status);
 	else
 		players[pid].status = S_DO_GLOBAL_CALLBACKS;
 	pd->UnlockStatus();
@@ -334,7 +349,7 @@ void ASyncDone(int pid)
 {
 	pd->LockStatus();
 	if (players[pid].status != S_WAIT_ARENA_SYNC)
-		log->Log(L_WARN, "<core> ASyncDone called from wrong stage: %d", pid, players[pid].status);
+		log->Log(L_WARN, "<core> [pid=%s] ASyncDone called from wrong stage", pid, players[pid].status);
 	else
 		players[pid].status = S_SEND_ARENA_RESPONSE;
 	pd->UnlockStatus();
@@ -353,6 +368,14 @@ void SendLoginResponse(int pid)
 	lr.code = auth->code;
 	lr.demodata = auth->demodata;
 	lr.newschecksum = map->GetNewsChecksum();
+
+	if (capman->HasCapability(pid, "seeprivfreq"))
+	{
+		/* to make the client think it's a mod, set these checksums to -1 */
+		lr.exechecksum = -1;
+		lr.blah3 = -1;
+	}
+
 	net->SendToOne(pid, (char*)&lr, sizeof(lr), NET_RELIABLE);
 }
 

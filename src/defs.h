@@ -4,6 +4,10 @@
 
 #include <stddef.h>
 
+
+#define ASSSVERSION "0.5"
+
+
 /* do it upfront so we don't have to worry :) */
 #pragma pack(1)
 

@@ -125,7 +125,7 @@ local int BalanceFreqs(int arena, int excl, int inclspec)
 
 void MyFreqManager(int pid, int request, int *ship, int *freq)
 {
-	int arena, f = *freq, s = *ship;
+	int arena, specfreq, f = *freq, s = *ship;
 	ConfigHandle ch;
 
 	arena = pd->players[pid].arena;
@@ -133,16 +133,15 @@ void MyFreqManager(int pid, int request, int *ship, int *freq)
 	if (arena < 0 || arena >= MAXARENA) return;
 
 	ch = aman->arenas[arena].cfg;
+	specfreq = cfg->GetInt(ch, "Team", "SpectatorFrequency", 8025);
 
-	if (request == REQUEST_INITIAL || request == REQUEST_SHIP)
+	if (request == REQUEST_INITIAL)
 	{
-		/* he's changing ship */
-		if (s >= SPEC)
+		if (s < SPEC)
 		{
-			/* if he's switching to spec, it's easy */
 			f = cfg->GetInt(ch, "Team", "SpectatorFrequency", 8025);
 		}
-		else if (request == REQUEST_INITIAL)
+		else
 		{
 			/* we have to assign him to a freq */
 			int inclspec = cfg->GetInt(ch, "Team", "IncludeSpectators", 0);
@@ -150,10 +149,31 @@ void MyFreqManager(int pid, int request, int *ship, int *freq)
 			/* and make sure the ship is still legal */
 			s = FindLegalShip(arena, f, s);
 		}
-		else /* request == REQUEST_SHIP */
+	}
+	else if (request == REQUEST_SHIP)
+	{
+		if (s >= SPEC)
 		{
-			/* don't touch freq, but make sure ship is ok */
-			s = FindLegalShip(arena, f, s);
+			/* if he's switching to spec, it's easy */
+			f = specfreq;
+		}
+		else
+		{
+			/* he's changing to a ship. check if he's changing from spec */
+			int oldfreq = pd->players[pid].freq;
+			if (oldfreq == specfreq)
+			{
+				/* we have to assign him to a freq */
+				int inclspec = cfg->GetInt(ch, "Team", "IncludeSpectators", 0);
+				f = BalanceFreqs(arena, pid, inclspec);
+				/* and make sure the ship is still legal */
+				s = FindLegalShip(arena, f, s);
+			}
+			else
+			{
+				/* don't touch freq, but make sure ship is ok */
+				s = FindLegalShip(arena, f, s);
+			}
 		}
 	}
 	else /* REQUEST_FREQ */
@@ -167,6 +187,10 @@ void MyFreqManager(int pid, int request, int *ship, int *freq)
 			max = cfg->GetInt(ch, "Team", "MaxPerPrivateTeam", 0);
 		else
 			max = cfg->GetInt(ch, "Team", "MaxPerTeam", 0);
+
+		/* special case: speccer re-entering spec freq */
+		if (s == SPEC && f == specfreq)
+			return;
 
 		if (f < 0 || f > maxfreq)
 			/* he requested a bad freq. drop him elsewhere. */

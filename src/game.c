@@ -466,8 +466,12 @@ void PDie(int pid, byte *p, int n)
 		flagcount = 0;
 	kp.flags = flagcount;
 
+	if (players[pid].freq == players[killer].freq)
+		kp.bounty = 0;
+
 	reldeaths = !!cfg->GetInt(arenas[arena].cfg,
 			"Misc", "ReliableKills", 1);
+
 	net->SendToArena(arena, -1, (byte*)&kp, sizeof(kp), NET_RELIABLE * reldeaths);
 
 	log->Log(L_DRIVEL, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d)",

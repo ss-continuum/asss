@@ -6,9 +6,12 @@
 
 #define MODULE "points_goal"
 
+#define MAXFREQ 8
+
+
 struct ArenaScores
 {
-	int score[2];
+	int score[MAXFREQ];
 };
 
 /* prototypes */
@@ -80,7 +83,7 @@ void MyAA(int arena, int action)
 
 void MyGoal(int arena, int pid, int bid, int x, int y)
 {
-	int mode, freq = 0, i;
+	int mode, freq = -1, i;
 	int teamset[MAXPLAYERS], nmeset[MAXPLAYERS];
 	int teamc = 0, nmec = 0;
 
@@ -108,7 +111,8 @@ void MyGoal(int arena, int pid, int bid, int x, int y)
 			break;
 	}
 
-	scores[arena].score[freq]++;
+	if (freq >= 0 && freq < MAXFREQ)
+		scores[arena].score[freq]++;
 
 	pd->LockStatus();
 	for (i = 0; i < MAXPLAYERS; i++)

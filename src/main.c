@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
 
 	mm = InitModuleManager();
 
-	printf("asss 0.5 (buildnumber %d)\n", BUILDNUMBER);
+	printf("asss %s (buildnumber %d)\n", ASSSVERSION, BUILDNUMBER);
 
 	if (dodaemonize)
 		daemonize(0);

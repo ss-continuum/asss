@@ -24,18 +24,18 @@ typedef struct ModuleData
 
 
 
-local int LoadModule(char *);
-local void ReportFailedRequire(char *, char *);
+local int LoadModule(const char *);
+local int UnloadModule(const char *);
 local void UnloadAllModules(void);
-local void UnloadModule(char *);
-local void AttachModule(char *, int);
-local void DetachModule(char *, int);
+local void EnumModules(void (*)(const char *, const char *, void *), void *);
+local void AttachModule(const char *, int);
+local void DetachModule(const char *, int);
 local void RegInterest(int, void*);
 local void UnregInterest(int, void*);
 local void RegInterface(int, void *);
 local void UnregInterface(int, void *);
-local void RegCallback(char *, void *, int);
-local void UnregCallback(char *, void *, int);
+local void RegCallback(const char *, void *, int);
+local void UnregCallback(const char *, void *, int);
 local LinkedList * LookupCallback(char *, int);
 local void FreeLookupResult(LinkedList *);
 
@@ -51,7 +51,7 @@ local LinkedList intupdates[MAXINTERFACE];
 
 local Imodman mmint =
 {
-	LoadModule, ReportFailedRequire, UnloadModule, UnloadAllModules,
+	LoadModule, UnloadModule, UnloadAllModules, EnumModules,
 	AttachModule, DetachModule,
 	RegInterest, UnregInterest, RegInterface, UnregInterface,
 	RegCallback, UnregCallback, LookupCallback, FreeLookupResult
@@ -81,7 +81,7 @@ Imodman * InitModuleManager(void)
 
 #define DELIM ':'
 
-int LoadModule(char *filename)
+int LoadModule(const char *filename)
 {
 	static char _buf[256];
 	ModuleData *mod;
@@ -107,7 +107,7 @@ int LoadModule(char *filename)
 
 	if (!strcasecmp(filename,"internal") || !strcasecmp(filename,"int"))
 	{
-		name = (char*)NULL;
+		name = NULL;
 		mod->myself = 1;
 	}
 	else if (filename[0] == '/')
@@ -176,17 +176,7 @@ die2:
 }
 
 
-void ReportFailedRequire(char *mod, char *req)
-{
-	Ilogman *log = ints[I_LOGMAN];
-	if (log)
-		log->Log(L_ERROR, "<module> Module '%s' couldn't find interface for '%s'", mod, req);
-	else
-		printf("<module> Module '%s' couldn't find interface for '%s'", mod, req);
-}
-
-
-local void UnloadModuleByPtr(ModuleData *mod)
+local int UnloadModuleByPtr(ModuleData *mod)
 {
 	if (mod)
 	{
@@ -194,6 +184,7 @@ local void UnloadModuleByPtr(ModuleData *mod)
 		if (mod->hand && !mod->myself) dlclose(mod->hand);
 		afree(mod);
 	}
+	return MM_OK;
 }
 
 
@@ -211,9 +202,9 @@ local ModuleData *GetModuleByName(char *name)
 }
 
 
-void UnloadModule(char *name)
+int UnloadModule(const char *name)
 {
-	UnloadModuleByPtr(GetModuleByName(name));
+	return UnloadModuleByPtr(GetModuleByName(name));
 }
 
 
@@ -232,22 +223,35 @@ void UnloadAllModules(void)
 	LLFree(mods);
 }
 
-void AttachModule(char *name, int arena)
+
+void EnumModules(void (*func)(const char *, const char *, void *), void *clos)
+{
+	ModuleData *mod;
+	Link *l;
+	for (l = LLGetHead(mods); l; l = l->next)
+	{
+		mod = (ModuleData*) l->data;
+		func(mod->name, NULL, clos);
+	}
+}
+
+
+void AttachModule(const char *name, int arena)
 {
 	ModuleData *mod = GetModuleByName(name);
 	if (mod)
 		mod->mm(MM_ATTACH, &mmint, arena);
 }
 
-void DetachModule(char *name, int arena)
+void DetachModule(const char *name, int arena)
 {
 	ModuleData *mod = GetModuleByName(name);
 	if (mod)
 		mod->mm(MM_DETACH, &mmint, arena);
 }
 
-/* interface management stuff */
 
+/* interface management stuff */
 
 void RegInterest(int ii, void *intp)
 {
@@ -293,7 +297,7 @@ void UnregInterface(int ii, void *face)
 	/* return c; */
 }
 
-void RegCallback(char *id, void *f, int arena)
+void RegCallback(const char *id, void *f, int arena)
 {
 	if (arena == ALLARENAS)
 	{
@@ -307,7 +311,7 @@ void RegCallback(char *id, void *f, int arena)
 	}
 }
 
-void UnregCallback(char *id, void *f, int arena)
+void UnregCallback(const char *id, void *f, int arena)
 {
 	if (arena == ALLARENAS)
 	{

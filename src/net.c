@@ -123,6 +123,7 @@ volatile int killallthreads = 0;
 local ClientData clients[MAXPLAYERS+EXTRA_PID_COUNT];
 local int clienthash[HASHSIZE];
 local Mutex hashmtx;
+local Mutex outlistmtx[MAXPLAYERS+EXTRA_PID_COUNT];
 
 local struct
 {
@@ -205,6 +206,7 @@ int MM_net(int action, Imodman *mm, int arena)
 		{
 			clients[i].nextinbucket = -1;
 			DQInit(&clients[i].outlist);
+			InitMutex(outlistmtx + i);
 		}
 		InitMutex(&hashmtx);
 
@@ -539,7 +541,7 @@ void * SendThread(void *dummy)
 			gptr = gbuf; *gptr++ = 0x00; *gptr++ = 0x0E;
 
 			/* now lock player for as long as we are using his outlist */
-			pd->LockPlayer(i);
+			LockMutex(outlistmtx + i);
 			gtc = GTC();
 
 			/* iterate through outlist */
@@ -606,7 +608,7 @@ void * SendThread(void *dummy)
 				SendRaw(i, gbuf, gptr - gbuf);
 			}
 
-			pd->UnlockPlayer(i);
+			UnlockMutex(outlistmtx + i);
 		}
 
 		/* process lagouts and timewait */
@@ -808,8 +810,8 @@ int NewConnection(struct sockaddr_in *sin)
 
 	if (i == MAXPLAYERS) return -1;
 
-	pd->LockPlayer(i);
 
+	LockMutex(outlistmtx + i);
 	{ /* free any buffers remaining in the outlist */
 		Buffer *buf, *nbuf;
 		DQNode *outlist = &clients[i].outlist;
@@ -825,6 +827,7 @@ int NewConnection(struct sockaddr_in *sin)
 	clients[i].c2sn = -1;
 	clients[i].enctype = -1;
 	DQInit(&clients[i].outlist);
+	UnlockMutex(outlistmtx + i);
 
 	/* add him to his hash bucket */
 	LockMutex(&hashmtx);
@@ -843,6 +846,7 @@ int NewConnection(struct sockaddr_in *sin)
 	UnlockMutex(&hashmtx);
 
 	/* set up playerdata */
+	pd->LockPlayer(i);
 	pd->LockStatus();
 	memset(players + i, 0, sizeof(PlayerData));
 	players[i].type = S2C_PLAYERENTERING; /* restore type */
@@ -852,7 +856,6 @@ int NewConnection(struct sockaddr_in *sin)
 	players[i].attachedto = -1;
 	players[i].status = S_NEED_KEY;
 	pd->UnlockStatus();
-
 	pd->UnlockPlayer(i);
 
 	return i;
@@ -1021,7 +1024,7 @@ void ProcessAck(Buffer *buf)
 	Buffer *b, *nbuf;
 	DQNode *outlist;
 
-	pd->LockPlayer(buf->pid);
+	LockMutex(outlistmtx + buf->pid);
 	outlist = &clients[buf->pid].outlist;
 	for (b = (Buffer*)outlist->next; (DQNode*)b != outlist; b = nbuf)
 	{
@@ -1034,7 +1037,7 @@ void ProcessAck(Buffer *buf)
 			FreeBuffer(b);
 		}
 	}
-	pd->UnlockPlayer(buf->pid);
+	UnlockMutex(outlistmtx + buf->pid);
 	FreeBuffer(buf);
 }
 
@@ -1235,7 +1238,7 @@ void BufferPacket(int pid, byte *data, int len, int rel)
 		buf->retries = 1;
 	}
 
-	pd->LockPlayer(pid);
+	LockMutex(outlistmtx + pid);
 
 	/* fill in seqnum */
 	if (rel & NET_RELIABLE)
@@ -1244,7 +1247,7 @@ void BufferPacket(int pid, byte *data, int len, int rel)
 	/* add it to out list */
 	DQAdd(&clients[pid].outlist, (DQNode*)buf);
 
-	pd->UnlockPlayer(pid);
+	UnlockMutex(outlistmtx + pid);
 	
 	/* if it's immediate, do one retry now */
 	if (rel & NET_IMMEDIATE)

@@ -3,6 +3,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#define DOUNAME
+
+#ifdef DOUNAME
+#include <sys/utsname.h>
+#endif
+
 #include "asss.h"
 
 
@@ -18,6 +24,11 @@ local void Cballcount(const char *, int, int);
 
 local void Csetfreq(const char *, int, int);
 local void Csetship(const char *, int, int);
+
+local void Cversion(const char *, int, int);
+local void Clsmod(const char *, int, int);
+local void Cinsmod(const char *, int, int);
+local void Crmmod(const char *, int, int);
 
 
 /* global data */
@@ -35,16 +46,18 @@ local Igame *game;
 local Ilog_file *logfile;
 local Iflags *flags;
 local Iballs *balls;
+local Imodman *mm;
 
 local PlayerData *players;
 local ArenaData *arenas;
 
 
 
-int MM_playercmd(int action, Imodman *mm, int arena)
+int MM_playercmd(int action, Imodman *_mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
+		mm = _mm;
 		mm->RegInterest(I_PLAYERDATA, &pd);
 		mm->RegInterest(I_CHAT, &chat);
 		mm->RegInterest(I_LOGMAN, &log);
@@ -71,6 +84,10 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		cmd->AddCommand("ballcount", Cballcount);
 		cmd->AddCommand("setfreq", Csetfreq);
 		cmd->AddCommand("setship", Csetship);
+		cmd->AddCommand("version", Cversion);
+		cmd->AddCommand("lsmod", Clsmod);
+		cmd->AddCommand("insmod", Cinsmod);
+		cmd->AddCommand("rmmod", Crmmod);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
@@ -82,6 +99,10 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		cmd->RemoveCommand("ballcount", Cballcount);
 		cmd->RemoveCommand("setfreq", Csetfreq);
 		cmd->RemoveCommand("setship", Csetship);
+		cmd->RemoveCommand("version", Cversion);
+		cmd->RemoveCommand("lsmod", Clsmod);
+		cmd->RemoveCommand("insmod", Cinsmod);
+		cmd->RemoveCommand("rmmod", Crmmod);
 
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_CHAT, &chat);
@@ -207,8 +228,59 @@ void Csetship(const char *params, int pid, int target)
 	if (!*params)
 		return;
 
-	game->SetShip(target, atoi(params));
+	game->SetShip(target, atoi(params) - 1);
 }
 
+
+void Cversion(const char *params, int pid, int target)
+{
+	chat->SendMessage(pid, "asss %s (buildnumber %d)", ASSSVERSION, BUILDNUMBER);
+#ifdef DOUNAME
+	{
+		struct utsname un;
+		uname(&un);
+		chat->SendMessage(pid, "running on %s %s, host: %s, machine: %s",
+				un.sysname, un.release, un.nodename, un.machine);
+	}
+#endif
+}
+
+
+local void SendModInfo(const char *name, const char *info, void *p)
+{
+	int pid = *(int*)p;
+	if (info)
+		chat->SendMessage(pid, "  %s (%s)", name, info);
+	else
+		chat->SendMessage(pid, "  %s", name, info);
+}
+
+void Clsmod(const char *params, int pid, int target)
+{
+	int p = pid;
+	mm->EnumModules(SendModInfo, (void*)&p);
+}
+
+
+void Cinsmod(const char *params, int pid, int target)
+{
+	int ret;
+	ret = mm->LoadModule(params);
+	if (ret == MM_OK)
+		chat->SendMessage(pid, "Module %s loaded successfully", params);
+	else
+		chat->SendMessage(pid, "Loading module %s failed", params);
+}
+
+
+void Crmmod(const char *params, int pid, int target)
+{
+	int ret;
+	ret = mm->UnloadModule(params);
+	if (ret == MM_OK)
+		chat->SendMessage(pid, "Module %s unloaded successfully", params);
+	else
+		chat->SendMessage(pid, "Unloading module %s failed", params);
+}
 
 

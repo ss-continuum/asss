@@ -173,7 +173,9 @@ void Command(const char *line, int pid, int target)
 		}
 		LLFree(lst);
 	}
-	/* else printf("DEBUG: cap denied by capman: '%s'\n", cmd); */
+	else
+		log->Log(L_DRIVEL, "<cmdman> [%s] Capability denied by capman: %s",
+				pd->players[pid].name, cmd);
 
 	if (!found && defaultfunc)
 		defaultfunc(saveline, pid, target); /* give whole thing, not just params */
