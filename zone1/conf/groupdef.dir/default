@@ -5,6 +5,8 @@ cmd_stats
 cmd_score
 cmd_chat
 
+cmd_version
+
 privcmd_freqkick
 privcmd_giveowner
 
