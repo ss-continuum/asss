@@ -333,7 +333,7 @@ static char *byte_names[] =
 	/* DISABLEDcfghelp: Flag:CarryFlags, arena, int
 	 * Whether the flags can be picked up and carried (0=no, 1=yes,
 	 * 2=yes-one at a time, 3=yes-two at a time, 4=three, etc..) */
-	"___Flag:CarryFlags___",
+	"Flag:CarryFlags",
 	/* cfghelp: Misc:AllowSavedShips, arena, int
 	 * Whether saved ships are allowed (do not allow saved ship in zones
 	 * where sub-arenas may have differing parameters) */
