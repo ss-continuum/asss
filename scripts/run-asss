@@ -20,7 +20,7 @@ ASSS=$ASSSHOME/bin/asss
 ZONE=$1
 ZONEDIR=$ASSSHOME/zone-$1
 
-SCRIPTLOG=$ZONEDIR/log/wrapper-log
+SCRIPTLOG=$ZONEDIR/log/wrapper.log
 
 if [ ! -d $ZONEDIR ]; then
   echo "Zone '$ZONE' not found. Please run $0 with a valid zone name."
