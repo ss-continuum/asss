@@ -27,7 +27,7 @@ class LVLFile:
 
 		try:
 			me.bmp = bmp.BMPFile(f)
-		except NotABMPFile:
+		except bmp.NotABMPFile:
 			me.bmp = None
 			me.chunks = []
 			me.regions = []
@@ -55,16 +55,28 @@ class LVLFile:
 			b1, b2, b3, type = struct.unpack('<BBBB', tile)
 			x = b1 | ((b2 & 0x0f) << 8)
 			y = (b2 >> 4) | (b3 << 4)
-			me.tilelist.append((x, y, type))
+			me.tilelist.append((y, x, type))
 			tile = f.read(4)
 
 
 	def write_tile_data(me, f):
-		for x, y, type in me.tilelist:
-			b1 = x & 0xff
-			b2 = ((y & 0x0f) << 4) | ((x & 0xf00) >> 8)
-			b3 = y >> 4
-			f.write(struct.pack('<BBBB', b1, b2, b3, type))
+		me.tilelist.sort()
+		for y, x, type in me.tilelist:
+			if type != 0:
+				b1 = x & 0xff
+				b2 = ((y & 0x0f) << 4) | ((x & 0xf00) >> 8)
+				b3 = y >> 4
+				f.write(struct.pack('<BBBB', b1, b2, b3, type))
+
+
+	def set_tile(me, nx, ny, ntype):
+		for tile in me.tilelist:
+			y, x, _ = tile
+			if nx == x and ny == y:
+				idx = me.tilelist.index(tile)
+				me.tilelist[idx] = (ny, nx, ntype)
+				return
+		me.tilelist.append((ny, nx, ntype))
 
 
 	def read_metadata(me, f):
@@ -120,12 +132,24 @@ class LVLFile:
 		me.attrs[k] = v
 
 
+	def del_attr(me, k):
+		try: del me.attrs[k]
+		except: pass
+
+
 	def get_attr(me, k, default = None):
 		return me.attrs.get(k, default)
 
 
 	def add_region(me, rgn):
 		me.regions.append(rgn)
+
+
+	def find_region(me, rname):
+		for r in me.regions:
+			if r.name == rname:
+				return r
+		return None
 
 
 	def write_to_file(me, name):
@@ -136,6 +160,8 @@ class LVLFile:
 		if me.bmp:
 			me.bmp.write_to_file(f, len(meta))
 			f.write(meta)
+		elif meta:
+			print "WARNING: metadata can't be saved because no tileset is present"
 
 		me.write_tile_data(f)
 

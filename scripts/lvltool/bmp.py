@@ -25,6 +25,9 @@ class BMPFile:
 
 	def load_from_file(me, f):
 		bmfh = f.read(14)
+		if len(bmfh) != 14:
+			raise NotABMPFile('too short')
+
 		bf_type, bf_size, bf_res1, bf_res2, bf_offbits = struct.unpack(BMFH_FMT, bmfh)
 
 		if bf_type != 19778:

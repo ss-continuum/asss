@@ -5,6 +5,7 @@ handle regions
 
 """
 
+import struct
 import cStringIO
 
 import chunks
@@ -23,6 +24,7 @@ class Region:
 		me.noflags = 0
 		me.autowarp = None
 		me.chunks = []
+		me.tiles = {}
 
 		for t, d in rawchunks:
 			if t == 'rNAM':
