@@ -33,7 +33,6 @@ local int LocateConfigFile(char *dest, int destlen, const char *arena, const cha
 
 /* globals */
 
-
 local Iconfig _int =
 {
 	INTERFACE_HEAD_INIT(I_CONFIG, "config-file")
@@ -45,13 +44,16 @@ local ConfigHandle global;
 local HashTable *opened;
 local int files = 0;
 
+local Imodman *mm;
+
 
 /* functions */
 
-EXPORT int MM_config(int action, Imodman *mm, int arena)
+EXPORT int MM_config(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
+		mm = mm_;
 		files = 0;
 		opened = HashAlloc(23);
 		global = LoadConfigFile(NULL, NULL);
@@ -81,12 +83,12 @@ local int ProcessConfigFile(
 		char *initsection)
 {
 	FILE *f;
-	char realbuf[LINESIZE], *buf, *t, *t2;
+	char filename[PATH_MAX], realbuf[LINESIZE], *buf, *t, *t2;
 	char key[MAXNAMELEN+MAXKEYLEN+3], *thespot = NULL, *data;
 
-	if (LocateConfigFile(realbuf, PATH_MAX, arena, name) == -1)
+	if (LocateConfigFile(filename, PATH_MAX, arena, name) == -1)
 		return MM_FAIL;
-	f = fopen(realbuf, "r");
+	f = fopen(filename, "r");
 	if (!f) return MM_FAIL;
 
 	if (initsection)
@@ -132,7 +134,15 @@ local int ProcessConfigFile(
 				/* recur with name equal to the argument to #include.
 				 * because of the search path, this will allow absolute
 				 * filenames as name to be found. */
-				ProcessConfigFile(thetable, thestrings, defines, arena, buf, key);
+				if (ProcessConfigFile(thetable, thestrings, defines,
+							arena, buf, key) == MM_FAIL)
+				{
+					Ilogman *lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+					if (lm)
+						lm->Log(L_WARN, "<config> Can't find #included file"
+								" '%s' referenced from '%s'",
+								buf, filename);
+				}
 			}
 			else if (!strncmp(buf, "define", 6))
 			{

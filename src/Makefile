@@ -94,7 +94,7 @@ install: $(ALL_STUFF)
 	-cp -f $(ALL_STUFF) ../bin
 
 clean:
-	-rm -f asss *.o *.so core Makefile.deps
+	-rm -f asss *.o *.so *.inc core Makefile.deps
 
 .PHONY: clean install all tags
 

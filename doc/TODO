@@ -68,3 +68,18 @@ treat nme bricks as tiles for the purposes of dropping bricks
 bandwidth:
 prioritized position/weapons based on distance
 
+simple chat protocol
+	should be ascii based over tcp
+	maybe telnet-able?
+	maybe irc-based?
+	possible complications:
+		at some point, we're going to have to translate between "ss
+		protocol" and whatever text-based protocol. where should it be
+		done? maybe it shouldn't be done at all, and alternative
+		protocols shouldn't be treated as "2nd class". then how do
+		modules that handle packets know how to handle new protocols?
+		each player could have a pointer to a Iprotocol interface, which
+		would handle the protocol-level details. what is the proper
+		level for the protocol interface? higher than packet structure,
+		but where?
+
