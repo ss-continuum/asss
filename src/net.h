@@ -26,11 +26,6 @@
 #include "encrypt.h"
 
 
-#define EXTRA_PID_COUNT 1
-#define EXTRA_PID(x) ((MAXPLAYERS)+x)
-
-#define PID_BILLER EXTRA_PID(0)
-
 #define PKT_BILLER_OFFSET 0x100
 
 /* bits in the flags parameter to the SendX functions */
@@ -75,6 +70,9 @@ typedef void (*RelCallback)(int pid, int success, void *clos);
 
 #define CB_CONNINIT ("conninit")
 typedef void (*ConnectionInitFunc)(struct sockaddr_in *sin, byte *pkt, int len);
+
+#define CB_CLIENTCONNECTED ("clientconnected")
+typedef void (*ClientConnectedFunc)(int pid);
 
 
 struct net_stats
@@ -133,6 +131,9 @@ typedef struct Inet
 	void (*GetStats)(struct net_stats *stats);
 	void (*GetClientStats)(int pid, struct net_client_stats *stats);
 	int (*GetLastPacketTime)(int pid);
+
+	int (*ConnectToClient)(const char *name, const char *ipaddr,
+			unsigned short port, int initlimit, Iencrypt *enc);
 } Inet;
 
 

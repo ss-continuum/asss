@@ -19,6 +19,8 @@ local void Init(int pid, int k);
 local int Encrypt(int, byte *, int);
 local int Decrypt(int, byte *, int);
 local void Void(int);
+local void Initiate(int);
+local int HandleResponse(int pid, byte *pkt, int len);
 
 
 /* globals */
@@ -30,8 +32,8 @@ local Inet *net;
 
 local Iencrypt _int =
 {
-	INTERFACE_HEAD_INIT(NULL, "vieenc")
-	Encrypt, Decrypt, Void
+	INTERFACE_HEAD_INIT("__unused__", "vieenc")
+	Encrypt, Decrypt, Void, Initiate, HandleResponse
 };
 
 
@@ -42,10 +44,13 @@ EXPORT int MM_encrypt1(int action, Imodman *mm, int arena)
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		mm->RegCallback(CB_CONNINIT, ConnInit, ALLARENAS);
 		pthread_mutex_init(&statmtx, NULL);
+		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
+		if (mm->UnregInterface(&_int, ALLARENAS))
+			return MM_FAIL;
 		mm->UnregCallback(CB_CONNINIT, ConnInit, ALLARENAS);
 		mm->ReleaseInterface(net);
 		/* don't destroy statmtx here, because we may be asked to
@@ -99,11 +104,11 @@ void Init(int pid, int k)
 	int t, loop;
 	short *mytable = (short *) enc[pid].enctable;
 
-	if (k == 0) return;
-
 	pthread_mutex_lock(&statmtx);
 	enc->key = k;
 	pthread_mutex_unlock(&statmtx);
+
+	if (k == 0) return;
 
 	for (loop = 0; loop < 0x104; loop++)
 	{
@@ -199,5 +204,41 @@ void Void(int pid)
 	pthread_mutex_lock(&statmtx);
 	enc[pid].key = 0;
 	pthread_mutex_unlock(&statmtx);
+}
+
+
+void Initiate(int pid)
+{
+	struct
+	{
+		u8 t1, t2;
+		int key;
+	}
+	pkt = { 0x00, 0x01, GTC() };
+
+	if (pkt.key > 0) pkt.key = -pkt.key;
+	net->SendToOne(pid, (byte*)&pkt, 6, NET_UNRELIABLE | NET_PRI_P5);
+
+	pthread_mutex_lock(&statmtx);
+	enc[pid].key = pkt.key;
+	pthread_mutex_unlock(&statmtx);
+}
+
+int HandleResponse(int pid, byte *pkt, int len)
+{
+	int mykey, rkey = *(int*)(pkt+2);
+
+	pthread_mutex_lock(&statmtx);
+	mykey = enc[pid].key;
+	pthread_mutex_unlock(&statmtx);
+
+	if (mykey == rkey)
+		/* no encryption */
+		Init(pid, 0);
+	else
+		/* regular encryption */
+		Init(pid, rkey);
+
+	return TRUE;
 }
 

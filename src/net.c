@@ -22,6 +22,11 @@
 
 /* defines */
 
+#define EXTRA_PID_COUNT 1
+#define EXTRA_PID(x) ((MAXPLAYERS)+x)
+
+#define PID_BILLER EXTRA_PID(0)
+
 #define MAXTYPES 64
 
 /* ip/udp overhead, in bytes per physical packet */
@@ -198,7 +203,7 @@ local PlayerData *players;
 local LinkedList handlers[MAXTYPES];
 local LinkedList sizedhandlers[MAXTYPES];
 local LinkedList billhandlers[MAXTYPES];
-local int serversock, pingsock, clientsock;
+local int serversock = -1, pingsock = -1, clientsock = -1;
 
 local DQNode freelist, rellist;
 local pthread_mutex_t freemtx, relmtx;
@@ -227,8 +232,7 @@ local int pri_limits[8] =
 
 local struct
 {
-	int port, timeout;
-	int usebilling, droptimeout;
+	int port, timeout, droptimeout;
 	int bufferdelta, deflimit;
 } config;
 
@@ -301,11 +305,6 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		/* cfghelp: Net:MaxBufferDelta, global, int, def: 30
 		 * The maximum number of reliable packets to buffer for a player. */
 		config.bufferdelta = cfg->GetInt(GLOBAL, "Net", "MaxBufferDelta", 30);
-		/* cfghelp: Billing:UseBilling, global, bool, def: 0
-		 * This must be enabled to make a connection to the billing
-		 * server. In addition, the 'billcore' module needs to be
-		 * loaded. */
-		config.usebilling = cfg->GetInt(GLOBAL, "Billing", "UseBilling", 0);
 		/* cfghelp: Net:BandwidthLimit, global, int, def: 3500
 		 * The maximum number of bytes per second to send to each
 		 * player by default. */
@@ -383,7 +382,7 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 
 		close(serversock);
 		close(pingsock);
-		if (config.usebilling) close(clientsock);
+		if (clientsock >= 0) close(clientsock);
 
 		/* release these */
 		mm->ReleaseInterface(pd);
@@ -583,37 +582,41 @@ int InitSockets(void)
 		return -1;
 	}
 
-	if (config.usebilling)
-	{
-		/* get socket */
-		if ((clientsock = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
-		{
-			perror("socket");
-			return -1;
-		}
-
-		/* set up billing client struct */
-		strcpy(players[PID_BILLER].name, "<<Billing Server>>");
-		clients[PID_BILLER].c2sn = -1;
-		clients[PID_BILLER].sin.sin_family = AF_INET;
-		/* cfghelp: Billing:IP, global, string
-		 * The ip address of the billing server (no dns hostnames
-		 * allowed). */
-		clients[PID_BILLER].sin.sin_addr.s_addr =
-			inet_addr(cfg->GetStr(GLOBAL, "Billing", "IP"));
-		/* cfghelp: Billing:Port, global, int, def: 1850
-		 * The port to connect to on the billing server. */
-		clients[PID_BILLER].sin.sin_port =
-			htons(cfg->GetInt(GLOBAL, "Billing", "Port", 1850));
-		/* cfghelp: Billing:Limit, global, int, def: 15000
-		 * The bandwidth limit (in bytes per second) for the billing
-		 * server. */
-		clients[PID_BILLER].limit =
-			cfg->GetInt(GLOBAL, "Billing", "Limit", 15000);
-		clients[PID_BILLER].enc = NULL;
-	}
-	
 	return 0;
+}
+
+
+int ConnectToClient(const char *name, const char *ipaddr, unsigned short port,
+		int initlimit, Iencrypt *enc)
+{
+	/* fixed for now */
+	int pid = PID_BILLER;
+
+	/* the encryption interface must support initiating connections */
+	if (!enc || !enc->Initiate)
+		return -1;
+
+	/* get the socket if we don't have it yet */
+	if (clientsock == -1)
+	{
+		clientsock = socket(PF_INET, SOCK_DGRAM, 0);
+		if (clientsock == -1)
+			return -1;
+	}
+
+	/* set up billing client struct */
+	strcpy(players[pid].name, name);
+	clients[pid].c2sn = -1;
+	clients[pid].sin.sin_family = AF_INET;
+	clients[pid].sin.sin_addr.s_addr = inet_addr(ipaddr);
+	clients[pid].sin.sin_port = htons(port);
+	clients[pid].limit = initlimit;
+	clients[pid].enc = enc;
+
+	/* tell the encryption thingy to initate a connection */
+	enc->Initiate(pid);
+
+	return pid;
 }
 
 
@@ -639,7 +642,7 @@ void * RecvThread(void *dummy)
 		do {
 			/* set up fd set and tv */
 			FD_ZERO(&fds);
-			if (config.usebilling)
+			if (clientsock >= 0)
 			{
 				FD_SET(clientsock, &fds);
 				if (clientsock > maxfd) maxfd = clientsock;
@@ -753,7 +756,8 @@ void * RecvThread(void *dummy)
 				buf->len = len;
 			else /* bad crc, or something */
 			{
-				lm->Log(L_MALICIOUS, "<net> [pid=%d] Incoming packet failed crc", pid);
+				lm->Log(L_MALICIOUS, "<net> [pid=%d] "
+						"Incoming packet failed crc", pid);
 				goto freebuf;
 			}
 
@@ -805,23 +809,59 @@ donehere:
 		if (FD_ISSET(clientsock, &fds))
 		{
 			/* data from billing server */
-			Buffer *buf;
+			Buffer *buf = GetBuffer();
 
-			buf = GetBuffer();
 			sinsize = sizeof(sin);
 			n = recvfrom(clientsock, buf->d.raw, MAXPACKET, 0,
 					(struct sockaddr*)&sin, &sinsize);
+
 			if (memcmp(&sin, &clients[PID_BILLER].sin, sizeof(sin) - sizeof(sin.sin_zero)))
+			{
 				lm->Log(L_MALICIOUS,
-						"<net> Data recieved on billing server socket from incorrect origin: %s:%i",
+						"<net> Data recieved on billing server socket "
+						"from incorrect origin: %s:%i",
 						inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
+				FreeBuffer(buf);
+			}
 			else if (n > 0)
 			{
-				buf->pid = PID_BILLER;
-				buf->len = n;
-				clients[PID_BILLER].lastpkt = GTC();
-				ProcessBuffer(buf);
+				Iencrypt *enc = clients[PID_BILLER].enc;
+				if (IS_CONNINIT(buf))
+				{
+					int done;
+					done = enc->HandleResponse(PID_BILLER, buf->d.raw, n);
+					/* that will return true if the connection is ready
+					 * to be used. */
+					if (done)
+						DO_CBS(CB_CLIENTCONNECTED, ALLARENAS,
+								ClientConnectedFunc, (pid));
+					FreeBuffer(buf);
+				}
+				else
+				{
+					/* try to decrypt the packet */
+					n = enc->Decrypt(PID_BILLER, buf->d.raw, n);
+
+					if (n != 0)
+					{
+						buf->len = n;
+						buf->pid = PID_BILLER;
+						ProcessBuffer(buf);
+						clients[PID_BILLER].lastpkt = GTC();
+						clients[PID_BILLER].byterecvd += len + IP_UDP_OVERHEAD;
+						clients[PID_BILLER].pktrecvd++;
+						global_stats.pktrecvd++;
+					}
+					else /* bad crc, or something */
+					{
+						lm->Log(L_MALICIOUS, "<net> [pid=%d] "
+								"Incoming packet failed crc", pid);
+						FreeBuffer(buf);
+					}
+				}
 			}
+			else
+				FreeBuffer(buf);
 		}
 	}
 	return NULL;
@@ -1805,13 +1845,17 @@ void SendRaw(int pid, byte *data, int len)
 #endif
 
 		sendto(serversock, encbuf, len, 0,
-				(struct sockaddr*)&clients[pid].sin, sizeof(struct sockaddr_in));
+				(struct sockaddr*)&clients[pid].sin,sizeof(struct sockaddr_in));
 
 	}
 	else
 	{
-		sendto(clientsock, data, len, 0,
-				(struct sockaddr*)&clients[pid].sin, sizeof(struct sockaddr_in));
+		memcpy(encbuf, data, len);
+		if (enc)
+			len = enc->Encrypt(pid, encbuf, len);
+
+		sendto(clientsock, encbuf, len, 0,
+				(struct sockaddr*)&clients[pid].sin,sizeof(struct sockaddr_in));
 	}
 
 	clients[pid].bytessince += len + IP_UDP_OVERHEAD;

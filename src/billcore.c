@@ -26,10 +26,11 @@ local void RemovePacket(byte, PacketFunc);
 local int GetStatus(void);
 
 /* local: */
-local void BillingAuth(int, struct LoginPacket *, int, void (*)(int, AuthData*));
+local int do_connect(void);
+local void BillingAuth(int, struct LoginPacket*, int, void (*)(int, AuthData*));
 
 local int SendPing(void *);
-local void SendLogin(int, byte *, int);
+local void SendLogin(int);
 
 local void BAuthResponse(int, byte *, int);
 local void BChatMsg(int, byte *, int);
@@ -59,7 +60,7 @@ local Ichat *chat;
 local Imodman *mm;
 
 local void (*CachedAuthDone)(int, AuthData*);
-local int pendingrequests;
+local int pendingrequests, mypid;
 local PlayerData *players;
 
 local int cfg_pingtime, cfg_serverid, cfg_groupid, cfg_scoreid;
@@ -106,6 +107,7 @@ EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
 
 		if (!net || !ml || !cfg || !cmd || !chat) return MM_FAIL;
 
+		mypid = -1;
 		pendingrequests = 0;
 		CachedAuthDone = NULL;
 		pthread_mutex_init(&bigmtx, NULL);
@@ -129,7 +131,7 @@ EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
 		ml->SetTimer(SendPing, 300, 3000, NULL, -1);
 
 		/* packets from billing server */
-		AddPacket(0, SendLogin); /* sent from net when it's time to contact biller */
+		mm->RegCallback(CB_CLIENTCONNECTED, SendLogin, ALLARENAS);
 		AddPacket(B2S_PLAYERDATA, BAuthResponse);
 		AddPacket(B2S_CHATMSG, BChatMsg);
 		AddPacket(B2S_ZONEMESSAGE, BMessage);
@@ -158,14 +160,15 @@ EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
 
 		/* send logoff packet (immediate so it gets there before */
 		/* connection drop) */
-		SendToBiller(&dis, 1, NET_RELIABLE | NET_PRI_P4);
-		net->DropClient(PID_BILLER);
+		SendToBiller(&dis, 1, NET_RELIABLE | NET_PRI_P5);
+		net->DropClient(mypid);
+		mypid = -1;
 
 		cmd->RemoveCommand(NULL, DefaultCmd);
 		cmd->RemoveCommand("userid", Cuserid);
 		cmd->RemoveCommand("usage", Cusage);
 
-		RemovePacket(0, SendLogin);
+		mm->UnregCallback(CB_CLIENTCONNECTED, SendLogin, ALLARENAS);
 		RemovePacket(B2S_PLAYERDATA, BAuthResponse);
 
 		net->RemovePacket(C2S_CHAT, PChat);
@@ -187,9 +190,37 @@ EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
 }
 
 
+int do_connect(void)
+{
+	int pid, port, limit;
+	const char *ipaddr;
+	Iencrypt *enc;
+
+	/* cfghelp: Billing:IP, global, string
+	 * The ip address of the billing server (no dns hostnames
+	 * allowed). */
+	ipaddr = cfg->GetStr(GLOBAL, "Billing", "IP");
+	/* cfghelp: Billing:Port, global, int, def: 1850
+	 * The port to connect to on the billing server. */
+	port = cfg->GetInt(GLOBAL, "Billing", "Port", 1850);
+	/* cfghelp: Billing:Limit, global, int, def: 15000
+	 * The bandwidth limit (in bytes per second) for the billing
+	 * server. */
+	limit = cfg->GetInt(GLOBAL, "Billing", "Limit", 15000);
+
+	enc = mm->GetInterfaceByName("vieenc");
+	if (!enc) return -1;
+
+	pid = net->ConnectToClient("<<billing server>>", ipaddr, port, limit, enc);
+
+	return pid;
+}
+
+
 void SendToBiller(byte *data, int length, int flags)
 {
-	net->SendToOne(PID_BILLER, data, length, flags);
+	if (mypid >= 0)
+		net->SendToOne(mypid, data, length, flags);
 }
 
 void AddPacket(byte pktype, PacketFunc func)
@@ -205,8 +236,10 @@ void RemovePacket(byte pktype, PacketFunc func)
 int GetStatus(void)
 {
 	int st;
+	if (mypid < 0)
+		return BNET_NOBILLING;
 	pd->LockStatus();
-	st = players[PID_BILLER].status;
+	st = players[mypid].status;
 	pd->UnlockStatus();
 	return st;
 }
@@ -214,16 +247,16 @@ int GetStatus(void)
 
 int SendPing(void *dummy)
 {
-	int status;
-	status = GetStatus();
+	int status = GetStatus();
 	if (status == BNET_NOBILLING)
-	{	/* no communication yet, send initiation packet */
-		byte initiate[8] = { 0x00, 0x01, 0xDA, 0x8F, 0xFD, 0xFF, 0x01, 0x00 };
-		SendToBiller(initiate, 8, NET_UNRELIABLE | NET_PRI_P3);
-		lm->Log(L_INFO, "<billcore> Attempting to connect to billing server");
+	{
+		/* no communication yet, send initiation packet */
+		lm->Log(L_INFO,"<billcore> Attempting to connect to billing server");
+		mypid = do_connect();
 	}
 	else if (status == BNET_CONNECTED)
-	{	/* connection established, send ping */
+	{
+		/* connection established, send ping */
 		byte ping = S2B_KEEPALIVE;
 		SendToBiller(&ping, 1, NET_RELIABLE | NET_PRI_P3);
 	}
@@ -231,7 +264,7 @@ int SendPing(void *dummy)
 }
 
 
-void SendLogin(int pid, byte *p, int n)
+void SendLogin(int pid)
 {
 	struct S2BLogin to =
 	{
