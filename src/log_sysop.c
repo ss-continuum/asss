@@ -3,6 +3,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "asss.h"
 
@@ -18,10 +19,11 @@ local int seewhatkey;
 /* stuff for lastlog */
 #define MAXLAST CFG_LAST_LINES
 #define MAXLINE CFG_LAST_LENGTH
+#define MAXATONCE 50
 
 /* this is a circular buffer structure */
 local int ll_pos;
-local char ll_data[MAXLAST][MAXLINE]; /* 12.5k */
+local char ll_data[MAXLAST][MAXLINE]; /* 37.5k */
 local pthread_mutex_t ll_mtx = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK_LL() pthread_mutex_lock(&ll_mtx)
 #define UNLOCK_LL() pthread_mutex_unlock(&ll_mtx)
@@ -144,37 +146,48 @@ void PA(Player *p, int action, Arena *arena)
 
 local helptext_t lastlog_help =
 "Module: log_sysop\n"
-"Targets: none\n"
+"Targets: none or player\n"
 "Args: [<number of lines>] [<limiting text>]\n"
-"Prints out the last <number> lines in the server log (default: 10\n"
-"lines). If you specify any text as an argument, besides a number, the\n"
-"display will be limited to lines that contain that text. You can specify\n"
-"both a number and limiting text, just put the number first.\n";
+"Displays the last <number> lines in the server log (default: 10).\n"
+"If limiting text is specified, only lines that contain that text will\n"
+"be displayed. If a player is targeted, only lines mentioning that player\n"
+"will be displayed.\n";
 
 void Clastlog(const char *cmd, const char *params, Player *p, const Target *target)
 {
-	int count, c;
-	char *end;
+	int count, left, c;
+	char *end, *lines[MAXATONCE], buf[64];
 	Link link = { NULL, p };
 	LinkedList lst = { &link, &link };
 
 	count = strtol(params, &end, 0);
 	if (count < 1) count = 10;
-	if (count >= MAXLAST) count = MAXLAST-1;
+	if (count > MAXATONCE) count = MAXATONCE;
 
-	if (*end)
-		while (*end == ' ' || *end == '\t') end++;
-
-	c = (ll_pos - count + MAXLAST) % MAXLAST;
+	if (target->type == T_PLAYER)
+	{
+		snprintf(buf, sizeof(buf), "[%s]", target->u.p->name);
+		end = buf;
+	}
+	else
+	{
+		if (*end)
+			while (*end == ' ' || *end == '\t') end++;
+	}
 
 	LOCK_LL();
-	while (c != ll_pos)
+	/* move backwards and find the right lines */
+	left = count;
+	c = (ll_pos - 1 + MAXLAST) % MAXLAST;
+	while (c != ll_pos && ll_data[c][0] != '\0' && left > 0)
 	{
-		if (ll_data[c][0])
-			if (*end == '\0' || strstr(ll_data[c], end))
-				chat->SendAnyMessage(&lst, MSG_SYSOPWARNING, 0, NULL, "%s", ll_data[c]);
-		c = (c+1) % MAXLAST;
+		if (*end == '\0' || strstr(ll_data[c], end))
+			lines[--left] = ll_data[c];
+		c = (c - 1 + MAXLAST) % MAXLAST;
 	}
+	/* then print them */
+	while (left < count)
+		chat->SendAnyMessage(&lst, MSG_SYSOPWARNING, 0, NULL, "%s", lines[left++]);
 	UNLOCK_LL();
 }
 
