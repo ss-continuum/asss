@@ -30,6 +30,7 @@ local Iconfig *cfg;
 local Inet *net;
 local Imodman *mm;
 local Ilogman *log;
+local Imapnewsdl *map;
 
 /* big static arena data array */
 local ArenaData arenas[MAXARENA];
@@ -50,9 +51,10 @@ int MM_arenaman(int action, Imodman *mm_)
 		log = mm->GetInterface(I_LOGMAN);
 		cfg = mm->GetInterface(I_CONFIG);
 		ml = mm->GetInterface(I_MAINLOOP);
+		map = mm->GetInterface(I_MAPNEWSDL);
 		players = mm->players;
 
-		if (!net || !cfg || !log || !ml) return MM_FAIL;
+		if (!net || !cfg || !log || !ml || !map) return MM_FAIL;
 
 		memset(arenas, 0, sizeof(ArenaData) * MAXARENA);
 
@@ -98,7 +100,7 @@ local void DoLoadArena(int arena)
 
 	arenas[arena].status = ARENA_LOADING;
 
-	/* this should go in another thread <<< */
+	/* this should go in another thread {{{ */
 
 	snprintf(fname, "arena-%s", name);
 	config = cfg->OpenConfigFile(fname);
@@ -118,7 +120,7 @@ local void DoLoadArena(int arena)
 	/* call module arena creating handlers */
 	CallAA(AA_LOAD, arena);
 
-	/* >>> to here */
+	/* }}} to here */
 
 	arenas[arena].status = ARENA_RUNNING;
 	SendMultipleArenaResponses(arena);
@@ -129,43 +131,36 @@ local void DoFreeArena(int arena)
 {
 	arenas[arena].status = ARENA_UNLOADING;
 
-	/* other thread: <<< */
+	/* other thread: {{{ */
 	CallAA(AA_UNLOAD, arena);
 	cfg->CloseConfigFile(arenas[arena].cfg);
-	/* >>> to here */
+	/* }}} to here */
 
 	arenas[arena].status = ARENA_NONE;
 }
 
 
-local void CreateArena(char *name, int initialpid)
+local int CreateArena(char *name, int initialpid)
 {
 	int i;
 
 	if (FindArena(name, TRUE) != -1)
 	{
 		log->Log(LOG_ERROR,"Internal error in CreateArena: arena %s already exists!", name);
-		return;
+		return -1;
 	}
 
 	while (arenas[i].status != ARENA_NONE && i < MAXARENA) i++;
 
 	if (i == MAXARENA)
 	{
-		Ichat *chat;
 		log->Log(LOG_IMPORTANT, "Arena limit exceeded!");
-		chat = mm->GetInterface(I_CHAT);
-		if (chat)
-			chat->SendMessage(pid, "The server cannot create a new arena. Please try an existing one.");
-		return;
+		return -1;
 	}
 
 	astrncpy(arenas[i].name, name, 20);
-	players[pid].arena = i;
 
-	/* eventually this will pass the message to another thread */
-	/* this will call SendMultipleArenaReponses, somehow */
-	DoLoadArena(arena);
+	return i;
 }
 
 local void FreeArena(int arena)
@@ -177,13 +172,74 @@ local void FreeArena(int arena)
 
 local void SendOneArenaResponse(int pid)
 {
+	struct SimplePacket whoami = { S2C_WHOAMI, 0 };
+	struct MapFilename mapfname;
+	int arena, i;
+	/* Iarenaset *aset; */
 
+	arena = players[pid].arena;
+
+	/* send whoami packet */
+	whoami.d1 = pid;
+	net->SendToOne(pid, (byte*)&whoami, 3, NET_RELIABLE);
+
+	/* figure out his freq */
+	players[pid].freq = ((Iassignfreq*)mm->GetInterface(I_ASSIGNFREQ))
+		->AssignFreq(pid, BADFREQ, players[pid].shiptype);
+
+	/* send settings */
+	/* aset = mm->GetInterface(I_ARENASET);
+	 * net->SendToOne(pid, (byte*)aset->GetSettingData(arena),
+	 *                   aset->GetSettingDataSize(), NET_RELIABLE);
+	 */
+
+	/* send player list */
+	for (i = 0; i < MAXPLAYERS; i++)
+		if (	players[i].status == S_CONNECTED
+			 && players[i].arena  == arena )
+			net->SendToOne(pid, (byte*)(players+i), 64, NET_RELIABLE);
+
+	/* send mapfilename */
+	mapfname.type = S2C_MAPFILENAME;
+	mapfname.checksum = map->GetMapChecksum(arena);
+	astrncpy(mapfname.filename, map->GetMapFileName(arena), 16);
+	net->SendToOne(pid, (byte*)&mapfname, sizeof(struct MapFilename), NET_RELIABLE);
+
+	/* send brick clear and finisher */
+	mapfname.type = S2C_BRICK;
+	net->SendToOne(pid, &mapfname, 1, NET_RELIABLE);
+	mapfname.type = S2C_ENTERINGARENA;
+	net->SendToOne(pid, &mapfname, 1, NET_RELIABLE);
+
+	/* alert others */
+	net->SendToArena(players[pid].arena, pid,
+			(byte*)(players+pid), 64, NET_RELIABLE);
 }
 
 
 local void SendMultipleArenaResponses(int arena)
 {
-
+/*
+ * we want to make this one as efficient as possible. thus:
+ * 
+ * enumerate all the pids first
+ *
+ * whoamis: loop and sendtoone
+ *
+ * freqs: loop and figure them all out
+ *
+ * settings: sendtoset
+ *
+ * player lists: it seems like everyone will have to know about everyone
+ * else, so: loop and sendtoset everyone to everyone
+ *
+ * mapfilenames: sendtoset
+ *
+ * brick clear and finisher: sendtoset both
+ *
+ * alert others: taken care of above
+ *
+ */
 }
 
 
@@ -209,6 +265,7 @@ void PArena(int pid, byte *p, int l)
 	char *name, digit[2];
 	int arena;
 
+	/* check for bad packets */
 	if (l != sizeof(struct GoArenaPacket))
 	{
 		log->Log(LOG_BADDATA, "Wrong size arena packet recvd (%s)", players[pid].name);
@@ -217,9 +274,15 @@ void PArena(int pid, byte *p, int l)
 
 	go = (struct GoArenaPacket*)p;
 
+	if (go->shiptype < 0 || go->shiptype > SPEC)
+	{
+		log->Log(LOG_BADDATA, "Bad shiptype in request (%s)", players[pid].name);
+	}
+
+	/* make a name from the request */
 	if (go->arenatype == -3)
 		name = p->arenaname;
-	else if (go->arenatype == -2)
+	else if (go->arenatype == -2 || go->arenatype == -1)
 	{
 		name = digit;
 		digit[0] = '0';
@@ -243,12 +306,28 @@ void PArena(int pid, byte *p, int l)
 
 	if (arena == -1)
 	{
-		CreateArena(name, pid);
+		arena = CreateArena(name, pid);
+		if (arena == -1)
+		{
+			/* if it fails, dump in first available */
+			arena = 0;
+			while (arenas[arena].status != ARENA_RUNNING && arena < MAXARENA) arena++;
+			if (arena == MAXARENA) return;
+		}
+		players[pid].arena = arena;
+		players[pid].shiptype = go->shiptype;
+		players[pid].xres = go->xres;
+		players[pid].yres = go->yres;
+		/* this will call SendMultipleArenaReponses, somehow */
+		DoLoadArena(arena);
 	}
 	else
 	{
 		/* set this so other functions know he is in here */
 		players[pid].arena = arena;
+		players[pid].shiptype = go->shiptype;
+		players[pid].xres = go->xres;
+		players[pid].yres = go->yres;
 
 		if (arenas[arena].status == ARENA_LOADING)
 		{
@@ -287,17 +366,6 @@ skip:
 
 
 #if 0
-
-void PArena(int pid, byte *p, int l)
-{
-	/* check shiptype */
-	if (pk->shiptype > SPEC || pk->shiptype < 0)
-	{
-		log->Log(LOG_BADDATA,"Bad ship number: %i (%s)",
-				pk->shiptype, players[pid].name);
-		return;
-	}
-}
 
 void SendArenaResponse(int arena)
 {
@@ -347,28 +415,6 @@ void SendArenaResponse(int arena)
 }
 
 
-int ReapArenas(void *q)
-{
-	int i, j, count;
-
-	for (i = 0; i < MAXARENA; i++)
-		if (arenas[i])
-		{
-			count = 0;
-			for (j = 0; j < MAXPLAYERS; j++)
-				if (	net->GetStatus(j) == S_CONNECTED &&
-						players[j].arena == i)
-					count++;
-			if (count == 0)
-			{
-				log->Log(LOG_USELESSINFO, "Arena %s (%i) being reaped",
-						arenas[i]->name, i);
-				FreeArena(i);
-			}
-		}
-	return 1;
-}
-
 
 int CreateArena(char *name)
 {
@@ -412,16 +458,6 @@ int CreateArena(char *name)
 	log->Log(LOG_USELESSINFO,"Arena %s (%i) created sucessfully", name, i);
 	return i;
 }
-
-
-void FreeArena(int i)
-{
-	cfg->CloseConfigFile(arenas[i]->config);
-	free(arenas[i]->mapdata);
-	free(arenas[i]);
-	arenas[i] = NULL;
-}
-
 
 
 #endif

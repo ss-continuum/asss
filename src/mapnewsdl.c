@@ -15,6 +15,7 @@
 typedef struct MapData
 {
 	i32 mapchecksum;
+	char mapfname[20];
 	byte *cmpmap;
 	int cmpmaplen;
 } MapData;
@@ -34,6 +35,7 @@ local void CompressMap(int);
 local void RefreshNewsTxt();
 
 i32 GetMapChecksum(int arena);
+char *GetMapFileName(int arena);
 i32 GetNewsChecksum();
 
 
@@ -54,7 +56,7 @@ local i32 newschecksum, cmpnewssize;
 local byte *cmpnews;
 local time_t newstime;
 
-local Imapnewsdl _int = { GetMapChecksum, GetNewsChecksum };
+local Imapnewsdl _int = { GetMapChecksum, GetMapFileName, GetNewsChecksum };
 
 
 /* FUNCTIONS */
@@ -150,13 +152,14 @@ void CompressMap(int arena)
 
 	mapname = cfg->GetStr(config, "General", "Map");
 
+	astrncpy(mapdata[arena].mapfname, mapname, 20);
+
 	/* get map filename and open it */
 	sprintf(fname,"map/%s",mapname);
 	mapfd = open(fname,O_RDONLY);
 	if (mapfd == -1)
 	{
 		log->Log(LOG_ERROR,"Map file '%s' not found in current directory", fname);
-		return AA_FAIL;
 	}
 
 	/* find it's size */
