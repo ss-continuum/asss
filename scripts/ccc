@@ -612,15 +612,13 @@ def start_curses():
 	curses.start_color()
 	init_wins()
 
-	#curses.mousemask(curses.BUTTON3_CLICKED)
-
 
 def init_wins():
 	global wins, editheight, pwidth
 
 	h, w = wins.stdscr.getmaxyx()
 
-	wins.stdscr.erase()
+	wins.stdscr.clear()
 
 	wins.iwin = curses.newwin(editheight, w, h-editheight, 0)
 	wins.stdscr.hline(h-editheight-1, 0, curses.ACS_HLINE, w)
@@ -1115,7 +1113,7 @@ def process_config(file):
 
 def main():
 	global wins, text, edit, sock, players, myname, colors, scrollback
-	global newcrap, logindone, players, last_priv_list
+	global newcrap, logindone, last_priv_list
 
 	colors = 0
 	myname = ''
