@@ -36,11 +36,11 @@ local Iobjects _myint =
 };
 
 
-EXPORT int MM_objects(int action, Imodman *_mm, Arena *arena)
+EXPORT int MM_objects(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
-		mm = _mm;
+		mm = mm_;
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		game = mm->GetInterface(I_GAME, ALLARENAS);

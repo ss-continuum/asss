@@ -17,11 +17,11 @@ local Icapman *capman;
 local Ilogman *lm;
 
 
-EXPORT int MM_arenaperm(int action, Imodman *_mm, Arena *arena)
+EXPORT int MM_arenaperm(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
-		mm = _mm;
+		mm = mm_;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);

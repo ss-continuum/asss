@@ -343,11 +343,11 @@ local Ifreqman fm_int =
 	Initial, Ship, Freq
 };
 
-EXPORT int MM_fm_normal(int action, Imodman *_mm, Arena *arena)
+EXPORT int MM_fm_normal(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
-		mm = _mm;
+		mm = mm_;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);

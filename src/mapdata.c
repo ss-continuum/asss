@@ -92,11 +92,11 @@ local Imapdata _int =
 
 
 
-EXPORT int MM_mapdata(int action, Imodman *_mm, Arena *arena)
+EXPORT int MM_mapdata(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
-		mm = _mm;
+		mm = mm_;
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);

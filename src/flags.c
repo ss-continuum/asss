@@ -89,11 +89,11 @@ local Iflags _myint =
 
 
 
-EXPORT int MM_flags(int action, Imodman *_mm, Arena *arena)
+EXPORT int MM_flags(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
-		mm = _mm;
+		mm = mm_;
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		logm = mm->GetInterface(I_LOGMAN, ALLARENAS);

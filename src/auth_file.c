@@ -198,7 +198,7 @@ local void Caddallowed(const char *params, Player *p, const Target *target)
 		ctime_r(&tm, buf + strlen(buf));
 		RemoveCRLF(buf);
 
-		cfg->SetStr(pwdfile, "users", p->name, "any", buf, TRUE);
+		cfg->SetStr(pwdfile, "users", params, "any", buf, TRUE);
 		chat->SendMessage(p, "Added %s to the allowed player list.", params);
 	}
 

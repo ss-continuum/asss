@@ -850,11 +850,11 @@ local Ipersist _myint =
 };
 
 
-EXPORT int MM_persist(int action, Imodman *_mm, Arena *arena)
+EXPORT int MM_persist(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
-		mm = _mm;
+		mm = mm_;
 
 		if (init_db() == MM_FAIL)
 			return MM_FAIL;

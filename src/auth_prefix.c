@@ -68,11 +68,11 @@ local Iauth myauth =
 };
 
 
-EXPORT int MM_auth_prefix(int action, Imodman *_mm, Arena *arena)
+EXPORT int MM_auth_prefix(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
-		mm = _mm;
+		mm = mm_;
 		oldauth = mm->GetInterface(I_AUTH, ALLARENAS);
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);

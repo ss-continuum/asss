@@ -8,6 +8,7 @@
 #include <ctype.h>
 
 #ifndef WIN32
+#include <sys/types.h>
 #include <arpa/inet.h>
 #include <sys/utsname.h>
 #include <dirent.h>
@@ -2094,13 +2095,13 @@ struct cmd_group *find_group(const char *name)
 
 
 
-EXPORT int MM_playercmd(int action, Imodman *_mm, Arena *arena)
+EXPORT int MM_playercmd(int action, Imodman *mm_, Arena *arena)
 {
 	struct cmd_group *grp;
 
 	if (action == MM_LOAD)
 	{
-		mm = _mm;
+		mm = mm_;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
