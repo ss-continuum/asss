@@ -43,7 +43,7 @@ enum
 	 */
 	MM_ATTACH,
 
-	/* the reverse of MM_ATTACH.
+	/** the reverse of MM_ATTACH.
 	 * disable any special functionality for this arena.
 	 */
 	MM_DETACH
