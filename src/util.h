@@ -87,6 +87,7 @@ void LLFree(LinkedList *lst);
 void LLAdd(LinkedList *lst, void *data);
 void LLAddFirst(LinkedList *lst, void *data);
 int LLRemove(LinkedList *lst, void *data);
+int LLRemoveAll(LinkedList *lst, void *data);
 void *LLRemoveFirst(LinkedList *lst);
 int LLIsEmpty(LinkedList *lst);
 Link *LLGetHead(LinkedList *lst);

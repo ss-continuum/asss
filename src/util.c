@@ -260,6 +260,7 @@ int LLRemove(LinkedList *l, void *p)
 				if (n == l->end) l->end = prev;
 			}
 #ifdef USE_GC
+			n->next = n->data = NULL;
 			n = NULL;
 #else
 			n->next = freelinks;
@@ -271,6 +272,42 @@ int LLRemove(LinkedList *l, void *p)
 		n = n->next;
 	}
 	return 0;
+}
+
+int LLRemoveAll(LinkedList *l, void *p)
+{
+	Link *n = l->start, *prev = NULL, *next;
+	int removed = 0;
+
+	while (n)
+	{
+		next = n->next;
+		if (n->data == p)
+		{
+			if (prev == NULL) /* first link */
+			{
+				l->start = next;
+			}
+			else
+			{
+				prev->next = next;
+				if (next == NULL) l->end = prev;
+			}
+#ifdef USE_GC
+			n->next = n->data = NULL;
+			n = NULL;
+#else
+			n->next = freelinks;
+			freelinks = n;
+#endif
+			removed++;
+		}
+		else
+			prev = n;
+		n = next;
+	}
+
+	return removed;
 }
 
 void *LLRemoveFirst(LinkedList *lst)
@@ -287,6 +324,7 @@ void *LLRemoveFirst(LinkedList *lst)
 	lst->start = lst->start->next;
 
 #ifdef USE_GC
+	lnk->next = lnk->data = NULL;
 	lnk = NULL;
 #else
 	lnk->next = freelinks;
