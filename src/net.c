@@ -1862,10 +1862,8 @@ void ProcessBuffer(Buffer *buf)
 			LinkedList *lst = handlers + (int)buf->d.rel.t1;
 			Link *l;
 
-			pd->LockPlayer(conn->p);
 			for (l = LLGetHead(lst); l; l = l->next)
 				((PacketFunc)(l->data))(conn->p, buf->d.raw, buf->len);
-			pd->UnlockPlayer(conn->p);
 		}
 		else if (conn->cc)
 			conn->cc->i->HandlePacket(buf->d.raw, buf->len);
@@ -2258,10 +2256,8 @@ void ProcessBigData(Buffer *buf)
 		{
 			LinkedList *lst = handlers + (int)newbuf[0];
 			Link *l;
-			pd->LockPlayer(conn->p);
 			for (l = LLGetHead(lst); l; l = l->next)
 				((PacketFunc)(l->data))(conn->p, newbuf, newsize);
-			pd->UnlockPlayer(conn->p);
 		}
 		else
 			conn->cc->i->HandlePacket(newbuf, newsize);

@@ -81,6 +81,7 @@ local int cfg_bulletpix, cfg_wpnpix, cfg_pospix;
 local int cfg_sendanti, cfg_changelimit;
 local int wpnrange[WEAPONCOUNT]; /* there are 5 bits in the weapon type */
 local pthread_mutex_t specmtx = PTHREAD_MUTEX_INITIALIZER;
+local pthread_mutex_t freqshipmtx = PTHREAD_MUTEX_INITIALIZER;
 
 
 #define SEE_ENERGY_MAP(F) \
@@ -689,10 +690,10 @@ local void Cenergy(const char *cmd, const char *params, Player *p, const Target 
 }
 
 
+/* call with freqshipmtx lock held */
 local void expire_lock(Player *p)
 {
 	pdata *data = PPDATA(p, pdkey);
-	pd->LockPlayer(p);
 	if (data->expires > 0)
 		if (time(NULL) > data->expires)
 		{
@@ -700,15 +701,14 @@ local void expire_lock(Player *p)
 			data->expires = 0;
 			lm->LogP(L_DRIVEL, "game", p, "lock expired");
 		}
-	pd->UnlockPlayer(p);
 }
 
 
 local void reset_during_change(Player *p, int success, void *dummy)
 {
-	pd->LockPlayer(p);
+	pthread_mutex_lock(&freqshipmtx);
 	p->flags.during_change = 0;
-	pd->UnlockPlayer(p);
+	pthread_mutex_unlock(&freqshipmtx);
 }
 
 
@@ -727,13 +727,13 @@ local void SetFreqAndShip(Player *p, int ship, int freq)
 	if (freq < 0 || freq > 9999 || ship < 0 || ship > SHIP_SPEC)
 		return;
 
-	pd->LockPlayer(p);
+	pthread_mutex_lock(&freqshipmtx);
 
 	if (p->p_ship == ship &&
 	    p->p_freq == freq)
 	{
 		/* nothing to do */
-		pd->UnlockPlayer(p);
+		pthread_mutex_unlock(&freqshipmtx);
 		return;
 	}
 
@@ -745,7 +745,7 @@ local void SetFreqAndShip(Player *p, int ship, int freq)
 	clear_speccing(data);
 	pthread_mutex_unlock(&specmtx);
 
-	pd->UnlockPlayer(p);
+	pthread_mutex_unlock(&freqshipmtx);
 
 	/* send it to him, with a callback */
 	if (IS_STANDARD(p))
@@ -794,15 +794,19 @@ local void PSetShip(Player *p, byte *pkt, int len)
 		return;
 	}
 
+	pthread_mutex_lock(&freqshipmtx);
+
 	if (p->flags.during_change)
 	{
 		lm->LogP(L_MALICIOUS, "game", p, "ship request before ack from previous change");
+		pthread_mutex_unlock(&freqshipmtx);
 		return;
 	}
 
 	if (ship == p->p_ship)
 	{
 		lm->LogP(L_MALICIOUS, "game", p, "already in requested ship");
+		pthread_mutex_unlock(&freqshipmtx);
 		return;
 	}
 
@@ -817,12 +821,18 @@ local void PSetShip(Player *p, byte *pkt, int len)
 		data->changes.changes |= (cfg_changelimit<<3);
 		if (chat)
 			chat->SendMessage(p, "You're changing ships too often, disabling for 30 seconds.");
+		pthread_mutex_unlock(&freqshipmtx);
 		return;
 	}
 	data->changes.changes++;
 
-	/* checked lock state (but always allow switching to spec) */
+	/* do this bit while holding the mutex. it's ok to check the flag
+	 * afterwards, though. */
 	expire_lock(p);
+
+	pthread_mutex_unlock(&freqshipmtx);
+
+	/* checked lock state (but always allow switching to spec) */
 	if (data->lockship &&
 	    ship != SHIP_SPEC &&
 	    !(capman && capman->HasCapability(p, "bypasslock")))
@@ -852,11 +862,11 @@ local void SetFreq(Player *p, int freq)
 	if (freq < 0 || freq > 9999)
 		return;
 
-	pd->LockPlayer(p);
+	pthread_mutex_lock(&freqshipmtx);
 
 	if (p->p_freq == freq)
 	{
-		pd->UnlockPlayer(p);
+		pthread_mutex_unlock(&freqshipmtx);
 		return;
 	}
 
@@ -864,7 +874,7 @@ local void SetFreq(Player *p, int freq)
 		p->flags.during_change = 1;
 	p->p_freq = freq;
 
-	pd->UnlockPlayer(p);
+	pthread_mutex_unlock(&freqshipmtx);
 
 	/* him, with callback */
 	if (IS_STANDARD(p))
@@ -895,7 +905,10 @@ local void freq_change_request(Player *p, int freq)
 	}
 
 	/* checked lock state */
+	pthread_mutex_lock(&freqshipmtx);
 	expire_lock(p);
+	pthread_mutex_unlock(&freqshipmtx);
+
 	if (data->lockship &&
 	    !(capman && capman->HasCapability(p, "bypasslock")))
 	{
@@ -1350,14 +1363,14 @@ local int get_data(Player *p, void *data, int len, void *v)
 	pdata *pdata = PPDATA(p, pdkey);
 	int ret = 0;
 
-	pd->LockPlayer(p);
+	pthread_mutex_lock(&freqshipmtx);
 	expire_lock(p);
 	if (pdata->expires)
 	{
 		memcpy(data, &pdata->expires, sizeof(pdata->expires));
 		ret = sizeof(pdata->expires);
 	}
-	pd->UnlockPlayer(p);
+	pthread_mutex_unlock(&freqshipmtx);
 	return ret;
 }
 
@@ -1365,7 +1378,7 @@ local void set_data(Player *p, void *data, int len, void *v)
 {
 	pdata *pdata = PPDATA(p, pdkey);
 
-	pd->LockPlayer(p);
+	pthread_mutex_lock(&freqshipmtx);
 	if (len == sizeof(pdata->expires))
 	{
 		memcpy(&pdata->expires, data, sizeof(pdata->expires));
@@ -1379,7 +1392,7 @@ local void set_data(Player *p, void *data, int len, void *v)
 			p->p_freq = p->arena->specfreq;
 		}
 	}
-	pd->UnlockPlayer(p);
+	pthread_mutex_unlock(&freqshipmtx);
 }
 
 local PlayerPersistentData persdata =

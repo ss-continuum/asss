@@ -208,11 +208,20 @@ int process_player_states(void *v)
 	int ns, oldstatus, requested_ship;
 	Player *player;
 	Link *link;
-	pdata *d;
+
+	/* put pending actions here while processing the player list */
+	struct action_t
+	{
+		Player *player;
+		int oldstatus;
+	};
+	LinkedList actions = LL_INITIALIZER;
 
 	pd->WriteLock();
-	FOR_EACH_PLAYER_P(player, d, pdkey)
+	FOR_EACH_PLAYER(player)
 	{
+		struct action_t * action;
+
 		oldstatus = player->status;
 
 		switch (oldstatus)
@@ -282,11 +291,20 @@ int process_player_states(void *v)
 
 		player->status = ns; /* set it */
 
-		/* now unlock status, lock player (because we might be calling
-		 * callbacks and we want to have player locked already), and
-		 * finally perform the actual action */
-		pd->WriteUnlock();
-		pd->LockPlayer(player);
+		/* add this player to the pending actions list, to be run when
+		 * we release the status lock. */
+		action = amalloc(sizeof(*action));
+		action->player = player;
+		action->oldstatus = oldstatus;
+		LLAdd(&actions, action);
+	}
+	pd->WriteUnlock();
+
+	for (link = LLGetHead(&actions); link; link = link->next)
+	{
+		Player *player = ((struct action_t*)(link->data))->player;
+		pdata *d = PPDATA(player, pdkey);
+		int oldstatus = ((struct action_t*)(link->data))->oldstatus;
 
 		switch (oldstatus)
 		{
@@ -425,12 +443,11 @@ int process_player_states(void *v)
 				d->hasdonegsync = FALSE;
 				break;
 		}
-
-		/* now we release player and take back status */
-		pd->UnlockPlayer(player);
-		pd->WriteLock();
 	}
-	pd->WriteUnlock();
+
+	/* clean up pending action list */
+	LLEnum(&actions, afree);
+	LLEmpty(&actions);
 
 	return TRUE;
 }

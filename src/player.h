@@ -318,17 +318,10 @@ typedef struct Iplayerdata
 	/* pyint: player -> void */
 
 
-	/** Acquires a player lock.
-	 * Each player has a recursive mutex associated with him, and this
-	 * locks the mutex. This isn't often necessary, as packet handlers
-	 * are called with the lock already held.
-	 * @param p the player to lock
-	 */
-	void (*LockPlayer)(Player *p);
-	/** Releases a player lock.
-	 * Undoes LockPlayer.
-	 */
-	void (*UnlockPlayer)(Player *p);
+	/* these are deprecated. they're only here for binary compatibility.
+	 * don't use them. */
+	void (*LockPlayer__Deprecated)(Player *p);
+	void (*UnlockPlayer__Deprecated)(Player *p);
 
 
 	/** Finds the player with the given pid.

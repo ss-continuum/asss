@@ -15,7 +15,7 @@
 /* static data */
 
 local Imodman *mm;
-local int dummykey, magickey, mtxkey;
+local int dummykey, magickey;
 #ifdef USE_RWLOCK
 local rwlock_t plock;
 #define RDLOCK() rwl_readlock(&plock)
@@ -51,15 +51,8 @@ local pthread_mutexattr_t recmtxattr;
 local Iplayerdata pdint;
 
 
-local void LockPlayer(Player *p)
+local void NoOp(Player *p)
 {
-	assert(*(unsigned*)PPDATA(p, magickey) == MODMAN_MAGIC);
-	pthread_mutex_lock((pthread_mutex_t*)PPDATA(p, mtxkey));
-}
-
-local void UnlockPlayer(Player *p)
-{
-	pthread_mutex_unlock((pthread_mutex_t*)PPDATA(p, mtxkey));
 }
 
 local void Lock(void)
@@ -93,7 +86,6 @@ local Player * alloc_player(void)
 	Player *p = amalloc(sizeof(*p) + perplayerspace);
 #endif
 	*(unsigned*)PPDATA(p, magickey) = MODMAN_MAGIC;
-	pthread_mutex_init((pthread_mutex_t*)PPDATA(p, mtxkey), &recmtxattr);
 	return p;
 }
 
@@ -174,8 +166,6 @@ local void FreePlayer(Player *p)
 	firstfreepid = p->pid;
 	WULOCK();
 
-	pthread_mutex_destroy((pthread_mutex_t*)PPDATA(p, mtxkey));
-
 #ifdef CFG_DYNAMIC_PPD
 	afree(p->playerextradata);
 #endif
@@ -200,8 +190,6 @@ local Player * PidToPlayer(int pid)
 
 local void KickPlayer(Player *p)
 {
-	pd->LockPlayer(p);
-
 	pd->WriteLock();
 
 	/* this will set state to S_LEAVING_ARENA, if it was anywhere above
@@ -219,7 +207,6 @@ local void KickPlayer(Player *p)
 	p->whenloggedin = S_LEAVING_ZONE;
 
 	pd->WriteUnlock();
-	pd->UnlockPlayer(p);
 }
 
 
@@ -392,7 +379,7 @@ local Iplayerdata pdint =
 {
 	INTERFACE_HEAD_INIT(I_PLAYERDATA, "playerdata")
 	NewPlayer, FreePlayer, KickPlayer,
-	LockPlayer, UnlockPlayer,
+	NoOp, NoOp,
 	PidToPlayer, FindPlayer,
 	TargetToSet,
 	AllocatePlayerData, FreePlayerData,
@@ -451,7 +438,6 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 
 		dummykey = AllocatePlayerData(sizeof(unsigned));
 		magickey = AllocatePlayerData(sizeof(unsigned));
-		mtxkey = AllocatePlayerData(sizeof(pthread_mutex_t));
 
 		/* register interface */
 		mm->RegInterface(&pdint, ALLARENAS);
@@ -467,7 +453,6 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 
 		FreePlayerData(dummykey);
 		FreePlayerData(magickey);
-		FreePlayerData(mtxkey);
 
 		afree(pidmap);
 		LLEnum(&pd->playerlist, afree);

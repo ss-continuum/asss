@@ -45,8 +45,13 @@ struct player_mask_t
 local int cfg_msgrel, cfg_floodlimit, cfg_floodshutup, cfg_cmdlimit;
 local int cmkey, pmkey;
 
+/* protects player_mask_t structs */
+local pthread_mutex_t mtx;
+#define LOCK() pthread_mutex_lock(&mtx)
+#define UNLOCK() pthread_mutex_unlock(&mtx)
 
-/* call with player lock */
+
+/* call with lock */
 local void expire_mask(Player *p)
 {
 	struct player_mask_t *pm = PPDATA(p, pmkey);
@@ -731,10 +736,10 @@ local chat_mask_t GetPlayerChatMask(Player *p)
 
 	if (p)
 	{
-		pd->LockPlayer(p);
+		LOCK();
 		expire_mask(p);
 		ret = pm->mask;
-		pd->UnlockPlayer(p);
+		UNLOCK();
 	}
 
 	return ret;
@@ -745,10 +750,10 @@ local void SetPlayerChatMask(Player *p, chat_mask_t mask, int timeout)
 	struct player_mask_t *pm = PPDATA(p, pmkey);
 	if (p)
 	{
-		pd->LockPlayer(p);
+		LOCK();
 		pm->mask = mask;
 		pm->expires = (timeout == 0) ? 0 : time(NULL) + timeout;
-		pd->UnlockPlayer(p);
+		UNLOCK();
 	}
 }
 
@@ -769,10 +774,10 @@ local void aaction(Arena *arena, int action)
 local void clear_data(Player *p, void *v)
 {
 	struct player_mask_t *pm = PPDATA(p, pmkey);
-	pd->LockPlayer(p);
+	LOCK();
 	pm->mask = 0;
 	pm->expires = 0;
-	pd->UnlockPlayer(p);
+	UNLOCK();
 }
 
 local int get_data(Player *p, void *data, int len, void *v)
@@ -780,14 +785,14 @@ local int get_data(Player *p, void *data, int len, void *v)
 	struct player_mask_t *pm = PPDATA(p, pmkey);
 	int ret = 0;
 
-	pd->LockPlayer(p);
+	LOCK();
 	expire_mask(p);
 	if (pm->expires)
 	{
 		memcpy(data, pm, sizeof(*pm));
 		ret = sizeof(*pm);
 	}
-	pd->UnlockPlayer(p);
+	UNLOCK();
 
 	return ret;
 }
@@ -795,10 +800,10 @@ local int get_data(Player *p, void *data, int len, void *v)
 local void set_data(Player *p, void *data, int len, void *v)
 {
 	struct player_mask_t *pm = PPDATA(p, pmkey);
-	pd->LockPlayer(p);
+	LOCK();
 	if (len == sizeof(*pm))
 		memcpy(pm, data, sizeof(*pm));
-	pd->UnlockPlayer(p);
+	UNLOCK();
 }
 
 local PlayerPersistentData pdata =

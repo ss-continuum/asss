@@ -46,6 +46,11 @@ local Iplayerdata *pd;
 
 local int udkey;
 
+/* protects work_dir. possibly other fields later. */
+local pthread_mutex_t mtx;
+#define LOCK() pthread_mutex_lock(&mtx)
+#define UNLOCK() pthread_mutex_unlock(&mtx)
+
 
 local void p_inc_file(Player *p, byte *data, int len)
 {
@@ -268,18 +273,18 @@ local int RequestFile(Player *p, const char *path,
 local void GetWorkingDirectory(Player *p, char *dest, int destlen)
 {
 	struct upload_data *ud = PPDATA(p, udkey);
-	pd->LockPlayer(p);
+	LOCK();
 	astrncpy(dest, ud->work_dir, destlen);
-	pd->UnlockPlayer(p);
+	UNLOCK();
 }
 
 local void SetWorkingDirectory(Player *p, const char *path)
 {
 	struct upload_data *ud = PPDATA(p, udkey);
-	pd->LockPlayer(p);
+	LOCK();
 	afree(ud->work_dir);
 	ud->work_dir = astrdup(path);
-	pd->UnlockPlayer(p);
+	UNLOCK();
 }
 
 
