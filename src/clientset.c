@@ -17,30 +17,29 @@
 
 #define SIZE (sizeof(struct ClientSettings))
 
+typedef struct overridedata
+{
+	byte bits[SIZE];
+	byte mask[SIZE];
+} overridedata;
+
 typedef struct adata
 {
 	struct ClientSettings cs;
-	byte overrides[SIZE];
-	byte overridemask[SIZE];
+	overridedata od;
 	/* prizeweight partial sums. 0-27 are used for now, representing
 	 * prizes 1 to 28. */
 	unsigned short pwps[32];
 } adata;
 
-
-/* prototypes */
-local void ActionFunc(Arena *arena, int action);
-local void SendClientSettings(Player *p);
-local void Reconfigure(Arena *arena);
-local u32 GetChecksum(Arena *arena, u32 key);
-local int GetRandomPrize(Arena *arena);
-local void Override(Arena *arena, override_key_t key, i32 val);
-local void Unoverride(Arena *arena, override_key_t key);
-local override_key_t GetOverrideKey(const char *section, const char *key);
+typedef struct pdata
+{
+	overridedata *od;
+} pdata;
 
 /* global data */
 
-local int adkey;
+local int adkey, pdkey;
 local pthread_mutex_t setmtx = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK() pthread_mutex_lock(&setmtx)
 #define UNLOCK() pthread_mutex_unlock(&setmtx)
@@ -54,70 +53,9 @@ local Ilogman *lm;
 local Imodman *mm;
 local Iarenaman *aman;
 
-/* interfaces */
-local Iclientset _myint =
-{
-	INTERFACE_HEAD_INIT(I_CLIENTSET, "clientset")
-	SendClientSettings, Reconfigure, GetChecksum, GetRandomPrize,
-	Override, Unoverride, GetOverrideKey
-};
 
 /* the client settings definition */
 #include "clientset.def"
-
-
-EXPORT int MM_clientset(int action, Imodman *mm_, Arena *arena)
-{
-	if (action == MM_LOAD)
-	{
-		mm = mm_;
-		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
-		net = mm->GetInterface(I_NET, ALLARENAS);
-		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
-		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
-		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
-		prng = mm->GetInterface(I_PRNG, ALLARENAS);
-
-		if (!net || !cfg || !lm || !aman || !prng) return MM_FAIL;
-
-		adkey = aman->AllocateArenaData(sizeof(adata));
-		if (adkey == -1) return MM_FAIL;
-
-		mm->RegCallback(CB_ARENAACTION, ActionFunc, ALLARENAS);
-
-		mm->RegInterface(&_myint, ALLARENAS);
-
-		/* do these at least once */
-#define cs (*((struct ClientSettings*)0))
-#define ss (*((struct ShipSettings*)0))
-		assert(COUNT(cs.long_set) == COUNT(long_names));
-		assert(COUNT(cs.short_set) == COUNT(short_names));
-		assert(COUNT(cs.byte_set) == COUNT(byte_names));
-		assert(COUNT(cs.prizeweight_set) == COUNT(prizeweight_names));
-		assert(COUNT(ss.long_set) == COUNT(ship_long_names));
-		assert(COUNT(ss.short_set) == COUNT(ship_short_names));
-		assert(COUNT(ss.byte_set) == COUNT(ship_byte_names));
-#undef cs
-#undef ss
-
-		return MM_OK;
-	}
-	else if (action == MM_UNLOAD)
-	{
-		if (mm->UnregInterface(&_myint, ALLARENAS))
-			return MM_FAIL;
-		mm->UnregCallback(CB_ARENAACTION, ActionFunc, ALLARENAS);
-		aman->FreeArenaData(adkey);
-		mm->ReleaseInterface(pd);
-		mm->ReleaseInterface(net);
-		mm->ReleaseInterface(cfg);
-		mm->ReleaseInterface(prng);
-		mm->ReleaseInterface(lm);
-		mm->ReleaseInterface(aman);
-		return MM_OK;
-	}
-	return MM_FAIL;
-}
 
 
 local void load_settings(adata *ad, ConfigHandle conf)
@@ -214,64 +152,7 @@ local void load_settings(adata *ad, ConfigHandle conf)
 }
 
 
-/* override keys are two small integers stuffed into an unsigned 32-bit
- * integer. the upper 16 bits are the length in bits, and the lower 16
- * are the offset in bits */
-
-void override_work(Arena *arena, override_key_t key, i32 val, int set)
-{
-	adata *ad = P_ARENA_DATA(arena, adkey);
-	int len = (key >> 16) & 0xffffu;
-	int offset = key & 0xffffu;
-	u32 mask = set ? 0xffffffffu : 0;
-
-	/* don't override type byte */
-	if (offset < 8)
-		return;
-
-	LOCK();
-	if ((offset & 7) == 0 && len == 8)
-	{
-		/* easy case: write byte */
-		offset >>= 3;
-		((i8*)ad->overrides)[offset] = val;
-		((u8*)ad->overridemask)[offset] = mask;
-	}
-	else if ((offset & 15) == 0 && len == 16)
-	{
-		/* easy case: write short */
-		offset >>= 4;
-		((i16*)ad->overrides)[offset] = val;
-		((u16*)ad->overridemask)[offset] = mask;
-	}
-	else if ((offset & 31) == 0 && len == 32)
-	{
-		/* easy case: write long */
-		offset >>= 5;
-		((i32*)ad->overrides)[offset] = val;
-		((u32*)ad->overridemask)[offset] = mask;
-	}
-	/* FIXME: add bit support here */
-	else
-	{
-		lm->Log(L_WARN, "<clientset> illegal override key: %x", key);
-	}
-	UNLOCK();
-}
-
-
-void Override(Arena *arena, override_key_t key, i32 val)
-{
-	override_work(arena, key, val, TRUE);
-}
-
-void Unoverride(Arena *arena, override_key_t key)
-{
-	override_work(arena, key, 0, FALSE);
-}
-
-
-override_key_t GetOverrideKey(const char *section, const char *key)
+local override_key_t GetOverrideKey(const char *section, const char *key)
 {
 #define MAKE_KEY(field, len) ((offsetof(struct ClientSettings, field)) << 3 | ((len) << 16))
 	char fullkey[MAXSECTIONLEN+MAXKEYLEN];
@@ -370,21 +251,127 @@ override_key_t GetOverrideKey(const char *section, const char *key)
 }
 
 
-local void do_mask(struct ClientSettings *dest, adata *ad)
+/* override keys are two small integers stuffed into an unsigned 32-bit
+ * integer. the upper 16 bits are the length in bits, and the lower 16
+ * are the offset in bits */
+/* call with lock held */
+local void override_work(overridedata *od, override_key_t key, i32 val, int set)
 {
-	int i;
-	unsigned long *c = (unsigned long*)&ad->cs;
-	unsigned long *d = (unsigned long*)dest;
-	unsigned long *o = (unsigned long*)ad->overrides;
-	unsigned long *m = (unsigned long*)ad->overridemask;
+	int len = (key >> 16) & 0xffffu;
+	int offset = key & 0xffffu;
+	u32 mask = set ? 0xffffffffu : 0;
 
-	assert((sizeof(*dest) % sizeof(unsigned long)) == 0);
-	for (i = 0; i < sizeof(*dest)/sizeof(unsigned long); i++)
-		d[i] = (c[i] & ~m[i]) | (o[i] & m[i]);
+	/* don't override type byte */
+	if (offset < 8)
+		return;
+
+	if ((offset & 7) == 0 && len == 8)
+	{
+		/* easy case: write byte */
+		offset >>= 3;
+		((i8*)od->bits)[offset] = val;
+		((u8*)od->mask)[offset] = mask;
+	}
+	else if ((offset & 15) == 0 && len == 16)
+	{
+		/* easy case: write short */
+		offset >>= 4;
+		((i16*)od->bits)[offset] = val;
+		((u16*)od->mask)[offset] = mask;
+	}
+	else if ((offset & 31) == 0 && len == 32)
+	{
+		/* easy case: write long */
+		offset >>= 5;
+		((i32*)od->bits)[offset] = val;
+		((u32*)od->mask)[offset] = mask;
+	}
+	/* FIXME: add bit support here */
+	else
+	{
+		lm->Log(L_WARN, "<clientset> illegal override key: %x", key);
+	}
 }
 
 
-void ActionFunc(Arena *arena, int action)
+local void ArenaOverride(Arena *arena, override_key_t key, i32 val)
+{
+	adata *ad = P_ARENA_DATA(arena, adkey);
+	LOCK();
+	override_work(&ad->od, key, val, TRUE);
+	UNLOCK();
+}
+
+local void ArenaUnoverride(Arena *arena, override_key_t key)
+{
+	adata *ad = P_ARENA_DATA(arena, adkey);
+	LOCK();
+	override_work(&ad->od, key, 0, FALSE);
+	UNLOCK();
+}
+
+
+local void PlayerOverride(Player *p, override_key_t key, i32 val)
+{
+	pdata *data = PPDATA(p, pdkey);
+	LOCK();
+	if (!data->od)
+		data->od = amalloc(sizeof(*data->od));
+	override_work(data->od, key, val, TRUE);
+	UNLOCK();
+}
+
+local void PlayerUnoverride(Player *p, override_key_t key)
+{
+	pdata *data = PPDATA(p, pdkey);
+	LOCK();
+	if (data->od)
+		override_work(data->od, key, 0, FALSE);
+	UNLOCK();
+}
+
+
+/* call with lock held */
+local void do_mask(
+		struct ClientSettings *dest,
+		struct ClientSettings *src,
+		overridedata *od1,
+		overridedata *od2)
+{
+	int i;
+	unsigned long *s = (unsigned long*)src;
+	unsigned long *d = (unsigned long*)dest;
+	unsigned long *o1 = (unsigned long*)od1->bits;
+	unsigned long *m1 = (unsigned long*)od1->mask;
+
+	if (od2)
+	{
+		unsigned long *o2 = (unsigned long*)od2->bits;
+		unsigned long *m2 = (unsigned long*)od2->mask;
+
+		for (i = 0; i < sizeof(*dest)/sizeof(unsigned long); i++)
+			d[i] = (((s[i] & ~m1[i]) | (o1[i] & m1[i])) & ~m2[i]) | (o2[i] & m2[i]);
+	}
+	else
+	{
+		for (i = 0; i < sizeof(*dest)/sizeof(unsigned long); i++)
+			d[i] = (s[i] & ~m1[i]) | (o1[i] & m1[i]);
+	}
+}
+
+
+/* call with lock held */
+local void send_one_settings(Player *p, adata *ad)
+{
+	struct ClientSettings tosend;
+	pdata *data = PPDATA(p, pdkey);
+	do_mask(&tosend, &ad->cs, &ad->od, data->od);
+	if (tosend.bit_set.type == S2C_SETTINGS)
+		net->SendToOne(p, (byte*)&tosend, sizeof(tosend), NET_RELIABLE);
+}
+
+
+local void aaction(Arena *arena, int action)
 {
 	adata *ad = P_ARENA_DATA(arena, adkey);
 	LOCK();
@@ -399,10 +386,12 @@ void ActionFunc(Arena *arena, int action)
 		load_settings(ad, arena->cfg);
 		if (memcmp(&old, &ad->cs, SIZE) != 0)
 		{
-			struct ClientSettings tosend;
-			do_mask(&tosend, ad);
-			net->SendToArena(arena, NULL, (byte*)&tosend, sizeof(tosend), NET_RELIABLE);
+			Player *p;
+			Link *link;
 			lm->LogA(L_INFO, "clientset", arena, "sending modified settings");
+			FOR_EACH_PLAYER(p)
+				if (p->arena == arena && p->status == S_PLAYING)
+					send_one_settings(p, ad);
 		}
 	}
 	else if (action == AA_DESTROY)
@@ -414,53 +403,52 @@ void ActionFunc(Arena *arena, int action)
 }
 
 
-void SendClientSettings(Player *p)
+local void paction(Player *p, int action, Arena *arena)
+{
+	if (action == PA_LEAVEARENA || action == PA_DISCONNECT)
+	{
+		/* reset/free player overrides on any arena change */
+		pdata *data = PPDATA(p, pdkey);
+		afree(data->od);
+		data->od = NULL;
+	}
+}
+
+
+local void SendClientSettings(Player *p)
 {
 	adata *ad = P_ARENA_DATA(p->arena, adkey);
+	if (!p->arena)
+		return;
 	LOCK();
-	if (p->arena)
-	{
-		if (ad->cs.bit_set.type == S2C_SETTINGS)
-		{
-			struct ClientSettings tosend;
-			do_mask(&tosend, ad);
-			net->SendToOne(p, (byte*)&tosend, sizeof(tosend), NET_RELIABLE);
-		}
-		else
-			lm->LogA(L_ERROR, "clientset", p->arena, "uninitialized client settings");
-	}
+	send_one_settings(p, ad);
 	UNLOCK();
 }
 
 
-void Reconfigure(Arena *arena)
+local u32 GetChecksum(Player *p, u32 key)
 {
-	struct ClientSettings tosend;
-	adata *ad = P_ARENA_DATA(arena, adkey);
-	LOCK();
-	load_settings(ad, arena->cfg);
-	do_mask(&tosend, ad);
-	net->SendToArena(arena, NULL, (byte*)&tosend, sizeof(tosend), NET_RELIABLE);
-	UNLOCK();
-}
-
-
-u32 GetChecksum(Arena *arena, u32 key)
-{
-	adata *ad = P_ARENA_DATA(arena, adkey);
+	adata *ad = P_ARENA_DATA(p->arena, adkey);
+	pdata *data = PPDATA(p, pdkey);
 	struct ClientSettings tochecksum;
-	u32 *data = (u32*)&tochecksum;
-	u32 csum = 0, i;
+	u32 *bits = (u32*)&tochecksum;
+	u32 csum = 0;
+	int i;
+
+	if (p->status != S_PLAYING)
+		return -1;
+
 	LOCK();
-	do_mask(&tochecksum, ad);
-	for (i = 0; i < (SIZE/sizeof(u32)); i++, data++)
-		csum += (*data ^ key);
+	do_mask(&tochecksum, &ad->cs, &ad->od, data->od);
+	for (i = 0; i < (SIZE/sizeof(u32)); i++, bits++)
+		csum += (*bits ^ key);
 	UNLOCK();
+
 	return csum;
 }
 
 
-int GetRandomPrize(Arena *arena)
+local int GetRandomPrize(Arena *arena)
 {
 	adata *ad = P_ARENA_DATA(arena, adkey);
 	int max = ad->pwps[27], r, i = 0, j = 27;
@@ -482,5 +470,74 @@ int GetRandomPrize(Arena *arena)
 
 	/* our indexes are zero-based but prize numbers are one-based */
 	return i + 1;
+}
+
+
+local Iclientset csint =
+{
+	INTERFACE_HEAD_INIT(I_CLIENTSET, "clientset")
+	SendClientSettings, GetChecksum, GetRandomPrize,
+	GetOverrideKey,
+	ArenaOverride, ArenaUnoverride,
+	PlayerOverride, PlayerUnoverride,
+};
+
+
+EXPORT int MM_clientset(int action, Imodman *mm_, Arena *arena)
+{
+	if (action == MM_LOAD)
+	{
+		mm = mm_;
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		net = mm->GetInterface(I_NET, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		prng = mm->GetInterface(I_PRNG, ALLARENAS);
+
+		if (!net || !cfg || !lm || !aman || !prng) return MM_FAIL;
+
+		adkey = aman->AllocateArenaData(sizeof(adata));
+		if (adkey == -1) return MM_FAIL;
+		pdkey = pd->AllocatePlayerData(sizeof(pdata));
+		if (pdkey == -1) return MM_FAIL;
+
+		mm->RegCallback(CB_ARENAACTION, aaction, ALLARENAS);
+		mm->RegCallback(CB_PLAYERACTION, paction, ALLARENAS);
+
+		mm->RegInterface(&csint, ALLARENAS);
+
+		/* do these at least once */
+#define cs (*((struct ClientSettings*)0))
+#define ss (*((struct ShipSettings*)0))
+		assert((sizeof(cs) % sizeof(unsigned long)) == 0);
+		assert(COUNT(cs.long_set) == COUNT(long_names));
+		assert(COUNT(cs.short_set) == COUNT(short_names));
+		assert(COUNT(cs.byte_set) == COUNT(byte_names));
+		assert(COUNT(cs.prizeweight_set) == COUNT(prizeweight_names));
+		assert(COUNT(ss.long_set) == COUNT(ship_long_names));
+		assert(COUNT(ss.short_set) == COUNT(ship_short_names));
+		assert(COUNT(ss.byte_set) == COUNT(ship_byte_names));
+#undef cs
+#undef ss
+
+		return MM_OK;
+	}
+	else if (action == MM_UNLOAD)
+	{
+		if (mm->UnregInterface(&csint, ALLARENAS))
+			return MM_FAIL;
+		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
+		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
+		aman->FreeArenaData(adkey);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(prng);
+		mm->ReleaseInterface(lm);
+		mm->ReleaseInterface(aman);
+		return MM_OK;
+	}
+	return MM_FAIL;
 }
 

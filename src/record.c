@@ -485,7 +485,7 @@ local int start_recording(Arena *a, const char *file, const char *recorder, cons
 				/* net->SetArenaPacketHook(a, arenapkt); */
 
 				/* force settings packet update */
-				clientset->Reconfigure(a);
+				/* FIXME: clientset->Reconfigure(a); */
 
 				ra->started = current_ticks();
 				ra->fname = astrdup(file);
@@ -998,7 +998,7 @@ out:
 	afree(pidmap);
 
 	/* force settings update since playback may have messed with it */
-	clientset->Reconfigure(a);
+	/* FIXME: clientset->Reconfigure(a); */
 	/* FIXME: if (flags) flags->DisableFlags(a, FALSE); */
 	if (balls) balls->SetBallCount(a, 0);
 

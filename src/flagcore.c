@@ -384,7 +384,7 @@ local void aaction(Arena *arena, int action)
 			ad->during_init = FALSE;
 			if (AD_OK(ad))
 			{
-				clientset->Override(arena, override_flag_carryflags, ad->carrymode);
+				clientset->ArenaOverride(arena, override_flag_carryflags, ad->carrymode);
 
 				if (ad->carrymode == CARRY_NONE)
 					ml->SetTimer(send_turf_timer, TURFUPDATEDELAY,
