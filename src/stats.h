@@ -21,11 +21,15 @@ typedef enum stat_t
 
 typedef struct Istats
 {
-	/* increments a particular statistic */
-	void (*IncrementStat)(int pid, stat_t stat, int amount);
+	INTERFACE_HEAD_DECL
 
-	/* sends out score updates for everyone that needs to be updated */
+	void (*IncrementStat)(int pid, int stat, int amount);
+	/* arpc: void(int, int, int) */
+	/* increments a particular statistic */
+
 	void (*SendUpdates)(void);
+	/* arpc: void(void) */
+	/* sends out score updates for everyone that needs to be updated */
 } Istats;
 
 #endif

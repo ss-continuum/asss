@@ -16,12 +16,20 @@
 
 /* prototypes */
 
-local void SendMessage_(int, char *, ...);
-local void SendSetMessage(int *, char *, ...);
-local void SendSoundMessage(int, char, char *, ...);
-local void SendSetSoundMessage(int *, char, char *, ...);
-local void SendAnyMessage(int *set, char type, char sound, char *format, ...);
+local void SendMessage_(int, const char *, ...);
+local void SendSetMessage(int *, const char *, ...);
+local void SendSoundMessage(int, char, const char *, ...);
+local void SendSetSoundMessage(int *, char, const char *, ...);
+local void SendAnyMessage(int *set, char type, char sound, const char *format, ...);
+
+local chat_mask_t GetArenaChatMask(int arena);
+local void SetArenaChatMask(int arena, chat_mask_t mask);
+local chat_mask_t GetPlayerChatMask(int pid);
+local void SetPlayerChatMask(int pid, chat_mask_t mask);
+
 local void PChat(int, byte *, int);
+local void PAction(int pid, int action, int arena);
+local void AAction(int arena, int action);
 
 
 /* global data */
@@ -38,14 +46,20 @@ local Icapman *capman;
 local PlayerData *players;
 local ArenaData *arenas;
 
+local chat_mask_t arena_mask[MAXARENA];
+local chat_mask_t player_mask[MAXPLAYERS];
+
 local int cfg_msgrel;
 
 
 local Ichat _int =
 {
+	INTERFACE_HEAD_INIT("chat")
 	SendMessage_, SendSetMessage,
 	SendSoundMessage, SendSetSoundMessage,
-	SendAnyMessage
+	SendAnyMessage,
+	GetArenaChatMask, SetArenaChatMask,
+	GetPlayerChatMask, SetPlayerChatMask
 };
 
 
@@ -55,40 +69,69 @@ int MM_chat(int action, Imodman *mm_, int arena)
 	{
 
 		mm = mm_;
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_NET, &net);
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_LOGMAN, &log);
-		mm->RegInterest(I_ARENAMAN, &aman);
-		mm->RegInterest(I_CMDMAN, &cmd);
-		mm->RegInterest(I_CAPMAN, &capman);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		net = mm->GetInterface("net", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		log = mm->GetInterface("logman", ALLARENAS);
+		aman = mm->GetInterface("arenaman", ALLARENAS);
+		cmd = mm->GetInterface("cmdman", ALLARENAS);
+		capman = mm->GetInterface("capman", ALLARENAS);
 
 		if (!net || !cfg || !aman) return MM_FAIL;
 
 		players = pd->players;
 		arenas = aman->arenas;
 
+		mm->RegCallback(CB_PLAYERACTION, PAction, ALLARENAS);
+		mm->RegCallback(CB_ARENAACTION, AAction, ALLARENAS);
+
 		cfg_msgrel = cfg->GetInt(GLOBAL, "Chat", "MessageReliable", 1);
 		net->AddPacket(C2S_CHAT, PChat);
-		mm->RegInterface(I_CHAT, &_int);
+		mm->RegInterface("chat", &_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(I_CHAT, &_int);
+		if (mm->UnregInterface("chat", &_int, ALLARENAS))
+			return MM_FAIL;
 		net->RemovePacket(C2S_CHAT, PChat);
-		mm->UnregInterest(I_PLAYERDATA, &pd);
-		mm->UnregInterest(I_NET, &net);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_LOGMAN, &log);
-		mm->UnregInterest(I_ARENAMAN, &aman);
-		mm->UnregInterest(I_CMDMAN, &cmd);
-		mm->UnregInterest(I_CAPMAN, &capman);
+		mm->UnregCallback(CB_PLAYERACTION, PAction, ALLARENAS);
+		mm->UnregCallback(CB_ARENAACTION, AAction, ALLARENAS);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(cmd);
+		mm->ReleaseInterface(capman);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
 		return BUILDNUMBER;
 	return MM_FAIL;
+}
+
+
+local void run_commands(const char *text, int pid, int target)
+{
+	char buf[512], *b;
+
+	if (!cmd) return;
+
+	while (*text)
+	{
+		/* skip over *, ?, and | */
+		while (*text == '?' || *text == '*' || *text == '|')
+			text++;
+		if (*text)
+		{
+			b = buf;
+			while (*text && *text != '|' && (b-buf) < sizeof(buf))
+				*b++ = *text++;
+			*b = '\0';
+			cmd->Command(buf, pid, target);
+		}
+	}
 }
 
 
@@ -102,9 +145,18 @@ void PChat(int pid, byte *p, int len)
 	int setc = 0, i, arena, freq;
 	int set[MAXPLAYERS];
 
+#define OK(type) IS_ALLOWED(player_mask[pid] | arena_mask[arena], type)
+
 	freq = players[pid].freq;
 	arena = players[pid].arena;
-	if (arena < 0) return;
+	if (ARENA_BAD(arena) || PID_BAD(pid)) return;
+
+	if (len < 6 || from->text[len - 6] != '\0')
+	{
+		log->Log(L_MALICIOUS, "<chat> {%s} [%s] Non-null terminated chat message",
+			arenas[arena].name, players[pid].name);
+		return;
+	}
 
 	to = alloca(len + 40);
 	to->pktype = S2C_CHAT;
@@ -126,13 +178,14 @@ void PChat(int pid, byte *p, int len)
 		case MSG_PUB:
 			if (from->text[0] == CMD_CHAR_1 || from->text[0] == CMD_CHAR_2)
 			{
-				if (cmd) cmd->Command(from->text+1, pid, TARGET_ARENA);
+				run_commands(from->text, pid, TARGET_ARENA);
 			}
 			else if (from->text[0] == MOD_CHAT_CHAR)
 			{
 				if (capman)
 				{
-					if (capman->HasCapability(pid, CAP_SENDMODCHAT))
+					if (capman->HasCapability(pid, CAP_SENDMODCHAT) &&
+							OK(MSG_MODCHAT))
 					{
 						to->type = MSG_SYSOPWARNING;
 						sprintf(to->text, "%s> %s", players[pid].name, from->text+1);
@@ -151,15 +204,16 @@ void PChat(int pid, byte *p, int len)
 					else
 					{
 						log->Log(L_DRIVEL, "<chat> {%s} [%s] Attempted mod chat "
-								"(sender missing capability): %s",
+								"(missing cap or shutup): %s",
 								arenas[arena].name, players[pid].name, from->text+1);
 					}
 				}
 				else
 					SendMessage_(pid, "Mod chat is currently disabled");
 			}
-			else /* normal pub message */
+			else if (OK(from->type)) /* normal pub message */
 			{
+				
 				log->Log(L_DRIVEL,"<chat> {%s} [%s] Pub msg: %s",
 					arenas[arena].name, players[pid].name, from->text);
 				net->SendToArena(arena, pid, (byte*)to, len, cfg_msgrel);
@@ -173,9 +227,9 @@ void PChat(int pid, byte *p, int len)
 		case MSG_FREQ:
 			if (from->text[0] == CMD_CHAR_1 || from->text[0] == CMD_CHAR_2)
 			{
-				if (cmd) cmd->Command(from->text+1, pid, TARGET_FREQ);
+				run_commands(from->text, pid, TARGET_FREQ);
 			}
-			else
+			else if (OK(from->type))
 			{
 				log->Log(L_DRIVEL,"<chat> {%s} [%s] (freq=%i) Freq msg: %s",
 					arenas[arena].name, players[pid].name, freq, from->text);
@@ -194,9 +248,9 @@ void PChat(int pid, byte *p, int len)
 		case MSG_PRIV:
 			if (from->text[0] == CMD_CHAR_1 || from->text[0] == CMD_CHAR_2)
 			{
-				if (cmd) cmd->Command(from->text+1, pid, from->pid);
+				run_commands(from->text, pid, from->pid);
 			}
-			else if (PID_OK(from->pid))
+			else if (PID_OK(from->pid) && OK(MSG_PRIV))
 			{
 				log->Log(L_DRIVEL,"<chat> {%s} [%s] to [%s] Priv msg: %s",
 					arenas[arena].name, players[pid].name,
@@ -222,10 +276,26 @@ void PChat(int pid, byte *p, int len)
 			/* the billcore module picks these up, so nothing more here */
 			break;
 	}
+#undef OK
 }
 
 
-void SendMessage_(int pid, char *str, ...)
+void PAction(int pid, int action, int arena)
+{
+	player_mask[pid] = 0;
+}
+
+void AAction(int arena, int action)
+{
+	if (action == AA_CREATE)
+	{
+		ConfigHandle ch = aman->arenas[arena].cfg;
+		arena_mask[arena] = cfg->GetInt(ch, "Chat", "RestrictChat", 0);
+	}
+}
+
+
+void SendMessage_(int pid, const char *str, ...)
 {
 	int size;
 	char _buf[256];
@@ -243,7 +313,7 @@ void SendMessage_(int pid, char *str, ...)
 }
 
 
-void SendSetMessage(int *set, char *str, ...)
+void SendSetMessage(int *set, const char *str, ...)
 {
 	int size;
 	char _buf[256];
@@ -261,7 +331,7 @@ void SendSetMessage(int *set, char *str, ...)
 }
 
 
-void SendSoundMessage(int pid, char sound, char *str, ...)
+void SendSoundMessage(int pid, char sound, const char *str, ...)
 {
 	int size;
 	char _buf[256];
@@ -279,7 +349,7 @@ void SendSoundMessage(int pid, char sound, char *str, ...)
 }
 
 
-void SendSetSoundMessage(int *set, char sound, char *str, ...)
+void SendSetSoundMessage(int *set, char sound, const char *str, ...)
 {
 	int size;
 	char _buf[256];
@@ -296,7 +366,7 @@ void SendSetSoundMessage(int *set, char sound, char *str, ...)
 	net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
 }
 
-void SendAnyMessage(int *set, char type, char sound, char *str, ...)
+void SendAnyMessage(int *set, char type, char sound, const char *str, ...)
 {
 	int size;
 	char _buf[256];
@@ -312,4 +382,28 @@ void SendAnyMessage(int *set, char type, char sound, char *str, ...)
 	cp->sound = sound;
 	net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
 }
+
+
+chat_mask_t GetArenaChatMask(int arena)
+{
+	return ARENA_OK(arena) ? arena_mask[arena] : 0;
+}
+
+void SetArenaChatMask(int arena, chat_mask_t mask)
+{
+	if (ARENA_OK(arena))
+		arena_mask[arena] = mask;
+}
+
+chat_mask_t GetPlayerChatMask(int pid)
+{
+	return PID_OK(pid) ? player_mask[pid] : 0;
+}
+
+void SetPlayerChatMask(int pid, chat_mask_t mask)
+{
+	if (PID_OK(pid))
+		player_mask[pid] = mask;
+}
+
 

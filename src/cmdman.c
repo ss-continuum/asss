@@ -32,30 +32,35 @@ local Icapman *capman;
 local HashTable *cmds;
 local CommandFunc defaultfunc;
 
-local Icmdman _int = { AddCommand, RemoveCommand, Command };
+local Icmdman _int =
+{
+	INTERFACE_HEAD_INIT("cmdman")
+	AddCommand, RemoveCommand, Command
+};
 
 
 EXPORT int MM_cmdman(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_LOGMAN, &log);
-		mm->RegInterest(I_ARENAMAN, &aman);
-		mm->RegInterest(I_CAPMAN, &capman);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		log = mm->GetInterface("logman", ALLARENAS);
+		aman = mm->GetInterface("arenaman", ALLARENAS);
+		capman = mm->GetInterface("capman", ALLARENAS);
 
 		cmds = HashAlloc(47);
 		defaultfunc = NULL;
-		mm->RegInterface(I_CMDMAN, &_int);
+		mm->RegInterface("cmdman", &_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(I_CMDMAN, &_int);
-		mm->UnregInterest(I_PLAYERDATA, &pd);
-		mm->UnregInterest(I_LOGMAN, &log);
-		mm->UnregInterest(I_ARENAMAN, &aman);
-		mm->UnregInterest(I_CAPMAN, &capman);
+		if (mm->UnregInterface("cmdman", &_int, ALLARENAS))
+			return MM_FAIL;
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(capman);
 		HashFree(cmds);
 		return MM_OK;
 	}

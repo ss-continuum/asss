@@ -52,8 +52,8 @@ local HashTable * LoadRegions(char *fname);
 local int GetMapFilename(int arena, char *buffer, int bufferlen);
 local int GetFlagCount(int arena);
 local int GetTile(int arena, int x, int y);
-local char *GetRegion(int arena, int x, int y);
-local int InRegion(int arena, char *region, int x, int y);
+local const char *GetRegion(int arena, int x, int y);
+local int InRegion(int arena, const char *region, int x, int y);
 local void FindFlagTile(int arena, int *x, int *y);
 local void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2);
 
@@ -71,6 +71,7 @@ local Ilogman *log;
 /* this module's interface */
 local Imapdata _int =
 {
+	INTERFACE_HEAD_INIT("mapdata")
 	GetMapFilename, GetFlagCount, GetTile,
 	GetRegion, InRegion,
 	FindFlagTile, FindBrickEndpoints
@@ -83,24 +84,25 @@ EXPORT int MM_mapdata(int action, Imodman *_mm, int arenas)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_ARENAMAN, &aman);
-		mm->RegInterest(I_LOGMAN, &log);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		aman = mm->GetInterface("arenaman", ALLARENAS);
+		log = mm->GetInterface("logman", ALLARENAS);
 
 		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
-		mm->RegInterface(I_MAPDATA, &_int);
+		mm->RegInterface("mapdata", &_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(I_MAPDATA, &_int);
+		if (mm->UnregInterface("mapdata", &_int, ALLARENAS))
+			return MM_FAIL;
 
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
-		mm->UnregInterest(I_LOGMAN, &log);
-		mm->UnregInterest(I_ARENAMAN, &aman);
-		mm->UnregInterest(I_CONFIG, &cfg);
+		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(cfg);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -487,12 +489,12 @@ HashTable * LoadRegions(char *fname)
 }
 
 
-char *GetRegion(int arena, int x, int y)
+const char *GetRegion(int arena, int x, int y)
 {
 	return NULL;
 }
 
-int InRegion(int arena, char *region, int x, int y)
+int InRegion(int arena, const char *region, int x, int y)
 {
 	struct Region *reg = HashGetOne(mapdata[arena].regions, region);
 

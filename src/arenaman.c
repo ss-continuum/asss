@@ -49,8 +49,6 @@ local Iconfig *cfg;
 local Inet *net;
 local Imodman *mm;
 local Ilogman *log;
-local Imapnewsdl *map;
-local Iclientset *clientset;
 
 local PlayerData *players;
 
@@ -60,7 +58,10 @@ local ArenaData arenas[MAXARENA];
 local pthread_mutex_t arenastatusmtx;
 
 local Iarenaman _int =
-{ SendArenaResponse, LockStatus, UnlockStatus, arenas };
+{
+	INTERFACE_HEAD_INIT("arenaman")
+	SendArenaResponse, LockStatus, UnlockStatus, arenas
+};
 
 
 
@@ -72,15 +73,12 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_NET, &net);
-		mm->RegInterest(I_LOGMAN, &log);
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_MAINLOOP, &ml);
-		mm->RegInterest(I_MAPNEWSDL, &map);
-		mm->RegInterest(I_CLIENTSET, &clientset);
-
-		if (!net || !log || !ml) return MM_FAIL;
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		net = mm->GetInterface("net", ALLARENAS);
+		log = mm->GetInterface("logman", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		ml = mm->GetInterface("mainloop", ALLARENAS);
+		if (!pd || !net || !log || !cfg || !ml) return MM_FAIL;
 
 		players = pd->players;
 
@@ -98,23 +96,22 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, int arena)
 
 		ml->SetTimer(ReapArenas, 1000, 1500, NULL);
 
-		mm->RegInterface(I_ARENAMAN, &_int);
+		mm->RegInterface("arenaman", &_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(I_ARENAMAN, &_int);
+		if (mm->UnregInterface("arenaman", &_int, ALLARENAS))
+			return MM_FAIL;
 		net->RemovePacket(C2S_GOTOARENA, PArena);
 		net->RemovePacket(C2S_LEAVING, PLeaving);
 		mm->UnregCallback(CB_MAINLOOP, ProcessArenaQueue, ALLARENAS);
 		ml->ClearTimer(ReapArenas);
-		mm->UnregInterest(I_PLAYERDATA, &pd);
-		mm->UnregInterest(I_NET, &net);
-		mm->UnregInterest(I_LOGMAN, &log);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_MAINLOOP, &ml);
-		mm->UnregInterest(I_MAPNEWSDL, &map);
-		mm->UnregInterest(I_CLIENTSET, &clientset);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(ml);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -273,7 +270,11 @@ void SendArenaResponse(int pid)
 	net->SendToOne(pid, (byte*)&whoami, 3, NET_RELIABLE);
 
 	/* send settings */
-	clientset->SendClientSettings(pid);
+	{
+		Iclientset *clientset = mm->GetInterface("clientset", arena);
+		if (clientset)
+			clientset->SendClientSettings(pid);
+	}
 
 	/* send player list */
 	/* note: the current player's status should be S_SEND_ARENA_RESPONSE
@@ -296,7 +297,11 @@ void SendArenaResponse(int pid)
 	pd->UnlockStatus();
 
 	/* send mapfilename */
-	map->SendMapFilename(pid);
+	{
+		Imapnewsdl *map = mm->GetInterface("mapnewsdl", arena);
+		if (map)
+			map->SendMapFilename(pid);
+	}
 
 	/* send brick clear and finisher */
 	whoami.type = S2C_BRICK;

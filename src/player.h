@@ -12,12 +12,20 @@
 
 typedef struct Iplayerdata
 {
+	INTERFACE_HEAD_DECL
+
 	PlayerData *players;
+	/* arpc: null */
 	void (*LockPlayer)(int pid);
+	/* arpc: void(int) noop */
 	void (*UnlockPlayer)(int pid);
+	/* arpc: void(int) noop */
 	void (*LockStatus)(void);
+	/* arpc: void(void) noop */
 	void (*UnlockStatus)(void);
-	int (*FindPlayer)(char *name);
+	/* arpc: void(void) noop */
+	int (*FindPlayer)(const char *name);
+	/* arpc: int(string) */
 } Iplayerdata;
 
 #endif

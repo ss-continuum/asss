@@ -28,12 +28,12 @@ EXPORT int MM_freqowners(int action, Imodman *_mm, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_ARENAMAN, &aman);
-		mm->RegInterest(I_GAME, &game);
-		mm->RegInterest(I_CMDMAN, &cmd);
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_CHAT, &chat);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		aman = mm->GetInterface("arenaman", ALLARENAS);
+		game = mm->GetInterface("game", ALLARENAS);
+		cmd = mm->GetInterface("cmdman", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		chat = mm->GetInterface("chat", ALLARENAS);
 
 		mm->RegCallback(CB_PLAYERACTION, MyPA, ALLARENAS);
 		mm->RegCallback(CB_FREQCHANGE, MyFreqCh, ALLARENAS);
@@ -51,12 +51,12 @@ EXPORT int MM_freqowners(int action, Imodman *_mm, int arena)
 		mm->UnregCallback(CB_PLAYERACTION, MyPA, ALLARENAS);
 		mm->UnregCallback(CB_FREQCHANGE, MyFreqCh, ALLARENAS);
 		mm->UnregCallback(CB_SHIPCHANGE, MyShipCh, ALLARENAS);
-		mm->UnregInterest(I_PLAYERDATA, &pd);
-		mm->UnregInterest(I_ARENAMAN, &aman);
-		mm->UnregInterest(I_GAME, &game);
-		mm->UnregInterest(I_CMDMAN, &cmd);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_CHAT, &chat);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(game);
+		mm->ReleaseInterface(cmd);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(chat);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -85,6 +85,7 @@ void Cgiveowner(const char *params, int pid, int target)
 		return;
 
 	if (ownsfreq[pid] &&
+	    pd->players[pid].arena == pd->players[target].arena &&
 	    pd->players[pid].freq == pd->players[target].freq)
 		ownsfreq[target] = 1;
 }
@@ -95,7 +96,8 @@ void Cfreqkick(const char *params, int pid, int target)
 	if (PID_BAD(pid) || PID_BAD(target))
 		return;
 
-	if (ownsfreq[pid] &&
+	if (ownsfreq[pid] && !ownsfreq[target]
+	    pd->players[pid].arena == pd->players[target].arena &&
 	    pd->players[pid].freq == pd->players[target].freq)
 	{
 		game->SetShip(target, SPEC);

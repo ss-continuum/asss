@@ -13,10 +13,10 @@ local void Pppk(int, byte *, int);
 
 local int onfor[MAXARENA];
 
+local Imodman *mm;
 local Iplayerdata *pd;
 local Iconfig *cfg;
 local Inet *net;
-local Imodman *mm;
 local Imapdata *mapdata;
 
 
@@ -27,12 +27,15 @@ EXPORT int MM_autowarp(int action, Imodman *mm_, int arena)
 		int i;
 
 		mm = mm_;
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_NET, &net);
-		mm->RegInterest(I_MAPDATA, &mapdata);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		net = mm->GetInterface("net", ALLARENAS);
+		mapdata = mm->GetInterface("mapdata", ALLARENAS);
+
+		if (!net || !cfg || !pd || !mapdata) return MM_FAIL;
+
 		net->AddPacket(C2S_POSITION, Pppk);
-		
+
 		for (i = 0; i < MAXARENA; i++)
 			onfor[i] = 0;
 
@@ -41,10 +44,10 @@ EXPORT int MM_autowarp(int action, Imodman *mm_, int arena)
 	else if (action == MM_UNLOAD)
 	{
 		net->RemovePacket(C2S_POSITION, Pppk);
-		mm->UnregInterest(I_PLAYERDATA, &pd);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_NET, &net);
-		mm->UnregInterest(I_MAPDATA, &mapdata);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(mapdata);
 		return MM_OK;
 	}
 	else if (action == MM_ATTACH)

@@ -10,8 +10,6 @@
 
 
 /* defines */
-#define MODULE "balls"
-
 #define LOCK_STATUS(arena) \
 	pthread_mutex_lock(ballmtx + arena)
 #define UNLOCK_STATUS(arena) \
@@ -71,6 +69,7 @@ local pthread_mutex_t ballmtx[MAXARENA];
 
 local Iballs _myint =
 {
+	INTERFACE_HEAD_INIT("ball-core")
 	SetBallCount, PlaceBall, BallVictory,
 	LockBallStatus, UnlockBallStatus, balldata
 };
@@ -82,13 +81,13 @@ EXPORT int MM_balls(int action, Imodman *_mm, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		mm->RegInterest(I_NET, &net);
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_LOGMAN, &logm);
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_ARENAMAN, &aman);
-		mm->RegInterest(I_MAINLOOP, &ml);
-		mm->RegInterest(I_MAPDATA, &mapdata);
+		net = mm->GetInterface("net", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		logm = mm->GetInterface("logman", ALLARENAS);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		aman = mm->GetInterface("arenaman", ALLARENAS);
+		ml = mm->GetInterface("mainloop", ALLARENAS);
+		mapdata = mm->GetInterface("mapdata", ALLARENAS);
 
 		mm->RegCallback(CB_ARENAACTION, AABall, ALLARENAS);
 		mm->RegCallback(CB_PLAYERACTION, PABall, ALLARENAS);
@@ -120,7 +119,7 @@ EXPORT int MM_balls(int action, Imodman *_mm, int arena)
 		/* timers */
 		ml->SetTimer(BasicBallTimer, 300, 100, NULL);
 
-		mm->RegInterface(I_BALLS, &_myint);
+		mm->RegInterface("balls", &_myint, ALLARENAS);
 
 		/* seed random number generator */
 		srand(GTC());
@@ -128,7 +127,8 @@ EXPORT int MM_balls(int action, Imodman *_mm, int arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(I_BALLS, &_myint);
+		if (mm->UnregInterface("balls", &_myint, ALLARENAS))
+			return MM_FAIL;
 		ml->ClearTimer(BasicBallTimer);
 		net->RemovePacket(C2S_GOAL, PGoal);
 		net->RemovePacket(C2S_SHOOTBALL, PFireBall);
@@ -138,13 +138,13 @@ EXPORT int MM_balls(int action, Imodman *_mm, int arena)
 		mm->UnregCallback(CB_SHIPCHANGE, ShipChange, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, PABall, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, AABall, ALLARENAS);
-		mm->UnregInterest(I_MAPDATA, &mapdata);
-		mm->UnregInterest(I_MAINLOOP, &ml);
-		mm->UnregInterest(I_ARENAMAN, &aman);
-		mm->UnregInterest(I_PLAYERDATA, &pd);
-		mm->UnregInterest(I_LOGMAN, &logm);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_NET, &net);
+		mm->ReleaseInterface(mapdata);
+		mm->ReleaseInterface(ml);
+		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(logm);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(net);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)

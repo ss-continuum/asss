@@ -11,8 +11,6 @@
 
 
 /* defines */
-#define MODULE "flags"
-
 #define LOCK_STATUS(arena) \
 	pthread_mutex_lock(flagmtx + arena)
 #define UNLOCK_STATUS(arena) \
@@ -74,6 +72,7 @@ local pthread_mutex_t flagmtx[MAXARENA];
 
 local Iflags _myint =
 {
+	INTERFACE_HEAD_INIT("flag-core")
 	MoveFlag, FlagVictory, GetCarriedFlags, GetFreqFlags,
 	LockFlagStatus, UnlockFlagStatus, flagdata
 };
@@ -85,13 +84,13 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		mm->RegInterest(I_NET, &net);
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_LOGMAN, &logm);
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_ARENAMAN, &aman);
-		mm->RegInterest(I_MAINLOOP, &ml);
-		mm->RegInterest(I_MAPDATA, &mapdata);
+		net = mm->GetInterface("net", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		logm = mm->GetInterface("logman", ALLARENAS);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		aman = mm->GetInterface("arenaman", ALLARENAS);
+		ml = mm->GetInterface("mainloop", ALLARENAS);
+		mapdata = mm->GetInterface("mapdata", ALLARENAS);
 
 		mm->RegCallback(CB_ARENAACTION, AAFlag, ALLARENAS);
 		mm->RegCallback(CB_PLAYERACTION, PAFlag, ALLARENAS);
@@ -123,7 +122,7 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 		ml->SetTimer(BasicFlagTimer, 500, 500, NULL);
 		ml->SetTimer(TurfFlagTimer, 1500, 1500, NULL);
 
-		mm->RegInterface(I_FLAGS, &_myint);
+		mm->RegInterface("flags", &_myint, ALLARENAS);
 
 		/* seed random number generator */
 		srand(GTC());
@@ -131,7 +130,8 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(I_FLAGS, &_myint);
+		if (mm->UnregInterface("flags", &_myint, ALLARENAS))
+			return MM_FAIL;
 		mm->UnregCallback(CB_ARENAACTION, AAFlag, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, PAFlag, ALLARENAS);
 		mm->UnregCallback(CB_SHIPCHANGE, ShipChange, ALLARENAS);
@@ -141,13 +141,13 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 		net->RemovePacket(C2S_DROPFLAGS, PDropFlag);
 		ml->ClearTimer(BasicFlagTimer);
 		ml->ClearTimer(TurfFlagTimer);
-		mm->UnregInterest(I_NET, &net);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_LOGMAN, &logm);
-		mm->UnregInterest(I_PLAYERDATA, &pd);
-		mm->UnregInterest(I_ARENAMAN, &aman);
-		mm->UnregInterest(I_MAINLOOP, &ml);
-		mm->UnregInterest(I_MAPDATA, &mapdata);
+		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(logm);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(ml);
+		mm->ReleaseInterface(mapdata);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)

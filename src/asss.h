@@ -25,6 +25,7 @@
 #include "flags.h"
 #include "balls.h"
 #include "mapdata.h"
+#include "fake.h"
 
 /* utility functions that are linked in directly */
 #include "util.h"

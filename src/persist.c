@@ -84,6 +84,7 @@ local int cfg_syncseconds;
 
 local Ipersist _myint =
 {
+	INTERFACE_HEAD_INIT("persist-bdb185")
 	RegPersistantData, UnregPersistantData,
 	SyncToFile, SyncFromFile, StabilizeScores
 };
@@ -95,11 +96,11 @@ EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_LOGMAN, &log);
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_ARENAMAN, &aman);
-		mm->RegInterest(I_MAINLOOP, &ml);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		log = mm->GetInterface("logman", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		aman = mm->GetInterface("arenaman", ALLARENAS);
+		ml = mm->GetInterface("mainloop", ALLARENAS);
 
 		arenas = aman->arenas;
 
@@ -112,7 +113,7 @@ EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 		globaldb = OpenDB("global.db");
 		defarenadb = OpenDB("defaultarena/scores.db");
 
-		mm->RegInterface(I_PERSIST, &_myint);
+		mm->RegInterface("persist", &_myint, ALLARENAS);
 
 		cfg_syncseconds = cfg ?
 				cfg->GetInt(GLOBAL, "Persist", "SyncSeconds", 180) : 180;
@@ -124,12 +125,13 @@ EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 	else if (action == MM_UNLOAD)
 	{
 		ml->ClearTimer(SyncTimer);
-		mm->UnregInterface(I_PERSIST, &_myint);
+		if (mm->UnregInterface("persist", &_myint, ALLARENAS))
+			return MM_FAIL;
 		mm->UnregCallback(CB_ARENAACTION, PersistAA, ALLARENAS);
-		mm->UnregInterest(I_PLAYERDATA, &pd);
-		mm->UnregInterest(I_LOGMAN, &log);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_ARENAMAN, &aman);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(aman);
 
 		{
 			DBMessage *msg = amalloc(sizeof(DBMessage));

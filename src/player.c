@@ -9,7 +9,7 @@ local void LockPlayer(int pid);
 local void UnlockPlayer(int pid);
 local void LockStatus(void);
 local void UnlockStatus(void);
-local int FindPlayer(char *name);
+local int FindPlayer(const char *name);
 
 
 /* static data */
@@ -22,7 +22,10 @@ local PlayerData players[MAXPLAYERS+EXTRA_PID_COUNT];
 
 /* interface */
 local Iplayerdata _myint =
-	{ players, LockPlayer, UnlockPlayer, LockStatus, UnlockStatus, FindPlayer };
+{
+	INTERFACE_HEAD_INIT("playerdata")
+	players, LockPlayer, UnlockPlayer, LockStatus, UnlockStatus, FindPlayer
+};
 
 
 EXPORT int MM_playerdata(int action, Imodman *mm, int arena)
@@ -49,12 +52,13 @@ EXPORT int MM_playerdata(int action, Imodman *mm, int arena)
 		}
 
 		/* register interface */
-		mm->RegInterface(I_PLAYERDATA, &_myint);
+		mm->RegInterface("playerdata", &_myint, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(I_PLAYERDATA, &_myint);
+		if (mm->UnregInterface("playerdata", &_myint, ALLARENAS))
+			return MM_FAIL;
 
 		/* destroy mutexes */
 		for (i = 0; i < MAXPLAYERS; i++)
@@ -91,7 +95,7 @@ void UnlockStatus(void)
 }
 
 
-int FindPlayer(char *name)
+int FindPlayer(const char *name)
 {
 	int i;
 	PlayerData *p;

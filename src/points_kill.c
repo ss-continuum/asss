@@ -1,8 +1,6 @@
 
 #include "asss.h"
 
-#define MODULE "points_kill"
-
 
 /* prototypes */
 
@@ -21,20 +19,20 @@ EXPORT int MM_points_kill(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_ARENAMAN, &aman);
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_STATS, &stats);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		aman = mm->GetInterface("arenaman", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		stats = mm->GetInterface("stats", ALLARENAS);
 
 		if (!stats) return MM_FAIL;
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterest(I_PLAYERDATA, &pd);
-		mm->UnregInterest(I_ARENAMAN, &aman);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_STATS, &stats);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(stats);
 		return MM_OK;
 	}
 	else if (action == MM_ATTACH)

@@ -43,7 +43,11 @@ local void SetShip(int pid, int ship);
 local void SetFreqAndShip(int pid, int ship, int freq);
 local void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2);
 
-local Igame _myint = { SetFreq, SetShip, SetFreqAndShip, DropBrick };
+local Igame _myint =
+{
+	INTERFACE_HEAD_INIT("game")
+	SetFreq, SetShip, SetFreqAndShip, DropBrick
+};
 
 
 /* global data */
@@ -81,16 +85,16 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		int i;
 
 		mm = mm_;
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_LOGMAN, &log);
-		mm->RegInterest(I_NET, &net);
-		mm->RegInterest(I_ARENAMAN, &aman);
-		mm->RegInterest(I_CMDMAN, &cmd);
-		mm->RegInterest(I_CHAT, &chat);
-		mm->RegInterest(I_FLAGS, &flags);
-		mm->RegInterest(I_CAPMAN, &capman);
-		mm->RegInterest(I_MAPDATA, &mapdata);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		log = mm->GetInterface("logman", ALLARENAS);
+		net = mm->GetInterface("net", ALLARENAS);
+		aman = mm->GetInterface("arenaman", ALLARENAS);
+		cmd = mm->GetInterface("cmdman", ALLARENAS);
+		chat = mm->GetInterface("chat", ALLARENAS);
+		flags = mm->GetInterface("flags", ALLARENAS);
+		capman = mm->GetInterface("capman", ALLARENAS);
+		mapdata = mm->GetInterface("mapdata", ALLARENAS);
 
 		if (!net || !cfg || !log || !aman) return MM_FAIL;
 
@@ -126,13 +130,14 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 
 		cmd->AddCommand("report", Creport);
 
-		mm->RegInterface(I_GAME, &_myint);
+		mm->RegInterface("game", &_myint, ALLARENAS);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(I_GAME, &_myint);
+		if (mm->UnregInterface("game", &_myint, ALLARENAS))
+			return MM_FAIL;
 		cmd->RemoveCommand("report", Creport);
 		net->RemovePacket(C2S_POSITION, Pppk);
 		net->RemovePacket(C2S_SETSHIP, PSetShip);
@@ -144,16 +149,16 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		net->RemovePacket(C2S_BRICK, PBrick);
 		mm->UnregCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
-		mm->UnregInterest(I_PLAYERDATA, &pd);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_LOGMAN, &log);
-		mm->UnregInterest(I_NET, &net);
-		mm->UnregInterest(I_ARENAMAN, &aman);
-		mm->UnregInterest(I_CMDMAN, &cmd);
-		mm->UnregInterest(I_CHAT, &chat);
-		mm->UnregInterest(I_FLAGS, &flags);
-		mm->UnregInterest(I_CAPMAN, &capman);
-		mm->UnregInterest(I_MAPDATA, &mapdata);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(cmd);
+		mm->ReleaseInterface(chat);
+		mm->ReleaseInterface(flags);
+		mm->ReleaseInterface(capman);
+		mm->ReleaseInterface(mapdata);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -174,7 +179,22 @@ void Pppk(int pid, byte *p2, int n)
 	int regset[MAXPLAYERS+1], epdset[MAXPLAYERS+1];
 
 	/* handle common errors */
-	if (arena < 0) return;
+	if (ARENA_BAD(arena)) return;
+
+	/* do checksum */
+	{
+		byte checksum = 0;
+		int left = 22;
+		while (left--)
+			checksum ^= p2[left];
+		if (checksum != 0)
+		{
+			log->Log(L_MALICIOUS, "<game> {%s} [%s] Bad position packet checksum",
+					aman->arenas[arena].name,
+					pd->players[pid].name);
+			return;
+		}
+	}
 
 	/* speccers don't get their position sent to anyone */
 	if (players[pid].shiptype == SPEC)
@@ -332,6 +352,7 @@ void Pppk(int pid, byte *p2, int n)
 	position.y = p->y;
 	position.xspeed = p->xspeed;
 	position.yspeed = p->yspeed;
+	position.rotation = p->rotation;
 	position.bounty = p->bounty;
 	position.status = p->status;
 	players[pid].position = position;
@@ -348,7 +369,11 @@ void PSpecRequest(int pid, byte *p, int n)
 void SetFreqAndShip(int pid, int ship, int freq)
 {
 	struct ShipChangePacket to = { S2C_SHIPCHANGE, ship, pid, freq };
-	int arena = players[pid].arena;
+	int arena;
+
+	if (PID_BAD(pid))
+		return;
+	arena = players[pid].arena;
 
 	pd->LockPlayer(pid);
 	players[pid].shiptype = ship;
@@ -367,21 +392,15 @@ void SetFreqAndShip(int pid, int ship, int freq)
 
 void SetShip(int pid, int ship)
 {
-	int arena = players[pid].arena;
-	int freq = players[pid].freq;
-
-	DO_CBS(CB_FREQMANAGER,
-	       arena,
-	       FreqManager,
-	       (pid, REQUEST_SHIP, &ship, &freq));
-
-	SetFreqAndShip(pid, ship, freq);
+	if (PID_OK(pid))
+		SetFreqAndShip(pid, ship, players[pid].freq);
 }
 
 void PSetShip(int pid, byte *p, int n)
 {
 	int arena = players[pid].arena;
-	int ship = p[1];
+	int ship = p[1], freq = players[pid].freq;
+	Ifreqman *fm;
 
 	if (ship < WARBIRD || ship > SPEC)
 	{
@@ -399,7 +418,12 @@ void PSetShip(int pid, byte *p, int n)
 		return;
 	}
 
-	SetShip(pid, ship);
+	fm = mm->GetInterface("freqman", arena);
+	if (fm)
+		fm->ShipChange(pid, &ship, &freq);
+	mm->ReleaseInterface(fm);
+
+	SetFreqAndShip(pid, ship, freq);
 }
 
 
@@ -424,6 +448,7 @@ void SetFreq(int pid, int freq)
 void PSetFreq(int pid, byte *p, int n)
 {
 	int freq, arena, ship;
+	Ifreqman *fm;
 
 	arena = players[pid].arena;
 	freq = ((struct SimplePacket*)p)->d1;
@@ -431,10 +456,10 @@ void PSetFreq(int pid, byte *p, int n)
 
 	if (ARENA_BAD(arena)) return;
 
-	DO_CBS(CB_FREQMANAGER,
-	       arena,
-	       FreqManager,
-	       (pid, REQUEST_SHIP, &ship, &freq));
+	fm = mm->GetInterface("freqman", arena);
+	if (fm)
+		fm->FreqChange(pid, &ship, &freq);
+	mm->ReleaseInterface(fm);
 
 	if (ship == players[pid].shiptype)
 		SetFreq(pid, freq);

@@ -2,7 +2,15 @@
 #include "asss.h"
 
 
-local void MyFreqManager(int pid, int request, int *ship, int *freq);
+local void Initial(int pid, int *ship, int *freq);
+local void Ship(int pid, int *ship, int *freq);
+local void Freq(int pid, int *ship, int *freq);
+
+local Ifreqman _fm =
+{
+	INTERFACE_HEAD_INIT("fm-normal")
+	Initial, Ship, Freq
+};
 
 local Iplayerdata *pd;
 local Iarenaman *aman;
@@ -15,25 +23,25 @@ EXPORT int MM_fm_normal(int action, Imodman *_mm, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_ARENAMAN, &aman);
-		mm->RegInterest(I_CONFIG, &cfg);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		aman = mm->GetInterface("arenaman", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterest(I_PLAYERDATA, &pd);
-		mm->UnregInterest(I_ARENAMAN, &aman);
-		mm->UnregInterest(I_CONFIG, &cfg);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(cfg);
 		return MM_OK;
 	}
 	else if (action == MM_ATTACH)
 	{
-		mm->RegCallback(CB_FREQMANAGER, MyFreqManager, arena);
+		mm->RegInterface("freqman", &_fm, arena);
 	}
 	else if (action == MM_DETACH)
 	{
-		mm->UnregCallback(CB_FREQMANAGER, MyFreqManager, arena);
+		mm->UnregInterface("freqman", &_fm, arena);
 	}
 	else if (action == MM_CHECKBUILD)
 		return BUILDNUMBER;
@@ -123,7 +131,35 @@ local int BalanceFreqs(int arena, int excl, int inclspec)
 }
 
 
-void MyFreqManager(int pid, int request, int *ship, int *freq)
+void Initial(int pid, int *ship, int *freq)
+{
+	int arena, f = *freq, s = *ship;
+	ConfigHandle ch;
+
+	arena = pd->players[pid].arena;
+
+	if (ARENA_BAD(arena)) return;
+
+	ch = aman->arenas[arena].cfg;
+
+	if (s == SPEC)
+	{
+		f = cfg->GetInt(ch, "Team", "SpectatorFrequency", 8025);
+	}
+	else
+	{
+		/* we have to assign him to a freq */
+		int inclspec = cfg->GetInt(ch, "Team", "IncludeSpectators", 0);
+		f = BalanceFreqs(arena, pid, inclspec);
+		/* and make sure the ship is still legal */
+		s = FindLegalShip(arena, f, s);
+	}
+
+	*ship = s; *freq = f;
+}
+
+
+void Ship(int pid, int *ship, int *freq)
 {
 	int arena, specfreq, f = *freq, s = *ship;
 	ConfigHandle ch;
@@ -135,13 +171,16 @@ void MyFreqManager(int pid, int request, int *ship, int *freq)
 	ch = aman->arenas[arena].cfg;
 	specfreq = cfg->GetInt(ch, "Team", "SpectatorFrequency", 8025);
 
-	if (request == REQUEST_INITIAL)
+	if (s >= SPEC)
 	{
-		if (s < SPEC)
-		{
-			f = cfg->GetInt(ch, "Team", "SpectatorFrequency", 8025);
-		}
-		else
+		/* if he's switching to spec, it's easy */
+		f = specfreq;
+	}
+	else
+	{
+		/* he's changing to a ship. check if he's changing from spec */
+		int oldfreq = pd->players[pid].freq;
+		if (oldfreq == specfreq)
 		{
 			/* we have to assign him to a freq */
 			int inclspec = cfg->GetInt(ch, "Team", "IncludeSpectators", 0);
@@ -149,66 +188,56 @@ void MyFreqManager(int pid, int request, int *ship, int *freq)
 			/* and make sure the ship is still legal */
 			s = FindLegalShip(arena, f, s);
 		}
-	}
-	else if (request == REQUEST_SHIP)
-	{
-		if (s >= SPEC)
-		{
-			/* if he's switching to spec, it's easy */
-			f = specfreq;
-		}
 		else
 		{
-			/* he's changing to a ship. check if he's changing from spec */
-			int oldfreq = pd->players[pid].freq;
-			if (oldfreq == specfreq)
-			{
-				/* we have to assign him to a freq */
-				int inclspec = cfg->GetInt(ch, "Team", "IncludeSpectators", 0);
-				f = BalanceFreqs(arena, pid, inclspec);
-				/* and make sure the ship is still legal */
-				s = FindLegalShip(arena, f, s);
-			}
-			else
-			{
-				/* don't touch freq, but make sure ship is ok */
-				s = FindLegalShip(arena, f, s);
-			}
+			/* don't touch freq, but make sure ship is ok */
+			s = FindLegalShip(arena, f, s);
 		}
-	}
-	else /* REQUEST_FREQ */
-	{
-		int count, max;
-		int inclspec = cfg->GetInt(ch, "Team", "IncludeSpectators", 0);
-		int maxfreq = cfg->GetInt(ch, "Team", "MaxFrequency", 9999);
-		int privlimit = cfg->GetInt(ch, "Team", "PrivFreqStart", 100);
-
-		if (f >= privlimit)
-			max = cfg->GetInt(ch, "Team", "MaxPerPrivateTeam", 0);
-		else
-			max = cfg->GetInt(ch, "Team", "MaxPerTeam", 0);
-
-		/* special case: speccer re-entering spec freq */
-		if (s == SPEC && f == specfreq)
-			return;
-
-		if (f < 0 || f > maxfreq)
-			/* he requested a bad freq. drop him elsewhere. */
-			f = BalanceFreqs(arena, pid, inclspec);
-		else
-		{
-			/* check to make sure the new freq is ok */
-			count = CountFreq(arena, f, pid, inclspec);
-			if (max > 0 && count >= max)
-				/* the freq has too many people, assign him to another */
-				f = BalanceFreqs(arena, pid, inclspec);
-		}
-		/* make sure he has an appropriate ship for this freq */
-		s = FindLegalShip(arena, f, s);
 	}
 
 	*ship = s; *freq = f;
 }
 
 
+void Freq(int pid, int *ship, int *freq)
+{
+	int arena, specfreq, f = *freq, s = *ship;
+	int count, max, inclspec, maxfreq, privlimit;
+	ConfigHandle ch;
+
+	arena = pd->players[pid].arena;
+
+	if (ARENA_BAD(arena)) return;
+
+	ch = aman->arenas[arena].cfg;
+	specfreq = cfg->GetInt(ch, "Team", "SpectatorFrequency", 8025);
+	inclspec = cfg->GetInt(ch, "Team", "IncludeSpectators", 0);
+	maxfreq = cfg->GetInt(ch, "Team", "MaxFrequency", 9999);
+	privlimit = cfg->GetInt(ch, "Team", "PrivFreqStart", 100);
+
+	if (f >= privlimit)
+		max = cfg->GetInt(ch, "Team", "MaxPerPrivateTeam", 0);
+	else
+		max = cfg->GetInt(ch, "Team", "MaxPerTeam", 0);
+
+	/* special case: speccer re-entering spec freq */
+	if (s == SPEC && f == specfreq)
+		return;
+
+	if (f < 0 || f > maxfreq)
+		/* he requested a bad freq. drop him elsewhere. */
+		f = BalanceFreqs(arena, pid, inclspec);
+	else
+	{
+		/* check to make sure the new freq is ok */
+		count = CountFreq(arena, f, pid, inclspec);
+		if (max > 0 && count >= max)
+			/* the freq has too many people, assign him to another */
+			f = BalanceFreqs(arena, pid, inclspec);
+	}
+	/* make sure he has an appropriate ship for this freq */
+	s = FindLegalShip(arena, f, s);
+
+	*ship = s; *freq = f;
+}
 

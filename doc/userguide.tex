@@ -1,0 +1,754 @@
+
+\documentclass{article}
+
+% enlarge the page a bit
+\addtolength{\hoffset}{-1cm}
+\addtolength{\textwidth}{1.6cm}
+
+% make new commands to enforce some style
+\newcommand{\requiremod}[1]{\noindent\textbf{Requires module:} \texttt{#1}\\}
+\newcommand{\targets}[1]{\noindent\textbf{Possible targets:} #1\\}
+\newcommand{\args}[1]{\noindent\textbf{Arguments:} #1\\}
+\newcommand{\asss}{\texttt{asss}}
+\newcommand{\subgame}{\texttt{subgame}}
+
+\title{\asss{} User's Guide}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+\asss{} is a new server for Subspace/Continuum. It was written from
+scratch by Grelminar (\verb/grelminar@yahoo.com/), with help from Mine
+GO BOOM. % and numpf, if he ever gets around to helping
+The name \asss{} stands for ``a small subspace server.''
+
+Although care has been taken to remain compatible with the original
+Subspace server, known as \subgame{}, players, and especially staff and
+admins, should be aware that \asss{} is a different piece of software. It
+has many features that \subgame{} is missing, but it is also missing some
+from \subgame{}. The features that are common to both may work different.
+They will have different bugs. In short, don't expect everything to work
+the same as in \subgame{}, because it won't.
+
+\subsection{Platform and Requirements}
+
+\asss{} was developed primarily on a Linux system on the Intel x86
+platform. Although some effort has been spent making it run on Windows
+also, people running it on non-Linux systems should not expect
+everything to work perfectly: there may be missing features and it may
+run slower.
+
+The requirements for running \asss{} on Linux are very simple: The
+system should have the pthreads library (any recent Linux system
+should), Berkeley DB 1.85 (newer versions won't work), and zlib. To
+compile \asss{} from source, the include files for those libraries must
+be installed, as well as a C compiler. (On Windows, the same libraries
+are needed, although they're a bit harder to find.)
+
+Currently, only Intel platforms are supported because of byte-order
+issues. Eventually, \asss{} will be able to run on other architectures,
+but for now, Intel will have to do.
+
+
+\subsection{Reporting Bugs}
+
+There should be a better mechanism for this, but for now, you can email
+bug reports to \verb/asssdev@yahoogroups.com/.
+
+
+\section{File Layout}
+The server always access files relative to the directory it was started
+from, which must have certain files and directories in certain places.
+That means that to run multiple copies of the server on one machine, you
+should make sure that each one is started from its own home directory.
+
+Here's what a typical machine's file layout should look like:
+\begin{verbatim}
+/home/asss
++ bin
+| + asss
+| + commands.so
+| + flags.so
+| + balls.so
+| + balls.so
+| + ...
+|
++ zone1 
+| + news.txt
+| + bin  (symlinked to ../bin)
+| + defaultarena
+| | + arena.conf
+| | + scores.db
+| |
+| + arenas
+| | + duel
+| | | + arena.conf
+| | | + scores.db
+| | |
+| | + pb
+| |   + arena.conf
+| |   + balls.conf
+| |   + pb.lvl
+| |   + scores.db
+| |
+| + conf
+| | + global.conf
+| | + modules.conf
+| | + groupdef.conf
+| | + groups
+| | | + default
+| | | + mod
+| | | + smod
+| | | + sysop
+| | |
+| | + defs.h
+| | + svs
+| |   + svs.conf
+| |   + prizeweights
+| |   + misc
+| |   + ship-warbird
+| |   + ...
+| |
+| + log
+| | + asss.log
+| | + asss.log.1
+| |
+| + maps
+|   + zone1-pub.lvl
+|   + another.lvl
+|
++ zone2
+  + bin  (symlinked to ../bin)
+  + ...
+\end{verbatim}
+
+The most important directory is \verb/bin/. This directory should
+contain the main \asss{} binary, as well as all files containing modules
+to be loaded by the main binary. To ease administration, it is not
+recommended that each zone on a machine have a full copy of the
+\verb/bin/ directory. Rather, \verb/bin/ should be a symlink to a shared
+directory containing binaries.
+
+\verb/conf/ contains config files that affect the server as a whole.
+Among the important files are \verb/modules.conf/, which specifies the
+list of modules to load at startup, \verb/global.conf/, which contains
+config settings for the whole server, \verb/groupdef.conf/, which
+describes which capabilities belong to each group, and
+\verb/staff.conf/, which assigns groups to various players.
+\verb/groupdef.conf/ uses files in the \verb/groups/ subdirectory to
+ensure more powerful groups have all the capabilities of lesser ones.
+
+Also in \verb/conf/ is \verb/defs.h/, which includes a bunch of other
+config files that are typically symlinks to files in the source code
+directory. This is done to ensure the server and config files agree on
+numerical values for various constants. All \verb/.conf/ files should
+\verb/#include/ \verb/defs.h/.
+
+\verb/conf/ can also contain partial config files for arenas to include.
+The default directory structure contains an \verb/svs/ directory, with
+the Standard VIE Settings, split into multiple files, by ship and
+function.
+
+\verb/log/ will be used by the server to deposit any log files that it
+creates.
+
+\verb/maps/ is an optional directory that the server will search for
+\verb/.lvl/ files in. These files can also be located in arena
+directories, so this isn't a required directory. It might simplify
+administration, though, to keep all map files in this directory.
+
+Each arena gets its own directory for storing settings related to that
+arena, as well as persistent data for that arena.
+
+The default arena (also called the public arena) keeps its data in the
+directory \verb/defaultarena/, relative to the base directory for the
+zone. All other arenas keep their files in \verb|arenas/foo|, where
+\verb/foo/ is the name of the arena.
+
+Each arena directory must contain a file named \verb/arena.conf/, which
+contains the settings for that arena. For ease of administration, this
+file may \verb/#include/ other config files in either the same
+directory, or the global \verb/conf/ directory.
+
+The server will create the file \verb/scores.db/ in each arena's
+directory to keep track of players' scores for that arena. It will also
+create \verb/global.db/ in the base of the zone directory for keeping
+track of global persistent data.
+
+The file \verb/news.txt/ should be located in the base of the zone
+directory as well, unless another location is specified in
+\verb/global.conf/.
+
+\section{Modules}
+
+Almost all of the functionality of \asss{} is split into many small
+modules. The \asss{} binary itself contains a bunch of critical modules,
+and other, less important, modules are in separate libraries with the
+extension \verb/.so/ (on Unix) or \verb/.dll/ (on Windows). One shared
+library can contain any number of modules.
+
+There are currently
+34
+modules that are part of \asss{}, but each zone might have some
+custom-developed modules for their zone as well.
+
+When the server starts up, it loads all of the modules listed in the
+file \verb/modules.conf/. Once it's running, more modules can be loaded
+with the \verb/?insmod/ command, and modules can be unloaded with
+\verb/?rmmod/. The current list of loaded modules can be examined with
+\verb/?lsmod/.
+
+The \verb/modules.conf/ file has a special format that's different from
+the rest of the config files. It has no sections. Each line should
+contain a ``module specifier.'' A module specifier is just something of
+the form \verb/filename:module/. The filename part should be the name of
+the file containing the module, without the extension. The module part
+should be a module name that's contained in the file. The colon
+separating them is just a colon. For modules that are in the \asss{}
+binary itself, use the special file name \verb/int/ (for ``internal'').
+Comments are indicated by an initial semicolon or pound sign.
+
+If a particular zone has no need for a particular module (e.g., Chaos
+zone doesn't have any flags or balls, so it doesn't need those modules),
+it should't load those modules. Only loading the modules that are
+actually used for a zone will decrease the memory usage of the server,
+and make it run faster.
+
+Once a module is loaded into the server, it has full access to the
+server's data, including player ip addresses, machine id's, scores, and
+passwords. It can also access files on the machine it is running on, and
+make network connections, and it can easily crash or deadlock the
+server. Thus, admins and sysops should be careful to only load modules
+from sources that they trust.
+
+In the future, it will be possible for some modules to run in separate
+processes or even separate machines, it will be possible to write
+modules in languages besides C, and it will be possible to limit the
+information that modules have access to.
+
+
+\section{Capabilities}
+
+The old Subspace server supported a very limited notion of authority:
+There were moderators, super moderators, and sysops. Each level allowed
+access to more and more commands. Additionally, moderators and above
+could see private freqs and private arenas, and bypass freq and arena
+size limits.
+
+\asss{} is much more flexible. It lets sysops and admins assign any set
+of powers to any group of people. In the \asss{} model, each of the
+above powers, plus a few more, like energy viewing, is assigned a
+capability name. Each command also gets a capability name (actually,
+each command gets two, one for using the command with public messages,
+and one for using it with private messages). Whenever the server needs
+to determine if a player can take a certain action, it asks the
+capability manager, which replies either yes or no.
+
+The server comes with one capability manager, contained in the
+\texttt{capman} module, but there's no reason why another one couldn't
+be used if your zone has peculiar needs for assigning people powers.
+
+\subsection{Capablity names}
+
+The most common capability names are for commands. If a player tries
+to run a command, say, \verb/?lastlog/, the server would query the
+capability manager with the name \verb/cmd_lastlog/. If a player uses a
+command as a private message, as in \verb/:annoying_player:?freqkick/,
+the capability name used would instead be \verb/privcmd_freqkick/.
+
+There are several other capabilities that are currently used in the
+server:
+
+\begin{itemize}
+\item{\texttt{seeprivarena}} controls whether private arena names are
+sent to a player for the \verb/?arena/ command.
+\item{\texttt{seeprivfreq}} determines if a player sees private freqs in
+the freq listing.
+\item{\texttt{findinprivs}} is needed by a player running \verb/?find/
+for the server to report the names of private arenas. (Not implemented
+yet.)
+\item{\texttt{seeepd}} allows players to see other ship's energy and
+specials from spectator mode. (``epd'' stands for extra position data.)
+\item{\texttt{seesysoplogall}} allows a player to see all important log
+messages in the zone.
+\item{\texttt{seesysoplogarena}} only allows a player to see only
+important log messages having to do with the arena he is currently in.
+\item{\texttt{seemodchat}} allows players to see the moderator chat.
+\item{\texttt{sendmodchat}} controls who can send moderator chat
+messages. Usually, these two capabilities would be given to the same
+people.
+\end{itemize}
+
+
+\subsection{The default capability manager}
+
+The default capability manager works with groups. Each group has a set
+of capabilities, and players are assigned to groups. To check if a
+player has a certain capability, the capability manager simply checks if
+the group he's in has that capability.
+
+To determine which groups have which capabilities, the
+\verb/groupdef.conf/ file is used. It should have a section for each
+group, and a line within that section for each capability.
+
+To determine which players belong to which groups, the \verb/staff.conf/
+file is used. It should have a single section, called ``Staff,'' with
+player names as keys and group names as values. Players not listed in
+the staff file will be assigned to the group ``default.'' If a player is
+assigned a group in \verb/staff.conf/, he will be in that group in any
+arena he enters.
+
+Sometimes, however, a sysop will want to give certain players powers in
+only certain arenas. Each arena's config file can also contain a
+``Staff'' section. Groups assigned through arena config files will only
+be valid in that one arena.
+
+The command \verb/?setgroup/ can be used to assign a player to a group
+for a single session.
+
+\subsubsection{Emulating the old system}
+Using the default manager, it's relatively easy to set up \asss{} to
+emulate the old server's moderator, super moderator, and sysop model:
+The \verb/groupdef.conf/ file looks like this:
+
+\begin{verbatim}
+; conf/groupdef.conf
+
+[default]
+#include groupdef.dir/default
+
+[mod]
+#include groupdef.dir/default
+#include groupdef.dir/mod
+
+[smod]
+#include groupdef.dir/default
+#include groupdef.dir/mod
+#include groupdef.dir/smod
+
+[sysop]
+#include groupdef.dir/default
+#include groupdef.dir/mod
+#include groupdef.dir/smod
+#include groupdef.dir/sysop
+\end{verbatim}
+
+The files in \verb/groupdef.dir/ contain simply lists of capabilities.
+Each group includes the file for itself, as well as the files for the
+lesser powerful groups.
+
+
+%\section{Regions}
+%
+%\subsection{What are regions?}
+%
+%\subsection{Making regions}
+
+
+\section{New Features}
+
+\subsection{Freq Ownership}
+
+\requiremod{freqowners}
+If the arena controller allows it, private freqs can now be owned. The
+first player to move to a particular private freq becomes an owner for
+that freq. An owner can kick non-owners off of his freq by sending them
+the command \verb/?freqkick/. An owner can give owner privileges to
+other players by sending them the command \verb/?giveowner/. The spec
+freq can't be owned.
+
+The config variable \texttt{Team:AllowFreqOwners} controls whether to
+enable freq ownership. It defaults to on.
+
+\subsection{Arena limiting}
+
+\requiremod{arenaperm}
+Any arena can specify a \texttt{General:NeedCap} value in it's config
+file. If present, players will not be allowed to enter the arena unless
+they have the specified capability.
+
+
+\subsection{Autowarping}
+
+\requiremod{autowarp}
+Using the region system, certain areas of the map can be configured to
+warp a player who enters them to somewhere else on the map.
+
+FIXME: include details about specifying autowarp settings.
+
+
+\subsection{Moderator chat}
+
+\asss{} includes an actual moderator chat system, which should be an
+improvement over the \verb/?cheater/-based systems in use currently.
+
+Mod chat messages begin with a backslash (\verb/\/), and are displayed
+in dark red (the same color as sysop warning messages). Who is allowed
+to send and recieve mod chat is controlled by two capabilities:
+\texttt{seemodchat} and \texttt{sendmodchat}, which do what they sound
+like.
+
+
+\subsection{Multiple commands}
+
+You can specify multiple commands on one line by dividing them with
+vertical bars (\verb/|/). The subsequent commands (after the first bar)
+don't need question marks (although they are ignored if present). You
+can send multiple private commands, but you can't send both public and
+private commands on the same line.
+
+
+\section{Commands}
+
+These are all of the commands that the server currently recognizes. Not
+all of them will always be available. If a command requires a module
+that isn't likely to be loaded, that will be indicated above its
+description. Most other commands require the \texttt{playercmd} module.
+
+Possible targets are listed for each command. The targets can be
+``None,'' which refers to commands typed as public (arena) messages,
+``Player,'' for commands that can target specific players, ``Freq,'' for
+commands that can target a whole freq at a time (with either \verb/'/ or
+\verb/"/), or some restriction of one of those.
+
+Each command also describes any required or optional arguments.
+
+Note that the section doesn't list who is allowed to run a particular
+command, because that is determined by the capability manager, which can
+be fully customized for each particular server.
+
+\subsection{arena}
+\targets{None}
+\args{None or \texttt{all}}
+Lists the available arenas. Specifying \texttt{all} will also include
+empty arenas that the server knows about.
+
+\subsection{shutdown}
+\targets{None}
+\args{None}
+Immediately shuts down the server.
+
+\subsection{admlogfile}
+\targets{None}
+\args{\texttt{flush} or \texttt{reopen}}
+Administers the log file that the server keeps. There are two possible
+subcommands: \verb/flush/ flushes the log file to disk (in preparation
+for copying it, for example), and \verb/reopen/ tells the server to
+close and re-open the log file (to rotate the log while the server is
+running).
+
+\subsection{flagreset}
+\requiremod{flags}
+\targets{None}
+\args{None}
+Causes the flag game to immediately reset.
+
+\subsection{ballcount}
+\requiremod{balls}
+\targets{None}
+\args{number of balls to add or remove}
+Increases or decreases the number of balls in the arena. Takes an
+argument that is a positive or negative number, which is the number of
+balls to add (or, if negative, to remove).
+
+\subsection{setfreq}
+\targets{Player}
+\args{freq number}
+Moves the target player to the specified freq.
+
+\subsection{setship}
+\targets{Player}
+\args{freq number}
+Sets the target player to the specified ship. The argument must be a
+number from 1 (Warbird) to 8 (Shark), or 9 (Spec).
+
+\subsection{version}
+\targets{None}
+\args{None}
+Prints out the version and buildnumber of asss. If the server was built
+with certain options, it might also print out some information about the
+machine that it's running on.
+
+\subsection{lsmod}
+\targets{None}
+\args{None}
+Lists all the modules currently loaded into the server.
+
+\subsection{insmod}
+\targets{None}
+\args{module specifier}
+Immediately loads the specified module into the server. The argument
+should be a module specifier, as described in the section on modules.
+
+\subsection{rmmod}
+\targets{None}
+\args{module name}
+Attempts to unload the specified module from the server.
+
+\subsection{getgroup}
+\targets{Player}
+\args{None}
+Prints out the group of the target player.
+
+\subsection{setgroup}
+\targets{Player}
+\args{group name}
+Assigns the group given as an argument to the target player. The player
+must be in group \verb/default/, or the server will refuse to change his
+group. Additionally, the player giving the command must have an
+appropriate capability: \verb/setgroup_foo/, where \verb/foo/ is, of
+course, the group that he's trying to set the target to.
+
+\subsection{netstats}
+\targets{None}
+\args{None}
+Prints out some statistics from the network layer, including the number
+of main menu pings the server has received, the total number of packets
+it has sent and received, and the number of buffers currently in use
+versus the number allocated.
+
+\subsection{getcm}
+\targets{Player or None}
+\args{None}
+Prints out the chat mask for the target player, or if no target, for the
+current arena. The chat mask specifies which types of chat messages are
+allowed.
+
+\subsection{setcm}
+\targets{Player or None}
+\args{see description}
+Modified the chat mask for the target player, or if no target, for the
+current arena. The arguments must all be of the form
+\texttt{(-|+)(pub|pubmacro|freq|nmefreq|priv|chat|modchat|all)}. A minus
+sign and then a word disables that type of chat, and a plus sign enables
+it. The special type \texttt{all} means to apply the plus or minus to
+all of the above types.
+
+Examples:
+\begin{itemize}
+\item If someone is spamming public macros: \verb/:player:?setcm -pubmacro/
+\item To disable all blue messages for this arena: \verb/?setcm -pub -pubmacro/
+\item An equivalent to \verb/*shutup/: \verb/:player:?setcm -all/
+\item To restore chat to normal: \verb/?setcm +all/
+\end{itemize}
+
+Current limitations: You can't currently restrict a particular
+frequency. Leaving and entering an arena will remove a player's chat
+mask.
+
+
+\subsection{brickwrite}  % from bricklayer.c
+\requiremod{bricklayer}
+\targets{None}
+\args{text to write}
+Writes the given text in bricks centered around your current position.
+Specify the text as an argument.
+
+\subsection{giveowner}  % from freqowners.c
+\requiremod{freqowners}
+\targets{Player}
+\args{None}
+Allows you to share freq ownership with another player on your current
+private freq. You can't remove ownership once you give it out, but you
+are safe from being kicked off yourself, as long as you have ownership.
+
+\subsection{freqkick}  % from freqowners.c
+\requiremod{freqowners}
+\targets{Player}
+\args{None}
+Kicks the player off of your freq. The player must be on your freq and
+must not be an owner himself. The player giving the command, of course,
+must be an owner.
+
+\subsection{lastlog}  % from log_sysop.c
+\requiremod{log\_sysop}
+\targets{None}
+\args{optional number of lines, followed by optional limiting text}
+Prints out the last 10 lines in the server log. You can specify a number
+as an argument, ant it will print that many lines instead. If you
+specify any text as an argument, besides a number, the display will be
+limited to lines that contain that text. You can specify both a number
+and limiting text, just put the number first.
+
+\subsection{stats}  % from stats.c
+\targets{Player or None}
+\args{None}
+Prints out some basic statistics about the target player, or if no
+target, yourself. The statistics include the number of logins (to this
+zone only), and counts of messages and commands sent. No arguments.
+
+\subsection{score}  % from stats.c
+\targets{Player or None}
+\args{None}
+Prints out the target player's current points, kills, and deaths, or
+yours if no target.
+
+
+\section{Temporary and Debugging Commands}
+
+\subsection{dropturret}  % from autoturret.c
+\requiremod{autoturret}
+\targets{None}
+\args{None}
+Drops a turret right where your ship is. The turret will fire 10 level 1
+bombs, 1.5 seconds apart, and then disappear.
+
+\subsection{makefake}  % from fake.c
+\requiremod{fake}
+\targets{None}
+\args{fake player name}
+Creates a fake player with the given name in the current arena. Specify
+the name as an argument.
+
+\subsection{killfake}  % from fake.c
+\requiremod{fake}
+\targets{Fake player}
+\args{None}
+Destroys the target fake player.
+
+\subsection{report}  % from game.c
+\targets{Player}
+\args{None}
+Prints out a simple report on the target player's position, bounty, and
+energy.
+
+
+\section{Configuration}
+
+\subsection{Flags}
+
+Until I have time to rework my notes into a nice document, this will
+have to do:
+
+\begin{verbatim}
+quick guide to transition flag settings:
+
+(all these go in the [Flag] section)
+
+OLD SETTINGS TO KEEP
+FlaggerOnRadar=1
+FlaggerKillMultiplier=2
+FlaggerGunUpgrade=1
+FlaggerBombUpgrade=1
+FlaggerFireCostPercent=1000
+FlaggerDamagePercent=1000
+FlaggerBombFireDelay=0
+FlaggerSpeedAdjustment=0
+FlaggerThrustAdjustment=0
+CarryFlags=1                   make sure this agrees with GameType (see below)
+FlagDropDelay=3000
+FlagDropResetReward=0
+EnterGameFlaggingDelay=1000
+FlagBlankDelay=200
+NoDataFlagDropDelay=500
+
+OLD SETTINGS TO CHANGE
+FlagMode=1                     get rid of this, there's a new way to specify game types
+FlagResetDelay=1440000         rename to ResetDelay (not currently implemented)
+MaxFlags=3                     change to FlagCount=3
+RandomFlags=0                  get rid of this, use FlagCount=5-10
+FlagReward=2500                keep this
+FlagRewardMode=0               change name to SplitPoints
+FlagTerritoryRadius=3          get rid of this, use DropRadius
+FlagTerritoryRadiusCentroid=0  get rid of this, use DropRadius
+FriendlyTransfer=0             keep this the same
+
+NEW SETTINGS
+GameType = FLAGGAME_BASIC
+  options: FLAGGAME_NONE, FLAGGAME_BASIC, FLAGGAME_TURF, FLAGGAME_CUSTOM
+  basic is warzone/running with movable flags. turf is turf (be sure to
+  set CarryFlags=0, for now). custom means you have to load a module to
+  define a new game. note that those constants are in
+  settings/flaggames.h
+
+SpawnX = 512
+SpawnY = 512
+SpawnRadius = 1024
+  define where flags spawn and how far from that center
+
+DropRadius = 2
+  how far from a ship will flags drop
+
+NeutRadius = 2
+  how far from a ship will neuted flags appear
+
+DropOwned = YES
+  are dropped flags owned by the freq?
+
+NeutOwned = NO
+  are neuted flags owned by the freq? (obviously, YES prevents neuting)
+\end{verbatim}
+
+\subsection{Balls}
+
+FIXME
+
+\subsection{Energy viewing}
+
+There are two arena settings that control whether players see other
+player's energy and ship inventory (from spec):
+
+\begin{itemize}
+
+\item{\texttt{Misc:SpecSeeEnergy}} This affects what players in spec
+see. If it's set to \verb/SEE_ALL/, a player will see inventory/energy
+for the player he is speccing, plus energy for all other players. If
+it's \verb/SEE_SPEC/, a player will only see energy/inventory for the
+player he is speccing.  \verb/SEE_NONE/ will disable all extra
+information for speccers.
+
+\item{\texttt{Misc:SeeEnergy}} If this is set to \verb/SEE_ALL/,
+everyone will see everyone else's energy.  If it's \verb/SEE_TEAM/, you
+will only see the energy of your teammates. If it's \verb/SEE_NONE/, no
+one will see other's energy.
+
+\end{itemize}
+
+In addition, there are two capabilities that override the above
+settings. \verb/seeepd/ allows players to see energy/inventory from
+spec, and \verb/seenrg/ allows energy viewing while playing.
+
+
+\section{Acknowledgements}
+
+I'd like to thank the following people and groups:
+
+\begin{itemize}
+
+\item{divine.216} for general support, lots of help testing, as well as
+many useful suggestions.
+
+\item{Mine GO BOOM} for his ruthless bug-finding and interesting
+suggestions, as well as being the first % (and so far, only)
+person besides me to actually contribute code to \asss{}.
+
+\item{Mr. Ekted} for all his technical help and discussions.
+
+\item{ZippyDan} for moral support and comic relief.
+
+\item{xalimar} for shell accounts, mostly.
+
+\item{numpf} for design critiques. % and hopefully code :)
+
+\item{Remnant} for being the first person to log into \asss{} (besides
+me, of course), and help testing.
+
+\item{The rest of the PowerBot chat} for friendly conversation and
+entertainment.
+
+\item{The Subspace Council} for not dismissing this project immediately.
+
+% make sure this is correct first
+%\item{dgus} for naming ASWZ (a small warzone), which provided
+%inspiration for the name of my own server.
+
+\item{D.A.F. (not a subspace player)} for conversations on design and
+more.
+
+\end{itemize}
+
+\end{document}
+

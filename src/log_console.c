@@ -13,7 +13,7 @@ EXPORT int MM_log_console(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
-		mm->RegInterest(I_LOGMAN, &log);
+		log = mm->GetInterface("logman", ALLARENAS);
 		if (!log) return MM_FAIL;
 		mm->RegCallback(CB_LOGFUNC, LogConsole, ALLARENAS);
 		return MM_OK;
@@ -21,7 +21,7 @@ EXPORT int MM_log_console(int action, Imodman *mm, int arena)
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregCallback(CB_LOGFUNC, LogConsole, ALLARENAS);
-		mm->UnregInterest(I_LOGMAN, &log);
+		mm->ReleaseInterface(log);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)

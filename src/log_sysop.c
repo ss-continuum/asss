@@ -1,5 +1,6 @@
 
 #include <string.h>
+#include <stdlib.h>
 
 #include "asss.h"
 
@@ -7,18 +8,24 @@
 #define CAP_SEESYSOPLOGALL "seesysoplogall"
 #define CAP_SEESYSOPLOGARENA "seesysoplogarena"
 
-enum
-{
-	SEE_NONE,
-	SEE_ARENA,
-	SEE_ALL
-};
-
 
 local void LogSysop(char, char *);
 local void PA(int pid, int action, int arena);
+local void Clastlog(const char *params, int pid, int target);
 
+enum { SEE_NONE, SEE_ARENA, SEE_ALL };
 local byte seewhat[MAXPLAYERS];
+
+/* stuff for lastlog */
+#define MAXLAST 100
+#define MAXLINE 128
+/* this is a circular buffer structure */
+local int ll_pos;
+local char ll_data[MAXLAST][MAXLINE]; /* 12.5k */
+local pthread_mutex_t ll_mtx = PTHREAD_MUTEX_INITIALIZER;
+#define LOCK_LL() pthread_mutex_lock(&ll_mtx)
+#define UNLOCK_LL() pthread_mutex_unlock(&ll_mtx)
+
 
 local Iplayerdata *pd;
 local Iarenaman *aman;
@@ -26,36 +33,44 @@ local Iconfig *cfg;
 local Ilogman *log;
 local Ichat *chat;
 local Icapman *capman;
+local Icmdman *cmd;
 
 
 EXPORT int MM_log_sysop(int action, Imodman *mm, int arenas)
 {
 	if (action == MM_LOAD)
 	{
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_ARENAMAN, &aman);
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_LOGMAN, &log);
-		mm->RegInterest(I_CHAT, &chat);
-		mm->RegInterest(I_CAPMAN, &capman);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		aman = mm->GetInterface("arenaman", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		log = mm->GetInterface("logman", ALLARENAS);
+		chat = mm->GetInterface("chat", ALLARENAS);
+		capman = mm->GetInterface("capman", ALLARENAS);
+		cmd = mm->GetInterface("cmdman", ALLARENAS);
 
-		if (!cfg || !log) return MM_FAIL;
+		if (!cfg || !log || !chat) return MM_FAIL;
+
+		memset(ll_data, 0, sizeof(ll_data));
+		ll_pos = 0;
 
 		mm->RegCallback(CB_LOGFUNC, LogSysop, ALLARENAS);
 		mm->RegCallback(CB_PLAYERACTION, PA, ALLARENAS);
+
+		cmd->AddCommand("lastlog", Clastlog);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
+		cmd->RemoveCommand("lastlog", Clastlog);
 		mm->UnregCallback(CB_PLAYERACTION, PA, ALLARENAS);
 		mm->UnregCallback(CB_LOGFUNC, LogSysop, ALLARENAS);
-		mm->UnregInterest(I_PLAYERDATA, &pd);
-		mm->UnregInterest(I_ARENAMAN, &aman);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_LOGMAN, &cfg);
-		mm->UnregInterest(I_CHAT, &chat);
-		mm->UnregInterest(I_CAPMAN, &capman);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(chat);
+		mm->ReleaseInterface(capman);
+		mm->ReleaseInterface(cmd);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -98,6 +113,15 @@ void LogSysop(char lev, char *s)
 		if (setc)
 			chat->SendAnyMessage(set, MSG_SYSOPWARNING, 0, "%s", s);
 	}
+
+	/* always add to lastlog */
+	LOCK_LL();
+	ll_data[ll_pos][0] = lev;
+	ll_data[ll_pos][1] = ':';
+	ll_data[ll_pos][2] = ' ';
+	astrncpy(ll_data[ll_pos] + 3, s, MAXLINE - 3);
+	ll_pos = (ll_pos+1) % MAXLAST;
+	UNLOCK_LL();
 }
 
 
@@ -116,4 +140,29 @@ void PA(int pid, int action, int arena)
 		seewhat[pid] = SEE_NONE;
 }
 
+
+void Clastlog(const char *params, int pid, int target)
+{
+	int count, c, set[2] = {pid, -1};
+	char *end;
+
+	count = strtol(params, &end, 0);
+	if (count < 1) count = 10;
+	if (count >= MAXLAST) count = MAXLAST-1;
+
+	if (*end)
+		while (*end == ' ' || *end == '\t') end++;
+
+	c = (ll_pos - count + MAXLAST) % MAXLAST;
+
+	LOCK_LL();
+	while (c != ll_pos)
+	{
+		if (ll_data[c][0])
+			if (*end == '\0' || strstr(ll_data[c], end))
+				chat->SendAnyMessage(set, MSG_SYSOPWARNING, 0, "%s", ll_data[c]);
+		c = (c+1) % MAXLAST;
+	}
+	UNLOCK_LL();
+}
 

@@ -28,7 +28,9 @@ local void Void(int);
 local EncData enc[MAXPLAYERS];
 local Mutex statmtx;
 
-local Iencrypt _int = {
+local Iencrypt _int =
+{
+	INTERFACE_HEAD_INIT("encrypt-1")
 	Respond, Init, Encrypt, Decrypt, Void
 };
 
@@ -39,12 +41,13 @@ EXPORT int MM_encrypt1(int action, Imodman *mm, int arena)
 	if (action == MM_LOAD)
 	{
 		InitMutex(&statmtx);
-		mm->RegInterface(I_ENCRYPTBASE + MYTYPE, &_int);
+		mm->RegInterface("encrypt\x01", &_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(I_ENCRYPTBASE + MYTYPE, &_int);
+		if (mm->UnregInterface("encrypt\x01", &_int, ALLARENAS))
+			return MM_FAIL;
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)

@@ -5,7 +5,7 @@
 #include <stddef.h>
 
 
-#define ASSSVERSION "0.5"
+#define ASSSVERSION "0.5.2"
 
 
 /* do it upfront so we don't have to worry :) */
@@ -28,99 +28,90 @@
 #define MAXPACKET 512
 #define MAXBIGPACKET 524288
 
-#define MAXINTERFACE 256
 
+/* client types */
+enum
+{
+	T_UNKNOWN,
+	/* this probably won't be used */
 
-/* interface ids, kept here to make sure they're unique */
-#define I_NULL          0
-#define I_MODMAN        1
-#define I_PLAYERDATA    2
-#define I_MAINLOOP      3
-#define I_CONFIG        4
-#define I_NET           5
-#define I_LOGMAN        6
-#define I_CMDMAN        7
-#define I_CHAT          8
-#define I_ARENAMAN      9
-#define I_GAME          10
-#define I_AUTH          11
-#define I_BILLCORE      12
-#define I_MAPNEWSDL     13
-#define I_CLIENTSET     14
-#define I_PERSIST       15
-#define I_STATS         16
-#define I_LOG_FILE      17
-#define I_FLAGS         18
-#define I_BALLS         19
-#define I_MAPDATA       20
-#define I_CAPMAN        21
-#define I_ENCRYPTBASE   100
+	T_VIE,
+	/* original vie client */
+
+	T_CONT,
+	/* continuum client */
+
+	T_FAKE,
+	/* no client, internal to server */
+};
 
 
 /* player status codes */
 
-#define S_FREE                        0
+enum
+{
+	S_FREE,
 /* this player entry is free to be reused */
 
-#define S_NEED_KEY                    1
+	S_NEED_KEY,
 /* the player exists, but has not completed key exchange */
 
-#define S_CONNECTED                   2
+	S_CONNECTED,
 /* player is connected (key exchange completed)
  * but has not logged in yet */
 
-#define S_NEED_AUTH                   3
+	S_NEED_AUTH,
 /* player sent login, auth request will be sent */
 
-#define S_WAIT_AUTH                   4
+	S_WAIT_AUTH,
 /* waiting for auth response */
 
-#define S_NEED_GLOBAL_SYNC            5
+	S_NEED_GLOBAL_SYNC,
 /* auth done, will request global sync */
 
-#define S_WAIT_GLOBAL_SYNC            6
+	S_WAIT_GLOBAL_SYNC,
 /* waiting for sync global persistant data to complete */
 
-#define S_DO_GLOBAL_CALLBACKS         7
+	S_DO_GLOBAL_CALLBACKS,
 /* global sync done, will call global player connecting callbacks */
 
-#define S_SEND_LOGIN_RESPONSE         8
+	S_SEND_LOGIN_RESPONSE,
 /* callbacks done, will send arena response */
 
-#define S_LOGGEDIN                    9
+	S_LOGGEDIN,
 /* player is finished logging in but is not in an arena yet 
  * status returns here after leaving an arena, also */
 
-#define S_DO_FREQ_AND_ARENA_SYNC      10
+	S_DO_FREQ_AND_ARENA_SYNC,
 /* player has requested entering an arena, needs to be assigned a freq
  * and have arena data syched */
 
-#define S_WAIT_ARENA_SYNC             11
+	S_WAIT_ARENA_SYNC,
 /* waiting for scores sync */
 
-#define S_SEND_ARENA_RESPONSE         12
+	S_SEND_ARENA_RESPONSE,
 /* done with scores, needs to send arena response */
 
-#define S_DO_ARENA_CALLBACKS          13
+	S_DO_ARENA_CALLBACKS,
 /* area response sent, now call arena entering callbacks */
 
-#define S_PLAYING                     14
+	S_PLAYING,
 /* player is playing in an arena. typically the longest stage */
 
-#define S_LEAVING_ARENA               15
+	S_LEAVING_ARENA,
 /* player has left arena, callbacks need to be called
  * will return to S_LOGGEDIN after this */
 
-#define S_LEAVING_ZONE                16
+	S_LEAVING_ZONE,
 /* player is leaving zone, call disconnecting callbacks, go to TIMEWAIT
  * after this */
 
-#define S_TIMEWAIT                    17
+	S_TIMEWAIT,
 /* time-wait state for network to flush outgoing packets from the buffer */
 
-#define S_TIMEWAIT2                   18
+	S_TIMEWAIT2,
 /* second part of time-wait state. goes to S_FREE after this */
-
+};
 
 
 /* hopefully useful exit codes */

@@ -57,6 +57,7 @@ typedef struct PersistantData
 
 typedef struct Ipersist
 {
+	INTERFACE_HEAD_DECL
 	void (*RegPersistantData)(PersistantData const *pd);
 	void (*UnregPersistantData)(PersistantData const *pd);
 	void (*SyncToFile)(int pid, int arena, void (*callback)(int pid));

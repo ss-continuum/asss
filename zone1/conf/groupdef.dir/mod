@@ -18,6 +18,11 @@ privcmd_setfreq
 ; fun stuff
 cmd_brickwrite
 
+cmd_getcm
+cmd_setcm
+privcmd_getcm
+privcmd_setcm
+
 ; not implemented
 cmd_a
 cmd_shipreset

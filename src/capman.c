@@ -7,7 +7,7 @@
 
 /* interface funcs */
 local int HasCapability(int pid, const char *cap);
-local char *GetGroup(int pid);
+local const char *GetGroup(int pid);
 local void SetGroup(int pid, const char *group);
 
 /* callbacks */
@@ -24,7 +24,11 @@ local Iarenaman *aman;
 local Ilogman *log;
 local Iconfig *cfg;
 
-local Icapman _myint = { HasCapability, GetGroup, SetGroup };
+local Icapman _myint =
+{
+	INTERFACE_HEAD_INIT("capman-groups")
+	HasCapability, GetGroup, SetGroup
+};
 
 
 EXPORT int MM_capman(int action, Imodman *_mm, int arena)
@@ -32,10 +36,10 @@ EXPORT int MM_capman(int action, Imodman *_mm, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_ARENAMAN, &aman);
-		mm->RegInterest(I_LOGMAN, &log);
-		mm->RegInterest(I_CONFIG, &cfg);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		aman = mm->GetInterface("arenaman", ALLARENAS);
+		log = mm->GetInterface("logman", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
 
 		if (!cfg) return MM_FAIL;
 
@@ -45,20 +49,21 @@ EXPORT int MM_capman(int action, Imodman *_mm, int arena)
 		groupdef = cfg->OpenConfigFile(NULL, "groupdef.conf");
 		gstaff = cfg->OpenConfigFile(NULL, "staff.conf");
 
-		mm->RegInterface(I_CAPMAN, &_myint);
+		mm->RegInterface("capman", &_myint, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(I_CAPMAN, &_myint);
+		if (mm->UnregInterface("capman", &_myint, ALLARENAS))
+			return MM_FAIL;
 		cfg->CloseConfigFile(groupdef);
 		cfg->CloseConfigFile(gstaff);
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_LOGMAN, &log);
-		mm->UnregInterest(I_ARENAMAN, &aman);
-		mm->UnregInterest(I_PLAYERDATA, &pd);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(pd);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -167,7 +172,7 @@ void PlayerAction(int pid, int action, int arena)
 }
 
 
-char *GetGroup(int pid)
+const char *GetGroup(int pid)
 {
 	return groups[pid];
 }

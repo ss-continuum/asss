@@ -13,13 +13,8 @@
 typedef struct Imodman Imodman;
 
 
-Imodman * InitModuleManager(void);
-/* this is the entry point to the module manager. only main should call
- * this. */
-
-
-typedef int (*ModMain)(int action, Imodman *mm, int arena);
 /* all module entry points must be of this type */
+typedef int (*ModMain)(int action, Imodman *mm, int arena);
 
 
 /* action codes for module main functions */
@@ -51,12 +46,36 @@ typedef int (*ModMain)(int action, Imodman *mm, int arena);
 #define MM_OK   0
 
 
+/* all interfaces declarations MUST start with this macro */
+#define INTERFACE_HEAD_DECL struct InterfaceHead head;
+
+/* and all interface initializers must start with this macro */
+#define INTERFACE_HEAD_INIT(name) { MODMAN_MAGIC, name, 0 },
+
+
+/* stuff used for implementing the above */
+typedef struct InterfaceHead
+{
+	unsigned long magic;
+	const char *name;
+	int refcount;
+} InterfaceHead;
+
+#define MODMAN_MAGIC 0x46692016
+
+
 struct Imodman
 {
+	INTERFACE_HEAD_DECL
+
+
+	/* module stuff */
+
 	int (*LoadModule)(const char *specifier);
 	/* load a module. the specifier is of the form 'file:modname'. file
 	 * is the filename (without the .so) or 'int' for internal modules.
-	 */
+	 * eventually, 'file:modname@remotehost:port' will be supported for
+	 * remote modules.  */
 
 	int (*UnloadModule)(const char *name);
 	/* unloads a module. only the name should be given (not the file). */
@@ -76,20 +95,31 @@ struct Imodman
 	/* these are called by the arena manager to attach and detach
 	 * modules to arenas that are loaded and destroyed. */
 
-	void (*RegInterest)(int id, void *intpointer);
-	void (*UnregInterest)(int id, void *intpointer);
-	/* these are the primary way of getting access to an interface. you
-	 * should call RegInterest with the interface you are interested in
-	 * and a pointer to a pointer that will hold the interface address.
-	 * it will be updated automatically if the modules that provides the
-	 * interface is unloaded, or if another module overrides the
-	 * interface. */
 
-	void (*RegInterface)(int id, void *iface);
-	void (*UnregInterface)(int id, void *iface);
+	/* interface stuff */
+
+	void (*RegInterface)(const char *id, void *iface, int arena);
+	int (*UnregInterface)(const char *id, void *iface, int arena);
 	/* these are the way of providing interfaces for other modules. they
 	 * should be called with an interface id and a pointer to the
-	 * interface. */
+	 * interface. UnregInterface will refuse to unregister an interface
+	 * that is references by other modules. it will return the reference
+	 * count of the interface that's being unregistered, so a zero means
+	 * success. */
+
+	void * (*GetInterface)(const char *id, int arena);
+	void * (*GetInterfaceByName)(const char *name);
+	/* these two retrieve interface pointers. GetInterface gets the
+	 * interface pointer of the highest-priority implementation for that
+	 * id. GetInterfaceByName gets one specific implementation by name.
+	 */
+
+	void (*ReleaseInterface)(void *iface);
+	/* this should be called on an interface pointer when you don't need
+	 * it anymore. */
+
+
+	/* callback stuff */
 
 	void (*RegCallback)(const char *id, void *func, int arena);
 	void (*UnregCallback)(const char *id, void *func, int arena);
@@ -115,6 +145,15 @@ struct Imodman
 };
 
 
+Imodman * InitModuleManager(void);
+/* this is the entry point to the module manager. only main should call
+ * this. */
+
+void DeInitModuleManager(Imodman *mm);
+/* this deinitializes the module manager. only main should call this. */
+
+
+
 /* this might be a useful macro */
 #define DO_CBS(cb, arena, type, args)                  \
 do {                                                   \
@@ -124,6 +163,10 @@ do {                                                   \
 		((type)l->data) args ;                         \
 	mm->FreeLookupResult(lst);                         \
 } while (0)
+
+
+#define CNULL(thing) if ((thing) == NULL) return MM_FAIL
+#define GETINT(var, i) CNULL(var = mm->GetInterface(i, ALLARENAS))
 
 
 #endif

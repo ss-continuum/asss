@@ -55,14 +55,17 @@ local Inet *net;
 local Imodman *mm;
 local Ilogman *log;
 local Imapnewsdl *map;
-local Iauth *auth;
 local Iarenaman *aman;
 local Ipersist *persist;
 local Icapman *capman;
 
 local PlayerData *players;
 
-local Iauth _iauth = { DefaultAuth };
+local Iauth _iauth =
+{
+	INTERFACE_HEAD_INIT("auth-default")
+	DefaultAuth
+};
 
 
 /* FUNCTIONS */
@@ -73,27 +76,26 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 	{
 		/* get interface pointers */
 		mm = mm_;
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_NET, &net);
-		mm->RegInterest(I_LOGMAN, &log);
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_MAINLOOP, &ml);
-		mm->RegInterest(I_MAPNEWSDL, &map);
-		mm->RegInterest(I_AUTH, &auth);
-		mm->RegInterest(I_ARENAMAN, &aman);
-		mm->RegInterest(I_PERSIST, &persist);
-		mm->RegInterest(I_CAPMAN, &capman);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		net = mm->GetInterface("net", ALLARENAS);
+		log = mm->GetInterface("logman", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		ml = mm->GetInterface("mainloop", ALLARENAS);
+		map = mm->GetInterface("mapnewsdl", ALLARENAS);
+		aman = mm->GetInterface("arenaman", ALLARENAS);
+		persist = mm->GetInterface("persist", ALLARENAS);
+		capman = mm->GetInterface("capman", ALLARENAS);
 
 		players = pd->players;
 
-		if (!net || !ml) return MM_FAIL;
+		if (!pd || !log || !cfg || !map || !aman || !net || !ml) return MM_FAIL;
 
 		/* set up callbacks */
 		net->AddPacket(C2S_LOGIN, PLogin);
 		mm->RegCallback(CB_MAINLOOP, ProcessLoginQueue, ALLARENAS);
 
 		/* register default interfaces which may be replaced later */
-		mm->RegInterface(I_AUTH, &_iauth);
+		mm->RegInterface("auth", &_iauth, ALLARENAS);
 
 		/* set up periodic events */
 		ml->SetTimer(SendKeepalive, 500, 500, NULL);
@@ -102,18 +104,18 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(I_AUTH, &_iauth);
+		if (mm->UnregInterface("auth", &_iauth, ALLARENAS))
+			return MM_FAIL;
 		mm->UnregCallback(CB_MAINLOOP, ProcessLoginQueue, ALLARENAS);
 		net->RemovePacket(C2S_LOGIN, PLogin);
-		mm->UnregInterest(I_PLAYERDATA, &pd);
-		mm->UnregInterest(I_NET, &net);
-		mm->UnregInterest(I_LOGMAN, &log);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_MAINLOOP, &ml);
-		mm->UnregInterest(I_MAPNEWSDL, &map);
-		mm->UnregInterest(I_AUTH, &auth);
-		mm->UnregInterest(I_PERSIST, &persist);
-		mm->UnregInterest(I_CAPMAN, &capman);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(ml);
+		mm->ReleaseInterface(map);
+		mm->ReleaseInterface(persist);
+		mm->ReleaseInterface(capman);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -200,7 +202,16 @@ void ProcessLoginQueue(void)
 		switch (oldstatus)
 		{
 			case S_NEED_AUTH:
-				auth->Authenticate(pid, bigloginpkt + pid, AuthDone);
+				{
+					Iauth *auth = mm->GetInterface("auth", ALLARENAS);
+					if (auth)
+					{
+						auth->Authenticate(pid, bigloginpkt + pid, AuthDone);
+						mm->ReleaseInterface(auth);
+					}
+					else
+						log->Log(L_ERROR, "<core> Missing auth module!");
+				}
 				break;
 
 			case S_NEED_GLOBAL_SYNC:
@@ -231,14 +242,13 @@ void ProcessLoginQueue(void)
 				/* yes, player->shiptype will be set here because it's
 				 * done in PArena */
 				{
+					Ifreqman *fm = mm->GetInterface("freqman", player->arena);
 					int freq = 0, ship = player->shiptype;
 
-					/* this should call a callback attached to the
-					 * arena, or none */
-					DO_CBS(CB_FREQMANAGER,
-					       player->arena,
-					       FreqManager,
-					       (pid, REQUEST_INITIAL, &ship, &freq));
+					/* if this arena has a manager, use it */
+					if (fm)
+						fm->InitialFreq(pid, &ship, &freq);
+
 					/* set the results back */
 					player->shiptype = ship;
 					player->freq = freq;
@@ -289,8 +299,8 @@ void ProcessLoginQueue(void)
 
 void PLogin(int pid, byte *p, int l)
 {
-	if (l != sizeof(struct LoginPacket))
-		log->Log(L_MALICIOUS,"<core> [pid=%d] Bad login packet length",pid);
+	if (l != sizeof(struct LoginPacket) && l != sizeof(struct LoginPacket) + 63)
+		log->Log(L_MALICIOUS,"<core> [pid=%d] Bad login packet length (%d)", pid, l);
 	else if (players[pid].status != S_CONNECTED)
 		log->Log(L_MALICIOUS,"<core> [pid=%d] Login request from wrong stage: %d", pid, players[pid].status);
 	else
@@ -298,7 +308,7 @@ void PLogin(int pid, byte *p, int l)
 		struct LoginPacket *pkt = (struct LoginPacket*)p;
 		int oldpid = pd->FindPlayer(pkt->name);
 
-		if (oldpid != -1)
+		if (oldpid != -1 && oldpid != pid)
 		{
 			log->Log(L_DRIVEL,"<core> [%s] Player already on, kicking him off "
 					"(pid %d replacing %d)",
@@ -374,7 +384,7 @@ void SendLoginResponse(int pid)
 	lr.demodata = auth->demodata;
 	lr.newschecksum = map->GetNewsChecksum();
 
-	if (capman->HasCapability(pid, "seeprivfreq"))
+	if (capman && capman->HasCapability(pid, "seeprivfreq"))
 	{
 		/* to make the client think it's a mod, set these checksums to -1 */
 		lr.exechecksum = -1;

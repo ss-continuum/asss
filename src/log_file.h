@@ -5,6 +5,8 @@
 
 typedef struct Ilog_file
 {
+	INTERFACE_HEAD_DECL
+
 	void (*FlushLog)(void);
 	/* flushes the current log file to disk */
 

@@ -14,7 +14,7 @@ typedef struct LogLine
 } LogLine;
 
 
-local void Log(char, char *, ...);
+local void Log(char, const char *, ...);
 local int FilterLog(char, const char *, const char *);
 local void * LoggingThread(void *);
 
@@ -24,7 +24,11 @@ local Thread thd;
 
 local Imodman *mm;
 local Iconfig *cfg;
-local Ilogman _int = { Log, FilterLog };
+local Ilogman _int =
+{
+	INTERFACE_HEAD_INIT("logman")
+	Log, FilterLog
+};
 
 
 EXPORT int MM_logman(int action, Imodman *mm_, int arena)
@@ -32,19 +36,20 @@ EXPORT int MM_logman(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		mm->RegInterest(I_CONFIG, &cfg);
+		cfg = mm->GetInterface("config", ALLARENAS);
 		MPInit(&queue);
 		thd = StartThread(LoggingThread, NULL);
-		mm->RegInterface(I_LOGMAN, &_int);
+		mm->RegInterface("logman", &_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
+		if (mm->UnregInterface("logman", &_int, ALLARENAS))
+			return MM_FAIL;
 		MPAdd(&queue, NULL);
 		JoinThread(thd);
 		MPDestroy(&queue);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterface(I_LOGMAN, &_int);
+		mm->ReleaseInterface(cfg);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -70,7 +75,7 @@ void * LoggingThread(void *dummy)
 }
 
 
-void Log(char level, char *format, ...)
+void Log(char level, const char *format, ...)
 {
 	LogLine *ll;
 	int len;

@@ -74,8 +74,9 @@ local void SendToAll(byte *, int, int);
 local void ProcessPacket(int, byte *, int);
 local void AddPacket(byte, PacketFunc);
 local void RemovePacket(byte, PacketFunc);
-local int NewConnection(struct sockaddr_in *);
+local int NewConnection(int type, struct sockaddr_in *);
 local i32 GetIP(int);
+void GetStats(struct net_stats *stats);
 
 /* internal: */
 local inline int HashIP(struct sockaddr_in);
@@ -86,6 +87,7 @@ local void ProcessBuffer(Buffer *);
 local void InitSockets(void);
 local Buffer * GetBuffer(void);
 local void FreeBuffer(Buffer *);
+local void LoadCrypters(void);
 
 /* threads: */
 local void * RecvThread(void *);
@@ -108,13 +110,13 @@ local void ProcessDrop(Buffer *);
 
 /* GLOBAL DATA */
 
+local Imodman *mm;
 local Iplayerdata *pd;
 local Ilogman *log;
 local Iconfig *cfg;
+local Iencrypt *crypters[MAXENCRYPT];
 
 local PlayerData *players;
-
-local Iencrypt *crypters[MAXENCRYPT];
 
 local LinkedList handlers[MAXTYPES];
 local int mysock, myothersock, mybillingsock;
@@ -137,10 +139,7 @@ local struct
 	int encmode, bufferdelta;
 } config;
 
-local struct
-{
-	int pcountpings, buffercount, pktssent, pktsrecvd;
-} global_stats;
+local struct net_stats global_stats;
 
 local void (*oohandlers[])(Buffer*) =
 {
@@ -163,9 +162,10 @@ local void (*oohandlers[])(Buffer*) =
 
 local Inet _int =
 {
+	INTERFACE_HEAD_INIT("net-udp")
 	SendToOne, SendToArena, SendToSet, SendToAll,
 	KillConnection, ProcessPacket, AddPacket, RemovePacket,
-	NewConnection, GetIP
+	NewConnection, GetIP, GetStats
 };
 
 
@@ -173,23 +173,22 @@ local Inet _int =
 /* START OF FUNCTIONS */
 
 
-EXPORT int MM_net(int action, Imodman *mm, int arena)
+EXPORT int MM_net(int action, Imodman *mm_, int arena)
 {
 	int i;
 
 	if (action == MM_LOAD)
 	{
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_LOGMAN, &log);
+		mm = mm_;
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		log = mm->GetInterface("logman", ALLARENAS);
 		if (!cfg || !log) return MM_FAIL;
 
 		players = pd->players;
 
 		for (i = 0; i < MAXTYPES; i++)
 			LLInit(handlers + i);
-		for (i = 0; i < MAXENCRYPT; i++)
-			mm->RegInterest(I_ENCRYPTBASE + i, crypters + i);
 
 		/* store configuration params */
 		config.port = cfg->GetInt(GLOBAL, "Net", "Port", 5000);
@@ -228,21 +227,29 @@ EXPORT int MM_net(int action, Imodman *mm, int arena)
 		StartThread(SendThread, NULL);
 		StartThread(RelThread, NULL);
 
+		/* get encryption interfaces */
+		LoadCrypters();
+
 		/* install ourself */
-		mm->RegInterface(I_NET, &_int);
+		mm->RegInterface("net", &_int, ALLARENAS);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		/* uninstall ourself */
-		mm->UnregInterest(I_PLAYERDATA, &pd);
-		mm->UnregInterface(I_NET, &_int);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_LOGMAN, &log);
-		for (i = 0; i < MAXENCRYPT; i++)
-			mm->UnregInterest(I_ENCRYPTBASE + i, crypters + i);
+		if (mm->UnregInterface("net", &_int, ALLARENAS))
+			return MM_FAIL;
 
+		/* release these */
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(log);
+		for (i = 1; i < MAXENCRYPT; i++)
+			if (crypters[i])
+				mm->ReleaseInterface(crypters[i]);
+
+		/* clean up */
 		for (i = 0; i < MAXTYPES; i++)
 			LLEmpty(handlers + i);
 
@@ -290,6 +297,23 @@ i32 GetIP(int pid)
 }
 
 
+local void LoadCrypters()
+{
+	int i;
+	char key[] = "encrypt\x01";
+
+	for (i = 1; i < MAXENCRYPT; i++)
+	{
+		/* don't forget to release to keep reference counts correct */
+		if (crypters[i])
+			mm->ReleaseInterface(crypters[i]);
+		/* get the new one */
+		key[7] = i;
+		crypters[i] = mm->GetInterface(key, ALLARENAS);
+	}
+}
+
+
 local void ClearOutlist(int pid)
 {
 	Buffer *buf, *nbuf;
@@ -324,18 +348,19 @@ local void InitClient(int i)
 	UnlockMutex(outlistmtx + i);
 }
 
-local void InitPlayer(int i)
+local void InitPlayer(int i, int type)
 {
 	/* set up playerdata */
 	pd->LockPlayer(i);
 	pd->LockStatus();
 	memset(players + i, 0, sizeof(PlayerData));
-	players[i].type = S2C_PLAYERENTERING; /* restore type */
+	players[i].pktype = S2C_PLAYERENTERING; /* restore type */
 	players[i].arena = -1;
 	players[i].pid = i;
 	players[i].shiptype = SPEC;
 	players[i].attachedto = -1;
 	players[i].status = S_NEED_KEY;
+	players[i].type = type;
 	pd->UnlockStatus();
 	pd->UnlockPlayer(i);
 }
@@ -346,14 +371,15 @@ Buffer * GetBuffer(void)
 	DQNode *dq;
 
 	LockMutex(&freemtx);
+	global_stats.buffersused++;
 	dq = freelist.prev;
 	if (dq == &freelist)
 	{
 		/* no buffers left, alloc one */
+		global_stats.buffercount++;
 		UnlockMutex(&freemtx);
 		dq = amalloc(sizeof(Buffer));
 		DQInit(dq);
-		global_stats.buffercount++;
 	}
 	else
 	{
@@ -371,6 +397,7 @@ void FreeBuffer(Buffer *dq)
 {
 	LockMutex(&freemtx);
 	DQAdd(&freelist, (DQNode*)dq);
+	global_stats.buffersused--;
 	UnlockMutex(&freemtx);
 }
 
@@ -488,7 +515,7 @@ void * RecvThread(void *dummy)
 			if (pid == -1)
 			{	/* new client */
 				pd->UnlockStatus(); /* NewConnection needs status unlocked */
-				pid = NewConnection(&sin);
+				pid = NewConnection(T_VIE, &sin);
 				pd->LockStatus();
 				if (pid == -1)
 				{
@@ -528,7 +555,7 @@ void * RecvThread(void *dummy)
 					/* initclient wipes the client struct. we need to restore
 					 * the socket address. this feels a bit hackish. */
 					memcpy(&clients[pid].sin, &sin, sizeof(struct sockaddr_in));
-					InitPlayer(pid);
+					InitPlayer(pid, T_VIE);
 					pd->LockStatus();
 					log->Log(L_DRIVEL,"<net> [pid=%d] Reconnected from timewait2", pid);
 				}
@@ -849,7 +876,7 @@ void * RelThread(void *dummy)
 }
 
 /* ProcessBuffer
- * unreliable packets will be processed before the call returns and freed
+ * unreliable packets will be processed before the call returns and freed.
  * network packets will be processed by the appropriate network handler,
  * which may free it or not.
  */
@@ -919,7 +946,7 @@ void ProcessPacket(int pid, byte *d, int len)
 }
 
 
-int NewConnection(struct sockaddr_in *sin)
+int NewConnection(int type, struct sockaddr_in *sin)
 {
 	int i = 0, bucket;
 
@@ -947,7 +974,7 @@ int NewConnection(struct sockaddr_in *sin)
 	}
 	UnlockMutex(&hashmtx);
 
-	InitPlayer(i);
+	InitPlayer(i, type);
 
 	return i;
 }
@@ -1268,6 +1295,15 @@ reallyexit:
 }
 
 
+/*
+local void dump_pk(byte *data, int len)
+{
+	FILE *f = popen("xxd", "w");
+	fwrite(data, len, 1, f);
+	pclose(f);
+}
+*/
+
 void SendRaw(int pid, byte *data, int len)
 {
 	byte encbuf[MAXPACKET];
@@ -1294,6 +1330,10 @@ void SendRaw(int pid, byte *data, int len)
 
 		sendto(mysock, encbuf, len, 0,
 				(struct sockaddr*)&clients[pid].sin, sizeof(struct sockaddr_in));
+		/*
+		printf("DEBUG: %d bytes to pid %d\n", len, pid);
+		dump_pk(data, len);
+		*/
 	}
 	global_stats.pktssent++;
 }
@@ -1444,4 +1484,10 @@ void SendToSet(int *set, byte *data, int len, int rel)
 	}
 }
 
+
+void GetStats(struct net_stats *stats)
+{
+	if (stats)
+		*stats = global_stats;
+}
 

@@ -1,5 +1,4 @@
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,19 +8,13 @@
 #include <paths.h>
 #include <unistd.h>
 #include <fcntl.h>
-#else
-
 #endif
-
 
 #include "asss.h"
 
 
-
-
 local Imodman *mm;
 local int dodaemonize;
-
 
 
 local void ProcessArgs(int argc, char *argv[])
@@ -37,7 +30,7 @@ local void ProcessArgs(int argc, char *argv[])
 
 local void LoadModuleFile(char *fname)
 {
-	static char line[256];
+	char line[256];
 	int ret;
 	FILE *f;
 
@@ -115,8 +108,8 @@ int main(int argc, char *argv[])
 
 	LoadModuleFile("conf/modules.conf");
 
-	mm->RegInterest(I_LOGMAN, &log);
-	mm->RegInterest(I_MAINLOOP, &ml);
+	log = mm->GetInterface("logman", ALLARENAS);
+	ml = mm->GetInterface("mainloop", ALLARENAS);
 
 	if (!ml)
 		Error(ERROR_MODLOAD, "mainloop module missing");
@@ -127,8 +120,8 @@ int main(int argc, char *argv[])
 
 	if (log) log->Log(L_DRIVEL,"<main> Exiting main loop");
 
-	mm->UnregInterest(I_LOGMAN, &log);
-	mm->UnregInterest(I_MAINLOOP, &ml);
+	mm->ReleaseInterface(log);
+	mm->ReleaseInterface(ml);
 
 	mm->UnloadAllModules();
 

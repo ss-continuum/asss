@@ -12,7 +12,7 @@ ASSSLIBS = -ldl -lz -lpthread
 
 SCRIPTS = ../scripts
 
-ALL_STUFF = asss $(EXTMODS) $(INCLUDE_ELDERD)
+ALL_STUFF = asss $(EXTMODS)
 
 
 INTMODS = config.o    \
@@ -38,8 +38,8 @@ EXTMODS = loggers.so  \
           command.so  \
           billing.so  \
           scoring.so  \
-          scheme.so   \
-          funky.so
+          funky.so    \
+          fake.so
 
 
 
@@ -60,13 +60,9 @@ scoring.so: persist.o stats.o points_kill.o points_flag.o points_goal.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -ldb1
 
 
-tinyscheme/scheme.o:
-	cd tinyscheme && $(MAKE) scheme.o
+funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o
 
-scheme.so: tscheme.o tinyscheme/scheme.o
-	$(CC) $(LDFLAGS) -shared -o $@ $^ -lm
-
-funky.so: autowarp.o bricklayer.o freqowners.o
+fake.so: fake.o autoturret.o
 
 
 asss: main.o $(INTMODS) $(EXTRAOBJS)
@@ -79,6 +75,9 @@ sparse.inc: $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py
 letters.inc: $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font
 	$(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font > $@
 
+arpc_stubs.c: $(SCRIPTS)/arpc.py *.h
+	$(SCRIPTS)/arpc.py makestubs > $@
+
 
 Makefile.deps: # *.c *.h
 	$(CC) -MM *.c > $@
@@ -89,6 +88,7 @@ include Makefile.deps
 buildnumber: *.h
 	expr `cat buildnumber` + 1 > b.tmp
 	mv b.tmp buildnumber
+	false
 
 Makefile: buildnumber
 

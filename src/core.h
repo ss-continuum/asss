@@ -38,24 +38,22 @@ typedef void (*PlayerActionFunc)(int pid, int action, int arena);
 /* freq management
  * when a player's ship/freq need to be changed for any reason, one of
  * these functions will be called. it gets the pid that we're dealing
- * with, a request type specifying what type of request was made, the
- * current ship, and the current freq (or -1 if the player has no freq
- * yet). this function may modify one or both of the ship and freq
- * variables. the caller will take care of generating the correct types
- * of events. I can't imagine this callback being called from a place
- * where the player mutex is not held, so callbacks of this type don't
- * have to bother locking the player. */
+ * with, the current ship, and the current freq (or -1 if the player has
+ * no freq yet). this function may modify one or both of the ship and
+ * freq variables. the caller will take care of generating the correct
+ * types of events. these functions don't have to bother locking the
+ * player. */
 
-#define CB_FREQMANAGER "freqman"
-typedef void (*FreqManager)(int pid, int request, int *ship, int *freq);
-
-enum
+typedef struct Ifreqman
 {
-	REQUEST_INITIAL, /* used for initial freq assignment */
-	REQUEST_SHIP,    /* the player requested a ship change */
-	REQUEST_FREQ     /* the player requested a freq change */
-};
-
+	INTERFACE_HEAD_DECL
+	void (*InitialFreq)(int pid, int *ship, int *freq);
+	/* arpc: void(int, intptr, intptr) */
+	void (*ShipChange)(int pid, int *ship, int *freq);
+	/* arpc: void(int, intptr, intptr) */
+	void (*FreqChange)(int pid, int *ship, int *freq);
+	/* arpc: void(int, intptr, intptr) */
+} Ifreqman;
 
 
 /*
@@ -68,8 +66,11 @@ enum
 
 typedef struct Iauth
 {
+	INTERFACE_HEAD_DECL
+
 	void (*Authenticate)(int pid, struct LoginPacket *lp,
 			void (*Done)(int pid, AuthData *data));
+	/* aprc: null */
 } Iauth;
 
 

@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #ifndef WIN32
 #include <dlfcn.h>
@@ -39,10 +40,13 @@ local void UnloadAllModules(void);
 local void EnumModules(void (*)(const char *, const char *, void *), void *);
 local void AttachModule(const char *, int);
 local void DetachModule(const char *, int);
-local void RegInterest(int, void*);
-local void UnregInterest(int, void*);
-local void RegInterface(int, void *);
-local void UnregInterface(int, void *);
+
+local void RegInterface(const char *id, void *iface, int arena);
+local int UnregInterface(const char *id, void *iface, int arena);
+local void *GetInterface(const char *id, int arena);
+local void *GetInterfaceByName(const char *name);
+local void ReleaseInterface(void *iface);
+
 local void RegCallback(const char *, void *, int);
 local void UnregCallback(const char *, void *, int);
 local LinkedList * LookupCallback(const char *, int);
@@ -51,18 +55,17 @@ local void FreeLookupResult(LinkedList *);
 
 
 local HashTable *arenacallbacks, *globalcallbacks;
+local HashTable *arenaints, *globalints, *intsbyname;
 
 local LinkedList *mods;
-
-local void *ints[MAXINTERFACE];
-local LinkedList intupdates[MAXINTERFACE];
 
 
 local Imodman mmint =
 {
+	INTERFACE_HEAD_INIT("modman")
 	LoadMod, UnloadModule, UnloadAllModules, EnumModules,
 	AttachModule, DetachModule,
-	RegInterest, UnregInterest, RegInterface, UnregInterface,
+	RegInterface, UnregInterface, GetInterface, GetInterfaceByName, ReleaseInterface,
 	RegCallback, UnregCallback, LookupCallback, FreeLookupResult
 };
 
@@ -73,16 +76,28 @@ local Imodman mmint =
 
 Imodman * InitModuleManager(void)
 {
-	int i;
 	mods = LLAlloc();
 	arenacallbacks = HashAlloc(233);
 	globalcallbacks = HashAlloc(233);
-	for (i = 0; i < MAXINTERFACE; i++)
-	{
-		LLInit(intupdates + i);
-		ints[i] = NULL;
-	}
+	arenaints = HashAlloc(43);
+	globalints = HashAlloc(53);
+	intsbyname = HashAlloc(23);
+	mmint.head.refcount = 1;
 	return &mmint;
+}
+
+void DeInitModuleManager(Imodman *mm)
+{
+	if (mods && LLGetHead(mods))
+		fprintf(stderr, "All modules not unloaded!!!\n");
+	if (mm && mm->head.refcount > 1)
+		fprintf(stderr, "There are remaining references to the module manager!!!\n");
+	LLFree(mods);
+	HashFree(arenacallbacks);
+	HashFree(globalcallbacks);
+	HashFree(arenaints);
+	HashFree(globalints);
+	HashFree(intsbyname);
 }
 
 
@@ -96,7 +111,7 @@ int LoadMod(const char *filename)
 	ModuleData *mod;
 	char *name = _buf, *modname;
 	int ret;
-	Ilogman *log = ints[I_LOGMAN]; /* hack: change this when implemetion changes */
+	Ilogman *log = GetInterface("logman", ALLARENAS);
 
 	if ((modname = strchr(filename,DELIM)))
 	{
@@ -160,10 +175,10 @@ int LoadMod(const char *filename)
 		goto die;
 	}
 
-	astrncpy(mod->name, modname, MAXNAME-2);
+	astrncpy(mod->name, modname, MAXNAME);
 	modname--; *modname = DELIM; modname++;
 
-	ret = mod->mm(MM_CHECKBUILD, &mmint, -1);
+	ret = mod->mm(MM_CHECKBUILD, &mmint, ALLARENAS);
 	if (ret != BUILDNUMBER)
 	{
 		if (log) log->Log(L_ERROR,
@@ -175,7 +190,7 @@ int LoadMod(const char *filename)
 		goto die2;
 	}
 
-	ret = mod->mm(MM_LOAD, &mmint, -1);
+	ret = mod->mm(MM_LOAD, &mmint, ALLARENAS);
 
 	if (ret != MM_OK)
 	{
@@ -241,6 +256,7 @@ void UnloadAllModules(void)
 {
 	RecursiveUnload(LLGetHead(mods));
 	LLFree(mods);
+	mods = NULL;
 }
 
 
@@ -273,49 +289,92 @@ void DetachModule(const char *name, int arena)
 
 /* interface management stuff */
 
-void RegInterest(int ii, void *intp)
+void RegInterface(const char *id, void *iface, int arena)
 {
-	if (ii >= 0 && ii < MAXINTERFACE)
+	InterfaceHead *head = (InterfaceHead*)iface;
+	assert(iface);
+	assert(head->magic == MODMAN_MAGIC);
+
+	HashAdd(intsbyname, head->name, iface);
+
+	if (arena == ALLARENAS)
+		HashAdd(globalints, id, iface);
+	else
 	{
-		LLAdd(intupdates + ii, intp);
-		*((void**)intp) = ints[ii];
+		char key[64];
+		key[0] = arena + ' ';
+		astrncpy(key + 1, id, 63);
+		HashAdd(arenaints, key, iface);
 	}
+
+	head->refcount = 0;
 }
 
-void UnregInterest(int ii, void *intp)
+int UnregInterface(const char *id, void *iface, int arena)
 {
-	LLRemove(intupdates + ii, intp);
-}
+	InterfaceHead *head = (InterfaceHead*)iface;
+	assert(head->magic == MODMAN_MAGIC);
 
+	if (head->refcount > 0)
+		return head->refcount;
 
-void RegInterface(int ii, void *face)
-{
-	if (ii >= 0 && ii < MAXINTERFACE)
+	HashRemove(intsbyname, head->name, iface);
+
+	if (arena == ALLARENAS)
+		HashRemove(globalints, id, iface);
+	else
 	{
-		Link *l;
-
-		ints[ii] = face;
-
-		for (l = LLGetHead(intupdates + ii); l; l = l->next)
-			*((void**)l->data) = face;
+		char key[64];
+		key[0] = arena + ' ';
+		astrncpy(key + 1, id, 63);
+		HashRemove(arenaints, key, iface);
 	}
+	return 0;
 }
 
-/* eventually: make this return int which is the ref count */
-void UnregInterface(int ii, void *face)
+
+void * GetInterface(const char *id, int arena)
 {
-	int c = 0;
-	if (ints[ii] == face)
-	{
-		Link *l;
+	InterfaceHead *head;
 
-		for (l = LLGetHead(intupdates + ii); l; l = l->next)
-			c++;
-		if (c == 0)
-			ints[ii] = NULL;
+	if (arena == ALLARENAS)
+		head = HashGetOne(globalints, id);
+	else
+	{
+		char key[64];
+		key[0] = arena + ' ';
+		astrncpy(key + 1, id, 63);
+		head = HashGetOne(arenaints, key);
+		/* if the arena doesn't have it, fall back to a global one */
+		if (!head)
+			head = HashGetOne(globalints, id);
 	}
-	/* return c; */
+	if (head)
+		head->refcount++;
+	return head;
 }
+
+
+void * GetInterfaceByName(const char *name)
+{
+	InterfaceHead *head;
+	head = HashGetOne(intsbyname, name);
+	if (head)
+		head->refcount++;
+	return head;
+}
+
+
+void ReleaseInterface(void *iface)
+{
+	InterfaceHead *head = (InterfaceHead*)iface;
+	if (!iface) return;
+	assert(head->magic == MODMAN_MAGIC);
+	head->refcount--;
+}
+
+
+/* callback stuff */
 
 void RegCallback(const char *id, void *f, int arena)
 {
@@ -326,7 +385,8 @@ void RegCallback(const char *id, void *f, int arena)
 	else
 	{
 		char key[64];
-		snprintf(key, 64, "%d-%s", arena, id);
+		key[0] = arena + ' ';
+		astrncpy(key + 1, id, 63);
 		HashAdd(arenacallbacks, key, f);
 	}
 }
@@ -340,7 +400,8 @@ void UnregCallback(const char *id, void *f, int arena)
 	else
 	{
 		char key[64];
-		snprintf(key, 64, "%d-%s", arena, id);
+		key[0] = arena + ' ';
+		astrncpy(key + 1, id, 63);
 		HashRemove(arenacallbacks, key, f);
 	}
 }
@@ -358,7 +419,8 @@ LinkedList * LookupCallback(const char *id, int arena)
 		/* first get global ones */
 		l = HashGet(globalcallbacks, id);
 		/* then append local ones */
-		snprintf(key, 64, "%d-%s", arena, id);
+		key[0] = arena + ' ';
+		astrncpy(key + 1, id, 63);
 		HashGetAppend(arenacallbacks, key, l);
 		return l;
 	}

@@ -15,18 +15,18 @@ EXPORT int MM_bricklayer(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
-		mm->RegInterest(I_CMDMAN, &cmd);
-		mm->RegInterest(I_GAME, &game);
-		mm->RegInterest(I_PLAYERDATA, &pd);
+		cmd = mm->GetInterface("cmdman", ALLARENAS);
+		game = mm->GetInterface("game", ALLARENAS);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
 		cmd->AddCommand("brickwrite", Cbrickwrite);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		cmd->RemoveCommand("brickwrite", Cbrickwrite);
-		mm->UnregInterest(I_CMDMAN, &cmd);
-		mm->UnregInterest(I_GAME, &game);
-		mm->UnregInterest(I_PLAYERDATA, &pd);
+		mm->ReleaseInterface(cmd);
+		mm->ReleaseInterface(game);
+		mm->ReleaseInterface(pd);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)

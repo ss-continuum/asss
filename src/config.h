@@ -41,14 +41,20 @@ typedef struct ConfigFile *ConfigHandle;
 
 typedef struct Iconfig
 {
+	INTERFACE_HEAD_DECL
+
 	const char * (*GetStr)(ConfigHandle ch, const char *section, const char *key);
+	/* arpc: string(ConfigHandle, string, string) */
 	int (*GetInt)(ConfigHandle ch, const char *section, const char *key, int defvalue);
+	/* arpc: int(ConfigHandle, string, string, int) */
 
 /*	void (*SetConfigStr)(ConfigHandle, const char *, const char *, const char *); */
 /*	void (*SetConfigInt)(ConfigHandle, const char *, const char *, int); */
 
 	ConfigHandle (*OpenConfigFile)(const char *arena, const char *name);
+	/* arpc: ConfigHandle(string, string) */
 	void (*CloseConfigFile)(ConfigHandle ch);
+	/* arpc: void(ConfigHandle) */
 } Iconfig;
 
 

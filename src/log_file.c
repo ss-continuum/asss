@@ -19,15 +19,19 @@ local pthread_mutex_t logmtx = PTHREAD_MUTEX_INITIALIZER;
 local Iconfig *cfg;
 local Ilogman *log;
 
-local Ilog_file _lfint = { FlushLog, ReopenLog };
+local Ilog_file _lfint =
+{
+	INTERFACE_HEAD_INIT("log-file")
+	FlushLog, ReopenLog
+};
 
 
 EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
 {
 	if (action == MM_LOAD)
 	{
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_LOGMAN, &log);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		log = mm->GetInterface("logman", ALLARENAS);
 
 		if (!cfg || !log) return MM_FAIL;
 
@@ -36,17 +40,18 @@ EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
 
 		mm->RegCallback(CB_LOGFUNC, LogFile, ALLARENAS);
 
-		mm->RegInterface(I_LOG_FILE, &_lfint);
+		mm->RegInterface("log_file", &_lfint, ALLARENAS);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		if (logfile) fclose(logfile);
-		mm->UnregInterface(I_LOG_FILE, &_lfint);
+		if (mm->UnregInterface("log_file", &_lfint, ALLARENAS))
+			return MM_FAIL;
 		mm->UnregCallback(CB_LOGFUNC, LogFile, ALLARENAS);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_LOGMAN, &cfg);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(log);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)

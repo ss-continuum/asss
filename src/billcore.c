@@ -45,14 +45,23 @@ local Ilogman *log;
 local Iconfig *cfg;
 local Icmdman *cmd;
 local Iplayerdata *pd;
+local Ichat *chat;
 local Imodman *mm;
 
 local void (*CachedAuthDone)(int, AuthData*);
 local PlayerData *players;
 
-local Iauth _iauth = { BillingAuth };
+local Iauth _iauth =
+{
+	INTERFACE_HEAD_INIT("auth-billing")
+	BillingAuth
+};
+
 local Ibillcore _ibillcore =
-{ SendToBiller, AddPacket, RemovePacket, GetStatus };
+{
+	INTERFACE_HEAD_INIT("billcore-udp")
+	SendToBiller, AddPacket, RemovePacket, GetStatus
+};
 
 local int cfg_pingtime, cfg_serverid, cfg_groupid, cfg_scoreid;
 
@@ -62,12 +71,13 @@ int MM_billcore(int action, Imodman *_mm, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_NET, &net);
-		mm->RegInterest(I_MAINLOOP, &ml);
-		mm->RegInterest(I_LOGMAN, &log);
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_CMDMAN, &cmd);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		net = mm->GetInterface("net", ALLARENAS);
+		ml = mm->GetInterface("mainloop", ALLARENAS);
+		log = mm->GetInterface("logman", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		cmd = mm->GetInterface("cmdman", ALLARENAS);
+		chat = mm->GetInterface("chat", ALLARENAS);
 
 		if (!net || !ml || !cfg || !cmd) return MM_FAIL;
 
@@ -92,13 +102,18 @@ int MM_billcore(int action, Imodman *_mm, int arena)
 
 		cmd->AddCommand(NULL, DefaultCmd);
 
-		mm->RegInterface(I_AUTH, &_iauth);
-		mm->RegInterface(I_BILLCORE, &_ibillcore);
+		mm->RegInterface("auth", &_iauth, ALLARENAS);
+		mm->RegInterface("billcore", &_ibillcore, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		byte dis = S2B_LOGOFF;
+
+		if (mm->UnregInterface("auth", &_iauth, ALLARENAS))
+			return MM_FAIL;
+		if (mm->UnregInterface("billcore", &_ibillcore, ALLARENAS))
+			return MM_FAIL;
 
 		/* send logoff packet (immediate so it gets there before */
 		/* connection drop) */
@@ -110,15 +125,14 @@ int MM_billcore(int action, Imodman *_mm, int arena)
 		RemovePacket(0, SendLogin);
 		RemovePacket(B2S_PLAYERDATA, BAuthResponse);
 		ml->ClearTimer(SendPing);
-		mm->UnregInterface(I_AUTH, &_iauth);
-		mm->UnregInterface(I_BILLCORE, &_ibillcore);
 
-		mm->UnregInterest(I_PLAYERDATA, &pd);
-		mm->UnregInterest(I_NET, &net);
-		mm->UnregInterest(I_MAINLOOP, &ml);
-		mm->UnregInterest(I_LOGMAN, &log);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_CMDMAN, &cmd);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(ml);
+		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(cmd);
+		mm->ReleaseInterface(chat);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -340,14 +354,19 @@ void PChat(int pid, byte *p, int len)
 	struct ChatPacket *from = (struct ChatPacket *)p;
 	char *t;
 	int l;
+	chat_mask_t mask;
 
 	if (from->type == MSG_CHAT)
 	{
 		struct S2BChat *to = alloca(len+32); /* +32 = diff in packet sizes */
 
+		mask = chat ? chat->GetPlayerChatMask(pid) : 0;
+		if (IS_RESTRICTED(mask, MSG_CHAT))
+			return;
+
 		to->type = S2B_CHATMSG;
 		to->pid = pid;
-		
+
 		if ((t = strchr(from->text, ';')))
 		{
 			*t = 0;
@@ -366,6 +385,10 @@ void PChat(int pid, byte *p, int len)
 	else if (from->type == MSG_INTERARENAPRIV)
 	{
 		struct S2BRemotePriv *to = alloca(len + 40); /* long enough for anything */
+
+		mask = chat ? chat->GetPlayerChatMask(pid) : 0;
+		if (IS_RESTRICTED(mask, MSG_INTERARENAPRIV))
+			return;
 
 		t = strchr(from->text+1, ':');
 		if (from->text[0] != ':' || !t)
@@ -387,8 +410,5 @@ void PChat(int pid, byte *p, int len)
 		}
 	}
 }
-
-
-
 
 

@@ -20,10 +20,16 @@ typedef void (*ShipChangeFunc)(int pid, int newship, int newfreq);
 
 typedef struct Igame
 {
+	INTERFACE_HEAD_DECL
+
 	void (*SetFreq)(int pid, int freq);
+	/* arpc: void(int, int) */
 	void (*SetShip)(int pid, int ship);
+	/* arpc: void(int, int) */
 	void (*SetFreqAndShip)(int pid, int ship, int freq);
+	/* arpc: void(int, int, int) */
 	void (*DropBrick)(int arena, int freq, int x1, int y1, int x2, int y2);
+	/* arpc: void(int, int, int, int, int, int) */
 } Igame;
 
 

@@ -61,7 +61,11 @@ local u32 newschecksum, cmpnewssize;
 local byte *cmpnews;
 local time_t newstime;
 
-local Imapnewsdl _int = { SendMapFilename, GetNewsChecksum };
+local Imapnewsdl _int =
+{
+	INTERFACE_HEAD_INIT("mapnewsdl")
+	SendMapFilename, GetNewsChecksum
+};
 
 
 /* FUNCTIONS */
@@ -72,13 +76,13 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 	{
 		/* get interface pointers */
 		mm = mm_;
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_NET, &net);
-		mm->RegInterest(I_LOGMAN, &log);
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_MAINLOOP, &ml);
-		mm->RegInterest(I_ARENAMAN, &aman);
-		mm->RegInterest(I_MAPDATA, &mapdata);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		net = mm->GetInterface("net", ALLARENAS);
+		log = mm->GetInterface("logman", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		ml = mm->GetInterface("mainloop", ALLARENAS);
+		aman = mm->GetInterface("arenaman", ALLARENAS);
+		mapdata = mm->GetInterface("mapdata", ALLARENAS);
 
 		players = pd->players;
 
@@ -101,12 +105,13 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		if (!cfg_newsfile) cfg_newsfile = "news.txt";
 		newstime = 0; cmpnews = NULL;
 
-		mm->RegInterface(I_MAPNEWSDL, &_int);
+		mm->RegInterface("mapnewsdl", &_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(I_MAPNEWSDL, &_int);
+		if (mm->UnregInterface("mapnewsdl", &_int, ALLARENAS))
+			return MM_FAIL;
 		net->RemovePacket(C2S_MAPREQUEST, PMapRequest);
 		net->RemovePacket(C2S_NEWSREQUEST, PMapRequest);
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
@@ -114,13 +119,13 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		afree(cmpnews);
 		ml->ClearTimer(RefreshNewsTxt);
 
-		mm->UnregInterest(I_PLAYERDATA, &pd);
-		mm->UnregInterest(I_NET, &net);
-		mm->UnregInterest(I_LOGMAN, &log);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_MAINLOOP, &ml);
-		mm->UnregInterest(I_ARENAMAN, &aman);
-		mm->UnregInterest(I_MAPDATA, &mapdata);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(ml);
+		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(mapdata);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)

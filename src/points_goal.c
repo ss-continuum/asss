@@ -4,8 +4,6 @@
 #include "settings/soccer.h"
 
 
-#define MODULE "points_goal"
-
 #define MAXFREQ 8
 
 
@@ -36,20 +34,20 @@ EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_BALLS, &balls);
-		mm->RegInterest(I_ARENAMAN, &aman);
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_CHAT, &chat);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		balls = mm->GetInterface("balls", ALLARENAS);
+		aman = mm->GetInterface("arenaman", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		chat = mm->GetInterface("chat", ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterest(I_CHAT, &chat);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_ARENAMAN, &aman);
-		mm->UnregInterest(I_BALLS, &balls);
-		mm->UnregInterest(I_PLAYERDATA, &pd);
+		mm->ReleaseInterface(chat);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(balls);
+		mm->ReleaseInterface(pd);
 		return MM_OK;
 	}
 	else if (action == MM_ATTACH)

@@ -757,7 +757,6 @@ void * MPTryRemove(MPQueue *q)
 void * MPRemove(MPQueue *q)
 {
 	void *data;
-
 	LockMutex(&q->mtx);
 	while (LLIsEmpty(&q->list))
 		WaitCondition(&q->cond, &q->mtx);

@@ -37,6 +37,8 @@ typedef void (*MainLoopFunc)(void);
 
 typedef struct Imainloop
 {
+	INTERFACE_HEAD_DECL
+
 	void (*SetTimer)(TimerFunc func, int initialdelay, int interval, void *param);
 	void (*ClearTimer)(TimerFunc func);
 

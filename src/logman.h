@@ -31,9 +31,13 @@ typedef void (*LogFunc)(char level, char *message);
 
 typedef struct Ilogman
 {
-	void (*Log)(char level, char *format, ...);
+	INTERFACE_HEAD_DECL
+
+	void (*Log)(char level, const char *format, ...);
+	/* arpc: void(char, string, etc) */
 
 	int (*FilterLog)(char level, const char *line, const char *modname);
+	/* arpc: int(char, string, string) */
 	/* log modules can optionally call this function for help filtering
 	 * their log messages. you should pass it the level and log line you
 	 * recieved, and then the name of your own module (filtering will be

@@ -11,16 +11,14 @@ unknown packet logging.
 moderate
 --------
 points_goal
+  be sure to keep track of the freq at the time the ball was fired, not
+  at the time the goal is scored.
 
 lag handling
 
 better pre-processor for config
 
 banners
-
-message limiting:
-	shutup
-	lock{private,public,team,chat}
 
 locking. lots of options here:
 	lock to freq

@@ -34,7 +34,11 @@ local Iarenaman *aman;
 local ArenaData *arenas;
 
 /* interfaces */
-local Iclientset _myint = { SendClientSettings, Reconfigure };
+local Iclientset _myint =
+{
+	INTERFACE_HEAD_INIT("clientset")
+	SendClientSettings, Reconfigure
+};
 
 /* the client settings definition */
 #include "clientset.def"
@@ -45,11 +49,11 @@ EXPORT int MM_clientset(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_NET, &net);
-		mm->RegInterest(I_CONFIG, &cfg);
-		mm->RegInterest(I_LOGMAN, &log);
-		mm->RegInterest(I_ARENAMAN, &aman);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		net = mm->GetInterface("net", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
+		log = mm->GetInterface("logman", ALLARENAS);
+		aman = mm->GetInterface("arenaman", ALLARENAS);
 
 		if (!net || !cfg || !log || !aman) return MM_FAIL;
 
@@ -57,7 +61,7 @@ EXPORT int MM_clientset(int action, Imodman *mm_, int arena)
 
 		mm->RegCallback(CB_ARENAACTION, ActionFunc, ALLARENAS);
 
-		mm->RegInterface(I_CLIENTSET, &_myint);
+		mm->RegInterface("clientset", &_myint, ALLARENAS);
 
 		/* do these at least once */
 		{
@@ -77,13 +81,14 @@ EXPORT int MM_clientset(int action, Imodman *mm_, int arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(I_CLIENTSET, &_myint);
+		if (mm->UnregInterface("clientset", &_myint, ALLARENAS))
+			return MM_FAIL;
 		mm->UnregCallback(CB_ARENAACTION, ActionFunc, ALLARENAS);
-		mm->UnregInterest(I_PLAYERDATA, &pd);
-		mm->UnregInterest(I_NET, &net);
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_LOGMAN, &log);
-		mm->UnregInterest(I_ARENAMAN, &aman);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(aman);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)

@@ -4,6 +4,8 @@
 
 typedef struct Imapnewsdl
 {
+	INTERFACE_HEAD_DECL
+
 	void (*SendMapFilename)(int pid);
 	u32 (*GetNewsChecksum)();
 } Imapnewsdl;

@@ -1,8 +1,6 @@
 
 #include "asss.h"
 
-#define MODULE "points_flag"
-
 
 /* prototypes */
 
@@ -22,20 +20,20 @@ EXPORT int MM_points_flag(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_FLAGS, &flags);
-		mm->RegInterest(I_STATS, &stats);
-		mm->RegInterest(I_ARENAMAN, &aman);
-		mm->RegInterest(I_CONFIG, &cfg);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		flags = mm->GetInterface("flags", ALLARENAS);
+		stats = mm->GetInterface("stats", ALLARENAS);
+		aman = mm->GetInterface("arenaman", ALLARENAS);
+		cfg = mm->GetInterface("config", ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterest(I_CONFIG, &cfg);
-		mm->UnregInterest(I_ARENAMAN, &aman);
-		mm->UnregInterest(I_STATS, &stats);
-		mm->UnregInterest(I_FLAGS, &flags);
-		mm->UnregInterest(I_PLAYERDATA, &pd);
+		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(stats);
+		mm->ReleaseInterface(flags);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(cfg);
 		return MM_OK;
 	}
 	else if (action == MM_ATTACH)

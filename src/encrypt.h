@@ -12,6 +12,8 @@
 
 typedef struct Iencrypt
 {
+	INTERFACE_HEAD_DECL
+
 	int  (*Respond)	(int);
 	void (*Init)	(int, int);
 	void (*Encrypt)	(int, char *, int);

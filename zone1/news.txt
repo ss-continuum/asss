@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 0.5
+Welcome to asss (a small subspace server) 0.5.2
 
 This news.txt will be used for updates about new features and other important
 information. I have my own internal to-do list apart from this file. If you
@@ -7,37 +7,23 @@ have any suggestions of any kind, please let me know.
 
 
 Recent updates:
-    * cleanups in the freq management. it was split off into a separate
-        module, and can now be replaced per-arena. also added hooks for
-        setting freqs/ships.
+    * multiple commands on the same line (separate with |'s)
 
-    * bricks (now with correct re-sending of old bricks upon entering
-        arenas, and the bricklayer)
+    * autoturrets - drop one with ?dropturret. this is based on a helper
+      module that will make other "fake player" based stuff easier.
 
-    * energy/inventory info (including energy-viewing for team only)
+    * client->server weapons checksums - these are actually checked now :)
 
-    * capability manager that uses user-definable groups to allow access
-        to commands and other things.
+    * per-arena interfaces - this is purely internal stuff that should
+      simplify a bunch of code
 
-    * balls! (preliminary goal handling)
+    * named and properly refcounted interfaces - more internal stuff
+      that will enable nicer delegation between modules
 
-    * flags! (with correct flag-kill handling, and victories)
-
-    * mapdata module
-        keeps entire maps in memory in only around 200k per map.
-        also manages named regions (which are only used for the
-        autowarper so far).
+    * progress on a stub generator and supporting code that will enable
+      modules to run in another process or on another machine, with no
+      changes to their source.
 
 
-High-level to-do list:
-    * come up with better interface to other languages (python, and others)
-
-    * latency/ploss handling and security
-
-    * more commands
-
-
-
-random line to force redownloading:
-6281824014
+Contact: grelminar@yahoo.com
 

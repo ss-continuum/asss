@@ -24,11 +24,16 @@
 
 typedef struct Icapman
 {
+	INTERFACE_HEAD_DECL
+
 	int (*HasCapability)(int pid, const char *cap);
+	/* arpc: int(int, string) */
 	/* returns true if the given player has the given capability. */
 
-	char *(*GetGroup)(int pid);
+	const char *(*GetGroup)(int pid);
+	/* arpc: string(int) */
 	void (*SetGroup)(int pid, const char *group);
+	/* arpc: void(int, string) */
 	/* gets/sets the group of the player as specified. these functions
 	 * are dependant on one specific implementation of capabilities, and
 	 * should only be used from very few places. */

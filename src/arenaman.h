@@ -53,12 +53,17 @@ typedef struct ArenaData
 
 typedef struct Iarenaman
 {
-	void (*SendArenaResponse)(int pid);
-	void (*LockStatus)(void);
-	void (*UnlockStatus)(void);
-	ArenaData *arenas;
-} Iarenaman;
+	INTERFACE_HEAD_DECL
 
+	void (*SendArenaResponse)(int pid);
+	/* arpc: void(int) */
+	void (*LockStatus)(void);
+	/* arpc: void(void) noop */
+	void (*UnlockStatus)(void);
+	/* arpc: void(void) noop */
+	ArenaData *arenas;
+	/* arpc: null */
+} Iarenaman;
 
 
 #endif

@@ -48,9 +48,14 @@ typedef void (*CommandFunc)(const char *params, int pid, int target);
 
 typedef struct Icmdman
 {
+	INTERFACE_HEAD_DECL
+
 	void (*AddCommand)(const char *cmdname, CommandFunc func);
+	/* arpc: void(string, CommandFunc callback) */
 	void (*RemoveCommand)(const char *cmdname, CommandFunc func);
+	/* arpc: void(string, CommandFunc callback) */
 	void (*Command)(const char *typedline, int pid, int target);
+	/* arpc: void(string, int, int) */
 } Icmdman;
 
 #endif

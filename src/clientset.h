@@ -12,8 +12,12 @@
 
 typedef struct Iclientset
 {
+	INTERFACE_HEAD_DECL
+
 	void (*SendClientSettings)(int pid);
+	/* arpc: void(int) */
 	void (*Reconfigure)(int arena);
+	/* arpc: void(int) */
 } Iclientset;
 
 #endif

@@ -7,14 +7,14 @@
 
 struct PlayerPosition
 {
-	int x, y, xspeed, yspeed;
+	int x, y, xspeed, yspeed, rotation;
 	int bounty, status;
 };
 
 
 typedef struct PlayerData
 {
-	u8 type;
+	u8 pktype;
 	u8 shiptype;
 	u8 flags;
 	char sendname[20];
@@ -28,7 +28,7 @@ typedef struct PlayerData
 	i16 attachedto;
 	i8 unknown1[3];
 	/* stuff below this point is not part of the recieved data */
-	int status, whenloggedin, arena, oldarena;
+	int type, status, whenloggedin, arena, oldarena;
 	char name[24], squad[24];
 	i16 xres, yres;
 	struct PlayerPosition position;

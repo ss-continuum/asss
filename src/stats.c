@@ -5,8 +5,8 @@
 
 struct GlobalStats /* 80 bytes */
 {
-	int messages[10];
-	int commands, modchat;
+	int messages[11];
+	int commands;
 	int logins;
 	int pad7, pad6, pad5, pad4, pad3, pad2, pad1;
 };
@@ -19,7 +19,7 @@ struct ArenaStats /* 64 bytes */
 
 /* prototypes */
 
-local void IncrementStat(int, stat_t, int);
+local void IncrementStat(int, int, int);
 local void SendUpdates(void);
 
 local void GetA(int, void *);
@@ -31,8 +31,8 @@ local void SetG(int, void *);
 local void ClearG(int);
 
 local void PChat(int, byte *, int);
-local void CStats(const char *, int, int);
-local void CScores(const char *, int, int);
+local void Cstats(const char *, int, int);
+local void Cscore(const char *, int, int);
 local void PAFunc(int, int, int);
 
 
@@ -56,7 +56,11 @@ local struct GlobalStats gdata[MAXPLAYERS];
 local struct ArenaStats adata[MAXPLAYERS];
 local byte adata_dirty[MAXPLAYERS];
 
-local Istats _myint = { IncrementStat, SendUpdates };
+local Istats _myint =
+{
+	INTERFACE_HEAD_INIT("stats")
+	IncrementStat, SendUpdates
+};
 
 
 EXPORT int MM_stats(int action, Imodman *mm_, int arena)
@@ -64,38 +68,39 @@ EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		mm->RegInterest(I_NET, &net);
-		mm->RegInterest(I_PLAYERDATA, &pd);
-		mm->RegInterest(I_CMDMAN, &cmd);
-		mm->RegInterest(I_PERSIST, &persist);
-		mm->RegInterest(I_CHAT, &chat);
+		net = mm->GetInterface("net", ALLARENAS);
+		pd = mm->GetInterface("playerdata", ALLARENAS);
+		cmd = mm->GetInterface("cmdman", ALLARENAS);
+		persist = mm->GetInterface("persist", ALLARENAS);
+		chat = mm->GetInterface("chat", ALLARENAS);
 
 		if (!net || !cmd || !persist) return MM_FAIL;
 
 		mm->RegCallback(CB_PLAYERACTION, PAFunc, ALLARENAS);
-		cmd->AddCommand("stats", CStats);
-		cmd->AddCommand("score", CScores);
+		cmd->AddCommand("stats", Cstats);
+		cmd->AddCommand("score", Cscore);
 		persist->RegPersistantData(&gdatadesc);
 		persist->RegPersistantData(&adatadesc);
 		net->AddPacket(C2S_CHAT, PChat);
-		mm->RegInterface(I_STATS, &_myint);
+		mm->RegInterface("stats", &_myint, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(I_STATS, &_myint);
+		if (mm->UnregInterface("stats", &_myint, ALLARENAS))
+			return MM_FAIL;
 		net->RemovePacket(C2S_CHAT, PChat);
 		persist->UnregPersistantData(&gdatadesc);
 		persist->UnregPersistantData(&adatadesc);
-		cmd->RemoveCommand("stats", CStats);
-		cmd->RemoveCommand("score", CScores);
+		cmd->RemoveCommand("stats", Cstats);
+		cmd->RemoveCommand("score", Cscore);
 		mm->UnregCallback(CB_PLAYERACTION, PAFunc, ALLARENAS);
 
-		mm->UnregInterest(I_CHAT, &chat);
-		mm->UnregInterest(I_NET, &net);
-		mm->UnregInterest(I_CMDMAN, &cmd);
-		mm->UnregInterest(I_PERSIST, &persist);
-		mm->UnregInterest(I_PLAYERDATA, &pd);
+		mm->ReleaseInterface(chat);
+		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(cmd);
+		mm->ReleaseInterface(persist);
+		mm->ReleaseInterface(pd);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -104,7 +109,7 @@ EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 }
 
 
-void IncrementStat(int pid, stat_t stat, int amount)
+void IncrementStat(int pid, int stat, int amount)
 {
 	struct ArenaStats *d = adata + pid;
 
@@ -167,7 +172,7 @@ void PChat(int pid, byte *p, int len)
 	if (from->text[0] == CMD_CHAR_1 || from->text[0] == CMD_CHAR_2)
 		gdata[pid].commands++;
 	else if (from->type == MSG_PUB && from->text[0] == MOD_CHAT_CHAR)
-		gdata[pid].modchat++;
+		gdata[pid].message[MSG_MODCHAT]++;
 	else if (from->type < 10)
 		gdata[pid].messages[(int)from->type]++;
 }
@@ -220,7 +225,7 @@ void ClearA(int pid)
 }
 
 
-void CStats(const char *params, int pid, int target)
+void Cstats(const char *params, int pid, int target)
 {
 	struct GlobalStats *d;
 
@@ -237,12 +242,12 @@ void CStats(const char *params, int pid, int target)
 		chat->SendMessage(pid, "%6d other-team messages", d->messages[MSG_NMEFREQ]);
 		chat->SendMessage(pid, "%6d remote private messages", d->messages[MSG_INTERARENAPRIV]);
 		chat->SendMessage(pid, "%6d chat messages", d->messages[MSG_CHAT]);
-		chat->SendMessage(pid, "%6d mod chat messages", d->modchat);
+		chat->SendMessage(pid, "%6d mod chat messages", d->messages[MSG_MODCHAT]);
 		chat->SendMessage(pid, "%6d commands", d->commands);
 	}
 }
 
-void CScores(const char *params, int pid, int target)
+void Cscore(const char *params, int pid, int target)
 {
 	struct ArenaStats *d;
 
