@@ -6,6 +6,7 @@ local Imodman *mm;
 local Iplayerdata *pd;
 local Iarenaman *aman;
 local Inet *net;
+local Ichatnet *chatnet;
 local Icmdman *cmd;
 local Ilogman *lm;
 
@@ -31,7 +32,9 @@ local int CreateFakePlayer(const char *name, int arena, int ship, int freq)
 	player->arena = player->oldarena = arena;
 
 	/* enter arena */
-	net->SendToArena(arena, pid, (byte*)player, 64, NET_RELIABLE);
+	if (net) net->SendToArena(arena, pid, (byte*)player, 64, NET_RELIABLE);
+	if (chatnet) chatnet->SendToArena(arena, pid,
+			"ENTERING:%s:%d:%d", name, ship, freq);
 	player->status = S_PLAYING;
 
 	if (lm)
@@ -58,7 +61,9 @@ local int EndFaked(int pid)
 
 	/* leave arena */
 	pk.d1 = pid;
-	net->SendToArena(arena, pid, (byte*)&pk, 3, NET_RELIABLE);
+	if (net) net->SendToArena(arena, pid, (byte*)&pk, 3, NET_RELIABLE);
+	if (chatnet) chatnet->SendToArena(arena, pid,
+			"LEAVING:%s", pd->players[pid].name);
 
 	/* log before freeing pid to avoid races */
 	if (lm)
@@ -102,9 +107,10 @@ EXPORT int MM_fake(int action, Imodman *mm_, int arena)
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		net = mm->GetInterface(I_NET, ALLARENAS);
+		chatnet = mm->GetInterface(I_CHATNET, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 
-		if (!pd || !aman || !cmd || !net) return MM_FAIL;
+		if (!pd || !aman || !cmd) return MM_FAIL;
 
 		cmd->AddCommand("makefake", Cmakefake, NULL);
 		cmd->AddCommand("killfake", Ckillfake, NULL);
@@ -120,6 +126,7 @@ EXPORT int MM_fake(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(chatnet);
 		mm->ReleaseInterface(lm);
 		return MM_OK;
 	}

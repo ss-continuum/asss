@@ -121,9 +121,3 @@
 /* how many pending requests to allow to the billing server at once */
 #define CFG_MAX_PENDING_REQUESTS 10
 
-
-/* function not supplied under win32 os */
-#ifdef WIN32
-#define NEED_STRCASESTR
-#endif
-

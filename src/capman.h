@@ -25,16 +25,13 @@
 #define I_CAPMAN "capman-2"
 
 typedef struct Icapman
-/* arpc: interface capman remoteok callok */
 {
 	INTERFACE_HEAD_DECL
 
 	int (*HasCapability)(int pid, const char *cap);
-	/* arpc: int, string -> int (0) */
 	/* returns true if the given player has the given capability. */
 
 	int (*HasCapabilityByName)(const char *name, const char *cap);
-	/* arpc: string, string -> int (0) */
 	/* same as HasCapability, but intented to be used in strange places
 	 * like before the player has logged in yet */
 } Icapman;

@@ -22,13 +22,9 @@ typedef struct Ibillcore
 	INTERFACE_HEAD_DECL
 
 	void (*SendToBiller)(byte *data, int length, int flags);
-	/* arpc: null */
 	void (*AddPacket)(byte pktype, PacketFunc func);
-	/* arpc: null */
 	void (*RemovePacket)(byte pktype, PacketFunc func);
-	/* arpc: null */
 	int (*GetStatus)();
-	/* arpc: int(void) */
 } Ibillcore;
 
 #endif

@@ -19,7 +19,6 @@ typedef struct Istats
 	INTERFACE_HEAD_DECL
 
 	void (*IncrementStat)(int pid, int stat, int amount);
-	/* arpc: void(int, int, int) */
 	/* increments a particular statistic in _all_ intervals */
 
 	void (*StartTimer)(int pid, int stat);
@@ -29,15 +28,12 @@ typedef struct Istats
 	 * tracking the start time and updating the database periodically. */
 
 	void (*SetStat)(int pid, int stat, int interval, int value);
-	/* arpc: void(int, int, int, int) */
 	/* sets a statistic to a given value */
 
 	int (*GetStat)(int pid, int stat, int interval);
-	/* arpc: void(int, int, int) */
 	/* gets the value of one statistic */
 
 	void (*SendUpdates)(void);
-	/* arpc: void(void) */
 	/* sends out score updates for everyone that needs to be updated */
 } Istats;
 

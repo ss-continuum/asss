@@ -64,22 +64,28 @@ typedef struct ArenaData
 } ArenaData;
 
 
-#define I_ARENAMAN "arenaman-1"
+#define I_ARENAMAN "arenaman-2"
 
 typedef struct Iarenaman
 {
 	INTERFACE_HEAD_DECL
 
 	void (*SendArenaResponse)(int pid);
-	/* arpc: void(int) */
 	void (*LeaveArena)(int pid);
-	/* arpc: void(int) */
+
+	int (*FindArena)(const char *name, int *totalcount, int *playing);
+	/* this is a multi-purpose function. given a name, it returns either
+	 * an arena id (if some arena by that name is running) or -1 (if
+	 * not). if it's running, it also fills in the next two params with
+	 * the number of players in the arena and the number of non-spec
+	 * players in the arena. */
+
 	void (*LockStatus)(void);
-	/* arpc: void(void) noop */
 	void (*UnlockStatus)(void);
-	/* arpc: void(void) noop */
+	/* use these before accessing the big array */
+
 	ArenaData *arenas;
-	/* arpc: null */
+	/* this is a big array of public data */
 } Iarenaman;
 
 
@@ -89,6 +95,9 @@ typedef struct Iarenaplace
 {
 	INTERFACE_HEAD_DECL
 	int (*Place)(char *name, int namelen, int pid);
+	/* this should put an arena name in name, which has namelen space.
+	 * if it puts a name there, it should return true, if not (it failed
+	 * for some reason), return false. */
 } Iarenaplace;
 
 

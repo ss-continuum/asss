@@ -36,16 +36,13 @@ typedef struct Ilogman
 	INTERFACE_HEAD_DECL
 
 	void (*Log)(char level, const char *format, ...);
-	/* arpc: void(char, string, etc) */
 
 
 	/* utilty functions for the above */
 
 	void (*LogA)(char level, const char *mod, int arena, const char *format, ...);
-	/* arpc: void(char, string, int, string, etc) */
 
 	void (*LogP)(char level, const char *mod, int pid, const char *format, ...);
-	/* arpc: void(char, string, int, string, etc) */
 
 
 	/* log modules can optionally call this function for help filtering
@@ -53,7 +50,6 @@ typedef struct Ilogman
 	 * and then the name of your own module (filtering will be performed
 	 * based on this module name). */
 	int (*FilterLog)(const char *line, const char *modname);
-	/* arpc: int(string, string) */
 } Ilogman;
 
 

@@ -24,6 +24,13 @@
 #define MSG_BCOMMAND 12
 
 
+/* called for most types of chat msg. type is one of the above codes. if
+ * type == MSG_PRIV, target will be a pid. if type == MSG_FREQ or
+ * MSG_NMEFREQ, target will be a freq. otherwise unused. */
+#define CB_CHATMSG "chatmsg"
+typedef void (*ChatMsgFunc)(int pid, int type, int target, const char *text);
+
+
 /* the bits of one of these represent those types above. only use the
  * following macros to access them. */
 typedef unsigned short chat_mask_t;
@@ -40,30 +47,19 @@ typedef struct Ichat
 	INTERFACE_HEAD_DECL
 
 	void (*SendMessage)(int pid, const char *format, ...);
-	/* arpc: void(int, formatstr, etc) */
 	void (*SendSetMessage)(int *set, const char *format, ...);
-	/* arpc: void(intset, formatstr, etc) */
 	void (*SendSoundMessage)(int pid, char sound, const char *format, ...);
-	/* arpc: void(int, char, formatstr, etc) */
 	void (*SendSetSoundMessage)(int *set, char sound, const char *format, ...);
-	/* arpc: void(intset, char, formatstr, etc) */
 	void (*SendAnyMessage)(int *set, char type, char sound, const char *format, ...);
-	/* arpc: void(intset, char, char, formatstr, etc) */
 	void (*SendArenaMessage)(int arena, const char *format, ...);
-	/* arpc: void(int, formatstr, etc) */
 	void (*SendArenaSoundMessage)(int arena, char sound, const char *format, ...);
-	/* arpc: void(int, char, formatstr, etc) */
 
 	/* in the above two, use arena == ALLARENAS for zone. */
 
 	chat_mask_t (*GetArenaChatMask)(int arena);
-	/* arpc: ushort(int) */
 	void (*SetArenaChatMask)(int arena, chat_mask_t mask);
-	/* arpc: void(int, ushort) */
 	chat_mask_t (*GetPlayerChatMask)(int pid);
-	/* arpc: ushort(int) */
 	void (*SetPlayerChatMask)(int pid, chat_mask_t mask, int timeout);
-	/* arpc: void(int, ushort, int) */
 	/* (timeout is 0 to mean 'for a session' mask, or a number of seconds) */
 } Ichat;
 

@@ -44,7 +44,10 @@
 #define IS_REL(buf) ((buf)->d.rel.t2 == 0x03 && (buf)->d.rel.t1 == 0x00)
 
 /* check if a buffer is presized */
-#define IS_PRESIZED(buf) ((buf)->d.rel.t2 == 0x0A && (buf)->d.rel.t1 == 0x00)
+#define IS_PRESIZED(buf) \
+	(IS_REL(buf) && \
+	 (buf)->d.rel.data[1] == 0x0A && \
+	 (buf)->d.rel.data[0] == 0x00)
 
 /* check if a buffer is a connection init packet */
 #define IS_CONNINIT(buf)                        \
@@ -231,8 +234,9 @@ local int pri_limits[8] =
 
 local struct
 {
-	int port, timeout, droptimeout;
+	int port /* host order */, timeout, droptimeout;
 	int bufferdelta, deflimit;
+	unsigned long int bindaddr /* network order */;
 } config;
 
 local volatile struct net_stats global_stats;
@@ -277,6 +281,7 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 {
 	int i;
 	pthread_t thd;
+	const char *addr;
 
 	if (action == MM_LOAD)
 	{
@@ -308,6 +313,12 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		 * The maximum number of bytes per second to send to each
 		 * player by default. */
 		config.deflimit = cfg->GetInt(GLOBAL, "Net", "BandwidthLimit", 3500);
+		/* cfghelp: Net:BindIP, global, string
+		 * If this is set, it must be a single IP address that the
+		 * server should bind to. If unset, the server will bind to all
+		 * available addresses. */
+		addr = cfg->GetStr(GLOBAL, "Net", "BindIP");
+		config.bindaddr = addr ? inet_addr(addr) : INADDR_ANY;
 
 		/* get the sockets */
 		if (InitSockets())
@@ -555,7 +566,7 @@ int InitSockets(void)
 
 	localsin.sin_family = AF_INET;
 	memset(localsin.sin_zero,0,sizeof(localsin.sin_zero));
-	localsin.sin_addr.s_addr = htonl(INADDR_ANY);
+	localsin.sin_addr.s_addr = config.bindaddr;
 	localsin.sin_port = htons(config.port);
 
 	if ((serversock = socket(PF_INET, SOCK_DGRAM, 0)) == -1)

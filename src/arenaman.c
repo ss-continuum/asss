@@ -42,7 +42,7 @@ local void MLeaving(int, const char *);
 
 local void LeaveArena(int);
 local void SendArenaResponse(int);
-
+local int FindArena(const char *name, int *totalcount, int *playing);
 
 /* globals */
 
@@ -65,7 +65,9 @@ local pthread_mutex_t arenastatusmtx;
 local Iarenaman _int =
 {
 	INTERFACE_HEAD_INIT(I_ARENAMAN, "arenaman")
-	SendArenaResponse, LeaveArena, LockStatus, UnlockStatus, arenas
+	SendArenaResponse, LeaveArena,
+	FindArena,
+	LockStatus, UnlockStatus, arenas
 };
 
 
@@ -426,7 +428,7 @@ void SendArenaResponse(int pid)
 }
 
 
-local int FindArena(const char *name, int min, int max)
+local int do_find_arena(const char *name, int min, int max)
 {
 	int i;
 	LOCK_STATUS();
@@ -440,6 +442,28 @@ local int FindArena(const char *name, int min, int max)
 		}
 	UNLOCK_STATUS();
 	return -1;
+}
+
+
+local void count_players(int arena, int *totalp, int *playingp)
+{
+	int total = 0, playing = 0, pid;
+
+	pd->LockStatus();
+	for (pid = 0; pid < MAXPLAYERS; pid++)
+	{
+		if (pd->players[pid].status == S_PLAYING &&
+				pd->players[pid].arena == arena)
+		{
+			total++;
+			if (pd->players[pid].shiptype != SPEC)
+				playing++;
+		}
+	}
+	pd->UnlockStatus();
+
+	if (totalp) *totalp = total;
+	if (playingp) *playingp = playing;
 }
 
 
@@ -461,7 +485,7 @@ local void complete_go(int pid, const char *name, int ship, int xres, int yres, 
 	LOCK_STATUS();
 
 	/* try to locate an existing arena */
-	arena = FindArena(name, ARENA_DO_INIT, ARENA_RUNNING);
+	arena = do_find_arena(name, ARENA_DO_INIT, ARENA_RUNNING);
 
 	if (arena == -1)
 	{
@@ -632,6 +656,19 @@ skip: ;
 	pd->UnlockStatus();
 	UNLOCK_STATUS();
 	return 1;
+}
+
+
+int FindArena(const char *name, int *totalp, int *playingp)
+{
+	int arena;
+
+	arena = do_find_arena(name, ARENA_RUNNING, ARENA_RUNNING);
+
+	if (ARENA_OK(arena))
+		count_players(arena, totalp, playingp);
+
+	return arena;
 }
 
 

@@ -113,6 +113,8 @@ local int init_socket(void)
 {
 	int s, port;
 	struct sockaddr_in sin;
+	unsigned long int bindaddr;
+	const char *addr;
 
 #ifdef WIN32
 	WSADATA wsad;
@@ -126,10 +128,18 @@ local int init_socket(void)
 	port = cfg->GetInt(GLOBAL, "Net", "ChatPort", -1);
 	if (port == -1)
 		port = cfg->GetInt(GLOBAL, "Net", "Port", 5000) + 2;
+	/* cfghelp: Net:ChatBindIP, global, string, def: Net:BindIP, \
+	 * mod: chatnet
+	 * If this is set, it must be a single IP address that the server
+	 * should bind to for the text-based chat protocol. If unset, it
+	 * will use the value of Net:BindIP. */
+	addr = cfg->GetStr(GLOBAL, "Net", "ChatBindIP");
+	if (!addr) addr = cfg->GetStr(GLOBAL, "Net", "ChatBindIP");
+	bindaddr = addr ? inet_addr(addr) : INADDR_ANY;
 
 	sin.sin_family = AF_INET;
 	memset(sin.sin_zero, 0, sizeof(sin.sin_zero));
-	sin.sin_addr.s_addr = htonl(INADDR_ANY);
+	sin.sin_addr.s_addr = bindaddr;
 	sin.sin_port = htons(port);
 
 	s = socket(PF_INET, SOCK_STREAM, 0);

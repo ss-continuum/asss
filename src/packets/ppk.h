@@ -31,9 +31,9 @@ struct Weapons
 
 struct ExtraPosData
 {
-	unsigned int energy;
-	unsigned int s2cping;
-	unsigned int timer;
+	unsigned int energy : 16;
+	unsigned int s2cping : 16;
+	unsigned int timer : 16;
 	unsigned int shields : 1;
 	unsigned int super : 1;
 	unsigned int bursts : 4;

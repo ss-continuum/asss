@@ -24,4 +24,5 @@
 typedef int socklen_t;
 
 #define BROKEN_VSNPRINTF
+#define NEED_STRCASESTR
 

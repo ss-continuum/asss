@@ -63,30 +63,23 @@ typedef struct Iflags
 	INTERFACE_HEAD_DECL
 
 	void (*MoveFlag)(int arena, int fid, int x, int y, int freq);
-	/* arpc: void(int, int, int, int, int) */
 	/* moves the specified flag to the specified coordinates */
 
 	void (*FlagVictory)(int arena, int freq, int points);
-	/* arpc: void(int, int, int) */
 	/* ends the flag game (freq=-1 to reset flags with no winner) */
 
 	int (*GetCarriedFlags)(int pid);
-	/* arpc: int(int) */
 	/* a utility function to get the number of flags carried by a player */
 
 	int (*GetFreqFlags)(int arena, int freq);
-	/* arpc: int(int, int) */
 	/* a utility function to get the number of flags owned by a freq */
 
 	void (*LockFlagStatus)(int arena);
-	/* arpc: void(int) noop */
 	void (*UnlockFlagStatus)(int arena);
-	/* arpc: void(int) noop */
 	/* since the following array is global data, access must be
 	 * controlled by a mutex. */
 
 	struct ArenaFlagData *flagdata; /* indexed by arena */
-	/* arpc: null */
 } Iflags;
 
 

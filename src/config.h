@@ -57,29 +57,20 @@ typedef struct Iconfig
 	INTERFACE_HEAD_DECL
 
 	const char * (*GetStr)(ConfigHandle ch, const char *section, const char *key);
-	/* arpc: string(ConfigHandle, string, string) */
 	int (*GetInt)(ConfigHandle ch, const char *section, const char *key, int defvalue);
-	/* arpc: int(ConfigHandle, string, string, int) */
 
 	void (*SetStr)(ConfigHandle ch, const char *section, const char *key,
 			const char *value, const char *info);
-	/* arpc: void(ConfigHandle, string, string, string, string) */
 	void (*SetInt)(ConfigHandle ch, const char *section, const char *key,
 			int value, const char *info);
-	/* arpc: void(ConfigHandle, string, string, int, string) */
 
 	ConfigHandle (*OpenConfigFile)(const char *arena, const char *name,
 			ConfigChangedFunc func, void *clos);
-	/* arpc: ConfigHandle(string, string, voidptr, voidptr) */
 	void (*CloseConfigFile)(ConfigHandle ch);
-	/* arpc: void(ConfigHandle) */
 	void (*ReloadConfigFile)(ConfigHandle ch);
-	/* arpc: void(ConfigHandle) */
 
 	void (*FlushDirtyValues)(void);
-	/* arpc: void() */
 	void (*CheckModifiedFiles)(void);
-	/* arpc: void() */
 } Iconfig;
 
 

@@ -33,6 +33,8 @@
 #define CONTINUECHAR '\\'
 #define COMMENTCHARS "/;"
 
+#define MAX_RECURSION_DEPTH 50
+
 
 typedef struct FileEntry
 {
@@ -60,6 +62,7 @@ struct APPContext
 	IfBlock *ifs;
 	int processing;
 	HashTable *defs;
+	int depth;
 };
 
 
@@ -103,6 +106,7 @@ APPContext *InitContext(FileFinderFunc finder, ReportErrFunc err, const char *ar
 	ctx->ifs = NULL;
 	ctx->processing = 1;
 	ctx->defs = HashAlloc(53);
+	ctx->depth = 0;
 
 	return ctx;
 }
@@ -196,6 +200,13 @@ void AddFile(APPContext *ctx, const char *name)
 {
 	FileEntry *fe;
 
+	if (ctx->depth >= MAX_RECURSION_DEPTH)
+	{
+		do_error(ctx, "Maximum #include recursion depth reached while adding '%s'",
+				name);
+		return;
+	}
+
 	fe = get_file(ctx, name);
 	if (fe)
 	{
@@ -208,6 +219,7 @@ void AddFile(APPContext *ctx, const char *name)
 				tfe = tfe->prev;
 			tfe->prev = fe;
 		}
+		ctx->depth++;
 	}
 }
 
@@ -294,19 +306,15 @@ static void macro_expand(APPContext *ctx, char *dst, int destlen, const char *sr
 			}
 			else
 			{
-				char match = -1;
-
-				/* skip initial ( or { */
+				/* skip initial ( */
 				if (*src == '(')
-					src++, match = ')';
-				else if (*src == '{')
-					src++, match = '}';
+					src++;
 					
 				/* copy until non-alnum char */
 				while ((isalnum(*src) || *src == '_') && (k-key) < 63)
 					*k++ = *src++;
 				*k = 0;
-				if (*src == match) src++;
+				if (*src == ')') src++;
 
 				val = HashGetOne(ctx->defs, key);
 				if (val)
@@ -347,9 +355,9 @@ static void handle_directive(APPContext *ctx, char *buf)
 		/* trailing space, }, or ) */
 		t = buf + strlen(buf) - 1;
 		while (isspace(*t) || *t == '}' || *t == ')') *t-- = 0;
-		/* leading space */
-		t = buf + 5;
-		while (isspace(*t) || *t == '{' || *t == '(') t++;
+		/* leading space, }, ), or $ */
+		t = buf + 6;
+		while (isspace(*t) || *t == '{' || *t == '(' || *t == MACROCHAR) t++;
 		/* check it */
 		cond = (HashGetOne(ctx->defs, t) != NULL);
 		push_if(ctx, buf[2] == 'd' ? cond : !cond);
@@ -451,6 +459,7 @@ int GetLine(APPContext *ctx, char *buf, int buflen)
 					fclose(of->file);
 					afree(of->fname);
 					afree(of);
+					ctx->depth--;
 				}
 				else
 					break;

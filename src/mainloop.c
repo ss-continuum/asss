@@ -103,9 +103,8 @@ int RunLoop(void)
 		LLEmpty(&freelist);
 		UNLOCK();
 
-		/* rest a bit */
-		sched_yield();
-		usleep(10000); /* 1/100 sec */
+		/* rest a bit: 1/100 sec */
+		usleep(10000);
 	}
 
 	return privatequit & 0xff;

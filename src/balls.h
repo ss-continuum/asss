@@ -57,29 +57,23 @@ typedef struct Iballs
 	INTERFACE_HEAD_DECL
 
 	void (*SetBallCount)(int arena, int ballcount);
-	/* arpc: void(int, int) */
 	/* sets the number of balls in the arena. if the new count is higher
 	 * than the current one, new balls are spawned. if it's lower, the
 	 * dead balls are "phased" in the upper left corner. */
 
 	void (*PlaceBall)(int arena, int bid, struct BallData *newpos);
-	/* arpc: void(int, int, BallData) */
 	/* sets the parameters of the ball to those in the given BallData
 	 * struct */
 
 	void (*EndGame)(int arena);
-	/* arpc: void(int) */
 	/* ends the ball game */
 
 	void (*LockBallStatus)(int arena);
-	/* arpc: void(int) noop */
 	void (*UnlockBallStatus)(int arena);
-	/* arpc: void(int) noop */
 	/* since the following array is global data, access must be
 	 * controlled by a mutex. */
 
 	struct ArenaBallData *balldata; /* indexed by arena */
-	/* arpc: null */
 } Iballs;
 
 

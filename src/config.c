@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -164,17 +165,17 @@ local void do_load(ConfigHandle ch, const char *arena, const char *name)
 		while (*buf && (*buf == ' ' || *buf == '\t')) buf++;
 		/* kill trailing spaces */
 		t = buf + strlen(buf) - 1;
-		while (t >= buf && (*t == ' ' || *t == '\t' || *t == '\r' || *t == '\n')) t--;
+		while (t >= buf && isspace(*t)) t--;
 		*++t = 0;
 
-		if (*buf == '[' || *buf == '{')
+		if (*buf == '[')
 		{
 			/* new section: copy to key name */
 			/* skip leading brackets/spaces */
-			while (*buf == '[' || *buf == '{' || *buf == ' ' || *buf == '\t') buf++;
+			while (*buf == '[' || *buf == ' ' || *buf == '\t') buf++;
 			/* get rid of training spaces or brackets */
 			t = buf + strlen(buf) - 1;
-			while (*t == ']' || *t == '}' || *t == ' ' || *t == '\t') *t-- = 0;
+			while (*t == ']' || *t == ' ' || *t == '\t') *t-- = 0;
 			/* copy section name into key */
 			strncpy(key, buf, MAXSECTIONLEN);
 			strcat(key, ":");

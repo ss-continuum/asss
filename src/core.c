@@ -267,14 +267,14 @@ void ProcessLoginQueue(void)
 				break;
 
 			case S_DO_FREQ_AND_ARENA_SYNC:
+				/* the arena will be fully loaded here */
 				/* first, do pre-callbacks */
 				DO_CBS(CB_PLAYERACTION,
 				       player->arena,
 				       PlayerActionFunc,
 				       (pid, PA_PREENTERARENA, player->arena));
-				/* then, get a freq */
-				/* yes, player->shiptype will be set here because it's
-				 * done in PArena */
+				/* then, get a freq (player->shiptype will be set here
+				 * because it's done in PArena) */
 				{
 					Ifreqman *fm = mm->GetInterface(I_FREQMAN, player->arena);
 					int freq = 0, ship = player->shiptype;

@@ -259,8 +259,6 @@ local void handle_pub(int pid, const char *msg, int ismacro)
 		to->pid = pid;
 		strcpy(to->text, msg);
 
-		lm->LogP(L_DRIVEL, "chat", pid, "Pub msg: %s", msg);
-
 		if (net)
 			net->SendToArena(arena, pid, (byte*)to, strlen(msg)+6,
 					ismacro ? cfg_msgrel | NET_PRI_N1 : cfg_msgrel);
@@ -268,6 +266,10 @@ local void handle_pub(int pid, const char *msg, int ismacro)
 			chatnet->SendToArena(arena, pid, "MSG:PUB:%s:%s",
 				players[pid].name,
 				msg);
+
+		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (pid, to->type, -1, msg));
+
+		lm->LogP(L_DRIVEL, "chat", pid, "Pub msg: %s", msg);
 	}
 }
 
@@ -299,6 +301,7 @@ local void handle_modchat(int pid, const char *msg)
 			if (net) net->SendToSet(set, (byte*)to, strlen(to->text)+6, NET_RELIABLE);
 			if (chatnet) chatnet->SendToSet(set, "MSG:MOD:%s:%s",
 					players[pid].name, msg);
+			DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (pid, MSG_MODCHAT, -1, msg));
 			lm->LogP(L_DRIVEL, "chat", pid, "Mod chat: %s", msg);
 		}
 		else
@@ -350,7 +353,7 @@ local void handle_freq(int pid, int freq, const char *msg)
 		if (chatnet) chatnet->SendToSet(set, "MSG:FREQ:%s:%s",
 				players[pid].name,
 				msg);
-
+		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (pid, MSG_FREQ, freq, msg));
 		lm->LogP(L_DRIVEL, "chat", pid, "Freq msg (%d): %s", freq, msg);
 	}
 }
@@ -387,6 +390,9 @@ local void handle_priv(int pid, int dst, const char *msg)
 		else if (IS_CHAT(dst))
 			chatnet->SendToOne(dst, "MSG:PRIV:%s:%s",
 					players[pid].name, msg);
+#ifdef CFG_LOG_PRIVATE
+		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (pid, MSG_PRIV, dst, msg));
+#endif
 	}
 }
 
@@ -395,6 +401,7 @@ local void handle_chat(int pid, const char *msg)
 {
 #ifdef CFG_LOG_PRIVATE
 	lm->LogP(L_DRIVEL, "chat", pid, "Chat msg: %s", msg);
+	DO_CBS(CB_CHATMSG, ALLARENAS, ChatMsgFunc, (pid, MSG_CHAT, -1, msg));
 #endif
 }
 

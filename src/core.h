@@ -76,11 +76,8 @@ typedef struct Ifreqman
 {
 	INTERFACE_HEAD_DECL
 	void (*InitialFreq)(int pid, int *ship, int *freq);
-	/* arpc: void(int, intptr, intptr) */
 	void (*ShipChange)(int pid, int *ship, int *freq);
-	/* arpc: void(int, intptr, intptr) */
 	void (*FreqChange)(int pid, int *ship, int *freq);
-	/* arpc: void(int, intptr, intptr) */
 } Ifreqman;
 
 
