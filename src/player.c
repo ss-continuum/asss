@@ -1,6 +1,7 @@
 
 /* dist: public */
 
+#include <time.h>
 #include <string.h>
 #include <assert.h>
 
@@ -9,6 +10,7 @@
 #include "asss.h"
 
 #define USE_RWLOCK
+#define PID_REUSE_DELAY 10 /* how many seconds before we re-use a pid */
 
 /* static data */
 
@@ -30,7 +32,14 @@ local pthread_mutex_t plock;
 
 #define pd (&pdint)
 
-local Player **pidmap;
+/* the pidmap doubles as a freelist of pids */
+local struct
+{
+	Player *p;
+	int next;
+	time_t available;
+} *pidmap;
+local int firstfreepid;
 local int pidmapsize;
 local int perplayerspace;
 #ifdef CFG_DYNAMIC_PPD
@@ -73,10 +82,8 @@ local void WriteUnlock(void)
 	WULOCK();
 }
 
-
-local Player * NewPlayer(int type)
+local Player * alloc_player(void)
 {
-	int pid;
 #ifdef CFG_DYNAMIC_PPD
 	Player *p = amalloc(sizeof(*p));
 	pthread_mutex_lock(&extradatamtx);
@@ -85,26 +92,53 @@ local Player * NewPlayer(int type)
 #else
 	Player *p = amalloc(sizeof(*p) + perplayerspace);
 #endif
-
 	*(unsigned*)PPDATA(p, magickey) = MODMAN_MAGIC;
 	pthread_mutex_init((pthread_mutex_t*)PPDATA(p, mtxkey), &recmtxattr);
+	return p;
+}
+
+local Player * NewPlayer(int type)
+{
+	time_t now;
+	int pid, *ptr;
+	Player *p;
 
 	WRLOCK();
-	/* find a free pid */
-	for (pid = 0; pidmap[pid] != NULL && pid < pidmapsize; pid++) ;
+	now = time(NULL);
 
-	if (pid == pidmapsize)
+	/* find a free pid that's available */
+	ptr = &firstfreepid;
+	pid = firstfreepid;
+	while (pid != -1 && pidmap[pid].available > now)
 	{
-		/* no more pids left */
+		ptr = &pidmap[pid].next;
+		pid = pidmap[pid].next;
+	}
+
+	if (pid == -1)
+	{
+		/* no available pids */
 		int newsize = pidmapsize * 2;
-		pidmap = arealloc(pidmap, newsize * sizeof(Player*));
+		pidmap = arealloc(pidmap, newsize * sizeof(pidmap[0]));
 		for (pid = pidmapsize; pid < newsize; pid++)
-			pidmap[pid] = 0;
-		pid = pidmapsize;
+		{
+			pidmap[pid].p = NULL;
+			pidmap[pid].next = pid + 1;
+			pidmap[pid].available = 0;
+		}
+		pidmap[newsize-1].next = firstfreepid;
+		firstfreepid = pidmapsize;
+		ptr = &firstfreepid;
+		pid = firstfreepid;
 		pidmapsize = newsize;
 	}
 
-	pidmap[pid] = p;
+	*ptr = pidmap[pid].next;
+
+	p = pidmap[pid].p;
+	if (!p)
+		p = pidmap[pid].p = alloc_player();
+
 	LLAdd(&pd->playerlist, p);
 	WULOCK();
 
@@ -133,7 +167,10 @@ local void FreePlayer(Player *p)
 
 	WRLOCK();
 	LLRemove(&pd->playerlist, p);
-	pidmap[p->pid] = NULL;
+	pidmap[p->pid].p = NULL;
+	pidmap[p->pid].available = time(NULL) + PID_REUSE_DELAY;
+	pidmap[p->pid].next = firstfreepid;
+	firstfreepid = p->pid;
 	WULOCK();
 
 	pthread_mutex_destroy((pthread_mutex_t*)PPDATA(p, mtxkey));
@@ -151,7 +188,7 @@ local Player * PidToPlayer(int pid)
 	RDLOCK();
 	if (pid >= 0 && pid < pidmapsize)
 	{
-		Player *p = pidmap[pid];
+		Player *p = pidmap[pid].p;
 		RULOCK();
 		return p;
 	}
@@ -380,9 +417,15 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 
 		/* init some basic data */
 		pidmapsize = 256;
-		pidmap = amalloc(pidmapsize * sizeof(Player*));
+		pidmap = amalloc(pidmapsize * sizeof(pidmap[0]));
 		for (i = 0; i < pidmapsize; i++)
-			pidmap[i] = NULL;
+		{
+			pidmap[i].p = NULL;
+			pidmap[i].next = i + 1;
+			pidmap[i].available = 0;
+		}
+		pidmap[pidmapsize-1].next = -1;
+		firstfreepid = 0;
 
 		LLInit(&pd->playerlist);
 
@@ -397,7 +440,7 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(cfg);
 #endif
 
-		dummykey = AllocatePlayerData(4);
+		dummykey = AllocatePlayerData(sizeof(unsigned));
 		magickey = AllocatePlayerData(sizeof(unsigned));
 		mtxkey = AllocatePlayerData(sizeof(pthread_mutex_t));
 
