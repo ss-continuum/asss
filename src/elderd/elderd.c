@@ -18,6 +18,18 @@
 #include "elderd.h"
 #include "ooputils.h"
 
+/*
+ * a note about naming
+ *
+ * the scheme interpreter that this thing embeds is called MzScheme.
+ * if you look at the rest of their projects at:
+ * http://www.cs.rice.edu/CS/PLT/packages/
+ * you can see they have a strange theme to their names: all of the
+ * programs get "titles" like people would. so I tried to think of a
+ * title to add to "daemon" because "scheme daemon" sounds dumb. so I
+ * came up with "elder daemon", which sounds slightly cooler.
+ *
+ */
 
 /* util options */
 
