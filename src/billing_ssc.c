@@ -49,7 +49,7 @@ local enum
 	s_disabled
 } state;
 
-local time_t lastretry; /* doubles as lastping */
+local time_t lastevent;
 local int pdkey;
 local pthread_mutex_t mtx;
 
@@ -106,7 +106,7 @@ local void drop_connection(int newstate)
 	}
 
 	state = newstate;
-	lastretry = time(NULL);
+	lastevent = time(NULL);
 }
 
 /* the auth interface */
@@ -849,6 +849,22 @@ local void process_identity(const char *data, int len)
 
 /* the dispatcher */
 
+local void logged_in(void)
+{
+	struct S2B_ServerCapabilities cpkt = {S2B_SERVER_CAPABILITIES,1,0};
+
+	chat->SendArenaMessage(ALLARENAS,
+			"Notice: Connection to user database server restored. "
+			"Log in again for full functionality");
+
+	netcli->SendPacket(cc, (byte*)&cpkt, sizeof(cpkt), NET_RELIABLE);
+	state = s_loggedin;
+	idlen = -1;
+
+	lm->Log(L_INFO, "<billing_ssc> logged in to user database server");
+}
+
+
 local void process_packet(byte *pkt, int len)
 {
 	pthread_mutex_lock(&mtx);
@@ -856,19 +872,7 @@ local void process_packet(byte *pkt, int len)
 	/* move past waitlogin on any packet (other than 0007, which won't
 	 * get here). */
 	if (state == s_waitlogin)
-	{
-		struct S2B_ServerCapabilities cpkt = {S2B_SERVER_CAPABILITIES,1,0};
-
-		chat->SendArenaMessage(ALLARENAS,
-				"Notice: Connection to user database server restored. "
-				"Log in again for full functionality");
-
-		netcli->SendPacket(cc, (byte*)&cpkt, sizeof(cpkt), NET_RELIABLE);
-		state = s_loggedin;
-		idlen = -1;
-
-		lm->Log(L_INFO, "<billing_ssc> user database server logged in");
-	}
+		logged_in();
 
 	switch (*pkt)
 	{
@@ -936,10 +940,10 @@ local void got_connection(void)
 	astrncpy(pkt.Password, password?password:"", sizeof(pkt.Password));
 
 	netcli->SendPacket(cc, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
-	lm->Log(L_INFO, "<billing_ssc> connected to user database server");
+	lm->Log(L_INFO, "<billing_ssc> connected to user database server, logging in");
 
 	state = s_waitlogin;
-	lastretry = time(NULL);
+	lastevent = time(NULL);
 }
 
 
@@ -987,7 +991,7 @@ local int do_one_iter(void *v)
 			}
 			else
 				state = s_retry;
-			lastretry = time(NULL);
+			lastevent = time(NULL);
 		}
 	}
 	else if (state == s_connecting)
@@ -999,15 +1003,20 @@ local int do_one_iter(void *v)
 		/* this billing protocol doesn't respond to the login packet,
 		 * but process_packet will set the next state when it gets any
 		 * packet. */
+		/* um, but only ssc proactively sends us a packet after a good
+		 * login. for others, assume good after a few seconds without
+		 * getting kicked off. */
+		if (time(NULL) - lastevent >= 5)
+			logged_in();
 	}
 	else if (state == s_loggedin)
 	{
 		time_t now = time(NULL);
-		if (now - lastretry >= 60)
+		if (now - lastevent >= 60)
 		{
 			u8 pkt=S2B_PING;
 			netcli->SendPacket(cc, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
-			lastretry = now;
+			lastevent = now;
 		}
 
 		if (now - interrupted_damp_time >= 10)
@@ -1017,7 +1026,7 @@ local int do_one_iter(void *v)
 		}
 	}
 	else if (state == s_retry)
-		if ( (time(NULL) - lastretry) > cfg_retryseconds)
+		if ( (time(NULL) - lastevent) > cfg_retryseconds)
 			state = s_no_socket;
 	pthread_mutex_unlock(&mtx);
 
