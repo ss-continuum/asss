@@ -9,6 +9,12 @@ cmd_time
 
 cmd_version
 cmd_listmods
+cmd_getgroup
+privcmd_getgroup
+
+; this isn't as dangerous as it looks.
+; you need more capabilities to set other people's groups.
+privcmd_setgroup
 
 privcmd_freqkick
 privcmd_giveowner

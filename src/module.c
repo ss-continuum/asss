@@ -150,6 +150,7 @@ int LoadMod(const char *_spec)
 			if (quote)
 				*quote=0;
 		}
+		path = buf;
 #endif
 		mod->myself = 1;
 	}

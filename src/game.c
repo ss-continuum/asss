@@ -201,7 +201,7 @@ void Pppk(int pid, byte *p2, int n)
 	int regset[MAXPLAYERS+1], epdset[MAXPLAYERS+1];
 
 	/* handle common errors */
-	if (ARENA_BAD(arena)) return;
+	if (ARENA_BAD(arena) || aman->arenas[arena].status != ARENA_RUNNING) return;
 
 	/* do checksum */
 	{

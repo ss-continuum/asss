@@ -113,7 +113,10 @@ void *amalloc(size_t s)
 
 char *astrdup(const char *s)
 {
-	char *r = strdup(s);
+	char *r;
+	if (!s)
+		return NULL;
+	r = strdup(s);
 	if (!r)
 		Error(ERROR_MEMORY,"strdup error\n");
 	return r;

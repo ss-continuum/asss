@@ -19,6 +19,7 @@ privcmd_report
 
 privcmd_setship
 privcmd_setfreq
+privcmd_shipreset
 
 ; fun stuff
 cmd_brickwrite

@@ -263,7 +263,7 @@ void FindFlagTile(int arena, int *x, int *y)
 {
 	/* init context. these values are funny because they are one
 	 * iteration before where we really want to start from. */
-	struct SpiralContext
+	struct
 	{
 		enum { down, right, up, left } dir;
 		int upto, remaining;
@@ -490,11 +490,12 @@ const char *GetRegion(int arena, int x, int y)
 
 int InRegion(int arena, const char *region, int x, int y)
 {
-	struct Region *reg = HashGetOne(mapdata[arena].regions, region);
+	struct Region *reg;
 
-	if (!reg)
+	if (!mapdata[arena].regions)
 		return 0;
-	else
+
+	if ((reg = HashGetOne(mapdata[arena].regions, region)))
 	{
 		int i;
 		rect_t *r;
@@ -506,6 +507,8 @@ int InRegion(int arena, const char *region, int x, int y)
 				return 1;
 		return 0;
 	}
+	else
+		return 0;
 }
 
 
