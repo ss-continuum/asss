@@ -25,6 +25,10 @@
  * the Command function can be used to process a command. the chat
  * module uses that function to process all typed commands.
  *
+ * if the first character of a line passed to Command is a backslash,
+ * command handlers in asss will be skipped and the command will be
+ * passed directly to the default handler (usually a billing server).
+ *
  * a final note: there is no difference between ? commands and *
  * commands! any prior distinction was artificial and i don't like
  * artificial distinctions.

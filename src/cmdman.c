@@ -255,8 +255,15 @@ void Command(const char *line, Player *p, const Target *target)
 {
 	LinkedList lst = LL_INITIALIZER;
 	char cmd[40], *t;
-	int private;
-	const char *origline = line;
+	int private, skiplocal = FALSE;
+	const char *origline;
+
+	if (line[0] == '\\')
+	{
+		line++;
+		skiplocal = TRUE;
+	}
+	origline = line;
 
 	/* find end of command */
 	t = cmd;
@@ -273,7 +280,7 @@ void Command(const char *line, Player *p, const Target *target)
 	pthread_mutex_lock(&cmdmtx);
 	HashGetAppend(cmds, cmd, &lst);
 
-	if (LLIsEmpty(&lst))
+	if (skiplocal || LLIsEmpty(&lst))
 	{
 		/* we don't know about this, send it to the biller */
 		if (defaultfunc2)

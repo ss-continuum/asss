@@ -410,6 +410,45 @@ local void Cattmod(const char *params, Player *p, const Target *target)
 }
 
 
+local helptext_t find_help =
+"Targets: none\n"
+"Args: <all or part of a player name>\n"
+"Tells you where the specified player is right now. If you specify\n"
+"only part of a player name, it will try to find a matching name\n"
+"using a case insensitive substring search.\n";
+
+local void Cfind(const char *params, Player *p, const Target *target)
+{
+	Link *link;
+	Player *i;
+	char newcmd[64];
+
+	if (target->type != T_ARENA || !*params) return;
+
+	pd->Lock();
+	FOR_EACH_PLAYER(i)
+	{
+		if (i->status == S_PLAYING &&
+		    strcasestr(i->name, params))
+		{
+			if (i->arena->name[0] != '#' ||
+			    capman->HasCapability(p, CAP_SEEPRIVARENA) ||
+			    p->arena == i->arena)
+				chat->SendMessage(p, "%s is in arena %s.", i->name, i->arena->name);
+			else
+				chat->SendMessage(p, "%s is in a private arena.", i->name);
+			pd->Unlock();
+			return;
+		}
+	}
+	pd->Unlock();
+
+	/* if not found, fall back to the default */
+	snprintf(newcmd, sizeof(newcmd), "\\find %s", params);
+	cmd->Command(newcmd, p, target);
+}
+
+
 local helptext_t getgroup_help =
 "Targets: player or none\n"
 "Args: none\n"
@@ -2056,6 +2095,7 @@ local const struct cmd_info misc_commands[] =
 	CMD(rmgroup)
 	CMD(grplogin)
 	CMD(listmod)
+	CMD(find)
 	CMD(setcm)
 	CMD(getcm)
 	CMD(listarena)
