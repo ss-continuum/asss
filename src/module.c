@@ -31,8 +31,8 @@ local void RegInterest(int, void**);
 local void UnregInterest(int, void**);
 local void RegInterface(int, void *);
 local void UnregInterface(void *);
-local void AddCallback(char *, void *);
-local void RemoveCallback(char *, void *);
+local void RegCallback(char *, void *);
+local void UnregCallback(char *, void *);
 local LinkedList * LookupCallback(char *);
 local void FreeLookupResult(LinkedList *);
 
@@ -55,7 +55,7 @@ local Imodman mmint =
 {
 	LoadModule, UnloadModule, UnloadAllModules,
 	RegInterest, UnregInterest, RegInterface, UnregInterface,
-	AddCallback, RemoveCallback, LookupCallback, FreeLookupResult,
+	RegCallback, UnregCallback, LookupCallback, FreeLookupResult,
 	FindPlayer, players, NULL
 };
 
@@ -248,12 +248,12 @@ int UnregInterface(int ii, void *face)
 	return c;
 }
 
-void AddCallback(char *id, void *f)
+void RegCallback(char *id, void *f)
 {
 	HashAdd(callbacks, id, f);
 }
 
-void RemoveCallback(char *id, void *f)
+void UnregCallback(char *id, void *f)
 {
 	HashRemove(callbacks, id, f);
 }

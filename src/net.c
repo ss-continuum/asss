@@ -186,9 +186,9 @@ int MM_net(int action, Imodman *mm)
 
 		/* install our main loop entry points */
 		for (i = 0; i < cfg_process; i++)
-			mm->AddCallback(CALLBACK_MAINLOOP, RecvPacket);
-		mm->AddCallback(CALLBACK_MAINLOOP, CheckBuffers);
-		mm->AddCallback(CALLBACK_MAINLOOP, RecvOtherPackets);
+			mm->RegCallback(CALLBACK_MAINLOOP, RecvPacket);
+		mm->RegCallback(CALLBACK_MAINLOOP, CheckBuffers);
+		mm->RegCallback(CALLBACK_MAINLOOP, RecvOtherPackets);
 
 		/* install ourself */
 		mm->RegInterface(I_NET, &_int);
@@ -201,9 +201,9 @@ int MM_net(int action, Imodman *mm)
 		/* get rid of main loop entries */
 		ml = mm->GetInterface(I_MAINLOOP);
 		for (i = 0; i < cfg_process; i++)
-			mm->RemoveCallback(CALLBACK_MAINLOOP, RecvPacket);
-		mm->RemoveCallback(CALLBACK_MAINLOOP, CheckBuffers);
-		mm->RemoveCallback(CALLBACK_MAINLOOP, RecvOtherPackets);
+			mm->UnregCallback(CALLBACK_MAINLOOP, RecvPacket);
+		mm->UnregCallback(CALLBACK_MAINLOOP, CheckBuffers);
+		mm->UnregCallback(CALLBACK_MAINLOOP, RecvOtherPackets);
 
 		/* free memory */
 		for (i = 0; i < MAXTYPES; i++) LLFree(handlers[i]);

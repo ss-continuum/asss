@@ -27,12 +27,12 @@ int MM_log_file(int action, Imodman *mm)
 		sprintf(fname, "log/%s", ln);
 		logfile = fopen(fname, "a");
 		if (!logfile) return MM_FAIL;
-		mm->AddCallback(CALLBACK_LOGFUNC, LogFile);
+		mm->RegCallback(CALLBACK_LOGFUNC, LogFile);
 	}
 	else if (action == MM_UNLOAD)
 	{
 		log = mm->GetInterface(I_LOGMAN);
-		mm->RemoveCallback(CALLBACK_LOGFUNC, LogFile);
+		mm->UnregCallback(CALLBACK_LOGFUNC, LogFile);
 		fclose(logfile);
 	}
 	else if (action == MM_DESCRIBE)

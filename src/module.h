@@ -47,8 +47,8 @@ typedef struct Imodman
 	void (*RegInterface)(int id, void *iface);
 	void (*UnregInterface)(void *iface);
 
-	void (*AddCallback)(char *id, void *func);
-	void (*RemoveCallback)(char *id, void *func);
+	void (*RegCallback)(char *id, void *func);
+	void (*UnregCallback)(char *id, void *func);
 	LinkedList * (*LookupCallback)(char *id);
 	void (*FreeLookupResult)(LinkedList *lst);
 

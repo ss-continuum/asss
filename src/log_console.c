@@ -15,13 +15,13 @@ int MM_log_console(int action, Imodman *mm)
 	{
 		log = mm->GetInterface(I_LOGMAN);
 		if (!log) return MM_FAIL;
-		mm->AddCallback(CALLBACK_LOGFUNC, LogConsole);
+		mm->RegCallback(CALLBACK_LOGFUNC, LogConsole);
 	}
 	else if (action == MM_UNLOAD)
 	{
 		log = mm->GetInterface(I_LOGMAN);
 		if (!log) return MM_FAIL;
-		mm->RemoveCallback(CALLBACK_LOGFUNC, LogConsole);
+		mm->UnregCallback(CALLBACK_LOGFUNC, LogConsole);
 	}
 	else if (action == MM_DESCRIBE)
 	{
