@@ -33,7 +33,8 @@
 
 \asss{} is a new server for Subspace/Continuum. It was written from
 scratch by Grelminar (\verb/grelminar@yahoo.com/), with help from Mine
-GO BOOM, Stag Shot, and divine.216. % and numpf, if he ever gets around to helping
+GO BOOM, Stag Shot, and divine.216.
+% and numpf, if he ever gets around to helping
 The name \asss{} stands for ``a small subspace server.''
 
 Although care has been taken to remain compatible with the original
@@ -52,14 +53,23 @@ also, people running it on non-Linux systems should not expect
 everything to work perfectly: there may be missing features and it may
 run slower.
 
-The requirements for running \asss{} on Linux are very simple: The
+The requirements for running \asss{} on Linux are pretty minimal: The
 system should have the pthreads library (any recent Linux system
 should), Berkeley DB 4.0 or greater (older versions won't work), and
-zlib. To compile \asss{} from source (on either Linux or Windows), the
-include files for those libraries must be installed, as well as a C
-compiler. If you've obtained the source from CVS, you'll also need the
-Python interpreter in order to generate certain files. If you're using a
-tarball instead, it will come with those files present already.
+zlib. It also has optional mysql support, currently used only for the
+built-in alias database. To compile \asss{} from source (on either Linux
+or Windows), the include files for those libraries must be installed, as
+well as a C compiler. If you've obtained the source from CVS, you'll
+also need the Python interpreter in order to generate certain files. If
+you're using a tarball instead, it will come with those files present
+already.
+
+If you're missing mysql, you'll have to edit the Makefile by hand and
+remove \verb/database.so/ from the list of libraries to build.
+
+If you're missing Berkeley DB, you can still build \asss{}, but it'll be
+missing all support for scores and any other persistent information.
+You'll have to remove \verb/scoring.so/ from the list of libraries.
 
 Currently, only Intel platforms are supported because of byte-order
 issues. Eventually, \asss{} will be able to run on other architectures,
@@ -114,7 +124,7 @@ Here's what a typical machine's file layout should look like:
 | | + global.conf
 | | + modules.conf
 | | + groupdef.conf
-| | + groups
+| | + groupdef.dir
 | | | + default
 | | | + mod
 | | | + smod
@@ -174,13 +184,17 @@ function.
 \verb/log/ will be used by the server to deposit any log files that it
 creates.
 
+\verb/data/ is used to keep the database holding all persistent
+information, including scores. Information for all arenas is kept in the
+same database file.
+
 \verb/maps/ is an optional directory that the server will search for
 \verb/.lvl/ files in. These files can also be located in arena
 directories, so this isn't a required directory. It might simplify
 administration, though, to keep all map files in this directory.
 
 Each arena gets its own directory for storing settings related to that
-arena, as well as persistent data for that arena.
+arena, as well as maps and \verb/.lvz/ files.
 
 The default arena (also called the public arena) keeps its data in the
 directory \verb/defaultarena/, relative to the base directory for the
@@ -206,7 +220,7 @@ library can contain any number of modules.
 
 There are currently
 % grep 'int MM_' ~/src/asss/src/*.c | wc -l
-45
+54
 modules that are part of \asss{}, but each zone might have some
 custom-developed modules for their zone as well.
 
@@ -382,11 +396,11 @@ servers or bugs in the server itself.
 
 There are currently
 % cat ~/src/asss/src/*.c | grep ">Log[AP]\?(L_" -c
-175
+209
 % cat ~/src/asss/src/*.c | grep ">Log[AP]\?(L_" | sed 's/.*>Log[AP]\?(L_\([A-Z]*\).*/\1/' | sort | uniq -c
-distinct log messages in the server. By type, there are 23 ERROR
-messages, 30 WARN messages, 55 MALICIOUS messages, 25 INFO messages, and
-42 DRIVEL messages.
+distinct log messages in the server. By type, there are 25 ERROR
+messages, 49 WARN messages, 59 MALICIOUS messages, 30 INFO messages, and
+46 DRIVEL messages.
 
 \subsection{Filtering}
 
@@ -512,6 +526,25 @@ can send multiple private commands, but you can't send both public and
 private commands on the same line.
 
 
+\subsection{Built-in alias database}
+
+\requiremod{mysql, aliasdb}
+\asss{} includes a hastily-written alias database. The alias database
+depends on mysql support, although it's written so that it should be
+easy to port to another relational database if necessary.
+
+All logins are automatically entered if the \verb/aliasdb/ module is
+loaded. There are several ways to query the database: \verb/?qalias/
+isn't written yet, but it will be the most useful interface when it's
+done. \verb/?qip/ allows you to query by IP address range.
+\verb/?rawquery/ allows you to make custom queries with most SQL
+commands. You can find the documentation for these commands in the
+Commands section.
+
+The \verb/?last/ command uses the alias database to find the last 10
+people to log in.
+
+
 \section{Bandwidth Throttling}
 
 \asss{} supports bandwidth throttling for players on slower connections.
@@ -531,9 +564,39 @@ second half.
 % FIXME: include description of the ?{get,set}bandwidth commands
 
 
-%\section{Lag Control}
-%
-%
+\section{Lag Control}
+
+Lag, which includes both latency and packetloss, is difficult to measure
+accurately and control. \asss{} does as well as it can with limited
+information.
+
+There are several ways that the server collects latency information:
+Position packets sent from the client contain timestamps that the server
+can compare to its own current time to determine approximately how long
+the packet took to get there. This is complicated by the fact that the
+times on the server and client aren't always perfectly synchronized.
+Reliable packets need to be acknowledged, and the round-trip time
+between the sending of a reliable packet and the reciept of its
+acknowledgement can be measured. That will be equal to approximately
+twice the one-way latency, but that isn't exact either because the two
+trips might take different amounts of time. Finally, the client can
+measure latency using the same techniques, and periodically send its
+results to the server for processing.
+
+Packetloss is slightly easier: the client and server can keep track of
+how many packets each has sent and recieved, and compare numbers
+periodically. Reliable packets also provide oppertunities to measure
+packetloss: if a reliable packet isn't acknowledged within the timeout,
+the server knows either the original packet or the acknowledgement got
+lost. If a reliable packet is recieved twice, the server knows the
+acknowledgement got lost. Again, the client can also measure these
+numbers and send the results to the server.
+
+% FIXME: describe actions the server takes for lag, and the settings
+% that control them.
+
+
+
 %\section{Regions}
 %
 %\subsection{What are regions?}
@@ -545,7 +608,7 @@ second half.
 
 These are all of the commands that the server currently recognizes. Not
 all of them will always be available. If a command requires a module
-that isn't likely to be loaded, that will be indicated above its
+that's not one of the core modules, that will be indicated above its
 description. Most other commands require the \texttt{playercmd} module.
 
 Possible targets are listed for each command. The targets can be
@@ -565,10 +628,47 @@ be fully customized for each particular server.
 
 \section{Configuration}
 
-% write stuff about general format of config files:
-% sections
-% macros/ifdef/ifndef/else/endif
-% line continuations
+All config files used by \asss{} (except \verb/modules.conf/) have the
+same format and conventions. The format is roughly based on, and is
+backwards compatible with, the Windows \verb/.ini/ file format, so
+\verb/server.cfg/ files can be used as-is, although you'll probably need
+to add a few settings to get things working well.
+
+Config files are processed line-by-line. All leading and trailing
+whitespace is ignored. A line is a comment if the first character
+(ignoring whitespace) is a semicolon or a forward slash. If the first
+character is a pound sign, it signals a preprocessor directive. These
+directives work very much like C preprocessor directives:
+\verb/#include/ allows one config file to include another.
+\verb/#define/ allows macros to be defined. Macros cannot currently take
+arguments. To reference the definition of a macro, you have to use
+\verb/$(MACRONAME)/, not just the name of the macro. (Curly braces can
+be used instead of parents, and either of them can be omitted entirely
+if the character after the end of the macro name isn't alphanumeric.)
+\verb/#ifdef/, \verb/#ifndef/, \verb/#else/, and \verb/#endif/ allow
+conditional inclusion of sections based on whether a specific macro is
+defined or not. If a line ends with a backslash, it denotes a line
+continuation: the following line of the file (or more if that line ends
+with a backslash) is appended to the original line before it is
+processed.
+
+The start of a section is a line starting with an open bracket and
+ending with a closing bracket. The text between the brackets is the
+section name. Any line containing an equals sign is a value: the text
+before the equals is the key name (minus leading and trailing
+whitespace) and the text after (again minus whitespace) is the value.
+Section names and values are case-insensitive, but the case of values is
+preserved. Lines that don't contain an equals sign also specify keys,
+and their associated value is the empty string. Value-less keys are used
+primarily in the capability manager, where the presence or absence of a
+capability is all that's important.
+
+If a key name contains a colon, it is treated specially: the text before
+the colon is treated as the section name for this key only (it doesn't
+modify the idea of the ``current section'') and the text after the colon
+is the key name.
+
+The following sections describe specific settings.
 
 \subsection{Flags}
 
