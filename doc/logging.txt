@@ -1,0 +1,79 @@
+
+Current model:
+
+there are n log levels. each call to Log specifies a log level. log
+handlers get the level and can choose to display or not display it.
+
+
+Desired traits of new model:
+
+each log message should have some information about which module
+generated it.
+
+it should also have a class, which roughly corresponds to severity, but
+provides a bit more information.
+
+log handlers should get both pieces of information and decide what to
+do.
+
+
+New model:
+
+void Log(char *callingmod, int class, char *format, ...);
+
+typedef void (*LogFunc)(char *callingmod, int class, char *message);
+
+each module will define macros:
+
+#define MODULE_SELF "mymodname"
+#define LOG(cls, ...) log->Log(MODULE_SELF, LOG_##cls, __VA_ARGS__)
+#define DBG(...) log->Log(MODULE_SELF, LOG_DEBUG, __VA_ARGS__)
+
+Classes will be the following:
+
+LOG_CHAT      chat stuff
+LOG_GAME      game stuff
+LOG_MODULE    module system
+LOG_CONFIG    configuration stuff
+LOG_ARENA     arena things
+LOG_COMMAND   commands executed by people
+LOG_SCORES    score stuff
+LOG_DEBUG     debugging info
+LOG_BADDATA   bad data from players
+LOG_ERROR     internal errors
+
+
+But maybe we can get away with leaving out the calling module. It's nice
+to have, but unless it can be done automatically (and accurately), it's
+ok to do without it.
+
+Thus, the new model is the same as the old except the levels are
+replaced by classes.
+
+void Log(int class, char *format, ...);
+typedef void (*LogFunc)(char *message);
+
+
+Logger modules should have a uniform system to allow ops to configure
+what classes they see. This probably means it should be handled by
+logman.
+
+Logging modules will register with a name. The global config file will
+specify what messages to send to which modules.
+
+Config file example:
+
+[Logging]
+console = allbut game chat
+file = allbut module config debug
+sysop = only baddata error
+
+Each key specifies a logging module name. Each value must start with
+either 'allbut' or 'only' (case insensitive). If it starts with allbut,
+all log messages that don't belong to one of the following class names
+(case insensitive) are send to that module. If it starts with only, only
+messages of the specified class are sent.
+
+If a certain logging module is loaded but doesn't have an entry in
+[Logging], no messages will be sent to it.
+
