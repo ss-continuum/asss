@@ -31,6 +31,8 @@ cmd_userid
 privcmd_usage
 privcmd_userid
 
+cmd_passwd
+
 cmd_sheep
 
 ; not implemented yet

@@ -25,8 +25,8 @@ struct S2BPlayerEntering
 	char pw[32];
 	i32 pid;
 	i32 macid;
-	i32 timezone;
-	i16 unk4;
+	i16 timezone;
+	i32 unk4;
 	byte contid[64]; /* optional, for cont clients */
 };
 

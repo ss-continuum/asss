@@ -70,8 +70,8 @@ local void playera(int pid, int action, int arena)
 
 			if (pd->players[pid].loginpkt)
 			{
-				macid = pd->players[pid].loginpkt->D1;
-				permid = pd->players[pid].loginpkt->permid;
+				macid = pd->players[pid].loginpkt->macid;
+				permid = pd->players[pid].loginpkt->D2;
 			}
 		}
 		else if (IS_CHAT(pid) && chatnet)

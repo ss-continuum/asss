@@ -66,10 +66,10 @@ scoring.so: persist.o stats.o statcodes.o points_kill.o points_flag.o points_goa
 admin.so: filetrans.o
 
 database.so: mysql.o aliasdb.o
-	$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(MYSQLLIB) -lmysqlclient -lz
+	$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(MYSQLLIB) -lmysqlclient_r -lz
 
 funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
-	fake.o autoturret.o chatnet.o buy.o
+	fake.o autoturret.o chatnet.o buy.o md5.o auth_file.o
 
 
 

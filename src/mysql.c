@@ -186,7 +186,9 @@ local int Query(query_callback cb, void *clos, int notifyfail, const char *fmt, 
 		{
 			const char *str = va_arg(ap, const char *);
 			*buf++ = '\'';
-			buf += mysql_real_escape_string(mydb, buf, str, strlen(str));
+			/* don't use mysql_real_escape_string because the db might
+			 * not be connected yet, and mysql crashes on that. */
+			buf += mysql_escape_string(buf, str, strlen(str));
 			*buf++ = '\'';
 		}
 		else if (*c == '#')

@@ -274,8 +274,8 @@ void BillingAuth(int pid, struct LoginPacket *lp, int lplen,
 		0,
 		"", "",
 		pid,
-		lp->D1,
-		300, 0
+		lp->macid,
+		lp->timezonebias, 0
 	};
 	int len;
 

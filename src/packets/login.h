@@ -11,9 +11,10 @@ struct LoginPacket
 	u8 flags;
 	char name[32];
 	char password[32];
-	u32 D1;
+	u32 macid;
 	i8 blah;
-	u32 permid;
+	u16 timezonebias;
+	u16 unk1;
 	i16 cversion;
 	i32 field444, field555;
 	u32 D2;
