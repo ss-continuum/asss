@@ -9,7 +9,7 @@
 
 typedef struct EncData
 {
-	int key;
+	int key, status;
 	char enctable[520];
 } EncData;
 
@@ -20,14 +20,16 @@ local int Respond(int);
 local void Init(int, int);
 local void Encrypt(int, char *, int);
 local void Decrypt(int, char *, int);
+local void Void(int);
 
 
 /* globals */
 
 local EncData enc[MAXPLAYERS];
+local Mutex statmtx;
 
 local Iencrypt _int = {
-	Respond, Init, Encrypt, Decrypt
+	Respond, Init, Encrypt, Decrypt, Void
 };
 
 
@@ -36,6 +38,7 @@ int MM_encrypt1(int action, Imodman *mm)
 {
 	if (action == MM_LOAD)
 	{
+		InitMutex(&statmtx);
 		mm->RegInterface(I_ENCRYPTBASE + MYTYPE, &_int);
 	}
 	else if (action == MM_UNLOAD)
@@ -61,7 +64,6 @@ void Init(int pid, int k)
 	int t, loop;
 	short *mytable = (short *) enc[pid].enctable;
 
-	enc->key = k;
 	if (k == 0) return;
 
 	for (loop = 0; loop < 0x104; loop++)
@@ -74,6 +76,7 @@ void Init(int pid, int k)
 		if (!k || (k & 0x80000000)) k += 0x7FFFFFFF;
 		mytable[loop] = (short)k;
 	}
+	enc->key = k;
 }
 
 
@@ -111,4 +114,9 @@ void Decrypt(int pid, char *data, int len)
 
 }
 
+
+void Void(int pid)
+{
+	enc[pid].key = 0;
+}
 

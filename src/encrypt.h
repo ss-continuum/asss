@@ -16,6 +16,7 @@ typedef struct Iencrypt
 	void (*Init)	(int, int);
 	void (*Encrypt)	(int, char *, int);
 	void (*Decrypt)	(int, char *, int);
+	void (*Void)	(int);
 } Iencrypt;
 
 #endif

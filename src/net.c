@@ -18,6 +18,9 @@
 #define MAXTYPES 128
 #define MAXENCRYPT 4
 
+/* size of ip/port hash table */
+#define HASHSIZE 256
+
 #define NET_INPRESIZE 2
 #define NET_INBIGPKT 4
 
@@ -30,6 +33,7 @@
 typedef struct ClientData
 {
 	int s2cn, c2sn, flags;
+	int lastack, nextinbucket;
 	struct sockaddr_in sin;
 	unsigned int lastpkt, key;
 	short enctype;
@@ -37,24 +41,23 @@ typedef struct ClientData
 	byte *bigpktbuf;
 } ClientData;
 
-typedef struct OutBufData
+
+/* retries, lastretry: only valid for buffers in outlist
+ * pid, len: valid for all buffers
+ * flags: ???
+ */
+
+typedef struct Buffer
 {
-	/* (retries == 0) means empty entry */
-	int retries, pid, len;
+	DQNode node;
+	int retries, pid, len, flags;
 	unsigned int lastretry;
-	u8 t[2];
-	i32 seqnum;
-	byte data[MAXPACKET];
-} OutBufData;
-
-
-typedef struct InBufData
-{
-	int filled, pid, len;
-	u8 t[2];
-	i32 seqnum;
-	byte data[MAXPACKET];
-} InBufData;
+	union
+	{
+		struct ReliablePacket rel;
+		byte raw[MAXPACKET];
+	} d;
+} Buffer;
 
 
 /* PROTOTYPES */
@@ -72,21 +75,31 @@ local int NewConnection(struct sockaddr_in *);
 local i32 GetIP(int);
 
 /* internal: */
+local inline int HashIP(struct sockaddr_in);
 local inline void SendRaw(int, byte *, int);
+local void KillConnection(int pid);
 local void BufferPacket(int, byte *, int, int);
-local void RecvPacket();
-local void CheckBuffers();
-local void ProcessKey(int, byte *, int);
-local void ProcessKeyResponse(int, byte *, int);
-local void ProcessReliable(int, byte *, int);
-local void ProcessGrouped(int, byte *, int);
-local void ProcessResponse(int, byte *, int);
-local void ProcessSyncRequest(int, byte *, int);
-local void ProcessBigData(int, byte *, int);
-local void ProcessPresize(int, byte *, int);
-local void ProcessDrop(int, byte *, int);
-local void RecvOtherPackets();
+local void ProcessBuffer(Buffer *);
 local void InitSockets();
+local Buffer * GetBuffer();
+local void FreeBuffer(Buffer *);
+
+/* threads: */
+local void * RecvThread(void *);
+local void * SendThread(void *);
+local void * RelThread(void *);
+
+/* network layer header handling: */
+local void ProcessKey(Buffer *);
+local void ProcessKeyResponse(Buffer *);
+local void ProcessReliable(Buffer *);
+local void ProcessGrouped(Buffer *);
+local void ProcessResponse(Buffer *);
+local void ProcessSyncRequest(Buffer *);
+local void ProcessBigData(Buffer *);
+local void ProcessPresize(Buffer *);
+local void ProcessDrop(Buffer *);
+
 
 
 
@@ -94,32 +107,36 @@ local void InitSockets();
 
 local Ilogman *log;
 local Iconfig *cfg;
+
 local PlayerData *players;
 
-local int mysock, myothersock, mybillingsock;
-local OutBufData *outbuf;
-local InBufData *inbuf;
-/* global clients struct!: */
-local ClientData clients[MAXPLAYERS+EXTRA_PID_COUNT];
-
-local LinkedList *handlers[MAXTYPES];
 local Iencrypt *encrypt[MAXENCRYPT];
 
-local int cfg_port, cfg_retries, cfg_timeout, cfg_outbuflen, cfg_inbuflen;
-local int cfg_selectusec, cfg_process, cfg_biglimit, cfg_encmode, cfg_usebiller;
-local int cfg_droptimeout, cfg_billping;
+local LinkedList *handlers[MAXTYPES];
+local int mysock, myothersock, mybillingsock;
 
-local int pcountpings;
+local DQNode freelist, rellist, outlist;
+local Mutex freemtx, relmtx, outmtx;
+local Condition outcond, relcond;
+volatile int killallthreads = 0;
 
-local Inet _int =
+/* global clients struct!: */
+local ClientData clients[MAXPLAYERS+EXTRA_PID_COUNT];
+local int clienthash[HASHSIZE];
+
+local struct
 {
-	SendToOne, SendToArena, SendToSet, SendToAll,
-	DropClient, ProcessPacket, AddPacket, RemovePacket,
-	NewConnection, GetIP
-};
+	int port, retries, timeout, selectusec, process;
+	int biglimit, usebilling, droptimeout, billping;
+	int encmode;
+} config;
 
+local struct
+{
+	int pcountpings, buffercount;
+} global_stats;
 
-local PacketFunc oohandlers[] =
+local void (*oohandlers[])(Buffer*) =
 {
 	NULL, /* 00 - nothing */
 	ProcessKey, /* 01 - key initiation */
@@ -138,6 +155,12 @@ local PacketFunc oohandlers[] =
 	ProcessGrouped /* 0E - grouped */
 };
 
+local Inet _int =
+{
+	SendToOne, SendToArena, SendToSet, SendToAll,
+	DropClient, ProcessPacket, AddPacket, RemovePacket,
+	NewConnection, GetIP
+};
 
 
 
@@ -161,32 +184,33 @@ int MM_net(int action, Imodman *mm)
 			mm->RegInterest(I_ENCRYPTBASE + i, encrypt + i);
 
 		/* store configuration params */
-		cfg_port = cfg->GetInt(GLOBAL, "Net", "Port", 5000);
-		cfg_retries = cfg->GetInt(GLOBAL, "Net", "ReliableRetries", 5);
-		cfg_timeout = cfg->GetInt(GLOBAL, "Net", "ReliableTimeout", 150);
-		cfg_outbuflen = cfg->GetInt(GLOBAL, "Net", "OutBufferSize", 100);
-		cfg_inbuflen = cfg->GetInt(GLOBAL, "Net", "InBufferSize", 100);
-		cfg_selectusec = cfg->GetInt(GLOBAL, "Net", "SelectUSec", 10000);
-		cfg_process = cfg->GetInt(GLOBAL, "Net", "ProcessGroup", 5);
-		cfg_biglimit = cfg->GetInt(GLOBAL, "Net", "BigLimit", 1);
-		cfg_encmode = cfg->GetInt(GLOBAL, "Net", "EncryptMode", 0);
-		cfg_droptimeout = cfg->GetInt(GLOBAL, "Net", "DropTimeout", 3000);
-		cfg_usebiller = cfg->GetInt(GLOBAL, "Billing", "UseBilling", 0);
-		cfg_billping = cfg->GetInt(GLOBAL, "Billing", "PingTime", 3000);
+		config.port = cfg->GetInt(GLOBAL, "Net", "Port", 5000);
+		config.retries = cfg->GetInt(GLOBAL, "Net", "ReliableRetries", 5);
+		config.timeout = cfg->GetInt(GLOBAL, "Net", "ReliableTimeout", 150);
+		config.selectusec = cfg->GetInt(GLOBAL, "Net", "SelectUSec", 10000);
+		config.process = cfg->GetInt(GLOBAL, "Net", "ProcessGroup", 5);
+		config.biglimit = cfg->GetInt(GLOBAL, "Net", "BigLimit", 1);
+		config.encmode = cfg->GetInt(GLOBAL, "Net", "EncryptMode", 0);
+		config.droptimeout = cfg->GetInt(GLOBAL, "Net", "DropTimeout", 3000);
+		config.usebilling = cfg->GetInt(GLOBAL, "Billing", "UseBilling", 0);
+		config.billping = cfg->GetInt(GLOBAL, "Billing", "PingTime", 3000);
 
-		/* allocate buffers */
-		outbuf = amalloc(cfg_outbuflen * sizeof(OutBufData));
-		inbuf = amalloc(cfg_inbuflen * sizeof(InBufData));
-		
+		/* init hash */
+		for (i = 0; i < HASHSIZE; i++)
+			clienthash[i] = -1;
+
+		/* init buffers */
+		InitCondition(&outcond); InitCondition(&relcond);
+		InitMutex(&freemtx); InitMutex(&relmtx); InitMutex(&outmtx);
+		DQInit(&freelist); DQInit(&rellist); DQInit(&outlist);
+
 		/* get the sockets */
 		InitSockets();
-		pcountpings = 0;
 
-		/* install our main loop entry points */
-		for (i = 0; i < cfg_process; i++)
-			mm->RegCallback(CALLBACK_MAINLOOP, RecvPacket);
-		mm->RegCallback(CALLBACK_MAINLOOP, CheckBuffers);
-		mm->RegCallback(CALLBACK_MAINLOOP, RecvOtherPackets);
+		/* start the threads */
+		StartThread(RecvThread, NULL);
+		StartThread(SendThread, NULL);
+		StartThread(RelThread, NULL);
 
 		/* install ourself */
 		mm->RegInterface(I_NET, &_int);
@@ -200,18 +224,14 @@ int MM_net(int action, Imodman *mm)
 		for (i = 0; i < MAXENCRYPT; i++)
 			mm->UnregInterest(I_ENCRYPTBASE + i, encrypt + i);
 
-		/* get rid of main loop entries */
-		for (i = 0; i < cfg_process; i++)
-			mm->UnregCallback(CALLBACK_MAINLOOP, RecvPacket);
-		mm->UnregCallback(CALLBACK_MAINLOOP, CheckBuffers);
-		mm->UnregCallback(CALLBACK_MAINLOOP, RecvOtherPackets);
-
-		/* free memory */
-		for (i = 0; i < MAXTYPES; i++) LLFree(handlers[i]);
-		afree(inbuf); afree(outbuf);
+		/* let threads die */
+		killallthreads = 1;
+		/* note: we don't join them because they could be blocked on
+		 * something, and who ever wants to unload net anyway? */
 
 		close(mysock);
 		close(myothersock);
+		if (config.usebilling) close(mybillingsock);
 	}
 	return MM_OK;
 }
@@ -230,9 +250,51 @@ void RemovePacket(byte t, PacketFunc f)
 }
 
 
+int HashIP(struct sockaddr_in sin)
+{
+	register unsigned ip = sin.sin_addr.s_addr;
+	register unsigned short port = sin.sin_port;
+	return ((port>>1) ^ (ip) ^ (ip>>23) ^ (ip>>17)) & (HASHSIZE-1);
+}
+
+
 i32 GetIP(int pid)
 {
 	return clients[pid].sin.sin_addr.s_addr;
+}
+
+
+Buffer * GetBuffer()
+{
+	DQNode *dq;
+
+	LockMutex(&freemtx);
+	dq = freelist.prev;
+	if (dq == &freelist)
+	{
+		/* no buffers left, alloc one */
+		UnlockMutex(&freemtx);
+		dq = amalloc(sizeof(Buffer));
+		DQInit(dq);
+		global_stats.buffercount++;
+	}
+	else
+	{
+		/* grab one off free list */
+		DQRemove(dq);
+		UnlockMutex(&freemtx);
+		/* clear it after releasing mtx */
+		memset(dq + 1, 0, sizeof(Buffer) - sizeof(DQNode));
+	}
+	return (Buffer *)dq;
+}
+
+
+void FreeBuffer(Buffer *dq)
+{
+	LockMutex(&freemtx);
+	DQAdd(&freelist, (DQNode*)dq);
+	UnlockMutex(&freemtx);
 }
 
 
@@ -242,22 +304,22 @@ void InitSockets()
 
 	localsin.sin_family = AF_INET;
 	memset(localsin.sin_zero,0,sizeof(localsin.sin_zero));
-	localsin.sin_addr.s_addr = INADDR_ANY;
-	localsin.sin_port = htons(cfg_port);
+	localsin.sin_addr.s_addr = htonl(INADDR_ANY);
+	localsin.sin_port = htons(config.port);
 
 	if ((mysock = socket(PF_INET,SOCK_DGRAM,0)) == -1)
 		Error(ERROR_NORMAL,"net: socket");
 	if (bind(mysock, (struct sockaddr *) &localsin, sizeof(localsin)) == -1)
 		Error(ERROR_NORMAL,"net: bind");
 
-	localsin.sin_port = htons(cfg_port+1);
+	localsin.sin_port = htons(config.port+1);
 	if ((myothersock = socket(PF_INET,SOCK_DGRAM,0)) == -1)
 		Error(ERROR_NORMAL,"net: socket");
 	if (bind(myothersock, (struct sockaddr *) &localsin, sizeof(localsin)) == -1)
 		Error(ERROR_NORMAL,"net: bind");
 
 	memset(clients + PID_BILLER, 0, sizeof(ClientData));
-	if (cfg_usebiller)
+	if (config.usebilling)
 	{
 		/* get socket */
 		if ((mybillingsock = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
@@ -279,154 +341,397 @@ void InitSockets()
 }
 
 
-void RecvOtherPackets()
+void * RecvThread(void *dummy)
 {
 	struct sockaddr_in sin;
-	struct timeval tv = { 0, 0 };
+	struct timeval tv;
 	fd_set fds;
-	int n, maxfd, data[2], sinsize = sizeof(sin);
-	static byte buffer[MAXPACKET];
+	int len, pid, sinsize, type, maxfd = 5, hashbucket, n;
 
-	FD_ZERO(&fds);
-	FD_SET(myothersock, &fds); maxfd = myothersock;
-
-	if (cfg_usebiller)
-	{	/* add billing socket to fds */
-		FD_SET(mybillingsock, &fds);
-		if (mybillingsock > maxfd) maxfd = mybillingsock;
-	}
-
-	n = select(maxfd+1, &fds, NULL, NULL, &tv);
-
-	if (FD_ISSET(myothersock, &fds))
-	{	/* data on port + 1 */
-		n = recvfrom(myothersock, (char*)data, 4, 0, &sin, &sinsize);
-		data[1] = data[0];
-		if (n != 4) return;
-		for (data[0] = 0, n = 0; n < MAXPLAYERS; n++)
-			if (players[n].status == S_CONNECTED)
-				data[0]++;
-		sendto(myothersock, (char*)data, 8, 0, &sin, sinsize);
-		pcountpings++;
-	}
-
-	if (cfg_usebiller && FD_ISSET(mybillingsock, &fds))
-	{	/* data from billing server */
-		n = recvfrom(mybillingsock, buffer, MAXPACKET, 0, &sin, &sinsize);
-		/*log->Log(LOG_DEBUG, "%i bytes from billing server", n); */
-		if (memcmp(&sin, &clients[PID_BILLER].sin, sinsize))
-			log->Log(LOG_BADDATA,
-					"Data recieved on billing server socket from incorrect origin: %s:%i",
-					inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
-		else if (n > 0)
-		{
-			clients[PID_BILLER].lastpkt = GTC();
-			ProcessPacket(PID_BILLER, buffer, n);
-		}
-	}
-}
-
-
-void RecvPacket()
-{
-	static byte recvbuf[MAXPACKET];
-	struct sockaddr_in sin;
-	struct timeval tv = { 0, cfg_selectusec };
-	fd_set fds;
-	int l, i, sinsize = sizeof(sin), type;
-
-	FD_ZERO(&fds);
-	FD_SET(mysock, &fds);
-
-	l = select(mysock+1, &fds, NULL, NULL, &tv);
-	if (l == 0) return;
-
-	l = recvfrom(mysock, recvbuf, MAXPACKET, 0, &sin, &sinsize);
-
-	if (l > 0)
+	while (!killallthreads)
 	{
-		/*printf("packet from %i:%i, p[0].status = %i\n", sin.sin_addr.s_addr, sin.sin_port,
-				players[0].status); */
-		
-		i = 0;
-		/* search for an existing connection */
-		while (	(players[i].status == S_FREE ||
-				( clients[i].sin.sin_addr.s_addr != sin.sin_addr.s_addr ||
-				  clients[i].sin.sin_port != sin.sin_port) ) &&
-				i < MAXPLAYERS) i++;  /* what a big ugly mess :)  should use hash table */
-
-		if (i == MAXPLAYERS)
-		{	/* new client */
-			i = NewConnection(&sin);
-			if (i == -1)
+		do {
+			/* set up fd set and tv */
+			FD_ZERO(&fds);
+			if (config.usebilling)
 			{
-				char pk7[] = { 0x00, 0x07 };
-				sendto(mysock, &pk7, 2, 0, &sin, sinsize);
-				log->Log(LOG_IMPORTANT,"Too many players! Dropping extra connections!");
-				return;
+				FD_SET(mybillingsock, &fds);
+				if (mybillingsock > maxfd) maxfd = mybillingsock;
 			}
-			else
-				log->Log(LOG_DEBUG,"New connection (%s:%i) assigning pid %i",
-						inet_ntoa(sin.sin_addr), ntohs(sin.sin_port), i);
+			FD_SET(myothersock, &fds); if (myothersock > maxfd) maxfd = myothersock;
+			FD_SET(mysock, &fds); if (mysock > maxfd) maxfd = mysock;
+
+			tv.tv_sec = 10;
+			tv.tv_usec = 0;
+
+			/* perform select */
+		} while (select(maxfd+1, &fds, NULL, NULL, &tv) < 1 && !killallthreads);
+
+		/* first handle the main socket */
+		if (FD_ISSET(mysock, &fds))
+		{
+			Buffer *buf;
+
+			buf = GetBuffer();
+			sinsize = sizeof(sin);
+			len = recvfrom(mysock, buf->d.raw, MAXPACKET, 0, &sin, &sinsize);
+
+			if (len < 1)
+			{
+				FreeBuffer(buf);
+				goto donehere;
+			}
+
+			buf->len = len;
+
+			/*printf("packet from %i:%i, p[0].status = %i\n", sin.sin_addr.s_addr, sin.sin_port,
+					players[0].status); */
+
+			/* search for an existing connection */
+			hashbucket = HashIP(sin);
+			pid = clienthash[hashbucket];
+			while (pid >= 0)
+			{
+				if (    players[pid].status == S_CONNECTED
+					 && clients[pid].sin.sin_addr.s_addr == sin.sin_addr.s_addr
+					 && clients[pid].sin.sin_port == sin.sin_port)
+					break;
+				pid = clients[pid].nextinbucket;
+			}
+
+			if (pid == -1)
+			{	/* new client */
+				pid = NewConnection(&sin);
+				if (pid == -1)
+				{
+					byte pk7[] = { 0x00, 0x07 };
+					sendto(mysock, pk7, 2, 0, &sin, sinsize);
+					log->Log(LOG_IMPORTANT,"Too many players! Dropping extra connections!");
+					goto donehere;
+				}
+				else
+				{
+					log->Log(LOG_DEBUG,"New connection (%s:%i) assigning pid %i",
+							inet_ntoa(sin.sin_addr), ntohs(sin.sin_port), pid);
+				}
+			}
+
+			buf->pid = pid;
+			/* set the last packet time */
+			clients[pid].lastpkt = GTC();
+
+			/* decrypt the packet */
+			type = clients[pid].enctype;
+			if (type >= 0 && type < MAXENCRYPT && encrypt[type])
+			{
+				/*log->Log(LOG_DEBUG,"calling decrypt: %X %X", recvbuf[0], recvbuf[1]); */
+				if (buf->d.rel.t1 == 0x00)
+					encrypt[type]->Decrypt(pid, buf->d.raw+2, len-2);
+				else
+					encrypt[type]->Decrypt(pid, buf->d.raw+1, len-1);
+			}
+
+			/* hand it off to appropriate place */
+			ProcessBuffer(buf);
+
+donehere:
 		}
 
-		clients[i].lastpkt = GTC();
+		if (FD_ISSET(myothersock, &fds))
+		{	/* data on port + 1 */
+			unsigned int data[2];
 
-		/* decrypt the packet */
-		type = clients[i].enctype;
-		if (type >= 0 && encrypt[type])
-		{
-			/*log->Log(LOG_DEBUG,"calling decrypt: %X %X", recvbuf[0], recvbuf[1]); */
-			if (recvbuf[0] == 0x00)
-				encrypt[type]->Decrypt(i, recvbuf+2, l-2);
-			else
-				encrypt[type]->Decrypt(i, recvbuf+1, l-1);
+			sinsize = sizeof(sin);
+			n = recvfrom(myothersock, (char*)data, 4, 0, &sin, &sinsize);
+
+			if (n == 4)
+			{
+				data[1] = data[0];
+				data[0] = 0;
+				for (n = 0; n < MAXPLAYERS; n++)
+					if (players[n].status == S_CONNECTED)
+						data[0]++;
+				sendto(myothersock, (char*)data, 8, 0, &sin, sinsize);
+				global_stats.pcountpings++;
+			}
 		}
 
-		if (recvbuf[0] == 0x00 && recvbuf[1] < sizeof(oohandlers) && oohandlers[recvbuf[1]])
-			(oohandlers[recvbuf[1]])(i, recvbuf, l);
-		else if (recvbuf[0] < PKT_BILLBASE)
-		{
-			LinkedList *lst = handlers[recvbuf[0]];
-			Link *lnk;
-			for (lnk = LLGetHead(lst); lnk; lnk = lnk->next)
-				((PacketFunc)lnk->data)(i, recvbuf, l);
+		if (FD_ISSET(mybillingsock, &fds))
+		{	/* data from billing server */
+			Buffer *buf;
+
+			buf = GetBuffer();
+			sinsize = sizeof(sin);
+			n = recvfrom(mybillingsock, buf->d.raw, MAXPACKET, 0, &sin, &sinsize);
+			/*log->Log(LOG_DEBUG, "%i bytes from billing server", n); */
+			if (memcmp(&sin, &clients[PID_BILLER].sin, sinsize))
+				log->Log(LOG_BADDATA,
+						"Data recieved on billing server socket from incorrect origin: %s:%i",
+						inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
+			else if (n > 0)
+			{
+				clients[PID_BILLER].lastpkt = GTC();
+				ProcessBuffer(buf);
+			}
 		}
 	}
+	return NULL;
 }
 
 
-void ProcessPacket(int pid, byte *buf, int len)
+
+void * SendThread(void *dummy)
 {
-	if (buf[0] == 0x00 && buf[0] < sizeof(oohandlers) && oohandlers[buf[1]])
-		(oohandlers[buf[1]])(pid, buf, len);
-	else if (buf[0] < PKT_BILLBASE)
+#define MAXGROUPED 20
+	static unsigned pcount[MAXPLAYERS+EXTRA_PID_COUNT], bigcount[MAXPLAYERS+EXTRA_PID_COUNT];
+	static Buffer *order[MAXPLAYERS+EXTRA_PID_COUNT][MAXGROUPED];
+	Buffer *buf, *nbuf, *it;
+	unsigned int gtc = GTC(), i;
+
+	while (!killallthreads)
 	{
-		LinkedList *lst = handlers[buf[0]];
+
+		/* zero some arrays */
+		memset(pcount, 0, (MAXPLAYERS+1) * sizeof(unsigned int));
+		memset(bigcount, 0, (MAXPLAYERS+1) * sizeof(unsigned int));
+
+		/* grab first buffer */
+		LockMutex(&outmtx);
+		while (outlist.next == &outlist)
+			WaitCondition(&outcond, &outmtx);
+		buf = (Buffer*)outlist.next;
+		UnlockMutex(&outmtx);
+
+		gtc = GTC();
+
+		while ((DQNode*)buf != &outlist)
+		{
+			/* remove packets that client has acked */
+			if (    buf->d.rel.t1 == 0x00
+			     && buf->d.rel.t2 == 0x03
+			     && clients[buf->pid].lastack > buf->d.rel.seqnum)
+				buf->retries = 0;
+
+			/* check if the player still exists */
+			if (players[buf->pid].status != S_CONNECTED)
+				buf->retries = 0;
+
+			/* check if we can send it now */
+			if (    buf->retries
+			     && (gtc - buf->lastretry) > config.timeout)
+			{
+				if (buf->len > 240)
+				{	/* too big for grouped, send immediately */
+					if (bigcount[buf->pid]++ < config.biglimit)
+					{
+						buf->lastretry = gtc;
+						buf->retries--;
+						SendRaw(buf->pid, buf->d.raw, buf->len);
+					}
+				}
+				else if (pcount[buf->pid] < MAXGROUPED)
+					order[buf->pid][pcount[buf->pid]++] = buf;
+					/* packets over the group limit don't get sent */
+					/* at all until the first bunch are ack'd */
+			}
+
+			/* move to next */
+			LockMutex(&outmtx);
+			nbuf = (Buffer*)buf->node.next;
+			if (buf->retries < 1)
+			{	/* release buffer */
+				DQRemove((DQNode*)buf);
+				FreeBuffer(buf);
+			}
+			UnlockMutex(&outmtx);
+			buf = nbuf;
+		}
+
+		for (i = 0; i < (MAXPLAYERS + EXTRA_PID_COUNT); i++)
+		{
+			if (pcount[i] == 1)
+			{	/* only one packet for this person, send it */
+				it = order[i][0];
+				it->lastretry = gtc;
+				it->retries--;
+				SendRaw(i, it->d.raw, it->len);
+			}
+			else if (pcount[i] > 1)
+			{	/* group all packets to send */
+				static byte gbuf[MAXPACKET] = { 0x00, 0x0E };
+				byte *current = gbuf + 2;
+				int j;
+
+				for (j = 0; j < pcount[i]; j++)
+				{
+					it = order[i][j];
+					if ( (current-gbuf+it->len+5) < MAXPACKET)
+					{
+						*current++ = it->len;
+						memcpy(current, it->d.raw, it->len);
+						current += it->len;
+						it->lastretry = gtc;
+						it->retries--;
+					}
+					else
+						break;
+				}
+				/* send it, finally */
+				SendRaw(i, gbuf, current - gbuf);
+			}
+
+			/* process lagouts */
+			if (   players[i].status == S_CONNECTED
+			    && (gtc - clients[i].lastpkt) > config.droptimeout)
+			{
+				byte pk7[] = { 0x00, 0x07 };
+				/* FIXME: send "you have been disconnected..." msg */
+				SendRaw(i, pk7, 2);
+				KillConnection(i);
+			}
+			
+			/* process timewait states
+			 * this is done with two states to ensure a complete pass
+			 * through the outgoing buffer before marking these pids as
+			 * free */
+			if (players[i].status == S_TIMEWAIT2)
+				players[i].status = S_FREE;
+			if (players[i].status == S_TIMEWAIT)
+				players[i].status = S_TIMEWAIT2;
+		}
+	}
+	return NULL;
+}
+
+
+void * RelThread(void *dummy)
+{
+	Buffer *buf, *nbuf;
+
+	while (!killallthreads)
+	{
+		LockMutex(&relmtx);
+		while (rellist.next == &rellist)
+			WaitCondition(&relcond, &relmtx);
+		for (buf = (Buffer*)rellist.next; (DQNode*)buf != &rellist; buf = nbuf)
+		{
+			nbuf = (Buffer*)buf->node.next;
+
+			/* if player is gone, free buffer */
+			if (players[buf->pid].status != S_CONNECTED)
+			{
+				DQRemove((DQNode*)buf);
+				FreeBuffer(buf);
+				continue;
+			}
+
+			/* else, if seqnum matches, process */
+			if (buf->d.rel.seqnum == (clients[buf->pid].c2sn + 1) )
+			{
+				clients[buf->pid].c2sn++;
+				DQRemove((DQNode*)buf);
+				/* don't hold mutex while processing packet */
+				UnlockMutex(&relmtx);
+
+				/* process it */
+				ProcessPacket(buf->pid, buf->d.rel.data, buf->len - 6);
+
+				FreeBuffer(buf);
+				LockMutex(&relmtx);
+			}
+		}
+		UnlockMutex(&relmtx);
+	}
+	return NULL;
+}
+
+/* ProcessBuffer
+ * unreliable packets will be processed before the call returns and freed
+ * network packets will be processed by the appropriate network handler,
+ * which may free it or not.
+ */
+void ProcessBuffer(Buffer *buf)
+{
+	if (buf->d.rel.t1 == 0x00)
+	{
+		if (buf->d.rel.t2 < sizeof(oohandlers) && oohandlers[(int)buf->d.rel.t2])
+			(oohandlers[(int)buf->d.rel.t2])(buf);
+		else
+		{
+			log->Log(LOG_BADDATA, "Unknown network subtype %i from '%s'",
+					buf->d.rel.t2, players[buf->pid].name);
+			FreeBuffer(buf);
+		}
+	}
+	else if (buf->d.rel.t1 < PKT_BILLBASE)
+	{
+		LinkedList *lst = handlers[(int)buf->d.rel.t1];
+		Link *l;
+
+		if (buf->pid == PID_BILLER)
+			lst = handlers[buf->d.rel.t1 + PKT_BILLBASE];
+
+		for (l = LLGetHead(lst); l; l = l->next)
+			((PacketFunc)l->data)(buf->pid, buf->d.raw, buf->len);
+
+		FreeBuffer(buf);
+	}
+}
+
+/* ProcessPacket
+ * regular packets (without headers) will be processed before the call
+ * returns.
+ * network packets will have a buffer created for them and will be
+ * processed by ProcessBuffer, which will process them before the call
+ * returns.
+ */
+void ProcessPacket(int pid, byte *d, int len)
+{
+	if (d[0] == 0x00 && len < MAXPACKET)
+	{
+		Buffer *buf;
+		buf = GetBuffer();
+		buf->pid = pid;
+		buf->len = len;
+		memcpy(buf->d.raw, d, len);
+		ProcessBuffer(buf);
+	}
+	else if (d[0] < PKT_BILLBASE)
+	{
+		LinkedList *lst = handlers[d[0]];
 		Link *l;
 
 		if (pid == PID_BILLER)
-			lst = handlers[buf[0] + PKT_BILLBASE];
+			lst = handlers[d[0] + PKT_BILLBASE];
 
 		for (l = LLGetHead(lst); l; l = l->next)
-			((PacketFunc)l->data)(pid, buf, len);
+			((PacketFunc)l->data)(pid, d, len);
 	}
 }
 
 
 int NewConnection(struct sockaddr_in *sin)
 {
-	int i = 0;
+	int i = 0, bucket;
 
 	while (players[i].status != S_FREE && i < MAXPLAYERS) i++;
 	if (i == MAXPLAYERS) return -1;
+
+	/* set up clientdata */
 	memset(clients + i, 0, sizeof(ClientData));
 	clients[i].c2sn = -1;
 	clients[i].enctype = -1;
 	if (sin)
+	{
 		memcpy(&clients[i].sin, sin, sizeof(struct sockaddr_in));
+		/* add him to his hash bucket */
+		bucket = HashIP(*sin);
+		clients[i].nextinbucket = clienthash[bucket];
+		clienthash[bucket] = i;
+	}
 	else
 		clients[i].flags = NET_FAKE;
+	/* set up playerdata */
 	memset(players + i, 0, sizeof(PlayerData));
 	players[i].type = S2C_PLAYERENTERING; /* restore type */
 	players[i].status = S_CONNECTED;
@@ -435,178 +740,160 @@ int NewConnection(struct sockaddr_in *sin)
 }
 
 
-void ProcessKey(int pid, byte *buf, int len)
+void KillConnection(int pid)
 {
-	int key = *(int*)(buf+2);
-	short type = *(short*)(buf+6);
+	int bucket, type;
+	byte leaving = C2S_LEAVING;
 
-	buf[1] = 2;
+	/* set status */
+	players[pid].status = S_TIMEWAIT;
 
-	if (cfg_encmode == 0)
-	{
-		SendRaw(pid, buf, 6);
-	}
-	else if (type >= 0 && encrypt[type])
-	{
-		key = encrypt[type]->Respond(key);
-		*(int*)(buf+2) = key;
-		SendRaw(pid, buf, 6);
-		encrypt[type]->Init(pid, key);
-		clients[pid].enctype = type;
-	}
+	/* tell encryption to forget about him */
+	type = clients[pid].enctype;
+	if (type >= 0 && type < MAXENCRYPT)
+		encrypt[type]->Void(pid);
+
+	/* log message */
+	if (pid == PID_BILLER)
+		log->Log(LOG_IMPORTANT, "Connection to billing server lost");
 	else
-		log->Log(LOG_BADDATA, "Unknown encryption type attempted to connect");
+		log->Log(LOG_INFO, "Player '%s' disconnected", players[pid].name);
+
+	/* leave arena again, just in case */
+	if (players[pid].arena >= 0)
+		ProcessPacket(pid, &leaving, 1);
+
+	/* remove from hash table */
+	bucket = HashIP(clients[pid].sin);
+	if (clienthash[bucket] == pid)
+		clienthash[bucket] = clients[pid].nextinbucket;
+	else
+	{
+		int i = clienthash[bucket];
+		while (i >= 0 && clients[i].nextinbucket != pid)
+			i = clients[i].nextinbucket;
+		if (i >= 0)
+			clients[i].nextinbucket = clients[pid].nextinbucket;
+		else
+		{
+			log->Log(LOG_BADDATA, "Internal error: established connection not in hash table");
+		}
+	}
 }
 
 
-void ProcessKeyResponse(int pid, byte *buf, int len)
+void ProcessKey(Buffer *buf)
 {
-	if (pid != PID_BILLER)
-		log->Log(LOG_BADDATA, "Key response from non-billing server!");
+	int key = buf->d.rel.seqnum;
+	short type = *(short*)buf->d.rel.data;
+
+	buf->d.rel.t2 = 2;
+
+	if (config.encmode == 0)
+	{
+		SendRaw(buf->pid, buf->d.raw, 6);
+	}
+	else if (type >= 0 && type < MAXENCRYPT && encrypt[type])
+	{
+		key = encrypt[type]->Respond(key);
+		buf->d.rel.seqnum = key;
+		SendRaw(buf->pid, buf->d.raw, 6);
+		encrypt[type]->Init(buf->pid, key);
+		clients[buf->pid].enctype = type;
+	}
+	else
+		log->Log(LOG_BADDATA, "Unknown encryption type attempted to connect");
+
+	FreeBuffer(buf);
+}
+
+
+void ProcessKeyResponse(Buffer *buf)
+{
+	if (buf->pid < MAXPLAYERS)
+		log->Log(LOG_BADDATA, "Key response from normal client!");
 	else
 	{
 		Link *l;
 
-		players[pid].status = BNET_CONNECTED;
-		clients[pid].lastpkt = GTC();
+		players[buf->pid].status = BNET_CONNECTED;
 
 		for (l = LLGetHead(handlers[PKT_BILLBASE + 0]);
 				l; l = l->next)
-			((PacketFunc)l->data)(pid, buf, len);
+			((PacketFunc)l->data)(buf->pid, buf->d.raw, buf->len);
 	}
+	FreeBuffer(buf);
 }
 
 
-void ProcessReliable(int pid, byte *d, int len)
+void ProcessReliable(Buffer *buf)
 {
-	int i = 0, snum = ((struct ReliablePacket*)d)->seqnum;
-
-	/* ack, then drop duplicated packets */
-	if (snum <= clients[pid].c2sn)
-	{
-		d[1] = 0x04;
-		BufferPacket(pid, d, 6, NET_UNRELIABLE);
-		return;
-	}
-
-	/* find open spot in the buffer */
-	while (inbuf[i].filled && i < cfg_inbuflen) i++;
-
-	if (i < cfg_inbuflen) /* if there are any buffers left */
-	{
-		int c, t, moved, order[cfg_inbuflen];
-
-		d[1] = 0x04; /* ack it immediately */
-		BufferPacket(pid, d, 6, NET_UNRELIABLE);
-
-		memcpy(inbuf[i].t,d,len); /* put the data in the buffer */
-		inbuf[i].filled = 1;
-		inbuf[i].pid = pid;
-		inbuf[i].len = len-6;
-
-		/* look for a sequence of packets: */
-		/* c is the length of the found sequence */
-		/* t is the target sequence number */
-		/* moved is a flag to see if we're done */
-		c = 0; t = clients[pid].c2sn+1; moved = 1;
-		while (moved)
-		{
-			for (moved = 0, i = 0; i < cfg_inbuflen; i++)
-				if (	inbuf[i].filled	&&
-						inbuf[i].pid == pid &&
-						inbuf[i].seqnum == t)
-				{
-					moved = 1; t++; order[c++] = i;
-				}
-		}
-
-		for (i = 0; i < c; i++)	/* if we have found a sequence (even a single */
-		{						/* packet) then process them (in order) */
-			int x = order[i];
-			ProcessPacket(pid, inbuf[x].data, inbuf[x].len);
-			inbuf[x].filled = 0;
-			clients[pid].c2sn = inbuf[x].seqnum;
-		}
-	}
-	else
-		log->Log(LOG_ERROR,"Input buffer full! Dropping packets!");
+	LockMutex(&relmtx);
+	DQAdd(&rellist, (DQNode*)buf);
+	UnlockMutex(&relmtx);
+	SignalCondition(&relcond, 0);
 }
 
 
-void ProcessGrouped(int pid, byte *p, int n)
+void ProcessGrouped(Buffer *buf)
 {
 	int pos = 2, len = 1;
-	while (pos < n && len > 0)
+
+	while (pos < buf->len && len > 0)
 	{
-		len = p[pos++];
-		ProcessPacket(pid,p+pos,len);
+		len = buf->d.raw[pos++];
+		ProcessPacket(buf->pid, buf->d.raw + pos, len);
 		pos += len;
 	}
+	FreeBuffer(buf);
 }
 
 
-void ProcessResponse(int pid, byte *p, int n)
+void ProcessResponse(Buffer *buf)
 {
-	int snum = ((struct ReliablePacket*)p)->seqnum, i;
-	
-	for (i = 0; i < cfg_outbuflen; i++)
-		if (outbuf[i].pid == pid && outbuf[i].seqnum == snum)
-			outbuf[i].retries = 0;
+	if (buf->d.rel.seqnum > clients[buf->pid].lastack)
+		clients[buf->pid].lastack = buf->d.rel.seqnum;
+	FreeBuffer(buf);
 }
 
 
-void ProcessSyncRequest(int pid, byte *p, int n)
+void ProcessSyncRequest(Buffer *buf)
 {
-	struct TimeSyncC2S *cts = (struct TimeSyncC2S*)p;
+	struct TimeSyncC2S *cts = (struct TimeSyncC2S*)(buf->d.raw);
 	struct TimeSyncS2C ts = { 0x00, 0x06, cts->time, GTC() };
-	BufferPacket(pid, (byte*)&ts, sizeof(ts), NET_UNRELIABLE);
+	BufferPacket(buf->pid, (byte*)&ts, sizeof(ts), NET_UNRELIABLE);
+	FreeBuffer(buf);
 }
 
 
-void ProcessDrop(int pid, byte *p, int n)
+void ProcessDrop(Buffer *buf)
 {
-	int i;
-	byte leaving = C2S_LEAVING;
-
-	if (pid == PID_BILLER)
-	{
-		log->Log(LOG_IMPORTANT, "Connection to billing server lost");
-		players[pid].status = BNET_NOBILLING;
-	}
-	else
-	{
-		/* leave arena again, just in case */
-		if (players[pid].arena >= 0)
-			ProcessPacket(pid, &leaving, 1);
-
-		players[pid].status = S_FREE; /* set free status */
-
-		for (i = 0; i < cfg_outbuflen; i++) /* kill pending data */
-			if (outbuf[i].pid == pid)
-				outbuf[i].retries = 0;
-
-		log->Log(LOG_INFO,"Player disconnected (%s)", players[pid].name);
-	}
+	KillConnection(buf->pid);
+	FreeBuffer(buf);
 }
 
 
-void ProcessBigData(int pid, byte *p, int n)
+void ProcessBigData(Buffer *buf)
 {
-	int newsize = clients[pid].bigpktsize + n - 2;
+	int pid, newsize;
 	byte *newbuf;
+
+	pid = buf->pid;
+	newsize = clients[buf->pid].bigpktsize + buf->len - 2;
 
 	if (clients[pid].flags & NET_INPRESIZE)
 	{
 		log->Log(LOG_BADDATA, "Recieved bigpacket while handling presized data! (%s)",
 				players[pid].name);
+		goto reallyexit;
 	}
 
 	clients[pid].flags |= NET_INBIGPKT;
-	
+
 	if (newsize > MAXBIGPACKET)
 	{
 		log->Log(LOG_BADDATA,
-			"Big packet: refusing to allocate more than %i bytes (%s)",
+			"Big packet: refusing to allocate more than %i bytes for '%s'",
 			MAXBIGPACKET, players[pid].name);
 		goto freebigbuf;
 	}
@@ -627,12 +914,12 @@ void ProcessBigData(int pid, byte *p, int n)
 	else
 		newbuf = clients[pid].bigpktbuf;
 
-	memcpy(newbuf + clients[pid].bigpktsize, p+2, n-2);
+	memcpy(newbuf + clients[pid].bigpktsize, buf->d.raw + 2, buf->len - 2);
 
 	clients[pid].bigpktbuf = newbuf;
 	clients[pid].bigpktsize = newsize;
 
-	if (p[1] == 0x08) return;
+	if (buf->d.rel.t2 == 0x08) goto reallyexit;
 
 	ProcessPacket(pid, newbuf, newsize);
 
@@ -642,19 +929,20 @@ freebigbuf:
 	clients[pid].bigpktsize = 0;
 	clients[pid].bigpktroom = 0;
 	clients[pid].flags &= ~NET_INBIGPKT;
+reallyexit:
+	FreeBuffer(buf);
 }
 
 
-void ProcessPresize(int pid, byte *p, int len)
+void ProcessPresize(Buffer *buf)
 {
-	struct ReliablePacket *pk = (struct ReliablePacket *)p;
-	int size = pk->seqnum;
+	int size = buf->d.rel.seqnum, pid = buf->pid;
 
 	if (clients[pid].flags & NET_INBIGPKT)
 	{
 		log->Log(LOG_BADDATA,"Recieved presized data while handling bigpacket! (%s)",
 				players[pid].name);
-		return;
+		goto reallyexit;
 	}
 
 	if (clients[pid].bigpktbuf)
@@ -665,8 +953,8 @@ void ProcessPresize(int pid, byte *p, int len)
 					players[pid].name);
 			goto freepacket;
 		}
-		memcpy(clients[pid].bigpktbuf+clients[pid].bigpktsize, pk->data, len-6);
-		clients[pid].bigpktsize += (len-6);
+		memcpy(clients[pid].bigpktbuf+clients[pid].bigpktsize, buf->d.rel.data, buf->len - 6);
+		clients[pid].bigpktsize += (buf->len - 6);
 	}
 	else
 	{	/* allocate it */
@@ -680,8 +968,8 @@ void ProcessPresize(int pid, byte *p, int len)
 		{	/* copy initial segment	 */
 			clients[pid].bigpktbuf = amalloc(size);
 			clients[pid].bigpktroom = size;
-			memcpy(clients[pid].bigpktbuf, pk->data, len-6);
-			clients[pid].bigpktsize = len-6;
+			memcpy(clients[pid].bigpktbuf, buf->d.rel.data, buf->len - 6);
+			clients[pid].bigpktsize = buf->len - 6;
 		}
 	}
 	if (clients[pid].bigpktsize < size) return;
@@ -694,89 +982,8 @@ freepacket:
 	clients[pid].bigpktsize = 0;
 	clients[pid].bigpktroom = 0;
 	clients[pid].flags &= ~NET_INPRESIZE;
-}
-
-
-#define MAXGROUPED 20
-void CheckBuffers()
-{
-	static unsigned int pcount[MAXPLAYERS+1];
-	static unsigned int order[MAXPLAYERS+1][MAXGROUPED], bigcount[MAXPLAYERS+1];
-	static byte buf[MAXPACKET];
-	unsigned int gtc = GTC(), i, j;
-	byte *current;
-
-	/* zero some arrays */
-	memset(pcount, 0, (MAXPLAYERS+1) * sizeof(unsigned int));
-	memset(bigcount, 0, (MAXPLAYERS+1) * sizeof(unsigned int));
-
-	/* find packets to group */
-	for (i = 0; i < cfg_outbuflen; i++)
-		if (outbuf[i].retries && (gtc - outbuf[i].lastretry) > cfg_timeout)
-		{
-			if (outbuf[i].len > 240)
-			{	/* too big for 000E */
-				if (bigcount[outbuf[i].pid]++ < cfg_biglimit)
-				{
-					outbuf[i].lastretry = gtc;
-					outbuf[i].retries--;
-					SendRaw(outbuf[i].pid, outbuf[i].t, outbuf[i].len);
-				}
-			}
-			else if (pcount[outbuf[i].pid] < MAXGROUPED)
-					order[outbuf[i].pid][pcount[outbuf[i].pid]++] = i;
-				/* packets over the group limit don't get sent */
-				/* at all until the first bunch are ack'd */
-		}
-
-	/* send them */
-	for (i = 0; i < (MAXPLAYERS + EXTRA_PID_COUNT); i++)
-	{
-		if (pcount[i] == 1)
-		{	/* only one packet for this person, send it */
-			j = order[i][0];
-			outbuf[j].lastretry = gtc;
-			outbuf[j].retries--;
-			SendRaw(outbuf[j].pid, outbuf[j].t, outbuf[j].len);
-		}
-		else if (pcount[i] > 1)
-		{	/* group all the packets to send */
-			int k;
-			current = buf+2;
-			buf[0] = 0x00; buf[1] = 0x0E;
-			for (j = 0; j < pcount[i]; j++)
-			{
-				k = order[i][j];
-				if ((current-buf+outbuf[k].len+5) < MAXPACKET)
-				{
-					*current++ = outbuf[k].len;
-					memcpy(current, outbuf[k].t, outbuf[k].len);
-					current += outbuf[k].len;
-					outbuf[k].lastretry = gtc;
-					outbuf[k].retries--;
-				}
-				else j = MAXGROUPED;
-			}
-			SendRaw(i, buf, current - buf);
-		}
-
-		if (players[i].status == S_CONNECTED && (gtc - clients[i].lastpkt) > cfg_droptimeout)
-		{
-			byte two = C2S_LEAVING;
-			if (i < MAXPLAYERS)
-				ProcessPacket(i, &two, 1); /* alert the rest of the arena */
-			log->Log(LOG_INFO,"Player timed out (%s)", players[i].name);
-			DropClient(i);
-		}
-	}
-	/*
-	if (	players[PID_BILLER].status == BNET_CONNECTED &&
-			(gtc - clients[PID_BILLER].lastpkt) > (cfg_billping * 2))
-	{
-		log->Log(LOG_IMPORTANT, "Billing server connection timed out, dropping");
-		DropClient(PID_BILLER);
-	}
-	*/
+reallyexit:
+	FreeBuffer(buf);
 }
 
 
@@ -785,11 +992,10 @@ void DropClient(int pid)
 	byte pkt1[2] = {0x00, 0x07};
 
 	/* hack: should use a different constant for PID_BILLER */
-	if (players[pid].status != S_FREE)
+	if (players[pid].status == S_CONNECTED)
 	{
 		SendRaw(pid, pkt1, 2);
-		/* pretend the client initiated the disconnection: */
-		ProcessPacket(pid, pkt1, 2);
+		KillConnection(pid);
 	}
 }
 
@@ -824,41 +1030,57 @@ void SendRaw(int pid, byte *data, int len)
 
 void BufferPacket(int pid, byte *data, int len, int rel)
 {
-	int i = 0;
+	Buffer *buf;
 
 	if (clients[pid].flags & NET_FAKE) return;
 
-	while (outbuf[i].retries && i < cfg_outbuflen) i++;
-	if (i < cfg_outbuflen)
+	/* very special case: unreliable, immediate gets no copying */
+	if (rel == NET_IMMEDIATE)
 	{
-		memcpy(outbuf[i].t, data, len);
-		outbuf[i].retries = cfg_retries;
-		outbuf[i].pid = pid;
-		outbuf[i].len = len;
-		if (rel & NET_IMMEDIATE)
-		{
-			SendRaw(pid, data, len);
-			outbuf[i].lastretry = GTC();
-			outbuf[i].retries--;
-		}
-		else
-			outbuf[i].lastretry = 0;
+		SendRaw(pid, data, len);
+		return;
+	}
 
-		if (!(rel & NET_RELIABLE))
-			outbuf[i].retries = 1;
+	buf = GetBuffer();
+
+	buf->pid = pid;
+	buf->lastretry = 0;
+
+	if (rel & NET_RELIABLE)
+	{
+		buf->d.rel.t1 = 0x00;
+		buf->d.rel.t2 = 0x03;
+		buf->d.rel.seqnum = clients[pid].s2cn++;
+		memcpy(buf->d.rel.data, data, len);
+		buf->len = len + 6;
+		buf->retries = config.retries;
 	}
 	else
 	{
-		log->Log(LOG_ERROR,"Outgoing buffer full! Some packets will not be buffered!");
-		SendRaw(pid, data, len); /* sending without buffering is better than not sending */
+		memcpy(buf->d.raw, data, len);
+		buf->len = len;
+		buf->retries = 1;
+	}
+
+	if (rel & NET_IMMEDIATE)
+	{
+		SendRaw(pid, buf->d.raw, buf->len);
+		buf->lastretry = GTC();
+		buf->retries--;
 	}
 }
 
 
 void SendToOne(int pid, byte *data, int len, int reliable)
 {
-	int set[2] = {pid, -1};
-	SendToSet(set, data, len, reliable);
+	if (len < MAXPACKET && ~(reliable & NET_PRESIZE))
+		BufferPacket(pid, data, len, reliable);
+	else
+	{
+		int set[2];
+		set[0] = pid; set[1] = -1;
+		SendToSet(set, data, len, reliable);
+	}
 }
 
 
@@ -887,8 +1109,6 @@ void SendToAll(byte *data, int len, int reliable)
 
 void SendToSet(int *set, byte *data, int len, int rel)
 {
-	int i = 0;
-
 	if (len > MAXPACKET || (rel & NET_PRESIZE))
 	{	/* too big to send or buffer */
 		if (rel & NET_PRESIZE)
@@ -925,24 +1145,10 @@ void SendToSet(int *set, byte *data, int len, int rel)
 			SendToSet(set, buf, len+2, rel);
 		}
 	}
-	else if (rel & NET_RELIABLE)
-	{
-		struct ReliablePacket *pk = alloca(len+6);
-
-		memcpy(pk->data, data, len);
-		pk->t1 = 0x00; pk->t2 = 0x03;
-
-		while (set[i] != -1)
-		{
-			pk->seqnum = clients[set[i]].s2cn++;
-			BufferPacket(set[i], (byte*)pk, len+6, rel);
-			i++;
-		}
-	}
 	else
 	{
-		while (set[i] != -1)
-			BufferPacket(set[i++], data, len, rel);
+		while (*set++ != -1)
+			BufferPacket(*set, data, len, rel);
 	}
 }
 

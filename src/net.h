@@ -41,6 +41,8 @@
 
 #define S_FREE 0
 #define S_CONNECTED 1
+#define S_TIMEWAIT 2
+#define S_TIMEWAIT2 3
 
 #define EXTRA_PID_COUNT 1
 #define EXTRA_PID(x) ((MAXPLAYERS)+x)
