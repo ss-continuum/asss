@@ -1,0 +1,59 @@
+
+the current system:
+
+regions are defined per-map in special region files.
+each region is a union of an arbitrary number of rectanges.
+regions can also specify the 'IsBase' option.
+regions are named.
+any module can query if a given point is in a given region.
+any module can ask for the base containing a given point.
+region files are created by a special utilty which reads standard .lvl
+  files which use a certain tile (turf flags) to mark region boundaries.
+the marker tiles must form a complete boundary.
+the rules for determing the boundary from a set of marker tiles are a
+  bit confusing and can be improved. the current method is to jump to
+  the closest marker in any of the three directions other than the one
+  that it just came from.
+the region files must be edited by the mapmaker after being generated to
+  name the regions that were found, and also to specify the IsBase
+  option for each.
+
+
+these abilities might be desirable:
+
+any module get a list of the regions in a given map.
+regions should contain information telling the server what to do with
+  them. that is, autowarping regions should specify the destination
+  location, etc.
+regions should be able to be completely determined from the .lvl file in
+  question, names, properties, everything. this requires cooperation
+  from the map editor and perhaps a new file format.
+it would also be acceptable if the map editor could just save the
+  information in a .rgn file itself.
+
+
+things we might want to do with regions:
+
+let regions be autowarp regions: they should warp the player to another
+  location.
+let regions be bases for flag games. the server could keep automatic
+  statistics about which bases were used to win.
+let regions be 'goals' for flag games. I can imagine a flag game where
+  the object is to drop the flag in a certain location. this would be
+  closer to football than the soccer of the ball games.
+regions can also help enforce some of the rules for hockey-type zones.
+let regions be boundaries for flying and flag drops. players flying
+  outside the region would be warped. flags simply wouldn't drop outside
+  the region.
+disable certain things (e.g., antiwarp) within regions.
+regions can have special function in rpg-type games:
+  only buy/obtain items/upgrades/weapons from certain locations.
+regions can be goals for racing games.
+things that regions are used for in infantry?
+
+from ekted:
+- showing region names on screen as you fly through them (ala Cosmic
+  Rift)
+- spawn locations for ships/freqs/balls/flags/greens
+
+
