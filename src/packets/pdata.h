@@ -4,11 +4,19 @@
 
 /* pdata.h - player data packet plus internal fields */
 
+
+struct PlayerPosition
+{
+	int x, y, xspeed, yspeed;
+	int bounty, status;
+};
+
+
 typedef struct PlayerData
 {
-	i8 type;
-	i8 shiptype;
-	i8 flags;
+	u8 type;
+	u8 shiptype;
+	u8 flags;
 	char sendname[20];
 	char sendsquad[20];
 	i32 killpoints;
@@ -23,6 +31,7 @@ typedef struct PlayerData
 	int status, whenloggedin, arena, oldarena, oplevel;
 	char name[24], squad[24];
 	i16 xres, yres;
+	struct PlayerPosition position;
 } PlayerData;
 
 

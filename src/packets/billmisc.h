@@ -7,7 +7,7 @@
 
 struct S2BLogin
 {
-	i8 type;
+	u8 type;
 	i32 serverid;
 	i32 groupid;
 	i32 scoreid;
@@ -17,7 +17,7 @@ struct S2BLogin
 
 struct S2BPlayerEntering
 {
-	i8 type;
+	u8 type;
 	i8 loginflag;
 	i32 ipaddy;
 	char name[32];
@@ -30,7 +30,7 @@ struct S2BPlayerEntering
 
 struct B2SPlayerResponse
 {
-	i8 type;
+	u8 type;
 	i8 loginflag;
 	i32 pid;
 	char name[24];
@@ -51,7 +51,7 @@ struct B2SPlayerResponse
 
 struct S2BChat
 {
-	i8 type;
+	u8 type;
 	i32 pid;
 	char channel[32];
 	char text[0];
@@ -59,7 +59,7 @@ struct S2BChat
 
 struct B2SChat
 {
-	i8 type;
+	u8 type;
 	i32 pid;
 	byte channel;
 	char text[0];
@@ -67,7 +67,7 @@ struct B2SChat
 
 struct S2BRemotePriv
 {
-	i8 type;
+	u8 type;
 	i32 pid;
 	i32 groupid;
 	i16 unknown1; // == 0x0002
@@ -76,7 +76,7 @@ struct S2BRemotePriv
 
 struct B2SRemotePriv
 {
-	i8 type;
+	u8 type;
 	i32 scoreid;
 	i16 unknown1; // == 0x0002
 	char text[0];
@@ -84,7 +84,7 @@ struct B2SRemotePriv
 
 struct S2BCommand
 {
-	i8 type;
+	u8 type;
 	i32 pid;
 	char text[0];
 };

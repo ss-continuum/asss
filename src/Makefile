@@ -46,7 +46,7 @@ all: install
 
 loggers.so: log_file.o log_console.o
 
-game.so: game.o chat.o
+game.so: game.o chat.o flags.o
 
 command.so: cmdman.o playercmd.o
 

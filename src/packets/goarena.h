@@ -6,7 +6,7 @@
 
 struct GoArenaPacket
 {
-	i8 type;
+	u8 type;
 	i8 shiptype;
 	i16 wavmsg;
 	i16 xres,yres,arenatype;

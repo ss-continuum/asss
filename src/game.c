@@ -138,6 +138,7 @@ void Pppk(int pid, byte *p2, int n)
 	/* LOCK: yeah, more stuff should really be locked here. but since
 	 * this will be the most often-called handler by far, we can't
 	 * afford it. */
+	struct PlayerPosition position;
 	struct C2SPosition *p = (struct C2SPosition *)p2;
 	int arena = players[pid].arena, sp = 0, i, sendwpn;
 	int x1, y1;
@@ -156,6 +157,10 @@ void Pppk(int pid, byte *p2, int n)
 		else
 			/* if not, he has his own position, so set it */
 			memcpy(pos + pid, p2, sizeof(pos[0]));
+		memset(&position, 0, sizeof(position));
+		position.x = pos[pid].x;
+		position.y = pos[pid].y;
+		players[pid].position = position;
 		return;
 	}
 
@@ -195,7 +200,7 @@ void Pppk(int pid, byte *p2, int n)
 				     /* and send some radar packets */
 				     ( ( p->weapon.type == W_NULL &&
 				         dist <= cfg_pospix &&
-				         rand() > (dist / cfg_pospix * RAND_MAX))))
+				         rand() > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0)))))
 					set[sp++] = i;
 			}
 		set[sp] = -1;
@@ -222,7 +227,7 @@ void Pppk(int pid, byte *p2, int n)
 					set[sp++] = i;
 				else if (
 				    dist <= cfg_pospix
-				 && (rand() > (dist / cfg_pospix * RAND_MAX)))
+				 && (rand() > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0))))
 						set[sp++] = i;
 			}
 		set[sp] = -1;
@@ -231,6 +236,14 @@ void Pppk(int pid, byte *p2, int n)
 	}
 
 	memcpy(pos + pid, p2, sizeof(pos[0]));
+
+	position.x = p2->x;
+	position.y = p2->y;
+	position.xspeed = p2->xspeed;
+	position.yspeed = p2->yspeed;
+	position.bounty = p2->bounty;
+	position.status = p2->status;
+	players[pid].position = position;
 }
 
 
@@ -297,6 +310,12 @@ void PSetShip(int pid, byte *p, int n)
 		players[pid].shiptype = ship;
 		players[pid].freq = to.freq;
 		net->SendToArena(arena, -1, (byte*)&to, 6, NET_RELIABLE);
+		{
+			LinkedList *lst = mm->LookupCallback(CALLBACK_SHIPCHANGE, arena);
+			Link *l;
+			for (l = LLGetHead(lst); l; l = l->next)
+				((ShipChangeFunc)l->data)(pid, ship, freq);
+		}
 		log->Log(L_DRIVEL, "<game> {%s} [%s] Changed ship to %d",
 				arenas[arena].name,
 				players[pid].name,
@@ -322,6 +341,12 @@ void PSetFreq(int pid, byte *p, int n)
 		to.d2 = newfreq;
 		players[pid].freq = newfreq;
 		net->SendToArena(arena, -1, (byte*)&to, 6, NET_RELIABLE);
+		{
+			LinkedList *lst = mm->LookupCallback(CALLBACK_FREQCHANGE, arena);
+			Link *l;
+			for (l = LLGetHead(lst); l; l = l->next)
+				((FreqChangeFunc)l->data)(pid, newfreq);
+		}
 	}
 }
 
@@ -391,7 +416,10 @@ void PAttach(int pid, byte *p2, int n)
 	if (pid2 == -1 ||
 			( players[pid].arena == players[pid2].arena &&
 			  players[pid].freq  == players[pid2].freq) )
+	{
+		players[pid].attachedto = pid2;
 		net->SendToArena(arena, -1, (byte*)&to, 5, NET_RELIABLE);
+	}
 	pd->UnlockPlayer(pid2);
 }
 

@@ -33,7 +33,7 @@ local void ClearG(int);
 local void PChat(int, byte *, int);
 local void CStats(const char *, int, int);
 local void CScores(const char *, int, int);
-local void PAFunc(int, int);
+local void PAFunc(int, int, int);
 
 
 /* global data */
@@ -170,7 +170,7 @@ void PChat(int pid, byte *p, int len)
 		gdata[pid].messages[(int)from->type]++;
 }
 
-void PAFunc(int pid, int action)
+void PAFunc(int pid, int action, int arena)
 {
 	if (action == PA_CONNECT)
 		gdata[pid].logins++;

@@ -7,8 +7,8 @@
 
 struct LoginPacket
 {
-	i8 type;
-	i8 flags;
+	u8 type;
+	u8 flags;
 	char name[32];
 	char password[32];
 	u32 D1;

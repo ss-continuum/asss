@@ -18,7 +18,7 @@ struct Weapons
 
 struct S2CWeapons
 {
-	i8 type; /* 0x05 */
+	u8 type; /* 0x05 */
 	i8 rotation;
 	u16 time;
 	i16 x;
@@ -36,7 +36,7 @@ struct S2CWeapons
 
 struct S2CPosition
 {
-	i8 type; /* 0x28 */
+	u8 type; /* 0x28 */
 	i8 rotation;
 	u16 time;
 	i16 x;
@@ -52,7 +52,7 @@ struct S2CPosition
 
 struct C2SPosition
 {
-	i8 type; /* 0x03 */
+	u8 type; /* 0x03 */
 	i8 rotation;
 	u32 time;
 	i16 xspeed;

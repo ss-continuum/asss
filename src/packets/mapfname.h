@@ -7,7 +7,7 @@
 
 struct MapFilename
 {
-    i8 type;
+    u8 type;
     char filename[16];
     u32 checksum;
 };

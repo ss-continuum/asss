@@ -7,8 +7,8 @@
 
 struct ChatPacket
 {
-	i8 pktype;
-	i8 type, sound;
+	u8 pktype;
+	u8 type, sound;
 	i16 pid;
 	char text[0];
 };

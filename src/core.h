@@ -28,7 +28,7 @@ typedef struct AuthData
 /* these two do involve arenas, so callbacks can be registered either
  * globally or for a specific arena. */
 
-typedef void (*PlayerActionFunc)(int pid, int action);
+typedef void (*PlayerActionFunc)(int pid, int action, int arena);
 
 
 /* INTERFACES */

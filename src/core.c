@@ -271,7 +271,7 @@ void CallPA(int pid, int action, int arena)
 
 	lst = mm->LookupCallback(CALLBACK_PLAYERACTION, arena);
 	for (l = LLGetHead(lst); l; l = l->next)
-		((PlayerActionFunc)l->data)(pid, action);
+		((PlayerActionFunc)l->data)(pid, action, arena);
 	mm->FreeLookupResult(lst);
 }
 

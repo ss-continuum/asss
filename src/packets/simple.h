@@ -6,13 +6,13 @@
 
 struct SimplePacket
 {
-	i8 type;
+	u8 type;
 	i16 d1, d2, d3, d4, d5;
 };
 
 struct SimplePacketA
 {
-	i8 type;
+	u8 type;
 	i16 d[0];
 };
 

@@ -4,7 +4,7 @@
 
 struct ScorePacket
 {
-	i8 type;
+	u8 type;
 	i16 pid;
 	i32 killpoints, flagpoints;
 	i16 kills, deaths;
