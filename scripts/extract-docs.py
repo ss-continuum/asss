@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # dist: public
 
-import sys, re, string
+import sys, re, string, glob
 
 
 re_helptext = re.compile(r"^local helptext_t ([a-z]*)_help =$")
@@ -108,7 +108,15 @@ def extract_docs(lines):
 
 
 if __name__ == '__main__':
-	lines = map(string.strip, sys.stdin.readlines())
+	# open output
+	sys.stdout = open(sys.argv[1], 'w')
+
+	# get input
+	lines = []
+	for pat in sys.argv[2:]:
+		for f in glob.glob(pat):
+			lines.extend(map(string.strip, open(f).readlines()))
+
 	docs = extract_docs(lines).items()
 	docs.sort()
 	for c, t in docs:

@@ -209,5 +209,5 @@ if __name__ == '__main__':
 			print_latex(docs)
 		else:
 			print "unknown option"
-   			sys.exit(1)
+			sys.exit(1)
 
