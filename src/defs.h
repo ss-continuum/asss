@@ -189,6 +189,7 @@ typedef unsigned char byte;
 #define FALSE (0)
 /** a little macro for win32 compatibility */
 #define closesocket(a) close(a)
+#define O_BINARY 0
 #else
 #include "win32compat.h"
 #endif
