@@ -966,6 +966,7 @@ local void pycmd_command2(const char *cmd, const char *params, Player *p, const 
 struct pycmd_ticket
 {
 	PyObject *func, *htobj;
+	Arena *arena;
 	char cmd[1];
 };
 
@@ -973,7 +974,7 @@ local void remove_command(void *v)
 {
 	struct pycmd_ticket *t = v;
 
-	cmd->RemoveCommand2(t->cmd, pycmd_command2);
+	cmd->RemoveCommand2(t->cmd, pycmd_command2, t->arena);
 	HashRemove(pycmd_cmds, t->cmd, t->func);
 	Py_DECREF(t->func);
 	Py_XDECREF(t->htobj);
@@ -984,9 +985,10 @@ local PyObject *mthd_add_command(PyObject *self, PyObject *args)
 {
 	char *cmdname, *helptext = NULL;
 	PyObject *func, *helptextobj;
+	Arena *arena = ALLARENAS;
 	struct pycmd_ticket *t;
 
-	if (!PyArg_ParseTuple(args, "sO", &cmdname, &func))
+	if (!PyArg_ParseTuple(args, "sO|O&", &cmdname, &func, cvt_p2c_arena, &arena))
 		return NULL;
 
 	if (!PyCallable_Check(func))
@@ -999,6 +1001,7 @@ local PyObject *mthd_add_command(PyObject *self, PyObject *args)
 
 	t = amalloc(sizeof(*t) + strlen(cmdname));
 	t->func = func;
+	t->arena = arena;
 	strcpy(t->cmd, cmdname);
 
 	helptextobj = PyObject_GetAttrString(func, "__doc__");
@@ -1010,7 +1013,7 @@ local PyObject *mthd_add_command(PyObject *self, PyObject *args)
 	else
 		Py_XDECREF(helptextobj);
 
-	cmd->AddCommand2(cmdname, pycmd_command2, helptext);
+	cmd->AddCommand2(cmdname, pycmd_command2, arena, helptext);
 	HashAdd(pycmd_cmds, cmdname, func);
 
 	return PyCObject_FromVoidPtr(t, remove_command);

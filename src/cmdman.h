@@ -16,7 +16,8 @@
  *
  * the alternate interface, AddCommand2, allows you to specify a
  * function that will also get the command name typed. this is useful
- * for the billing module, bots, and extension language modules.
+ * for the billing module, bots, and extension language modules. it also
+ * lets you register arena-specific commands.
  *
  * commands can be removed in the same way by specifying the name and
  * function (the name must be specified again because they're stored in
@@ -43,16 +44,18 @@ typedef void (*CommandFunc2)(const char *command, const char *params,
 
 typedef const char *helptext_t;
 
-#define I_CMDMAN "cmdman-5"
+#define I_CMDMAN "cmdman-6"
 
 typedef struct Icmdman
 {
 	INTERFACE_HEAD_DECL
 
 	void (*AddCommand)(const char *cmdname, CommandFunc func, helptext_t ht);
-	void (*AddCommand2)(const char *cmdname, CommandFunc2 func, helptext_t ht);
+	void (*AddCommand2)(const char *cmdname, CommandFunc2 func,
+			Arena *arena, helptext_t ht);
 	void (*RemoveCommand)(const char *cmdname, CommandFunc func);
-	void (*RemoveCommand2)(const char *cmdname, CommandFunc2 func);
+	void (*RemoveCommand2)(const char *cmdname, CommandFunc2 func,
+			Arena *arena);
 	void (*Command)(const char *typedline, Player *p, const Target *target);
 	helptext_t (*GetHelpText)(const char *cmdname);
 } Icmdman;

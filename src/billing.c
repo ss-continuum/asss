@@ -1099,7 +1099,7 @@ EXPORT int MM_billing(int action, Imodman *mm_, Arena *arena)
 		cmd->AddCommand("usage", Cusage, usage_help);
 		cmd->AddCommand("userdbid", Cuserdbid, userdbid_help);
 		cmd->AddCommand("userdbadm", Cuserdbadm, userdbadm_help);
-		cmd->AddCommand2(NULL, Cdefault, NULL);
+		cmd->AddCommand2(NULL, Cdefault, ALLARENAS, NULL);
 
 		if (net) net->AddPacket(C2S_REGDATA, pdemographics);
 
@@ -1119,7 +1119,7 @@ EXPORT int MM_billing(int action, Imodman *mm_, Arena *arena)
 		cmd->RemoveCommand("usage", Cusage);
 		cmd->RemoveCommand("userdbid", Cuserdbid);
 		cmd->RemoveCommand("userdbadm", Cuserdbadm);
-		cmd->RemoveCommand2(NULL, Cdefault);
+		cmd->RemoveCommand2(NULL, Cdefault, ALLARENAS);
 		mm->UnregCallback(CB_SET_BANNER, setbanner, ALLARENAS);
 		mm->UnregCallback(CB_CHATMSG, onchatmsg, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
