@@ -39,16 +39,15 @@ EXTRAOBJS = module.o  \
 EXTMODS = loggers.so  \
           game.so     \
           command.so  \
-          billing.so  \
+          external.so \
           scoring.so  \
-          funky.so    \
-          fake.so
+          funky.so
 
 
 
 all: pre install
 
-pre: sparse.inc letters.inc buildnumber
+pre: sparse.inc letters.inc
 
 loggers.so: log_file.o log_console.o log_sysop.o
 
@@ -57,15 +56,14 @@ game.so: game.o chat.o flags.o balls.o fm_normal.o banners.o
 
 command.so: cmdman.o playercmd.o
 
-billing.so: billcore.o
+external.so: billcore.o directory.o
 
 scoring.so: persist.o stats.o points_kill.o points_flag.o points_goal.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -ldb1
 
 
-funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o
-
-fake.so: fake.o autoturret.o
+funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
+	fake.o autoturret.o
 
 
 asss: main.o $(INTMODS) $(EXTRAOBJS)
@@ -96,7 +94,7 @@ install: $(ALL_STUFF)
 	-cp -f $(ALL_STUFF) ../bin
 
 clean:
-	-rm -f asss *.o *.so core
+	-rm -f asss *.o *.so core Makefile.deps
 
 .PHONY: clean install all tags
 
