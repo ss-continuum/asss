@@ -11,13 +11,16 @@
 
 /* defines */
 
-#define DB_NULL       0
-#define DB_GETGLOBAL  1
-#define DB_GETLOCAL   2
-#define DB_PUTGLOBAL  3
-#define DB_PUTLOCAL   4
-#define DB_SYNCWAIT   5
-#define DB_QUIT       6
+typedef enum db_command
+{
+	DB_NULL,
+	DB_GETGLOBAL,
+	DB_GETLOCAL,
+	DB_PUTGLOBAL,
+	DB_PUTLOCAL,
+	DB_SYNCWAIT,
+	DB_QUIT,
+} db_command;
 
 #define SAME(a,b) (((a) && (b)) || ((!(a)) && (!(b))))
 
@@ -25,7 +28,8 @@
 
 typedef struct DBMessage
 {
-	int command, pid, data;
+	db_command command;
+	int pid, data;
 	void (*callback)(int pid);
 } DBMessage;
 
