@@ -1,20 +1,15 @@
 
 easy
 ----
-log filtering
-
 fixing various non-null-terminated bugs (supposedly one in cmdman).
-
-add a capability to control who can _send_ mod chat (as opposed to
-recieve it).
+	update: i checked cmdman and couldn't find any problems. mgb: where
+	did you see these kind of problems?
 
 unknown packet logging.
 
 
 moderate
 --------
-sound messages
-
 points_goal
 
 lag handling
