@@ -55,7 +55,7 @@ local void MyAA(Arena *, int);
 #if 0
 local int  IdGoalScored(int, int, int);
 #endif
-local void RewardPoints(Arena *, int);
+local int  RewardPoints(Arena *, int);
 local void CheckGameOver(Arena *, int);
 local void ScoreMsg(Arena *, Player *);
 local void Csetscore(const char *,Player *, const Target *);
@@ -295,14 +295,29 @@ void MyGoal(Arena *arena, Player *p, int bid, int x, int y)
 		}
 	pd->Unlock();
 
-	chat->SendSetSoundMessage(&teamset, SOUND_GOAL, "Team Goal! by %s", p->name);
-	chat->SendSetSoundMessage(&nmeset, SOUND_GOAL, "Enemy Goal! by %s", p->name);
+	if (!scores->timed)
+	{
+		int points = RewardPoints(arena, freq);
+
+		chat->SendSetSoundMessage(&teamset, SOUND_GOAL,
+			"Team Goal! by %s  Reward:%d", p->name, points);
+		chat->SendSetSoundMessage(&nmeset, SOUND_GOAL,
+			"Enemy Goal! by %s  Reward:%d", p->name, points);
+
+		stats->SendUpdates();
+	}
+	else
+	{
+		chat->SendSetSoundMessage(&teamset, SOUND_GOAL, "Team Goal! by %s", p->name);
+		chat->SendSetSoundMessage(&nmeset, SOUND_GOAL, "Enemy Goal! by %s", p->name);
+		if (nullgoal) chat->SendArenaMessage(arena,"Enemy goal had no points to give.");
+	}
 	LLEmpty(&teamset); LLEmpty(&nmeset);
-	if (nullgoal) chat->SendArenaMessage(arena,"Enemy goal had no points to give.");
 
 	if (scores->mode)
 	{
-		ScoreMsg(arena, NULL);
+		if (scores->timed)
+			ScoreMsg(arena, NULL);
 		CheckGameOver(arena, bid);
 	}
 
@@ -344,7 +359,7 @@ int IdGoalScored (Arena *arena, int x, int y)
 #endif
 
 
-void RewardPoints(Arena *arena, int winfreq)
+int RewardPoints(Arena *arena, int winfreq)
 {
 	struct ArenaScores *scores = P_ARENA_DATA(arena, scrkey);
 	LinkedList set = LL_INITIALIZER;
@@ -382,6 +397,8 @@ void RewardPoints(Arena *arena, int winfreq)
 	LLEmpty(&set);
 
 	/* don't SendUpdates here, wait until after the balls->EndGame */
+
+	return points;
 }
 
 void CheckGameOver(Arena *arena, int bid)
