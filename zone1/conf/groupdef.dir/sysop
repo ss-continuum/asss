@@ -2,6 +2,14 @@
 
 seesysoplogall
 
+; setgroup:
+higher_than_smod
+
+; prefix chars
+prefix_#
+prefix_$$
+prefix_@
+
 cmd_shutdown
 cmd_netstats
 cmd_lastlog
@@ -36,12 +44,4 @@ cmd_addallowed
 
 ; temporary
 cmd_dropturret
-
-; prefix chars
-prefix_#
-prefix_$$
-prefix_@
-
-; setgroup:
-higher_than_smod
 

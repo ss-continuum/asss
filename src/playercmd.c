@@ -627,7 +627,6 @@ local helptext_t listmod_help =
 
 local void Clistmod(const char *params, Player *p, const Target *target)
 {
-	const char *group;
 	Player *i;
 	Link *link;
 	int seehid = capman->HasCapability(p, CAP_SEEPRIVARENA);
@@ -635,12 +634,12 @@ local void Clistmod(const char *params, Player *p, const Target *target)
 	pd->Lock();
 	FOR_EACH_PLAYER(i)
 		if (i->status == S_PLAYING &&
-		    strcmp(group = groupman->GetGroup(i), "default"))
+		    capman->HasCapability(i, CAP_IS_STAFF))
 			chat->SendMessage(p, ": %20s %10s %10s",
 					i->name,
 					(i->arena->name[0] != '#' || seehid || p->arena == i->arena) ?
 						i->arena->name : "(private)",
-					group);
+					groupman->GetGroup(i));
 	pd->Unlock();
 }
 

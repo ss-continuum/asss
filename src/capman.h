@@ -88,6 +88,7 @@ typedef struct Igroupman
 #define CAP_INVISIBLE_SPECTATOR   "invisiblespectator"
 #define CAP_CANSPAM               "unlimitedchat"
 #define CAP_CHANGESETTINGS        "changesettings"
+#define CAP_IS_STAFF              "isstaff"
 
 
 #endif
