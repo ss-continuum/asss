@@ -1,5 +1,5 @@
 
-import os, struct, random
+import os, time, struct, random, math
 
 import prot
 import timer
@@ -25,7 +25,8 @@ def make_ppk(rot, x, y, xspeed, yspeed, status, bty, nrg):
 
 
 class Pilot:
-	MAX = 65536
+	MAX = 1024 * 16
+	VFACTOR = 10 # ss speeds are pixels / 10 seconds
 
 	def __init__(me):
 		me.x = Pilot.MAX/2
@@ -33,6 +34,12 @@ class Pilot:
 
 	def getxy(me):
 		return me.x, me.y
+
+	def getdxdy(me):
+		return 0, 0
+
+	def getrot(me):
+		return 0
 
 	def getbty(me):
 		return random.choice([20, 40, 60, 100, 200, 280, 500])
@@ -56,6 +63,38 @@ class RandomWalk(Pilot):
 			me.y = Pilot.MAX/2
 
 
+class Circler(Pilot):
+	def __init__(me):
+		Pilot.__init__(me)
+		me.newparams()
+
+	def newparams(me):
+		me.x = Pilot.MAX/2 + (Pilot.MAX/2 * (random.random() - 0.5))
+		me.y = Pilot.MAX/2 + (Pilot.MAX/2 * (random.random() - 0.5))
+		me.r = max(100.0, Pilot.MAX/4 * random.random() - 150)
+		me.dtheta = (100.0 * (random.random() + 2.0)) / me.r
+		me.theta = 0.0
+		me.timebase = time.time()
+		me.expire = 15.0 * (random.random() + 2.0)
+
+	def update(me):
+		dt = time.time() - me.timebase
+		me.theta = me.dtheta * dt
+		if me.expire <= dt:
+			me.newparams()
+
+	def getxy(me):
+		return int(me.x + me.r * math.cos(me.theta)), \
+		       int(me.y + me.r * math.sin(me.theta))
+
+	def getdxdy(me):
+		return -int(me.dtheta * me.r * math.sin(me.theta) * Pilot.VFACTOR), \
+		       int(me.dtheta * me.r * math.cos(me.theta) * Pilot.VFACTOR)
+
+	def getrot(me):
+		return int((me.theta + math.pi) / math.pi * 20) % 40
+
+
 class Client(prot.Connection):
 	def __init__(me, name = None, pwd = '', defarena = 0):
 		prot.Connection.__init__(me)
@@ -75,7 +114,7 @@ class Client(prot.Connection):
 		me.pwd = pwd
 		me.defarena = defarena
 
-		me.pilot = RandomWalk()
+		me.pilot = Circler() #RandomWalk()
 		me.pid = None
 
 		me.reset_stats()
@@ -134,7 +173,9 @@ class Client(prot.Connection):
 		me.pilot.update()
 		bty = me.pilot.getbty()
 		x, y = me.pilot.getxy()
-		ppk = make_ppk(0, x, y, 0, 0, 0, bty, 1700)
+		dx, dy = me.pilot.getdxdy()
+		rot = me.pilot.getrot()
+		ppk = make_ppk(rot, x, y, dx, dy, 0, bty, 1700)
 		me.send(ppk)
 		me.pos_sent += 1
 		#log("sent ppk: (%d,%d) :%d" % (x, y, bty))
