@@ -84,6 +84,7 @@ def modify_lvl(lvl, opts):
 			x, y, t = map(int, tilespec.split(','))
 		except:
 			print "*** bad tile option: '%s' (should be 'x,y,type')" % tilespec
+			sys.exit(1)
 
 		lvl.set_tile(x, y, t)
 		print "set tile at %d,%d to %d" % (x, y, t)
@@ -119,6 +120,21 @@ def modify_lvl(lvl, opts):
 		r = Region([('rNAM', rname)])
 		lvl.regions.append(r)
 		print "created region %s" % (mq(rname))
+
+	for spec in opts.regs_to_ren:
+		try:
+			old, new = spec.split('=')
+		except:
+			print "*** bad renregion option: '%s' (should be 'oldname=newname')" % spec
+			sys.exit(1)
+
+		r = lvl.find_region(old)
+		if not r:
+			print "*** can't find region %s" % mq(old)
+			sys.exit(1)
+
+		r.name = new
+		print "renaming region %s to %s" % (mq(old), mq(new))
 
 	for flag in all_simple_flags:
 		for spec in getattr(opts, 'regs_to_set_' + flag):
@@ -304,6 +320,8 @@ commands:
 		default = [], metavar = 'REGIONNAME', help = 'adds a new region')
 	op.add_option('--delregion', action = 'append', type = 'string', dest = 'regs_to_del',
 		default = [], metavar = 'REGIONNAME', help = 'deletes a region')
+	op.add_option('--renregion', action = 'append', type = 'string', dest = 'regs_to_ren',
+		default = [], metavar = 'OLDNAME=NEWNAME', help = 'renames a region')
 	for flag in all_simple_flags:
 		op.add_option('--' + flag, action = 'append', type = 'string',
 			dest = 'regs_to_set_' + flag, default = [], metavar = 'REGIONNAME=0/1',
