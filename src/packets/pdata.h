@@ -56,17 +56,23 @@ typedef struct PlayerData
 #define RESET_DURING_CHANGE(pid) (pd->players[pid].pflags &= ~F_DURING_CHANGE)
 #define IS_DURING_CHANGE(pid) (pd->players[pid].pflags & F_DURING_CHANGE)
 
-/* if user wants optional .lvz files */
+/* if player wants optional .lvz files */
 #define F_ALL_LVZ 0x02
 #define SET_ALL_LVZ(pid) (pd->players[pid].pflags |= F_ALL_LVZ)
 #define UNSET_ALL_LVZ(pid) (pd->players[pid].pflags &= ~F_ALL_LVZ)
 #define WANT_ALL_LVZ(pid) (pd->players[pid].pflags & F_ALL_LVZ)
 
-/* if user is waiting for db query results */
+/* if player is waiting for db query results */
 #define F_DURING_QUERY 0x04
 #define SET_DURING_QUERY(pid) (pd->players[pid].pflags |= F_DURING_QUERY)
 #define UNSET_DURING_QUERY(pid) (pd->players[pid].pflags &= ~F_DURING_QUERY)
 #define IS_DURING_QUERY(pid) (pd->players[pid].pflags & F_DURING_QUERY)
+
+/* if the player's lag is too high to let him have flags or balls */
+#define F_NO_FLAGS_BALLS 0x08
+#define SET_NO_FLAGS_BALLS(pid) (pd->players[pid].pflags |= F_NO_FLAGS_BALLS)
+#define UNSET_NO_FLAGS_BALLS(pid) (pd->players[pid].pflags &= ~F_NO_FLAGS_BALLS)
+#define IS_NO_FLAGS_BALLS(pid) (pd->players[pid].pflags & F_NO_FLAGS_BALLS)
 
 #endif
 

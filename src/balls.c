@@ -486,6 +486,13 @@ void PPickupBall(int pid, byte *p, int len)
 		return;
 	}
 
+	/* this player is too lagged to have a ball */
+	if (IS_NO_FLAGS_BALLS(pid))
+	{
+		logm->LogP(L_INFO, "balls", pid, "too lagged to pick up ball %d", bp->ballid);
+		return;
+	}
+
 	LOCK_STATUS(arena);
 
 	if (bp->ballid >= balldata[arena].ballcount)

@@ -3,13 +3,9 @@ easy
 ----
 too many shipchanges detection
 
-chat flooding detection
-
 
 moderate
 --------
-lag checking/actions
-
 locking. lots of options here:
 	lock to freq
 	lock to ship
@@ -46,8 +42,6 @@ balls:
 region-based goals. 3/6-team ball games.
 let ball speccer see info of person carrying ball.
 multiple-point goals based on distance
-
-treat nme bricks as tiles for the purposes of dropping bricks
 
 bandwidth:
 prioritized position/weapons based on distance

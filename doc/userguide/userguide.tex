@@ -6,7 +6,7 @@
 \addtolength{\textwidth}{1.6cm}
 
 % make new commands to enforce some style
-\newcommand{\command}[1]{\subsection{#1}}
+\newcommand{\command}[1]{\subsection*{#1}}
 \newcommand{\requiremod}[1]{\noindent\textbf{Requires module:} \texttt{#1}\\}
 \newcommand{\targets}[1]{\noindent\textbf{Possible targets:} #1\\}
 \newcommand{\args}[1]{\noindent\textbf{Arguments:} #1\\}
@@ -566,6 +566,8 @@ second half.
 
 \section{Lag Control}
 
+\subsection{Lag Measurement}
+
 Lag, which includes both latency and packetloss, is difficult to measure
 accurately and control. \asss{} does as well as it can with limited
 information.
@@ -592,9 +594,63 @@ lost. If a reliable packet is recieved twice, the server knows the
 acknowledgement got lost. Again, the client can also measure these
 numbers and send the results to the server.
 
-% FIXME: describe actions the server takes for lag, and the settings
-% that control them.
+\subsection{Settings and Actions}
 
+There is one global setting for lag, \texttt{Lag:CheckInterval} which
+controls how often each player's lag numbers are checked to perform
+actions. It's specified in ticks. Each arena can specify its own lag
+limits. All of the parameters described below go in the \texttt{Lag}
+section in the arena's configuration file (or a file included from it).
+
+There are four main values that lag actions are based on: average ping
+(determined by an exponential averaging scheme, based on S2C, C2S, and
+reliable pings), S2C packet loss, S2C weapons packet loss, and C2S
+packet loss. Each value has four thresholds associated with it: one
+controls when a player gets forced into spectator mode, one controls
+when a player is allowed to pick up flags and balls, and two control
+weapons ignoring. The units of the settings concerning latency are
+milliseconds, and the units of the settings concerning packetloss are
+tenths of a percent (i.e., fractions out of 1000).
+
+Forcing into spec is easy enough: if the value is over the threshold
+when a player is examined, he's forced into spec. Disabling flags and
+balls also works on a simple threshold: if the value is above it, the
+player won't be allowed to pick up any flags or balls. If he's currently
+carrying a flag or ball, and one of the values moves over the limit,
+he'll get to keep it.
+
+Weapon ignoring is slighly more complicated: There are two thresholds,
+one to start ignoring weapons, and one where all weapons will be
+ignored. If all of the values are below their respective starting
+thresholds, none of the player's weapons will be ignored. If one of them
+is higher, a percent of incoming weapons from that player to be ignored
+is calculated by interpolation between the starting threshold (0\%) and
+the higher threshold (100\%). If multiple values are above their
+starting threshold, the percent of weapons that gets ignored is the
+maximum of the percent ignored from each value. C2S packetloss doesn't
+cause weapon ignoring, since C2S packetloss generally gives the player a
+disadvantage, not an advantage.
+
+The names of these settings are:
+\texttt{PingToSpec},
+\texttt{PingToStartIgnoringWeapons},
+\texttt{PingToIgnoreAllWeapons},
+\texttt{PingToDisallowFlags},
+\texttt{S2CLossToSpec},
+\texttt{S2CLossToStartIgnoringWeapons},
+\texttt{S2CLossToIgnoreAllWeapons},
+\texttt{S2CLossToDisallowFlags},
+\texttt{WeaponLossToSpec},
+\texttt{WeaponLossToStartIgnoringWeapons},
+\texttt{WeaponLossToIgnoreAllWeapons},
+\texttt{WeaponLossToDisallowFlags},
+\texttt{C2SLossToSpec},
+and
+\texttt{C2SLossToDisallowFlags}. Their functions should be clear from
+their names and the above description.
+
+One final setting \texttt{SpikeToSpec}, determines the length of time that the server can
+recieve no packets from a player before forcing him into spectator mode.
 
 
 %\section{Regions}

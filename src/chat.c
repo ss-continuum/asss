@@ -77,7 +77,7 @@ local void check_flood(int pid)
 
 	pm->msgs++;
 
-	if (pm->msgs >= cfg_floodlimit)
+	if (pm->msgs >= cfg_floodlimit && cfg_floodlimit > 0)
 	{
 		pm->msgs >>= 1;
 		pm->mask |= MSG_PUBMACRO | MSG_PUB | MSG_FREQ | MSG_NMEFREQ | MSG_PRIV | MSG_INTERARENAPRIV | MSG_CHAT | MSG_MODCHAT | MSG_BCOMMAND;

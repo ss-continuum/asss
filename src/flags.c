@@ -619,6 +619,13 @@ void PPickupFlag(int pid, byte *p, int len)
 
 #undef ERR
 
+	/* this player is too lagged to have a flag */
+	if (IS_NO_FLAGS_BALLS(pid))
+	{
+		logm->LogP(L_INFO, "flags", pid, "too lagged to pick up flag %d", cfp->fid);
+		return;
+	}
+
 	LOCK_STATUS(arena);
 	/* copy the fd struct so we can modify it */
 	fd = flagdata[arena].flags[cfp->fid];

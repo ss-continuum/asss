@@ -72,12 +72,13 @@ local ArenaData *arenas;
 local struct C2SPosition pos[MAXPLAYERS];
 local int speccing[MAXPLAYERS];
 local unsigned int wpnsent[MAXPLAYERS];
+local struct { unsigned changes, lastcheck; } changes[MAXPLAYERS];
 /* epd/energy stuff */
 local struct { char see, cap, capnrg, pad__; } pl_epd[MAXPLAYERS];
 local struct { char spec, nrg; } ar_epd[MAXARENA];
 
 local int cfg_bulletpix, cfg_wpnpix, cfg_wpnbufsize, cfg_pospix;
-local int cfg_sendanti;
+local int cfg_sendanti, cfg_changelimit;
 local int wpnrange[WEAPONCOUNT]; /* there are 5 bits in the weapon type */
 
 
@@ -110,6 +111,7 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		cfg_sendanti = cfg->GetInt(GLOBAL, "Net", "AntiwarpSendPercent", 5);
 		/* convert to a percentage of RAND_MAX */
 		cfg_sendanti = RAND_MAX / 100 * cfg_sendanti;
+		cfg_changelimit = cfg->GetInt(GLOBAL, "General", "ShipChangeLimit", 10);
 
 		for (i = 0; i < WEAPONCOUNT; i++)
 			wpnrange[i] = cfg_wpnpix;
@@ -466,6 +468,7 @@ void SetShip(int pid, int ship)
 
 void PSetShip(int pid, byte *p, int n)
 {
+	int d;
 	int arena = players[pid].arena;
 	int ship = p[1], freq = players[pid].freq;
 	Ifreqman *fm;
@@ -493,6 +496,23 @@ void PSetShip(int pid, byte *p, int n)
 				players[pid].name);
 		return;
 	}
+
+	/* exponential decay by 1/2 every 10 seconds */
+	d = (GTC() - changes[pid].lastcheck) / 1000;
+	changes[pid].changes >>= d;
+	changes[pid].lastcheck += d * 1000;
+	if (changes[pid].changes > cfg_changelimit && cfg_changelimit > 0)
+	{
+		Ichat *chat = mm->GetInterface(I_CHAT, ALLARENAS);
+		lm->LogP(L_INFO, "game", pid, "too many ship changes");
+		/* disable for at least 30 seconds */
+		changes[pid].changes |= (cfg_changelimit<<3);
+		if (chat)
+			chat->SendMessage(pid, "You're changing ships too often, disabling for 30 seconds.");
+		mm->ReleaseInterface(chat);
+		return;
+	}
+	changes[pid].changes++;
 
 	fm = mm->GetInterface(I_FREQMAN, arena);
 	if (fm)
