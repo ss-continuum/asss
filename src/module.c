@@ -41,7 +41,7 @@ local int FindPlayer(char *);
 
 
 /* THIS IS THE GLOBAL PLAYER ARRAY!!! */
-local PlayerData players[MAXPLAYERS];
+local PlayerData players[MAXPLAYERS+EXTRA_PID_COUNT];
 
 local HashTable *callbacks;
 

@@ -10,7 +10,7 @@
 /* prototypes */
 
 local void Carena(const char *, int, int);
-local void Clogon(const char *, int, int);
+local void Clogin(const char *, int, int);
 local void Csetop(const char *, int, int);
 local void Cshutdown(const char *, int, int);
 
@@ -45,14 +45,14 @@ int MM_playercmd(int action, Imodman *mm)
 		configops = cfg->OpenConfigFile("oplevels");
 
 		cmd->AddCommand("arena", Carena, 0);
-		cmd->AddCommand("logon", Clogon, 0);
+		cmd->AddCommand("login", Clogin, 0);
 		cmd->AddCommand("setop", Csetop, 0);
 		cmd->AddCommand("shutdown", Cshutdown, 200);
 	}
 	else if (action == MM_UNLOAD)
 	{
 		cmd->RemoveCommand("arena", Carena);
-		cmd->RemoveCommand("logon", Clogon);
+		cmd->RemoveCommand("login", Clogin);
 		cmd->RemoveCommand("setop", Csetop);
 		cmd->RemoveCommand("shutdown", Cshutdown);
 
@@ -103,7 +103,7 @@ void Carena(const char *params, int pid, int target)
 }
 
 
-void Clogon(const char *params, int pid, int target)
+void Clogin(const char *params, int pid, int target)
 {
 	int arena = players[pid].arena, op2;
 

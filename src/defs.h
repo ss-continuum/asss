@@ -21,6 +21,9 @@
 
 #define MAXINTERFACE 256
 
+#define TRUE (1)
+#define FALSE (0)
+
 
 /* interface ids, kept here to make sure they're unique */
 #define I_MODMAN		0
@@ -30,7 +33,7 @@
 #define I_LOGMAN		4
 #define I_CMDMAN		5
 #define I_CHAT			6
-#define I_CORE			7
+#define I_ARENAMAN		7
 #define I_ASSIGNFREQ	8
 #define I_AUTHENTICATE	9
 #define I_BILLCORE		10

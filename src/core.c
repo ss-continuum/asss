@@ -18,37 +18,23 @@
 
 /* STRUCTS */
 
-#include "packets/logon.h"
+#include "packets/login.h"
 
-#include "packets/logonresp.h"
-
-#include "packets/goarena.h"
+#include "packets/loginresp.h"
 
 
 /* PROTOTYPES */
 
 /* packet funcs */
 local void PLogin(int, byte *, int);
-local void PArena(int, byte *, int);
 local void PLeaving(int, byte *, int);
 
-local void SendLogonResponse(int, AuthData *);
+local void SendLoginResponse(int, AuthData *);
 
-/* timers */
 local int SendKeepalive(void *);
-local int ReapArenas(void *);
-
-/* extras to help PArena */
-local int AssignArena(struct GoArenaPacket *);
-local int DefaultAssignFreq(int, int, byte);
-
-/* arena management funcs */
-local int FindArena(char *);
-local int CreateArena(char *);
-local void FreeArena(int);
 
 /* default auth, can be replaced */
-local void DefaultAuth(int, struct LogonPacket *);
+local void DefaultAuth(int, struct LoginPacket *);
 
 
 
@@ -62,9 +48,7 @@ local Imodman *mm;
 local Ilogman *log;
 
 local PlayerData *players;
-local ArenaData *arenas[MAXARENA];
 
-local Icore _icore = { arenas, SendLogonResponse };
 local Iassignfreq _iaf = { DefaultAssignFreq };
 local Iauth _iauth = { DefaultAuth };
 
@@ -85,12 +69,8 @@ int MM_core(int action, Imodman *mm_)
 
 		if (!net || !cfg || !log || !ml) return MM_FAIL;
 
-		/* zero out arenas */
-		memset(arenas,0,sizeof(arenas));
-
 		/* set up callbacks */
-		net->AddPacket(C2S_LOGON, PLogin);
-		net->AddPacket(C2S_GOTOARENA, PArena);
+		net->AddPacket(C2S_LOGIN, PLogin);
 		net->AddPacket(C2S_LEAVING, PLeaving);
 
 		/* register default interfaces which may be replaced later */
@@ -99,23 +79,18 @@ int MM_core(int action, Imodman *mm_)
 
 		/* set up periodic events */
 		ml->SetTimer(SendKeepalive, 500, 500, NULL);
-		ml->SetTimer(ReapArenas, 1000, 6000, NULL);
 
-		/* register the main interface */
-		mm->RegisterInterface(I_CORE, &_icore);
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregisterInterface(&_icore);
 		mm->UnregisterInterface(&_iaf);
 		mm->UnregisterInterface(&_iauth);
-		net->RemovePacket(C2S_LOGON, PLogin);
-		net->RemovePacket(C2S_GOTOARENA, PArena);
+		net->RemovePacket(C2S_LOGIN, PLogin);
 		net->RemovePacket(C2S_LEAVING, PLeaving);
 	}
 	else if (action == MM_DESCRIBE)
 	{
-		mm->desc = "core - handles core game packets, including logons, arenas";
+		mm->desc = "core - handles core game packets, including logins";
 	}
 	return MM_OK;
 }
@@ -124,18 +99,18 @@ int MM_core(int action, Imodman *mm_)
 
 void PLogin(int pid, byte *p, int l)
 {
-	if (l != sizeof(struct LogonPacket))
+	if (l != sizeof(struct LoginPacket))
 		log->Log(LOG_BADDATA,"Bad packet length (%s)",players[pid].name);
 	else
 		((Iauth*)mm->GetInterface(I_AUTH))->Authenticate
-			(pid, (struct LogonPacket *)p, SendLogonResponse);
+			(pid, (struct LoginPacket *)p, SendLoginResponse);
 }
 
 
-void SendLogonResponse(int pid, AuthData *auth)
+void SendLoginResponse(int pid, AuthData *auth)
 {
-	struct LogonResponse lr =
-		{ S2C_LOGONRESPONSE, 0, 134, 0, EXECHECKSUM, {0, 0},
+	struct LoginResponse lr =
+		{ S2C_LOGINRESPONSE, 0, 134, 0, EXECHECKSUM, {0, 0},
 			0, 0x281CC948, 0, {0, 0, 0, 0, 0, 0, 0, 0} };
 
 	lr.code = auth->code;
@@ -155,13 +130,13 @@ void SendLogonResponse(int pid, AuthData *auth)
 	players[pid].arena = -1;
 
 	/* send response */
-	net->SendToOne(pid, (char*)&lr, sizeof(struct LogonResponse), NET_RELIABLE);
+	net->SendToOne(pid, (char*)&lr, sizeof(struct LoginResponse), NET_RELIABLE);
 
 	log->Log(LOG_INFO, "Player logged on (%s)", players[pid].name);
 }
 
 
-void DefaultAuth(int pid, struct LogonPacket *p)
+void DefaultAuth(int pid, struct LoginPacket *p)
 {
 	AuthData auth;
 
@@ -170,7 +145,7 @@ void DefaultAuth(int pid, struct LogonPacket *p)
 	astrncpy(auth.name, p->name, 24);
 	auth.squad[0] = 0;
 
-	SendLogonResponse(pid, &auth);
+	SendLoginResponse(pid, &auth);
 }
 
 
@@ -206,29 +181,6 @@ void PLeaving(int pid, byte *p, int q)
 }
 
 
-void PMapRequest(int pid, byte *p, int q)
-{
-	int arena = players[pid].arena;
-	if (p[0] == C2S_MAPREQUEST)
-	{
-		log->Log(LOG_DEBUG,"Sending map to %s", players[pid].name);
-		if (arena < 0)
-		{
-			log->Log(LOG_BADDATA, "Map request before entering arena (%s)",
-					players[pid].name);
-			return;
-		}
-		net->SendToOne(pid, arenas[arena]->mapdata,
-			arenas[arena]->mapdatalen, NET_RELIABLE | NET_PRESIZE);
-	}
-	else if (p[0] == C2S_NEWSREQUEST)
-	{
-		log->Log(LOG_DEBUG,"Sending news to %s", players[pid].name);
-		net->SendToOne(pid, newsdata, newsdatasize, NET_RELIABLE | NET_PRESIZE);
-	}
-}
-
-
 #define KEEPALIVESECONDS 5
 
 int SendKeepalive(void *q)
@@ -237,94 +189,5 @@ int SendKeepalive(void *q)
 	net->SendToAll(&keepalive, 1, NET_UNRELIABLE);
 	return 1;
 }
-
-
-#define REAPARENASECONDS 30
-
-int ReapArenas(void *q)
-{
-	int i, j, count;
-
-	for (i = 0; i < MAXARENA; i++)
-		if (arenas[i])
-		{
-			count = 0;
-			for (j = 0; j < MAXPLAYERS; j++)
-				if (	net->GetStatus(j) == S_CONNECTED &&
-						players[j].arena == i)
-					count++;
-			if (count == 0)
-			{
-				log->Log(LOG_USELESSINFO, "Arena %s (%i) being reaped",
-						arenas[i]->name, i);
-				FreeArena(i);
-			}
-		}
-	return 1;
-}
-
-
-int CreateArena(char *name)
-{
-	FILE *f;
-    struct stat st;
-	int i = 0, mapfd, fsize;
-    byte *map, *cmap;
-	ConfigHandle config;
-	uLong csize;
-	ArenaData *me = amalloc(sizeof(ArenaData));
-	char fname[64];
-
-	/* find a slot */
-	while (arenas[i] && i < MAXARENA) i++;
-	if (i == MAXARENA)
-	{
-		log->Log(LOG_ERROR,"Too many arenas!!! Cannot create arena %s", name);
-		return -1;
-	}
-
-	/* fill in simple data */
-	strcpy(me->name, name);
-
-	/* try to open config file */
-	snprintf(fname, 64, "arena-%s", name);
-	config = cfg->OpenConfigFile(fname);
-	/* if not, try default config */
-	if (!config)
-	{
-		log->Log(LOG_USELESSINFO,"Config file '%s' not found, using default", fname);
-		config = cfg->OpenConfigFile("arena-default");
-	}
-	if (!config)
-	{	/* if not, fail */
-		log->Log(LOG_ERROR,"Default config file not found");
-		free(me); return -1;
-	}
-	me->config = config;
-
-	arenas[i] = me;
-	log->Log(LOG_USELESSINFO,"Arena %s (%i) created sucessfully", name, i);
-	return i;
-}
-
-
-void FreeArena(int i)
-{
-	cfg->CloseConfigFile(arenas[i]->config);
-	free(arenas[i]->mapdata);
-	free(arenas[i]);
-	arenas[i] = NULL;
-}
-
-
-int FindArena(char *name)
-{
-	int i;
-	for (i = 0; i < MAXARENA; i++)
-		if (arenas[i] && !strcasecmp(arenas[i]->name, name))
-			return i;
-	return -1;
-}
-
 
 

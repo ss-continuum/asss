@@ -23,7 +23,7 @@ typedef int (*ArenaActionFunc)(int, int);
 #define ARENA_RUNNING 3
 
 
-#define CALLBACK_ARENAACTION ("arenaaction")
+#define CALLBACK_ARENAACTION "arenaaction"
 
 
 typedef struct ArenaData

@@ -5,7 +5,7 @@
 /* see below for interface documentation */
 
 
-#include "packets/logon.h"
+#include "packets/login.h"
 
 #include "packets/mapfname.h"
 
@@ -42,17 +42,17 @@ typedef struct Iassignfreq
 
 
 /*
- * the core module will call the authenticating module with the logon
+ * the core module will call the authenticating module with the login
  * packet that was sent. the authenticator can do whatever it wants with
- * it, but it should probably call SendLogonResponse to send a response
+ * it, but it should probably call SendLoginResponse to send a response
  * back to the client.
  *
  */
 
 typedef struct Iauth
 {
-	int (*Authenticate)(int pid, struct LogonPacket *lp,
-			void (*SendLogonResponse)(int pid, AuthData *data));
+	int (*Authenticate)(int pid, struct LoginPacket *lp,
+			void (*SendLoginResponse)(int pid, AuthData *data));
 } Iauth;
 
 

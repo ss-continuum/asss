@@ -591,7 +591,7 @@ void ProcessBigData(int pid, byte *p, int n)
 		goto freebigbuf;
 	}
 
-	newbuf = realloc(clients[pid].bigpktbuf, newsize);
+	clients[pid].bigpktbuf = newbuf = realloc(clients[pid].bigpktbuf, newsize);
 
 	if (!newbuf)
 	{

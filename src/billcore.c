@@ -5,7 +5,7 @@
 
 #include "asss.h"
 
-#include "packets/logon.h"
+#include "packets/login.h"
 
 #include "packets/billmisc.h"
 
@@ -18,10 +18,10 @@ local void RemovePacket(byte, PacketFunc);
 local int GetStatus();
 
 /* local: */
-local void BillingAuth(int, struct LogonPacket *);
+local void BillingAuth(int, struct LoginPacket *);
 
 local int SendPing(void *);
-local void SendLogon(int, byte *, int);
+local void SendLogin(int, byte *, int);
 
 local void BAuthResponse(int, byte *, int);
 local void BChatMsg(int, byte *, int);
@@ -75,7 +75,7 @@ int MM_billcore(int action, Imodman *mm)
 		ml->SetTimer(SendPing, 300, 3000, NULL);
 
 		/* packets from billing server */
-		AddPacket(0, SendLogon); /* sent from net when it's time to contact biller */
+		AddPacket(0, SendLogin); /* sent from net when it's time to contact biller */
 		AddPacket(B2S_PLAYERDATA, BAuthResponse);
 		AddPacket(B2S_CHATMSG, BChatMsg);
 		AddPacket(B2S_MESSAGE, BMessage);
@@ -100,7 +100,7 @@ int MM_billcore(int action, Imodman *mm)
 
 		/*cmd->RemoveCommand(NULL, DefaultCmd); */
 
-		RemovePacket(0, SendLogon);
+		RemovePacket(0, SendLogin);
 		RemovePacket(B2S_PLAYERDATA, BAuthResponse);
 		ml->ClearTimer(SendPing);
 		mm->UnregisterInterface(&_iauth);
@@ -153,11 +153,11 @@ int SendPing(void *dummy)
 }
 
 
-void SendLogon(int pid, byte *p, int n)
+void SendLogin(int pid, byte *p, int n)
 {
-	struct S2BLogon to =
+	struct S2BLogin to =
 	{
-		S2B_LOGON, cfg_serverid, cfg_groupid, cfg_scoreid,
+		S2B_LOGIN, cfg_serverid, cfg_groupid, cfg_scoreid,
 		"<default zone name>", "password"
 	};
 	char *t;
@@ -187,11 +187,11 @@ void DefaultCmd(const char *cmd, int pid, int target)
 }
 
 
-void BillingAuth(int pid, struct LogonPacket *lp)
+void BillingAuth(int pid, struct LoginPacket *lp)
 {
 	struct S2BPlayerEntering to =
 	{
-		S2B_PLAYERLOGON,
+		S2B_PLAYERLOGIN,
 		lp->flags,
 		net->GetIP(pid),
 		"", "",
@@ -212,7 +212,7 @@ void BillingAuth(int pid, struct LogonPacket *lp)
 		memset(&auth, 0, sizeof(auth));
 		auth.code = AUTH_NOSCORES; /* tell client no scores kept */
 		astrncpy(auth.name, lp->name, 24);
-		core->SendLogonResponse(pid, &auth);
+		core->SendLoginResponse(pid, &auth);
 	}
 }
 
@@ -225,7 +225,7 @@ void BAuthResponse(int bpid, byte *p, int n)
 
 	memset(&ad, 0, sizeof(ad));
 	/*ad.demodata = 0; // FIXME: figure out where in the billing response that is */
-	ad.code = r->logonflag;
+	ad.code = r->loginflag;
 	astrncpy(ad.name, r->name, 24);
 	astrncpy(ad.squad, r->squad, 24);
 	if (n >= sizeof(struct B2SPlayerResponse))
@@ -235,7 +235,7 @@ void BAuthResponse(int bpid, byte *p, int n)
 		players[pid].flagpoints = ad.flagpoints = r->flagpoints;
 		players[pid].killpoints = ad.killpoints = r->killpoints;
 	}
-	core->SendLogonResponse(pid, &ad);
+	core->SendLoginResponse(pid, &ad);
 	/* FIXME: do something about userid and usage information */
 	/* FIXME: handle banner data in banner module */
 }
