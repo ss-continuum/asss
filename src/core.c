@@ -178,7 +178,10 @@ void ProcessLoginQueue(void)
 				 * the leaving_zone status once various things are
 				 * completed */
 				if (player->whenloggedin)
+				{
 					player->status = player->whenloggedin;
+					player->whenloggedin = 0;
+				}
 
 				continue;
 

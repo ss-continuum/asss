@@ -468,7 +468,7 @@ void PPickupBall(int pid, byte *p, int len)
 	bd->yspeed = 0;
 	bd->carrier = pid;
 	bd->time = 0;
-	SendBallPacket(arena, bp->ballid, NET_UNRELIABLE | NET_IMMEDIATE);
+	SendBallPacket(arena, bp->ballid, NET_UNRELIABLE | NET_PRI_P3);
 
 	UNLOCK_STATUS(arena);
 
@@ -534,7 +534,7 @@ void PFireBall(int pid, byte *p, int len)
 	bd->xspeed = fb->xspeed;
 	bd->yspeed = fb->yspeed;
 	bd->time = fb->time;
-	SendBallPacket(arena, bid, NET_UNRELIABLE | NET_IMMEDIATE);
+	SendBallPacket(arena, bid, NET_UNRELIABLE | NET_PRI_P3);
 
 	UNLOCK_STATUS(arena);
 

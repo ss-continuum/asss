@@ -117,7 +117,7 @@ int MM_billcore(int action, Imodman *_mm, int arena)
 
 		/* send logoff packet (immediate so it gets there before */
 		/* connection drop) */
-		SendToBiller(&dis, 1, NET_RELIABLE | NET_IMMEDIATE);
+		SendToBiller(&dis, 1, NET_RELIABLE | NET_PRI_P4);
 		net->DropClient(PID_BILLER);
 
 		cmd->RemoveCommand(NULL, DefaultCmd);

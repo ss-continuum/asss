@@ -11,10 +11,6 @@
  * SendToSet lets you specify a set of pids to send to (as an array,
  * terminated by -1). SendToAll (rarely used) does what it says.
  *
- * the flags argument should be either NET_UNRELIABLE or NET_RELIABLE.
- * the other flags, NET_IMMEDIATE and NET_PRESIZE can be |'ed with one
- * of those.
- *
  * if you're sending packets to more than one person, use the multiple
  * send functions. they're there for a reason. (they will minimize
  * copying of memory)
@@ -58,12 +54,37 @@
 
 #define PKT_BILLBASE 0x50
 
-#define NET_UNRELIABLE 0
-#define NET_RELIABLE 1
-#define NET_IMMEDIATE 2
-#define NET_PRESIZE 4
+/* bits in the flags parameter to the SendX functions */
+#define NET_UNRELIABLE 0x00
+#define NET_RELIABLE 0x01
+#define NET_PRESIZE 0x02
 
-#define NET_FAKE 1
+/* priority levels are encoded using bits 3-5 of the flags parameter
+ * (0x04, 0x08, 0x10). priority is unrelated to reliable-ness.
+ * priorities 4 and higher mean the packet is "urgent." urgent packets
+ * are sent synchronously, if possible.
+ * suggested use of priorities:
+ * -1 - stuff that really doesn't matter (e.g. public macros)
+ *  0 - most stuff (e.g. chat)
+ * +1 - important stuff (e.g. ship/freq changes)
+ * +2 - far position packets
+ * +3 - far weapons packets
+ * +4 - close position packets, bricks
+ * +5 - close weapons packets
+ */
+#define NET_PRI_N1      0x04
+#define NET_PRI_ZERO    0x08
+#define NET_PRI_P1      0x0C
+#define NET_PRI_P2      0x10
+#define NET_PRI_P3      0x14
+#define NET_PRI_P4      0x18
+#define NET_PRI_P5      0x1C
+
+#define NET_PRI_DEFAULT NET_PRI_ZERO
+#define NET_PRI_URGENT NET_PRI_P4
+
+/* turns a flags value into a priority value from 0 to 7 */
+#define GET_PRI(flags) (((flags) & 0x1C) >> 2)
 
 
 typedef void (*PacketFunc)(int pid, byte *data, int length);
@@ -97,6 +118,10 @@ typedef struct Inet
 	void (*RemovePacket)(byte pktype, PacketFunc func);
 
 	int (*NewConnection)(int type, struct sockaddr_in *sin);
+
+	/* bandwidth limits. the units on these parameters are bytes/second */
+	int (*GetLimit)(int pid);
+	void (*SetLimit)(int pid, int limit);
 
 	i32 (*GetIP)(int pid);
 	void (*GetStats)(struct net_stats *stats);

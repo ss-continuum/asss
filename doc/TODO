@@ -47,8 +47,6 @@ fix brick drop algorithm (it should snap to edges of other bricks)
 
 hard
 ----
-bandwith limiting and prioritization
-
 "rotating" packet structure: a grouped packet full of rels should become
 a single rel packet containing a group of unrels. the tricks here is
 to remove the individual packets that get grouped and add the new one to
@@ -74,40 +72,7 @@ region-based goals. 3/6-team ball games.
 let ball speccer see info of person carrying ball.
 multiple-point goals based on distance
 
-add to configguide.txt
-
-more querying about stats:
-	lots of stuff from net
-	also from modules
-
-loading/unloading modules at runtime!
-
 treat nme bricks as tiles for the purposes of dropping bricks
-
-come up with better interface to other languages (python, and others)
-
-
-
-
-bandwidth
----------
-bandwidth limiting should have these abilities:
-  don't send more than x bytes per second to a given player, averaged
-  over a configurable amount of time. that is, don't do the averaging
-  over the whole session, because it won't be accurate. and don't do it
-  over 1/100 of a second for the same reason (is this true?). one second
-  is probably good.
-
-  add a new flag to the SendToX interface to send immediately anyway,
-  even if it's over the limit.
-
-  ability to prioritize packets (even two priorities would be helpful)
-  so we can make sure to send lots of weapons now, even if the player
-  happens to be downloading a file at the moment.
-
-  later, automatically adjust player's bandwidth limits based on
-  packetloss stats.
-
 
 
 discarded ideas

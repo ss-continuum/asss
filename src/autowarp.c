@@ -102,7 +102,7 @@ void Pppk(int pid, byte *p2, int n)
 		wpn.weapon = p->weapon;
 
 		DoChecksum(&wpn, sizeof(struct S2CWeapons));
-		net->SendToOne(pid, (byte*)&wpn, sizeof(wpn), NET_RELIABLE | NET_IMMEDIATE);
+		net->SendToOne(pid, (byte*)&wpn, sizeof(wpn), NET_RELIABLE | NET_PRI_P4);
 	}
 }
 

@@ -258,12 +258,12 @@ void Pppk(int pid, byte *p2, int n)
 		wpn.weapon = p->weapon;
 		wpn.extra = p->extra;
 
-		if (p->weapon.type) nflags |= NET_IMMEDIATE;
+		nflags = NET_UNRELIABLE | (p->weapon.type ? NET_PRI_P5 : NET_PRI_P3);
 
 		for (i = 0; i < MAXPLAYERS; i++)
-			if (	players[i].status == S_PLAYING
-			     && players[i].arena == arena
-			     && i != pid)
+			if (players[i].status == S_PLAYING &&
+			    players[i].arena == arena &&
+			    i != pid)
 			{
 				int *set = regset;
 				long dist = lhypot(x1 - pos[i].x, y1 - pos[i].y);
@@ -727,7 +727,7 @@ void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2)
 	LLAdd(&brickdata[arena].list, pkt);
 	pthread_mutex_unlock(&brickdata[arena].mtx);
 
-	net->SendToArena(arena, -1, (byte*)pkt, sizeof(*pkt), NET_RELIABLE | NET_IMMEDIATE);
+	net->SendToArena(arena, -1, (byte*)pkt, sizeof(*pkt), NET_RELIABLE | NET_PRI_P4);
 	lm->Log(L_DRIVEL, "<game> {%s} Brick dropped (%d,%d)-(%d,%d) (freq=%d)",
 			arenas[arena].name,
 			x1, y1, x2, y2, freq);

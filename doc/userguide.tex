@@ -44,9 +44,11 @@ run slower.
 The requirements for running \asss{} on Linux are very simple: The
 system should have the pthreads library (any recent Linux system
 should), Berkeley DB 1.85 (newer versions won't work), and zlib. To
-compile \asss{} from source, the include files for those libraries must
-be installed, as well as a C compiler. (On Windows, the same libraries
-are needed, although they're a bit harder to find.)
+compile \asss{} from source (on either Linux or Windows), the include
+files for those libraries must be installed, as well as a C compiler. If
+you've obtained the source from CVS, you'll also need the Python
+interpreter in order to generate certain files. If you're using a
+tarball instead, it will come with those files present already.
 
 Currently, only Intel platforms are supported because of byte-order
 issues. Eventually, \asss{} will be able to run on other architectures,
@@ -341,13 +343,6 @@ Each group includes the file for itself, as well as the files for the
 lesser powerful groups.
 
 
-%\section{Regions}
-%
-%\subsection{What are regions?}
-%
-%\subsection{Making regions}
-
-
 \section{New Features}
 
 \subsection{Freq Ownership}
@@ -399,6 +394,35 @@ vertical bars (\verb/|/). The subsequent commands (after the first bar)
 don't need question marks (although they are ignored if present). You
 can send multiple private commands, but you can't send both public and
 private commands on the same line.
+
+
+\section{Bandwidth Throttling}
+
+\asss{} supports bandwidth throttling for players on slower connections.
+To make the game fairer, packets are prioritized depending on their
+function. For example, weapons packets will be preferred over chat
+messages when deciding how to use up the last few bytes of alloted
+bandwidth.
+
+To avoid problems associated with the discontinuity of measuring
+bandwith, the server will reserve a certain percentage of the total
+bandwith for packets of certain priorities. For example, if a player's
+bandwidth limit is 2500 bytes, the server will refuse to use up all 2500
+bytes for chat messages in the first half of the monitoring period to
+leave space for more important packets that will probably come in the
+second half.
+
+% FIXME: include description of the ?{get,set}bandwidth commands
+
+
+%\section{Lag Control}
+%
+%
+%\section{Regions}
+%
+%\subsection{What are regions?}
+%
+%\subsection{Making regions}
 
 
 \section{Commands}
