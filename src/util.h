@@ -121,6 +121,19 @@ void DQRemove(DQNode *node);
 #endif
 
 
+#ifndef NOSTRINGCHUNK
+
+/* string chunks: idea stolen from glib */
+
+typedef struct StringChunk StringChunk;
+
+StringChunk *SCAlloc();
+char *SCAdd(StringChunk *chunk, char *str);
+void SCFree(StringChunk *chunk);
+
+#endif
+
+
 #ifndef NOTHREAD
 
 /* threading stuff */

@@ -594,6 +594,76 @@ void DQRemove(DQNode *node)
 #endif
 
 
+#ifndef NOSTRINGCHUNK
+
+#define SCSIZE 4000
+
+struct StringChunk
+{
+	struct StringChunk *next;
+	int room;
+	char data[SCSIZE];
+};
+
+StringChunk *SCAlloc()
+{
+	StringChunk *c;
+
+	c = amalloc(sizeof(StringChunk));
+	c->next = NULL;
+	c->room = SCSIZE;
+	return c;
+}
+
+char *SCAdd(StringChunk *chunk, char *str)
+{
+	int len;
+	StringChunk *prev = NULL;
+
+	len = strlen(str)+1;
+	if (len > SCSIZE)
+		return NULL; /* too big */
+
+	while (chunk)
+	{
+		if (chunk->room >= len)
+		{
+			char *spot;			
+			spot = chunk->data + (SCSIZE - chunk->room);
+			memcpy(spot, str, len);
+			chunk->room -= len;
+			return spot;
+		}
+		prev = chunk;
+		chunk = chunk->next;
+	}
+
+	/* no room in any present chunk */
+	if (prev)
+	{
+		chunk = SCAlloc();
+		prev->next = chunk;
+		/* recursive call to add it */
+		return SCAdd(chunk, str);
+	}
+	else /* got a null chunk */
+		return NULL;
+}
+
+void SCFree(StringChunk *chunk)
+{
+	StringChunk *old;
+	while (chunk)
+	{
+		old = chunk->next;
+		afree(chunk);
+		chunk = old;
+	}
+}
+
+#endif
+
+
 #ifndef NOTHREAD
 
 #include <pthread.h>

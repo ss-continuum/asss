@@ -30,7 +30,7 @@
 #define MAXVALUELEN 256
 
 
-typedef void * ConfigHandle;
+typedef struct ConfigFile *ConfigHandle;
 
 #define GLOBAL ((ConfigHandle)0)
 

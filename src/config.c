@@ -8,6 +8,14 @@
 #include "asss.h"
 
 
+/* structs */
+
+struct ConfigFile
+{
+	HashTable *thetable;
+	StringChunk *thestrings;
+};
+
 
 /* function prototypes */
 
@@ -65,7 +73,7 @@ int MM_config(int action, Imodman *mm)
 
 #define LINESIZE 512
 
-static int ProcessConfigFile(HashTable *thetable, HashTable *defines, const char *name)
+static int ProcessConfigFile(HashTable *thetable, StringChunk *thestrings, HashTable *defines, const char *name)
 {
 	FILE *f;
 	char _realbuf[LINESIZE], *buf = _realbuf, *t, *t2;
@@ -110,7 +118,7 @@ static int ProcessConfigFile(HashTable *thetable, HashTable *defines, const char
 			{
 				buf += 7;
 				while (*buf == ' ' || *buf == '\t') buf++;
-				if (ProcessConfigFile(thetable, defines, buf) == MM_FAIL)
+				if (ProcessConfigFile(thetable, thestrings, defines, buf) == MM_FAIL)
 				{
 					if (log) log->Log(LOG_ERROR, "Cannot find #included file '%s'", buf);
 					/* return MM_FAIL; let's not abort on #include error */ 
@@ -172,7 +180,7 @@ static int ProcessConfigFile(HashTable *thetable, HashTable *defines, const char
 				trydef = HashGetOne(defines, t2);
 				if (trydef) t2 = trydef;
 
-				data = astrdup(t2);
+				data = SCAdd(thestrings, t2);
 				HashAdd(thetable, key, data);
 			}
 		}
@@ -184,29 +192,37 @@ static int ProcessConfigFile(HashTable *thetable, HashTable *defines, const char
 
 ConfigHandle LoadConfigFile(const char *name)
 {
-	HashTable *thetable = HashAlloc(983);
-	HashTable *defines = HashAlloc(17);
-	if (ProcessConfigFile(thetable, defines, name) == MM_OK)
+	ConfigHandle thefile;
+	HashTable *defines;
+
+	thefile = amalloc(sizeof(struct ConfigFile));
+	thefile->thetable = HashAlloc(983);
+	thefile->thestrings = SCAlloc();
+	defines = HashAlloc(17);
+
+	if (ProcessConfigFile(thefile->thetable, thefile->thestrings, defines, name) == MM_OK)
 	{
 		files++;
 		HashEnum(defines, afree);
 		HashFree(defines);
-		return (ConfigHandle)thetable;
+		return thefile;
 	}
 	else
 	{
 		HashEnum(defines, afree);
 		HashFree(defines);
-		HashFree(thetable);
+		HashFree(thefile->thetable);
+		SCFree(thefile->thestrings);
+		afree(thefile);
 		return NULL;
 	}
 }
 
 void FreeConfigFile(ConfigHandle ch)
 {
-	HashTable *thetable = (HashTable*)ch;
-	HashEnum(thetable, afree);
-	HashFree(thetable);
+	SCFree(ch->thestrings);
+	HashFree(ch->thetable);
+	afree(ch);
 	files--;
 }
 
@@ -214,20 +230,19 @@ void FreeConfigFile(ConfigHandle ch)
 int GetInt(ConfigHandle ch, const char *sec, const char *key, int def)
 {
 	char *res = GetStr(ch, sec, key);
-	return res ? atoi(res) : def;
+	return res ? strtol(res, NULL, 0) : def;
 }
 
 
 char *GetStr(ConfigHandle ch, const char *sec, const char *key)
 {
 	char keystring[MAXNAMELEN+MAXKEYLEN+3];
-	HashTable *thetable = (HashTable*)ch;
 
-	if (!thetable) thetable = (HashTable*)global;
+	if (ch == GLOBAL) ch = global;
 
 	snprintf(keystring, MAXNAMELEN+MAXKEYLEN+1, "%s:%s", sec, key);
 
-	return HashGetOne(thetable, keystring);
+	return HashGetOne(ch->thetable, keystring);
 }
 
 
