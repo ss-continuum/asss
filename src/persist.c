@@ -182,27 +182,27 @@ local void put_one_arena(ArenaPersistentData *data, Arena *arena, int serialno)
 	    (data->scope == PERSIST_ALLARENAS && arena == NULL))
 		return;
 
+	/* prepare key */
 	memset(&keydata, 0, sizeof(keydata));
 	fill_in_ag(keydata.arena, arena, data->interval);
+	keydata.interval = data->interval;
+	if (serialno == -1)
+		keydata.serialno = get_serialno(keydata.arena, data->interval);
+	else
+		keydata.serialno = serialno;
+	keydata.key = data->key;
+
+	/* prepare key dbt */
+	memset(&key, 0, sizeof(key));
+	key.data = &keydata;
+	key.size = sizeof(keydata);
 
 	/* get data */
 	size = data->GetData(arena, buf, sizeof(buf), data->clos);
 
 	if (size > 0)
 	{
-		/* prepare key */
-		keydata.interval = data->interval;
-		if (serialno == -1)
-			keydata.serialno = get_serialno(keydata.arena, data->interval);
-		else
-			keydata.serialno = serialno;
-		keydata.key = data->key;
-
-		/* prepare dbt's */
-		memset(&key, 0, sizeof(key));
-		key.data = &keydata;
-		key.size = sizeof(keydata);
-
+		/* prepare val dbt */
 		memset(&val, 0, sizeof(val));
 		val.data = buf;
 		val.size = size;
@@ -216,9 +216,6 @@ local void put_one_arena(ArenaPersistentData *data, Arena *arena, int serialno)
 	}
 	else
 	{
-		memset(&key, 0, sizeof(key));
-		key.data = &keydata;
-		key.size = sizeof(keydata);
 		err = db->del(db, NULL, &key, 0);
 		if (err != 0 && err != DB_NOTFOUND)
 			lm->Log(L_WARN, "<persist> db->del error (1): %s",
@@ -240,29 +237,29 @@ local void put_one_player(PlayerPersistentData *data, Player *p, Arena *arena, i
 	    (data->scope == PERSIST_ALLARENAS && arena == NULL))
 		return;
 
+	/* prepare key */
 	memset(&keydata, 0, sizeof(keydata));
 	astrncpy(keydata.name, p->name, sizeof(keydata.name));
 	ToLowerStr(keydata.name);
+	keydata.interval = data->interval;
+	fill_in_ag(keydata.arenagrp, arena, data->interval);
+	if (serialno == -1)
+		keydata.serialno = get_serialno(keydata.arenagrp, data->interval);
+	else
+		keydata.serialno = serialno;
+	keydata.key = data->key;
+
+	/* prepare key dbt */
+	memset(&key, 0, sizeof(key));
+	key.data = &keydata;
+	key.size = sizeof(keydata);
 
 	/* get data */
 	size = data->GetData(p, buf, sizeof(buf), data->clos);
 
 	if (size > 0)
 	{
-		/* prepare key */
-		keydata.interval = data->interval;
-		fill_in_ag(keydata.arenagrp, arena, data->interval);
-		if (serialno == -1)
-			keydata.serialno = get_serialno(keydata.arenagrp, data->interval);
-		else
-			keydata.serialno = serialno;
-		keydata.key = data->key;
-
-		/* prepare dbt's */
-		memset(&key, 0, sizeof(key));
-		key.data = &keydata;
-		key.size = sizeof(keydata);
-
+		/* prepare val dbt */
 		memset(&val, 0, sizeof(val));
 		val.data = buf;
 		val.size = size;
@@ -276,9 +273,6 @@ local void put_one_player(PlayerPersistentData *data, Player *p, Arena *arena, i
 	}
 	else
 	{
-		memset(&key, 0, sizeof(key));
-		key.data = &keydata;
-		key.size = sizeof(keydata);
 		err = db->del(db, NULL, &key, 0);
 		if (err != 0 && err != DB_NOTFOUND)
 			lm->Log(L_WARN, "<persist> db->del error (2): %s",
