@@ -3,8 +3,11 @@
 #include <string.h>
 #include <stdlib.h>
 
-#ifdef WIN32
+#ifndef WIN32
+#include <arpa/inet.h>
+#else
 #include <malloc.h>
+#include <winsock.h>
 #endif
 
 #include "asss.h"
@@ -220,12 +223,16 @@ void BillingAuth(int pid, struct LoginPacket *lp, void (*Done)(int, AuthData*))
 	{
 		S2B_PLAYERLOGIN,
 		lp->flags,
-		net->GetIP(pid),
+		0,
 		"", "",
 		pid,
 		lp->D1,
 		300, 0
 	};
+	struct client_stats stats;
+
+	net->GetClientStats(pid, &stats);
+	to.ipaddy = inet_addr(stats.ipaddr);
 
 	if (GetStatus() == BNET_CONNECTED)
 	{
@@ -239,7 +246,9 @@ void BillingAuth(int pid, struct LoginPacket *lp, void (*Done)(int, AuthData*))
 		AuthData auth;
 		memset(&auth, 0, sizeof(auth));
 		auth.code = AUTH_NOSCORES; /* tell client no scores kept */
-		astrncpy(auth.name, lp->name, 24);
+		/* prepend names with ^ to indicate they're not authenticated */
+		auth.name[0] = '^';
+		astrncpy(auth.name+1, lp->name, 23);
 		Done(pid, &auth);
 	}
 }

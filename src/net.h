@@ -94,8 +94,22 @@ typedef void (*RelCallback)(int pid, int success, void *clos);
 
 struct net_stats
 {
-	int pcountpings, pktsent, pktrecvd;
-	int buffercount, buffersused;
+	unsigned int pcountpings, pktsent, pktrecvd;
+	unsigned int buffercount, buffersused;
+	unsigned int pri_stats[8];
+};
+
+struct client_stats
+{
+	/* sequence numbers */
+	int s2cn, c2sn;
+	/* counts of stuff sent and recvd */
+	unsigned int pktsent, pktrecvd, bytesent, byterecvd;
+	/* encryption type, connect time, and bandwidth limit */
+	unsigned int enctype, connecttime, limit;
+	/* ip info */
+	char ipaddr[16];
+	unsigned short port;
 };
 
 
@@ -120,11 +134,10 @@ typedef struct Inet
 	int (*NewConnection)(int type, struct sockaddr_in *sin);
 
 	/* bandwidth limits. the units on these parameters are bytes/second */
-	int (*GetLimit)(int pid);
 	void (*SetLimit)(int pid, int limit);
 
-	i32 (*GetIP)(int pid);
 	void (*GetStats)(struct net_stats *stats);
+	void (*GetClientStats)(int pid, struct client_stats *stats);
 } Inet;
 
 

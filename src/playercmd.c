@@ -4,6 +4,12 @@
 #include <string.h>
 
 #ifndef WIN32
+#include <arpa/inet.h>
+#else
+#include <winsock.h>
+#endif
+
+#ifndef WIN32
 #define DOUNAME
 #define EXTRAARENAS
 #endif
@@ -280,11 +286,52 @@ local void Cnetstats(const char *params, int pid, int target)
 {
 	struct net_stats stats;
 	net->GetStats(&stats);
-	chat->SendMessage(pid, "netstats: %d pings, %d packets sent, %d packets recvd",
+	chat->SendMessage(pid, "netstats: pings=%d pkts sent=%d pkts recvd=%d",
 			stats.pcountpings, stats.pktsent, stats.pktrecvd);
-	chat->SendMessage(pid, "netstats: %d/%d (%.1f%%) buffers used",
+	chat->SendMessage(pid, "netstats: buffers used=%d/%d (%.1f%%)",
 			stats.buffersused, stats.buffercount,
 			(double)stats.buffersused/(double)stats.buffercount*100.0);
+	chat->SendMessage(pid, "netstats: priority counts=%d/%d/%d/%d/%d/%d/%d",
+			stats.pri_stats[1], stats.pri_stats[2], stats.pri_stats[3],
+			stats.pri_stats[4], stats.pri_stats[5], stats.pri_stats[6],
+			stats.pri_stats[7]);
+}
+
+
+local void Cinfo(const char *params, int pid, int target)
+{
+	if (PID_BAD(target))
+		chat->SendMessage(pid, "info: must use on a player");
+	else
+	{
+		static const char *type_names[4] =
+		{
+			"unknown", "vie", "cont", "fake"
+		};
+		struct client_stats s;
+		struct PlayerData *p = players + target;
+		const char *type, *prefix;
+		unsigned int tm;
+
+		net->GetClientStats(target, &s);
+		type = p->type < 4 ? type_names[p->type] : "really_unknown";
+		prefix = params[0] ? params : "info";
+		tm = GTC() - s.connecttime;
+
+		chat->SendMessage(pid,
+				"%s: pid=%d  status=%d  name='%s'  squad='%s'",
+				prefix, target, p->status, p->name, p->squad);
+		chat->SendMessage(pid,
+				"%s: arena=%d  type=%s  res=%dx%d",
+				prefix, p->arena, type, p->xres, p->yres);
+		chat->SendMessage(pid,
+				"%s: ip=%s  port=%d  enctype=%d",
+				prefix, s.ipaddr, s.port, s.enctype);
+		chat->SendMessage(pid,
+				"%s: seconds=%d  limit=%d  avg bandwidth in/out=%d/%d",
+				prefix, tm / 100, s.limit,
+				s.byterecvd*100/tm, s.bytesent*100/tm);
+	}
 }
 
 
@@ -418,6 +465,7 @@ const all_commands[] =
 	CMD(getgroup),
 	CMD(setgroup),
 	CMD(netstats),
+	CMD(info),
 	CMD(setcm),
 	CMD(getcm),
 	CMD(a),

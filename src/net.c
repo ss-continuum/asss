@@ -19,7 +19,7 @@
 #include "asss.h"
 
 
-/* MACROS */
+/* DEFINES */
 
 #define MAXTYPES 128
 #define MAXENCRYPT 4
@@ -56,16 +56,17 @@ typedef struct ClientData
 	int s2cn, c2sn;
 	/* the address to send packets to */
 	struct sockaddr_in sin;
-	/* time of last packet recvd */
-	unsigned int lastpkt;
-	/* total packets send and recvs */
+	/* time of last packet recvd and of initial connection */
+	unsigned int lastpkt, connecttime;
+	/* total amounts sent and recvd */
 	unsigned int pktsent, pktrecvd;
+	unsigned int bytesent, byterecvd;
 	/* encryption type and key used */
 	unsigned int enctype, key;
 	/* big packet buffer pointer and size */
 	int bigpktsize, bigpktroom;
 	byte *bigpktbuf;
-	/* bandwidth control: */
+	/* bandwidth control */
 	unsigned int sincetime, bytessince, limit;
 	/* the outlist */
 	DQNode outlist;
@@ -106,10 +107,9 @@ local void ProcessPacket(int, byte *, int);
 local void AddPacket(byte, PacketFunc);
 local void RemovePacket(byte, PacketFunc);
 local int NewConnection(int type, struct sockaddr_in *);
-local int GetLimit(int pid);
 local void SetLimit(int pid, int limit);
-local i32 GetIP(int);
-void GetStats(struct net_stats *stats);
+local void GetStats(struct net_stats *stats);
+local void GetClientStats(int pid, struct client_stats *stats);
 
 /* internal: */
 local inline int HashIP(struct sockaddr_in);
@@ -188,7 +188,7 @@ local struct
 	int deflimit;
 } config;
 
-local struct net_stats global_stats;
+local volatile struct net_stats global_stats;
 
 local void (*oohandlers[])(Buffer*) =
 {
@@ -214,7 +214,7 @@ local Inet _int =
 	INTERFACE_HEAD_INIT("net-udp")
 	SendToOne, SendToArena, SendToSet, SendToAll, SendWithCallback,
 	KillConnection, ProcessPacket, AddPacket, RemovePacket,
-	NewConnection, GetLimit, SetLimit, GetIP, GetStats
+	NewConnection, SetLimit, GetStats, GetClientStats
 };
 
 
@@ -336,12 +336,6 @@ int HashIP(struct sockaddr_in sin)
 	register unsigned ip = sin.sin_addr.s_addr;
 	register unsigned short port = sin.sin_port;
 	return ((port>>1) ^ (ip) ^ (ip>>23) ^ (ip>>17)) & (HASHSIZE-1);
-}
-
-
-i32 GetIP(int pid)
-{
-	return clients[pid].sin.sin_addr.s_addr;
 }
 
 
@@ -643,9 +637,10 @@ void * RecvThread(void *dummy)
 			/***** unlock status here *****/
 
 			buf->pid = pid;
-			/* set the last packet time */
 			clients[pid].lastpkt = GTC();
+			clients[pid].byterecvd += len + IP_UDP_OVERHEAD;
 			clients[pid].pktrecvd++;
+			global_stats.pktrecvd++;
 
 			/* decrypt the packet */
 			type = clients[pid].enctype;
@@ -667,7 +662,7 @@ freeit:
 			pd->UnlockStatus();
 			FreeBuffer(buf);
 donehere:
-			global_stats.pktrecvd++;
+			;
 		}
 
 		if (FD_ISSET(myothersock, &fds))
@@ -1025,6 +1020,8 @@ int NewConnection(int type, struct sockaddr_in *sin)
 	if (i == MAXPLAYERS) return -1;
 
 	InitClient(i);
+
+	clients[i].connecttime = GTC();
 
 	/* add him to his hash bucket */
 	LockMutex(&hashmtx);
@@ -1428,7 +1425,9 @@ void SendRaw(int pid, byte *data, int len)
 		dump_pk(data, len);
 		*/
 	}
+
 	clients[pid].bytessince += len + IP_UDP_OVERHEAD;
+	clients[pid].bytesent += len + IP_UDP_OVERHEAD;
 	clients[pid].pktsent++;
 	global_stats.pktsent++;
 }
@@ -1466,6 +1465,7 @@ void BufferPacket(int pid, byte *data, int len, int flags,
 	buf->callback = callback;
 	buf->clos = clos;
 	buf->pri = GET_PRI(flags);
+	global_stats.pri_stats[buf->pri]++;
 
 	/* get data into packet */
 	if (flags & NET_RELIABLE)
@@ -1607,20 +1607,39 @@ void SendWithCallback(
 }
 
 
+i32 GetIP(int pid)
+{
+	return clients[pid].sin.sin_addr.s_addr;
+}
+
+
+void SetLimit(int pid, int limit)
+{
+	clients[pid].limit = limit * BANDWIDTH_RES / 100;
+}
+
+
 void GetStats(struct net_stats *stats)
 {
 	if (stats)
 		*stats = global_stats;
 }
 
-
-int GetLimit(int pid)
+void GetClientStats(int pid, struct client_stats *stats)
 {
-	return clients[pid].limit * 100 / BANDWIDTH_RES;
-}
+	ClientData *client = clients + pid;
 
-void SetLimit(int pid, int limit)
-{
-	clients[pid].limit = limit * BANDWIDTH_RES / 100;
+	if (!stats || PID_BAD(pid)) return;
+
+#define ASSIGN(field) stats->field = client->field
+	ASSIGN(s2cn); ASSIGN(c2sn);
+	ASSIGN(pktsent); ASSIGN(pktrecvd); ASSIGN(bytesent); ASSIGN(byterecvd);
+	ASSIGN(enctype); ASSIGN(connecttime);
+#undef ASSIGN
+	/* convert to bytes per second */
+	stats->limit = clients->limit * 100 / BANDWIDTH_RES;
+	/* RACE: inet_ntoa is not thread-safe */
+	astrncpy(stats->ipaddr, inet_ntoa(clients[pid].sin.sin_addr), 16);
+	stats->port = clients[pid].sin.sin_port;
 }
 
