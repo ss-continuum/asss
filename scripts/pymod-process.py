@@ -208,14 +208,6 @@ class type_func(type_gen):
 		d = '(*%s)(%s)' % (s, args)
 		return me.rettype.decl(d)
 
-class type_cb_string_to_void(type_func):
-	rettype = type_void()
-	argtypes = [type_string()]
-	def build_converter(me):
-		return 'cvt_c2p_cb_string_to_void'
-	def parse_converter(me):
-		return 'cvt_p2c_cb_string_to_void'
-
 
 def get_type(tp):
 	cname = 'type_' + tp

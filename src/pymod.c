@@ -323,25 +323,6 @@ local int cvt_p2c_config(PyObject *o, ConfigHandle *chp)
 }
 
 
-#if 0
-local PyObject * cvt_c2p_cb_string_to_void(void (*func)(const char *))
-{
-}
-
-local void helper_string_to_void(const char *s)
-{
-	/* convert s to a python string and put it in a tuple
-	 * get the function this is supposed to represent
-	 * from where?
-	 * thread-local storage
-	 * invoke the function on that tuple */
-}
-
-local int cvt_p2c_cb_string_to_void(PyObject *o, void (**func)(const char *))
-{
-}
-#endif
-
 /* defining the asss module */
 
 /* players */
