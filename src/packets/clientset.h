@@ -53,9 +53,10 @@ struct ClientSettings
 		u32 SlowFrameRate : 3;
 		u32 DisableScreenshot : 1;
 		u32 MaxTimerDrift : 3;
+		u32 _reserved : 1;
 		u32 DisableBallThroughWalls : 1;
 		u32 DisableBallKilling : 1;
-		u32 _padding : 12;
+		u32 _padding : 11;
 	} bit_set;
 	struct ShipSettings ships[8];
 	i32 long_set[20];
@@ -68,7 +69,7 @@ struct ClientSettings
 	} spawn_pos[4];
 	i16 short_set[58];
 	i8 byte_set[32];
-	i8 prizeweight_set[28];
+	u8 prizeweight_set[28];
 };
 
 
