@@ -3,18 +3,18 @@
 #define __SCOREMAN_H
 
 /*
- * Iscoreman - score manager
+ * Ipersist - score manager
  *
  * this manages all player scores (and other persistent data, if there
  * ever is any).
  *
  * usage works like this: other modules register PersistantData
- * descriptors with the scoreman. key is a unique number that will
- * identify the type of data. length is the number of bytes you want to
- * store, up to MAXPERSISTLENGTH. global is either 0, meaning each
- * player gets one copy of the data for the whole server, or 1, meaning
- * the data is maintained per arena. the two functions will be used to
- * get the data for storing, and to set it when retrieving.
+ * descriptors with persist. key is a unique number that will identify
+ * the type of data. length is the number of bytes you want to store, up
+ * to MAXPERSISTLENGTH. global is either 0, meaning each player gets one
+ * copy of the data for the whole server, or 1, meaning the data is
+ * maintained per arena. the two functions will be used to get the data
+ * for storing, and to set it when retrieving.
  *
  * when a player connects to the server, SyncFromFile will be called
  * (hopefully in another thread) which will read that player's
@@ -53,14 +53,14 @@ typedef struct PersistantData
 } PersistantData;
 
 
-typedef struct Iscoreman
+typedef struct Ipersist
 {
 	void (*RegPersistantData)(PersistantData *pd);
 	void (*UnregPersistantData)(PersistantData *pd);
 	void (*SyncToFile)(int pid, int global, void (*callback)(int pid));
 	void (*SyncFromFile)(int pid, int global, void (*callback)(int pid));
 	void (*StabilizeScores)(int seconds);
-} Iscoreman;
+} Ipersist;
 
 
 #endif

@@ -70,7 +70,7 @@ local pthread_mutex_t dbmtx = PTHREAD_MUTEX_INITIALIZER;
 local DB *databases[MAXARENA];
 local DB *globaldb;
 
-local Iscoreman _myint =
+local Ipersist _myint =
 {
 	RegPersistantData, UnregPersistantData,
 	SyncToFile, SyncFromFile, StabilizeScores
@@ -78,7 +78,7 @@ local Iscoreman _myint =
 
 
 
-int MM_scoreman(int action, Imodman *_mm)
+int MM_persist(int action, Imodman *_mm)
 {
 	if (action == MM_LOAD)
 	{
@@ -122,7 +122,7 @@ int MM_scoreman(int action, Imodman *_mm)
 	}
 	else if (action == MM_DESCRIBE)
 	{
-		_mm->desc = "scoreman - keeps score info";
+		_mm->desc = "persist - keeps persistant info";
 	}
 	return MM_OK;
 }
@@ -176,10 +176,10 @@ local void DoPut(int pid, int global)
 	val.size = size;
 
 	if (!db)
-		log->Log(LOG_ERROR, "scoreman: Database not open for global: %i, arena %i", global, pd->players[pid].arena);
+		log->Log(LOG_ERROR, "persist: Database not open for global: %i, arena %i", global, pd->players[pid].arena);
 	else /* do it! */ 
 		if (db->put(db, &key, &val, 0) == -1)
-			log->Log(LOG_ERROR, "scoreman: Error entering key in database");
+			log->Log(LOG_ERROR, "persist: Error entering key in database");
 }
 
 
@@ -309,7 +309,7 @@ void ScoreAA(int arena, int action)
 		if (databases[arena])
 		{
 			DB *db = databases[arena];
-			log->Log(LOG_ERROR, "scoreman: Score database already exists for new arena '%s'", arenas[arena].name);
+			log->Log(LOG_ERROR, "persist: Score database already exists for new arena '%s'", arenas[arena].name);
 			db->close(db);
 		}
 
@@ -318,7 +318,7 @@ void ScoreAA(int arena, int action)
 
 		if (!db)
 		{
-			log->Log(LOG_ERROR, "scoreman: Error opening scores database '%s'", fname);
+			log->Log(LOG_ERROR, "persist: Error opening scores database '%s'", fname);
 		}
 
 		/* success. enter in db array */
@@ -340,7 +340,7 @@ void ScoreAA(int arena, int action)
 		}
 		else
 		{
-			log->Log(LOG_ERROR, "scoreman: Score database doesn't exist for closing arena '%s'", arenas[arena].name);
+			log->Log(LOG_ERROR, "persist: Score database doesn't exist for closing arena '%s'", arenas[arena].name);
 		}
 
 		databases[arena] = NULL;
