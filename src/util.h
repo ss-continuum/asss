@@ -65,12 +65,14 @@ void Error(int errorcode, char *message, ...);
 
 /* list manipulation functions */
 
+/* it's ok to access these fields directly */
 typedef struct Link
 {
 	struct Link *next;
 	void *data;
 } Link;
 
+/* DON'T access this directly, use LLGetHead */
 struct LinkedList
 {
 	Link *start, *end;
