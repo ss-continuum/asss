@@ -347,8 +347,8 @@ local void ADisplay(Arena *arena, int histNum)
 		}
 	}
 
-	chat->SendArenaMessage(arena, "Freq Plyrs Flags %%Flgs Wghts  %%Wghts PerCap %%JP   Pts");
-	chat->SendArenaMessage(arena, "---- ----- ----- ----- ------ ------ ------ ----- ------");
+	chat->SendArenaMessage(arena, "Freq Plyrs Flags %%Flgs  Wghts %%Wghts   PerCap   %%JP    Pts");
+	chat->SendArenaMessage(arena, "---- ----- ----- ----- ------ ------ -------- ----- ------");
 
 	/* tsd now points to the stats we want to output, output freq stats */
 	for(l = LLGetHead(&tsd->teams); l; l = l->next)
@@ -380,7 +380,7 @@ local void ADisplay(Arena *arena, int histNum)
 			{
 				/* public teams */
 				chat->SendArenaMessage(arena,
-					"%04d %5d %5d %5.1f %6ld %6.1f %6.1f %3.1f %6u",
+					"%04d %5d %5d %5.1f %6ld %6.1f %8.1f %5.1f %6u",
 					freq, numPlayers, numFlags, percentFlags, numWeights,
 					percentWeights, perCapita, percent, numPoints);
 			}
@@ -388,7 +388,7 @@ local void ADisplay(Arena *arena, int histNum)
 			{
 				/* private teams */
 				chat->SendArenaMessage(arena,
-					"priv %5d %5d %5.1f %6ld %6.1f %6.1f %3.1f %6u",
+					"priv %5d %5d %5.1f %6ld %6.1f %8.1f %5.1f %6u",
 					numPlayers, numFlags, percentFlags, numWeights,
 					percentWeights, perCapita, percent, numPoints);
 			}
@@ -424,8 +424,8 @@ local void PDisplay(Arena *arena, Player *pid, int histNum)
 		}
 	}
 
-	chat->SendMessage(pid, "Freq Plyrs Flags %%Flgs Wghts  %%Wghts PerCap %%JP   Pts");
-	chat->SendMessage(pid, "---- ----- ----- ----- ------ ------ ------ ----- ------");
+	chat->SendMessage(pid, "Freq Plyrs Flags %%Flgs  Wghts %%Wghts   PerCap   %%JP    Pts");
+	chat->SendMessage(pid, "---- ----- ----- ----- ------ ------ -------- ----- ------");
 
 	/* tsd now points to the stats we want to output, output freq stats */
 	for(l = LLGetHead(&tsd->teams) ; l ; l=l->next)
@@ -457,7 +457,7 @@ local void PDisplay(Arena *arena, Player *pid, int histNum)
 			{
 				/* public teams */
 				chat->SendMessage(pid,
-					"%04d %5d %5d %5.1f %6ld %6.1f %6.1f %3.1f %6u",
+					"%04d %5d %5d %5.1f %6ld %6.1f %8.1f %5.1f %6u",
 					freq, numPlayers, numFlags, percentFlags, numWeights,
 					percentWeights, perCapita, percent, numPoints);
 			}
@@ -465,7 +465,7 @@ local void PDisplay(Arena *arena, Player *pid, int histNum)
 			{
 				/* private teams */
 				chat->SendMessage(pid,
-					"priv %5d %5d %5.1f %6ld %6.1f %6.1f %3.1f %6u",
+					"priv %5d %5d %5.1f %6ld %6.1f %8.1f %5.1f %6u",
 					numPlayers, numFlags, percentFlags, numWeights,
 					percentWeights, perCapita, percent, numPoints);
 			}

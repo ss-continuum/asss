@@ -15,18 +15,6 @@
  * used by points_turf_reward for multiarena scoring locking/unlocking
  */
 
-#include "util.h"
-
-/* reward mode settings */
-#define TURF_REWARD_MAP(F) \
-	F(TR_STYLE_DISABLED)  /* disable rewards */  \
-	F(TR_STYLE_PERIODIC)  /* simple periodic scoring */  \
-	F(TR_STYLE_STANDARD)  /* standard weighted scoring method */  \
-	F(TR_STYLE_WEIGHTS)   /* # of weights = points awarded */  \
-	F(TR_STYLE_FIXED_PTS) /* each team gets a fixed # of points rank */
-
-DEFINE_ENUM(TURF_REWARD_MAP)
-
 
 /* prototypes */
 struct TurfArena;
@@ -251,7 +239,7 @@ typedef struct TurfArena
 	long int numWeights;         /* the complete # of flag weights */
 	double sumPerCapitaWeights;  /* sum of all teams percapitas weights */
 
-	unsigned long int numPoints; /* # of points to split up */
+	unsigned long numPoints; /* # of points to split up */
 
 	unsigned int tags;           /* # of flag tags during reward interval */
 	unsigned int steals;         /* # of flag steals during reward interval */
@@ -394,6 +382,31 @@ typedef struct Iturfreward
 	/* gets turf data for an arena. always release it when you're done */
 } Iturfreward;
 
+
+/* for enum conf settings */
+/* reward style settings */
+#define TR_STYLE_MAP(F) \
+	F(TR_STYLE_DISABLED)  /* disable rewards */  \
+	F(TR_STYLE_PERIODIC)  /* simple periodic scoring */  \
+	F(TR_STYLE_STANDARD)  /* standard weighted scoring */  \
+	F(TR_STYLE_STD_BTY)   /* standard + pot based on bounty exchanged */  \
+	F(TR_STYLE_WEIGHTS)   /* number of weights = number of points awarded */  \
+	F(TR_STYLE_FIXED_PTS) /* each team gets a fixed # of points based on 1st, 2nd, 3rd, ... place */
+
+/* weight calculation settings */
+#define TR_WEIGHT_MAP(F) \
+	F(TR_WEIGHT_DINGS) /* weight calculation based on dings */  \
+	F(TR_WEIGHT_TIME)  /* weight calculation based on time  */
+
+/* recovery system settings */
+#define TR_RECOVERY_MAP(F) \
+	F(TR_RECOVERY_DINGS)          /* recovery cutoff based on RecoverDings */  \
+	F(TR_RECOVERY_TIME)           /* recovery cutoff based on RecoverTime */  \
+	F(TR_RECOVERY_DINGS_AND_TIME) /* recovery cutoff based on both RecoverDings and RecoverTime */
+
+DEFINE_ENUM(TR_STYLE_MAP)
+DEFINE_ENUM(TR_WEIGHT_MAP)
+DEFINE_ENUM(TR_RECOVERY_MAP)
 
 #endif
 

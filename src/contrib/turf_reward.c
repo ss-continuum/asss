@@ -179,7 +179,7 @@ local int turfRewardTimer(void *v);
 local void flagGameReset(Arena *arena);
 local void dingTimerReset(Arena *arena);
 local int doReward(Arena *arena);
-local TurfArena * GetTurfData(Arena *arena);
+local TurfArena* GetTurfData(Arena *arena);
 local void ReleaseTurfData(Arena *arena);
 
 
@@ -271,30 +271,20 @@ typedef struct PersistentTurfRewardData
 } PersistentTurfRewardData;
 
 
-/* enumerated setting types */
-
-DEFINE_FROM_STRING(turf_reward_val, TURF_REWARD_MAP)
-
-/* recovery system settings */
-#define TURF_RECOVERY_MAP(F) \
-	F(TR_RECOVERY_DINGS)          /* recovery cutoff based on RecoverDings */  \
-	F(TR_RECOVERY_TIME)           /* recovery cutoff based on RecoverTime */  \
-	F(TR_RECOVERY_DINGS_AND_TIME) /* recovery cutoff based on both RecoverDings and RecoverTime */
-
-DEFINE_ENUM(TURF_RECOVERY_MAP)
-DEFINE_FROM_STRING(turf_recovery_val, TURF_RECOVERY_MAP)
+/* for enum conf settings */
+/* reward style settings */
+DEFINE_FROM_STRING(tr_style_val, TR_STYLE_MAP)
+DEFINE_TO_STRING(tr_style_str, TR_STYLE_MAP);
 
 /* weight calculation settings */
-#define TURF_WEIGHT_MAP(F) \
-	F(TR_WEIGHT_DINGS) /* weight calculation based on dings */  \
-	F(TR_WEIGHT_TIME)  /* weight calculation based on time */
+DEFINE_FROM_STRING(tr_weight_val, TR_WEIGHT_MAP)
 
-DEFINE_ENUM(TURF_WEIGHT_MAP)
-DEFINE_FROM_STRING(turf_weight_val, TURF_WEIGHT_MAP)
+/* recovery system settings */
+DEFINE_FROM_STRING(tr_recovery_val, TR_RECOVERY_MAP)
 
 
 EXPORT const char info_turf_reward[]
-	= "v0.5.2 by GiGaKiLLeR <gigamon@hotmail.com>";
+	= "v0.5.4 by GiGaKiLLeR <gigamon@hotmail.com>";
 
 
 /* the actual entrypoint into this module */
@@ -537,18 +527,15 @@ local void loadSettings(Arena *arena)
 	if (!arena || !*p_ta) return; else ta = *p_ta;
 
 	/* cfghelp: TurfReward:RewardStyle, arena, enum, def: TR_STYLE_DISABLED
-	 * The reward algorithm to be used.  Default is TR_STYLE_STANDARD
-	 * for standard weighted scoring. Other built in algorithms are:
-	 * TR_STYLE_DISABLED: disable scoring, TR_STYLE_PERIODIC: normal
-	 * periodic scoring but with the stats, TR_STYLE_FIXED_PTS: each
-	 * team gets a fixed # of points based on 1st, 2nd, 3rd,... place
-	 * TR_STYLE_WEIGHTS: number of points to award equals number of
-	 * weights owned.  Note: for points_turf_reward (default scoring
-	 * module), currently only TR_STYLE_STANDARD and TR_STYLE_PERIODIC
-	 * are implemented. */
-	ta->settings.reward_style =
-		turf_reward_val(config->GetStr(c, "TurfReward", "RewardStyle"),
-				TR_STYLE_DISABLED);
+	 * The reward algorithm to be used.  Built in algorithms include:
+	 * TR_STYLE_DISABLED: disable scoring, 
+	 * TR_STYLE_PERIODIC: normal periodic scoring but with the all the extra stats, 
+	 * TR_STYLE_STANDARD: see souce code documenation (complex formula) + jackpot based on # players
+	 * TR_STYLE_STD_BTY: standard + jackpot based on bounty exchanged
+	 * TR_STYLE_FIXED_PTS: each team gets a fixed # of points based on 1st, 2nd, 3rd,... place
+	 * TR_STYLE_WEIGHTS: number of points to award equals number of weights owned */
+	ta->settings.reward_style 
+		= tr_style_val(config->GetStr(c, "TurfReward", "RewardStyle"), TR_STYLE_DISABLED);
 
 	/* cfghelp: TurfReward:MinPlayersTeam, arena, int, def: 3
 	 * The minimum number of players needed on a team for players on that
@@ -604,7 +591,7 @@ local void loadSettings(Arena *arena)
 	/* cfghelp: TurfReward:RewardModifier, arena, int, def: 200
 	 * Modifies the number of points to award.  Meaning varies based on reward
 	 * algorithm being used.
-	 * For TR_STYLE_STANDARD: jackpot = # players * RewardModifer */
+	 * For $REWARD_STD: jackpot = # players * RewardModifer */
 	ta->settings.reward_modifier 
 		= config->GetInt(c, "TurfReward", "RewardModifier", 200);
 
@@ -629,7 +616,7 @@ local void loadSettings(Arena *arena)
 	 * Whether players in spectator mode recieve reward points. */
 	ta->settings.spec_recieve_points 
 		= config->GetInt(c, "TurfReward", "SpecRecievePoints", 0);
-
+	 
 	/* cfghelp: TurfReward:SafeRecievePoints, arena, bool, def: 0
 	 * Whether players in safe zones recieve reward points. */
 	ta->settings.safe_recieve_points 
@@ -641,9 +628,8 @@ local void loadSettings(Arena *arena)
 	 * TR_RECOVERY_TIME - recovery cutoff based on RecoverTime.
 	 * TR_RECOVERY_DINGS_AND_TIME - recovery cutoff based on both RecoverDings
 	 * and RecoverTime. */
-	ta->settings.recovery_cutoff =
-		turf_recovery_val(config->GetStr(c, "TurfReward", "RecoveryCutoff"),
-				TR_RECOVERY_DINGS);
+	ta->settings.recovery_cutoff 
+		= tr_recovery_val(config->GetStr(c, "TurfReward", "RecoveryCutoff"), TR_RECOVERY_DINGS);
 
 	/* cfghelp: TurfReward:RecoverDings, arena, int, def: 1
 	 * After losing a flag, the number of dings allowed to pass before a freq
@@ -666,14 +652,13 @@ local void loadSettings(Arena *arena)
 		= config->GetInt(c, "TurfReward", "RecoverMax", -1);
 
 	/* cfghelp: TurfReward:WeightCalc, arena, enum, def: TR_WEIGHT_DINGS
-	 * The method weights are calculated.  TR_WEIGHT_TIME means each
-	 * weight stands for one minute (ex: Weight004 is the weight for a
-	 * flag owned for 4 minutes).  TR_WEIGHT_DINGS means each weight
-	 * stands for one ding of ownership (ex: Weight004 is the weight for
-	 * a flag that was owned during 4 dings). */
-	ta->settings.weight_calc =
-		turf_weight_val(config->GetStr(c, "TurfReward", "WeightCalc"),
-				TR_WEIGHT_DINGS);
+	 * The method weights are calculated:
+	 * TR_WEIGHT_TIME means each weight stands for one minute 
+	 * (ex: Weight004 is the weight for a flag owned for 4 minutes).
+	 * TR_WEIGHT_DINGS means each weight stands for one ding of ownership 
+	 * (ex: Weight004 is the weight for a flag that was owned during 4 dings). */
+	ta->settings.weight_calc
+		= tr_weight_val(config->GetStr(c, "TurfReward", "WeightCalc"), TR_WEIGHT_DINGS);
 
 	/* cfghelp: TurfReward:SetWeights, arena, int, def: 0
 	 * How many weights to set from cfg (16 means you want to specify Weight0 to
@@ -1768,19 +1753,60 @@ local void C_turfInfo(const char *tc, const char *params, Player *p, const Targe
 	if (!arena || !*p_ta) return; else ta = *p_ta;
 
 	LOCK_STATUS(arena);
-	chat->SendMessage(p, "+---- Arena Requirements ----+");
+
+	chat->SendMessage(p, "Arena Settings");
+	chat->SendMessage(p, "   Reward style: %s", tr_style_str(ta->settings.reward_style));
+	chat->SendMessage(p, "   Reward modifier: %d", ta->settings.reward_modifier);
+	chat->SendMessage(p, "   Reward every: %d seconds", ta->settings.timer_interval/100);
+	chat->SendMessage(p, "   Reward maximum: %d points", ta->settings.max_points);
+
+	if(ta->settings.weight_calc == TR_WEIGHT_DINGS)
+		chat->SendMessage(p, "   Weights by: dings");
+	else if(ta->settings.weight_calc == TR_WEIGHT_TIME)
+		chat->SendMessage(p, "   Weights by: time");
+
+	chat->SendMessage(p, "   Weights defined: %d", ta->settings.set_weights);
+
+	if(ta->settings.recovery_cutoff == TR_RECOVERY_DINGS)
+		chat->SendMessage(p, "   Recovery by: dings");
+	else if(ta->settings.recovery_cutoff == TR_RECOVERY_TIME)
+		chat->SendMessage(p, "   Recovery by: time");
+	else if(ta->settings.recovery_cutoff == TR_RECOVERY_DINGS_AND_TIME)
+		chat->SendMessage(p, "   Recovery by: dings and time");
+
+	if( (ta->settings.recovery_cutoff == TR_RECOVERY_DINGS) ||
+		(ta->settings.recovery_cutoff == TR_RECOVERY_DINGS_AND_TIME) )
+		chat->SendMessage(p, "   Recovery cutoff: %d %s", 
+			ta->settings.recover_dings, 
+			(ta->settings.recover_dings == 1) ? "ding" : "dings");
+
+	if( (ta->settings.recovery_cutoff == TR_RECOVERY_TIME) ||
+		(ta->settings.recovery_cutoff == TR_RECOVERY_DINGS_AND_TIME) )
+		chat->SendMessage(p, "   Recovery cutoff: %d %s", 
+			ta->settings.recover_time, 
+			(ta->settings.recover_time == 1) ? "second" : "seconds");
+
+	if(ta->settings.recover_max == -1)
+		chat->SendMessage(p, "   Recovery max: none");
+	else
+		chat->SendMessage(p, "   Recovery max: %d", ta->settings.recover_max);
+
+	chat->SendMessage(p, "   Recieve points in spec: %s", 
+		(ta->settings.spec_recieve_points==0) ? "no" : "yes");
+
+	chat->SendMessage(p, "   Recieve points in safe: %s", 
+		(ta->settings.safe_recieve_points==0) ? "no" : "yes");
+
+	chat->SendMessage(p, "Arena Requirements");
 	chat->SendMessage(p, "   Minimum players: %d", ta->settings.min_players_in_arena);
-	chat->SendMessage(p, "     Minimum teams: %d", ta->settings.min_teams);
-	chat->SendMessage(p, "+---- Team Requirements  ----+");
+	chat->SendMessage(p, "   Minimum teams: %d", ta->settings.min_teams);
+	chat->SendMessage(p, "Team Requirements");
 	chat->SendMessage(p, "   Minimum players: %d", ta->settings.min_players_on_team);
 	chat->SendMessage(p, "   Minimum # flags: %d", ta->settings.min_flags);
-	chat->SendMessage(p, "   Minimum %% flags: %f", ta->settings.min_percent_flags);
-	chat->SendMessage(p, " Minimum # weights: %d", ta->settings.min_weights);
-	chat->SendMessage(p, " Minimum %% weights: %f", ta->settings.min_percent_weights);
-	chat->SendMessage(p, "   Reward modifier: %d", ta->settings.reward_modifier);
-	chat->SendMessage(p, "+---- Misc. Useful Info  ----+");
-	chat->SendMessage(p, "        Ding every: %d seconds", ta->settings.timer_interval/100);
-	chat->SendMessage(p, "   Recovery cutoff: %d dings", ta->settings.recover_dings);
+	chat->SendMessage(p, "   Minimum %% flags: %5.1f", ta->settings.min_percent_flags);
+	chat->SendMessage(p, "   Minimum # weights: %d", ta->settings.min_weights);
+	chat->SendMessage(p, "   Minimum %% weights: %5.1f", ta->settings.min_percent_weights);
+
 	UNLOCK_STATUS(arena);
 }
 

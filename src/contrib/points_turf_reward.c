@@ -13,8 +13,20 @@
 local Iplayerdata *playerdata; /* player data */
 local Ilogman     *logman;     /* logging services */
 local Ichat       *chat;       /* message players */
-local Iturfreward *turfreward; /* for multi arena processing
-                                * (locking and unlocking)*/
+local Iturfreward *turfreward;
+
+
+/* some macros to make it easier */
+#define CALC_REWARD_FAILED \
+	ta->calcState.status = TR_CALC_SUCCESS; \
+	ta->calcState.award  = TR_AWARD_NONE;   \
+	ta->calcState.update = 0;               \
+	return;
+	
+#define CALC_REWARD_SUCCESS \
+	ta->calcState.status = TR_CALC_SUCCESS; \
+	ta->calcState.award  = TR_AWARD_TEAM;   \
+	ta->calcState.update = 1;
 
 
 /* function prototypes */
@@ -32,6 +44,7 @@ local void crStandard(Arena *arena, TurfArena *ta); /* TR_STYLE_STANDARD */
 local void crWeights(Arena *arena, TurfArena *ta);  /* TR_STYLE_WEIGHTS */
 local void crFixedPts(Arena *arena, TurfArena *ta); /* TR_STYLE_FIXED_PTS */
 
+local int teamPointsCompareLT(const void *a, const void *b);
 
 /* register with interface so that this module does scoring for turf_reward */
 local struct Iturfrewardpoints myint =
@@ -45,7 +58,7 @@ local struct Iturfrewardpoints myint =
 
 
 EXPORT const char info_points_turf_reward[]
-	= "v2.1 by GiGaKiLLeR <gigamon@hotmail.com>";
+	= "v2.2 by GiGaKiLLeR <gigamon@hotmail.com>";
 
 EXPORT int MM_points_turf_reward(int action, Imodman *mm, Arena *arena)
 {
@@ -87,6 +100,7 @@ local void calcReward(Arena *arena, TurfArena *ta)
 	{
 	case TR_STYLE_PERIODIC:  crPeriodic(arena, ta); return;
 	case TR_STYLE_STANDARD:  crStandard(arena, ta); return;
+	case TR_STYLE_STD_BTY:   crStandard(arena, ta); return;
 	case TR_STYLE_WEIGHTS:   crWeights(arena, ta);  return;
 	case TR_STYLE_FIXED_PTS: crFixedPts(arena, ta); return;
 	case TR_STYLE_DISABLED:  return;
@@ -95,9 +109,7 @@ local void calcReward(Arena *arena, TurfArena *ta)
 	/* unknown reward style, failed calculations, no reward or update.  It's 
 	 * possible that someone forgot to take this module out of loading from the 
 	 * conf when they wrote their own custom reward module */
-	ta->calcState.status = TR_CALC_FAIL;
-	ta->calcState.award = TR_AWARD_NONE;
-	ta->calcState.update = 0;
+	CALC_REWARD_FAILED
 }
 
 
@@ -109,17 +121,19 @@ local void rewardMessage(Player *player, struct TurfPlayer *tplayer,
 	if(messageType == TR_RM_INVALID_TEAM)
 	{
 		chat->SendSoundMessage(player, SOUND_DING, 
-			"Reward: 0 (minimum team requirements not met)");
+			"Reward: 0/0 (minimum team requirements not met)");
 		return;
 	}
 
 	if(messageType == TR_RM_NON_PLAYER)
 	{
-		chat->SendSoundMessage(player, SOUND_DING, "Reward: 0 (not playing)");
+		chat->SendSoundMessage(player, SOUND_DING, 
+			"Reward: 0/%lu (not playing)", ta->numPoints);
 		return;
 	}
 
-	snprintf(message, sizeof(message), "Reward: %d", pointsAwarded);
+	snprintf(message, sizeof(message), 
+		"Reward: %d/%lu", pointsAwarded, ta->numPoints);
 	
 	if(messageType==TR_RM_PLAYER_MAX)
 		strcat(message, " [MAX] ");
@@ -179,9 +193,7 @@ local void crStandard(Arena *arena, TurfArena *ta)
 		logman->LogA(L_WARN, "points_turf_reward", arena, "map has no flags.");
 		
 		/* fail calculaions */
-		ta->calcState.status = TR_CALC_FAIL;
-		ta->calcState.award = TR_AWARD_NONE;
-		ta->calcState.update = 0;
+		CALC_REWARD_FAILED
 	}
 
 	/* check that numWeights for arena > 0 */
@@ -195,9 +207,7 @@ local void crStandard(Arena *arena, TurfArena *ta)
 			"Reward:0 (arena minimum requirements not met)");
 		
 		/* fail requirements */
-		ta->calcState.status = TR_CALC_SUCCESS;
-		ta->calcState.award = TR_AWARD_NONE;
-		ta->calcState.update = 0;
+		CALC_REWARD_FAILED
 	}
 
 	/* check if there are enough players for rewards */
@@ -212,9 +222,7 @@ local void crStandard(Arena *arena, TurfArena *ta)
 			"Reward:0 (arena minimum requirements not met)");
 		
 		/* fail requirements */
-		ta->calcState.status = TR_CALC_SUCCESS;
-		ta->calcState.award = TR_AWARD_NONE;
-		ta->calcState.update = 0;
+		CALC_REWARD_FAILED
 	}
 
 	/* check if there are enough teams for rewards */
@@ -229,15 +237,22 @@ local void crStandard(Arena *arena, TurfArena *ta)
 			"Reward:0 (arena minimum requirements not met)");
 
 		/* fail requirements */
-		ta->calcState.status = TR_CALC_SUCCESS;
-		ta->calcState.award = TR_AWARD_NONE;
-		ta->calcState.update = 0;
+		CALC_REWARD_FAILED
 	}
 
 	/* figure out percent of jackpot team will recieve and how many points
 	 * that relates to */
-	ta->numPoints = ta->settings.reward_modifier * ta->numPlayers;
+	if(ta->settings.reward_style == TR_STYLE_STD_BTY)
+		ta->numPoints = (ta->bountyExchanged<0) ? 0 : ta->bountyExchanged;
+	else
+		ta->numPoints = ta->settings.reward_modifier * ta->numPlayers;
 
+	if( ta->numPoints == 0 )
+	{
+		/* no points to award */
+		CALC_REWARD_SUCCESS
+	}
+		
 	/* at least one team passed minimum requirements, award them points */
 	for(l = LLGetHead(&ta->validTeams) ; l ; l=l->next)
 	{
@@ -257,9 +272,7 @@ local void crStandard(Arena *arena, TurfArena *ta)
 	}
 	
 	/* success! award and update */
-	ta->calcState.status = TR_CALC_SUCCESS;
-	ta->calcState.award = TR_AWARD_TEAM;
-	ta->calcState.update = 1;
+	CALC_REWARD_SUCCESS
 }
 
 
@@ -284,7 +297,7 @@ local void crPeriodic(Arena *arena, TurfArena *ta)
 		
 		/* success! update only */
 		ta->calcState.status = TR_CALC_SUCCESS;
-		ta->calcState.award = TR_AWARD_NONE;
+		ta->calcState.award  = TR_AWARD_NONE;
 		ta->calcState.update = 1;
 	}
 
@@ -312,11 +325,9 @@ local void crPeriodic(Arena *arena, TurfArena *ta)
 			pTeam->numPoints = numPlayers * (-modifier) * pTeam->numFlags;
 		}
 	}
-	
+
 	/* success! award and update */
-	ta->calcState.status = TR_CALC_SUCCESS;
-	ta->calcState.award = TR_AWARD_TEAM;
-	ta->calcState.update = 1;
+	CALC_REWARD_SUCCESS
 }
 
 
@@ -331,22 +342,40 @@ local void crWeights(Arena *arena, TurfArena *ta)
 		pTeam->percent   = 0;
 		pTeam->numPoints = (pTeam->numWeights<0) ? 0 : pTeam->numWeights;
 	}
-		
-	ta->calcState.status = TR_CALC_SUCCESS;
-	ta->calcState.award = TR_AWARD_TEAM;
-	ta->calcState.update = 1;
+
+	CALC_REWARD_SUCCESS
 }
 
 
 local void crFixedPts(Arena *arena, TurfArena *ta)
 {
+	Link *l;
+	int pts = 1000;
+
 	crStandard(arena, ta);
+	
+	/* sort teas into 1st, 2nd, 3rd... place */
+	LLSort(&ta->validTeams, teamPointsCompareLT);
 
-	/* TODO: havn't decided how to specify points
-	 * now figure out which freq is 1st place, 2nd place, 3rd place... */
+	/* CHECK: I am unsure if LLSort sorts asc or desc */
+		
+	/* TODO: add settings to be able to control this */
+	
+	for(l = LLGetHead(&ta->validTeams) ; l ; l=l->next)
+	{
+		TurfTeam *pTeam = l->data;
 
-	ta->calcState.status = TR_CALC_FAIL;
-	ta->calcState.award = TR_AWARD_NONE;
-	ta->calcState.update = 0;
+		pTeam->percent   = 0;
+		pTeam->numPoints = (pts < 0) ? 0 : pts;
+		if(pts >= 0)
+			pts -= 500;
+	}
+
+	CALC_REWARD_SUCCESS
+}
+
+local int teamPointsCompareLT(const void *a, const void *b)
+{
+	return ((TurfTeam*)a)->numPoints < ((TurfTeam*)b)->numPoints;
 }
 
