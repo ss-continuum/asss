@@ -397,7 +397,9 @@ enum { MAP(DEFINE_ENUM_HELPER) };
 
 #define DEFINE_FROM_STRING(NAME, MAP) \
 static int NAME(const char *s, int def) \
-{ if (s == NULL) return def; if (*s == '$') s++; \
+{ if (s == NULL) return def; \
+  else if (*s >= '0' && *s <= '9') return atoi(s); \
+  else if (*s == '$') s++; \
   MAP(DEFINE_FROM_STRING_HELPER) return def; }
 
 #define DEFINE_FROM_STRING_HELPER(X) if (strcasecmp(#X, s) == 0) return X; else
