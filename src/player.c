@@ -13,7 +13,7 @@
 /* static data */
 
 local Imodman *mm;
-local int magickey, mtxkey;
+local int dummykey, magickey, mtxkey;
 #ifdef USE_RWLOCK
 local rwlock_t plock;
 #define RDLOCK() rwl_readlock(&plock)
@@ -33,6 +33,9 @@ local pthread_mutex_t plock;
 local Player **pidmap;
 local int pidmapsize;
 local int perplayerspace;
+#ifdef CFG_DYNAMIC_PPD
+local pthread_mutex_t extradatamtx;
+#endif
 local pthread_mutexattr_t recmtxattr;
 
 /* forward declaration */
@@ -74,7 +77,14 @@ local void WriteUnlock(void)
 local Player * NewPlayer(int type)
 {
 	int pid;
+#ifdef CFG_DYNAMIC_PPD
+	Player *p = amalloc(sizeof(*p));
+	pthread_mutex_lock(&extradatamtx);
+	p->playerextradata = amalloc(perplayerspace);
+	pthread_mutex_unlock(&extradatamtx);
+#else
 	Player *p = amalloc(sizeof(*p) + perplayerspace);
+#endif
 
 	*(unsigned*)PPDATA(p, magickey) = MODMAN_MAGIC;
 	pthread_mutex_init((pthread_mutex_t*)PPDATA(p, mtxkey), &recmtxattr);
@@ -128,6 +138,10 @@ local void FreePlayer(Player *p)
 
 	pthread_mutex_destroy((pthread_mutex_t*)PPDATA(p, mtxkey));
 
+#ifdef CFG_DYNAMIC_PPD
+	afree(p->playerextradata);
+#endif
+
 	afree(p);
 }
 
@@ -172,7 +186,11 @@ local Player * FindPlayer(const char *name)
 
 	RDLOCK();
 	FOR_EACH_PLAYER(p)
-		if (strcasecmp(name, p->name) == 0)
+		if (strcasecmp(name, p->name) == 0 &&
+			/* this is a sort of hackish way of not returning
+			 * players who are on their way out. */
+		    p->status < S_LEAVING_ZONE &&
+		    p->whenloggedin < S_LEAVING_ZONE)
 		{
 			RULOCK();
 			return p;
@@ -264,8 +282,19 @@ local int AllocatePlayerData(size_t bytes)
 	if ((perplayerspace - current) >= (int)bytes)
 		goto found;
 
+	/* no more space. if we're using dynamic player data space, we can
+	 * grow it. if not, we're out of luck. */
+#ifdef CFG_DYNAMIC_PPD
+	/* round up to the next multiple of 1k */
+	pthread_mutex_lock(&extradatamtx);
+	perplayerspace += (bytes + 1023) & ~1023;
+	FOR_EACH_PLAYER(p)
+		p->playerextradata = arealloc(p->playerextradata, perplayerspace);
+	pthread_mutex_unlock(&extradatamtx);
+#else
 	WULOCK();
 	return -1;
+#endif
 
 found:
 	nb = amalloc(sizeof(*nb));
@@ -301,6 +330,17 @@ local void FreePlayerData(int key)
 }
 
 
+local void * GetPD(Player *p, int key)
+{
+	void *ret;
+	assert(key > 0);
+	pthread_mutex_lock(&extradatamtx);
+	ret = (void*)(p->playerextradata + key);
+	pthread_mutex_unlock(&extradatamtx);
+	return ret;
+}
+
+
 /* interface */
 local Iplayerdata pdint =
 {
@@ -310,6 +350,9 @@ local Iplayerdata pdint =
 	PidToPlayer, FindPlayer,
 	TargetToSet,
 	AllocatePlayerData, FreePlayerData,
+#ifdef CFG_DYNAMIC_PPD
+	GetPD,
+#endif
 	Lock, WriteLock, Unlock, WriteUnlock
 };
 
@@ -319,7 +362,9 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 	if (action == MM_LOAD)
 	{
 		int i;
+#ifndef CFG_DYNAMIC_PPD
 		Iconfig *cfg;
+#endif
 
 		mm = mm_;
 
@@ -343,10 +388,16 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 
 		LLInit(&blocks);
 
+#ifdef CFG_DYNAMIC_PPD
+		pthread_mutex_init(&extradatamtx, NULL);
+		perplayerspace = 1024; /* start small */
+#else
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		perplayerspace = cfg ? cfg->GetInt(GLOBAL, "General", "PerPlayerBytes", 4000) : 4000;
 		mm->ReleaseInterface(cfg);
+#endif
 
+		dummykey = AllocatePlayerData(4);
 		magickey = AllocatePlayerData(sizeof(unsigned));
 		mtxkey = AllocatePlayerData(sizeof(pthread_mutex_t));
 
@@ -362,6 +413,7 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 
 		pthread_mutexattr_destroy(&recmtxattr);
 
+		FreePlayerData(dummykey);
 		FreePlayerData(magickey);
 		FreePlayerData(mtxkey);
 

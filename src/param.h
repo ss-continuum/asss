@@ -114,5 +114,9 @@
 #define CFG_HANDLE_SEGV
 
 
+/* whether per-player space is allocated dynamically. */
+#define CFG_DYNAMIC_PPD
+
+
 /* dist: public */
 

@@ -229,7 +229,11 @@ struct Player
 		u32 padding : 21;
 	} flags;
 	/** space for private data associated with this player */
+#ifdef CFG_DYNAMIC_PPD
+	byte *playerextradata;
+#else
 	byte playerextradata[0];
+#endif
 };
 
 
@@ -244,8 +248,14 @@ struct Player
 typedef void (*NewPlayerFunc)(Player *p, int isnew);
 
 
+#ifdef CFG_DYNAMIC_PPD
+#define I_PLAYERDATA_CFG "dyn"
+#else
+#define I_PLAYERDATA_CFG "st"
+#endif
+
 /** the interface id for playerdata */
-#define I_PLAYERDATA "playerdata-5"
+#define I_PLAYERDATA "playerdata-6" I_PLAYERDATA_CFG
 
 /** the playerdata interface struct */
 typedef struct Iplayerdata
@@ -341,6 +351,10 @@ typedef struct Iplayerdata
 	 */
 	void (*FreePlayerData)(int key);
 
+#ifdef CFG_DYNAMIC_PPD
+	void * (*GetPD)(Player *p, int key);
+#endif
+
 	/** Locks the global player lock (shared/read-only).
 	 * There is one global player lock which protects the list of
 	 * players and the status values. Before using FOR_EACH_PLAYER or
@@ -381,7 +395,11 @@ typedef struct Iplayerdata
  * the return type is void *, so it can be assigned to any pointer
  * without casting.
  */
+#ifdef CFG_DYNAMIC_PPD
+#define PPDATA(p, mykey) (pd->GetPD(p, mykey))
+#else
 #define PPDATA(p, mykey) ((void*)((p)->playerextradata+mykey))
+#endif
 
 /** This is the basic iterating over players macro.
  * It requires a Link * named "link" and an Iplayerdata * named "pd" in
