@@ -521,7 +521,7 @@ void PBroadcast(Player *p, byte *pkt, int len)
 				MUTEX_LOCK(ad);
 
 				while (i--)
-					if ((node = getDataFromId(&ad->list, objm[i].id)))
+					if ((node = getDataFromId(&ad->list, objm[i].data.id)))
 					{
 						/* note that bots only need to send what they changed */
 						int changed = memcmp(&node->current, &node->defaults, sizeof(struct ObjectData));
@@ -529,32 +529,32 @@ void PBroadcast(Player *p, byte *pkt, int len)
 
 						/* hack: map_x = scrn_x|rela_x */
 						if (objm[i].change_xy &&
-						    (objm[i].map_x != node->defaults.map_x ||
-						     objm[i].map_y != node->defaults.map_y))
+						    (objm[i].data.map_x != node->defaults.map_x ||
+						     objm[i].data.map_y != node->defaults.map_y))
 						{
 							changing = 1;
-							node->current.map_x = objm[i].map_x;
-							node->current.map_y = objm[i].map_y;
+							node->current.map_x = objm[i].data.map_x;
+							node->current.map_y = objm[i].data.map_y;
 						}
-						if (objm[i].change_image && (objm[i].image != node->defaults.image))
+						if (objm[i].change_image && (objm[i].data.image != node->defaults.image))
 						{
 							changing = 1;
-							node->current.image = objm[i].image;
+							node->current.image = objm[i].data.image;
 						}
-						if (objm[i].change_layer && (objm[i].layer != node->defaults.layer))
+						if (objm[i].change_layer && (objm[i].data.layer != node->defaults.layer))
 						{
 							changing = 1;
-							node->current.layer = objm[i].layer;
+							node->current.layer = objm[i].data.layer;
 						}
-						if (objm[i].change_mode && (objm[i].mode != node->defaults.mode))
+						if (objm[i].change_mode && (objm[i].data.mode != node->defaults.mode))
 						{
 							changing = 1;
-							node->current.mode = objm[i].mode;
+							node->current.mode = objm[i].data.mode;
 						}
-						if (objm[i].change_time && (objm[i].time != node->defaults.time))
+						if (objm[i].change_time && (objm[i].data.time != node->defaults.time))
 						{
 							changing = 1;
-							node->current.time = objm[i].time;
+							node->current.time = objm[i].data.time;
 						}
 
 						if (changing && !changed)
@@ -562,7 +562,8 @@ void PBroadcast(Player *p, byte *pkt, int len)
 						else if (!changing && changed)
 							ad->ext_diffs--;
 						lm->LogA(L_DRIVEL, "objects", p->arena,
-								"morphed object %i. saving %i objects", objm[i].id, ad->ext_diffs); \
+								"morphed object %i. saving %i objects",
+								objm[i].data.id, ad->ext_diffs);
 					}
 
 				MUTEX_UNLOCK(ad);
@@ -942,17 +943,17 @@ void Move(const Target *t, short id, short x, short y, short rx, short ry)
 	*(u8*)objm = 0;
 	objm->change_xy = 1;
 
-	if ((objm->mapobj = node->defaults.mapobj))
+	if ((objm->data.mapobj = node->defaults.mapobj))
 	{
-		objm->map_x = x;
-		objm->map_y = y;
+		objm->data.map_x = x;
+		objm->data.map_y = y;
 	}
 	else
 	{
-		objm->scrn_x = x;
-		objm->scrn_y = y;
-		objm->rela_x = rx;
-		objm->rela_y = ry;
+		objm->data.scrn_x = x;
+		objm->data.scrn_y = y;
+		objm->data.rela_x = rx;
+		objm->data.rela_y = ry;
 	}
 
 	END_EXTENDED(t, id);
@@ -964,7 +965,7 @@ void Image(const Target *t, short id, int image)
 
 	*(u8*)objm = 0;
 	objm->change_image = 1;
-	objm->image = image;
+	objm->data.image = image;
 
 	END_EXTENDED(t, id);
 }
@@ -975,7 +976,7 @@ void Layer(const Target *t, short id, int layer)
 
 	*(u8*)objm = 0;
 	objm->change_layer = 1;
-	objm->layer = layer;
+	objm->data.layer = layer;
 
 	END_EXTENDED(t, id);
 }
@@ -986,7 +987,7 @@ void Timer(const Target *t, short id, int time)
 
 	*(u8*)objm = 0;
 	objm->change_time = 1;
-	objm->time = time;
+	objm->data.time = time;
 
 	END_EXTENDED(t, id);
 }
@@ -997,7 +998,7 @@ void Mode(const Target *t, short id, int mode)
 
 	*(u8*)objm = 0;
 	objm->change_mode = 1;
-	objm->mode = mode;
+	objm->data.mode = mode;
 
 	END_EXTENDED(t, id);
 }

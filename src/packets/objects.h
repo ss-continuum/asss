@@ -99,7 +99,7 @@ struct ObjectMove   /* 11 bts */
 		u8 layer;       /* LAYER_ constant */
 		u16 time : 12;  /* display time in ticks */
 		u16 mode :  4;  /* LAYER_ constant */
-	};
+	} data;
 };
 
 #endif
