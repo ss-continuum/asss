@@ -37,8 +37,6 @@ local void RegCallback(const char *, void *, Arena *);
 local void UnregCallback(const char *, void *, Arena *);
 local void LookupCallback(const char *, Arena *, LinkedList *);
 local void FreeLookupResult(LinkedList *);
-local Arena * GetArenaOfCurrentCallback(void);
-local Arena * GetArenaOfLastInterfaceRequest(void);
 local void RegModuleLoader(const char *sig, ModuleLoaderFunc func);
 local void UnregModuleLoader(const char *sig, ModuleLoaderFunc func);
 
@@ -56,7 +54,6 @@ local int nomoremods;
 local pthread_mutex_t modmtx;
 local pthread_mutex_t intmtx = PTHREAD_MUTEX_INITIALIZER;
 local pthread_mutex_t cbmtx = PTHREAD_MUTEX_INITIALIZER;
-local pthread_key_t lastcbarenakey, lastintarenakey;
 
 
 local Imodman mmint =
@@ -66,7 +63,7 @@ local Imodman mmint =
 	AttachModule, DetachModule,
 	RegInterface, UnregInterface, GetInterface, GetInterfaceByName, ReleaseInterface,
 	RegCallback, UnregCallback, LookupCallback, FreeLookupResult,
-	GetArenaOfCurrentCallback, GetArenaOfLastInterfaceRequest,
+	NULL, NULL,
 	RegModuleLoader, UnregModuleLoader,
 	GetModuleInfo, DetachAllFromArena,
 	{ DoStage, UnloadAllModules, NoMoreModules }
@@ -85,9 +82,6 @@ Imodman * InitModuleManager(void)
 	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 	pthread_mutex_init(&modmtx, &attr);
 	pthread_mutexattr_destroy(&attr);
-
-	pthread_key_create(&lastcbarenakey, NULL);
-	pthread_key_create(&lastintarenakey, NULL);
 
 	LLInit(&mods);
 	arenacallbacks = HashAlloc();
@@ -117,8 +111,6 @@ void DeInitModuleManager(Imodman *mm)
 	HashFree(intsbyname);
 	HashFree(loaders);
 	pthread_mutex_destroy(&modmtx);
-	pthread_key_delete(lastcbarenakey);
-	pthread_key_delete(lastintarenakey);
 }
 
 
@@ -437,7 +429,6 @@ void * GetInterface(const char *id, Arena *arena)
 	pthread_mutex_unlock(&intmtx);
 	if (head)
 		head->refcount++;
-	pthread_setspecific(lastintarenakey, arena);
 	return head;
 }
 
@@ -460,7 +451,6 @@ void ReleaseInterface(void *iface)
 	if (!iface) return;
 	assert(head->magic == MODMAN_MAGIC);
 	head->refcount--;
-	pthread_setspecific(lastintarenakey, NULL);
 }
 
 
@@ -512,22 +502,10 @@ void LookupCallback(const char *id, Arena *arena, LinkedList *ll)
 		HashGetAppend(arenacallbacks, key, ll);
 	}
 	pthread_mutex_unlock(&cbmtx);
-	pthread_setspecific(lastcbarenakey, arena);
 }
 
 void FreeLookupResult(LinkedList *lst)
 {
 	LLEmpty(lst);
-}
-
-
-Arena * GetArenaOfCurrentCallback(void)
-{
-	return pthread_getspecific(lastcbarenakey);
-}
-
-Arena * GetArenaOfLastInterfaceRequest(void)
-{
-	return pthread_getspecific(lastintarenakey);
 }
 

@@ -254,9 +254,9 @@ typedef struct Imodman
 	 */
 	void (*FreeLookupResult)(LinkedList *res);
 
-	/* do what they say. you shouldn't need to use these. */
-	Arena * (*GetArenaOfCurrentCallback)(void);
-	Arena * (*GetArenaOfLastInterfaceRequest)(void);
+	/* dummy slots for binary compatibility */
+	void *dummy_1;
+	void *dummy_2;
 
 	/* module loaders */
 

@@ -166,6 +166,12 @@ class type_zero(type_gen):
 	def decl(me, s):
 		return 'int %s = 0' % s
 
+class type_one(type_gen):
+	def format_char(me):
+		return ''
+	def decl(me, s):
+		return 'int %s = 1' % s
+
 class type_int(type_gen):
 	def format_char(me):
 		return 'i'
@@ -304,7 +310,7 @@ def get_type(tp):
 		return None
 
 
-def create_c_to_py_func(func):
+def create_c_to_py_func(name, func):
 	args = func.args
 	out = func.out
 
@@ -315,6 +321,8 @@ def create_c_to_py_func(func):
 	decls = []
 	extras3 = []
 	allargs = []
+	av_arena = None
+	av_player = None
 
 	if out.tp == 'void':
 		retorblank = ''
@@ -360,6 +368,12 @@ def create_c_to_py_func(func):
 				pass
 			inargs.append(argname)
 			allargs.append(typ.decl(argname))
+
+			# the arena value can only be an inarg
+			if av_arena is None and arg.tp == 'arena':
+				av_arena = argname
+			elif av_player is None and arg.tp == 'player':
+				av_player = argname + '->arena'
 
 		elif 'out' in opts:
 			# this is an outgoing arg
@@ -420,6 +434,20 @@ def create_c_to_py_func(func):
 	decls = '\n'.join(decls)
 	extras3 = '\n'.join(extras3)
 	retdecl = rettype.decl('')
+
+	if av_arena:
+		arenaval = av_arena
+	elif av_player:
+		arenaval = av_player
+		if name:
+			print "warning: %s: guessing arena from player argument" % name
+	else:
+		arenaval = 'ALLARENAS'
+	del av_arena
+	del av_player
+	del args
+	del out
+	del rettype
 
 	return vars()
 
@@ -510,7 +538,7 @@ def create_py_to_c_func(func):
 			else:
 				decref = ''
 
-			cbdict = create_c_to_py_func(arg.tp)
+			cbdict = create_c_to_py_func(None, arg.tp)
 			cbdict['cbfuncname'] = cbfuncname
 			cbdict['decref'] = decref
 			cbcode = []
@@ -630,6 +658,10 @@ local %(retdecl)s %(cbfuncname)s(%(allargs)s)
 	extras3 = '\n'.join(extras3)
 	extracode = '\n'.join(extracode)
 
+	del args
+	del out
+	del idx
+
 	return vars()
 
 
@@ -645,7 +677,7 @@ def translate_pycb(name, ctype, line):
 	func = parse_func(tokens)
 
 	funcname = 'py_cb_%s' % name
-	cbvars = create_c_to_py_func(func)
+	cbvars = create_c_to_py_func(name, func)
 	cbvars.update(vars())
 
 	# an optimization: if we have outargs, we need to build the arg
@@ -688,7 +720,7 @@ local %(retdecl)s %(funcname)s(%(allargs)s)
 	if not outargs:
 		code.append(buildcode)
 	code.append("""
-	mm->LookupCallback(PYCBPREFIX %(name)s, mm->GetArenaOfCurrentCallback(), &cbs);
+	mm->LookupCallback(PYCBPREFIX %(name)s, %(arenaval)s, &cbs);
 
 	for (l = LLGetHead(&cbs); l; l = l->next)
 	{
@@ -952,7 +984,7 @@ local PyTypeObject %(typestructname)s = {
 				print "bad declaration '%s'" % thing
 				continue
 			funcname = 'pyint_func_%s_%s' % (iid, name)
-			funcdict = create_c_to_py_func(func)
+			funcdict = create_c_to_py_func('%s::%s' % (iid, name), func)
 			funcdict.update(vars())
 			code = []
 			code.append("""
@@ -967,7 +999,7 @@ local %(retdecl)s %(funcname)s(%(allargs)s)
 				"function %(name)s in interface %(iid)s");
 		return %(defretval)s;
 	}
-	out = call_gen_py_interface(PYINTPREFIX %(iid)s, %(funcidx)d, args);
+	out = call_gen_py_interface(PYINTPREFIX %(iid)s, %(funcidx)d, args, %(arenaval)s);
 	if (!out)
 	{
 		log_py_exception(L_ERROR, "python error calling "

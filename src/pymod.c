@@ -637,17 +637,12 @@ typedef struct {
 } pyint_generic_interface;
 
 
-local PyObject * call_gen_py_interface(const char *iid, int idx, PyObject *args)
+local PyObject * call_gen_py_interface(const char *iid, int idx, PyObject *args, Arena *arena)
 {
 	pyint_generic_interface *i;
 	PyObject *ret = NULL;
 
-	/* this method of getting the arena isn't very good. it should work
-	 * as long as people use interfaces in normal ways, but it's
-	 * somewhat fragile. the alternatives are adding a closure parameter
-	 * to all or most interface functions, or copying and modifying code
-	 * in memory. */
-	i = mm->GetInterface(iid, mm->GetArenaOfLastInterfaceRequest());
+	i = mm->GetInterface(iid, arena);
 	if (i && i->funcs && i->py_int_magic == PY_INT_MAGIC)
 	{
 		PyObject *func = PyTuple_GetItem(i->funcs, idx);
