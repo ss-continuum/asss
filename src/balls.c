@@ -592,7 +592,7 @@ void PGoal(int pid, byte *p, int len)
 		return;
 	}
 
-	if (bd->state != BALL_ONMAP || bd->carrier != pid)
+	if (bd->state != BALL_ONMAP)
 	{
 		logm->Log(L_MALICIOUS, "<balls> [%s] Player sent goal for ball he didn't fire or that's being carried", pd->players[pid].name);
 		UNLOCK_STATUS(arena);
@@ -600,7 +600,7 @@ void PGoal(int pid, byte *p, int len)
 	}
 
 	/* do callbacks before spawning */
-	DO_CBS(CB_GOAL, arena, GoalFunc, (arena, pid, g->ballid, g->x, g->y));
+	DO_CBS(CB_GOAL, arena, GoalFunc, (arena, bd->carrier, g->ballid, g->x, g->y));
 
 	/* send ball update */
 	if (pballdata[arena].goaldelay == 0)

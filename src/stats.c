@@ -34,7 +34,7 @@ local void ClearG(int);
 
 local void PChat(int, byte *, int);
 local void Cstats(const char *, int, int);
-local void Cscore(const char *, int, int);
+local void Cmyscore(const char *, int, int);
 local void PAFunc(int, int, int);
 
 
@@ -80,7 +80,7 @@ EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 
 		mm->RegCallback(CB_PLAYERACTION, PAFunc, ALLARENAS);
 		cmd->AddCommand("stats", Cstats);
-		cmd->AddCommand("score", Cscore);
+		cmd->AddCommand("myscore", Cmyscore);
 		persist->RegPersistantData(&gdatadesc);
 		persist->RegPersistantData(&adatadesc);
 		net->AddPacket(C2S_CHAT, PChat);
@@ -95,7 +95,7 @@ EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 		persist->UnregPersistantData(&gdatadesc);
 		persist->UnregPersistantData(&adatadesc);
 		cmd->RemoveCommand("stats", Cstats);
-		cmd->RemoveCommand("score", Cscore);
+		cmd->RemoveCommand("myscore", Cmyscore);
 		mm->UnregCallback(CB_PLAYERACTION, PAFunc, ALLARENAS);
 
 		mm->ReleaseInterface(chat);
@@ -247,7 +247,7 @@ void Cstats(const char *params, int pid, int target)
 	}
 }
 
-void Cscore(const char *params, int pid, int target)
+void Cmyscore(const char *params, int pid, int target)
 {
 	struct ArenaStats *d;
 

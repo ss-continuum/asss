@@ -166,27 +166,38 @@ local void Cballcount(const char *params, int pid, int target)
 
 local void Csetfreq(const char *params, int pid, int target)
 {
-	if (PID_BAD(target))
-		return;
 
 	if (!*params)
 		return;
 
-	game->SetFreq(target, atoi(params));
-	/* FIXME: allow multiple targets */
+	if (PID_OK(target))
+		game->SetFreq(target, atoi(params));
+	else if (target == TARGET_ARENA)
+	{
+		int i, arena = pd->players[pid].arena;
+		for (i = 0; i < MAXPLAYERS; i++)
+			if (players[i].status == S_PLAYING &&
+			    players[i].arena == arena)
+				game->SetFreq(i, atoi(params));
+	}
 }
 
 
 local void Csetship(const char *params, int pid, int target)
 {
-	if (PID_BAD(target))
-		return;
-
 	if (!*params)
 		return;
 
-	game->SetShip(target, atoi(params) - 1);
-	/* FIXME: allow multiple targets */
+	if (PID_OK(target))
+		game->SetShip(target, atoi(params) - 1);
+	else if (target == TARGET_ARENA)
+	{
+		int i, arena = pd->players[pid].arena;
+		for (i = 0; i < MAXPLAYERS; i++)
+			if (players[i].status == S_PLAYING &&
+			    players[i].arena == arena)
+				game->SetFreq(i, atoi(params) - 1);
+	}
 }
 
 
@@ -458,6 +469,31 @@ local void Ca(const char *params, int pid, int target)
 		chat->SendMessage(target, "%s  -%s", params, players[pid].name);
 }
 
+local void Cwarpto(const char *params, int pid, int target)
+{
+	int x,y;
+
+	if (sscanf(params,"%d,%d",&x,&y) == 2 &&
+		PID_OK(target) && players[target].shiptype != SPEC)
+			game->WarpTo(target,x,y);
+	else if (sscanf(params,"%d %d",&x,&y) == 2 &&
+		PID_OK(target) && players[target].shiptype != SPEC)
+			game->WarpTo(target,x,y);
+	else
+		chat->SendMessage(pid,"warpto format is either: \"*warpto x,y\" or \"*warpto x y\"");
+}
+
+local void Cshipreset(const char *params, int pid, int target)
+{
+	int arena = players[pid].arena;
+	byte pkt = S2C_SHIPRESET;
+
+	if (target == TARGET_ARENA)
+		net->SendToArena(arena, -1, &pkt, 1, NET_RELIABLE);
+	else if (PID_OK(target))
+		net->SendToOne(pid, &pkt, 1, NET_RELIABLE);
+}
+
 
 
 local struct
@@ -487,6 +523,8 @@ const all_commands[] =
 	CMD(setcm),
 	CMD(getcm),
 	CMD(a),
+	CMD(warpto),
+	CMD(shipreset),
 	{ NULL }
 #undef CMD
 };

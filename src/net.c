@@ -561,7 +561,6 @@ void * RecvThread(void *dummy)
 			dump_pk(buf->d.raw, len);
 #endif
 
-
 			/***** lock status here *****/
 			pd->LockStatus();
 
@@ -576,8 +575,10 @@ void * RecvThread(void *dummy)
 				if (IS_CONNINIT(buf))
 					DO_CBS(CB_CONNINIT, ALLARENAS, ConnectionInitFunc,
 							(&sin, buf->d.raw, len));
+				else if (len > 1)
+					lm->Log(L_DRIVEL, "<net> Recvd data (%02x %02x ; %d bytes) before connection established", buf->d.raw[0], buf->d.raw[1], len);
 				else
-					lm->Log(L_DRIVEL, "<net> Recvd data before connection established");
+					lm->Log(L_DRIVEL, "<net> Recvd data (%02x ; %d byte) before connection established", buf->d.raw[0], len);
 				goto freebuf;
 			}
 
@@ -897,14 +898,16 @@ void * SendThread(void *dummy)
 void * RelThread(void *dummy)
 {
 	Buffer *buf, *nbuf;
+	int worked = 0;
 
+	LockMutex(&relmtx);
 	while (!killallthreads)
 	{
 		/* wait for reliable pkt to process */
-		LockMutex(&relmtx);
-		while (rellist.next == &rellist)
+		if (!worked)
 			WaitCondition(&relcond, &relmtx);
 
+		worked = 0;
 		for (buf = (Buffer*)rellist.next; (DQNode*)buf != &rellist; buf = nbuf)
 		{
 			nbuf = (Buffer*)buf->node.next;
@@ -925,7 +928,10 @@ void * RelThread(void *dummy)
 				 * but don't increment sequence number. */
 				DQRemove((DQNode*)buf);
 				UnlockMutex(&relmtx);
+
+				/* process it */
 				ProcessPacket(buf->pid, buf->d.raw, buf->len);
+
 				FreeBuffer(buf);
 				LockMutex(&relmtx);
 			}
@@ -943,10 +949,17 @@ void * RelThread(void *dummy)
 
 				FreeBuffer(buf);
 				LockMutex(&relmtx);
+				worked = 1;
+			}
+			else if (buf->d.rel.seqnum <= clients[buf->pid].c2sn)
+			{
+				/* this is a duplicated reliable packet */
+				DQRemove((DQNode*)buf);
+				FreeBuffer(buf);
 			}
 		}
-		UnlockMutex(&relmtx);
 	}
+	UnlockMutex(&relmtx);
 	return NULL;
 }
 
@@ -1162,8 +1175,19 @@ void ProcessReliable(Buffer *buf)
 	int sn = buf->d.rel.seqnum;
 
 	LockMutex(&relmtx);
-	if ( (sn - clients[buf->pid].c2sn) <= config.bufferdelta)
+
+	if ((sn - clients[buf->pid].c2sn) > config.bufferdelta)
 	{
+		/* just drop it */
+		UnlockMutex(&relmtx);
+		lm->Log(L_DRIVEL, "<net> [%s] [pid=%d] Reliable packet with too big delta (%d - %d)",
+				players[buf->pid].name, buf->pid,
+				sn, clients[buf->pid].c2sn);
+		FreeBuffer(buf);
+	}
+	else
+	{
+		/* ack and store it */
 		struct
 		{
 			u8 t0, t1;
@@ -1180,14 +1204,6 @@ void ProcessReliable(Buffer *buf)
 		 * ones into packets. */
 		BufferPacket(buf->pid, (byte*)&ack, sizeof(ack),
 				NET_UNRELIABLE | NET_PRI_P3, NULL, NULL);
-	}
-	else /* drop it */
-	{
-		UnlockMutex(&relmtx);
-		FreeBuffer(buf);
-		lm->Log(L_DRIVEL, "<net> [%s] [pid=%d] Reliable packet with too big delta (%d - %d)",
-				players[buf->pid].name, buf->pid,
-				sn, clients[buf->pid].c2sn);
 	}
 }
 

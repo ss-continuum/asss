@@ -1,24 +1,62 @@
 
+#include <string.h>
+#include <stdio.h>
+
 #include "asss.h"
 
 #include "settings/soccer.h"
 
 
-#define MAXFREQ 8
+#define MAXFREQ  8
+#define MAXGOALS 16
 
+/*  Soccer modes:
+ *  0 - All goals are open for scoring by any freq
+ *  1 - Left/Right, two goals...Scoring is basically even freqs vs odd freqs
+ *  2 - Top/Bottom, same as 1 but goals oriented vertically
+ *  3 - Corners/3_1, Each freq (0-3) has one goal to defend, and three to score on
+ *  4 - Corners/1_3, Each freq (0-3) has three goals to defend, and one to score on*
+ *  5 - Sides/3_1, Same as mode 3, but using left/right/top/bottom goals
+ *  6 - Sides/1_3, Same as mode 5 (goal orientations), except uses mode 4 rules*
+ *  7 - Custom (asss only), not developed yet =)
+ *  * 1_3 rules:  Birds(0) take pts from Levs(3)
+ *                Javs (1) take pts from Spid(2)
+ *                Spids(2) take pts from Javs(1)
+ *                Levs (3) take pts from Bird(0)
+ *    Games must be timed I guess, since no team can acquire all 4 pts as in modes 3,5
+ */
+
+
+typedef struct GoalAreas
+{
+	int upperleft_x;        // coord of first tile in upper-left
+	int upperleft_y;        // corner
+	int width;              // guess
+	int height;             // .. for now just a rectangular approximation =P
+	int goalfreq;           // owner freq of goal
+} GoalAreas;
 
 struct ArenaScores
 {
-	int score[MAXFREQ];
+	int mode;                       // stores type of soccer game, 0-6 by default
+	int score[MAXFREQ];             // score each freq has
+	GoalAreas goals[MAXGOALS];      // array of goal-defined areas for >2 goal arenas
 };
 
-/* prototypes */
 
+/* prototypes */
 local void MyGoal(int, int, int, int, int);
 local void MyAA(int, int);
+local int  IdGoalScored(int, int, int);
+local void HandleModes3and5(int, int, int, int);
+local int  HandleModes4and6(int, int, int, int);
+local void CheckGameOver(int);
+local void ScoreMsg(int, int);
+local void Csetscore(const char *,int, int);
+local void Cscore(const char *,int, int);
+local void Cresetgame(const char *, int, int);
 
 /* global data */
-
 local struct ArenaScores scores[MAXARENA];
 
 local Imodman *mm;
@@ -27,6 +65,7 @@ local Iballs *balls;
 local Iarenaman *aman;
 local Iconfig *cfg;
 local Ichat *chat;
+local Icmdman *cmd;
 
 
 EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
@@ -39,6 +78,11 @@ EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
+		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
+
+		cmd->AddCommand("setscore",Csetscore);
+		cmd->AddCommand("score",Cscore);
+		cmd->AddCommand("resetgame",Cresetgame);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
@@ -48,6 +92,9 @@ EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(balls);
 		mm->ReleaseInterface(pd);
+		cmd->RemoveCommand("setscore",Csetscore);
+		cmd->RemoveCommand("score",Cscore);
+		cmd->RemoveCommand("resetgame",Cresetgame);
 		return MM_OK;
 	}
 	else if (action == MM_ATTACH)
@@ -70,22 +117,49 @@ void MyAA(int arena, int action)
 {
 	if (action == AA_CREATE)
 	{
-		int i;
-		for (i = 0; i < 2; i++)
+		int i, mfreq, goalc = 0, cx, cy, w, h, gf;
+		const char *g;
+		char goalstr[8];
+
+		scores[arena].mode = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "Mode",0);
+		mfreq = cfg->GetInt(aman->arenas[arena].cfg, "Team", "MaxFrequency",0);
+
+		for (i = 0; i < MAXFREQ; i++)
 			scores[arena].score[i] = 0;
+
+		for(i =0; i < MAXGOALS; i++)
+		{
+			scores[arena].goals[i].upperleft_x = -1;
+			scores[arena].goals[i].upperleft_y = -1;
+			scores[arena].goals[i].width = -1;
+			scores[arena].goals[i].height = -1;
+			scores[arena].goals[i].goalfreq = -1;
+		}
+		g = goalstr;
+		for(i=0;(i < MAXGOALS) && g;i++) {
+			sprintf(goalstr,"Goal%d",goalc);
+			g = cfg->GetStr(aman->arenas[arena].cfg, "Soccer", goalstr);
+			if (g && sscanf(g, "%d,%d,%d,%d,%d", &cx, &cy, &w, &h, &gf) == 5)
+			{
+				scores[arena].goals[i].upperleft_x = cx;
+				scores[arena].goals[i].upperleft_y = cy;
+				scores[arena].goals[i].width = w;
+				scores[arena].goals[i].height = h;
+				scores[arena].goals[i].goalfreq = gf;
+			}
+			goalc++;
+		}
 	}
 }
 
 
 void MyGoal(int arena, int pid, int bid, int x, int y)
 {
-	int mode, freq = -1, i;
+	int freq = -1, i, nullgoal = 0;
 	int teamset[MAXPLAYERS], nmeset[MAXPLAYERS];
 	int teamc = 0, nmec = 0;
 
-	mode = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "Mode", 0);
-
-	switch (mode)
+	switch (scores[arena].mode)
 	{
 		case GOAL_ALL:
 			freq = balls->balldata[arena].balls[bid].freq;
@@ -93,22 +167,30 @@ void MyGoal(int arena, int pid, int bid, int x, int y)
 
 		case GOAL_LEFTRIGHT:
 			freq = x < 512 ? 1 : 0;
+			scores[arena].score[freq]++;
 			break;
 
 		case GOAL_TOPBOTTOM:
 			freq = y < 512 ? 1 : 0;
+			scores[arena].score[freq]++;
 			break;
 
-		case GOAL_QUADRENTS_3_1:
-		case GOAL_QUADRENTS_1_3:
-		case GOAL_WEDGES_3_1:
-		case GOAL_WEDGES_1_3:
-			/* not implemented */
+		case GOAL_CORNERS_3_1:
+			HandleModes3and5(arena,bid,x,y);
+			break;
+
+		case GOAL_CORNERS_1_3:
+			nullgoal = HandleModes4and6(arena,bid,x,y);
+			break;
+
+		case GOAL_SIDES_3_1:
+			HandleModes3and5(arena,bid,x,y);
+			break;
+
+		case GOAL_SIDES_1_3:
+			nullgoal = HandleModes4and6(arena,bid,x,y);
 			break;
 	}
-
-	if (freq >= 0 && freq < MAXFREQ)
-		scores[arena].score[freq]++;
 
 	pd->LockStatus();
 	for (i = 0; i < MAXPLAYERS; i++)
@@ -123,9 +205,205 @@ void MyGoal(int arena, int pid, int bid, int x, int y)
 	pd->UnlockStatus();
 
 	teamset[teamc] = nmeset[nmec] = -1;
-	chat->SendSetSoundMessage(teamset, SOUND_GOAL, "Team Goal! by %s  Reward:1", pd->players[pid].name);
-	chat->SendSetSoundMessage(nmeset, SOUND_GOAL, "Enemy Goal! by %s  Reward:1", pd->players[pid].name);
-	chat->SendArenaMessage(arena,"Score: Freq zero:%u, Freq one:%u, Freq two:%u, Freq three:%u",scores[arena].score[0],scores[arena].score[1],scores[arena].score[2],scores[arena].score[3]);
+	chat->SendSetSoundMessage(teamset, SOUND_GOAL, "Team Goal! by %s", pd->players[pid].name);
+	chat->SendSetSoundMessage(nmeset, SOUND_GOAL, "Enemy Goal! by %s", pd->players[pid].name);
+	if (nullgoal) chat->SendArenaMessage(arena,"Enemy goal had no points to give.");
+
+	if (scores[arena].mode)
+	{
+		ScoreMsg(arena, 0);
+		CheckGameOver(arena);
+	}
+
+	balls->balldata[arena].balls[bid].freq = -1;
 }
 
+void HandleModes3and5(int arena, int bid, int x, int y)
+{
+	int i;
+
+	i = IdGoalScored(arena, x, y);
+	
+	if (i != -1 && scores[arena].score[i])
+	{
+		scores[arena].score[i]--;
+		scores[arena].score[balls->balldata[arena].balls[bid].freq]++;
+	}
+	else if (i != -1)
+		chat->SendArenaMessage(arena,"Enemy goal had no points to give.");
+}
+
+int HandleModes4and6(int arena, int bid, int x, int y)
+{
+	int i;
+
+	i = IdGoalScored(arena, x, y);
+	
+	switch (i)
+	{
+	case 0:
+		if (scores[arena].score[3])
+		{
+			scores[arena].score[0]++;
+			scores[arena].score[3]--;
+		}
+		else i = -2;
+		break;
+
+	case 1:
+		if (scores[arena].score[2])
+		{
+			scores[arena].score[1]++;
+			scores[arena].score[2]--;
+		}
+		else i = -2;
+		break;
+	case 2:
+		if (scores[arena].score[1])
+		{
+			scores[arena].score[2]++;
+			scores[arena].score[1]--;
+		}
+		else i = -2;
+		break;
+	case 3:
+		if (scores[arena].score[0])
+		{
+			scores[arena].score[3]++;
+			scores[arena].score[0]--;
+		}
+		else i = -2;
+		break;
+	}
+	
+	if (i == -2)
+		return 1;
+	return 0;
+}
+
+int IdGoalScored (int arena, int x, int y)
+{
+	int i = 0, xmin, xmax, ymin, ymax;
+
+	for(i=0; (i < MAXGOALS) && (scores[arena].goals[i].upperleft_x != -1); i++)
+	{
+/*		chat->SendArenaMessage(arena,"goal %d: %d,%d,%d,%d,%d",i,
+			scores[arena].goals[i].upperleft_x,
+			scores[arena].goals[i].upperleft_y,
+			scores[arena].goals[i].width,
+			scores[arena].goals[i].height,
+			scores[arena].goals[i].goalfreq);*/
+
+
+		xmin = scores[arena].goals[i].upperleft_x;
+		xmax = xmin + scores[arena].goals[i].width;
+		ymin = scores[arena].goals[i].upperleft_y;
+		ymax = ymin + scores[arena].goals[i].height;
+
+		if ((x >= xmin) && (x <= xmax) && (y >= ymin) && (y <= ymax))
+		{
+			return scores[arena].goals[i].goalfreq;
+		}
+	}
+	
+	return -1;
+}
+
+void CheckGameOver(int arena)
+{
+	int i, j = 0, freq = -1;
+	
+	for(i = 0; i < MAXFREQ; i++)
+		if (scores[arena].score[i] > scores[arena].score[freq]) freq = i;
+
+// check if game is over
+	if (scores[arena].mode > 2 &&
+		  scores[arena].score[freq] == 4)
+	{
+		chat->SendArenaSoundMessage(arena, SOUND_DING, "Soccer game over.");
+		for(i=0;i < MAXFREQ;i++)
+			scores[arena].score[i] = 1;
+	}
+	
+	else if (scores[arena].mode <= 2)
+	{
+		int win = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "CapturePoints",0);
+		int by  = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "WinBy",0);
+
+		if (scores[arena].score[freq] >= win*-1)
+			for(i = 0; i < MAXFREQ; i++)
+				if ((scores[arena].score[i]+by) <= scores[arena].score[freq]) j++;
+		
+		if (j == MAXFREQ-1)
+		{
+			chat->SendArenaSoundMessage(arena, SOUND_DING, "Soccer game over.");
+			for(i=0;i < MAXFREQ;i++)
+				scores[arena].score[i] = 0;
+		}
+	}
+
+}
+
+void ScoreMsg(int arena, int pid)  // pid = -1 means arena-wide, otherwise private
+{
+	char _buf[256];
+
+	strcpy(_buf,"SCORE: Warbirds:%d  Javelins:%d");
+	if (scores[arena].mode > 2)
+		{
+			strcat(_buf,"  Spiders:%d  Leviathans:%d");
+			if (pid < 0) chat->SendArenaMessage(arena,_buf,scores[arena].score[0],scores[arena].score[1],scores[arena].score[2],scores[arena].score[3]);
+			else chat->SendMessage(pid,_buf,scores[arena].score[0],scores[arena].score[1],scores[arena].score[2],scores[arena].score[3]);
+		}
+		else
+			if (pid < 0) chat->SendArenaMessage(arena,_buf,scores[arena].score[0],scores[arena].score[1]);
+			else chat->SendMessage(pid,_buf,scores[arena].score[0],scores[arena].score[1]);
+}
+
+void Csetscore(const char *params, int pid, int target)
+{
+	int i, newscores[MAXFREQ], arena = pd->players[pid].arena;
+	
+	/* crude for now */
+	for(i = 0; i < MAXFREQ; i++)
+		newscores[i] = -1;
+
+	if (sscanf(params,"%d %d %d %d %d %d %d %d", &newscores[0], &newscores[1], &newscores[2],
+		&newscores[3], &newscores[4], &newscores[5],&newscores[6], &newscores[7]) > 0)
+	{
+		if (!scores[arena].mode) return;
+		if (scores[arena].mode > 2) return;
+		
+		for(i = 0; i < MAXFREQ && newscores[i] != -1; i ++)
+			scores[arena].score[i] = newscores[i];
+	
+		if (scores[arena].mode) {
+			ScoreMsg(arena, -1);
+			CheckGameOver(arena);
+		}
+	}
+	else
+		chat->SendMessage(pid,"setscore format: *setscore x y z .... where x = freq 0, y = 1,etc");
+}
+
+void Cscore(const char *params, int pid, int target)
+{
+	int arena = pd->players[pid].arena;
+
+	if (scores[arena].mode) ScoreMsg(arena, pid);
+}
+
+void Cresetgame(const char *params, int pid, int target)
+{
+	int arena = pd->players[pid].arena, i, j = 0;
+
+	if (scores[arena].mode)
+	{
+		chat->SendArenaMessage(arena, "Resetting game. -%s", pd->players[pid].name);
+		chat->SendArenaSoundMessage(arena, SOUND_DING, "Soccer game over.");
+		if (scores[arena].mode > 2) j++;
+		for(i = 0; i < MAXFREQ; i++)
+			scores[arena].score[i] = j;
+	}
+}
 

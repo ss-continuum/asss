@@ -169,6 +169,7 @@ enum
 
 /* sound constants */
 /* FIXME: add lots more here */
+#define SOUND_DING         103
 #define SOUND_GOAL         104
 
 

@@ -344,7 +344,10 @@ void *DBThread(void *dummy)
 
 DB *OpenDB(char *name)
 {
-	return dbopen(name, O_CREAT|O_RDWR, 0644, DB_HASH, NULL);
+	DB *db = dbopen(name, O_CREAT|O_RDWR, 0644, DB_HASH, NULL);
+	/* sync once to avoid being left with zero-length files */
+	if (db) db->sync(db, 0);
+	return db;
 }
 
 void CloseDB(DB *db)

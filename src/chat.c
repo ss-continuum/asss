@@ -23,6 +23,7 @@ local void SendSoundMessage(int, char, const char *, ...);
 local void SendSetSoundMessage(int *, char, const char *, ...);
 local void SendAnyMessage(int *set, char type, char sound, const char *format, ...);
 local void SendArenaMessage(int arena, const char *, ...);
+local void SendArenaSoundMessage(int, char, const char *, ...);
 
 local chat_mask_t GetArenaChatMask(int arena);
 local void SetArenaChatMask(int arena, chat_mask_t mask);
@@ -60,6 +61,7 @@ local Ichat _int =
 	SendMessage_, SendSetMessage,
 	SendSoundMessage, SendSetSoundMessage,
 	SendAnyMessage, SendArenaMessage,
+	SendArenaSoundMessage,
 	GetArenaChatMask, SetArenaChatMask,
 	GetPlayerChatMask, SetPlayerChatMask
 };
@@ -411,6 +413,32 @@ void SendArenaMessage(int arena, const char *str, ...)
 
 	net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
 }
+
+void SendArenaSoundMessage(int arena, char sound, const char *str, ...)
+{
+	int size, set[MAXPLAYERS], setc = 0, i;
+	char _buf[256];
+	struct ChatPacket *cp = (struct ChatPacket*)_buf;
+	va_list args;
+
+	va_start(args, str);
+	size = vsnprintf(cp->text, 250, str, args) + 6;
+	va_end(args);
+
+	cp->pktype = S2C_CHAT;
+	cp->type = MSG_ARENA;
+	cp->sound = sound;
+
+	pd->LockStatus();
+	for (i = 0; i < MAXPLAYERS; i++)
+		if (players[i].status == S_PLAYING && players[i].arena == arena)
+			set[setc++] = i;
+	pd->UnlockStatus();
+	set[setc] = -1;
+
+	net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
+}
+
 
 chat_mask_t GetArenaChatMask(int arena)
 {

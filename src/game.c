@@ -43,11 +43,12 @@ local void SetFreq(int pid, int freq);
 local void SetShip(int pid, int ship);
 local void SetFreqAndShip(int pid, int ship, int freq);
 local void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2);
+local void WarpTo(int pid, int x, int y);
 
 local Igame _myint =
 {
 	INTERFACE_HEAD_INIT(I_GAME, "game")
-	SetFreq, SetShip, SetFreqAndShip, DropBrick
+	SetFreq, SetShip, SetFreqAndShip, DropBrick, WarpTo
 };
 
 
@@ -592,6 +593,17 @@ void PKickoff(int pid, byte *p, int len)
 			net->SendToOne(i, &pkt, 1, NET_RELIABLE);
 }
 
+void WarpTo(int pid, int x, int y)
+{
+	struct SimplePacket wto = { S2C_WARPTO, x, y };
+	int arena = players[pid].arena;
+
+	net->SendToOne(pid, (byte *)&wto, 5, NET_RELIABLE | NET_PRI_P1);
+	lm->Log(L_DRIVEL, "<game> {%s} [%s] Set coords to %d,%d",
+			arenas[arena].name,
+			players[pid].name,
+			x,y);
+}
 
 void PlayerAction(int pid, int action, int arena)
 {
@@ -599,7 +611,7 @@ void PlayerAction(int pid, int action, int arena)
 	{
 		pl_epd[pid].see = 0;
 		pl_epd[pid].cap = capman ? capman->HasCapability(pid, "seeepd") : 0;
-		pl_epd[pid].capnrg = capman ? capman->HasCapability(pid, "seenrg") : 0; 
+		pl_epd[pid].capnrg = capman ? capman->HasCapability(pid, "seenrg") : 0;
 		SendOldBricks(pid);
 	}
 }

@@ -83,6 +83,8 @@ local void PBanner(int pid, byte *p, int len)
 			bsend.banner = b->banner;
 			bnet->SendToBiller((byte*)&bsend, sizeof(bsend), NET_RELIABLE);
 		}
+
+		if (lm) lm->Log(L_DRIVEL, "<banners> [%s] Recvd banner", pd->players[pid].name);
 	}
 	else
 	{

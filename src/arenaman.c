@@ -280,7 +280,6 @@ void SendArenaResponse(int pid)
 	 * at this point */
 
 	/* send info to himself first */
-	net->SendToOne(pid, (byte*)(players+pid), 64, NET_RELIABLE);
 	pd->LockStatus();
 	for (i = 0; i < MAXPLAYERS; i++)
 	{
@@ -293,6 +292,7 @@ void SendArenaResponse(int pid)
 			net->SendToOne(i, (byte*)(players+pid), 64, NET_RELIABLE);
 		}
 	}
+	net->SendToOne(pid, (byte*)(players+pid), 64, NET_RELIABLE);
 	pd->UnlockStatus();
 
 	/* send mapfilename */

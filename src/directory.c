@@ -16,6 +16,8 @@
 #define close(s) closesocket(s)
 #endif
 
+#include <string.h>
+
 #include "asss.h"
 
 

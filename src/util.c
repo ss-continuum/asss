@@ -8,6 +8,9 @@
 
 #ifndef WIN32
 #include <sys/time.h>
+#else
+/* for GetTickCount() */
+#include <windows.h>
 #endif
 
 /* make sure to get the prototypes for thread functions instead of macros */

@@ -46,6 +46,8 @@ typedef struct Ichat
 	/* arpc: void(intset, char, char, formatstr, etc) */
 	void (*SendArenaMessage)(int arena, const char *format, ...);
 	/* arpc: void(int, formatstr, etc) */
+	void (*SendArenaSoundMessage)(int arena, char sound, const char *format, ...);
+	/* arpc: void(int, char, formatstr, etc) */
 
 	chat_mask_t (*GetArenaChatMask)(int arena);
 	/* arpc: ushort(int) */
