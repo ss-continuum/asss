@@ -118,6 +118,7 @@ local int timer(void *set_)
 		FOR_EACH_PLAYER(p)
 			if (p->status == S_PLAYING &&
 			    p->arena == set->arena &&
+			    p->p_ship != SPEC &&
 			    !(p->position.status & STATUS_SAFEZONE))
 				if ((fd = (freq_data*)TrGet(fdata, p->p_freq)))
 					stats->IncrementStat(p, STAT_FLAG_POINTS, fd->points);
