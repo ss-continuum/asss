@@ -562,7 +562,7 @@ local void PChat(Player *p, byte *pkt, int len)
 	/* clients such as continuum may send unterminated strings */
 	pkt[len-1] = 0;
 
-	if (!arena) return;
+	if (!arena || p->status != S_PLAYING) return;
 
 	expire_mask(p);
 
@@ -640,7 +640,7 @@ local void MChat(Player *p, const char *line)
 	char subtype[10], data[24];
 	Player *i;
 
-	if (!p->arena || strlen(line) > 500) return;
+	if (!p->arena || p->status != S_PLAYING || strlen(line) > 500) return;
 
 	expire_mask(p);
 
