@@ -9,18 +9,13 @@ have any suggestions of any kind, please let me know.
 Recent updates:
     * tons and tons of bugfixes
 
-    * totally recreated player status system, login processing, and arena
-      management. this should make it much more robust and extendable.
-
-    * along with player status system, made things multithreaded and put a lot
-      of processing in separate threads.
-
-	* some work on clientset and scoreman. it is now possible to use
-	  server.cfg files on here.
+    * tons and tons more bugfixes
+	
+	* updates to logging system: better priorities, consistent format
 
 
 High-level to-do list:
-    * work on more modules
+    * flags and balls
 
     * better authority model (groups, capabilities)
 
@@ -28,12 +23,14 @@ High-level to-do list:
 
     * latency/ploss handling and security
 
+	* more commands
+
 
 Stuff it does now:
     * logging on and entering arenas
     * map/news downloads
     * chat: pub, priv (same arena only), team, nme team,
-        mod (start messages with a backslash: '\')
+        mod (start messages with a backslash)
     * changing ship and freq
     * changing arena (test this a lot)
     * green relaying
