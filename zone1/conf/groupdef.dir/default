@@ -11,10 +11,12 @@ cmd_jackpot
 cmd_buy
 
 cmd_version
+cmd_uptime
+
 cmd_listmods
 cmd_getgroup
+cmd_grplogin
 privcmd_getgroup
-cmd_uptime
 
 cmd_lag
 privcmd_lag

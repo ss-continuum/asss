@@ -19,11 +19,10 @@
  * naming convention.
  */
 
-#define MAXGROUPLEN 32
 
+/* this interface is what modules should use to query for capabilities */
 
-
-#define I_CAPMAN "capman-1"
+#define I_CAPMAN "capman-2"
 
 typedef struct Icapman
 /* arpc: interface capman remoteok callok */
@@ -38,18 +37,26 @@ typedef struct Icapman
 	/* arpc: string, string -> int (0) */
 	/* same as HasCapability, but intented to be used in strange places
 	 * like before the player has logged in yet */
+} Icapman;
+
+
+/* this interface should be used by very few places, because it might
+ * not be available when using alternative capability managers. */
+#define I_GROUPMAN "groupman-1"
+
+typedef struct Igroupman
+{
+	INTERFACE_HEAD_DECL
 
 	const char *(*GetGroup)(int pid);
-	/* arpc: int -> string (NULL) */
 	void (*SetPermGroup)(int pid, const char *group, int global, const char *info);
-	/* arpc: int, string -> void */
 	void (*SetTempGroup)(int pid, const char *group);
-	/* arpc: int, string -> void */
 
-	/* gets/sets the group of the player as specified. these functions
-	 * are dependant on one specific implementation of capabilities, and
-	 * should only be used from very few places. */
-} Icapman;
+	int (*CheckGroupPassword)(const char *group, const char *pwd);
+	/* true if the password is correct */
+} Igroupman;
+
+#define MAXGROUPLEN 32
 
 
 #endif

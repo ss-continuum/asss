@@ -44,6 +44,7 @@ local Inet *net;
 local Ichatnet *chatnet;
 local Iconfig *cfg;
 local Icapman *capman;
+local Igroupman *groupman;
 local Imainloop *ml;
 local Iarenaman *aman;
 local Igame *game;
@@ -459,15 +460,15 @@ local helptext_t getgroup_help =
 
 local void Cgetgroup(const char *params, int pid, const Target *target)
 {
-	REQUIRE_MOD(capman)
+	REQUIRE_MOD(groupman)
 
 	if (target->type == T_PID)
 		chat->SendMessage(pid, "getgroup: %s is in group %s",
 				players[target->u.pid].name,
-				capman->GetGroup(target->u.pid));
+				groupman->GetGroup(target->u.pid));
 	else if (target->type == T_ARENA)
 		chat->SendMessage(pid, "getgroup: You are in group %s",
-				capman->GetGroup(pid));
+				groupman->GetGroup(pid));
 	else
 		chat->SendMessage(pid, "getgroup: Bad target");
 }
@@ -495,6 +496,7 @@ local void Csetgroup(const char *params, int pid, const Target *target)
 	char cap[MAXGROUPLEN+10];
 
 	REQUIRE_MOD(capman)
+	REQUIRE_MOD(groupman)
 
 	if (!*params) return;
 	if (target->type != T_PID) return;
@@ -519,12 +521,12 @@ local void Csetgroup(const char *params, int pid, const Target *target)
 	}
 
 	/* make sure the target isn't in a group already */
-	if (strcasecmp(capman->GetGroup(t), "default"))
+	if (strcasecmp(groupman->GetGroup(t), "default"))
 	{
 		lm->Log(L_WARN, "<playercmd> [%s] tried to set the group of [%s],"
 				"who is in '%s' already, to '%s'",
 				players[pid].name, players[t].name,
-				capman->GetGroup(t), params);
+				groupman->GetGroup(t), params);
 		return;
 	}
 
@@ -537,7 +539,7 @@ local void Csetgroup(const char *params, int pid, const Target *target)
 		ctime_r(&tm, info + strlen(info));
 		RemoveCRLF(info);
 
-		capman->SetPermGroup(t, params, global, info);
+		groupman->SetPermGroup(t, params, global, info);
 		chat->SendMessage(pid, "%s is now in group %s",
 				players[t].name, params);
 		chat->SendMessage(t, "You have been assigned to group %s by %s",
@@ -545,7 +547,7 @@ local void Csetgroup(const char *params, int pid, const Target *target)
 	}
 	else
 	{
-		capman->SetTempGroup(t, params);
+		groupman->SetTempGroup(t, params);
 		chat->SendMessage(pid, "%s is now temporarily in group %s",
 				players[t].name, params);
 		chat->SendMessage(t, "You have temporarily been assigned to group %s by %s",
@@ -553,12 +555,34 @@ local void Csetgroup(const char *params, int pid, const Target *target)
 	}
 }
 
+local helptext_t grplogin_help =
+"Targets: none\n"
+"Args: <group name> <password>\n"
+"Logs you in to the specified group, if the password is correct.\n";
+
+local void Cgrplogin(const char *params, int pid, const Target *target)
+{
+	char grp[MAXGROUPLEN+1];
+	const char *pw;
+
+	pw = delimcpy(grp, params, MAXGROUPLEN, ' ');
+	if (grp[0] == '\0' || pw == NULL)
+		chat->SendMessage(pid, "You must specify a group name and password");
+	else if (groupman->CheckGroupPassword(grp, pw))
+	{
+		groupman->SetTempGroup(pid, grp);
+		chat->SendMessage(pid, "You are now in group %s", grp);
+	}
+	else
+		chat->SendMessage(pid, "Bad password for group %s", grp);
+}
+
 
 local helptext_t listmods_help =
 "Targets: none\n"
 "Args: none\n"
-"Lists all staff members logged on, which arena they belong to, and\n"
-"which group they are in.\n";
+"Lists all staff members logged on, which arena they are in, and\n"
+"which group they belong to.\n";
 
 local void Clistmods(const char *params, int pid, const Target *target)
 {
@@ -569,7 +593,7 @@ local void Clistmods(const char *params, int pid, const Target *target)
 
 	for (i = 0; i < MAXPLAYERS; i++)
 		if (players[i].status == S_PLAYING &&
-		    strcmp(group = capman->GetGroup(i), "default"))
+		    strcmp(group = groupman->GetGroup(i), "default"))
 			chat->SendMessage(pid, "listmods: %20s %10s %10s",
 					players[i].name,
 					aman->arenas[players[i].arena].name,
@@ -1600,6 +1624,7 @@ local const struct cmd_info lag_commands[] =
 local const struct interface_info misc_requires[] =
 {
 	REQUIRE(capman, I_CAPMAN)
+	REQUIRE(groupman, I_GROUPMAN)
 	REQUIRE(aman, I_ARENAMAN)
 	REQUIRE(lm, I_LOGMAN)
 	REQUIRE(logfile, I_LOG_FILE)
@@ -1610,6 +1635,7 @@ local const struct cmd_info misc_commands[] =
 {
 	CMD(getgroup)
 	CMD(setgroup)
+	CMD(grplogin)
 	CMD(listmods)
 	CMD(setcm)
 	CMD(getcm)

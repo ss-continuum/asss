@@ -129,6 +129,13 @@ local void SetPermGroup(int pid, const char *group, int global, const char *info
 	cfg->SetStr(ch, "Staff", pd->players[pid].name, group, info);
 }
 
+local int CheckGroupPassword(const char *group, const char *pw)
+{
+	const char *correctpw;
+	correctpw = cfg->GetStr(gstaff, "Groups", group);
+	return correctpw ? (strcmp(correctpw, pw) == 0) : 0;
+}
+
 
 local int HasCapability(int pid, const char *cap)
 {
@@ -157,11 +164,17 @@ local int HasCapabilityByName(const char *name, const char *cap)
 
 /* interface */
 
-local Icapman _myint =
+local Icapman capint =
 {
 	INTERFACE_HEAD_INIT(I_CAPMAN, "capman-groups")
-	HasCapability, HasCapabilityByName,
-	GetGroup, SetPermGroup, SetTempGroup
+	HasCapability, HasCapabilityByName
+};
+
+local Igroupman grpint =
+{
+	INTERFACE_HEAD_INIT(I_GROUPMAN, "groupman")
+	GetGroup, SetPermGroup, SetTempGroup,
+	CheckGroupPassword
 };
 
 
@@ -182,12 +195,15 @@ EXPORT int MM_capman(int action, Imodman *_mm, int arena)
 		groupdef = cfg->OpenConfigFile(NULL, "groupdef.conf", NULL, NULL);
 		gstaff = cfg->OpenConfigFile(NULL, "staff.conf", NULL, NULL);
 
-		mm->RegInterface(&_myint, ALLARENAS);
+		mm->RegInterface(&capint, ALLARENAS);
+		mm->RegInterface(&grpint, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(&_myint, ALLARENAS))
+		if (mm->UnregInterface(&capint, ALLARENAS))
+			return MM_FAIL;
+		if (mm->UnregInterface(&grpint, ALLARENAS))
 			return MM_FAIL;
 		cfg->CloseConfigFile(groupdef);
 		cfg->CloseConfigFile(gstaff);
