@@ -13,6 +13,8 @@
  *     that postReward returns as soon as possible, letting turf_reward finish up and unlock asap.
  *     otherwise, how it is now, turf_reward is waiting for all the stats to be outputted before
  *     it can process any new ongoing events since turf_reward is locked.
+ *
+ * dist: public
  */
 
 #include "asss.h"

@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __BILLING_H
 #define __BILLING_H
 

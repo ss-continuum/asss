@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __TURF_REWARD_H
 #define __TURF_REWARD_H
 

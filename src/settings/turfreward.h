@@ -1,4 +1,6 @@
 
+// dist: public
+
 #define REWARD_DISABLED  0
 
 // simple periodic scoring (when you want stats or access to the additional flag info)

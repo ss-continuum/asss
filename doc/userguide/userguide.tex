@@ -77,11 +77,12 @@ remove \verb/database.so/ from the list of libraries to build.
 
 If you're missing Berkeley DB, you can still build \asss{}, but it'll be
 missing all support for scores and any other persistent information.
-You'll have to remove \verb/scoring.so/ from the list of libraries.
+You'll have to remove \verb/scoring.so/ and \verb/dbtool/ from the list
+of binaries to build.
 
-Currently, only Intel platforms are supported because of byte-order
-issues. Eventually, \asss{} will be able to run on other architectures,
-but for now, Intel will have to do.
+Currently, only 32-bit Intel platforms are supported because of
+byte-order issues. Eventually, \asss{} will be able to run on other
+architectures, but for now, Intel will have to do.
 
 
 %\subsection{Reporting Bugs}
@@ -107,6 +108,7 @@ Here's what a typical machine's file layout should look like:
 /home/asss
 + bin
 | + asss
+| + dbtool
 | + core.so
 | + commands.so
 | + flags.so
@@ -284,14 +286,13 @@ you can run something like
 \section{Modules}
 
 Almost all of the functionality of \asss{} is split into many small
-modules. The \asss{} binary itself contains a bunch of critical modules,
-and other, less important, modules are in separate libraries with the
-extension \verb/.so/ (on Unix) or \verb/.dll/ (on Windows). One shared
-library can contain any number of modules.
+modules. The modules are in separate libraries with the extension
+\verb/.so/ (on Unix) or \verb/.dll/ (on Windows). One shared library can
+contain any number of modules.
 
 There are currently
 % grep 'EXPORT *int *MM_[a-z]' ~/src/asss/src/*.c | wc -l
-65
+66
 modules that are part of \asss{}, but each zone might have some
 custom-developed modules for their zone as well.
 
@@ -382,6 +383,9 @@ people.
 \item{\texttt{uploadfile}} allows a player to upload files. Note that
 the player must also have the \texttt{cmd\_putfile} to upload a file
 using that command.
+\item{\texttt{bypasslock}} allows players to switch ships even though
+the arena or themselves have been locked into a ship or into spectator
+mode by a staff member.
 \end{itemize}
 
 
@@ -478,11 +482,11 @@ servers or bugs in the server itself.
 
 There are currently
 % cat ~/src/asss/src/*.c | grep ">Log[AP]\?(L_" -c
-241
+283
 % cat ~/src/asss/src/*.c | grep ">Log[AP]\?(L_" | sed 's/.*>Log[AP]\?(L_\([A-Z]*\).*/\1/' | sort | uniq -c
-distinct log messages in the server. By type, there are 21 ERROR
-messages, 60 WARN messages, 60 MALICIOUS messages, 40 INFO messages, and
-60 DRIVEL messages.
+distinct log messages in the server. By type, there are 28 ERROR
+messages, 74 WARN messages, 68 MALICIOUS messages, 47 INFO messages, and
+66 DRIVEL messages.
 
 \subsection{Filtering}
 
@@ -948,7 +952,7 @@ spec, and \verb/seenrg/ allows energy viewing while playing.
 
 \section{Acknowledgements}
 
-I'd like to thank the following people and groups:
+Thanks to these people and groups of people:
 
 \begin{itemize}
 
@@ -964,13 +968,13 @@ features, and other small contributions.
 
 \item{GiGaKiLLeR} for contributing a turf rewards module.
 
-\item{Mr. Ekted} for all his technical help and discussions.
+\item{Mr. Ekted} for technical help and discussions.
 
 \item{ZippyDan} for encouragement and comic relief.
 
 \item{xalimar} for shell accounts and hosting, mostly.
 
-\item{numpf} for design critiques and more constructive criticism.
+\item{numpf} for design critiques and other criticism.
 
 \item{Remnant} for being the first person to log into \asss{} (besides
 me, of course), and help testing.

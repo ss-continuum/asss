@@ -158,13 +158,14 @@ local void check_spike(Player *p, laglimits_t *ll)
 }
 
 
-local void mainloop()
+local void mainloop(void)
 {
 	Player *p;
 	Link *link;
 	laglimits_t *ll;
 	ticks_t now = current_ticks();
 
+	pd->Lock();
 	FOR_EACH_PLAYER(p)
 		if (p->status == S_PLAYING &&
 		    (TICK_DIFF(now, LASTCHECKED(p)) > cfg_checkinterval ||
@@ -174,10 +175,16 @@ local void mainloop()
 
 			if (!p->arena) continue;
 
+			pd->Unlock();
+
 			ll = P_ARENA_DATA(p->arena, limkey);
 			check_spike(p, ll);
 			check_lag(p, ll);
+			/* yes, really return here. we'll take care of the rest of
+			 * the players next time we get called. */
+			return;
 		}
+	pd->Unlock();
 }
 
 

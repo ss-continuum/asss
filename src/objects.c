@@ -169,7 +169,7 @@ void TogglePidSetMultiObjects(LinkedList *set, short *objs, char *ons, int size)
 	pkt->type = S2C_TOGGLEOBJ;
 
 	for (c = 0; c < size; c++)
-		pkt->objs[c] = ons[c] ? objs[c] | 0x8000 : objs[c];
+		pkt->objs[c] = ons[c] ? objs[c] : objs[c] | 0x8000;
 
 	net->SendToSet(set, (byte*)pkt, 1 + 2 * size, NET_RELIABLE);
 }

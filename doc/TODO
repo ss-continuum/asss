@@ -5,12 +5,6 @@ easy
 
 moderate
 --------
-locking. lots of options here:
-	lock to freq
-	lock to ship
-	lock only certain people
-	finite "lives" also fits in here
-	must be able to be controlled by mod commands and other modules
 
 allow sharing and cacheing of compressed .lvl's and .lvz's between
 arenas.

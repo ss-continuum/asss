@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #ifndef __BANNERS_H
 #define __BANNERS_H
 

@@ -1,4 +1,6 @@
 /*
+ * dist: public
+ *
  * rwlock.h
  *
  * This header file describes the "reader/writer lock" synchronization

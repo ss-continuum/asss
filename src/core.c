@@ -45,7 +45,7 @@ local void GSyncDone(Player *);
 local void ASyncDone(Player *);
 
 local int SendKeepalive(void *);
-local void process_player_states(void);
+local int process_player_states(void *);
 local void SendLoginResponse(Player *);
 
 /* default auth, can be replaced */
@@ -139,7 +139,7 @@ EXPORT int MM_core(int action, Imodman *mm_, Arena *arena)
 		if (chatnet)
 			chatnet->AddHandler("LOGIN", MLogin);
 
-		mm->RegCallback(CB_MAINLOOP, process_player_states, ALLARENAS);
+		ml->SetTimer(process_player_states, 10, 10, NULL, NULL);
 
 		/* register default interfaces which may be replaced later */
 		mm->RegInterface(&_iauth, ALLARENAS);
@@ -167,7 +167,7 @@ EXPORT int MM_core(int action, Imodman *mm_, Arena *arena)
 		if (mm->UnregInterface(&_iauth, ALLARENAS))
 			return MM_FAIL;
 		ml->ClearTimer(SendKeepalive, NULL);
-		mm->UnregCallback(CB_MAINLOOP, process_player_states, ALLARENAS);
+		ml->ClearTimer(process_player_states, NULL);
 		if (net)
 		{
 			net->RemovePacket(C2S_LOGIN, PLogin);
@@ -191,7 +191,7 @@ EXPORT int MM_core(int action, Imodman *mm_, Arena *arena)
 }
 
 
-void process_player_states(void)
+int process_player_states(void *v)
 {
 	int ns, oldstatus;
 	Player *player;
@@ -378,6 +378,8 @@ void process_player_states(void)
 		pd->WriteLock();
 	}
 	pd->WriteUnlock();
+
+	return TRUE;
 }
 
 

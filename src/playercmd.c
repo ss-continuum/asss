@@ -663,7 +663,7 @@ local helptext_t setcm_help =
 "\n"
 "Current limitations: You can't currently restrict a particular\n"
 "frequency. Leaving and entering an arena will remove a player's chat\n"
-"mask.\n";
+"mask, unless it has a timeout.\n";
 
 local void Csetcm(const char *params, Player *p, const Target *target)
 {

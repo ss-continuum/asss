@@ -56,6 +56,7 @@
  *              Additional strategy as certain areas on the map can be worth more to reclaim/attack,
  *              leaving the door wide open to the player's decision on every situation.
  *
+ * dist: public
  * ----------------------------------------------------------------------------------------------------
  */
 
@@ -142,7 +143,7 @@ local Iturfreward _myint =
 };
 
 
-EXPORT const char info_turf_reward[] = "v0.4.0 by GiGaKiLLeR <gigamon@hotmail.com>";
+EXPORT const char info_turf_reward[] = "v0.4.1 by GiGaKiLLeR <gigamon@hotmail.com>";
 
 
 /* the actual entrypoint into this module */
@@ -913,7 +914,7 @@ local void updateFlags(Arena *arena)
 	{
 		struct TurfFlag *flagPtr = &flags[x];
 		struct OldNode *oPtr;
-		Link *l;
+		Link *l, *next;
 
 		if (flagPtr->freq != -1)
 		{
@@ -923,16 +924,19 @@ local void updateFlags(Arena *arena)
 		}
 
 		// increment lastOwned for every node (previous owners that can recover)
-		for(l = LLGetHead(&flagPtr->old) ; l; l = l->next)
+		for(l = LLGetHead(&flagPtr->old) ; l ; l = next)
 		{
+			next = l->next;
 			oPtr = l->data;
 			oPtr->lastOwned++;
 		}
 
 		if(tr->recovery_cutoff==TR_RECOVERY_DINGS || tr->recovery_cutoff==TR_RECOVERY_DINGS_AND_TIME)
 		{
-			for(l = LLGetHead(&flagPtr->old) ; l; l = l->next)
+			// remove entries for teams that lost the chance to recover (setting based on dings)
+			for(l = LLGetHead(&flagPtr->old) ; l ; l = next)
 			{
+				next = l->next;
 				oPtr = l->data;
 				// check if lastOwned is within limits
 				if(oPtr->lastOwned > tr->recover_dings)
@@ -946,10 +950,12 @@ local void updateFlags(Arena *arena)
 		}
 		if(tr->recovery_cutoff==TR_RECOVERY_TIME || tr->recovery_cutoff==TR_RECOVERY_DINGS_AND_TIME)
 		{
-			for(l = LLGetHead(&flagPtr->old) ; l; l = l->next)
+			// remove entries for teams that lost the chance to recover (setting based on time)
+			for(l = LLGetHead(&flagPtr->old) ; l ; l = next)
 			{
+				next = l->next;
 				oPtr = l->data;
-				// check if lostTC is still within limits
+				// check if lostTC - current time (time since flag was lost) is still within limits
 				if ( (TICK_DIFF(current_ticks(), oPtr->lostTC) / 100) > tr->recover_time)
 				{
 					LLRemove(&flagPtr->old, oPtr);

@@ -1,6 +1,7 @@
 
 /* dist: public */
 
+#include <string.h>
 #include <limits.h>
 
 #include "asss.h"
@@ -9,6 +10,10 @@
 /* cfghelp: Team:SpectatorFrequency, arena, int, range: 0-9999, def: 8025
  * The frequency that spectators are assigned to, by default. */
 #define SPECFREQ(ch) cfg->GetInt(ch, "Team", "SpectatorFrequency", 8025)
+
+/* cfghelp: Team:InitalSpec, arena, bool, def: 0
+ * If players entering the arena are always assigned to spectator mode. */
+#define INITIALSPEC(ch) cfg->GetInt(ch, "Team", "InitalSpec", 0)
 
 /* cfghelp: Team:IncludeSpectators, arena, bool, def: 0
  * Whether to include spectators when enforcing maximum freq sizes. */
@@ -31,52 +36,28 @@
  * Maximum screen height allowed in the arena. Zero means no limit. */
 #define MAXYRES(ch) cfg->GetInt(ch, "Misc", "MaxYres", 0)
 
-local void Initial(Player *p, int *ship, int *freq);
-local void Ship(Player *p, int *ship, int *freq);
-local void Freq(Player *p, int *ship, int *freq);
 
-local Ifreqman _fm =
+typedef struct pdata
 {
-	INTERFACE_HEAD_INIT(I_FREQMAN, "fm-normal")
-	Initial, Ship, Freq
-};
+	byte lockship;
+} pdata;
+
+typedef struct adata
+{
+	byte initlockship;
+	byte initspec;
+} adata;
+
 
 local Iplayerdata *pd;
 local Iarenaman *aman;
 local Iconfig *cfg;
 local Ichat *chat;
+local Icmdman *cmd;
+local Icapman *capman;
 local Imodman *mm;
 
-
-EXPORT int MM_fm_normal(int action, Imodman *_mm, Arena *arena)
-{
-	if (action == MM_LOAD)
-	{
-		mm = _mm;
-		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
-		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
-		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
-		chat = mm->GetInterface(I_CHAT, ALLARENAS);
-		return MM_OK;
-	}
-	else if (action == MM_UNLOAD)
-	{
-		mm->ReleaseInterface(pd);
-		mm->ReleaseInterface(aman);
-		mm->ReleaseInterface(cfg);
-		mm->ReleaseInterface(chat);
-		return MM_OK;
-	}
-	else if (action == MM_ATTACH)
-	{
-		mm->RegInterface(&_fm, arena);
-	}
-	else if (action == MM_DETACH)
-	{
-		mm->UnregInterface(&_fm, arena);
-	}
-	return MM_FAIL;
-}
+local int adkey, pdkey;
 
 
 local int count_current_playing(Arena *arena)
@@ -198,21 +179,25 @@ local int screen_res_allowed(Player *p, ConfigHandle ch)
 	return 0;
 }
 
-void Initial(Player *p, int *ship, int *freq)
+local void Initial(Player *p, int *ship, int *freq)
 {
-	Arena *arena;
+	Arena *arena = p->arena;
+	adata *ad = P_ARENA_DATA(arena, adkey);
+	pdata *pdata = PPDATA(p, pdkey);
 	int f, s = *ship;
 	ConfigHandle ch;
 
-	arena = p->arena;
-
 	if (!arena) return;
+
+	pdata->lockship = ad->initlockship;
 
 	ch = arena->cfg;
 
 	if (count_current_playing(arena) >= MAXPLAYING(ch) ||
 	    p->flags.no_ship ||
-	    !screen_res_allowed(p, ch))
+	    !screen_res_allowed(p, ch) ||
+	    INITIALSPEC(ch) ||
+	    ad->initspec)
 		s = SPEC;
 
 	if (s == SPEC)
@@ -221,8 +206,6 @@ void Initial(Player *p, int *ship, int *freq)
 	}
 	else
 	{
-		/* LOCK: check arena's initial lock-to-spec status */
-
 		/* we have to assign him to a freq */
 		int inclspec = INCLSPEC(ch);
 		f = BalanceFreqs(arena, p, inclspec);
@@ -234,88 +217,87 @@ void Initial(Player *p, int *ship, int *freq)
 }
 
 
-void Ship(Player *p, int *ship, int *freq)
+local void Ship(Player *p, int *ship, int *freq)
 {
-	Arena *arena;
+	Arena *arena = p->arena;
+	pdata *pdata = PPDATA(p, pdkey);
 	int specfreq, f = *freq, s = *ship;
 	ConfigHandle ch;
-
-	arena = p->arena;
 
 	if (!arena) return;
 
 	ch = arena->cfg;
 	specfreq = SPECFREQ(ch);
 
+	/* always allow switching to spec */
 	if (s >= SPEC)
 	{
-		/* if he's switching to spec, it's easy */
 		f = specfreq;
 	}
+	/* otherwise, he's changing to a ship */
+	/* check lag */
+	else if (p->flags.no_ship)
+	{
+		if (chat)
+			chat->SendMessage(p,
+					"You have too much lag to play in this arena.");
+		goto deny;
+	}
+	/* allowed res; this prints out its own error message */
+	else if (!screen_res_allowed(p, ch))
+	{
+		goto deny;
+	}
+	/* check if changing from spec and too many playing */
+	else if (p->p_ship == SPEC && count_current_playing(arena) >= MAXPLAYING(ch))
+	{
+		if (chat)
+			chat->SendMessage(p,
+					"There are too many people playing in this arena.");
+		goto deny;
+	}
+	/* check locks */
+	else if (pdata->lockship && !(capman && capman->HasCapability(p, "bypasslock")))
+	{
+		if (chat)
+			chat->SendMessage(p, "You have been locked in %s.",
+					(p->p_ship == SPEC) ? "spectator mode" : "your ship");
+		goto deny;
+	}
+	/* ok, allowed change */
 	else
 	{
-		/* he's changing to a ship */
-		if (p->flags.no_ship)
+		/* check if he's changing from spec */
+		if (p->p_ship == SPEC && p->p_freq == specfreq)
 		{
-			s = p->p_ship;
-			f = p->p_freq;
-			if (chat)
-				chat->SendMessage(p,
-						"You have too much lag to play in this arena.");
-		}
-		else if (!screen_res_allowed(p, ch))
-		{
-			s = p->p_ship;
-			f = p->p_freq;
+			/* leaving spec, we have to assign him to a freq */
+			int inclspec = INCLSPEC(ch);
+			f = BalanceFreqs(arena, p, inclspec);
+			/* and make sure the ship is still legal */
+			s = FindLegalShip(arena, f, s);
 		}
 		else
 		{
-			/* check if he's changing from spec */
-			int oldfreq = p->p_freq;
-			if (oldfreq == specfreq)
-			{
-				/* LOCK: check locked-in-spec state */
-
-				if (count_current_playing(arena) >= MAXPLAYING(ch))
-				{
-					/* too many playing, cancel request */
-					s = p->p_ship;
-					f = p->p_freq;
-					if (chat)
-						chat->SendMessage(p,
-								"There are too many people playing in this arena.");
-				}
-				else
-				{
-					/* leaving spec, we have to assign him to a freq */
-					int inclspec = INCLSPEC(ch);
-					f = BalanceFreqs(arena, p, inclspec);
-					/* and make sure the ship is still legal */
-					s = FindLegalShip(arena, f, s);
-				}
-			}
-			else
-			{
-				/* LOCK: check locked-in-ship state */
-
-				/* don't touch freq, but make sure ship is ok */
-				s = FindLegalShip(arena, f, s);
-			}
+			/* don't touch freq, but make sure ship is ok */
+			s = FindLegalShip(arena, f, s);
 		}
 	}
 
 	*ship = s; *freq = f;
+	return;
+
+deny:
+	*ship = p->p_ship;
+	*freq = p->p_freq;
 }
 
 
-void Freq(Player *p, int *ship, int *freq)
+local void Freq(Player *p, int *ship, int *freq)
 {
-	Arena *arena;
+	Arena *arena = p->arena;
 	int specfreq, f = *freq, s = *ship;
 	int count, max, inclspec, maxfreq, privlimit;
 	ConfigHandle ch;
-
-	arena = p->arena;
 
 	if (!arena) return;
 
@@ -341,8 +323,6 @@ void Freq(Player *p, int *ship, int *freq)
 	/* special case: speccer re-entering spec freq */
 	if (s == SPEC && f == specfreq)
 		return;
-
-	/* LOCK: check locked-in-freq state */
 
 	if (f < 0 || f > maxfreq)
 		/* he requested a bad freq. drop him elsewhere. */
@@ -373,5 +353,157 @@ void Freq(Player *p, int *ship, int *freq)
 	}
 
 	*ship = s; *freq = f;
+}
+
+
+/* locking commands */
+
+local void lock_work(const Target *target, int nval, int notify)
+{
+	LinkedList set = LL_INITIALIZER;
+	Link *l;
+	pd->TargetToSet(target, &set);
+	for (l = LLGetHead(&set); l; l = l->next)
+	{
+		Player *p = l->data;
+		pdata *pdata = PPDATA(p, pdkey);
+		if (notify && pdata->lockship != nval && chat)
+			chat->SendMessage(p, nval ?
+					(p->p_ship == SPEC ?
+					 "You have been locked to spectator mode." :
+					 "You have been locked to your ship.") :
+					"Your ship has been unlocked.");
+		pdata->lockship = nval;
+	}
+	LLEmpty(&set);
+}
+
+
+local helptext_t lock_help =
+"Targets: player, freq, or arena\n"
+"Args: [-n]\n"
+"Locks the specified targets so that they can't change ships. Use ?unlock\n"
+"to unlock them. Note that this doesn't change anyone's ship. Use ?setship\n"
+"or ?specall for that. If {-n} is present, notifies players of their change\n"
+"in status.\n";
+
+local void Clock(const char *params, Player *p, const Target *target)
+{
+	lock_work(target, TRUE, strstr(params, "-n") != NULL);
+}
+
+
+local helptext_t unlock_help =
+"Targets: player, freq, or arena\n"
+"Args: [-n]\n"
+"Unlocks the specified targets so that they can now change ships. An optional\n"
+"{-n} notifies players of their change in status.\n";
+
+local void Cunlock(const char *params, Player *p, const Target *target)
+{
+	lock_work(target, FALSE, strstr(params, "-n") != NULL);
+}
+
+
+local helptext_t lockarena_help =
+"Targets: arena\n"
+"Args: [-n] [-a] [-i]\n"
+"Changes the default locked state for the arena so entering players will be locked\n"
+"to spectator mode. Also locks everyone currently in the arena to their ships. The {-n}\n"
+"option means to notify players of their change in status. The {-a} options means to\n"
+"only change the arena's state, and not lock current players. The {-i} option means to\n"
+"only lock entering players to their initial ships, instead of spectator mode.\n";
+
+local void Clockarena(const char *params, Player *p, const Target *target)
+{
+	adata *ad = P_ARENA_DATA(p->arena, adkey);
+	if (target->type != T_ARENA) return;
+	ad->initlockship = TRUE;
+	if (strstr(params, "-i") == NULL)
+		ad->initspec = TRUE;
+	if (strstr(params, "-a") == NULL)
+		lock_work(target, TRUE, strstr(params, "-n") != NULL);
+}
+
+
+local helptext_t unlockarena_help =
+"Targets: arena\n"
+"Args: [-n] [-a]\n"
+"Changes the default locked state for the arena so entering players will not be\n"
+"locked to spectator mode. Also unlocks everyone currently in the arena to their ships\n"
+"The {-n} options means to notify players of their change in status. The {-a} option\n"
+"means to only change the arena's state, and not unlock current players.\n";
+
+local void Cunlockarena(const char *params, Player *p, const Target *target)
+{
+	adata *ad = P_ARENA_DATA(p->arena, adkey);
+	if (target->type != T_ARENA) return;
+	ad->initlockship = FALSE;
+	ad->initspec = FALSE;
+	if (strstr(params, "-a") == NULL)
+		lock_work(target, FALSE, strstr(params, "-n") != NULL);
+}
+
+
+local Ifreqman _fm =
+{
+	INTERFACE_HEAD_INIT(I_FREQMAN, "fm-normal")
+	Initial, Ship, Freq
+};
+
+EXPORT int MM_fm_normal(int action, Imodman *_mm, Arena *arena)
+{
+	if (action == MM_LOAD)
+	{
+		mm = _mm;
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		chat = mm->GetInterface(I_CHAT, ALLARENAS);
+		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
+		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
+		if (!pd || !aman || !cfg)
+			return MM_FAIL;
+		adkey = aman->AllocateArenaData(sizeof(adata));
+		pdkey = pd->AllocatePlayerData(sizeof(pdata));
+		if (adkey == -1 || pdkey == -1)
+			return MM_FAIL;
+		if (cmd)
+		{
+			cmd->AddCommand("lock", Clock, lock_help);
+			cmd->AddCommand("unlock", Cunlock, unlock_help);
+			cmd->AddCommand("lockarena", Clockarena, lockarena_help);
+			cmd->AddCommand("unlockarena", Cunlockarena, unlockarena_help);
+		}
+		return MM_OK;
+	}
+	else if (action == MM_UNLOAD)
+	{
+		pd->FreePlayerData(pdkey);
+		aman->FreeArenaData(adkey);
+		if (cmd)
+		{
+			cmd->RemoveCommand("lock", Clock);
+			cmd->RemoveCommand("unlock", Cunlock);
+			cmd->RemoveCommand("lockarena", Clockarena);
+			cmd->RemoveCommand("unlockarena", Cunlockarena);
+		}
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(chat);
+		mm->ReleaseInterface(cmd);
+		mm->ReleaseInterface(capman);
+		return MM_OK;
+	}
+	else if (action == MM_ATTACH)
+	{
+		mm->RegInterface(&_fm, arena);
+	}
+	else if (action == MM_DETACH)
+	{
+		mm->UnregInterface(&_fm, arena);
+	}
+	return MM_FAIL;
 }
 

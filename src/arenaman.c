@@ -588,8 +588,8 @@ local int AllocateArenaData(size_t bytes)
 	struct block *b, *nb;
 	int current = 0;
 
-	/* round up to next multiple of 4 */
-	bytes = (bytes+3) & (~3);
+	/* round up to next multiple of word size */
+	bytes = (bytes+(sizeof(int)-1)) & (~(sizeof(int)-1));
 
 	WRLOCK();
 	/* first try before between two blocks (or at the beginning) */

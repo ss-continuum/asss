@@ -21,6 +21,6 @@ these can all go in a 'unixsignal' modules.
 
 net should copy each packet into a special buffer right after it reads
 it, along with the ip/macid of the person who sent it. it should
-register a handler for sigterm which will dump all that info to a file.
+register a handler for sigsegv which will dump all that info to a file.
 
 

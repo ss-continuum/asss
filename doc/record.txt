@@ -46,7 +46,7 @@ ship change: game->SetFreqAndShip
 freq change: game->SetFreq
 kill: game->???
 chat message: chat->???
-incoming position: game->???
+incoming position: game->FakePosition
 
 
 how will it write events to a file?

@@ -1,4 +1,6 @@
 /*
+ * dist: public
+ *
  * rwlock.c
  *
  * This file implements the "read-write lock" synchronization

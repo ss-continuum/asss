@@ -7,6 +7,7 @@ seeprivfreq
 seeprivarena
 seeepd
 findinprivs
+bypasslock
 
 cmd_ballcount
 cmd_flagreset
@@ -33,6 +34,14 @@ privcmd_laginfo
 
 privcmd_usage
 privcmd_billingid
+
+; locking cmds
+cmd_lock
+privcmd_lock
+cmd_unlock
+privcmd_unlock
+cmd_lockarena
+cmd_unlockarena
 
 ; turf commands
 cmd_turfresetflags
