@@ -68,6 +68,7 @@ local int GetFreqFlags(Arena *arena, int freq);
 /* local data */
 local Imodman *mm;
 local Inet *net;
+local Ichatnet *chatnet;
 local Iconfig *cfg;
 local Ilogman *logm;
 local Iplayerdata *pd;
@@ -95,6 +96,7 @@ EXPORT int MM_flags(int action, Imodman *mm_, Arena *arena)
 	{
 		mm = mm_;
 		net = mm->GetInterface(I_NET, ALLARENAS);
+		chatnet = mm->GetInterface(I_CHATNET, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		logm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
@@ -148,6 +150,7 @@ EXPORT int MM_flags(int action, Imodman *mm_, Arena *arena)
 		aman->FreeArenaData(pfdkey);
 		aman->FreeArenaData(mtxkey);
 		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(chatnet);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(logm);
 		mm->ReleaseInterface(pd);
@@ -312,6 +315,14 @@ void FlagVictory(Arena *arena, int freq, int points)
 		UNLOCK_STATUS(arena);
 
 		net->SendToArena(arena, NULL, (byte*)&fv, sizeof(fv), NET_RELIABLE);
+		if (chatnet)
+		{
+			if (freq == -1)
+				chatnet->SendToArena(arena, NULL, "MSG:ARENA:Flag game reset.");
+			else
+				chatnet->SendToArena(arena, NULL,
+						"MSG:ARENA:Flag victory: freq %d won %d points.", freq, points);
+		}
 
 		if (persist && points != -1)
 			persist->EndInterval(NULL, arena, INTERVAL_GAME);
@@ -331,6 +342,8 @@ void FlagVictory(Arena *arena, int freq, int points)
 		for (i = 0; i < fc; i++)
 			pkt->d[i] = -1;
 		net->SendToArena(arena, NULL, (byte*)pkt, 1 + fc * 2, NET_RELIABLE);
+		if (chatnet)
+			chatnet->SendToArena(arena, NULL, "MSG:ARENA:Turf game reset.");
 	}
 	else
 		UNLOCK_STATUS(arena);
