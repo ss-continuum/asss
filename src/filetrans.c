@@ -26,6 +26,7 @@ struct upload_data
 	char *fname;
 	void (*uploaded)(const char *filename, void *clos);
 	void *clos;
+	const char *work_dir;
 };
 
 struct download_data
@@ -209,7 +210,14 @@ local int SendFile(Player *p, const char *path, const char *fname, int delafter)
 	dd->fname = astrdup(fname);
 	dd->path = NULL;
 
-	net->SendSized(p, dd, st.st_size + 17, get_data);
+	ret = net->SendSized(p, dd, st.st_size + 17, get_data);
+	if (ret == MM_FAIL)
+	{
+		afree(dd);
+		errno = -1;
+		return ret;
+	}
+
 	lm->LogP(L_INFO, "filetrans", p, "sending '%s' (as '%s')", path, fname);
 
 	if (delafter)
@@ -222,7 +230,7 @@ local int SendFile(Player *p, const char *path, const char *fname, int delafter)
 	return MM_OK;
 }
 
-local void RequestFile(Player *p, const char *path,
+local int RequestFile(Player *p, const char *path,
 		void (*uploaded)(const char *filename, void *clos), void *clos)
 {
 	struct upload_data *ud = PPDATA(p, udkey);
@@ -233,8 +241,8 @@ local void RequestFile(Player *p, const char *path,
 		char fname[16];
 	} pkt;
 
-	if (ud->fp || ud->fname)
-		return;
+	if (ud->fp || ud->fname || !IS_STANDARD(p))
+		return MM_FAIL;
 
 	ud->fp = NULL;
 	ud->fname = NULL;
@@ -252,13 +260,40 @@ local void RequestFile(Player *p, const char *path,
 	lm->LogP(L_INFO, "filetrans", p, "requesting file '%s'", path);
 	if (strstr(path, ".."))
 		lm->LogP(L_WARN, "filetrans", p, "sent file request with '..'");
+
+	return MM_OK;
+}
+
+
+local void GetWorkingDirectory(Player *p, char *dest, int destlen)
+{
+	struct upload_data *ud = PPDATA(p, udkey);
+	pd->LockPlayer(p);
+	astrncpy(dest, ud->work_dir, destlen);
+	pd->UnlockPlayer(p);
+}
+
+local void SetWorkingDirectory(Player *p, const char *path)
+{
+	struct upload_data *ud = PPDATA(p, udkey);
+	pd->LockPlayer(p);
+	afree(ud->work_dir);
+	ud->work_dir = astrdup(path);
+	pd->UnlockPlayer(p);
 }
 
 
 local void paction(Player *p, int action)
 {
-	if (action == PA_DISCONNECT)
+	struct upload_data *ud = PPDATA(p, udkey);
+	if (action == PA_CONNECT)
+	{
+		ud->work_dir = astrdup(".");
+	}
+	else if (action == PA_DISCONNECT)
+	{
 		cleanup_ud(p, 0);
+	}
 }
 
 
@@ -267,7 +302,8 @@ local void paction(Player *p, int action)
 local Ifiletrans _int =
 {
 	INTERFACE_HEAD_INIT(I_FILETRANS, "filetrans")
-	SendFile, RequestFile
+	SendFile, RequestFile,
+	GetWorkingDirectory, SetWorkingDirectory
 };
 
 

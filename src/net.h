@@ -80,7 +80,7 @@ struct net_client_stats
 #include "encrypt.h"
 
 
-#define I_NET "net-7.1"
+#define I_NET "net-7.2"
 
 typedef struct Inet
 {
@@ -93,7 +93,7 @@ typedef struct Inet
 	void (*SendToTarget)(const Target *target, byte *data, int length, int flags);
 	void (*SendWithCallback)(Player *p, byte *data, int length,
 			RelCallback callback, void *clos);
-	void (*SendSized)(Player *p, void *clos, int len,
+	int (*SendSized)(Player *p, void *clos, int len,
 			void (*request_data)(void *clos, int offset, byte *buf, int needed));
 
 	void (*DropClient)(Player *p);

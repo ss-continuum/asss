@@ -41,5 +41,7 @@ int find_file_on_path(
  * files outside of the server root. */
 int is_valid_path(const char *path);
 
+const char *get_basename(const char *path);
+
 #endif
 

@@ -193,3 +193,15 @@ int is_valid_path(const char *path)
 }
 
 
+const char *get_basename(const char *path)
+{
+	const char *c = path + strlen(path);
+	for (;;)
+	{
+		if (c == path) return path;
+		c--;
+		if (*c == '/' || *c == '\\') return c + 1;
+	}
+}
+
+

@@ -6,6 +6,8 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#else
+#include <direct.h>
 #endif
 
 #include <stdlib.h>
@@ -14,6 +16,7 @@
 #include <errno.h>
 
 #include "asss.h"
+#include "pathutil.h"
 #include "filetrans.h"
 #include "log_file.h"
 
@@ -48,24 +51,90 @@ local void Cadmlogfile(const char *params, Player *p, const Target *target)
 }
 
 
+local helptext_t delfile_help =
+"Targets: none\n"
+"Args: <server pathname>\n"
+"Delete a file from the server. Paths are relative to the current working\n"
+"directory.\n";
+
+local void Cdelfile(const char *params, Player *p, const Target *target)
+{
+	char wd[PATH_MAX], path[PATH_MAX];
+
+	filetrans->GetWorkingDirectory(p, wd, sizeof(wd));
+	snprintf(path, sizeof(path), "%s/%s", wd, params);
+
+	if (!is_valid_path(path))
+		chat->SendMessage(p, "Invalid path or filename.");
+	else if (remove(path))
+		chat->SendMessage(p, "Error deleting '%s': %s", path, strerror(errno));
+	else
+		chat->SendMessage(p, "Deleted.");
+}
+
+
+local helptext_t renfile_help =
+"Targets: none\n"
+"Args: <old filename>:<new filename>\n"
+"Rename a file on the server. Paths are relative to the current working\n"
+"directory.\n";
+
+local void Crenfile(const char *params, Player *p, const Target *target)
+{
+	char wd[PATH_MAX], oldpath[PATH_MAX], newpath[PATH_MAX];
+	const char *newfile;
+
+	filetrans->GetWorkingDirectory(p, wd, sizeof(wd));
+	newfile = delimcpy(newpath, params, sizeof(newpath), ':');
+
+	if (!newfile)
+	{
+		chat->SendMessage(p, "Bad syntax.");
+		return;
+	}
+
+	snprintf(oldpath, sizeof(oldpath), "%s/%s", wd, newpath);
+	snprintf(newpath, sizeof(newpath), "%s/%s", wd, newfile);
+
+	if (!is_valid_path(oldpath))
+		chat->SendMessage(p, "Invalid old path.");
+	else if (!is_valid_path(newpath))
+		chat->SendMessage(p, "Invalid new path.");
+	else if (rename(oldpath, newpath))
+		chat->SendMessage(p, "Error renaming '%s' to '%s': %s", oldpath,
+				newpath, strerror(errno));
+	else
+		chat->SendMessage(p, "Renamed.");
+}
+
+
 local helptext_t getfile_help =
 "Targets: none\n"
 "Args: <filename>\n"
-"Transfers the specified file from the server to the client.\n"
-"The filename should include the full relative path from the server's\n"
-"base directory.\n";
+"Transfers the specified file from the server to the client. The filename\n"
+"is considered relative to the current working directory.\n";
 
 local void Cgetfile(const char *params, Player *p, const Target *target)
 {
-	const char *t1 = strrchr(params, '/');
-	const char *t2 = strrchr(params, '\\');
-	if (t2 > t1) t1 = t2;
-	t1 = t1 ? t1 + 1 : params;
+	char wd[PATH_MAX], path[PATH_MAX];
 
-	if (params[0] == '/' || strstr(params, ".."))
-		lm->LogP(L_MALICIOUS, "admincmd", p, "attempted ?getfile with bad path: '%s'", params);
+	if (!IS_STANDARD(p))
+	{
+		chat->SendMessage(p, "Your client doesn't support file transfers.");
+		return;
+	}
+
+	filetrans->GetWorkingDirectory(p, wd, sizeof(wd));
+	snprintf(path, sizeof(path), "%s/%s", wd, params);
+
+	if (!is_valid_path(path))
+		chat->SendMessage(p, "Invalid path.");
 	else
-		filetrans->SendFile(p, params, t1, 0);
+	{
+		int res = filetrans->SendFile(p, params, get_basename(params), 0);
+		if (res == MM_FAIL)
+			chat->SendMessage(p, "Error sending '%s': %s", path, strerror(errno));
+	}
 }
 
 
@@ -122,10 +191,9 @@ local void uploaded(const char *fname, void *clos)
 	{
 		/* move it to the right place */
 #ifdef WIN32
-		r = unlink(u->serverpath);
+		remove(u->serverpath);
 #endif
-		if (r >= 0)
-			r = rename(fname, u->serverpath);
+		r = rename(fname, u->serverpath);
 
 		if (r < 0)
 		{
@@ -157,29 +225,31 @@ local void uploaded(const char *fname, void *clos)
 
 local helptext_t putfile_help =
 "Targets: none\n"
-"Args: <client filename>:<server filename>\n"
+"Args: <client filename>[:<server filename>]\n"
 "Transfers the specified file from the client to the server.\n"
-"The server filename must be a full path name relative to the base\n"
-"directory of the server. (Remember, servers running on unix systems\n"
-"use forward slashes to separate path components.)\n";
+"The server filename, if specified, will be considered relative to the\n"
+"current working directory. If omitted, the uploaded file will be placed\n"
+"in the current working directory and named the same as on the client.\n";
 
 local void Cputfile(const char *params, Player *p, const Target *target)
 {
-	char clientfile[256];
-	const char *serverpath;
+	char clientfile[256], wd[PATH_MAX], serverpath[PATH_MAX];
+	const char *t;
 
-	serverpath = delimcpy(clientfile, params, 256, ':');
-	if (!serverpath)
+	if (!IS_STANDARD(p))
 	{
-		chat->SendMessage(p, "You must specify a destination path on the server. "
-				"?help putfile for more information.");
+		chat->SendMessage(p, "Your client doesn't support file transfers.");
+		return;
 	}
-	else if (serverpath[0] == '/' || strstr(serverpath, ".."))
+
+	filetrans->GetWorkingDirectory(p, wd, sizeof(wd));
+
+	t = delimcpy(clientfile, params, sizeof(clientfile), ':');
+	snprintf(serverpath, sizeof(serverpath), "%s/%s", wd, t ? t : get_basename(clientfile));
+
+	if (is_valid_path(serverpath))
 	{
-		lm->LogP(L_MALICIOUS, "admincmd", p, "attempted ?putfile with bad path: '%s'", params);
-	}
-	else
-	{
+		int ret;
 		upload_t *u = amalloc(sizeof(*u) + strlen(serverpath));
 
 		u->p = p;
@@ -187,35 +257,41 @@ local void Cputfile(const char *params, Player *p, const Target *target)
 		u->setting = NULL;
 		strcpy(u->serverpath, serverpath);
 
-		filetrans->RequestFile(p, clientfile, uploaded, u);
+		ret = filetrans->RequestFile(p, clientfile, uploaded, u);
+		if (ret == MM_FAIL)
+		{
+			chat->SendMessage(p, "Error sending file.");
+			afree(u);
+		}
 	}
+	else
+		chat->SendMessage(p, "Invalid server path.");
 }
 
 
 local helptext_t putzip_help =
 "Targets: none\n"
-"Args: <client filename>:<server directory>\n"
+"Args: <client filename>[:<server directory>]\n"
 "Uploads the specified zip file to the server and unzips it in the\n"
-"specified directory. This can be used to efficiently send a large\n"
-"number of files to the server at once, while preserving directory\n"
-"structure.\n";
+"specified directory (considered relative to the current working directory),\n"
+"or if none is provided, the working directory itself. This can be used to\n"
+"efficiently send a large number of files to the server at once, while\n"
+"preserving directory structure.\n";
 
 local void Cputzip(const char *params, Player *p, const Target *target)
 {
-	char clientfile[256];
-	const char *serverpath;
+	char clientfile[256], wd[PATH_MAX], serverpath[PATH_MAX];
+	const char *t;
 
-	serverpath = delimcpy(clientfile, params, 256, ':');
-	if (!serverpath)
-	{
-		chat->SendMessage(p, "You must specify a destination directory on the server. "
-				"?help putzip for more information.");
-	}
-	else if (serverpath[0] == '/' || strstr(serverpath, ".."))
-	{
-		lm->LogP(L_MALICIOUS, "admincmd", p, "attempted ?putzip with bad path: '%s'", params);
-	}
+	filetrans->GetWorkingDirectory(p, wd, sizeof(wd));
+
+	t = delimcpy(clientfile, params, sizeof(clientfile), ':');
+	if (t)
+		snprintf(serverpath, sizeof(serverpath), "%s/%s", wd, t);
 	else
+		astrncpy(serverpath, wd, sizeof(serverpath));
+
+	if (is_valid_path(serverpath))
 	{
 		upload_t *u = amalloc(sizeof(*u) + strlen(serverpath));
 
@@ -260,10 +336,51 @@ local void Cputmap(const char *params, Player *p, const Target *target)
 }
 
 
+local helptext_t cd_help =
+"Targets: none\n"
+"Args: [<server directory>]\n"
+"Changes working directory for file transfer. Note that the specified path\n"
+"must be an absolute path; it is not considered relative to the previous\n"
+"working directory. If no arguments are specified, return to the server's\n"
+"root directory.\n";
+
+local void Ccd(const char *params, Player *p, const Target *target)
+{
+	struct stat st;
+	if (!*params)
+		params = ".";
+	if (!is_valid_path(params))
+		chat->SendMessage(p, "Invalid path.");
+	else if (stat(params, &st) < 0)
+		chat->SendMessage(p, "The specified path doesn't exist.");
+	else if (!S_ISDIR(st.st_mode))
+		chat->SendMessage(p, "The specified path isn't a directory.");
+	else
+	{
+		filetrans->SetWorkingDirectory(p, params);
+		chat->SendMessage(p, "Changed working directory.");
+	}
+}
+
+
+local helptext_t pwd_help =
+"Targets: none\n"
+"Args: none\n"
+"Prints the current working directory. A working directory of \".\"\n"
+"indicates the server's root directory.\n";
+
+local void Cpwd(const char *params, Player *p, const Target *target)
+{
+	char wd[PATH_MAX];
+	filetrans->GetWorkingDirectory(p, wd, sizeof(wd));
+	chat->SendMessage(p, "Current working directory: %s", wd);
+}
+
+
 local helptext_t makearena_help =
 "Targets: none\n"
 "Args: <arena name>\n"
-"FIXME\n";
+"Creates a directory for the new directory under 'arenas/'\n";
 
 local void Cmakearena(const char *params, Player *p, const Target *target)
 {
@@ -273,20 +390,20 @@ local void Cmakearena(const char *params, Player *p, const Target *target)
 	snprintf(buf, sizeof(buf), "arenas/%s", params);
 	if (mkdir(buf, 0755) < 0)
 	{
-		char err[128];
-		strerror_r(errno, err, sizeof(err));
-		chat->SendMessage(p, "Error creating directory '%s': %s", buf, err);
-		lm->Log(L_WARN, "<admincmd> error creating directory '%s': %s", buf, err);
+		int err = errno;
+		chat->SendMessage(p, "Error creating directory '%s': %s", buf, strerror(err));
+		lm->Log(L_WARN, "<admincmd> error creating directory '%s': %s", buf, strerror(err));
+		return;
 	}
 
 	snprintf(buf, sizeof(buf), "arenas/%s/arena.conf", params);
 	f = fopen(buf, "w");
 	if (!f)
 	{
-		char err[128];
-		strerror_r(errno, err, sizeof(err));
-		chat->SendMessage(p, "Error creating file '%s': %s", buf, err);
-		lm->Log(L_WARN, "<admincmd> error creating file '%s': %s", buf, err);
+		int err = errno;
+		chat->SendMessage(p, "Error creating file '%s': %s", buf, strerror(err));
+		lm->Log(L_WARN, "<admincmd> error creating file '%s': %s", buf, strerror(err));
+		return;
 	}
 
 	fputs("\n#include arenas/(default)/arena.conf\n", f);
@@ -356,6 +473,10 @@ EXPORT int MM_admincmd(int action, Imodman *mm_, Arena *arena)
 		cmd->AddCommand("putmap", Cputmap, putmap_help);
 		cmd->AddCommand("makearena", Cmakearena, makearena_help);
 		cmd->AddCommand("botfeature", Cbotfeature, botfeature_help);
+		cmd->AddCommand("cd", Ccd, cd_help);
+		cmd->AddCommand("pwd", Cpwd, pwd_help);
+		cmd->AddCommand("delfile", Cdelfile, delfile_help);
+		cmd->AddCommand("renfile", Crenfile, renfile_help);
 
 		return MM_OK;
 	}
@@ -368,6 +489,10 @@ EXPORT int MM_admincmd(int action, Imodman *mm_, Arena *arena)
 		cmd->RemoveCommand("putmap", Cputmap);
 		cmd->RemoveCommand("makearena", Cmakearena);
 		cmd->RemoveCommand("botfeature", Cbotfeature);
+		cmd->RemoveCommand("cd", Ccd);
+		cmd->RemoveCommand("pwd", Cpwd);
+		cmd->RemoveCommand("delfile", Cdelfile);
+		cmd->RemoveCommand("renfile", Crenfile);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(chat);

@@ -212,7 +212,7 @@ local void SendToSet(LinkedList *, byte *, int, int);
 local void SendToTarget(const Target *, byte *, int, int);
 local void SendWithCallback(Player *p, byte *data, int length,
 		RelCallback callback, void *clos);
-local void SendSized(Player *p, void *clos, int len,
+local int SendSized(Player *p, void *clos, int len,
 		void (*req)(void *clos, int offset, byte *buf, int needed));
 
 local void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len, void *v);
@@ -2634,12 +2634,17 @@ void SendWithCallback(
 }
 
 
-void SendSized(Player *p, void *clos, int len,
+int SendSized(Player *p, void *clos, int len,
 		void (*req)(void *clos, int offset, byte *buf, int needed))
 {
 	ConnData *conn = PPDATA(p, connkey);
 	struct sized_send_data *sd = amalloc(sizeof(*sd));
-	if (!IS_OURS(p)) return;
+
+	if (!IS_OURS(p))
+	{
+		lm->LogP(L_DRIVEL, "net", p, "tried to send sized data to non-udp client");
+		return MM_FAIL;
+	}
 
 	sd->request_data = req;
 	sd->clos = clos;
@@ -2649,6 +2654,8 @@ void SendSized(Player *p, void *clos, int len,
 	pthread_mutex_lock(&conn->olmtx);
 	LLAdd(&conn->sizedsends, sd);
 	pthread_mutex_unlock(&conn->olmtx);
+
+	return MM_OK;
 }
 
 
