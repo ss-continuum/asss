@@ -1,0 +1,249 @@
+
+/* this file contains the config setting names for the various
+ * parameters sent to the client in the client settings packet. */
+
+static char ship_names[][] =
+{
+	"Warbird",
+	"Javelin",
+	"Spider",
+	"Leviathan",
+	"Terrier",
+	"Weasel",
+	"Lancaster",
+	"Shark"
+};
+
+static char long_names[][] =
+{
+	"Bullet:BulletDamageLevel",
+	"Bomb:BombDamageLevel", /* * 1000 */
+	"Bullet:BulletAliveTime",
+	"Bomb:BombAliveTime",
+	"Misc:DecoyAliveTime",
+	"Misc:SafetyLimit",
+	"Misc:FrequencyShift",
+	"Team:MaxFrequency",
+	"Repel:RepelSpeed",
+	"Mine:MineAliveTime",
+	"Burst:BurstDamageLevel",
+	"Bullet:BulletDamageUpgrade", /* * 1000 */
+	"Flag:FlagDropDelay",
+	"Flag:EnterGameFlaggingDelay",
+	"Rocket:RocketThrust",
+	"Rocket:RocketSpeed",
+	"Shrapnel:InactiveShrapDamage", /* * 1000 */
+	"Wormhole:SwitchTime",
+	"Misc:ActiveAppShutdownTime",
+	"Shrapnel:ShrapnelSpeed",
+	"Unused:Unused1",
+	"Unused:Unused2",
+	"Unused:Unused3",
+	"Unused:Unused4"
+};
+
+static char short_names[][] =
+{
+	"Latency:SendRoutePercent",
+	"Bomb:BombExplodeDelay",
+	"Misc:SendPositionDelay",
+	"Bomb:BombExplodePixels",
+	"Prize:DeathPrizeTime",
+	"Bomb:JitterTime",
+	"Kill:EnterDelay",
+	"Prize:EngineShutdownTime",
+	"Bomb:ProximityDistance",
+	"Kill:BountyIncreaseForKill",
+	"Misc:BounceFactor",
+	"Radar:MapZoomFactor",
+	"Kill:MaxBonus",
+	"Kill:MaxPenalty",
+	"Kill:RewardBase",
+	"Repel:RepelTime",
+	"Repel:RepelDistance",
+	"Misc:TickerDelay",
+	"Flag:FlaggerOnRadar",
+	"Flag:FlaggerKillMultiplier",
+	"Prize:PrizeFactor",
+	"Prize:PrizeDelay",
+	"Prize:MinimumVirtual",
+	"Prize:UpgradeVirtual",
+	"Prize:PrizeMaxExist",
+	"Prize:PrizeMinExist",
+	"Prize:PrizeNegativeFactor",
+	"Door:DoorDelay",
+	"Toggle:AntiWarpPixels",
+	"Door:DoorMode",
+	"Flag:FlagBlankDelay",
+	"Flag:NoDataFlagDropDelay",
+	"Prize:MultiPrizeCount",
+	"Brick:BrickTime",
+	"Misc:WarpRadiusLimit",
+	"Bomb:EBombShutdownTime",
+	"Bomb:EBombDamagePercent",
+	"Radar:RadarNeutralSize",
+	"Misc:WarpPointDelay",
+	"Misc:NearDeathLevel",
+	"Bomb:BBombDamagePercent",
+	"Shrapnel:ShrapnelDamagePercent",
+	"Latency:ClientSlowPacketTime",
+	"Flag:FlagDropResetReward",
+	"Flag:FlaggerFireCostPercent",
+	"Flag:FlaggerDamagePercent",
+	"Flag:FlaggerBombFireDelay",
+	"Soccer:PassDelay",
+	"Soccer:BallBlankDelay",
+	"Latency:S2CNoDataKickoutDelay",
+	"Flag:FlaggerThrustAdjustment",
+	"Flag:FlaggerSpeedAdjustment",
+	"Latency:ClientSlowPacketSampleSize",
+	"Unused:Unused1",
+	"Unused:Unused2",
+	"Unused:Unused3"
+};
+
+static char byte_names[][] =
+{
+	"Shrapnel:Random",
+	"Soccer:BallBounce",
+	"Soccer:AllowBombs",
+	"Soccer:AllowGuns",
+	"Soccer:SoccerMode",
+	"Team:MaxPerTeam",
+	"Team:MaxPerPrivateTeam",
+	"Team:TeamMaxMines",
+	"Wormhole:GravityBombs",
+	"Bomb:BombSafety",
+	"Message:MessageReliable",
+	"Prize:TakePrizeReliable",
+	"Message:AllowAudioMessages",
+	"Prize:PrizeHideCount",
+	"Misc:ExtraPositionData",
+	"Misc:SlowFrameCheck",
+	"Flag:CarryFlags",
+	"Misc:AllowSavedShips",
+	"Radar:RadarMode",
+	"Misc:VictoryMusic",
+	"Flag:FlaggerGunUpgrade",
+	"Flag:FlaggerBombUpgrade",
+	"Soccer:UseFlagger",
+	"Soccer:BallLocation",
+	"Unused:Unused1",
+	"Unused:Unused2"
+};
+
+static char prizeweight_names[][] =
+{
+	"PrizeWeight:QuickCharge",
+	"PrizeWeight:Energy",
+	"PrizeWeight:Rotation",
+	"PrizeWeight:Stealth",
+	"PrizeWeight:Cloak",
+	"PrizeWeight:XRadar",
+	"PrizeWeight:Warp",
+	"PrizeWeight:Gun",
+	"PrizeWeight:Bomb",
+	"PrizeWeight:BouncingBullets",
+	"PrizeWeight:Thruster",
+	"PrizeWeight:TopSpeed",
+	"PrizeWeight:Recharge",
+	"PrizeWeight:Glue",
+	"PrizeWeight:MultiFire",
+	"PrizeWeight:Proximity",
+	"PrizeWeight:AllWeapons",
+	"PrizeWeight:Shields",
+	"PrizeWeight:Shrapnel",
+	"PrizeWeight:AntiWarp",
+	"PrizeWeight:Repel",
+	"PrizeWeight:Burst",
+	"PrizeWeight:Decoy",
+	"PrizeWeight:Thor",
+	"PrizeWeight:MultiPrize",
+	"PrizeWeight:Brick",
+	"PrizeWeight:Rocket",
+	"PrizeWeight:Portal"
+};
+
+/* the following names are only key names, not key+section names */
+
+static char ship_long_names[][] =
+{
+	"SuperTime",
+	"ShieldsTime"
+};
+
+static char ship_short_names[][] =
+{
+	"Gravity",
+	"GravityTopSpeed",
+	"BulletFireEnergy",
+	"MultiFireEnergy",
+	"BombFireEnergy",
+	"BombFireEnergyUpgrade",
+	"LandmineFireEnergy",
+	"LandmineFireEnergyUpgrade",
+	"BulletSpeed",
+	"BombSpeed",
+	"Unknown1",
+	"MultiFireAngle",
+	"CloakEnergy",
+	"StealthEnergy",
+	"AntiWarpEnergy",
+	"XRadarEnergy",
+	"MaximumRotation",
+	"MaximumThrust",
+	"MaximumSpeed",
+	"MaximumRecharge",
+	"MaximumEnergy",
+	"InitialRotation",
+	"InitialThrust",
+	"InitialSpeed",
+	"InitialRecharge",
+	"InitialEnergy",
+	"UpgradeRotation",
+	"UpgradeThrust",
+	"UpgradeSpeed",
+	"UpgradeRecharge",
+	"UpgradeEnergy",
+	"AfterburnerEnergy",
+	"BombThrust",
+	"BurstSpeed",
+	"TurrstThrstPenalty",
+	"TurrstSpeedPenalty",
+	"BulletFireDelay",
+	"MultiFireDelay",
+	"BombFireDelay",
+	"LandmineFireDelay",
+	"RocketTime",
+	"InitialBounty",
+	"DamageFactor",
+	"PrizeShareLimit",
+	"AttachBounty",
+	"SoccerThrowTime",
+	"SoccerBallFriction",
+	"SoccerBallProximity",
+	"SoccerBallSpeed"
+};
+
+static char ship_byte_names[][] =
+{
+	"TurretLimit",
+	"BurstShrapnel",
+	"MaxMines",
+	"RepelMax",
+	"BurstMax",
+	"DecoyMax",
+	"ThorMax",
+	"BrickMax",
+	"RocketMax",
+	"PortalMax",
+	"InitialRepel",
+	"InitialBurst",
+	"InitialBrick",
+	"InitialRocket",
+	"InitialThor",
+	"InitialDecoy",
+	"InitialPortal",
+	"BombBounceCount"
+};
+

@@ -8,6 +8,9 @@
 #include "packets/clientset.h"
 
 
+#define COUNT(x) (sizeof(x)/sizeof(x[0]))
+
+
 /* prototypes */
 local void LoadSettings(int arena);
 local void ActionFunc(int arena, int action);
@@ -74,8 +77,54 @@ int MM_clientset(int action, Imodman *mm_)
 void LoadSettings(int arena)
 {
 	struct ClientSettings *cs = settings + arena;
+	struct ShipSettings *ss;
+	struct WeaponBits *wb;
+	ConfigHandle conf;
+	int i, j;
+#include "clientset.def"
 
+	/* get the file */
+	conf = arenas[arena].config;
+
+	/* clear and set type */
+	memset(cs, 0, sizeof(*cs));
 	cs->type = S2C_SETTINGS;
+
+	/* do ships */
+	for (i = 0, ss = cs->ships; i < 8; i++, ss++)
+	{
+		/* basic stuff */
+		for (j = 0; j < COUNT(ss->long_set); j++)
+			ss->long_set[j] = cfg->GetInt(conf,
+					ship_names[i], ship_long_names[i], 0);
+		for (j = 0; j < COUNT(ss->short_set); j++)
+			ss->short_set[j] = cfg->GetInt(conf,
+					ship_names[i], ship_short_names[i], 0);
+		for (j = 0; j < COUNT(ss->byte_set); j++)
+			ss->byte_set[j] = cfg->GetInt(conf,
+					ship_names[i], ship_byte_names[i], 0);
+		/* weapons bits */
+		wb = &(ss->Weapons);
+#define DO(x) \
+		wb->x = cfg->GetInt(conf, ship_names[i], #x, 0)
+		DO(ShrapnelMax); DO(ShrapnelRate);  DO(AntiWarpStatus);
+		DO(CloakStatus); DO(StealthStatus); DO(XRadarStatus);
+		DO(InitialGuns); DO(MaxGuns);       DO(InitialBombs);
+		DO(MaxBombs);    DO(DoubleBarrel);  DO(EmbBomp);
+		DO(SeeMines);    DO(Unused1);
+#undef DO
+	}
+
+	/* do settings */
+	for (i = 0; i < COUNT(cs->long_set); i++)
+		cs->long_set[i] = cfg->GetInt(conf, long_names[i], NULL, 0);
+	for (i = 0; i < COUNT(cs->short_set); i++)
+		cs->short_set[i] = cfg->GetInt(conf, short_names[i], NULL, 0);
+	for (i = 0; i < COUNT(cs->byte_set); i++)
+		cs->byte_set[i] = cfg->GetInt(conf, byte_names[i], NULL, 0);
+	for (i = 0; i < COUNT(cs->prizeweight_set); i++)
+		cs->prizeweight_set[i] = cfg->GetInt(conf,
+				prizeweight_names[i], NULL, 0);
 }
 
 

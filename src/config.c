@@ -263,9 +263,17 @@ char *GetStr(ConfigHandle ch, const char *sec, const char *key)
 
 	if (ch == GLOBAL) ch = global;
 
-	snprintf(keystring, MAXNAMELEN+MAXKEYLEN+1, "%s:%s", sec, key);
-
-	return HashGetOne(ch->thetable, keystring);
+	if (sec && key)
+	{
+		snprintf(keystring, MAXNAMELEN+MAXKEYLEN+1, "%s:%s", sec, key);
+		return HashGetOne(ch->thetable, keystring);
+	}
+	else if (sec)
+		return HashGetOne(ch->thetable, sec);
+	else if (key)
+		return HashGetOne(ch->thetable, key);
+	else
+		return NULL;
 }
 
 
