@@ -136,6 +136,7 @@ struct PlayerPosition
 	unsigned status; /**< status bitfield */
 };
 
+/* pyconst: define int, "STATUS_*" */
 /** whether stealth is on */
 #define STATUS_STEALTH  0x01U
 /** whether cloak is on */

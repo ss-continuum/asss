@@ -18,6 +18,7 @@
 ASSSHOME = ..
 BINDIR = $(ASSSHOME)/bin
 SCRIPTS = $(ASSSHOME)/scripts
+PYMOD_HEADERS = *.h */*.h
 
 INSTALL = install
 PYTHON = python
@@ -210,8 +211,8 @@ letters.inc: $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font
 cfghelp.inc: $(SCRIPTS)/extract-cfg-docs.py
 	$(PYTHON) $(SCRIPTS)/extract-cfg-docs.py -c $@ *.c */*.c *.def
 
-py_constants.inc py_callbacks.inc py_interfaces.inc: $(SCRIPTS)/pymod-process.py *.h */*.h
-	$(PYTHON) $(SCRIPTS)/pymod-process.py *.h */*.h
+py_constants.inc py_callbacks.inc py_interfaces.inc: $(SCRIPTS)/pymod-process.py $(PYMOD_HEADERS)
+	$(PYTHON) $(SCRIPTS)/pymod-process.py $(PYMOD_HEADERS)
 
 
 # c files that need special options

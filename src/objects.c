@@ -12,13 +12,13 @@
 
 /* interface funcs */
 local void SendState(Player *p);
-local void Toggle(const Target *t, short id, char on);
+local void Toggle(const Target *t, int id, int on);
 local void ToggleSet(const Target *t, short *id, char *ons, int size);
-local void Move(const Target *t, short id, short x, short y, short rx, short ry);
-local void Image(const Target *t, short id, int image);
-local void Layer(const Target *t, short id, int layer);
-local void Timer(const Target *t, short id, int time);
-local void Mode(const Target *t, short id, int mode);
+local void Move(const Target *t, int id, int x, int y, int rx, int ry);
+local void Image(const Target *t, int id, int image);
+local void Layer(const Target *t, int id, int layer);
+local void Timer(const Target *t, int id, int time);
+local void Mode(const Target *t, int id, int mode);
 
 enum { BROADCAST_NONE, BROADCAST_BOT, BROADCAST_ANY };
 
@@ -474,6 +474,7 @@ EXPORT int MM_objects(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(chat);
+		mm->ReleaseInterface(pd);
 		return MM_OK;
 	}
 	return MM_FAIL;
@@ -842,7 +843,7 @@ void SendState(Player *p)
 	if (e) net->SendToOne(p, extra, 1 + 11 * e, NET_RELIABLE);
 }
 
-void Toggle(const Target *t, short id, char on)
+void Toggle(const Target *t, int id, int on)
 {
 	byte toggle[3] = { S2C_TOGGLEOBJ, id & 0xff, (id>>8) | (on ? 0 : 0x80) };
 
@@ -936,7 +937,7 @@ void ToggleSet(const Target *t, short *id, char *ons, int size)
 	MUTEX_UNLOCK(ad)
 
 
-void Move(const Target *t, short id, short x, short y, short rx, short ry)
+void Move(const Target *t, int id, int x, int y, int rx, int ry)
 {
 	BEGIN_EXTENDED(t, id);
 
@@ -959,7 +960,7 @@ void Move(const Target *t, short id, short x, short y, short rx, short ry)
 	END_EXTENDED(t, id);
 }
 
-void Image(const Target *t, short id, int image)
+void Image(const Target *t, int id, int image)
 {
 	BEGIN_EXTENDED(t, id);
 
@@ -970,7 +971,7 @@ void Image(const Target *t, short id, int image)
 	END_EXTENDED(t, id);
 }
 
-void Layer(const Target *t, short id, int layer)
+void Layer(const Target *t, int id, int layer)
 {
 	BEGIN_EXTENDED(t, id);
 
@@ -981,7 +982,7 @@ void Layer(const Target *t, short id, int layer)
 	END_EXTENDED(t, id);
 }
 
-void Timer(const Target *t, short id, int time)
+void Timer(const Target *t, int id, int time)
 {
 	BEGIN_EXTENDED(t, id);
 
@@ -992,7 +993,7 @@ void Timer(const Target *t, short id, int time)
 	END_EXTENDED(t, id);
 }
 
-void Mode(const Target *t, short id, int mode)
+void Mode(const Target *t, int id, int mode)
 {
 	BEGIN_EXTENDED(t, id);
 

@@ -345,7 +345,7 @@ EXPORT int MM_prng(int action, Imodman *mm, Arena *arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (!mm->UnregInterface(&prngint, ALLARENAS))
+		if (mm->UnregInterface(&prngint, ALLARENAS))
 			return MM_FAIL;
 
 		iteration_counter = 0;

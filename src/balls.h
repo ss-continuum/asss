@@ -62,7 +62,6 @@ typedef struct ArenaBallData
 typedef struct Iballs
 {
 	INTERFACE_HEAD_DECL
-
 	/* pyint: use */
 
 	void (*SetBallCount)(Arena *arena, int ballcount);
