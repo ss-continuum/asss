@@ -18,7 +18,7 @@ local void RemovePacket(byte, PacketFunc);
 local int GetStatus();
 
 /* local: */
-local void BillingAuth(int, struct LoginPacket *);
+local int BillingAuth(int, struct LoginPacket *, void (*)(int, AuthData*));
 
 local int SendPing(void *);
 local void SendLogin(int, byte *, int);
@@ -35,7 +35,6 @@ local void DefaultCmd(const char *, int, int);
 
 /* global data */
 
-local Icore *core;
 local Inet *net;
 local Imainloop *ml;
 local Ilogman *log;
@@ -43,6 +42,7 @@ local Iconfig *cfg;
 local Icmdman *cmd;
 
 local int (*FindPlayer)(char *);
+local void (*CachedSendLoginResponse)(int, AuthData*);
 local PlayerData *players;
 
 local Iauth _iauth = { BillingAuth };
@@ -103,8 +103,8 @@ int MM_billcore(int action, Imodman *mm)
 		RemovePacket(0, SendLogin);
 		RemovePacket(B2S_PLAYERDATA, BAuthResponse);
 		ml->ClearTimer(SendPing);
-		mm->UnregInterface(&_iauth);
-		mm->UnregInterface(&_ibillcore);
+		mm->UnregInterface(I_AUTH, &_iauth);
+		mm->UnregInterface(I_BILLCORE, &_ibillcore);
 
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_MAINLOOP, &ml);
@@ -137,7 +137,7 @@ void RemovePacket(byte pktype, PacketFunc func)
 
 int GetStatus()
 {
-	return net->GetStatus(PID_BILLER);
+	return players[PID_BILLER].status;
 }
 
 
@@ -194,7 +194,7 @@ void DefaultCmd(const char *cmd, int pid, int target)
 }
 
 
-void BillingAuth(int pid, struct LoginPacket *lp)
+int BillingAuth(int pid, struct LoginPacket *lp, void (*SendLoginResponse)(int, AuthData*))
 {
 	struct S2BPlayerEntering to =
 	{
@@ -212,6 +212,7 @@ void BillingAuth(int pid, struct LoginPacket *lp)
 		astrncpy(to.name, lp->name, 32);
 		astrncpy(to.pw, lp->password, 32);
 		SendToBiller((byte*)&to, sizeof(to), NET_RELIABLE);
+		CachedSendLoginResponse = SendLoginResponse;
 	}
 	else
 	{	/* DEFAULT TO OLD AUTHENTICATION if billing server not available */
@@ -219,8 +220,9 @@ void BillingAuth(int pid, struct LoginPacket *lp)
 		memset(&auth, 0, sizeof(auth));
 		auth.code = AUTH_NOSCORES; /* tell client no scores kept */
 		astrncpy(auth.name, lp->name, 24);
-		core->SendLoginResponse(pid, &auth);
+		SendLoginResponse(pid, &auth);
 	}
+	return 0;
 }
 
 
@@ -242,7 +244,7 @@ void BAuthResponse(int bpid, byte *p, int n)
 		players[pid].flagpoints = ad.flagpoints = r->flagpoints;
 		players[pid].killpoints = ad.killpoints = r->killpoints;
 	}
-	core->SendLoginResponse(pid, &ad);
+	CachedSendLoginResponse(pid, &ad);
 	/* FIXME: do something about userid and usage information */
 	/* FIXME: handle banner data in banner module */
 }
@@ -285,7 +287,7 @@ void BMessage(int pid, byte *p, int len)
 			{	/* squad msg */
 				int set[MAXPLAYERS], setc = 0, i;
 				for (i = 0; i < MAXPLAYERS; i++)
-					if (	net->GetStatus(i) == S_CONNECTED &&
+					if (	players[i].status == S_CONNECTED &&
 							strcasecmp(msg+2, players[i].squad) == 0)
 						set[setc++] = i;
 				set[setc] = -1;

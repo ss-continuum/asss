@@ -151,8 +151,8 @@ int MM_net(int action, Imodman *mm)
 	if (action == MM_LOAD)
 	{
 		players = mm->players;
-		mm->RegInterest(I_CONFIG, (void**)&cfg);
-		mm->RegInterest(I_LOGMAN, (void**)&log);
+		mm->RegInterest(I_CONFIG, &cfg);
+		mm->RegInterest(I_LOGMAN, &log);
 		if (!cfg || !log) return MM_FAIL;
 
 		for (i = 0; i < MAXTYPES; i++)
@@ -345,6 +345,9 @@ void RecvPacket()
 
 	if (l > 0)
 	{
+		/*printf("packet from %i:%i, p[0].status = %i\n", sin.sin_addr.s_addr, sin.sin_port,
+				players[0].status); */
+		
 		i = 0;
 		/* search for an existing connection */
 		while (	(players[i].status == S_FREE ||
@@ -425,6 +428,7 @@ int NewConnection(struct sockaddr_in *sin)
 	else
 		clients[i].flags = NET_FAKE;
 	memset(players + i, 0, sizeof(PlayerData));
+	players[i].type = S2C_PLAYERENTERING; /* restore type */
 	players[i].status = S_CONNECTED;
 	players[i].arena = -1;
 	return i;

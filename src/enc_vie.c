@@ -40,7 +40,7 @@ int MM_encrypt1(int action, Imodman *mm)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(&_int);
+		mm->UnregInterface(I_ENCRYPTBASE + MYTYPE, &_int);
 	}
 	else if (action == MM_DESCRIBE)
 	{

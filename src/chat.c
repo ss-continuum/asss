@@ -20,6 +20,7 @@ local Iconfig *cfg;
 local Ilogman *log;
 local Icmdman *cmd;
 local Imodman *mm;
+local Iarenaman *aman;
 
 local PlayerData *players;
 local ArenaData *arenas;
@@ -39,13 +40,13 @@ int MM_chat(int action, Imodman *mm_)
 		mm->RegInterest(I_NET, &net);
 		mm->RegInterest(I_CONFIG, &cfg);
 		mm->RegInterest(I_LOGMAN, &log);
-		mm->RegInterest(I_CORE, &core);
+		mm->RegInterest(I_ARENAMAN, &aman);
 		mm->RegInterest(I_CMDMAN, &cmd);
 
-		if (!net || !cfg || !log || !core) return MM_FAIL;
+		if (!net || !cfg || !aman) return MM_FAIL;
 
 		players = mm->players;
-		arenas = core->arenas;
+		arenas = aman->data;
 
 		cfg_msgrel = cfg->GetInt(GLOBAL, "Chat", "MessageReliable", 1);
 		net->AddPacket(C2S_CHAT, PChat);
@@ -53,12 +54,12 @@ int MM_chat(int action, Imodman *mm_)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(&_int);
+		mm->UnregInterface(I_CHAT, &_int);
 		net->RemovePacket(C2S_CHAT, PChat);
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_LOGMAN, &log);
-		mm->UnregInterest(I_CORE, &core);
+		mm->UnregInterest(I_ARENAMAN, &aman);
 		mm->UnregInterest(I_CMDMAN, &cmd);
 	}
 	else if (action == MM_DESCRIBE)
@@ -92,7 +93,7 @@ void PChat(int pid, byte *p, int len)
 	{
 		case MSG_ARENA:
 			log->Log(LOG_BADDATA,"Recieved arena message (%s) (%s)",
-				arenas[arena]->name, players[pid].name);
+				arenas[arena].name, players[pid].name);
 			break;
 
 		case MSG_PUBMACRO:
@@ -108,11 +109,11 @@ void PChat(int pid, byte *p, int len)
 			else if (from->text[0] == MOD_CHAT_CHAR)
 			{
 				log->Log(LOG_DEBUG,"Mod chat: (%s) %s> %s",
-					arenas[arena]->name, players[pid].name, from->text+1);
+					arenas[arena].name, players[pid].name, from->text+1);
 				to->type = MSG_SYSOPWARNING;
 				sprintf(to->text, "%s> %s", players[pid].name, from->text+1);
 				for (i = 0; i < MAXPLAYERS; i++)
-					if (	net->GetStatus(i) == S_CONNECTED &&
+					if (	players[i].status == S_CONNECTED &&
 							players[i].oplevel > 0 &&
 							i != pid)
 						set[setc++] = i;
@@ -123,7 +124,7 @@ void PChat(int pid, byte *p, int len)
 			else /* normal pub message */
 			{
 				log->Log(LOG_DEBUG,"Pub message: (%s) %s> %s",
-					arenas[arena]->name, players[pid].name, from->text);
+					arenas[arena].name, players[pid].name, from->text);
 				net->SendToArena(arena, pid, (byte*)to, len, cfg_msgrel);
 			}
 			break;
@@ -142,7 +143,7 @@ void PChat(int pid, byte *p, int len)
 			else
 			{
 				log->Log(LOG_DEBUG,"Freq message: (%s:%i) %s> %s",
-					arenas[arena]->name, freq, players[pid].name, from->text);
+					arenas[arena].name, freq, players[pid].name, from->text);
 				for (i = 0; i < MAXPLAYERS; i++)
 					if (	players[i].freq == freq &&
 							players[i].arena == arena &&
@@ -163,7 +164,7 @@ void PChat(int pid, byte *p, int len)
 			else
 			{
 				log->Log(LOG_DEBUG,"Priv message: (%s) %s:%s> %s",
-					arenas[arena]->name, players[pid].name,
+					arenas[arena].name, players[pid].name,
 					players[from->pid].name, from->text);
 				net->SendToOne(from->pid, (byte*)to, len, cfg_msgrel);
 			}
@@ -175,12 +176,12 @@ void PChat(int pid, byte *p, int len)
 
 		case MSG_SYSOPWARNING:
 			log->Log(LOG_BADDATA,"Recieved sysop message (%s) (%s)",
-					arenas[arena]->name, players[pid].name);
+					arenas[arena].name, players[pid].name);
 			break;
 
 		case MSG_CHAT:
 			log->Log(LOG_DEBUG,"Chat message: (%s) %s> %s",
-				arenas[arena]->name, players[pid].name, from->text);
+				arenas[arena].name, players[pid].name, from->text);
 			/* FIXME */
 			break;
 	}

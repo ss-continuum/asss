@@ -20,7 +20,7 @@ int MM_log_console(int action, Imodman *mm)
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregCallback(CALLBACK_LOGFUNC, LogConsole);
-		mm->UnregInterface(I_LOGNAM, &log);
+		mm->UnregInterface(I_LOGMAN, &log);
 	}
 	else if (action == MM_DESCRIBE)
 	{

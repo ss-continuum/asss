@@ -23,7 +23,7 @@ int MM_logman(int action, Imodman *mm_)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(&_int);
+		mm->UnregInterface(I_LOGMAN, &_int);
 	}
 	else if (action == MM_DESCRIBE)
 	{

@@ -40,7 +40,7 @@ int MM_cmdman(int action, Imodman *mm)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(&_int);
+		mm->UnregInterface(I_CMDMAN, &_int);
 		HashFree(cmds);
 	}
 	else if (action == MM_DESCRIBE)
@@ -79,6 +79,8 @@ void RemoveCommand(const char *cmd, CommandFunc f)
 	{
 		CommandData *data;
 		LinkedList *lst;
+		Link *l;
+
 		lst = HashGet(cmds, cmd);
 		for (l = LLGetHead(lst); l; l = l->next)
 		{

@@ -112,7 +112,7 @@ int MM_game(int action, Imodman *mm_)
 		mm->UnregInterest(I_ASSIGNFREQ, &afreq);
 		mm->UnregInterest(I_ARENAMAN, &aman);
 		/* do this last so we don't get prevented from unloading because of ourself */
-		mm->UnregInterface(&_myaf);
+		mm->UnregInterface(I_ASSIGNFREQ, &_myaf);
 	}
 	else if (action == MM_DESCRIBE)
 	{

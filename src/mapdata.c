@@ -25,7 +25,7 @@ struct TileData
 local Ilogman *log;
 
 /* cached data pointers */
-local ArenaData **arenas;
+local ArenaData *arenas;
 
 /* this module's interface */
 local Imapdata _int =
@@ -39,22 +39,12 @@ int MM_mapdata(int action, Imodman *mm)
 {
 	if (action == MM_LOAD)
 	{
-		mm->RegInterest(I_LOGMAN, &log);
-
-		if (!log || !core) return MM_FAIL;
-
-		arenas = core->arenas;
-
-		mm->RegInterface(I_MAPDATA, &_int);
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(&_int);
-		mm->UnregInterest(I_LOGMAN, &log);
 	}
 	else if (action == MM_DESCRIBE)
 	{
-		mm->desc = "xxx - ";
 	}
 	return MM_OK;
 }

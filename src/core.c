@@ -71,7 +71,7 @@ int MM_core(int action, Imodman *mm_)
 		mm->RegInterest(I_AUTH, &auth);
 		players = mm->players;
 
-		if (!net || !cfg || !log || !ml || !map) return MM_FAIL;
+		if (!net || !ml) return MM_FAIL;
 
 		/* set up callbacks */
 		net->AddPacket(C2S_LOGIN, PLogin);
@@ -83,12 +83,11 @@ int MM_core(int action, Imodman *mm_)
 
 		/* set up periodic events */
 		ml->SetTimer(SendKeepalive, 500, 500, NULL);
-
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(&_iaf);
-		mm->UnregInterface(&_iauth);
+		mm->UnregInterface(I_ASSIGNFREQ, &_iaf);
+		mm->UnregInterface(I_AUTH, &_iauth);
 		net->RemovePacket(C2S_LOGIN, PLogin);
 		net->RemovePacket(C2S_LEAVING, PLeaving);
 		mm->UnregInterest(I_NET, &net);
@@ -128,8 +127,6 @@ void SendLoginResponse(int pid, AuthData *auth)
 	lr.newschecksum = map->GetNewsChecksum();
 
 	/* set up player struct */
-	memset(players + pid, 0, sizeof(PlayerData));
-	players[pid].type = S2C_PLAYERENTERING; /* restore type */
 	strncpy(players[pid].sendname, auth->name, 20);
 	astrncpy(players[pid].name, auth->name, 21);
 	strncpy(players[pid].sendsquad, auth->squad, 20);

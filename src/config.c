@@ -36,6 +36,8 @@ local Iconfig _int =
 local ConfigHandle global;
 local int files = 0;
 
+local Ilogman *log;
+
 
 /* functions */
 
@@ -43,6 +45,8 @@ int MM_config(int action, Imodman *mm)
 {
 	if (action == MM_LOAD)
 	{
+		mm->RegInterest(I_LOGMAN, &log);
+
 		files = 0;
 		global = LoadConfigFile("global");
 		if (!global) global = LoadConfigFile("asss");
@@ -52,10 +56,11 @@ int MM_config(int action, Imodman *mm)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(&_int);
+		mm->UnregInterface(I_CONFIG, &_int);
 		FreeConfigFile(global);
-		if (files && (log = mm->GetInterface(I_LOGMAN)))
-			printf("Some config files were not freed!");
+		/* if (files && (log = mm->GetInterface(I_LOGMAN)))
+			printf("Some config files were not freed!"); */
+		mm->UnregInterest(I_LOGMAN, &log);
 	}
 	else if (action == MM_DESCRIBE)
 	{
@@ -66,7 +71,7 @@ int MM_config(int action, Imodman *mm)
 
 #define LINESIZE 512
 
-static void ProcessConfigFile(HashTable *thetable, const char *name)
+static int ProcessConfigFile(HashTable *thetable, const char *name)
 {
 	FILE *f;
 	char _realbuf[LINESIZE], *buf = _realbuf, *t, *t2;
@@ -79,7 +84,7 @@ static void ProcessConfigFile(HashTable *thetable, const char *name)
 		sprintf(buf, "conf/%s", name);
 		f = fopen(buf, "r");
 	}
-	if (!f) return;
+	if (!f) return MM_FAIL;
 
 	while (buf = _realbuf, fgets(buf, LINESIZE, f))
 	{
@@ -105,7 +110,11 @@ static void ProcessConfigFile(HashTable *thetable, const char *name)
 			{
 				buf += 7;
 				while (*buf == ' ' || *buf == '\t') buf++;
-				ProcessConfigFile(thetable, buf);
+				if (ProcessConfigFile(thetable, buf) == MM_FAIL)
+				{
+					if (log) log->Log(LOG_ERROR, "Cannot find #included file: %s", buf);
+					/* return MM_FAIL; let's not abort on #include error */ 
+				}
 			}
 			/* add define, ifdef, etc */
 		}
@@ -128,14 +137,22 @@ static void ProcessConfigFile(HashTable *thetable, const char *name)
 		}
 	}
 	fclose(f);
+	return MM_OK;
 }
 
 ConfigHandle LoadConfigFile(const char *name)
 {
 	HashTable *thetable = HashAlloc(983);
-	ProcessConfigFile(thetable, name);
-	files++;
-	return (ConfigHandle)thetable;
+	if (ProcessConfigFile(thetable, name) == MM_OK)
+	{
+		files++;
+		return (ConfigHandle)thetable;
+	}
+	else
+	{
+		HashFree(thetable);
+		return NULL;
+	}
 }
 
 void FreeConfigFile(ConfigHandle ch)

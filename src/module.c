@@ -27,10 +27,10 @@ typedef struct ModuleData
 local int LoadModule(char *);
 local void UnloadAllModules();
 local void UnloadModule(char *);
-local void RegInterest(int, void**);
-local void UnregInterest(int, void**);
+local void RegInterest(int, void*);
+local void UnregInterest(int, void*);
 local void RegInterface(int, void *);
-local void UnregInterface(void *);
+local void UnregInterface(int, void *);
 local void RegCallback(char *, void *);
 local void UnregCallback(char *, void *);
 local LinkedList * LookupCallback(char *);
@@ -71,7 +71,7 @@ Imodman * InitModuleManager()
 	callbacks = HashAlloc(233);
 	for (i = 0; i < MAXINTERFACE; i++)
 	{
-		LLInit(intupdates[i]);
+		LLInit(intupdates + i);
 		ints[i] = NULL;
 	}
 	return &mmint;
@@ -88,7 +88,7 @@ int LoadModule(char *filename)
 	ModuleData *mod;
 	char *name = _buf, *modname;
 	int ret;
-	Ilogman *log = GetInterface(I_LOGMAN);
+	Ilogman *log = ints[I_LOGMAN]; /* hack: change this when implemetion changes */
 
 	if ((modname = strchr(filename,DELIM)))
 	{
@@ -143,7 +143,8 @@ int LoadModule(char *filename)
 
 	if (ret != MM_OK)
 	{
-		if (log) log->Log(LOG_ERROR,"Error loading module string %s", filename);
+		if (log) log->Log(LOG_ERROR,
+				"Error loading module string %s from %s", modname, filename);
 		if (!mod->myself) dlclose(mod->hand);
 		free(mod);
 		return ret;
@@ -202,20 +203,18 @@ void UnloadAllModules()
 /* interface management stuff */
 
 
-int RegInterest(int ii, void **intp)
+void RegInterest(int ii, void *intp)
 {
 	if (ii >= 0 && ii < MAXINTERFACE)
 	{
-		LLAdd(intupdates[ii], intp);
-		*intp = ints[ii];
+		LLAdd(intupdates + ii, intp);
+		*((void**)intp) = ints[ii];
 	}
-	else
-		return 0;
 }
 
-void UnregInterest(int ii, void **intp)
+void UnregInterest(int ii, void *intp)
 {
-	LLRemove(intupdates[ii], intp);
+	LLRemove(intupdates + ii, intp);
 }
 
 
@@ -227,25 +226,25 @@ void RegInterface(int ii, void *face)
 
 		ints[ii] = face;
 
-		for (l = LLGetHead(intupdates[ii]); l; l = l->next)
+		for (l = LLGetHead(intupdates + ii); l; l = l->next)
 			*((void**)l->data) = face;
 	}
 }
 
-
-int UnregInterface(int ii, void *face)
+/* eventually: make this return int which is the ref count */
+void UnregInterface(int ii, void *face)
 {
 	int c = 0;
-	if (ints[i] == face)
+	if (ints[ii] == face)
 	{
 		Link *l;
 
-		for (l = LLGetHead(intupdates[ii]); l; l = l->next)
+		for (l = LLGetHead(intupdates + ii); l; l = l->next)
 			c++;
 		if (c == 0)
-			ints[i] = NULL;
+			ints[ii] = NULL;
 	}
-	return c;
+	/* return c; */
 }
 
 void RegCallback(char *id, void *f)

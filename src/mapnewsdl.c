@@ -32,11 +32,11 @@ local int ArenaAction(int, int);
 local void CompressMap(int);
 
 /* newstxt management */
-local void RefreshNewsTxt();
+local int RefreshNewsTxt(void *);
 
-i32 GetMapChecksum(int arena);
-char *GetMapFileName(int arena);
-i32 GetNewsChecksum();
+local i32 GetMapChecksum(int arena);
+local char * GetMapFilename(int arena);
+local i32 GetNewsChecksum();
 
 
 /* GLOBALS */
@@ -48,6 +48,7 @@ local Inet *net;
 local Imodman *mm;
 local Ilogman *log;
 local Iarenaman *aman;
+local Imainloop *ml;
 
 /* big static array */
 local MapData mapdata[MAXARENA];
@@ -57,14 +58,13 @@ local i32 newschecksum, cmpnewssize;
 local byte *cmpnews;
 local time_t newstime;
 
-local Imapnewsdl _int = { GetMapChecksum, GetMapFileName, GetNewsChecksum };
+local Imapnewsdl _int = { GetMapChecksum, GetMapFilename, GetNewsChecksum };
 
 
 /* FUNCTIONS */
 
 int MM_mapnewsdl(int action, Imodman *mm_)
 {
-	static Imainloop *ml;
 	if (action == MM_LOAD)
 	{
 		/* get interface pointers */
@@ -83,6 +83,7 @@ int MM_mapnewsdl(int action, Imodman *mm_)
 		/* set up callbacks */
 		net->AddPacket(C2S_MAPREQUEST, PMapRequest);
 		net->AddPacket(C2S_NEWSREQUEST, PMapRequest);
+		mm->RegCallback(CALLBACK_ARENAACTION, ArenaAction);
 
 		/* reread news every 15 min */
 		ml->SetTimer(RefreshNewsTxt, 50, 
@@ -101,6 +102,8 @@ int MM_mapnewsdl(int action, Imodman *mm_)
 		mm->UnregInterface(I_MAPNEWSDL, &_int);
 		net->RemovePacket(C2S_MAPREQUEST, PMapRequest);
 		net->RemovePacket(C2S_NEWSREQUEST, PMapRequest);
+		mm->UnregCallback(CALLBACK_ARENAACTION, ArenaAction);
+
 		free(cmpnews);
 		ml->ClearTimer(RefreshNewsTxt);
 
@@ -127,8 +130,13 @@ i32 GetMapChecksum(int arena)
 i32 GetNewsChecksum()
 {
 	if (!cmpnews)
-		RefreshNewsTxt();
+		RefreshNewsTxt(0);
 	return newschecksum;
+}
+
+char * GetMapFilename(int arena)
+{
+	return mapdata[arena].mapfname;
 }
 
 
@@ -145,17 +153,19 @@ int ArenaAction(int action, int arena)
 		free(mapdata[arena].cmpmap);
 		mapdata[arena].cmpmaplen = 0;
 	}
+	return AA_OK;
 }
 
 
 void CompressMap(int arena)
 {
 	byte *map, *cmap;
-	int i = 0, mapfd, fsize;
+	int mapfd, fsize;
+	uLong csize;
 	struct stat st;
 	char fname[64], *mapname;
 
-	mapname = cfg->GetStr(config, "General", "Map");
+	mapname = cfg->GetStr(arenas[arena].cfg, "General", "Map");
 
 	astrncpy(mapdata[arena].mapfname, mapname, 20);
 
@@ -188,13 +198,13 @@ void CompressMap(int arena)
 
 	/* set up packet header */
 	cmap[0] = S2C_MAPDATA;
-	strncpy(cmap+1, mapname);
+	strncpy(cmap+1, mapname, 16);
 	/* compress the stuff! */
 	compress(cmap+17, &csize, map, fsize);
 
 	/* shrink the allocated memory */
 	mapdata[arena].cmpmap = realloc(cmap, csize+17);
-	if (!me->mapdata)
+	if (mapdata[arena].cmpmap == NULL)
 	{
 		log->Log(LOG_ERROR,"realloc failed in CreateArena");
 		return AA_FAIL;
@@ -219,7 +229,7 @@ void PMapRequest(int pid, byte *p, int q)
 			log->Log(LOG_BADDATA, "Map request, but compressed map doesn't exist!");
 		else
 			net->SendToOne(pid, mapdata[arena].cmpmap,
-				mapdata[arena]->cmpmaplen, NET_RELIABLE | NET_PRESIZE);
+				mapdata[arena].cmpmaplen, NET_RELIABLE | NET_PRESIZE);
 	}
 	else if (p[0] == C2S_NEWSREQUEST)
 	{
@@ -244,7 +254,7 @@ int RefreshNewsTxt(void *dummy)
     if (fd == -1)
     {
         log->Log(LOG_ERROR,"News file '%s' not found in current directory", cfg_newsfile);
-		return;
+		return 1; /* let's get called again in case the file's been replaced */
     }
 
 	/* find it's size */
@@ -262,7 +272,7 @@ int RefreshNewsTxt(void *dummy)
 		{
 			log->Log(LOG_ERROR,"mmap failed in RefreshNewsTxt");
 			close(fd);
-			return;
+			return 1;
 		}
 
 		/* calculate crc on mmap'd map */
@@ -284,7 +294,7 @@ int RefreshNewsTxt(void *dummy)
 		{
 			log->Log(LOG_ERROR,"realloc failed in RefreshNewsTxt");
 			close(fd);
-			return;
+			return 1;
 		}
 		cmpnewssize = csize+17;
 

@@ -1,25 +1,36 @@
 
 CC = gcc
-CFLAGS = -fPIC -O2 -fomit-frame-pointer -Wall -fpedantic
 LDFLAGS = -fPIC
 
-ASSSLIBS = -ldl -lz
+
+OPT_CFLAGS = -fPIC -O2 -fomit-frame-pointer -Wall -fpedantic
+DEBUG_CFLAGS = -fPIC -g -Wall -fpedantic
+
+CFLAGS = $(DEBUG_CFLAGS)
+
+ASSSLIBS = -ldl -lz # -lpthread
 
 
 
 
-INTMODS = config.o core.o logman.o mainloop.o net.o encrypt1.o
+INTMODS = config.o    \
+          core.o      \
+          logman.o    \
+          mainloop.o  \
+          net.o       \
+          encrypt1.o  \
+          arenaman.o  \
+		  mapnewsdl.o
 
-EXTMODS = loggers.so game.so command.so billing.so
-
-UTIL = util.o -lpthread
+EXTMODS = loggers.so  \
+          game.so     \
+          command.so  \
+          billing.so
 
 
 
 all: asss $(EXTMODS) install
 
-debug: CFLAGS = -fPIC -g
-debug: clean all
 
 
 loggers.so: log_file.o log_console.o
@@ -31,7 +42,8 @@ command.so: cmdman.o playercmd.o
 billing.so: billcore.o
 
 
-asss: main.o module.o $(UTIL) $(INTMODS)
+
+asss: main.o module.o util.o $(INTMODS)
 	$(CC) -rdynamic -o $@ $^ $(ASSSLIBS)
 
 
@@ -44,10 +56,9 @@ include Makefile.deps
 
 
 %.so:
-	$(CC) $(LDFLAGS) -shared -o $@ $^ $(UTIL)
+	$(CC) $(LDFLAGS) -shared -o $@ $^
 
 install:
-#	-strip asss $(EXTMODS)
 	-cp -f asss $(EXTMODS) ../bin
 	@echo -e "\nWoot! It compiled!"
 

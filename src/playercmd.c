@@ -22,7 +22,9 @@ local Icmdman *cmd;
 local Inet *net;
 local Iconfig *cfg;
 local Imainloop *ml;
+local Iarenaman *aman;
 local PlayerData *players;
+local ArenaData *arenas;
 
 local ConfigHandle *configops;
 
@@ -36,9 +38,11 @@ int MM_playercmd(int action, Imodman *mm)
 		mm->RegInterest(I_CMDMAN, &cmd);
 		mm->RegInterest(I_NET, &net);
 		mm->RegInterest(I_CONFIG, &cfg);
+		mm->RegInterest(I_ARENAMAN, &aman);
 		mm->RegInterest(I_MAINLOOP, &ml);
-		if (!cmd || !net || !cfg) return MM_FAIL;
+		if (!cmd || !net || !cfg || !aman) return MM_FAIL;
 		players = mm->players;
+		arenas = aman->data;
 
 		configops = cfg->OpenConfigFile("oplevels");
 
@@ -57,9 +61,9 @@ int MM_playercmd(int action, Imodman *mm)
 		cfg->CloseConfigFile(configops);
 		mm->UnregInterest(I_CHAT, &chat);
 		mm->UnregInterest(I_CMDMAN, &cmd);
-		mm->UnregInterest(I_CORE, &core);
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_CONFIG, &cfg);
+		mm->UnregInterest(I_ARENAMAN, &aman);
 		mm->UnregInterest(I_MAINLOOP, &ml);
 	}
 	else if (action == MM_DESCRIBE)
@@ -83,7 +87,7 @@ void Carena(const char *params, int pid, int target)
 
 	/* count up players */
 	for (i = 0; i < MAXPLAYERS; i++)
-		if (	net->GetStatus(i) == S_CONNECTED &&
+		if (	players[i].status == S_CONNECTED &&
 				players[i].arena >= 0)
 			pcount[players[i].arena]++;
 
@@ -93,10 +97,10 @@ void Carena(const char *params, int pid, int target)
 		
 	/* build arena info packet */
 	for (i = 0; (pos-buf) < 480 && i < MAXARENA; i++)
-		if (core->arenas[i])
+		if (arenas[i].status == ARENA_RUNNING)
 		{
-			l = strlen(core->arenas[i]->name) + 1;
-			strncpy(pos, core->arenas[i]->name, l);
+			l = strlen(arenas[i].name) + 1;
+			strncpy(pos, arenas[i].name, l);
 			pos += l;
 			*(short*)pos = pcount[i];
 			pos += 2;
@@ -122,7 +126,7 @@ void Clogin(const char *params, int pid, int target)
 				configops, "Staff", players[pid].name, 0);
 		if (arena >= 0)
 		{
-			op2 = cfg->GetInt(core->arenas[arena]->config,
+			op2 = cfg->GetInt(arenas[arena].cfg,
 					"Staff", players[pid].name, 0);
 			if (op2 > players[pid].oplevel)
 				players[pid].oplevel = op2;

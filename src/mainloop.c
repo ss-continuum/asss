@@ -43,7 +43,7 @@ int MM_mainloop(int action, Imodman *mm_)
 	else if (action == MM_UNLOAD)
 	{
 		LLFree(timers);
-		mm->UnregInterface(&_int);
+		mm->UnregInterface(I_MAINLOOP, &_int);
 	}
 	else if (action == MM_DESCRIBE)
 	{

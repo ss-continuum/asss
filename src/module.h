@@ -42,8 +42,8 @@ typedef struct Imodman
 	void (*UnloadModule)(char *name);
 	void (*UnloadAllModules)();
 
-	void (*RegInterest)(int id, void **intpointer);
-	void (*UnregInterest)(int id, void **intpointer);
+	void (*RegInterest)(int id, void *intpointer);
+	void (*UnregInterest)(int id, void *intpointer);
 	void (*RegInterface)(int id, void *iface);
 	void (*UnregInterface)(int id, void *iface);
 

@@ -1,4 +1,6 @@
 
+#include <string.h>
+#include <stdio.h>
 
 #include "asss.h"
 
@@ -10,16 +12,16 @@
 /* timers */
 local int ReapArenas(void *);
 
-/* extras to help PArena */
-local int AssignArena(struct GoArenaPacket *);
-local int DefaultAssignFreq(int, int, byte);
 
 /* arena management funcs */
-local int FindArena(char *);
-local int CreateArena(char *);
+local int FindArena(char *, int);
+local int CreateArena(char *, int);
 local void FreeArena(int);
 
+local void PArena(int, byte *, int);
 
+local void SendMultipleArenaResponses(int);
+local void SendOneArenaResponse(int);
 
 
 /* GLOBALS */
@@ -94,7 +96,7 @@ local void CallAA(int action, int arena)
 
 	funcs = mm->LookupCallback(CALLBACK_ARENAACTION);
 
-	for (l = GetHead(funcs); l; l = l->next)
+	for (l = LLGetHead(funcs); l; l = l->next)
 		((ArenaActionFunc)l->data)(action, arena);
 
 	LLFree(funcs);
@@ -110,7 +112,7 @@ local void DoLoadArena(int arena)
 
 	/* this should go in another thread {{{ */
 
-	snprintf(fname, "arena-%s", name);
+	snprintf(fname, 64, "arena-%s", arenas[arena].name);
 	config = cfg->OpenConfigFile(fname);
 	/* if not, try default config */
     if (!config)
@@ -148,9 +150,9 @@ local void DoFreeArena(int arena)
 }
 
 
-local int CreateArena(char *name, int initialpid)
+int CreateArena(char *name, int initialpid)
 {
-	int i;
+	int i = 0;
 
 	if (FindArena(name, TRUE) != -1)
 	{
@@ -171,14 +173,14 @@ local int CreateArena(char *name, int initialpid)
 	return i;
 }
 
-local void FreeArena(int arena)
+void FreeArena(int arena)
 {
 	/* eventually this will pass the message to another thread */
 	DoFreeArena(arena);
 }
 
 
-local void SendOneArenaResponse(int pid)
+void SendOneArenaResponse(int pid)
 {
 	struct SimplePacket whoami = { S2C_WHOAMI, 0 };
 	struct MapFilename mapfname;
@@ -214,9 +216,9 @@ local void SendOneArenaResponse(int pid)
 
 	/* send brick clear and finisher */
 	mapfname.type = S2C_BRICK;
-	net->SendToOne(pid, &mapfname, 1, NET_RELIABLE);
+	net->SendToOne(pid, (byte*)&mapfname, 1, NET_RELIABLE);
 	mapfname.type = S2C_ENTERINGARENA;
-	net->SendToOne(pid, &mapfname, 1, NET_RELIABLE);
+	net->SendToOne(pid, (byte*)&mapfname, 1, NET_RELIABLE);
 
 	/* alert others */
 	net->SendToArena(players[pid].arena, pid,
@@ -224,7 +226,7 @@ local void SendOneArenaResponse(int pid)
 }
 
 
-local void SendMultipleArenaResponses(int arena)
+void SendMultipleArenaResponses(int arena)
 {
 /*
  * we want to make this one as efficient as possible. thus:
@@ -250,13 +252,13 @@ local void SendMultipleArenaResponses(int arena)
 }
 
 
-local int FindArena(char *name, int acceptloading)
+int FindArena(char *name, int acceptloading)
 {
 	int i;
 	/* lock arena status */
 	for (i = 0; i < MAXARENA; i++)
 		if (	( arenas[i].status == ARENA_RUNNING ||
-				  ( acceptloading && arenas[i].statis == ARENA_LOADING) )
+				  ( acceptloading && arenas[i].status == ARENA_LOADING) )
 				&& !strcasecmp(arenas[i].name, name) )
 			return i;
 	/* unlock arena status */
@@ -288,7 +290,7 @@ void PArena(int pid, byte *p, int l)
 
 	/* make a name from the request */
 	if (go->arenatype == -3)
-		name = p->arenaname;
+		name = go->arenaname;
 	else if (go->arenatype == -2 || go->arenatype == -1)
 	{
 		name = digit;

@@ -18,10 +18,11 @@ local Iconfig *cfg;
 local Ilogman *log;
 local Icmdman *cmd;
 local Imodman *mm;
+local Iarenaman *aman;
 
 /* cached data pointers */
 local PlayerData *players;
-local ArenaData **arenas;
+local ArenaData *arenas;
 
 /* this module's interface */
 local Ixxx _int =
@@ -40,21 +41,23 @@ int MM_clientset(int action, Imodman *mm_)
 		mm->RegInterest(I_CONFIG, &cfg);
 		mm->RegInterest(I_LOGMAN, &log);
 		mm->RegInterest(I_CMDMAN, &cmd);
+		mm->RegInterest(I_ARENAMAN, &aman);
 
 		if (!net || !cfg || !log || !core) return MM_FAIL;
 
 		players = mm->players;
-		arenas = core->arenas;
+		arenas = aman->data;
 
 		mm->RegInterface(I_XXX, &_int);
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface(&_int);
+		mm->UnregInterface(I_XXX, &_int);
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_CMDMAN, &cmd);
+		mm->UnregInterest(I_ARENAMAN, &aman);
 	}
 	else if (action == MM_DESCRIBE)
 	{

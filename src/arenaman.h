@@ -13,7 +13,7 @@ typedef int (*ArenaActionFunc)(int, int);
 #define AA_LOAD 1
 #define AA_UNLOAD 2
 
-#define AA_SUCCESS 1
+#define AA_OK 1
 #define AA_FAIL
 
 /* status conditions */
