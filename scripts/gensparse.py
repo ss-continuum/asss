@@ -324,7 +324,7 @@ def emit_clean(o):
 	o.write("""
 %(static)s void cleanup_sparse(%(target)s %(c1)s)
 {
-	int x, t, chunkempty;
+	int x, y, chunkempty;
 %(body)s
 }
 """ % \
