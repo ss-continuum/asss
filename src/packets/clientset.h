@@ -117,7 +117,7 @@ struct ClientSettings
 	i8 CarryFlags, AllowSavedShips, RadarMode, VictoryMusic;
 	i8 FlaggerGunUpgrade, FlaggerBombUpgrade, UseFlagger, BallLocation;
 	i32 Unknown_32_c[2];
-	struct PrizeWeightFields PrizeWeights; /* 28 bytes	 */
+	struct PrizeWeightFields PrizeWeights; /* 28 bytes */
 };
 
 /* all of the 32 bit unknowns (8) are 0x00000000 */
