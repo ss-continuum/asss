@@ -525,7 +525,7 @@ local void PChat(Player *p, byte *pkt, int len)
 	int freq = p->p_freq, sound = 0;
 	unsigned char *t;
 
-	if (len < 6)
+	if (len < 6 || len > 500)
 	{
 		lm->LogP(L_MALICIOUS, "chat", p, "bad chat packet len=%i", len);
 		return;
@@ -612,7 +612,7 @@ local void MChat(Player *p, const char *line)
 	char subtype[10], data[24];
 	Player *i;
 
-	if (!p->arena) return;
+	if (!p->arena || strlen(line) > 500) return;
 
 	expire_mask(p);
 
