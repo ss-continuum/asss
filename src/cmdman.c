@@ -241,7 +241,7 @@ void Command(const char *line, Player *p, const Target *target)
 	{
 		/* we don't know about this, send it to the biller */
 		if (defaultfunc)
-			defaultfunc(cmd, line, p, target);
+			defaultfunc(cmd, origline, p, target);
 	}
 	else if (allowed(p, cmd, prefix))
 	{
