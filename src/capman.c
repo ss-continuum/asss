@@ -2,6 +2,7 @@
 /* dist: public */
 
 #include <string.h>
+#include <stdio.h>
 
 #include "asss.h"
 
@@ -167,15 +168,15 @@ local void RemoveGroup(Player *p, const char *info)
 
 local int CheckGroupPassword(const char *group, const char *pw)
 {
-	const char *correctpw;
-	correctpw = cfg->GetStr(staff_conf, "GroupPasswords", group);
+	const char *correctpw =
+		cfg->GetStr(staff_conf, "GroupPasswords", group);
 	return correctpw ? (strcmp(correctpw, pw) == 0) : 0;
 }
 
 
 local int HasCapability(Player *p, const char *cap)
 {
-	char *group = ((pdata*)PPDATA(p, pdkey))->group;
+	const char *group = ((pdata*)PPDATA(p, pdkey))->group;
 	return cfg->GetStr(groupdef, group, cap) != NULL;
 }
 
@@ -183,13 +184,19 @@ local int HasCapability(Player *p, const char *cap)
 local int HasCapabilityByName(const char *name, const char *cap)
 {
 	/* figure out his group */
-	const char *group;
-
-	group = cfg->GetStr(staff_conf, AG_GLOBAL, name);
+	const char *group = cfg->GetStr(staff_conf, AG_GLOBAL, name);
 	if (!group)
 		group = DEFAULT;
-
 	return cfg->GetStr(groupdef, group, cap) != NULL;
+}
+
+
+local int HigherThan(Player *a, Player *b)
+{
+	char cap[MAXGROUPLEN+16];
+	const char *bgrp = ((pdata*)PPDATA(b, pdkey))->group;
+	snprintf(cap, sizeof(cap), "higher_than_%s", bgrp);
+	return HasCapability(a, cap);
 }
 
 
@@ -198,7 +205,7 @@ local int HasCapabilityByName(const char *name, const char *cap)
 local Icapman capint =
 {
 	INTERFACE_HEAD_INIT(I_CAPMAN, "capman-groups")
-	HasCapability, HasCapabilityByName
+	HasCapability, HasCapabilityByName, HigherThan
 };
 
 local Igroupman grpint =

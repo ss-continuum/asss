@@ -24,7 +24,7 @@
 
 /* this interface is what modules should use to query for capabilities */
 
-#define I_CAPMAN "capman-2"
+#define I_CAPMAN "capman-2.1"
 
 typedef struct Icapman
 {
@@ -40,6 +40,11 @@ typedef struct Icapman
 	/* same as HasCapability, but intented to be used in strange places
 	 * like before the player has logged in yet */
 	/* pyint: string, string -> int */
+
+	int (*HigherThan)(Player *a, Player *b);
+	/* returns true if a is at a higher level of power than b, as
+	 * defined by this particular capability manager. this relation will
+	 * probably be transitive. */
 } Icapman;
 
 
