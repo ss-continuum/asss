@@ -97,7 +97,7 @@ Link *LLGetHead(LinkedList *lst);
 
 typedef struct HashTable HashTable;
 
-HashTable * HashAlloc(void);
+HashTable * HashAlloc(int);
 void HashFree(HashTable *ht);
 void HashEnum(HashTable *ht, void (*func)(void *));
 void HashAdd(HashTable *ht, const char *key, void *data);
