@@ -265,7 +265,7 @@ void SendMultipleArenaResponses(int arena)
 	for (i = 0; i < pidc; i++)
 	{
 		/* send player lists */
-		net->SendToSet(pidset, (byte*)(players+i), 64, NET_RELIABLE);
+		net->SendToSet(pidset, (byte*)(players+pidset[i]), 64, NET_RELIABLE);
 	}
 
 	/* remainder:
