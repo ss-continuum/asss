@@ -512,7 +512,7 @@ local void complete_go(Player *p, const char *reqname, int ship,
 	spawnloc *sp = PPDATA(p, spawnkey);
 	Arena *a;
 
-	if (p->status != S_LOGGEDIN && p->status != S_PLAYING)
+	if (p->status != S_LOGGEDIN && p->status != S_PLAYING && p->status != S_LEAVING_ARENA)
 	{
 		lm->LogP(L_MALICIOUS, "arenaman", p, "sent arena request from bad status (%d)",
 				p->status);
