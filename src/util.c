@@ -67,7 +67,7 @@ unsigned int GTC(void)
 {
 	struct timeval tv;
 	gettimeofday(&tv,NULL);
-	return tv.tv_sec * 100 + tv.tv_usec / 10000;
+	return (tv.tv_sec * 100 + tv.tv_usec / 10000) & 0x7FFFFFFF;
 }
 
 

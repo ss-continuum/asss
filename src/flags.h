@@ -8,9 +8,6 @@
  * extra modules.
  */
 
-
-#define MAXFLAGS 256
-
 #include "settings/flaggames.h"
 
 typedef enum

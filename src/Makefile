@@ -54,7 +54,7 @@ all: install
 
 loggers.so: log_file.o log_console.o
 
-game.so: game.o chat.o flags.o
+game.so: game.o chat.o flags.o balls.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -lm
 
 command.so: cmdman.o playercmd.o

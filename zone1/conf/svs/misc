@@ -42,23 +42,6 @@ EngineShutdownTime=700
 TakePrizeReliable=0
 S2CTakePrizeReliable=0
 
-[Soccer]
-BallBounce=1
-AllowBombs=1
-AllowGuns=1
-PassDelay=20
-Mode=0
-BallBlankDelay=200
-UseFlagger=1
-BallLocation=1
-BallCount=0
-SendTime=400
-Reward=1000
-CapturePoints=0
-CatchMinimum=12
-CatchPoints=0
-WinBy=0
-
 [Radar]
 RadarMode=0
 RadarNeutralSize=128

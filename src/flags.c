@@ -523,12 +523,13 @@ void FreqChange(int pid, int newfreq)
 
 void FlagKill(int arena, int killer, int killed, int bounty, int flags)
 {
-	int i, fc;
+	int i, fc, newfreq;
 	struct FlagData *f;
 
 	if (flags < 1) return;
 
 	f = flagdata[arena].flags;
+	newfreq = pd->players[killer].freq;
 	LOCK_STATUS(arena);
 	fc = pflagdata[arena].maxflags;
 	if (pd->players[killer].freq != pd->players[killed].freq ||
@@ -537,7 +538,10 @@ void FlagKill(int arena, int killer, int killed, int bounty, int flags)
 		{
 			if (f->state == FLAG_CARRIED &&
 				f->carrier == killed)
+			{
 				f->carrier = killer;
+				f->freq = newfreq;
+			}
 		}
 	else
 	{

@@ -239,7 +239,7 @@ void ProcessLoginQueue(void)
 				DO_CBS(CALLBACK_PLAYERACTION,
 				       player->arena,
 				       PlayerActionFunc,
-				       (pid, PA_LEAVEARENA, player->arena));
+				       (pid, PA_LEAVEARENA, player->oldarena));
 				if (persist)
 					persist->SyncToFile(pid, player->oldarena, NULL);
 				break;

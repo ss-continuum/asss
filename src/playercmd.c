@@ -15,6 +15,8 @@ local void Csetop(const char *, int, int);
 local void Cshutdown(const char *, int, int);
 local void Cflagreset(const char *, int, int);
 local void Clogfile(const char *, int, int);
+local void Caddball(const char *, int, int);
+local void Cremoveball(const char *, int, int);
 
 
 /* global data */
@@ -29,6 +31,7 @@ local Imainloop *ml;
 local Iarenaman *aman;
 local Ilog_file *logfile;
 local Iflags *flags;
+local Iballs *balls;
 
 local PlayerData *players;
 local ArenaData *arenas;
@@ -51,6 +54,7 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		mm->RegInterest(I_MAINLOOP, &ml);
 		mm->RegInterest(I_LOG_FILE, &logfile);
 		mm->RegInterest(I_FLAGS, &flags);
+		mm->RegInterest(I_BALLS, &balls);
 
 		if (!cmd || !net || !cfg || !aman) return MM_FAIL;
 
@@ -65,6 +69,8 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		cmd->AddCommand("shutdown", Cshutdown, 200);
 		cmd->AddCommand("logfile", Clogfile, 200);
 		cmd->AddCommand("flagreset", Cflagreset, 100);
+		cmd->AddCommand("addball", Caddball, 50);
+		cmd->AddCommand("removeball", Cremoveball, 50);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
@@ -75,6 +81,8 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		cmd->RemoveCommand("shutdown", Cshutdown);
 		cmd->RemoveCommand("logfile", Clogfile);
 		cmd->RemoveCommand("flagreset", Cflagreset);
+		cmd->RemoveCommand("addball", Caddball);
+		cmd->RemoveCommand("removeball", Cremoveball);
 
 		cfg->CloseConfigFile(configops);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
@@ -87,6 +95,7 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		mm->UnregInterest(I_MAINLOOP, &ml);
 		mm->UnregInterest(I_LOG_FILE, &logfile);
 		mm->UnregInterest(I_FLAGS, &flags);
+		mm->UnregInterest(I_BALLS, &balls);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -207,6 +216,37 @@ void Clogfile(const char *params, int pid, int target)
 void Cflagreset(const char *params, int pid, int target)
 {
 	flags->FlagVictory(players[pid].arena, -1, 0);
+}
+
+
+void Caddball(const char *params, int pid, int target)
+{
+	int bc, arena = players[pid].arena, add;
+	if (arena >= 0 && arena < MAXARENA)
+	{
+		balls->LockBallStatus(arena);
+		bc = balls->balldata[arena].ballcount;
+		add = atoi(params);
+		if (add == 0)
+			add = 1;
+		balls->SetBallCount(arena, bc + add);
+		balls->UnlockBallStatus(arena);
+	}
+}
+
+void Cremoveball(const char *params, int pid, int target)
+{
+	int bc, arena = players[pid].arena, add;
+	if (arena >= 0 && arena < MAXARENA)
+	{
+		balls->LockBallStatus(arena);
+		bc = balls->balldata[arena].ballcount;
+		add = atoi(params);
+		if (add == 0)
+			add = 1;
+		balls->SetBallCount(arena, bc - add);
+		balls->UnlockBallStatus(arena);
+	}
 }
 
 

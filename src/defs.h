@@ -44,7 +44,8 @@
 #define I_STATS         16
 #define I_LOG_FILE      17
 #define I_FLAGS         18
-#define I_MAPDATA       19
+#define I_BALLS         19
+#define I_MAPDATA       20
 #define I_ENCRYPTBASE   90
 /*#define I_BALL */
 /*#define I_DATABASE */
