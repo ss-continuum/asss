@@ -24,6 +24,10 @@ does my implementation of acking (the lastack thing) really work?!
 fix it!
 and make outgoing queues separate per player.
 
+persist
+-------
+sort data entries by key so matching keys on read is faster
+
 
 long term
 ---------
