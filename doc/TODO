@@ -1,33 +1,42 @@
 
+per-arena
+---------
+think really hard about how to make per-arena interfaces and things work
+nicely.
 
-short term
-----------
 
+log
+---
 redo a bit of logging to use classes
 
-more game stuff
 
-persistant arena names for ?arena
+game
+----
+attaching, detaching, speccing should be working perfectly soon
 
-work on more modules, in roughly this order:
-game/flag/ball, etc.
 
+flag/ball
+---------
+do it
+
+
+capman
+------
+yes, that's the name. do it.
 better authority model (groups, capabilities)
   write about it first!
 
 
 net
 ---
-does my implementation of acking (the lastack thing) really work?!
-fix it!
-and make outgoing queues separate per player.
+does my implementation of acking (the lastack thing) really work?!  fix it!
+and make outgoing queues separate per player. (these go together)
+
+latency/ploss handling
 
 
 persist
 -------
-sort data entries by key so matching keys on read is faster
-
-sync every x seconds (implement in db loop with gtc())
 
 
 config
@@ -36,20 +45,33 @@ implement the suggestion that other arenas only have to supply settings
 that override main arena's. this has potentially large consequences.
 
 
-long term
----------
+arenaman
+--------
+persistant arena names for ?arena
 
+
+out-of-process extensions
+-------------------------
 come up with better interface to other languages (python, and others)
 
-make an array for "connection titles" in Inet and have core set them
-  so net doesn't require core and can be used unchanged for billcore
 
-make banner plugin (wait until billing server stuff working, because
-  it gets banners from biller)
+banner
+------
+do it
 
-make module that contains map data for arenas
 
-make brick module that uses map data module
+mapdata/bricks
+-------
+do them
 
-latency/ploss handling
+
+discarded ideas
+---------------
+sort data entries by key so matching keys on read is faster
+   even if there are 20 types of persistant data (which I don't even
+   expect), linear search is fast enough.
+
+
+really really super long-term
+-----------------------------
 
