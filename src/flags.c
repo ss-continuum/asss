@@ -211,10 +211,24 @@ void SpawnFlag(int arena, int fid)
 		y = cy + (rndrad * sin(rndang));
 		/* wrap around, don't clip, so radii of 2048 from a corner
 		 * work properly. */
-		while (x < 0) x += 1024;
-		while (x > 1023) x -= 1024;
-		while (y < 0) y += 1024;
-		while (y > 1023) y -= 1024;
+		for (;;)
+		{
+			if (x < 0)
+				x = -x;
+			else if (x > 1023)
+				x = 2047 - x;
+			else
+				break;
+		}
+		for (;;)
+		{
+			if (y < 0)
+				y = -y;
+			else if (y > 1023)
+				y = 2047 - y;
+			else
+				break;
+		}
 
 		/* ask mapdata to move it to nearest empty tile */
 		mapdata->FindFlagTile(arena, &x, &y);
