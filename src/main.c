@@ -13,10 +13,6 @@
 #include <paths.h>
 #include <unistd.h>
 #include <fcntl.h>
-#else
-#include <windef.h>
-#include <wincon.h>
-#include <direct.h>
 #endif
 
 #include "asss.h"
@@ -233,7 +229,7 @@ local int do_chroot(void)
 
 
 #ifdef WIN32
-local BOOL winshutdown(DWORD shutdowntype)
+local BOOL WINAPI winshutdown(DWORD shutdowntype)
 {
 	ml->Quit(EXIT_NONE);
 	return TRUE;

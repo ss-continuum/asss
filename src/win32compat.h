@@ -9,6 +9,9 @@
 #include <limits.h>
 #include <malloc.h>
 #include <io.h>
+#include <windef.h>
+#include <wincon.h>
+#include <direct.h>
 
 #define EXPORT __declspec(dllexport)
 
