@@ -230,6 +230,7 @@ pymod.o: CFLAGS += $(PYTHON_CFLAGS)
 install: $(ALL_STUFF)
 	$(INSTALL) -d $(BINDIR)
 	$(INSTALL) $(ALL_STUFF) $(BINDIR)
+	$(INSTALL) *.py $(BINDIR)
 
 clean: cleanbin
 	-rm -f *.inc core Makefile.deps
