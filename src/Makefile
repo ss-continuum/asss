@@ -61,7 +61,7 @@ scoring.so: persist.o stats.o statcodes.o points_kill.o points_flag.o points_goa
 admin.so: filetrans.o
 
 funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
-	fake.o autoturret.o
+	fake.o autoturret.o chatnet.o
 
 
 

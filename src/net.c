@@ -71,7 +71,7 @@ typedef struct ClientData
 	/* sequence numbers for reliable packets */
 	int s2cn, c2sn;
 	/* time of last packet recvd and of initial connection */
-	unsigned int lastpkt, connecttime;
+	unsigned int lastpkt;
 	/* total amounts sent and recvd */
 	unsigned int pktsent, pktrecvd;
 	unsigned int bytesent, byterecvd;
@@ -140,7 +140,7 @@ local void RemoveSizedPacket(int, SizedPacketFunc);
 local int NewConnection(int type, struct sockaddr_in *, Iencrypt *enc);
 local void SetLimit(int pid, int limit);
 local void GetStats(struct net_stats *stats);
-local void GetClientStats(int pid, struct client_stats *stats);
+local void GetClientStats(int pid, struct net_client_stats *stats);
 
 /* internal: */
 local inline int HashIP(struct sockaddr_in);
@@ -471,23 +471,6 @@ local void InitClient(int i, Iencrypt *enc)
 	pthread_mutex_unlock(outlistmtx + i);
 }
 
-local void InitPlayer(int i, int type)
-{
-	/* set up playerdata */
-	pd->LockPlayer(i);
-	pd->LockStatus();
-	memset(players + i, 0, sizeof(PlayerData));
-	players[i].pktype = S2C_PLAYERENTERING; /* restore type */
-	players[i].arena = -1;
-	players[i].pid = i;
-	players[i].shiptype = SPEC;
-	players[i].attachedto = -1;
-	players[i].status = S_CONNECTED;
-	players[i].type = type;
-	pd->UnlockStatus();
-	pd->UnlockPlayer(i);
-}
-
 
 Buffer * GetBuffer(void)
 {
@@ -566,7 +549,7 @@ void InitSockets(void)
 			inet_addr(cfg->GetStr(GLOBAL, "Billing", "IP"));
 		clients[PID_BILLER].sin.sin_port =
 			htons(cfg->GetInt(GLOBAL, "Billing", "Port", 1850));
-		clients[PID_BILLER].limit = 
+		clients[PID_BILLER].limit =
 			cfg->GetInt(GLOBAL, "Billing", "Limit", 15000);
 		clients[PID_BILLER].enc = NULL;
 
@@ -805,7 +788,6 @@ local void end_sized(int pid, int success)
 	}
 }
 
-/* call with outlist lock */
 int QueueMoreData(void *dummy)
 {
 #define REQUESTATONCE (QUEUE_PACKETS*480)
@@ -983,70 +965,71 @@ void * SendThread(void *dummy)
 		pd->LockStatus();
 		gtc = GTC();
 		for (i = 0; i < (MAXPLAYERS + EXTRA_PID_COUNT); i++)
-		{
-			/* this is used for lagouts and also for timewait */
-			int diff = (int)gtc - (int)clients[i].lastpkt;
-
-			/* process lagouts */
-			if (players[i].status != S_FREE &&
-			    players[i].whenloggedin == 0 && /* acts as flag to prevent dups */
-			    clients[i].lastpkt != 0 && /* prevent race */
-			    diff > config.droptimeout)
+			if (IS_OURS(i))
 			{
-				lm->Log(L_DRIVEL,
-						"<net> [%s] Player kicked for no data (lagged off)",
-						players[i].name);
-				/* FIXME: send "you have been disconnected..." msg */
-				/* can't hold lock here for deadlock-related reasons */
-				pd->UnlockStatus();
-				KillConnection(i);
-				pd->LockStatus();
-			}
+				/* this is used for lagouts and also for timewait */
+				int diff = (int)gtc - (int)clients[i].lastpkt;
 
-			/* process timewait state */
-			/* btw, status is locked in here */
-			if (players[i].status == S_TIMEWAIT)
-			{
-				char drop[2] = {0x00, 0x07};
-				int bucket;
-
-				/* here, send disconnection packet */
-				SendToOne(i, drop, 2, NET_PRI_P5);
-
-				/* tell encryption to forget about him */
-				if (clients[i].enc)
+				/* process lagouts */
+				if (players[i].status != S_FREE &&
+				    players[i].whenloggedin == 0 && /* acts as flag to prevent dups */
+				    clients[i].lastpkt != 0 && /* prevent race */
+				    diff > config.droptimeout)
 				{
-					clients[i].enc->Void(i);
-					clients[i].enc = NULL;
+					lm->Log(L_DRIVEL,
+							"<net> [%s] Player kicked for no data (lagged off)",
+							players[i].name);
+					/* FIXME: send "you have been disconnected..." msg */
+					/* can't hold lock here for deadlock-related reasons */
+					pd->UnlockStatus();
+					KillConnection(i);
+					pd->LockStatus();
 				}
 
-				/* log message */
-				lm->Log(L_INFO, "<net> [%s] [pid=%d] Disconnected",
-						players[i].name, i);
-
-				pthread_mutex_lock(&hashmtx);
-				bucket = HashIP(clients[i].sin);
-				if (clienthash[bucket] == i)
-					clienthash[bucket] = clients[i].nextinbucket;
-				else
+				/* process timewait state */
+				/* btw, status is locked in here */
+				if (players[i].status == S_TIMEWAIT)
 				{
-					int j = clienthash[bucket];
-					while (j >= 0 && clients[j].nextinbucket != i)
-						j = clients[j].nextinbucket;
-					if (j >= 0)
-						clients[j].nextinbucket = clients[i].nextinbucket;
+					char drop[2] = {0x00, 0x07};
+					int bucket;
+
+					/* here, send disconnection packet */
+					SendToOne(i, drop, 2, NET_PRI_P5);
+
+					/* tell encryption to forget about him */
+					if (clients[i].enc)
+					{
+						clients[i].enc->Void(i);
+						clients[i].enc = NULL;
+					}
+
+					/* log message */
+					lm->Log(L_INFO, "<net> [%s] [pid=%d] Disconnected",
+							players[i].name, i);
+
+					pthread_mutex_lock(&hashmtx);
+					bucket = HashIP(clients[i].sin);
+					if (clienthash[bucket] == i)
+						clienthash[bucket] = clients[i].nextinbucket;
 					else
 					{
-						lm->Log(L_ERROR, "<net> Internal error: "
-								"established connection not in hash table");
+						int j = clienthash[bucket];
+						while (j >= 0 && clients[j].nextinbucket != i)
+							j = clients[j].nextinbucket;
+						if (j >= 0)
+							clients[j].nextinbucket = clients[i].nextinbucket;
+						else
+						{
+							lm->Log(L_ERROR, "<net> Internal error: "
+									"established connection not in hash table");
+						}
 					}
+
+					pd->FreePlayer(i);
+
+					pthread_mutex_unlock(&hashmtx);
 				}
-
-				players[i].status = S_FREE;
-
-				pthread_mutex_unlock(&hashmtx);
 			}
-		}
 		pd->UnlockStatus();
 
 	}
@@ -1217,12 +1200,12 @@ void ProcessPacket(int pid, byte *d, int len)
 
 int NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc)
 {
-	int i = 0, bucket;
-
-	pd->LockStatus();
+	int i, bucket;
 
 	if (sin)
 	{
+		pd->LockStatus();
+
 		/* try to find this sin in the hash table */
 		i = LookupIP(*sin);
 
@@ -1244,12 +1227,11 @@ int NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc)
 				return -1;
 			}
 		}
+
+		pd->UnlockStatus();
 	}
 
-	for (i = 0; players[i].status != S_FREE && i < MAXPLAYERS; i++) ;
-	pd->UnlockStatus();
-
-	if (i == MAXPLAYERS) return -1;
+	i = pd->NewPlayer(type);
 
 	if (sin)
 		lm->Log(L_DRIVEL,"<net> [pid=%d] New connection from %s:%i",
@@ -1258,8 +1240,6 @@ int NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc)
 		lm->Log(L_DRIVEL,"<net> [pid=%d] New internal connection", i);
 
 	InitClient(i, enc);
-
-	clients[i].connecttime = GTC();
 
 	/* add him to his hash bucket */
 	pthread_mutex_lock(&hashmtx);
@@ -1275,8 +1255,6 @@ int NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc)
 		clients[i].nextinbucket = -1;
 	}
 	pthread_mutex_unlock(&hashmtx);
-
-	InitPlayer(i, type);
 
 	return i;
 }
@@ -1661,16 +1639,8 @@ void BufferPacket(int pid, byte *data, int len, int flags,
 	Buffer *buf;
 	int limit;
 
-	if (players[pid].type == T_FAKE)
-	{
-		/* this hook lets fake players recieve packets */
-		if (clients[pid].enc && clients[pid].enc->Encrypt)
-			clients[pid].enc->Encrypt(pid, data, len);
-		/* pretend it was acked */
-		if (callback)
-			callback(pid, 1, clos);
+	if (!IS_OURS(pid))
 		return;
-	}
 
 	assert(len < MAXPACKET);
 
@@ -1748,7 +1718,9 @@ void SendToArena(int arena, int except, byte *data, int len, int flags)
 	if (arena < 0) return;
 	pd->LockStatus();
 	for (i = 0; i < MAXPLAYERS; i++)
-		if (players[i].status == S_PLAYING && players[i].arena == arena && i != except)
+		if (players[i].status == S_PLAYING &&
+		    players[i].arena == arena &&
+		    i != except)
 			set[p++] = i;
 	pd->UnlockStatus();
 	set[p] = -1;
@@ -1859,7 +1831,7 @@ void GetStats(struct net_stats *stats)
 		*stats = global_stats;
 }
 
-void GetClientStats(int pid, struct client_stats *stats)
+void GetClientStats(int pid, struct net_client_stats *stats)
 {
 	ClientData *client = clients + pid;
 
@@ -1868,7 +1840,6 @@ void GetClientStats(int pid, struct client_stats *stats)
 #define ASSIGN(field) stats->field = client->field
 	ASSIGN(s2cn); ASSIGN(c2sn);
 	ASSIGN(pktsent); ASSIGN(pktrecvd); ASSIGN(bytesent); ASSIGN(byterecvd);
-	ASSIGN(connecttime);
 #undef ASSIGN
 	/* encryption */
 	if (clients[pid].enc)

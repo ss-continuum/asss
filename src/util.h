@@ -60,6 +60,7 @@ char *astrdup(const char *str);
 void afree(void *ptr);
 
 char *astrncpy(char *dest, const char *source, size_t destlength);
+const char *delimcpy(char *dest, const char *source, size_t destlen, char delim);
 
 int strsplit(const char *big, const char *delims, char *buf, int buflen, const char **ptmp);
 

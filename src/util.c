@@ -147,6 +147,19 @@ char *astrncpy(char *dest, const char *source, size_t n)
 }
 
 
+const char *delimcpy(char *dest, const char *source, size_t destlen, char delim)
+{
+	for ( ; *source && *source != delim; source++)
+		if (destlen > 1)
+		{
+			*dest++ = *source;
+			destlen--;
+		}
+	*dest = '\0';
+	return *source == delim ? source + 1 : NULL;
+}
+
+
 int strsplit(const char *big, const char *delims, char *buf, int buflen, const char **ptmp)
 {
 	const char *tmp = *ptmp;

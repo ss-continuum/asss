@@ -95,7 +95,7 @@ void RunLoop(void)
 
 		/* rest a bit */
 		sched_yield();
-		usleep(10000);
+		usleep(10000); /* 1/100 sec */
 	}
 }
 

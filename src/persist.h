@@ -69,6 +69,7 @@ typedef struct Ipersist
 	void (*UnregPersistantData)(const PersistantData *pd);
 	void (*SyncToFile)(int pid, int arena, void (*callback)(int pid));
 	void (*SyncFromFile)(int pid, int arena, void (*callback)(int pid));
+	void (*EndInterval)(int arena, int interval);
 	void (*StabilizeScores)(int seconds);
 } Ipersist;
 

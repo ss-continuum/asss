@@ -324,18 +324,9 @@ local void LoadFlagSettings(int arena, int init)
 	struct MyArenaData *d = pflagdata + arena;
 	ConfigHandle c = aman->arenas[arena].cfg;
 
+	/* get flag game type, only the first time */
 	if (init)
-	{
-		/* get flag game type, only the first time */
 		d->gametype = cfg->GetInt(c, "Flag", "GameType", FLAGGAME_NONE);
-
-		if (d->gametype)
-			logm->Log(L_INFO, "<flags> {%s} Arena has flaggame %d (%d-%d flags)",
-					aman->arenas[arena].name,
-					d->gametype,
-					d->minflags,
-					d->maxflags);
-	}
 
 	/* and initialize settings for that type */
 	if (d->gametype == FLAGGAME_BASIC)
@@ -399,6 +390,13 @@ local void LoadFlagSettings(int arena, int init)
 			f->y = -1;
 		}
 	}
+
+	if (init && d->gametype)
+		logm->Log(L_INFO, "<flags> {%s} Arena has flaggame %d (%d-%d flags)",
+				aman->arenas[arena].name,
+				d->gametype,
+				d->minflags,
+				d->maxflags);
 }
 
 

@@ -36,6 +36,7 @@ local void BMessage(int, byte *, int);
 local void BSingleMessage(int, byte *, int);
 
 local void PChat(int, byte *, int);
+local void MChat(int, const char *);
 
 local void DefaultCmd(const char *, int, const Target *);
 
@@ -47,6 +48,7 @@ local helptext_t usage_help, userid_help;
 /* global data */
 
 local Inet *net;
+local Ichatnet *chatnet;
 local Imainloop *ml;
 local Ilogman *lm;
 local Iconfig *cfg;
@@ -88,13 +90,14 @@ EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
 		mm = _mm;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		net = mm->GetInterface(I_NET, ALLARENAS);
+		chatnet = mm->GetInterface(I_CHATNET, ALLARENAS);
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 
-		if (!net || !ml || !cfg || !cmd) return MM_FAIL;
+		if (!net || !ml || !cfg || !cmd || !chat) return MM_FAIL;
 
 		players = pd->players;
 
@@ -114,6 +117,7 @@ EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
 
 		/* packets from clients */
 		net->AddPacket(C2S_CHAT, PChat);
+		if (chatnet) chatnet->AddHandler("SEND", MChat);
 
 		cmd->AddCommand(NULL, DefaultCmd, NULL);
 		cmd->AddCommand("userid", Cuserid, userid_help);
@@ -143,10 +147,15 @@ EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
 
 		RemovePacket(0, SendLogin);
 		RemovePacket(B2S_PLAYERDATA, BAuthResponse);
+
+		net->RemovePacket(C2S_CHAT, PChat);
+		if (chatnet) chatnet->RemoveHandler("SEND", MChat);
+
 		ml->ClearTimer(SendPing);
 
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(chatnet);
 		mm->ReleaseInterface(ml);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(cfg);
@@ -232,6 +241,25 @@ void DefaultCmd(const char *cmd, int pid, const Target *target)
 }
 
 
+unsigned int get_ip(int pid)
+{
+	if (IS_STANDARD(pid))
+	{
+		struct net_client_stats stats;
+		net->GetClientStats(pid, &stats);
+		return inet_addr(stats.ipaddr);
+	}
+	else if (IS_CHAT(pid))
+	{
+		struct chat_client_stats stats;
+		chatnet->GetClientStats(pid, &stats);
+		return inet_addr(stats.ipaddr);
+	}
+	else
+		return 0;
+}
+
+
 void BillingAuth(int pid, struct LoginPacket *lp, int lplen,
 		void (*Done)(int, AuthData*))
 {
@@ -245,11 +273,9 @@ void BillingAuth(int pid, struct LoginPacket *lp, int lplen,
 		lp->D1,
 		300, 0
 	};
-	struct client_stats stats;
 	int len;
 
-	net->GetClientStats(pid, &stats);
-	to.ipaddy = inet_addr(stats.ipaddr);
+	to.ipaddy = get_ip(pid);
 
 	if (GetStatus() == BNET_CONNECTED)
 	{
@@ -315,12 +341,8 @@ void BAuthResponse(int bpid, byte *p, int n)
 void BChatMsg(int pid, byte *p, int len)
 {
 	struct B2SChat *from = (struct B2SChat*)p;
-	struct ChatPacket *to = amalloc(len + 6);
-	
-	to->pktype = S2C_CHAT;
-	to->type = MSG_CHAT;
-	sprintf(to->text, "%i:%s", from->channel, from->text);
-	net->SendToOne(from->uid, (byte*)to, len+6, NET_RELIABLE);
+	int set[] = { from->uid, -1 };
+	chat->SendAnyMessage(set, MSG_CHAT, 0, "%i:%s", from->channel, from->text);
 }
 
 
@@ -328,23 +350,18 @@ void BChatMsg(int pid, byte *p, int len)
 void BMessage(int pid, byte *p, int len)
 {
 	struct B2SZoneMessage *from = (struct B2SZoneMessage*)p;
-	struct ChatPacket *to = alloca(len);
 	char *msg = from->text, *t;
-	int targ;
 
 	if (msg[0] == ':')
-	{	/* remote priv message */
+	{
+		/* remote priv message */
 		t = strchr(msg+1, ':');
 		if (!t)
-		{	/* no matching : */
+			/* no matching : */
 			lm->Log(L_MALICIOUS, "<billcore> Malformed remote private message from biller");
-		}
 		else
 		{
 			*t = 0;
-			to->pktype = S2C_CHAT;
-			to->type = MSG_INTERARENAPRIV;
-			strcpy(to->text, t+1);
 			if (msg[1] == '#')
 			{
 				/* squad msg */
@@ -356,101 +373,135 @@ void BMessage(int pid, byte *p, int len)
 						set[setc++] = i;
 				pd->UnlockStatus();
 				set[setc] = -1;
-				net->SendToSet(set, (byte*)to, strlen(t+1)+6, NET_RELIABLE);
+				chat->SendAnyMessage(set, MSG_INTERARENAPRIV, 0, "%s", t+1);
 			}
 			else
 			{
+				int set[] = { -1, -1 };
 				/* normal priv msg */
-				targ = pd->FindPlayer(msg+1);
-				if (targ >= 0)
-					net->SendToOne(targ, (byte*)to, strlen(t+1)+6, NET_RELIABLE);
+				set[0] = pd->FindPlayer(msg+1);
+				if (PID_OK(set[0]))
+					chat->SendAnyMessage(set, MSG_INTERARENAPRIV, 0, "%s", t+1);
 			}
 			*t = ':';
 		}
 	}
 	else
-	{	/* ** or *szone message, send to all */
-		to->pktype = S2C_CHAT;
-		to->type = MSG_ARENA;
-		to->sound = 0;
-		strcpy(to->text, msg);
-		net->SendToAll((byte*)to, strlen(msg)+6, NET_RELIABLE);
-		lm->Log(L_WARN, "<billcore> Broadcast message from biller: '%s'", msg);
+	{
+		/* ** or *szone message, send to all */
+		int set[MAXPLAYERS+1];
+		Target target;
+		target.type = T_ZONE;
+
+		lm->Log(L_WARN, "<billcore> Broadcast message from biller: %s", msg);
+
+		pd->TargetToSet(&target, set);
+		chat->SendSetMessage(set, 0, msg);
 	}
 }
 
 
 void BSingleMessage(int pid, byte *p2, int len)
 {
-	struct S2BCommand *p = (struct S2BCommand*)p2; /* minor hack: reusing struct */
-	struct ChatPacket *to = amalloc(len);
+	struct S2BCommand *p = (struct S2BCommand*)p2;
+	chat->SendMessage(p->pid, p->text);
+}
 
-	to->pktype = S2C_CHAT;
-	to->type = MSG_ARENA;
-	strcpy(to->text, p->text);
-	net->SendToOne(p->pid, (byte*)to, len, NET_RELIABLE);
+
+
+local void handle_chat(int pid, const char *msg)
+{
+	chat_mask_t mask;
+	int len = strlen(msg) + 38;
+	struct S2BChat *to = alloca(len);
+
+	mask = chat ? chat->GetPlayerChatMask(pid) : 0;
+	if (IS_RESTRICTED(mask, MSG_CHAT))
+		return;
+
+	to->type = S2B_CHATMSG;
+	to->pid = pid;
+
+	if (strchr(msg, ';'))
+	{
+		delimcpy(to->channel, msg, 32, ';');
+		len -= strlen(to->channel) + 1; /* don't send bytes after null */
+		strcpy(to->text, strchr(msg, ';')+1);
+	}
+	else
+	{
+		memset(to->channel, 0, 32);
+		strcpy(to->text, msg);
+	}
+
+	SendToBiller((byte*)to, len, NET_RELIABLE);
+}
+
+
+local void handle_priv(int pid, const char *msg)
+{
+	chat_mask_t mask;
+	char *t;
+	int l;
+	struct S2BRemotePriv *to = alloca(strlen(msg) + 46); /* long enough for anything */
+
+	mask = chat ? chat->GetPlayerChatMask(pid) : 0;
+	if (IS_RESTRICTED(mask, MSG_INTERARENAPRIV))
+		return;
+
+	t = strchr(msg+1, ':');
+	if (msg[0] != ':' || !t)
+	{
+		lm->Log(L_MALICIOUS,"<billcore> [%s] Malformed remote private message '%s'", players[pid].name, msg);
+	}
+	else
+	{
+		to->type = S2B_PRIVATEMSG;
+		to->groupid = cfg_groupid;
+		to->unknown1 = 2;
+		*t = 0;
+		l = sprintf(to->text, ":%s:(%s)>%s",
+				msg+1,
+				players[pid].name,
+				t+1);
+		SendToBiller((byte*)to, l+12, NET_RELIABLE);
+		*t = ':';
+	}
 }
 
 
 void PChat(int pid, byte *p, int len)
 {
 	struct ChatPacket *from = (struct ChatPacket *)p;
-	char *t;
-	int l;
-	chat_mask_t mask;
 
 	if (from->type == MSG_CHAT)
-	{
-		struct S2BChat *to = alloca(len+32); /* +32 = diff in packet sizes */
-
-		mask = chat ? chat->GetPlayerChatMask(pid) : 0;
-		if (IS_RESTRICTED(mask, MSG_CHAT))
-			return;
-
-		to->type = S2B_CHATMSG;
-		to->pid = pid;
-
-		if ((t = strchr(from->text, ';')))
-		{
-			*t = 0;
-			len -= strlen(from->text) + 1; /* don't send bytes after null */
-			astrncpy(to->channel, from->text, 32);
-			strcpy(to->text, t+1);
-			*t = ';';
-		}
-		else
-		{
-			strcpy(to->text, from->text);
-		}
-
-		SendToBiller((byte*)to, len+32, NET_RELIABLE);
-	}
+		handle_chat(pid, from->text);
 	else if (from->type == MSG_INTERARENAPRIV)
+		handle_priv(pid, from->text);
+}
+
+
+void MChat(int pid, const char *line)
+{
+	const char *t;
+	char subtype[10];
+
+	t = delimcpy(subtype, line, sizeof(subtype), ':');
+	if (!t) return;
+
+	if (!strcasecmp(subtype, "CHAT"))
 	{
-		struct S2BRemotePriv *to = alloca(len + 40); /* long enough for anything */
-
-		mask = chat ? chat->GetPlayerChatMask(pid) : 0;
-		if (IS_RESTRICTED(mask, MSG_INTERARENAPRIV))
-			return;
-
-		t = strchr(from->text+1, ':');
-		if (from->text[0] != ':' || !t)
-		{
-			lm->Log(L_MALICIOUS,"<billcore> [%s] Malformed remote private message '%s'", players[pid].name, from->text);
-		}
-		else
-		{
-			to->type = S2B_PRIVATEMSG;
-			to->groupid = cfg_groupid;
-			to->unknown1 = 2;
-			*t = 0;
-			l = sprintf(to->text, ":%s:(%s)>%s",
-					from->text+1,
-					players[pid].name,
-					t+1);
-			SendToBiller((byte*)to, l+12, NET_RELIABLE);
-			*t = ':';
-		}
+		handle_chat(pid, t);
+	}
+	else if (!strcasecmp(subtype, "PRIV"))
+	{
+		int i;
+		char name[24];
+		t = delimcpy(name, t, sizeof(name), ':');
+		if (!t) return;
+		i = pd->FindPlayer(name);
+		if (i == -1)
+			handle_priv(pid, t - 1); /* t-1 to grab the initial colon */
 	}
 }
 
@@ -464,13 +515,11 @@ local helptext_t usage_help =
 
 void Cusage(const char *params, int pid, const Target *target)
 {
-	struct client_stats st;
 	int mins, t;
 
 	t = target->type == T_PID ? target->u.pid : pid;
 
-	net->GetClientStats(t, &st);
-	mins = (GTC() - st.connecttime) / 6000;
+	mins = (GTC() - players[t].connecttime) / 6000;
 
 	chat->SendMessage(pid, "usage: %s:", players[t].name);
 	chat->SendMessage(pid, "usage: session: %5d:%02d",

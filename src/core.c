@@ -30,6 +30,7 @@
 
 /* packet funcs */
 local void PLogin(int, byte *, int);
+local void MLogin(int, const char *);
 
 local void AuthDone(int, AuthData *);
 local void GSyncDone(int);
@@ -53,6 +54,7 @@ local Iplayerdata *pd;
 local Imainloop *ml;
 local Iconfig *cfg;
 local Inet *net;
+local Ichatnet *chatnet;
 local Ilogman *lm;
 local Imapnewsdl *map;
 local Iarenaman *aman;
@@ -79,6 +81,7 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 		mm = mm_;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		net = mm->GetInterface(I_NET, ALLARENAS);
+		chatnet = mm->GetInterface(I_CHATNET, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
@@ -88,11 +91,17 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 
 		players = pd->players;
 
-		if (!pd || !lm || !cfg || !map || !aman || !net || !ml) return MM_FAIL;
+		if (!pd || !lm || !cfg || !map || !aman || !ml) return MM_FAIL;
 
 		/* set up callbacks */
-		net->AddPacket(C2S_LOGIN, PLogin);
-		net->AddPacket(C2S_CONTLOGIN, PLogin);
+		if (net)
+		{
+			net->AddPacket(C2S_LOGIN, PLogin);
+			net->AddPacket(C2S_CONTLOGIN, PLogin);
+		}
+		if (chatnet)
+			chatnet->AddHandler("LOGIN", MLogin);
+
 		mm->RegCallback(CB_MAINLOOP, ProcessLoginQueue, ALLARENAS);
 
 		/* register default interfaces which may be replaced later */
@@ -118,10 +127,16 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 		if (mm->UnregInterface(&_iauth, ALLARENAS))
 			return MM_FAIL;
 		mm->UnregCallback(CB_MAINLOOP, ProcessLoginQueue, ALLARENAS);
-		net->RemovePacket(C2S_LOGIN, PLogin);
-		net->RemovePacket(C2S_CONTLOGIN, PLogin);
+		if (net)
+		{
+			net->RemovePacket(C2S_LOGIN, PLogin);
+			net->RemovePacket(C2S_CONTLOGIN, PLogin);
+		}
+		if (chatnet)
+			chatnet->RemoveHandler("LOGIN", MLogin);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(chatnet);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(ml);
@@ -329,7 +344,7 @@ void PLogin(int pid, byte *p, int l)
 	int type = players[pid].type;
 
 	if (type != T_VIE && type != T_CONT)
-		lm->Log(L_MALICIOUS,"<core> [pid=%d] Login packet from wrong client type (%d)",
+		lm->Log(L_MALICIOUS, "<core> [pid=%d] Login packet from wrong client type (%d)",
 				pid, type);
 #ifdef CFG_RELAX_LENGTH_CHECKS
 	else if (l != LEN_LOGINPACKET_VIE && l != LEN_LOGINPACKET_CONT)
@@ -337,26 +352,67 @@ void PLogin(int pid, byte *p, int l)
 	else if ( (type == T_VIE && l != LEN_LOGINPACKET_VIE) ||
 	          (type == T_CONT && l != LEN_LOGINPACKET_CONT) )
 #endif
-		lm->Log(L_MALICIOUS,"<core> [pid=%d] Bad login packet length (%d)", pid, l);
+		lm->Log(L_MALICIOUS, "<core> [pid=%d] Bad login packet length (%d)", pid, l);
 	else if (players[pid].status != S_CONNECTED)
-		lm->Log(L_MALICIOUS,"<core> [pid=%d] Login request from wrong stage: %d", pid, players[pid].status);
+		lm->Log(L_MALICIOUS, "<core> [pid=%d] Login request from wrong stage: %d", pid, players[pid].status);
 	else
 	{
 		struct LoginPacket *pkt = (struct LoginPacket*)p;
-		int oldpid = pd->FindPlayer(pkt->name);
+		int oldpid = pd->FindPlayer(pkt->name), c;
 
 		if (oldpid != -1 && oldpid != pid)
 		{
 			lm->Log(L_DRIVEL,"<core> [%s] Player already on, kicking him off "
 					"(pid %d replacing %d)",
 					pkt->name, pid, oldpid);
-			net->DropClient(oldpid);
+			pd->KickPlayer(oldpid);
 		}
 
+		/* copy into storage for use by authenticator */
 		memcpy(bigloginpkt + pid, p, l);
+		/* replace colons with underscores */
+		for (c = 0; c < sizeof(bigloginpkt->name); c++)
+			if (bigloginpkt[pid].name[c] == ':')
+				bigloginpkt[pid].name[c] = '_';
+		/* set up status */
 		players[pid].status = S_NEED_AUTH;
-		lm->Log(L_DRIVEL,"<core> [pid=%d] Login request: \"%s\"", pid, pkt->name);
+		lm->Log(L_DRIVEL, "<core> [pid=%d] Login request: '%s'", pid, pkt->name);
 	}
+}
+
+
+void MLogin(int pid, const char *line)
+{
+	const char *t;
+	char vers[16];
+	struct LoginPacket pkt;
+	int oldpid;
+
+	memset(&pkt, 0, sizeof(pkt));
+
+	/* extract fields */
+	t = delimcpy(vers, line, 16, ':');
+	if (!t) return;
+	pkt.cversion = atoi(vers);
+	t = delimcpy(pkt.name, t, sizeof(pkt.name), ':');
+	if (!t) return;
+	astrncpy(pkt.password, t, sizeof(pkt.password));
+
+	oldpid = pd->FindPlayer(pkt.name);
+
+	if (oldpid != -1 && oldpid != pid)
+	{
+		lm->Log(L_DRIVEL,"<core> [%s] Player already on, kicking him off "
+				"(pid %d replacing %d)",
+				pkt.name, pid, oldpid);
+		pd->KickPlayer(oldpid);
+	}
+
+	/* copy into storage for use by authenticator */
+	memcpy(bigloginpkt + pid, &pkt, sizeof(pkt));
+	/* set up status */
+	players[pid].status = S_NEED_AUTH;
+	lm->Log(L_DRIVEL, "<core> [pid=%d] Login request: '%s'", pid, pkt.name);
 }
 
 
@@ -373,7 +429,7 @@ void AuthDone(int pid, AuthData *auth)
 	/* copy the authdata */
 	memcpy(bigauthdata + pid, auth, sizeof(AuthData));
 
-	if (auth->code == AUTH_OK)
+	if (AUTH_IS_OK(auth->code))
 	{
 		/* login suceeded */
 		/* also copy to player struct */
@@ -422,27 +478,63 @@ void ASyncDone(int pid)
 }
 
 
+local const char *get_auth_code_msg(int code)
+{
+	switch (code)
+	{
+		case AUTH_OK: return "ok";
+		case AUTH_UNKNOWN: return "unknown name";
+		case AUTH_BADPASSWORD: return "incorrect password";
+		case AUTH_ARENAFULL: return "arena full";
+		case AUTH_LOCKEDOUT: return "you have been locked out";
+		case AUTH_NOPERMISSION: return "no permission";
+		case AUTH_SPECONLY: return "you can spec only";
+		case AUTH_TOOMANYPOINTS: return "you have too many points";
+		case AUTH_TOOSLOW: return "too slow (?)";
+		case AUTH_NOPERMISSION2: return "no permission (2)";
+		case AUTH_NONEWCONN: return "the server is not accepting new connections";
+		case AUTH_BADNAME: return "bad player name";
+		case AUTH_OFFENSIVENAME: return "offensive player name";
+		case AUTH_NOSCORES: return "the server is not recordng scores";
+		case AUTH_SERVERBUSY: return "the server is busy";
+		case AUTH_EXPONLY: return "???";
+		case AUTH_ISDEMO: return "???";
+		case AUTH_TOOMANYDEMO: return "too many demo players";
+		case AUTH_NODEMO: return "no demo players allowed";
+		default: return "???";
+	}
+}
+
+
 void SendLoginResponse(int pid)
 {
-	struct LoginResponse lr =
-		{ S2C_LOGINRESPONSE, 0, 134, 0, EXECHECKSUM, {0, 0},
-			0, 0x281CC948, 0, {0, 0, 0, 0, 0, 0, 0, 0} };
-	AuthData *auth;
+	AuthData *auth = bigauthdata + pid;
 
-	auth = bigauthdata + pid;
-
-	lr.code = auth->code;
-	lr.demodata = auth->demodata;
-	lr.newschecksum = map->GetNewsChecksum();
-
-	if (capman && capman->HasCapability(pid, "seeprivfreq"))
+	if (IS_STANDARD(pid))
 	{
-		/* to make the client think it's a mod, set these checksums to -1 */
-		lr.exechecksum = -1;
-		lr.blah3 = -1;
-	}
+		struct LoginResponse lr =
+			{ S2C_LOGINRESPONSE, 0, 134, 0, EXECHECKSUM, {0, 0},
+				0, 0x281CC948, 0, {0, 0, 0, 0, 0, 0, 0, 0} };
+		lr.code = auth->code;
+		lr.demodata = auth->demodata;
+		lr.newschecksum = map->GetNewsChecksum();
 
-	net->SendToOne(pid, (char*)&lr, sizeof(lr), NET_RELIABLE);
+		if (capman && capman->HasCapability(pid, "seeprivfreq"))
+		{
+			/* to make the client think it's a mod, set these checksums to -1 */
+			lr.exechecksum = -1;
+			lr.blah3 = -1;
+		}
+
+		net->SendToOne(pid, (char*)&lr, sizeof(lr), NET_RELIABLE);
+	}
+	else if (IS_CHAT(pid))
+	{
+		if (AUTH_IS_OK(auth->code))
+			chatnet->SendToOne(pid, "LOGINOK:%s", players[pid].name);
+		else
+			chatnet->SendToOne(pid, "LOGINBAD:%s", get_auth_code_msg(auth->code));
+	}
 }
 
 
@@ -464,7 +556,8 @@ void DefaultAuth(int pid, struct LoginPacket *p, int lplen,
 int SendKeepalive(void *q)
 {
 	byte keepalive = S2C_KEEPALIVE;
-	net->SendToAll(&keepalive, 1, NET_UNRELIABLE);
+	if (net)
+		net->SendToAll(&keepalive, 1, NET_UNRELIABLE);
 	return 1;
 }
 

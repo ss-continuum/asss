@@ -55,6 +55,10 @@ enum
 	/* simple chat client */
 };
 
+/* macros for testing types */
+#define IS_STANDARD(pid) (pd->players[(pid)].type == T_VIE || pd->players[(pid)].type == T_CONT)
+#define IS_CHAT(pid) (pd->players[(pid)].type == T_CHAT)
+
 
 /* player status codes */
 
@@ -130,25 +134,28 @@ enum
 
 
 /* authentication return codes */
-#define AUTH_OK             0x00
-#define AUTH_UNKNOWN        0x01
-#define AUTH_BADPASSWORD    0x02
-#define AUTH_ARENAFULL      0x03
-#define AUTH_LOCKEDOUT      0x04
-#define AUTH_NOPERMISSION   0x05
-#define AUTH_SPECONLY       0x06
-#define AUTH_TOOMANYPOINTS  0x07
-#define AUTH_TOOSLOW        0x08
-#define AUTH_NOPERMISSION2  0x09
-#define AUTH_NONEWCONN      0x0A
-#define AUTH_BADNAME        0x0B
-#define AUTH_OFFENSIVENAME  0x0C
-#define AUTH_NOSCORES       0x0D
-#define AUTH_SERVERBUSY     0x0E
-#define AUTH_EXPONLY        0x0F
-#define AUTH_ISDEMO         0x10
-#define AUTH_TOOMANYDEMO    0x11
-#define AUTH_NODEMO         0x12
+#define AUTH_OK             0x00   /* success */
+#define AUTH_UNKNOWN        0x01   /* fail */
+#define AUTH_BADPASSWORD    0x02   /* fail */
+#define AUTH_ARENAFULL      0x03   /* fail */
+#define AUTH_LOCKEDOUT      0x04   /* fail */
+#define AUTH_NOPERMISSION   0x05   /* fail */
+#define AUTH_SPECONLY       0x06   /* success */
+#define AUTH_TOOMANYPOINTS  0x07   /* fail */
+#define AUTH_TOOSLOW        0x08   /* fail */
+#define AUTH_NOPERMISSION2  0x09   /* fail */
+#define AUTH_NONEWCONN      0x0A   /* fail */
+#define AUTH_BADNAME        0x0B   /* fail */
+#define AUTH_OFFENSIVENAME  0x0C   /* fail */
+#define AUTH_NOSCORES       0x0D   /* success */
+#define AUTH_SERVERBUSY     0x0E   /* fail */
+#define AUTH_EXPONLY        0x0F   /* ??? */
+#define AUTH_ISDEMO         0x10   /* ??? */
+#define AUTH_TOOMANYDEMO    0x11   /* fail */
+#define AUTH_NODEMO         0x12   /* ??? */
+
+#define AUTH_IS_OK(a) \
+	((a) == AUTH_OK || (a) == AUTH_SPECONLY || (a) == AUTH_NOSCORES)
 
 
 /* weapon codes */

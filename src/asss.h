@@ -29,6 +29,7 @@
 #include "filetrans.h"
 #include "objects.h"
 #include "watchdamage.h"
+#include "chatnet.h"
 
 /* utility functions that are linked in directly */
 #include "util.h"

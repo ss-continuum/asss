@@ -31,14 +31,15 @@ local int ReapArenas(void *);
 local void ProcessArenaQueue(void);
 
 /* arena management funcs */
-local int FindArena(char *, int, int);
-local int CreateArena(char *);
 local void LockStatus(void);
 local void UnlockStatus(void);
 
 local void PArena(int, byte *, int);
+local void MArena(int, const char *);
 local void PLeaving(int, byte *, int);
+local void MLeaving(int, const char *);
 
+local void LeaveArena(int);
 local void SendArenaResponse(int);
 
 
@@ -48,6 +49,7 @@ local Imainloop *ml;
 local Iplayerdata *pd;
 local Iconfig *cfg;
 local Inet *net;
+local Ichatnet *chatnet;
 local Imodman *mm;
 local Ilogman *lm;
 
@@ -61,7 +63,7 @@ local pthread_mutex_t arenastatusmtx;
 local Iarenaman _int =
 {
 	INTERFACE_HEAD_INIT(I_ARENAMAN, "arenaman")
-	SendArenaResponse, LockStatus, UnlockStatus, arenas
+	SendArenaResponse, LeaveArena, LockStatus, UnlockStatus, arenas
 };
 
 
@@ -76,10 +78,11 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, int arena)
 		mm = mm_;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		net = mm->GetInterface(I_NET, ALLARENAS);
+		chatnet = mm->GetInterface(I_CHATNET, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
-		if (!pd || !net || !lm || !cfg || !ml) return MM_FAIL;
+		if (!pd || !lm || !cfg || !ml) return MM_FAIL;
 
 		players = pd->players;
 
@@ -92,8 +95,17 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, int arena)
 
 		mm->RegCallback(CB_MAINLOOP, ProcessArenaQueue, ALLARENAS);
 
-		net->AddPacket(C2S_GOTOARENA, PArena);
-		net->AddPacket(C2S_LEAVING, PLeaving);
+		if (net)
+		{
+			net->AddPacket(C2S_GOTOARENA, PArena);
+			net->AddPacket(C2S_LEAVING, PLeaving);
+		}
+		if (chatnet)
+		{
+			chatnet->AddHandler("GO", MArena);
+			chatnet->AddHandler("LEAVE", MLeaving);
+		}
+
 
 		ml->SetTimer(ReapArenas, 1000, 1500, NULL);
 
@@ -104,12 +116,21 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, int arena)
 	{
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
-		net->RemovePacket(C2S_GOTOARENA, PArena);
-		net->RemovePacket(C2S_LEAVING, PLeaving);
+		if (net)
+		{
+			net->RemovePacket(C2S_GOTOARENA, PArena);
+			net->RemovePacket(C2S_LEAVING, PLeaving);
+		}
+		if (chatnet)
+		{
+			chatnet->RemoveHandler("GO", MArena);
+			chatnet->RemoveHandler("LEAVE", MLeaving);
+		}
 		mm->UnregCallback(CB_MAINLOOP, ProcessArenaQueue, ALLARENAS);
 		ml->ClearTimer(ReapArenas);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
+		mm->ReleaseInterface(chatnet);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(ml);
@@ -241,7 +262,7 @@ void ProcessArenaQueue(void)
 }
 
 
-int CreateArena(char *name)
+local int CreateArena(const char *name)
 {
 	int i = 0;
 
@@ -267,6 +288,18 @@ int CreateArena(char *name)
 }
 
 
+local inline void send_enter(int pid, int to, int already)
+{
+	if (IS_STANDARD(to))
+		net->SendToOne(to, (byte*)(players+pid), 64, NET_RELIABLE);
+	else if (IS_CHAT(to))
+		chatnet->SendToOne(to, "%s:%s:%d:%d",
+				already ? "PLAYER" : "ENTERING",
+				players[pid].name,
+				players[pid].shiptype,
+				players[pid].freq);
+}
+
 void SendArenaResponse(int pid)
 {
 	/* LOCK: maybe should lock more in here? */
@@ -287,60 +320,68 @@ void SendArenaResponse(int pid)
 	lm->Log(L_INFO, "<arenaman> {%s} [%s] entering arena",
 				arenas[arena].name, p->name);
 
-	/* send whoami packet */
-	whoami.d1 = pid;
-	net->SendToOne(pid, (byte*)&whoami, 3, NET_RELIABLE);
-
-	/* send settings */
+	if (IS_STANDARD(pid))
 	{
-		Iclientset *clientset = mm->GetInterface(I_CLIENTSET, arena);
-		if (clientset)
-			clientset->SendClientSettings(pid);
+		/* send whoami packet */
+		whoami.d1 = pid;
+		net->SendToOne(pid, (byte*)&whoami, 3, NET_RELIABLE);
+
+		/* send settings */
+		{
+			Iclientset *clientset = mm->GetInterface(I_CLIENTSET, arena);
+			if (clientset)
+				clientset->SendClientSettings(pid);
+		}
+	}
+	else if (IS_CHAT(pid))
+	{
+		chatnet->SendToOne(pid, "INARENA:%s:%d",
+				arenas[arena].name,
+				players[pid].freq);
 	}
 
-	/* send player list */
-	/* note: the current player's status should be S_SEND_ARENA_RESPONSE
-	 * at this point */
-
-	/* send info to himself first */
 	pd->LockStatus();
 	for (i = 0; i < MAXPLAYERS; i++)
 	{
 		if (players[i].status == S_PLAYING &&
-				players[i].arena == arena &&
-				i != pid )
+		    players[i].arena == arena &&
+		    i != pid )
 		{
 			/* send each other info */
-			net->SendToOne(pid, (byte*)(players+i), 64, NET_RELIABLE);
-			net->SendToOne(i, (byte*)(players+pid), 64, NET_RELIABLE);
+			send_enter(i, pid, 1);
+			send_enter(pid, i, 0);
 		}
 	}
-	net->SendToOne(pid, (byte*)(players+pid), 64, NET_RELIABLE);
 	pd->UnlockStatus();
 
-	/* send mapfilename */
+	if (IS_STANDARD(pid))
 	{
+		/* send mapfilename */
 		Imapnewsdl *map = mm->GetInterface(I_MAPNEWSDL, arena);
-		if (map)
-			map->SendMapFilename(pid);
-	}
 
-	/* send brick clear and finisher */
-	whoami.type = S2C_BRICK;
-	net->SendToOne(pid, (byte*)&whoami, 1, NET_RELIABLE);
-	whoami.type = S2C_ENTERINGARENA;
-	net->SendToOne(pid, (byte*)&whoami, 1, NET_RELIABLE);
+		/* send to himself */
+		net->SendToOne(pid, (byte*)(players+pid), 64, NET_RELIABLE);
+
+		if (map) map->SendMapFilename(pid);
+		mm->ReleaseInterface(map);
+
+		/* send brick clear and finisher */
+		whoami.type = S2C_BRICK;
+		net->SendToOne(pid, (byte*)&whoami, 1, NET_RELIABLE);
+		whoami.type = S2C_ENTERINGARENA;
+		net->SendToOne(pid, (byte*)&whoami, 1, NET_RELIABLE);
+	}
 }
 
 
-int FindArena(char *name, int min, int max)
+local int FindArena(const char *name, int min, int max)
 {
 	int i;
 	LOCK_STATUS();
 	for (i = 0; i < MAXARENA; i++)
-		if (    arenas[i].status >= min
-		     && arenas[i].status <= max
-		     && !strcmp(arenas[i].name, name) )
+		if (arenas[i].status >= min &&
+		    arenas[i].status <= max &&
+		    !strcmp(arenas[i].name, name) )
 		{
 			UNLOCK_STATUS();
 			return i;
@@ -349,25 +390,67 @@ int FindArena(char *name, int min, int max)
 	return -1;
 }
 
-void PArena(int pid, byte *p, int l)
-{
-	/* status should be S_LOGGEDIN at this point */
-	struct GoArenaPacket *go;
-	char name[16];
-	int arena, type;
 
-	/* check for bad packets */
-	type = players[pid].type;
-	if (type != T_VIE && type != T_CONT)
+local void complete_go(int pid, const char *name, int ship, int xres, int yres, int gfx)
+{
+	/* status should be S_LOGGEDIN or S_PLAYING at this point */
+	int arena;
+
+	if (players[pid].status != S_LOGGEDIN && players[pid].status != S_PLAYING)
 	{
-		lm->Log(L_MALICIOUS,"<arenaman> [%s] Arena packet from wrong client type (%d)",
-				players[pid].name, type);
+		lm->Log(L_MALICIOUS, "<arenaman> [pid=%d] Sent arena request from bad status (%d)",
+				pid, players[pid].status);
 		return;
 	}
+
+	if (players[pid].arena != -1)
+		LeaveArena(pid);
+
+	LOCK_STATUS();
+
+	/* try to locate an existing arena */
+	arena = FindArena(name, ARENA_DO_LOAD_CONFIG, ARENA_RUNNING);
+
+	if (arena == -1)
+	{
+		lm->Log(L_INFO, "<arenaman> {%s} Creating arena", name);
+		arena = CreateArena(name);
+		if (arena == -1)
+		{
+			/* if it fails, dump in first available */
+			arena = 0;
+			while (arenas[arena].status != ARENA_RUNNING && arena < MAXARENA) arena++;
+			if (arena == MAXARENA)
+			{
+				lm->Log(L_ERROR, "<arenaman> Internal error: no running arenas but cannot create new one");
+				UNLOCK_STATUS();
+				return;
+			}
+		}
+	}
+
+	/* set up player info */
+	players[pid].arena = arena;
+	players[pid].shiptype = ship;
+	players[pid].xres = xres;
+	players[pid].yres = yres;
+	gfx ? SET_ALL_LVZ(pid) : UNSET_ALL_LVZ(pid);
+
+	/* don't mess with player status yet, let him stay in S_LOGGEDIN.
+	 * it will be incremented when the arena is ready. */
+	UNLOCK_STATUS();
+}
+
+
+void PArena(int pid, byte *p, int l)
+{
+	struct GoArenaPacket *go;
+	char name[16];
 
 #ifdef CFG_RELAX_LENGTH_CHECKS
 	if (l != LEN_GOARENAPACKET_VIE && l != LEN_GOARENAPACKET_CONT)
 #else
+	int type = players[pid].type;
 	if ( (type == T_VIE && l != LEN_GOARENAPACKET_VIE) ||
 	          (type == T_CONT && l != LEN_GOARENAPACKET_CONT) )
 #endif
@@ -375,18 +458,6 @@ void PArena(int pid, byte *p, int l)
 		lm->Log(L_MALICIOUS,"<arenaman> [%s] Bad arena packet length (%d)",
 				players[pid].name, l);
 		return;
-	}
-
-	if (players[pid].arena != -1)
-	{
-#if 0
-		lm->Log(L_MALICIOUS, "<arenaman> [%s] Recvd arena request from player already in an arena", players[pid].name);
-		return;
-#endif
-		/* stupid cont doesn't send leaving packet...
-		 * fake it, and make sure not to set oldarena below, or the old
-		 * stuff won't get set right. */
-		PLeaving(pid, NULL, 0);
 	}
 
 	go = (struct GoArenaPacket*)p;
@@ -425,49 +496,20 @@ void PArena(int pid, byte *p, int l)
 		return;
 	}
 
-	LOCK_STATUS();
-
-	/* try to locate an existing arena */
-	arena = FindArena(name, ARENA_DO_LOAD_CONFIG, ARENA_RUNNING);
-
-	if (arena == -1)
-	{
-		lm->Log(L_INFO, "<arenaman> {%s} Creating arena", name);
-		arena = CreateArena(name);
-		if (arena == -1)
-		{
-			/* if it fails, dump in first available */
-			arena = 0;
-			while (arenas[arena].status != ARENA_RUNNING && arena < MAXARENA) arena++;
-			if (arena == MAXARENA)
-			{
-				lm->Log(L_ERROR, "<arenaman> Internal error: no running arenas but cannot create new one");
-				UNLOCK_STATUS();
-				return;
-			}
-		}
-	}
-
-	/* set up player info */
-	players[pid].arena = arena;
-	players[pid].shiptype = go->shiptype;
-	players[pid].xres = go->xres;
-	players[pid].yres = go->yres;
-	if (l >= LEN_GOARENAPACKET_CONT)
-		go->optionalgraphics ? SET_ALL_LVZ(pid) : UNSET_ALL_LVZ(pid);
-
-	/* don't mess with player status yet, let him stay in S_LOGGEDIN.
-	 * it will be incremented when the arena is ready. */
-	UNLOCK_STATUS();
+	complete_go(pid, name, go->shiptype, go->xres, go->yres, go->optionalgraphics);
 }
 
 
-void PLeaving(int pid, byte *p, int q)
+void MArena(int pid, const char *line)
+{
+	complete_go(pid, line[0] ? line : "0", SPEC, 0, 0, 0);
+}
+
+
+void LeaveArena(int pid)
 {
 	int arena;
-	struct SimplePacket pk = { S2C_PLAYERLEAVING };
-
-	pk.d1 = pid;
+	struct SimplePacket pk = { S2C_PLAYERLEAVING, pid };
 
 	pd->LockStatus();
 
@@ -486,9 +528,21 @@ void PLeaving(int pid, byte *p, int q)
 
 	pd->UnlockStatus();
 
-	net->SendToArena(arena, pid, (byte*)&pk, 3, NET_RELIABLE);
+	if (net) net->SendToArena(arena, pid, (byte*)&pk, 3, NET_RELIABLE);
+	if (chatnet) chatnet->SendToArena(arena, pid, "LEAVING:%s", players[pid].name);
 	lm->Log(L_INFO, "<arenaman> {%s} [%s] Player leaving arena",
 			arenas[arena].name, players[pid].name);
+}
+
+
+void PLeaving(int pid, byte *p, int q)
+{
+	LeaveArena(pid);
+}
+
+void MLeaving(int pid, const char *l)
+{
+	LeaveArena(pid);
 }
 
 
@@ -504,8 +558,8 @@ int ReapArenas(void *q)
 		if (arenas[i].status == ARENA_RUNNING)
 		{
 			for (j = 0; j < MAXPLAYERS; j++)
-				if (	players[j].status != S_FREE &&
-						players[j].arena == i)
+				if (players[j].status != S_FREE &&
+				    players[j].arena == i)
 					goto skip;
 
 			lm->Log(L_DRIVEL, "<arenaman> {%s} Arena being destroyed (id=%d)",

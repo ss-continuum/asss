@@ -107,14 +107,14 @@ struct net_stats
 	unsigned int pri_stats[8];
 };
 
-struct client_stats
+struct net_client_stats
 {
 	/* sequence numbers */
 	int s2cn, c2sn;
 	/* counts of stuff sent and recvd */
 	unsigned int pktsent, pktrecvd, bytesent, byterecvd;
-	/* encryption type, connect time, and bandwidth limit */
-	unsigned int connecttime, limit;
+	/* encryption type and bandwidth limit */
+	unsigned int limit;
 	const char *encname;
 	/* ip info */
 	char ipaddr[16];
@@ -156,7 +156,7 @@ typedef struct Inet
 	void (*SetLimit)(int pid, int limit);
 
 	void (*GetStats)(struct net_stats *stats);
-	void (*GetClientStats)(int pid, struct client_stats *stats);
+	void (*GetClientStats)(int pid, struct net_client_stats *stats);
 } Inet;
 
 

@@ -66,6 +66,8 @@ typedef struct Iarenaman
 
 	void (*SendArenaResponse)(int pid);
 	/* arpc: void(int) */
+	void (*LeaveArena)(int pid);
+	/* arpc: void(int) */
 	void (*LockStatus)(void);
 	/* arpc: void(void) noop */
 	void (*UnlockStatus)(void);

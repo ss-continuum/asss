@@ -21,14 +21,23 @@ typedef struct Iplayerdata
 	PlayerData *players;
 	/* arpc: null */
 
+	int (*NewPlayer)(int type);
+	/* arpc: null */
+	void (*FreePlayer)(int pid);
+	/* arpc: null */
+	void (*KickPlayer)(int pid);
+	/* arpc: void(int) */
+
 	void (*LockPlayer)(int pid);
 	/* arpc: void(int) noop */
 	void (*UnlockPlayer)(int pid);
 	/* arpc: void(int) noop */
+
 	void (*LockStatus)(void);
 	/* arpc: void(void) noop */
 	void (*UnlockStatus)(void);
 	/* arpc: void(void) noop */
+
 	int (*FindPlayer)(const char *name);
 	/* arpc: int(string) */
 

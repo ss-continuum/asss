@@ -70,8 +70,7 @@ local void Cdropturret(const char *params, int pid, const Target *target)
 			"<autoturret>",
 			pd->players[pid].arena,
 			WARBIRD,
-			pd->players[pid].freq,
-			NULL);
+			pd->players[pid].freq);
 	new_turret(tpid, 1500, 150, pid);
 }
 
@@ -114,7 +113,9 @@ local void mlfunc()
 			td->pos.time = now;
 			td->pos.weapon.type = td->weapon;
 			checksum(&td->pos, 22);
-			fake->ProcessPacket(td->pid, (byte*)&td->pos, 22);
+			/* FIXME: do this the right way
+			 * fake->ProcessPacket(td->pid, (byte*)&td->pos, 22);
+			 */
 		}
 		else if (now > td->tosend)
 		{
@@ -123,7 +124,9 @@ local void mlfunc()
 			td->pos.time = now;
 			td->pos.weapon.type = 0;
 			checksum(&td->pos, 22);
-			fake->ProcessPacket(td->pid, (byte*)&td->pos, 22);
+			/* FIXME
+			 * fake->ProcessPacket(td->pid, (byte*)&td->pos, 22);
+			 */
 		}
 	}
 	pthread_mutex_unlock(&turret_mtx);

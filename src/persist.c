@@ -22,11 +22,12 @@
 
 typedef enum db_command
 {
-	DB_NULL,
-	DB_GET,
-	DB_PUT,
-	DB_SYNCWAIT,
-	DB_PUTALL
+	DBCMD_NULL,
+	DBCMD_GET,
+	DBCMD_PUT,
+	DBCMD_SYNCWAIT,
+	DBCMD_PUTALL,
+	DBCMD_ENDINTERVAL
 } db_command;
 
 /* structs */
@@ -34,7 +35,7 @@ typedef enum db_command
 typedef struct DBMessage
 {
 	db_command command;
-	int pid, data;
+	int data1, data2;
 	void (*callback)(int pid);
 } DBMessage;
 
@@ -77,16 +78,39 @@ local inline int good_arena(int scope, int arena)
 }
 
 
-local void fill_in_sg(struct player_record_key *key, int arena)
+local void fill_in_ag(char buf[16], int arena, int interval)
 {
 	if (arena == PERSIST_GLOBAL)
-		strncpy(key->arenagrp, SG_GLOBAL, sizeof(key->arenagrp));
-	else if (INTERVAL_IS_SHARED(key->interval))
-		strncpy(key->arenagrp, arena_data[arena].score_group, sizeof(key->arenagrp));
+		strncpy(buf, SG_GLOBAL, sizeof(buf));
+	else if (INTERVAL_IS_SHARED(interval))
+		strncpy(buf, arena_data[arena].score_group, sizeof(buf));
 	else
-		strncpy(key->arenagrp, arena_data[arena].name, sizeof(key->arenagrp));
+		strncpy(buf, arena_data[arena].name, sizeof(buf));
 }
 
+
+local void put_serialno(const char *sg, int interval, unsigned int serialno)
+{
+	struct current_serial_record_key curr;
+	int err;
+	DBT key, val;
+
+	memset(&curr, 0, sizeof(curr));
+	strncpy(curr.arenagrp, sg, sizeof(curr.arenagrp));
+	curr.interval = interval;
+
+	memset(&key, 0, sizeof(key));
+	key.data = &curr;
+	key.size = sizeof(curr);
+	memset(&val, 0, sizeof(val));
+	val.data = &serialno;
+	val.size = sizeof(serialno);
+
+	err = db->put(db, NULL, &key, &val, 0);
+	if (err)
+		lm->Log(L_WARN, "<persist> db->put error (1): %s",
+				db_strerror(err));
+}
 
 local unsigned int get_serialno(const char *sg, int interval)
 {
@@ -96,7 +120,6 @@ local unsigned int get_serialno(const char *sg, int interval)
 	unsigned int serialno = 0;
 
 	memset(&curr, 0, sizeof(curr));
-
 	strncpy(curr.arenagrp, sg, sizeof(curr.arenagrp));
 	curr.interval = interval;
 
@@ -117,16 +140,8 @@ local unsigned int get_serialno(const char *sg, int interval)
 		lm->Log(L_INFO, "<persist> Initializing serial number for "
 				"interval %s, arenagrp %s to zero",
 				get_interval_name(interval), sg);
+		put_serialno(sg, interval, 0);
 		serialno = 0;
-
-		key.data = &curr;
-		key.size = sizeof(curr);
-		val.data = &serialno;
-		val.size = sizeof(serialno);
-		err = db->put(db, NULL, &key, &val, 0);
-		if (err)
-			lm->Log(L_WARN, "<persist> db->put error (1): %s",
-					db_strerror(err));
 	}
 	else if (err)
 		lm->Log(L_WARN, "<persist> db->get error (1): %s",
@@ -139,7 +154,7 @@ local unsigned int get_serialno(const char *sg, int interval)
 local void fill_in_record(struct player_record_key *key, int arena, int interval)
 {
 	key->interval = interval;
-	fill_in_sg(key, arena);
+	fill_in_ag(key->arenagrp, arena, interval);
 	key->serialno = get_serialno(key->arenagrp, interval);
 }
 
@@ -259,7 +274,58 @@ local void DoGet(int pid, int arena)
 }
 
 
-void *DBThread(void *dummy)
+local void DoEnd(int arena, int interval)
+{
+	unsigned int serialno;
+	char ag[16];
+	Link *l;
+	int statmin, statmax;
+
+	/* increment the serial number for this interval */
+	fill_in_ag(ag, arena, interval);
+	serialno = get_serialno(ag, interval);
+	serialno++;
+	put_serialno(ag, interval, serialno);
+
+	/* figure out when to clear data */
+	if (arena == PERSIST_GLOBAL)
+	{
+		/* global data is loaded during S_WAIT_GLOBAL_SYNC, so we want to
+		 * perform the clearing if the player is after that. */
+		statmin = S_WAIT_GLOBAL_SYNC;
+		/* it's saved during S_LEAVING_ZONE, so perform the clear if the
+		 * player is before that. */
+		statmax = S_LEAVING_ZONE;
+	}
+	else
+	{
+		/* similar to above */
+		statmin = S_WAIT_ARENA_SYNC;
+		statmax = S_LEAVING_ARENA;
+	}
+
+	/* now clear all data for this arena/interval */
+	for (l = LLGetHead(&ddlist); l; l = l->next)
+	{
+		PersistantData *data = (PersistantData*)l->data;
+		if (good_arena(data->scope, arena))
+		{
+			int pid;
+			for (pid = 0; pid < MAXPLAYERS; pid++)
+			{
+				pd->LockPlayer(pid);
+				if (pd->players[pid].status > statmin &&
+				    pd->players[pid].status < statmax &&
+				    (arena == PERSIST_GLOBAL || pd->players[arena].arena == arena))
+					data->ClearData(pid);
+				pd->UnlockPlayer(pid);
+			}
+		}
+	}
+}
+
+
+local void *DBThread(void *dummy)
 {
 	DBMessage *msg;
 	int i;
@@ -275,13 +341,13 @@ void *DBThread(void *dummy)
 		/* and do something with it */
 		switch (msg->command)
 		{
-			case DB_NULL: break;
+			case DBCMD_NULL: break;
 
-			case DB_GET: DoGet(msg->pid, msg->data); break;
+			case DBCMD_GET: DoGet(msg->data1, msg->data2); break;
 
-			case DB_PUT: DoPut(msg->pid, msg->data); break;
+			case DBCMD_PUT: DoPut(msg->data1, msg->data2); break;
 
-			case DB_PUTALL:
+			case DBCMD_PUTALL:
 				/* try to sync all players */
 				for (i = 0; i < MAXPLAYERS; i++)
 				{
@@ -304,19 +370,21 @@ void *DBThread(void *dummy)
 				}
 				break;
 
-			case DB_SYNCWAIT:
+			case DBCMD_SYNCWAIT:
 				db->sync(db, 0);
 				/* make sure nobody modifies db's for some time */
 				pthread_mutex_unlock(&dbmtx);
-				sleep(msg->data);
+				sleep(msg->data1);
 				pthread_mutex_lock(&dbmtx);
 				break;
+
+			case DBCMD_ENDINTERVAL: DoEnd(msg->data1, msg->data2); break;
 		}
 		/* and unlock */
 		pthread_mutex_unlock(&dbmtx);
 		/* if we were looking for notification, notify */
 		if (msg->callback)
-			msg->callback(msg->pid);
+			msg->callback(msg->data1);
 		/* free the message */
 		afree(msg);
 		/* and give up some time */
@@ -327,7 +395,7 @@ void *DBThread(void *dummy)
 }
 
 
-void RegPersistantData(const PersistantData *pd)
+local void RegPersistantData(const PersistantData *pd)
 {
 	pthread_mutex_lock(&dbmtx);
 	if (pd->interval >= 0 &&
@@ -339,7 +407,7 @@ void RegPersistantData(const PersistantData *pd)
 }
 
 
-void UnregPersistantData(const PersistantData *pd)
+local void UnregPersistantData(const PersistantData *pd)
 {
 	pthread_mutex_lock(&dbmtx);
 	LLRemove(&ddlist, (void*)pd);
@@ -347,54 +415,67 @@ void UnregPersistantData(const PersistantData *pd)
 }
 
 
-void SyncToFile(int pid, int arena, void (*callback)(int pid))
+local void SyncToFile(int pid, int arena, void (*callback)(int pid))
 {
 	DBMessage *msg = amalloc(sizeof(*msg));
 
-	msg->command = DB_PUT;
-	msg->pid = pid;
-	msg->data = arena;
+	msg->command = DBCMD_PUT;
+	msg->data1 = pid;
+	msg->data2 = arena;
 	msg->callback = callback;
 
 	MPAdd(&dbq, msg);
 }
 
 
-void SyncFromFile(int pid, int arena, void (*callback)(int pid))
+local void SyncFromFile(int pid, int arena, void (*callback)(int pid))
 {
 	DBMessage *msg = amalloc(sizeof(*msg));
 
-	msg->command = DB_GET;
-	msg->pid = pid;
-	msg->data = arena;
+	msg->command = DBCMD_GET;
+	msg->data1 = pid;
+	msg->data2 = arena;
 	msg->callback = callback;
 
 	MPAdd(&dbq, msg);
 }
 
 
-void StabilizeScores(int seconds)
+local void EndInterval(int arena, int interval)
 {
 	DBMessage *msg = amalloc(sizeof(*msg));
 
-	msg->command = DB_SYNCWAIT;
-	msg->data = seconds;
+	msg->command = DBCMD_ENDINTERVAL;
+	msg->data1 = arena;
+	msg->data2 = interval;
 	msg->callback = NULL;
 
 	MPAdd(&dbq, msg);
 }
 
 
-int SyncTimer(void *dummy)
+local void StabilizeScores(int seconds)
 {
 	DBMessage *msg = amalloc(sizeof(*msg));
-	msg->command = DB_PUTALL;
+
+	msg->command = DBCMD_SYNCWAIT;
+	msg->data1 = seconds;
+	msg->callback = NULL;
+
+	MPAdd(&dbq, msg);
+}
+
+
+local int SyncTimer(void *dummy)
+{
+	DBMessage *msg = amalloc(sizeof(*msg));
+	msg->command = DBCMD_PUTALL;
 	msg->callback = NULL;
 	MPAdd(&dbq, msg);
 
 	msg = amalloc(sizeof(*msg));
-	msg->command = DB_SYNCWAIT;
-	msg->data = 0;
+	msg->command = DBCMD_SYNCWAIT;
+	msg->data1 = 0;
 	msg->callback = NULL;
 	MPAdd(&dbq, msg);
 
@@ -484,7 +565,9 @@ local Ipersist _myint =
 {
 	INTERFACE_HEAD_INIT(I_PERSIST, "persist-bdb185")
 	RegPersistantData, UnregPersistantData,
-	SyncToFile, SyncFromFile, StabilizeScores
+	SyncToFile, SyncFromFile,
+	EndInterval,
+	StabilizeScores
 };
 
 

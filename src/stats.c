@@ -205,6 +205,13 @@ local void get_stats_enum(TreapHead *node, void *clos_)
 	}
 }
 
+local void clear_stats_enum(TreapHead *node, void *clos)
+{
+	stat_info *si = (stat_info*)node;
+	si->value = 0;
+	si->dirty = 1;
+}
+
 #define DO_PERSISTANT_DATA(ival, code)                                         \
                                                                                \
 local int get_##ival##_data(int pid, void *data, int len)                      \
@@ -228,8 +235,7 @@ local void set_##ival##_data(int pid, void *data, int len)                     \
                                                                                \
 local void clear_##ival##_data(int pid)                                        \
 {                                                                              \
-    TrEnum((TreapHead*)ival##_stats[pid], NULL, tr_enum_afree);                \
-    ival##_stats[pid] = NULL;                                                  \
+    TrEnum((TreapHead*)ival##_stats[pid], NULL, clear_stats_enum);             \
 }                                                                              \
                                                                                \
 local PersistantData my_##ival##_data =                                        \

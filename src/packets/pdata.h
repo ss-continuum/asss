@@ -34,6 +34,7 @@ typedef struct PlayerData
 	unsigned char type, whenloggedin, pflags, oldarena;
 	char name[24], squad[24];
 	i16 xres, yres;
+	unsigned int connecttime;
 	struct PlayerPosition position;
 } PlayerData;
 

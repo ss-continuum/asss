@@ -41,6 +41,7 @@ local Ichat *chat;
 local Ilogman *lm;
 local Icmdman *cmd;
 local Inet *net;
+local Ichatnet *chatnet;
 local Iconfig *cfg;
 local Icapman *capman;
 local Imainloop *ml;
@@ -565,34 +566,45 @@ local void Cinfo(const char *params, int pid, const Target *target)
 		chat->SendMessage(pid, "info: must use on a player");
 	else
 	{
-		static const char *type_names[4] =
+		static const char *type_names[] =
 		{
-			"unknown", "vie", "cont", "fake"
+			"unknown", "fake", "vie", "cont", "chat"
 		};
-		struct client_stats s;
 		const char *type, *prefix;
 		unsigned int tm;
 		int t = target->u.pid;
 		struct PlayerData *p = players + t;
 
-		net->GetClientStats(t, &s);
-		type = p->type < 4 ? type_names[p->type] : "really_unknown";
+		type = p->type < (sizeof(type_names)/sizeof(type_names[0])) ?
+			type_names[p->type] : "really_unknown";
 		prefix = params[0] ? params : "info";
-		tm = GTC() - s.connecttime;
+		tm = GTC() - p->connecttime;
 
 		chat->SendMessage(pid,
 				"%s: pid=%d  status=%d  name='%s'  squad='%s'",
 				prefix, t, p->status, p->name, p->squad);
 		chat->SendMessage(pid,
-				"%s: arena=%d  type=%s  res=%dx%d",
-				prefix, p->arena, type, p->xres, p->yres);
-		chat->SendMessage(pid,
-				"%s: ip=%s  port=%d  encname=%s",
-				prefix, s.ipaddr, s.port, s.encname);
-		chat->SendMessage(pid,
-				"%s: seconds=%d  limit=%d  avg bandwidth in/out=%d/%d",
-				prefix, tm / 100, s.limit,
-				s.byterecvd*100/tm, s.bytesent*100/tm);
+				"%s: arena=%d  type=%s  res=%dx%d  seconds=%d",
+				prefix, p->arena, type, p->xres, p->yres, tm / 100);
+		if (IS_STANDARD(t))
+		{
+			struct net_client_stats s;
+			net->GetClientStats(t, &s);
+			chat->SendMessage(pid,
+					"%s: ip=%s  port=%d  encname=%s",
+					prefix, s.ipaddr, s.port, s.encname);
+			chat->SendMessage(pid,
+					"%s: limit=%d  avg bandwidth in/out=%d/%d",
+					prefix, s.limit, s.byterecvd*100/tm, s.bytesent*100/tm);
+		}
+		else if (IS_CHAT(t))
+		{
+			struct chat_client_stats s;
+			chatnet->GetClientStats(t, &s);
+			chat->SendMessage(pid,
+					"%s: ip=%s  port=%d  encname=%s",
+					prefix, s.ipaddr, s.port);
+		}
 	}
 }
 
@@ -1235,16 +1247,7 @@ local void unload_cmd_group(struct cmd_group *grp)
 
 /* loading/unloading commands */
 
-local struct cmd_group all_cmd_groups[];
-
-local struct cmd_group *find_group(const char *name)
-{
-	struct cmd_group *grp;
-	for (grp = all_cmd_groups; grp->groupname; grp++)
-		if (!strcasecmp(grp->groupname, name))
-			return grp;
-	return NULL;
-}
+local struct cmd_group *find_group(const char *name);
 
 local helptext_t enablecmdgroup_help =
 "Targets: none\n"
@@ -1305,6 +1308,7 @@ local const struct interface_info core_requires[] =
 {
 	REQUIRE(aman, I_ARENAMAN)
 	REQUIRE(net, I_NET)
+	REQUIRE(chatnet, I_CHATNET)
 	REQUIRE(ml, I_MAINLOOP)
 	END()
 };
@@ -1441,6 +1445,15 @@ local struct cmd_group all_cmd_groups[] =
 #undef CMD_GROUP
 #undef REQUIRE
 #undef END
+
+struct cmd_group *find_group(const char *name)
+{
+	struct cmd_group *grp;
+	for (grp = all_cmd_groups; grp->groupname; grp++)
+		if (!strcasecmp(grp->groupname, name))
+			return grp;
+	return NULL;
+}
 
 
 

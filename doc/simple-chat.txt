@@ -1,0 +1,91 @@
+
+
+the protocol is ascii over tcp. each message contains several fields,
+the first of which a type field that determines the meaning of the
+remaining ones. fields are separated by a colon (':', ascii 58). each
+message is terminated by either a CR (ascii 13), a LF (ascii 10) or any
+combination of those two.
+
+either side can close the connection at any time. the other side should
+respond to this by closing their end of the connection also.
+
+for each message type, the last field is allowed to contain colons.
+
+
+login:
+
+client sends:
+	LOGIN:version:name:password
+		(version is an integer specifying the version of this protocol
+		that this client supports. it should be 1 for now.)
+
+server will respond:
+	LOGINBAD:message
+		(disconnect)
+or
+	LOGINOK:yourname
+		(the server/biller can rename clients, so the new name must be
+		sent back to the client)
+
+
+entering arenas:
+
+client sends:
+	GO:name
+		(use an empty name to mean "first public arena")
+
+
+server may reply:
+	INARENA:arenaname:freq
+		(client should clear its player list when it gets this. freq is
+		the freq that the client has been assigned.)
+	PLAYER:name:ship:freq
+		(one line for each player who's in the arena at the time when it
+		is entered)
+
+
+enter/leave notification:
+
+server sends:
+	ENTERING:name:ship:freq
+		(when a player enters an arena)
+	LEAVING:name
+		(when a player leaves)
+
+
+ship/freq changes:
+
+client sends:
+	CHANGEFREQ:freq
+
+server sends:
+	SHIPFREQCHANGE:name:ship:freq
+
+
+chat (the important part):
+
+client sends:
+	SEND:PUB:msg
+	SEND:PRIV:name:msg
+		(the same message type works for both regular and remove priv msgs)
+	SEND:FREQ:freq:msg
+		(freq is the number of the destination freq)
+	SEND:CHAT:line
+		(line is either "msg" or "channelnum;msg")
+	SEND:MOD:msg
+	SEND:CMD:cmd
+	SEND:PRIVCMD:name:msg
+
+server sends:
+	MSG:ARENA:msg
+	MSG:PUB:name:msg
+	MSG:PRIV:name:msg
+	MSG:REMOTEPRIV:line
+		(line is "(name)>msg")
+	MSG:FREQ:name:msg
+	MSG:CHAT:line
+		(line is "channelnum:msg")
+	MSG:MOD:name:msg
+	MSG:SYSOP:msg
+
+

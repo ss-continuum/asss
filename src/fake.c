@@ -1,9 +1,6 @@
 
 #include "asss.h"
 
-local int Encrypt(int pid, byte *pkt, int len);
-local int Decrypt(int pid, byte *pkt, int len);
-local void Void(int pid);
 
 local Imodman *mm;
 local Iplayerdata *pd;
@@ -12,28 +9,17 @@ local Inet *net;
 local Icmdman *cmd;
 local Ilogman *lm;
 
-local PacketFunc handlers[MAXPLAYERS];
 
-local Iencrypt myenc =
-{
-	INTERFACE_HEAD_INIT(NULL, "fake-enc")
-	Encrypt, Decrypt, Void
-};
-
-
-local int CreateFakePlayer(const char *name, int arena, int ship, int freq,
-		PacketFunc handler)
+local int CreateFakePlayer(const char *name, int arena, int ship, int freq)
 {
 	int pid;
 	PlayerData *player;
 
 	/* create pid */
-	pid = net->NewConnection(T_FAKE, NULL, handler ? &myenc : NULL);
+	pid = pd->NewPlayer(T_FAKE);
 	if (PID_BAD(pid))
 		return pid;
 	player = pd->players + pid;
-
-	handlers[pid] = handler;
 
 	/* set up playerdata struct and pretend he's logged in */
 	astrncpy(player->name, name, 20);
@@ -89,7 +75,7 @@ local int EndFaked(int pid)
 
 local void Cmakefake(const char *params, int pid, const Target *target)
 {
-	CreateFakePlayer(params, pd->players[pid].arena, SPEC, 9999, NULL);
+	CreateFakePlayer(params, pd->players[pid].arena, SPEC, 9999);
 }
 
 
@@ -100,31 +86,10 @@ local void Ckillfake(const char *params, int pid, const Target *target)
 }
 
 
-int Encrypt(int pid, byte *pkt, int len)
-{
-	/* FIXME: we probably want to add these to a queue and process them
-	 * asynchronously, rather than doing this. */
-	if (handlers[pid])
-		handlers[pid](pid, pkt, len);
-	return len;
-}
-
-int Decrypt(int pid, byte *pkt, int len)
-{
-	/* this should never get called */
-	return 0;
-}
-
-void Void(int pid)
-{
-	handlers[pid] = NULL;
-}
-
-
 local Ifake _int =
 {
 	INTERFACE_HEAD_INIT(I_FAKE, "fake")
-	CreateFakePlayer, EndFaked, NULL
+	CreateFakePlayer, EndFaked
 };
 
 
@@ -143,7 +108,6 @@ EXPORT int MM_fake(int action, Imodman *mm_, int arena)
 
 		cmd->AddCommand("makefake", Cmakefake, NULL);
 		cmd->AddCommand("killfake", Ckillfake, NULL);
-		_int.ProcessPacket = net->ProcessPacket;
 		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
