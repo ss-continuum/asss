@@ -3,7 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifndef WIN32
 #define DOUNAME
+#endif
 
 #ifdef DOUNAME
 #include <sys/utsname.h>
@@ -55,7 +57,7 @@ local ArenaData *arenas;
 
 
 
-int MM_playercmd(int action, Imodman *_mm, int arena)
+EXPORT int MM_playercmd(int action, Imodman *_mm, int arena)
 {
 	if (action == MM_LOAD)
 	{

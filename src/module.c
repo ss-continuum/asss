@@ -1,9 +1,18 @@
 
 #include <stdio.h>
-#include <dlfcn.h>
 #include <string.h>
-#include <unistd.h>
 #include <stdlib.h>
+
+#ifndef WIN32
+#include <dlfcn.h>
+#include <unistd.h>
+#else
+#include <direct.h>
+#define dlopen(a,b) LoadLibrary(a)
+#define dlerror() "dlerror() not supported"
+#define dlsym(a,b) ((ModMain)GetProcAddress(a,b))
+#define dlclose(a) FreeLibrary(a)
+#endif
 
 #include "asss.h"
 
@@ -24,7 +33,7 @@ typedef struct ModuleData
 
 
 
-local int LoadModule(const char *);
+local int LoadMod(const char *);
 local int UnloadModule(const char *);
 local void UnloadAllModules(void);
 local void EnumModules(void (*)(const char *, const char *, void *), void *);
@@ -51,7 +60,7 @@ local LinkedList intupdates[MAXINTERFACE];
 
 local Imodman mmint =
 {
-	LoadModule, UnloadModule, UnloadAllModules, EnumModules,
+	LoadMod, UnloadModule, UnloadAllModules, EnumModules,
 	AttachModule, DetachModule,
 	RegInterest, UnregInterest, RegInterface, UnregInterface,
 	RegCallback, UnregCallback, LookupCallback, FreeLookupResult
@@ -81,7 +90,7 @@ Imodman * InitModuleManager(void)
 
 #define DELIM ':'
 
-int LoadModule(const char *filename)
+int LoadMod(const char *filename)
 {
 	static char _buf[256];
 	ModuleData *mod;
@@ -107,7 +116,18 @@ int LoadModule(const char *filename)
 
 	if (!strcasecmp(filename,"internal") || !strcasecmp(filename,"int"))
 	{
+#ifndef WIN32
 		name = NULL;
+#else
+		/* Windows LoadLibrary function will not return itself if null,
+		 * so need to set it to myself */
+		strcpy(name,&GetCommandLine()[1]);
+		{
+			char *quote = strchr(name,'"');
+			if (quote)
+				*quote=0;
+		}
+#endif
 		mod->myself = 1;
 	}
 	else if (filename[0] == '/')
@@ -126,7 +146,7 @@ int LoadModule(const char *filename)
 	mod->hand = dlopen(name, RTLD_NOW);
 	if (!mod->hand)
 	{
-		if (log) log->Log(L_ERROR,"<module> LoadModule: error in dlopen: %s", dlerror());
+		if (log) log->Log(L_ERROR,"<module> LoadMod: error in dlopen: %s", dlerror());
 		goto die;
 	}
 
@@ -135,7 +155,7 @@ int LoadModule(const char *filename)
 	mod->mm = dlsym(mod->hand, name);
 	if (!mod->mm)
 	{
-		if (log) log->Log(L_ERROR,"<module> LoadModule: error in dlsym: %s", dlerror());
+		if (log) log->Log(L_ERROR,"<module> LoadMod: error in dlsym: %s", dlerror());
 		if (!mod->myself) dlclose(mod->hand);
 		goto die;
 	}

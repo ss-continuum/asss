@@ -35,7 +35,7 @@ local CommandFunc defaultfunc;
 local Icmdman _int = { AddCommand, RemoveCommand, Command };
 
 
-int MM_cmdman(int action, Imodman *mm, int arena)
+EXPORT int MM_cmdman(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{

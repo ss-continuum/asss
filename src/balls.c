@@ -77,7 +77,7 @@ local Iballs _myint =
 
 
 
-int MM_balls(int action, Imodman *_mm, int arena)
+EXPORT int MM_balls(int action, Imodman *_mm, int arena)
 {
 	if (action == MM_LOAD)
 	{

@@ -21,7 +21,7 @@ local Iconfig *cfg;
 local Ilog_file _lfint = { FlushLog, ReopenLog };
 
 
-int MM_log_file(int action, Imodman *mm, int arenas)
+EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
 {
 	if (action == MM_LOAD)
 	{

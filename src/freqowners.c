@@ -23,7 +23,7 @@ local Ichat *chat;
 local Imodman *mm;
 
 
-int MM_freqowners(int action, Imodman *_mm, int arena)
+EXPORT int MM_freqowners(int action, Imodman *_mm, int arena)
 {
 	if (action == MM_LOAD)
 	{

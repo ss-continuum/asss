@@ -20,7 +20,7 @@ local Imodman *mm;
 local Imapdata *mapdata;
 
 
-int MM_autowarp(int action, Imodman *mm_, int arena)
+EXPORT int MM_autowarp(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{

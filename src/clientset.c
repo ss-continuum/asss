@@ -40,7 +40,7 @@ local Iclientset _myint = { SendClientSettings, Reconfigure };
 #include "clientset.def"
 
 
-int MM_clientset(int action, Imodman *mm_, int arena)
+EXPORT int MM_clientset(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{

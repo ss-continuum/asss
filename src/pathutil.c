@@ -1,10 +1,15 @@
 
-
 #include <stdlib.h>
+
+#ifndef WIN32
 #include <unistd.h>
 #include <limits.h>
 #include <string.h>
 #include <sys/stat.h>
+#else
+#include <malloc.h>
+#include <io.h>
+#endif
 
 #include "pathutil.h"
 

@@ -3,6 +3,10 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#ifdef WIN32
+#include <malloc.h>
+#endif
+
 #include "asss.h"
 
 
@@ -11,8 +15,10 @@
 
 /* prototypes */
 
-local void SendMessage(int, char *, ...);
+local void SendMessage_(int, char *, ...);
 local void SendSetMessage(int *, char *, ...);
+local void SendSoundMessage(int, char, char *, ...);
+local void SendSetSoundMessage(int *, char, char *, ...);
 local void PChat(int, byte *, int);
 
 
@@ -33,7 +39,11 @@ local ArenaData *arenas;
 local int cfg_msgrel;
 
 
-local Ichat _int = { SendMessage, SendSetMessage };
+local Ichat _int =
+{
+	SendMessage_, SendSetMessage,
+	SendSoundMessage, SendSetSoundMessage
+};
 
 
 int MM_chat(int action, Imodman *mm_, int arena)
@@ -134,7 +144,7 @@ void PChat(int pid, byte *p, int len)
 					net->SendToSet(set, (byte*)to, strlen(to->text)+6, NET_RELIABLE);
 				}
 				else
-					SendMessage(pid, "Mod chat is currently disabled");
+					SendMessage_(pid, "Mod chat is currently disabled");
 			}
 			else /* normal pub message */
 			{
@@ -203,7 +213,7 @@ void PChat(int pid, byte *p, int len)
 }
 
 
-void SendMessage(int pid, char *str, ...)
+void SendMessage_(int pid, char *str, ...)
 {
 	int size;
 	char _buf[256];
@@ -235,6 +245,42 @@ void SendSetMessage(int *set, char *str, ...)
 	cp->pktype = S2C_CHAT;
 	cp->type = MSG_ARENA;
 	cp->sound = 0;
+	net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
+}
+
+
+void SendSoundMessage(int pid, char sound, char *str, ...)
+{
+	int size;
+	char _buf[256];
+	struct ChatPacket *cp = (struct ChatPacket*)_buf;
+	va_list args;
+
+	va_start(args, str);
+	size = vsnprintf(cp->text, 250, str, args) + 6;
+	va_end(args);
+
+	cp->pktype = S2C_CHAT;
+	cp->type = MSG_ARENA;
+	cp->sound = sound;
+	net->SendToOne(pid, (byte*)cp, size, NET_RELIABLE);
+}
+
+
+void SendSetSoundMessage(int *set, char sound, char *str, ...)
+{
+	int size;
+	char _buf[256];
+	struct ChatPacket *cp = (struct ChatPacket*)_buf;
+	va_list args;
+
+	va_start(args, str);
+	size = vsnprintf(cp->text, 250, str, args) + 6;
+	va_end(args);
+
+	cp->pktype = S2C_CHAT;
+	cp->type = MSG_ARENA;
+	cp->sound = sound;
 	net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
 }
 

@@ -34,7 +34,7 @@ local Iencrypt _int = {
 
 
 
-int MM_encrypt1(int action, Imodman *mm, int arena)
+EXPORT int MM_encrypt1(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -72,7 +72,17 @@ void Init(int pid, int k)
 
 	for (loop = 0; loop < 0x104; loop++)
 	{
+#ifndef WIN32
 		asm ( "imul %%ecx" : "=d" (t) : "a" (k), "c" (0x834E0B5F) );
+#else
+		_asm
+		{
+			mov eax,k
+			mov ecx,0x834E0B5F
+			imul ecx
+			mov t,edx
+		};
+#endif
 		t = (t + k) >> 16;
 		t += t >> 31;
 		t = ((((((t * 9) << 3) - t) * 5) << 1) - t) << 2;

@@ -1,14 +1,19 @@
 
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#ifndef WIN32
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <sched.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#else
+#define close(a) closesocket(a)
+#endif
 
 #include "asss.h"
 
@@ -168,7 +173,7 @@ local Inet _int =
 /* START OF FUNCTIONS */
 
 
-int MM_net(int action, Imodman *mm, int arena)
+EXPORT int MM_net(int action, Imodman *mm, int arena)
 {
 	int i;
 
@@ -323,6 +328,12 @@ void InitSockets(void)
 {
 	struct sockaddr_in localsin;
 
+#ifdef WIN32
+	WSADATA wsad;
+	if (WSAStartup(MAKEWORD(1,1),&wsad))
+		Error(ERROR_GENERAL,"net: WSAStartup");
+#endif
+
 	localsin.sin_family = AF_INET;
 	memset(localsin.sin_zero,0,sizeof(localsin.sin_zero));
 	localsin.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -442,6 +453,11 @@ void * RecvThread(void *dummy)
 			status = players[pid].status;
 			if (status <= S_FREE || status >= S_TIMEWAIT)
 			{
+				/* FIXME: if the player is in timewait, reset his state
+				 * somehow. probably just setting state to S_NEED_KEY
+				 * would work, but we should also go through and remove
+				 * his outgoing packets at some point. in general, the
+				 * whole timewait idea needs reworking. */
 				if (status <= S_FREE)
 					log->Log(L_WARN, "<net> [pid=%d] Packet recieved from bad state %d", pid, status);
 				if (status >= S_TIMEWAIT)
@@ -470,7 +486,7 @@ void * RecvThread(void *dummy)
 			ProcessBuffer(buf);
 
 			global_stats.pktsrecvd++;
-donehere:
+donehere: ;
 		}
 
 		if (FD_ISSET(myothersock, &fds))
@@ -492,6 +508,7 @@ donehere:
 				pd->UnlockStatus();
 				sendto(myothersock, (char*)data, 8, 0,
 						(struct sockaddr*)&sin, sinsize);
+
 				global_stats.pcountpings++;
 			}
 		}
@@ -1046,7 +1063,7 @@ void ProcessSyncRequest(Buffer *buf)
 {
 	struct TimeSyncC2S *cts = (struct TimeSyncC2S*)(buf->d.raw);
 	struct TimeSyncS2C ts = { 0x00, 0x06, cts->time, GTC() };
-	BufferPacket(buf->pid, (byte*)&ts, sizeof(ts), NET_UNRELIABLE);
+	BufferPacket(buf->pid, (byte*)&ts, sizeof(ts), NET_IMMEDIATE);
 	FreeBuffer(buf);
 }
 

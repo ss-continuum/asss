@@ -139,7 +139,7 @@ void SCFree(StringChunk *chunk);
 
 /* threading stuff */
 
-#include <pthread.h>
+#include "pthread.h"
 
 typedef void * (*ThreadFunc)(void *);
 typedef pthread_t Thread;

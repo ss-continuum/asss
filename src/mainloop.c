@@ -1,5 +1,7 @@
 
+#ifndef WIN32
 #include <unistd.h>
+#endif
 
 #include "asss.h"
 
@@ -14,7 +16,7 @@ typedef struct TimerData
 
 
 
-local void SetTimer(TimerFunc, int, int, void *);
+local void StartTimer(TimerFunc, int, int, void *);
 local void ClearTimer(TimerFunc);
 
 local void RunLoop(void);
@@ -24,7 +26,7 @@ local void KillML(void);
 
 local Imainloop _int =
 {
-	SetTimer, ClearTimer, RunLoop, KillML
+	StartTimer, ClearTimer, RunLoop, KillML
 };
 
 local int privatequit;
@@ -32,7 +34,7 @@ local LinkedList *timers;
 local Imodman *mm;
 
 
-int MM_mainloop(int action, Imodman *mm_, int arena)
+EXPORT int MM_mainloop(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -103,7 +105,7 @@ void KillML(void)
 }
 
 
-void SetTimer(TimerFunc f, int startint, int interval, void *param)
+void StartTimer(TimerFunc f, int startint, int interval, void *param)
 {
 	TimerData *data = amalloc(sizeof(TimerData));
 

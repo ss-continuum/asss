@@ -3,6 +3,10 @@
 #include <string.h>
 #include <stdlib.h>
 
+#ifdef WIN32
+#include <malloc.h>
+#endif
+
 #include "asss.h"
 
 #include "packets/login.h"

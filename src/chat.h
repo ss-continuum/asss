@@ -22,6 +22,8 @@ typedef struct Ichat
 {
 	void (*SendMessage)(int pid, char *format, ...);
 	void (*SendSetMessage)(int *set, char *format, ...);
+	void (*SendSoundMessage)(int pid, char sound, char *format, ...);
+	void (*SendSetSoundMessage)(int *set, char sound, char *format, ...);
 } Ichat;
 
 

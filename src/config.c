@@ -44,7 +44,7 @@ local int files = 0;
 
 /* functions */
 
-int MM_config(int action, Imodman *mm, int arena)
+EXPORT int MM_config(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{

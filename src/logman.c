@@ -6,7 +6,6 @@
 #include "asss.h"
 
 
-
 typedef struct LogLine
 {
 	int level;
@@ -21,12 +20,11 @@ local void * LoggingThread(void *);
 local MPQueue queue;
 local Thread thd;
 
-
 local Imodman *mm;
 local Ilogman _int = { Log };
 
 
-int MM_logman(int action, Imodman *mm_, int arena)
+EXPORT int MM_logman(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{

@@ -74,7 +74,7 @@ local int cfg_bulletpix, cfg_wpnpix, cfg_wpnbufsize, cfg_pospix;
 local int wpnrange[WEAPONCOUNT]; /* there are 5 bits in the weapon type */
 
 
-int MM_game(int action, Imodman *mm_, int arena)
+EXPORT int MM_game(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{

@@ -9,7 +9,13 @@
 
 
 /* do it upfront so we don't have to worry :) */
+#ifdef WIN32
+#pragma warning ( disable : 4103 )
+#endif
 #pragma pack(1)
+#ifdef WIN32
+#pragma warning ( default : 4013 )
+#endif
 
 /* an alias to keep most stuff local to modules */
 #define local static
@@ -23,9 +29,6 @@
 #define MAXBIGPACKET 524288
 
 #define MAXINTERFACE 256
-
-#define TRUE (1)
-#define FALSE (0)
 
 
 /* interface ids, kept here to make sure they're unique */
@@ -176,6 +179,11 @@
 #define SPEC      8
 
 
+/* sound constants */
+/* FIXME: add lots more here */
+#define SOUND_GOAL         104
+
+
 /* constants for targets and pids */
 #define PID_INTERNAL (-1)
 
@@ -185,11 +193,6 @@
 #define TARGET_ZONE (-4)
 
 
-/* symbolic constant for freq assignemnt
- * FIXME: this probably shouldn't exist */
-#define BADFREQ (-423)
-
-
 #define DEFAULTCONFIGSEARCHPATH "arenas/%a/%n:defaultarena/%n:conf/%n:%n"
 
 #define DEFAULTMAPSEARCHPATH "arenas/%a/%m:defaultarena/%m:maps/%m:%m"
@@ -197,6 +200,18 @@
 
 /* useful typedefs */
 typedef unsigned char byte;
+
+
+/* platform-specific stuff */
+
+#ifndef WIN32
+#define EXPORT
+#define TRUE (1)
+#define FALSE (0)
+#else
+#include "win32compat.h"
+#endif
+
 
 #include "packets/sizes.h"
 

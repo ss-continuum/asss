@@ -1,13 +1,17 @@
 
-#include <zlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
+#ifndef WIN32
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#endif
+
+#include "zlib.h"
 
 #include "asss.h"
 
@@ -63,7 +67,7 @@ local Iauth _iauth = { DefaultAuth };
 
 /* FUNCTIONS */
 
-int MM_core(int action, Imodman *mm_, int arena)
+EXPORT int MM_core(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -214,7 +218,7 @@ void ProcessLoginQueue(void)
 			case S_SEND_LOGIN_RESPONSE:
 				SendLoginResponse(pid);
 				log->Log(L_INFO, "<core> [%s] [pid=%d] Player logged in",
-						pid, player->name);
+						player->name, pid);
 				break;
 
 			case S_DO_FREQ_AND_ARENA_SYNC:

@@ -11,7 +11,7 @@ local Igame *game;
 local Icmdman *cmd;
 
 
-int MM_bricklayer(int action, Imodman *mm, int arena)
+EXPORT int MM_bricklayer(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{

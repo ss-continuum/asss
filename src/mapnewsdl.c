@@ -1,14 +1,19 @@
 
-#include <zlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
+#ifndef WIN32
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
-#include <zlib.h>
+#else
+#include <io.h>
+#endif
+
+#include "zlib.h"
 
 #include "asss.h"
 
@@ -61,7 +66,7 @@ local Imapnewsdl _int = { SendMapFilename, GetNewsChecksum };
 
 /* FUNCTIONS */
 
-int MM_mapnewsdl(int action, Imodman *mm_, int arena)
+EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -173,6 +178,9 @@ int CompressMap(int arena)
 	uLong csize;
 	struct stat st;
 	char fname[256], *mapname;
+#ifdef WIN32
+	HANDLE hfile, hmap;
+#endif
 
 	if (mapdata->GetMapFilename(arena, fname, 256))
 		return MM_FAIL;
@@ -193,12 +201,44 @@ int CompressMap(int arena)
 	csize = 1.0011 * fsize + 35;
 
 	/* mmap it */
+#ifndef WIN32
 	map = mmap(NULL, fsize, PROT_READ, MAP_SHARED, mapfd, 0);
 	if (map == (void*)-1)
 	{
 		log->Log(L_ERROR,"<mapnewsdl> mmap failed for map '%s'", fname);
 		return MM_FAIL;
 	}
+#else
+	hfile = CreateFile(fname,
+			GENERIC_READ,
+			FILE_SHARE_READ,
+			NULL,
+			OPEN_EXISTING,
+			FILE_ATTRIBUTE_NORMAL | FILE_FLAG_RANDOM_ACCESS,
+			0);
+	if (hfile == INVALID_HANDLE_VALUE)
+	{
+		log->Log(L_ERROR,"<mapnewsdl> CreateFile failed for map '%s', error %d",
+				fname, GetLastError());
+		return MM_FAIL;
+	}
+	hmap = CreateFileMapping(hfile,NULL,PAGE_READONLY,0,0,0);
+	if (!hmap)
+	{
+		fclose(hfile);
+		log->Log(L_ERROR,"<mapnewsdl> CreateFileMapping failed for map '%s', error %d",
+				fname, GetLastError());
+		return MM_FAIL;
+	}
+	map = MapViewOfFile(hmap,FILE_MAP_READ,0,0,0);
+	if (!map)
+	{
+		CloseHandle(hmap);
+		fclose(hfile);
+		log->Log(L_ERROR,"<mapnewsdl> mmap failed for map '%s'", fname);
+		return MM_FAIL;
+	}
+#endif
 
 	/* calculate crc on mmap'd map */
 	mapdldata[arena].mapchecksum = crc32(crc32(0, Z_NULL, 0), map, fsize);
@@ -223,7 +263,13 @@ int CompressMap(int arena)
 	}
 	mapdldata[arena].cmpmaplen = csize;
 
+#ifndef WIN32
 	munmap(map, fsize);
+#else
+	UnmapViewOfFile(map);
+	CloseHandle(hmap);
+	CloseHandle(hfile);
+#endif
 	close(mapfd);
 
 	return MM_OK;
@@ -282,11 +328,15 @@ int RefreshNewsTxt(void *dummy)
 	newtime = st.st_mtime + st.st_ctime;
 	if (newtime != newstime)
 	{
+#ifdef WIN32
+		HANDLE hfile, hnews;
+#endif
 		newstime = newtime;
 		fsize = st.st_size;
 		csize = 1.0011 * fsize + 35;
 
 		/* mmap it */
+#ifndef WIN32
 		news = mmap(NULL, fsize, PROT_READ, MAP_SHARED, fd, 0);
 		if (news == (void*)-1)
 		{
@@ -294,6 +344,37 @@ int RefreshNewsTxt(void *dummy)
 			close(fd);
 			return 1;
 		}
+#else
+		hfile = CreateFile(cfg_newsfile,
+				GENERIC_READ,
+				FILE_SHARE_READ,
+				NULL,
+				OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL | FILE_FLAG_RANDOM_ACCESS,
+				0);
+		if (hfile == INVALID_HANDLE_VALUE)
+		{
+			log->Log(L_ERROR,"<mapnewsdl> CreateFile failed in RefreshNewsTxt, error %d",
+					GetLastError());
+			return 1;
+		}
+		hnews = CreateFileMapping(hfile,NULL,PAGE_READONLY,0,0,0);
+		if (!hnews)
+		{
+			CloseHandle(hfile);
+			log->Log(L_ERROR,"<mapnewsdl> CreateFileMapping failed in RefreshNewsTxt, error %d",
+					GetLastError());
+			return 1;
+		}
+		news = MapViewOfFile(hnews,FILE_MAP_READ,0,0,0);
+		if (!news)
+		{
+			CloseHandle(hnews);
+			CloseHandle(hfile);
+			log->Log(L_ERROR,"<mapnewsdl> mapviewoffile failed in RefreshNewsTxt, error %d", GetLastError());
+			return 1;
+		}
+#endif
 
 		/* calculate crc on mmap'd map */
 		newschecksum = crc32(crc32(0, Z_NULL, 0), news, fsize);
@@ -318,7 +399,13 @@ int RefreshNewsTxt(void *dummy)
 		}
 		cmpnewssize = csize+17;
 
+#ifndef WIN32
 		munmap(news, fsize);
+#else
+		UnmapViewOfFile(news);
+		CloseHandle(hnews);
+		CloseHandle(hfile);
+#endif
 
 		if (cmpnews) afree(cmpnews);
 		cmpnews = cnews;

@@ -7,7 +7,7 @@
 local void LogConsole(char, char *);
 
 
-int MM_log_console(int action, Imodman *mm, int arena)
+EXPORT int MM_log_console(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{

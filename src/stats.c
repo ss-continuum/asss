@@ -59,7 +59,7 @@ local byte adata_dirty[MAXPLAYERS];
 local Istats _myint = { IncrementStat, SendUpdates };
 
 
-int MM_stats(int action, Imodman *mm_, int arena)
+EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{

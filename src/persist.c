@@ -1,10 +1,13 @@
 
-#include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include <db1/db.h>
 #include <assert.h>
+
+#ifndef WIN32
+#include <unistd.h>
+#include <db1/db.h>
+#endif
 
 #include "asss.h"
 
@@ -87,7 +90,7 @@ local Ipersist _myint =
 
 
 
-int MM_persist(int action, Imodman *_mm, int arena)
+EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 {
 	if (action == MM_LOAD)
 	{

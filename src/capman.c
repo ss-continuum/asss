@@ -27,7 +27,7 @@ local Iconfig *cfg;
 local Icapman _myint = { HasCapability, GetGroup, SetGroup };
 
 
-int MM_capman(int action, Imodman *_mm, int arena)
+EXPORT int MM_capman(int action, Imodman *_mm, int arena)
 {
 	if (action == MM_LOAD)
 	{

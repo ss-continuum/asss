@@ -17,7 +17,7 @@ local Istats *stats;
 local Iarenaman *aman;
 local Iconfig *cfg;
 
-int MM_points_flag(int action, Imodman *mm_, int arena)
+EXPORT int MM_points_flag(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{

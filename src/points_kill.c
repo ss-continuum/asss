@@ -16,7 +16,7 @@ local Iarenaman *aman;
 local Iconfig *cfg;
 local Istats *stats;
 
-int MM_points_kill(int action, Imodman *mm_, int arena)
+EXPORT int MM_points_kill(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{

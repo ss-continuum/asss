@@ -4,10 +4,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef WIN32
 #include <unistd.h>
 #include <paths.h>
 #include <unistd.h>
 #include <fcntl.h>
+#else
+
+#endif
 
 
 #include "asss.h"
@@ -56,7 +60,7 @@ local void LoadModuleFile(char *fname)
 	fclose(f);
 }
 
-
+#ifndef WIN32
 local int daemonize(int noclose)
 {
 	int fd;
@@ -84,6 +88,13 @@ local int daemonize(int noclose)
 	}
 	return 0;
 }
+#else
+local int daemonize(int noclose)
+{
+	printf("daemonize isn't supported on windows\n");
+	return 0;
+}
+#endif
 
 
 int main(int argc, char *argv[])

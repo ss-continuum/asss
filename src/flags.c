@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <malloc.h>
 
 #include "asss.h"
 
@@ -79,7 +80,7 @@ local Iflags _myint =
 
 
 
-int MM_flags(int action, Imodman *_mm, int arena)
+EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -631,6 +632,7 @@ void PPickupFlag(int pid, byte *p, int len)
 		case FLAGGAME_NONE:
 		case FLAGGAME_CUSTOM:
 			/* in both of these, we don't touch flagdata at all. */
+			break;
 	}
 	UNLOCK_STATUS(arena);
 
@@ -698,6 +700,7 @@ void PDropFlag(int pid, byte *p, int len)
 		case FLAGGAME_NONE:
 		case FLAGGAME_CUSTOM:
 			/* in both of these, we don't touch flagdata at all. */
+			break;
 	}
 
 	UNLOCK_STATUS(arena);

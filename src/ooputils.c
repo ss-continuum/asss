@@ -1,5 +1,9 @@
 
+#ifndef WIN32
 #include <unistd.h>
+#else
+#include <io.h>
+#endif
 
 #include "ooputils.h"
 

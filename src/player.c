@@ -25,7 +25,7 @@ local Iplayerdata _myint =
 	{ players, LockPlayer, UnlockPlayer, LockStatus, UnlockStatus, FindPlayer };
 
 
-int MM_playerdata(int action, Imodman *mm, int arena)
+EXPORT int MM_playerdata(int action, Imodman *mm, int arena)
 {
 	int i;
 	if (action == MM_LOAD)

@@ -1,11 +1,14 @@
 
 #include <time.h>
 #include <string.h>
-#include <sys/time.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
+
+#ifndef WIN32
+#include <sys/time.h>
+#endif
 
 /* make sure to get the prototypes for thread functions instead of macros */
 #define USE_PROTOTYPES
@@ -65,9 +68,13 @@ static HashEntry *freehashentries = NULL;
 
 unsigned int GTC(void)
 {
+#ifndef WIN32
 	struct timeval tv;
 	gettimeofday(&tv,NULL);
 	return (tv.tv_sec * 100 + tv.tv_usec / 10000) & 0x7FFFFFFF;
+#else
+	return GetTickCount() / 10;
+#endif
 }
 
 
@@ -663,7 +670,7 @@ void SCFree(StringChunk *chunk)
 
 #ifndef NOTHREAD
 
-#include <pthread.h>
+#include "pthread.h"
 
 #ifndef NOMPQUEUE
 
@@ -766,9 +773,16 @@ void WaitConditionTimed(Condition *cond, Mutex *mtx, int millis)
 	struct timeval tv;
 	struct timespec ts;
 
+#ifndef WIN32
 	gettimeofday(&tv, NULL);
 	ts.tv_sec = tv.tv_sec;
 	ts.tv_nsec = (tv.tv_usec + millis * 1000) * 1000;
+#else
+	/* GetTickCount() isn't enough here: pthread_cond_timedwait requires
+	 * an absolute time relative to the epoch. either way, this function
+	 * isn't currently used (and probably shouldn't ever be). */
+	Error(ERROR_GENERAL, "WaitConditionTimed isn't implemented on windows");
+#endif
 	while (ts.tv_nsec >= 1000000000)
 	{
 		ts.tv_nsec -= 1000000000;

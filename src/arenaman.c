@@ -3,6 +3,10 @@
 #include <stdio.h>
 #include <assert.h>
 
+#ifdef WIN32
+#include <malloc.h>
+#endif
+
 #include "asss.h"
 
 
@@ -61,7 +65,7 @@ local Iarenaman _int =
 
 
 
-int MM_arenaman(int action, Imodman *mm_, int arena)
+EXPORT int MM_arenaman(int action, Imodman *mm_, int arena)
 {
 	pthread_mutexattr_t attr;
 

@@ -31,7 +31,7 @@ local Iconfig *cfg;
 local Ichat *chat;
 
 
-int MM_points_goal(int action, Imodman *mm_, int arena)
+EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -127,8 +127,8 @@ void MyGoal(int arena, int pid, int bid, int x, int y)
 	pd->UnlockStatus();
 
 	teamset[teamc] = nmeset[nmec] = -1;
-	chat->SendSetMessage(teamset, "Team Goal! by %s  Reward:1", pd->players[pid].name);
-	chat->SendSetMessage(nmeset, "Enemy Goal! by %s  Reward:1", pd->players[pid].name);
+	chat->SendSetSoundMessage(teamset, SOUND_GOAL, "Team Goal! by %s  Reward:1", pd->players[pid].name);
+	chat->SendSetSoundMessage(nmeset, SOUND_GOAL, "Enemy Goal! by %s  Reward:1", pd->players[pid].name);
 }
 
 

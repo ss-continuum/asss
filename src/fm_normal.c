@@ -10,7 +10,7 @@ local Iconfig *cfg;
 local Imodman *mm;
 
 
-int MM_fm_normal(int action, Imodman *_mm, int arena)
+EXPORT int MM_fm_normal(int action, Imodman *_mm, int arena)
 {
 	if (action == MM_LOAD)
 	{

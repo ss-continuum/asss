@@ -78,7 +78,7 @@ local Imapdata _int =
 
 
 
-int MM_mapdata(int action, Imodman *_mm, int arenas)
+EXPORT int MM_mapdata(int action, Imodman *_mm, int arenas)
 {
 	if (action == MM_LOAD)
 	{
