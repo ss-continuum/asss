@@ -18,6 +18,7 @@
 ASSSHOME = ..
 BINDIR = $(ASSSHOME)/bin
 SCRIPTS = $(ASSSHOME)/scripts
+PYMOD_HEADERS = *.h */*.h
 DEPS = ../windeps
 
 INSTALL = $(DEPS)/install.exe
@@ -84,7 +85,7 @@ SYS_NAME := ok
 
 # apply build options
 ifeq ($(debug),yes)
-DEBUG_CFLAGS = -g -Wall -fpedantic
+DEBUG_CFLAGS = -g -Wall
 endif
 
 ifeq ($(prof),yes)
@@ -92,7 +93,7 @@ PROF_FLAGS = -pg
 endif
 
 ifeq ($(opt),yes)
-OPT_CFLAGS = -O2 -Wall -fpedantic
+OPT_CFLAGS = -O2 -Wall
 endif
 
 # for older gcc, remove the -std option
@@ -136,7 +137,7 @@ INTERNAL_MODULES = config.o prng.o md5.o player.o core.o logman.o \
 	directory.o billing.o billing_ssc.o \
 	filetrans.o quickfix.o \
 	freqowners.o arenaperm.o auth_prefix.o fake.o chatnet.o auth_file.o \
-	ap_multipub.o sendfile.o auth_ban.o
+	ap_multipub.o sendfile.o auth_ban.o \
 
 
 all: install
@@ -173,10 +174,10 @@ letters.inc: $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font
 	$(PYTHON) $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font $@
 
 cfghelp.inc: $(SCRIPTS)/extract-cfg-docs.py
-	$(PYTHON) $(SCRIPTS)/extract-cfg-docs.py -c $@ *.c */*.c *.def
+	$(PYTHON) $(SCRIPTS)/extract-cfg-docs.py -c $@ *.c */*.c *.py */*.py *.def
 
-py_constants.inc py_callbacks.inc py_interfaces.inc: $(SCRIPTS)/pymod-process.py *.h */*.h
-	$(PYTHON) $(SCRIPTS)/pymod-process.py *.h */*.h
+py_constants.inc py_callbacks.inc py_interfaces.inc: $(SCRIPTS)/pymod-process.py $(PYMOD_HEADERS)
+	$(PYTHON) $(SCRIPTS)/pymod-process.py $(PYMOD_HEADERS)
 
 
 # c files that need special options

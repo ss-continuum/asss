@@ -162,7 +162,7 @@ UTIL_OBJS = util.o pathutil.o protutil.o rwlock.o app.o md5.o $(W32COMPAT)
 
 INTERNAL_MODULES = config.o prng.o md5.o player.o core.o logman.o \
 	mainloop.o net.o enc_null.o enc_vie.o arenaman.o mapdata.o \
-	mapnewsdl.o clientset.o capman.o lagdata.o lagaction.o unixsignal.o \
+	mapnewsdl.o clientset.o capman.o lagdata.o lagaction.o \
 	deadlock.o idle.o \
 	log_file.o log_console.o log_sysop.o log_staff.o \
 	game.o game_timer.o chat.o flagcore.o balls.o fm_normal.o \
@@ -172,7 +172,8 @@ INTERNAL_MODULES = config.o prng.o md5.o player.o core.o logman.o \
 	directory.o billing.o billing_ssc.o \
 	filetrans.o quickfix.o \
 	freqowners.o arenaperm.o auth_prefix.o fake.o chatnet.o auth_file.o \
-	ap_multipub.o sendfile.o auth_ban.o
+	ap_multipub.o sendfile.o auth_ban.o \
+	unixsignal.o
 
 
 all: install
@@ -184,7 +185,7 @@ endif
 	$(CC) $(LDFLAGS) $(EXPORT_SYMBOLS) -o $@ $^ $(DL_LIB) $(PTHREAD_LIB) $(ZLIB_LIB) -lm
 
 dbtool$(EXE): dbtool.o statcodes.o util.c
-	$(CC) $(LDFLAGS) -DNODQ -DNOTREAP -DNOSTRINGCHUNK -DNOMPQUEUE -DNOMMAP -o $@ $^ $(DB_LDFLAGS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -DNODQ -DNOTREAP -DNOSTRINGCHUNK -DNOMPQUEUE -DNOMMAP -o $@ $^ $(DB_LDFLAGS)
 
 scoring.$(SO): persist.o stats.o statcodes.o points_kill.o points_flag.o \
 	points_goal.o jackpot.o periodic.o points_periodic.o basicstats.o
@@ -231,13 +232,13 @@ pymod.o: CFLAGS += $(PYTHON_CFLAGS)
 install: $(ALL_STUFF)
 	$(INSTALL) -d $(BINDIR)
 	$(INSTALL) $(ALL_STUFF) $(BINDIR)
-	$(INSTALL) -m 644 *.py $(BINDIR)
+	-$(INSTALL) -m 644 *.py $(BINDIR)
 
 clean: cleanbin
 	-rm -f *.inc core Makefile.deps
 
 cleanbin:
-	-rm -f asss$(EXE) dbtool$(EXE) *.o */*.o *.$(SO) */*.$(SO)
+	-rm -f asss$(EXE) dbtool$(EXE) *.o */*.o *.$(SO) */*.$(SO) export.exp import.imp
 
 .PHONY: clean cleanbin install all
 
