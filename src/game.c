@@ -306,14 +306,36 @@ void PSetFreq(int pid, byte *p, int n)
 void PDie(int pid, byte *p, int n)
 {
 	struct SimplePacket *dead = (struct SimplePacket*)p;
-	struct KillPacket kp = { S2C_KILL, 0, dead->d1, pid, dead->d2, 0 };
+	struct KillPacket kp = { S2C_KILL };
+	int killer = dead->d1;
+	int bty = dead->d2;
+	/* int flags = dead->d3; */
 	int arena = players[pid].arena, reldeaths;
 
 	if (arena < 0) return;
 
+	kp->killer = killer;
+	kp->bounty = bty;
+	/* kp->flags = flags; */
+
 	reldeaths = !!cfg->GetInt(arenas[arena].cfg,
 			"Misc", "ReliableKills", 1);
 	net->SendToArena(arena, pid, (byte*)&kp, sizeof(kp), NET_RELIABLE * reldeaths);
+
+	/* handle points
+	{
+		Igivepoints *gp = mm->GetArenaInterface(arena, I_GIVEPOINTS);
+		gp->Kill(arena, killer, pid, bty, flags);
+	} */
+
+	/* call callbacks */
+	{
+		Link *l;
+		LinkedList *funcs = mm->LookupCallback(CALLBACK_KILL);
+		for (l = LLGetHead(funcs); l; l = l->next)
+			((KillFunc)l->data)(arena, killer, pid, bty, 0);
+		LLFree(funcs);
+	}
 }
 
 
