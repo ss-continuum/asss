@@ -41,6 +41,7 @@ local void hash_password(const char *name, const char *pwd, char out[33])
 
 	memset(msg, 0, 56);
 	astrncpy(msg, name, 24);
+	ToLowerStr(msg);
 	astrncpy(msg + 24, pwd, 32);
 
 	MD5Init(&ctx);
