@@ -15,9 +15,9 @@
 struct ConfigFile
 {
 	int refcount;
-	char id[64];
 	HashTable *thetable;
 	StringChunk *thestrings;
+	char id[64];
 };
 
 

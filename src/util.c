@@ -138,7 +138,7 @@ void Error(int level, char *format, ...)
 char *astrncpy(char *dest, const char *source, size_t n)
 {
 	strncpy(dest, source, n-1);
-	dest[n] = 0;
+	dest[n-1] = 0;
 	return dest;
 }
 
@@ -375,7 +375,7 @@ inline unsigned Hash(const char *s, int modulus)
 HashTable * HashAlloc(int req)
 {
 	int size = req ? req : DEFTABLESIZE;
-	HashTable *h = amalloc(sizeof(HashTable) + size * sizeof(HashEntry));
+	HashTable *h = amalloc(sizeof(HashTable) + size * sizeof(HashEntry*));
 	h->sc = SCAlloc();
 	h->size = size;
 	return h;

@@ -37,7 +37,7 @@ typedef struct Ilogman
 	/* log modules can optionally call this function for help filtering
 	 * their log messages. you should pass it the level and log line you
 	 * recieved, and then the name of your own module (filtering will be
-	 * performed based on this module name. */
+	 * performed based on this module name). */
 } Ilogman;
 
 
