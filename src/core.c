@@ -578,6 +578,20 @@ void SendLoginResponse(Player *p)
 			lr.exechecksum = -1;
 			lr.blah3 = -1;
 		}
+		
+		if (lr.code == AUTH_CUSTOMTEXT)
+		{
+			if (p->type == T_CONT)
+			{
+				/* send custom rejection text */
+				byte custom[256];
+				custom[0] = S2C_LOGINTEXT;
+				astrncpy(custom+1, auth->customtext, 255);
+				net->SendToOne(p, custom, strlen(custom+1) + 2, NET_RELIABLE);
+			}
+			else /* vie doesn't understand that packet */
+				lr.code = AUTH_LOCKEDOUT;
+		}
 
 		net->SendToOne(p, (char*)&lr, sizeof(lr), NET_RELIABLE);
 	}

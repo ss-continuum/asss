@@ -123,35 +123,5 @@
 #define C2S_DAMAGE 0x32
 
 
-
-#define S2B_KEEPALIVE 0x01
-#define S2B_LOGIN 0x02
-#define S2B_LOGOFF 0x03
-#define S2B_PLAYERLOGIN 0x04
-#define S2B_PLAYERLEAVING 0x05
-/* missing 06 */
-#define S2B_PRIVATEMSG 0x07
-/* missing 08 09 0A 0B 0C */
-/* REGDATA is just forwarding C2S_REGDATA to billing */
-#define S2B_REGDATA 0x0D
-#define S2B_LOGMESSAGE 0x0E
-#define S2B_WARNING 0x0F
-#define S2B_BANNER 0x10
-#define S2B_STATUS 0x11
-#define S2B_SZONEMSG 0x12
-#define S2B_COMMAND 0x13
-#define S2B_CHATMSG 0x14
-
-
-#define B2S_PLAYERDATA 0x01
-#define B2S_SHUTDOWN 0x02
-#define B2S_ZONEMESSAGE 0x03
-#define B2S_RECYCLE 0x04
-/* missing 05 06 07 */
-#define B2S_KICKUSER 0x08
-#define B2S_SINGLEMESSAGE 0x09
-#define B2S_CHATMSG 0x0A
-
-
 #endif
 

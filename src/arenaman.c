@@ -463,7 +463,7 @@ local void complete_go(Player *p, const char *reqname, int ship, int xres, int y
 
 local void PArena(Player *p, byte *pkt, int l)
 {
-	struct GoArenaPacket *go;
+	struct GoArenaPacket *go = (struct GoArenaPacket*)pkt;
 	char name[16];
 
 #ifdef CFG_RELAX_LENGTH_CHECKS
@@ -478,8 +478,6 @@ local void PArena(Player *p, byte *pkt, int l)
 				p->name, l);
 		return;
 	}
-
-	go = (struct GoArenaPacket*)pkt;
 
 	if (go->shiptype > SPEC)
 	{

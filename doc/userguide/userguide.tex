@@ -113,7 +113,7 @@ Here's what a typical machine's file layout should look like:
 | + balls.so
 | + ...
 |
-+ zone1 
++ zone1
 | + news.txt
 | + bin  (symlinked to ../bin)
 | + defaultarena
@@ -166,8 +166,8 @@ The most important directory is \verb/bin/. This directory should
 contain the main \asss{} binary, as well as all files containing modules
 to be loaded by the main binary. To ease administration, it is not
 recommended that each zone on a machine have a full copy of the
-\verb/bin/ directory. Rather, \verb/bin/ should be a symlink to a shared
-directory containing binaries.
+\verb/bin/ directory. Instead, \verb/bin/ should be a symlink to a
+shared directory containing binaries.
 
 \verb/conf/ contains config files that affect the server as a whole.
 Among the important files are \verb/modules.conf/, which specifies the
@@ -219,7 +219,31 @@ directory as well, unless another location is specified in
 \verb/global.conf/.
 
 
-\subsection{Running \asss{} in a chroot jail}
+\subsection{Running \asss{}}
+
+\subsubsection{Command line arguments}
+
+There are currently three things you can give \asss{} on the command
+line:
+
+\begin{itemize}
+
+\item A file name on the command line will be interpreted as the name of
+a directory containing the zone files (as described in the last
+section). If no directory is specified, the current directory will be
+used.
+
+\item The optional switch \verb/--daemonize/ (abbreviated \verb/-d/)
+tells it to fork into the background before starting up. You might want
+to use this when running \asss{} from a startup script.
+
+\item Another switch, \verb/--chroot/ (abbreviated \verb/-c/), tell is
+to attempt to chroot to the zone directory before starting up. See the
+next section for more information on this.
+
+\end{itemize}
+
+\subsubsection{Running in a chroot jail}
 
 If you want to increase the security of your host a bit, you can run
 \asss{} in a chroot jail. This means that it will run with its root
@@ -247,10 +271,14 @@ and \verb/group/ files, and also things like \verb/ld.so.conf/,
 
 In order to do a chroot, \asss{} needs to be run as root. It won't
 continue running as root, of course: as soon as it successfully chroots,
-it drops its priviliges and runs as a normal user. To control what user
-it switches to, you can use the \verb/USER/ environment variable. If you
-use \verb/su/ to become root, \verb/USER/ will be set to the user who
-ran \verb/su/, which should be what you want.
+it drops its priviliges and runs as a normal user. The user it runs as
+depends how it was run: if the \asss{} binary is installed setuid-root,
+it will always drop to the user who invoked the binary. If it's actually
+run by the root user, it will use the contents of the \verb/USER/
+environment variable to control which user to drop to. So to run it as
+user ``nobody'' from a script running as root (like \verb/rc.local/),
+you can run something like
+\verb|env USER=nobody /path/to/asss /zone/dir --chroot --daemonize|.
 
 
 \section{Modules}
@@ -262,8 +290,8 @@ extension \verb/.so/ (on Unix) or \verb/.dll/ (on Windows). One shared
 library can contain any number of modules.
 
 There are currently
-% grep 'int MM_' ~/src/asss/src/*.c | wc -l
-54
+% grep 'EXPORT *int *MM_[a-z]' ~/src/asss/src/*.c | wc -l
+64
 modules that are part of \asss{}, but each zone might have some
 custom-developed modules for their zone as well.
 
@@ -384,6 +412,17 @@ value like ``arena1:agroup arena2:othergroup.''
 
 The command \verb/?setgroup/ can be used to control group assignment.
 
+The default capability manager also supports passwords for groups,
+although using this feature is strongly discouraged. It is intended for
+sysops or other staff members to gain privliged access when the zone
+isn't connected to a billing server to provide authentication. But
+there's a better way to do this: if you load the \verb/auth_file/ module
+before \verb/billing/, the server will fall back to using
+\verb/auth_file/ when the billing server is not connected. Staff members
+can set passwords using the \verb/?passwd/ command (specific to
+\verb/auth_file/), and they will have access to their usual group.
+
+
 \subsubsection{Emulating the old system}
 Using the default manager, it's relatively easy to set up \asss{} to
 emulate the old server's moderator, super moderator, and sysop model:
@@ -439,11 +478,11 @@ servers or bugs in the server itself.
 
 There are currently
 % cat ~/src/asss/src/*.c | grep ">Log[AP]\?(L_" -c
-209
+240
 % cat ~/src/asss/src/*.c | grep ">Log[AP]\?(L_" | sed 's/.*>Log[AP]\?(L_\([A-Z]*\).*/\1/' | sort | uniq -c
-distinct log messages in the server. By type, there are 25 ERROR
-messages, 49 WARN messages, 59 MALICIOUS messages, 30 INFO messages, and
-46 DRIVEL messages.
+distinct log messages in the server. By type, there are 21 ERROR
+messages, 60 WARN messages, 61 MALICIOUS messages, 40 INFO messages, and
+58 DRIVEL messages.
 
 \subsection{Filtering}
 
@@ -482,10 +521,9 @@ all = ME
 In general, all commands run by anyone are logged, at level INFO, along
 with their parameters and targets. Some commands, however, contain
 personal or sensitive information that might be abused by zone staff who
-can view logs. To prevent this abuse, a list of commands can be defined
-in the section named \verb/[DontLogParams]/ in \verb/global.conf/.
-Commands listed here will have their parameters replaced by \verb/.../
-when they appear in log messages.
+can view logs. To prevent this abuse, there is a hardcoded list of
+commands whose parameters don't get logged (they get replaced by
+\verb/.../ in the log messages).
 
 
 \subsection{Handlers}
@@ -586,6 +624,54 @@ Commands section.
 
 The \verb/?last/ command uses the alias database to find the last 10
 people to log in.
+
+
+\subsection{Authentication}
+
+Ok, so this isn't new, but it's greatly expanded in functionality:
+authentication can now be done with things other than billing servers,
+and some authentication modules can be ``stacked.''
+
+For example, one useful auth module is \verb/auth_file/, which uses a
+file of hashed passwords to authenticate users. This module is intended
+for use by private servers who want to allow a small group of people
+(say, a squad) to play together, and not allow anyone else in. It can
+also be used as a fallback module by the \verb/billing/ module (which
+acts as an auth module, among other things). This means if the billing
+server is connected, login requests will be authenticated against the
+billing server, but if it isn't, they get passed to \verb/auth_file/.
+
+If the user is listed in the file and supplies a correct password, he
+will be allowed access and be granted groups. If not, he will be either
+accepted or rejected depending on the value of
+\verb/General:AllowUnknown/ setting in \verb/passwd.conf/. If an unknown
+player is allowed, he will \emph{not} be assigned groups based on name.
+(That will also not happen if no auth modules are loaded.)
+
+The \verb/auth_file/ module also allows you to lock a specific player
+name out of a zone.
+
+To use a fallback module for the \verb/billing/ module, simply make sure
+that that module is loaded before \verb/billing/ is loaded.
+
+
+\subsection{Multiple ``public'' arenas}
+
+\asss{} supports a general player placement interface to decide which
+arena a player should be placed in upon entering the zone. The most
+useful arena placing interface is \verb/ap_multipub/, which has the
+effect of creating multiple ``public'' arenas.
+
+To use \verb/ap_multipub/, simply make sure it's loaded from
+\verb/modules.conf/ (somewhere near the end is good). It is controlled
+by two settings in the global config file: General:PublicArenas is a
+whitespace-separated list of public arena \emph{types} (not names). For
+example, if General:PublicArenas is set to ``pb turf wz,'' the server
+will start placing people in the arena named ``pb1,'' then when that
+gets full, it will move to ``turf1,'' then ``wz1,'' then ``pb2,'' etc.
+To control how many people it will put in each arena, use
+General:DesiredPlaying, which is a count of \emph{playing} players
+(i.e., not spectators).
 
 
 \section{Bandwidth Throttling}
@@ -741,15 +827,14 @@ directives work very much like C preprocessor directives:
 \verb/#include/ allows one config file to include another.
 \verb/#define/ allows macros to be defined. Macros cannot currently take
 arguments. To reference the definition of a macro, you have to use
-\verb/$(MACRONAME)/, not just the name of the macro. (Curly braces can
-be used instead of parents, and either of them can be omitted entirely
-if the character after the end of the macro name isn't alphanumeric.)
-\verb/#ifdef/, \verb/#ifndef/, \verb/#else/, and \verb/#endif/ allow
-conditional inclusion of sections based on whether a specific macro is
-defined or not. If a line ends with a backslash, it denotes a line
-continuation: the following line of the file (or more if that line ends
-with a backslash) is appended to the original line before it is
-processed.
+\verb/$(MACRONAME)/, not just the name of the macro. (The parens can be
+omitted if the character after the end of the macro name isn't
+alphanumeric.) \verb/#ifdef/, \verb/#ifndef/, \verb/#else/, and
+\verb/#endif/ allow conditional inclusion of sections based on whether a
+specific macro is defined or not. If a line ends with a backslash, it
+denotes a line continuation: the following line of the file (or more if
+that line ends with a backslash) is appended to the original line before
+it is processed.
 
 The start of a section is a line starting with an open bracket and
 ending with a closing bracket. The text between the brackets is the
@@ -877,22 +962,22 @@ I'd like to thank the following people and groups:
 \item{divine.216} for general support, lots of help testing, banner
 support, and many useful suggestions.
 
-\item{Mine GO BOOM} for his ruthless bug-finding and interesting
-suggestions, as well as being the first person besides me to actually
-contribute code to \asss{}.
+\item{Mine GO BOOM} for lots of bug-finding and suggestions, as well as
+being the first person besides me to actually contribute code to
+\asss{}.
 
-\item{Stag Shot} for making sure powerball isn't left out, and other
-contributions.
+\item{Stag Shot} for making sure powerball isn't left out, timer
+features, and other small contributions.
 
 \item{GiGaKiLLeR} for contributing a turf rewards module.
 
 \item{Mr. Ekted} for all his technical help and discussions.
 
-\item{ZippyDan}, ball master, for moral support and comic relief.
+\item{ZippyDan} for encouragement and comic relief.
 
 \item{xalimar} for shell accounts and hosting, mostly.
 
-\item{numpf} for design critiques. % and hopefully code :)
+\item{numpf} for design critiques and more constructive criticism.
 
 \item{Remnant} for being the first person to log into \asss{} (besides
 me, of course), and help testing.
@@ -902,7 +987,6 @@ entertainment.
 
 \item{The Subspace Council} for not dismissing this project immediately,
 and specifically PriitK for information on communicating with Continuum.
-% although it would be nice if it didn't take three months.
 
 % make sure this is correct first:
 %\item{dgus} for naming ASWZ (a small warzone), which suggested the name

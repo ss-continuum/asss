@@ -721,7 +721,7 @@ EXPORT int MM_chat(int action, Imodman *mm_, Arena *arena)
 		if (cmkey == -1 || pmkey == -1) return MM_FAIL;
 
 #ifndef CFG_PERSISTENT_CHAT_MASKS
-		mm->RegCallback(CB_PLAYERACTION, PAction, ALLARENAS);
+		mm->RegCallback(CB_PLAYERACTION, paction, ALLARENAS);
 #endif
 		mm->RegCallback(CB_ARENAACTION, aaction, ALLARENAS);
 

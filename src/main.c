@@ -30,8 +30,15 @@ local void ProcessArgs(int argc, char *argv[])
 	{
 		if (!strcmp(argv[i], "--daemonize") || !strcmp(argv[i], "-d"))
 			dodaemonize = 1;
-		if (!strcmp(argv[i], "--chroot") || !strcmp(argv[i], "-c"))
+		else if (!strcmp(argv[i], "--chroot") || !strcmp(argv[i], "-c"))
 			dochroot = 1;
+		else
+			/* this might be a directory */
+			if (chdir(argv[i]) < 0)
+			{
+				fprintf(stderr, "Can't chdir to '%s'\n", argv[i]);
+				exit(1);
+			}
 	}
 }
 
@@ -152,50 +159,53 @@ local int daemonize(int noclose)
 
 local int do_chroot(void)
 {
-	int r;
-	struct passwd *pwd;
-	const char *user;
 	uid_t uid;
 
-	/* first get uid to set to */
-	user = getenv("USER");
-	if (!user)
+	/* if we're root because of a setuid binary */
+	if (getuid() != geteuid())
+		uid = getuid();
+	else
 	{
-		fprintf(stderr, "$USER isn't set, can't chroot\n");
-		return -1;
+		struct passwd *pwd;
+		const char *user;
+
+		/* first get uid to set to */
+		user = getenv("USER");
+		if (!user)
+		{
+			fprintf(stderr, "$USER isn't set, can't chroot\n");
+			return -1;
+		}
+
+		pwd = getpwnam(user);
+		if (!pwd)
+		{
+			fprintf(stderr, "Can't get passwd entry for %s\n", user);
+			return -1;
+		}
+
+		uid = pwd->pw_uid;
 	}
 
-	pwd = getpwnam(user);
-	if (!pwd)
-	{
-		fprintf(stderr, "Can't get passwd entry for %s\n", user);
-		return -1;
-	}
-
-	uid = pwd->pw_uid;
-
-	r = chroot(".");
-	if (r != 0)
+	if (chroot(".") < 0)
 	{
 		perror("can't chroot to '.'");
-		return r;
+		return -1;
 	}
 
-	r = chdir("/");
-	if (r != 0)
+	if (chdir("/") < 0)
 	{
 		perror("can't chdir to '/'");
-		return r;
+		return -1;
 	}
 
-	r = setuid(uid);
-	if (r != 0)
+	if (setuid(uid) < 0)
 	{
 		perror("can't setuid");
-		return r;
+		return -1;
 	}
 
-	printf("Changed root directory and set user to %s\n", user);
+	printf("Changed root directory and set uid to %d\n", uid);
 	return 0;
 }
 #else

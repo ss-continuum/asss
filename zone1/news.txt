@@ -1,12 +1,9 @@
 
-Welcome to asss (a small subspace server) 0.9.8.
+Welcome to asss (a small subspace server) 0.9.9.
 
 This news.txt will be used for updates about new features and other
 important information. If you have any suggestions of any kind, please
 let me know.
-
-If you have any comments or questions, just talk in pub chat and I'll
-see it eventually (it all gets logged).
 
 
 Recent updates:

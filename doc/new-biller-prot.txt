@@ -1,6 +1,6 @@
 
 subspace billing server protocol proposal
-version 1.2
+version 1.22
 grelminar@yahoo.com
 
 
@@ -22,6 +22,9 @@ server", and the billing server "the biller". i'll use g->b and b->g to
 describe the two directions.)
 
 to login:
+g->b: "SETIDS:serverid:groupid:scoreid"
+    used _only_ for compatibility with older billing servers through the
+    proxy. new billing servers should ignore this command.
 g->b: "CONNECT:version:swname:zonename:network:password"
     version is the version of the protocol used.
     swname is something idenifying the software used, like "asss 1.0.5".
@@ -62,9 +65,7 @@ biller responds with either:
 b->g: "POK:pid:rtext:name:squad:billerid:usage:firstused"
     pid is the player id that was passed in PLOGIN.
     rtext is additional text that can be delivered to the client. if
-    there are no complications logging in, it should be empty. if the
-    billing server wants the client to fill out the registration form,
-    it should be set to "regdata".
+    there are no complications logging in, it should be empty.
     name is the name assigned by the biller (the biller can change the
     name of a player if desired).
     squad is the player's squad.

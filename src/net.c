@@ -21,9 +21,7 @@
 
 #include "asss.h"
 #include "encrypt.h"
-#if 0
-#include "billcore.h"
-#endif
+
 
 /* defines */
 
@@ -242,7 +240,7 @@ local void (*oohandlers[])(Buffer*) =
 {
 	NULL, /* 00 - nothing */
 	NULL, /* 01 - key initiation */
-	NULL, /* 02 - key response (to be used for billing server) */
+	NULL, /* 02 - key response */
 	ProcessReliable, /* 03 - reliable */
 	ProcessAck, /* 04 - reliable response */
 	ProcessSyncRequest, /* 05 - time sync request */
@@ -1188,12 +1186,7 @@ void ProcessBuffer(Buffer *buf)
 			FreeBuffer(buf);
 		}
 	}
-	else if (buf->d.rel.t1 >= MAXTYPES)
-	{
-		lm->Log(L_MALICIOUS, "<net> [%s] [pid=%d] unknown packet type %d",
-				buf->p->name, buf->p->pid, buf->d.rel.t1);
-	}
-	else
+	else if (buf->d.rel.t1 < MAXTYPES)
 	{
 		LinkedList *lst = handlers + (int)buf->d.rel.t1;
 		Link *l;
@@ -1204,6 +1197,11 @@ void ProcessBuffer(Buffer *buf)
 		pd->UnlockPlayer(buf->p);
 
 		FreeBuffer(buf);
+	}
+	else
+	{
+		lm->Log(L_MALICIOUS, "<net> [%s] [pid=%d] unknown packet type %d",
+				buf->p->name, buf->p->pid, buf->d.rel.t1);
 	}
 }
 

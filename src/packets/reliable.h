@@ -8,8 +8,8 @@
 
 struct ReliablePacket
 {
-	i8 t1;
-	i8 t2;
+	u8 t1;
+	u8 t2;
 	i32 seqnum;
 	byte data[MAXPACKET-6];
 };

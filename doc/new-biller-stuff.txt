@@ -20,71 +20,12 @@ after:
 diff in net.c: -185
 diff total   : -296
 
-
-new biller protocol:
-
-i like ascii over tcp, and it worked well for the chat protocol (i could
-write a really simple client in python, and the server's side was fairly
-easy to write also), so let's use that for this. if people want
-security, the protocol can be run over ssl.
-
-
-what do the server and biller need to communicate?
-
-
-server connect:
-s2b: server name, network name, password, id(s)?
-b2s: result
-
-authentication:
-s2b: pid, flag, name, password, ip, various ids
-  flag = 0 for normal login
-         1 for "i want to create a new player"
-b2s: pid, result, name, squad, userid, banner, usage, firstused
-
-player disconnect:
-s2b: pid
-
-
-sending remote priv msgs:
-s2b: frompid, toplayer, sound, text
-
-recving remote priv msgs:
-b2s: topid, fromplayer, sound, text
-
-
-sending chat msgs:
-s2b: pid, channel, sound, text
-
-recving chat msgs:
-b2s: pid, channel, sound, text
-
-
-player commands to biller:
-s2b: pid, command, args
-
-message from biller:
-b2s: pid, sound, text
-
-
-sending some log output to biller:
-s2b: optionalpid, logtext
-
-
-sending staff-only output to server:
-b2s: sound, text
-
-
-broadcast messages:
-b2s: sound, text
-
-
-server going down:
-s2b: (close socket)
-
-
-biller going down:
-b2s: (close socket)
+lines in bproxy:
+     68 bproxy
+    220 asss_bprot.py
+    343 vie_bprot.py
+     26 util.py
+    657 total
 
 
 

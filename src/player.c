@@ -131,14 +131,14 @@ local Player * PidToPlayer(int pid)
 
 local void KickPlayer(Player *p)
 {
-	if (p->type == T_CONT || p->type == T_VIE)
+	if (IS_STANDARD(p))
 	{
 		Inet *net = mm->GetInterface(I_NET, ALLARENAS);
 		if (net)
 			net->DropClient(p);
 		mm->ReleaseInterface(net);
 	}
-	else if (p->type == T_CHAT)
+	else if (IS_CHAT(p))
 	{
 		Ichatnet *chatnet = mm->GetInterface(I_CHATNET, ALLARENAS);
 		if (chatnet)

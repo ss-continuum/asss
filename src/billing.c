@@ -27,7 +27,7 @@ typedef struct pdata
 {
 	long billerid;
 	unsigned long usage;
-	char firstused[24];
+	char firstused[32];
 	void (*Done)(Player *p, AuthData *data);
 } pdata;
 
@@ -158,7 +158,7 @@ local struct Iauth myauth =
 
 local void paction(Player *p, int action, Arena *arena)
 {
-	if (action == PA_LEAVEARENA)
+	if (action == PA_DISCONNECT)
 	{
 		char buf[128];
 		snprintf(buf, sizeof(buf), "PLEAVE:%d", p->pid);
@@ -394,7 +394,7 @@ local void process_pok(const char *line)
 		astrncpy(data->firstused, t, sizeof(data->firstused));
 		data->usage = atol(usagestr);
 		data->billerid = atol(bidstr);
-		ad.demodata = (strcmp(rtext, "regdata") == 0);
+		ad.demodata = 0;
 		ad.code = AUTH_OK;
 		ad.authenticated = TRUE;
 		data->Done(p, &ad);
@@ -419,7 +419,8 @@ local void process_pbad(const char *line)
 	{
 		pdata *data = PPDATA(p, pdkey);
 		memset(&ad, 0, sizeof(ad));
-		ad.code = AUTH_BADPASSWORD;
+		ad.code = AUTH_CUSTOMTEXT;
+		astrncpy(ad.customtext, t, sizeof(ad.customtext));
 		data->Done(p, &ad);
 	}
 	else
@@ -599,10 +600,65 @@ local void process_line(const char *cmd, const char *rest, void *dummy)
 
 /* stuff to handle connecting */
 
-local void get_socket(void)
+local void setup_proxy(const char *proxy, const char *ipaddr, int port)
 {
-	const char *ipaddr;
-	int port, r;
+	/* this means we're using an external proxy to connect to the
+	 * biller. set up some sockets and fork it off */
+	int sockets[2], r;
+	pid_t chld;
+
+	r = socketpair(PF_UNIX, SOCK_STREAM, 0, sockets);
+	if (r < 0)
+	{
+		lm->Log(L_ERROR, "<billing> socketpair failed: %s", strerror(errno));
+		state = s_disabled;
+		return;
+	}
+
+	/* no need to bother with pthread_atfork handlers because we're just
+	 * going to exec the proxy immediately */
+	chld = fork();
+
+	if (chld < 0)
+	{
+		lm->Log(L_ERROR, "<billing> fork failed: %s", strerror(errno));
+		state = s_disabled;
+		return;
+	}
+	else if (chld == 0)
+	{
+		/* in child */
+		char portstr[16];
+
+		/* set up fds, but leave stdout connected to stdout of the server */
+		close(sockets[1]);
+		dup2(sockets[0], STDIN_FILENO);
+		dup2(sockets[0], STDOUT_FILENO);
+		close(sockets[0]);
+
+		snprintf(portstr, sizeof(portstr), "%d", port);
+		execlp(proxy, proxy, ipaddr, portstr, NULL);
+
+		/* uh oh */
+		fprintf(stderr, "E <billing> can't exec billing proxy (%s): %s\n",
+				proxy, strerror(errno));
+		exit(123);
+	}
+	else
+	{
+		/* in parent */
+		close(sockets[0]);
+		set_nonblock(sockets[1]);
+		conn.socket = sockets[1];
+		/* skip right over s_connecting */
+		state = s_connected;
+	}
+}
+
+
+local void remote_connect(const char *ipaddr, int port)
+{
+	int r;
 	struct sockaddr_in sin;
 
 	conn.socket = init_client_socket();
@@ -612,14 +668,6 @@ local void get_socket(void)
 		state = s_retry;
 		return;
 	}
-
-	/* cfghelp: Billing:Port, global, int, def: 1850
-	 * The port to connect to on the billing server. */
-	port = cfg->GetInt(GLOBAL, "Billing", "Port", 1850);
-	/* cfghelp: Billing:IP, global, string
-	 * The ip address of the billing server (no dns hostnames allowed).
-	 * */
-	ipaddr = cfg->GetStr(GLOBAL, "Billing", "IP");
 
 	lm->Log(L_INFO, "<billing> trying to connect to billing server at %s:%d",
 			port, ipaddr);
@@ -651,6 +699,32 @@ local void get_socket(void)
 		/* retry again in a while */
 		state = s_retry;
 	}
+}
+
+
+local void get_socket(void)
+{
+	/* cfghelp: Billing:Proxy, global, string
+	 * This setting allows you to specify an external program that will
+	 * handle the billing server connection. The program should be
+	 * prepared to speak the asss billing protocol over its standard
+	 * input and output. It will get two command line arguments, which
+	 * are the ip and port of the billing server, as specified in the
+	 * Billing:IP and Billing:Port settings. The program name should
+	 * either be an absolute pathname or be located on your $PATH.
+	 */
+	const char *proxy = cfg->GetStr(GLOBAL, "Billing", "Proxy");
+	/* cfghelp: Billing:IP, global, string
+	 * The ip address of the billing server (no dns hostnames allowed). */
+	const char *ipaddr = cfg->GetStr(GLOBAL, "Billing", "IP");
+	/* cfghelp: Billing:Port, global, int, def: 1850
+	 * The port to connect to on the billing server. */
+	int port = cfg->GetInt(GLOBAL, "Billing", "Port", 1850);
+
+	if (proxy)
+		setup_proxy(proxy, ipaddr, port);
+	else
+		remote_connect(ipaddr, port);
 }
 
 

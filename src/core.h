@@ -28,6 +28,7 @@
 #define AUTH_NONAME         0x10   /* fail */
 #define AUTH_TOOMANYDEMO    0x11   /* fail */
 #define AUTH_NODEMO         0x12   /* fail */
+#define AUTH_CUSTOMTEXT     0x13   /* fail */      /* contonly */
 
 #define AUTH_IS_OK(a) \
 	((a) == AUTH_OK || (a) == AUTH_SPECONLY || (a) == AUTH_NOSCORES)
@@ -41,6 +42,8 @@ typedef struct AuthData
 	char name[24];
 	char sendname[20];
 	char squad[24];
+	/* code must be set to AUTH_CUSTOMTEXT to use this */
+	char customtext[256];
 } AuthData;
 
 
