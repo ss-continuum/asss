@@ -19,6 +19,9 @@ ASSSHOME = ..
 BINDIR = $(ASSSHOME)/bin
 SCRIPTS = $(ASSSHOME)/scripts
 
+INSTALL = install
+PYTHON = python
+
 # default options:
 debug = yes
 opt = no
@@ -199,16 +202,16 @@ funky.$(SO): LIBS=$(ZLIB_LIB) -lm
 
 
 sparse.inc: $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py
-	$(SCRIPTS)/gensparse.py $@ $(SCRIPTS)/sparse_params.py
+	$(PYTHON) $(SCRIPTS)/gensparse.py $@ $(SCRIPTS)/sparse_params.py
 
 letters.inc: $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font
-	$(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font > $@
+	$(PYTHON) $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font $@
 
 cfghelp.inc: $(SCRIPTS)/extract-cfg-docs.py
-	cat *.c *.def | $(SCRIPTS)/extract-cfg-docs.py -c > $@
+	$(PYTHON) $(SCRIPTS)/extract-cfg-docs.py -c $@ *.c */*.c *.def
 
 py_constants.inc py_callbacks.inc py_interfaces.inc: $(SCRIPTS)/pymod-process.py *.h */*.h
-	cat *.h */*.h | $(SCRIPTS)/pymod-process.py
+	$(PYTHON) $(SCRIPTS)/pymod-process.py *.h */*.h
 
 
 # c files that need special options
@@ -225,8 +228,8 @@ pymod.o: CFLAGS += $(PYTHON_CFLAGS)
 	$(CC) $(LDFLAGS) -shared -o $@ $^ $(SO_LDFLAGS) $(LIBS)
 
 install: $(ALL_STUFF)
-	install -d $(BINDIR)
-	install $(ALL_STUFF) $(BINDIR)
+	$(INSTALL) -d $(BINDIR)
+	$(INSTALL) $(ALL_STUFF) $(BINDIR)
 
 clean: cleanbin
 	-rm -f *.inc core Makefile.deps

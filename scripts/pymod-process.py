@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # dist: public
 
-import sys, re, string
+import sys, re, string, glob
 
 DEFBUFLEN = 1024
 
@@ -829,8 +829,10 @@ const_file.write(warning)
 callback_file.write(warning)
 int_file.write(warning)
 
-
-lines = sys.stdin.readlines()
+lines = []
+for pat in sys.argv[1:]:
+	for f in glob.glob(pat):
+		lines.extend(open(f).readlines())
 
 # default constants
 const_string('ASSSVERSION')

@@ -18,8 +18,8 @@ local void * thread_check(void *dummy)
 	for (;;)
 	{
 		int seen = counter;
-		struct timespec ts = { 10, 0 };
 #ifndef WIN32
+		struct timespec ts = { 10, 0 };
 		/* this works correctly even when interrupted by signals */
 		while (nanosleep(&ts, &ts) == -1)
 			;

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # dist: public
 
-import sys, re, string
+import sys, re, string, glob
 
 re_cfghelp = re.compile(r"/* cfghelp: (.*?):(.*?), (.*)$")
 re_crap = re.compile(r'^\s*\* (.*?) ?(\*/)?$')
@@ -182,8 +182,14 @@ if __name__ == '__main__':
 	if len(sys.argv) < 2:
 		print "You must specify either -c or -l."
 	else:
-		# extract
-		lines = map(string.strip, sys.stdin.readlines())
+		# open output
+		sys.stdout = open(sys.argv[2], 'w')
+
+		# get input
+		lines = []
+		for pat in sys.argv[3:]:
+			for f in glob.glob(pat):
+				lines.extend(map(string.strip, open(f).readlines()))
 		docs = extract_docs(lines)
 
 		# sort
@@ -200,4 +206,7 @@ if __name__ == '__main__':
 			print_c(docs)
 		elif sys.argv[1] == '-l':
 			print_latex(docs)
+		else:
+			print "unknown option"
+   			sys.exit(1)
 

@@ -138,11 +138,11 @@ def emit_letters(o, letters, widths):
 
 
 def main():
-	if len(sys.argv) < 2:
-		print "\nUsage: %s banner.font > letters.inc\n"
+	if len(sys.argv) < 3:
+		print "\nUsage: %s banner.font letters.inc\n"
 		sys.exit()
 	else:
-		o = sys.stdout
+		o = open(sys.argv[2], 'w')
 		emit_prelude(o)
 		l, w, h = processfile(sys.argv[1])
 		o.write("static const int letterheight = %d;\n" % h)
