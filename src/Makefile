@@ -25,18 +25,19 @@ opt = no
 prof = no
 link_db_statically = no
 
-# uncomment any of these lines if you're missing some libraries:
+# comment any of these lines if you're missing some libraries:
 #
 # if you're missing berkeley db:
-#no_bdb = yes
+have_bdb = yes
 #
 # if you're missing mysql:
-#no_mysql = yes
+have_mysql = yes
 #
 # if you're missing python:
-#no_python = yes
+have_python = yes
 
-# change this to the directory of your bdb 4.x install
+# change this to the directory of your bdb 4.x install.
+# freebsd users probably want /usr/local for all of the _HOME variables.
 DB_HOME = /opt/db-4.0.14
 # these probably won't have to change:
 DB_INC = $(DB_HOME)/include
@@ -49,7 +50,7 @@ else
 DB_LDFLAGS = $(DB_LIB)/libdb.a
 endif
 
-# change this to the directory of your mysql install
+# change this to the directory of your mysql install.
 MYSQL_HOME = /opt/mysql
 # these probably won't have to change
 MYSQL_INC = $(MYSQL_HOME)/include
@@ -57,9 +58,9 @@ MYSQL_LIB = $(MYSQL_HOME)/lib
 MYSQL_CFLAGS = -I$(MYSQL_INC)
 MYSQL_LDFLAGS = -L$(MYSQL_LIB) -Wl,-rpath,$(MYSQL_LIB) -lmysqlclient_r
 
-# change this to the location of your python 2.2 or higher install
+# change this to the location of your python 2.2 or higher install.
 PYTHON_HOME = /opt/python-2.2.2
-# change this to the major/minor version number of your python install
+# change this to the major/minor version number of your python install.
 PYTHON_VERSION = 2.2
 # these probably won't have to change
 PYTHON_INC = $(PYTHON_HOME)/include/python$(PYTHON_VERSION)
@@ -134,19 +135,19 @@ LDFLAGS = $(DASH_PTHREAD) $(DASH_F_PIC) $(PROF_FLAGS)
 
 # the standalone binaries to build
 BINARIES := asss$(EXE)
-ifndef no_bdb
+ifeq ($(have_bdb),yes)
 BINARIES += dbtool$(EXE)
 endif
 
 # dynamic libraries to build
 DLS := funky.$(SO)
-ifndef no_bdb
+ifeq ($(have_bdb),yes)
 DLS += scoring.$(SO)
 endif
-ifndef no_mysql
+ifeq ($(have_mysql),yes)
 DLS += database.$(SO)
 endif
-ifndef no_python
+ifeq ($(have_python),yes)
 DLS += pymod.$(SO)
 endif
 
@@ -157,6 +158,7 @@ UTIL_OBJS = util.o pathutil.o protutil.o region.o rwlock.o app.o md5.o $(W32COMP
 INTERNAL_MODULES = config.o prng.o md5.o player.o core.o logman.o \
 	mainloop.o net.o enc_null.o enc_vie.o arenaman.o mapdata.o \
 	mapnewsdl.o clientset.o capman.o lagdata.o lagaction.o unixsignal.o \
+	deadlock.o \
 	log_file.o log_console.o log_sysop.o \
 	game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
 	banners.o bricks.o objects.o messages.o koth.o fm_lockspec.o \
