@@ -84,10 +84,9 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
 
+		if (!net || !cfg || !lm || !ml || !aman || !pd) return MM_FAIL;
+
 		players = pd->players;
-
-		if (!net || !cfg || !lm || !ml || !aman) return MM_FAIL;
-
 		arenas = aman->arenas;
 
 		/* set up callbacks */

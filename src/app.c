@@ -66,16 +66,16 @@ struct APPContext
 
 static void do_error(APPContext *ctx, const char *fmt, ...)
 {
-	int len;
-	va_list args;
-
 #ifdef BROKEN_VSNPRINTF
+	va_list args;
 	char buf[1024];
 
 	va_start(args, fmt);
 	vsnprintf(buf, 1024, fmt, args);
 	va_end(args);
 #else
+	va_list args;
+	int len;
 	char *buf;
 
 	va_start(args, fmt);

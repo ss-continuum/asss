@@ -419,6 +419,8 @@ void PArena(int pid, byte *p, int l)
 	players[pid].shiptype = go->shiptype;
 	players[pid].xres = go->xres;
 	players[pid].yres = go->yres;
+	if (type == T_CONT)
+		go->optionalgraphics ? SET_ALL_LVZ(pid) : UNSET_ALL_LVZ(pid);
 
 	/* don't mess with player status yet, let him stay in S_LOGGEDIN.
 	 * it will be incremented when the arena is ready. */

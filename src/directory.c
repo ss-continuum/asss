@@ -161,7 +161,7 @@ EXPORT int MM_directory(int action, Imodman *mm, int arena)
 		init_data();
 		init_servers();
 
-		ml->SetTimer(SendUpdates, 6000, 6000, NULL);
+		ml->SetTimer(SendUpdates, 1000, 6000, NULL);
 		return MM_OK;
 	}
 	else
