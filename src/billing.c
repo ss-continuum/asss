@@ -991,7 +991,7 @@ local void try_login(void)
 	if (!net) net = "";
 	if (!pwd) pwd = "";
 
-	snprintf(buf, sizeof(buf), "CONNECT:1.3:asss "ASSSVERSION":%s:%s:%s",
+	snprintf(buf, sizeof(buf), "CONNECT:1.3.1:asss "ASSSVERSION":%s:%s:%s",
 			zonename, net, pwd);
 	sp_send(&conn, buf);
 

@@ -79,8 +79,8 @@ typedef struct Iarenaman
 	void (*SendArenaResponse)(Player *p);
 	void (*LeaveArena)(Player *p);
 
-	void (*RecycleArena)(Arena *a);
-	/* pyint: arena -> void */
+	int (*RecycleArena)(Arena *a);
+	/* pyint: arena -> int */
 
 	void (*SendToArena)(Player *p, const char *aname, int spawnx, int spawny);
 	/* works on cont clients only. set spawnx/y to 0 for default spawn. */

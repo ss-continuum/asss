@@ -29,6 +29,8 @@ cmd_enablecmdgroup
 cmd_admlogfile
 cmd_reloadconf
 
+cmd_addallowed
+
 ; temporary
 cmd_dropturret
 
@@ -39,6 +41,4 @@ prefix_@
 
 ; setgroup:
 higher_than_smod
-
-cmd_pidinfo
 

@@ -1439,7 +1439,7 @@ local void send_outgoing(ConnData *conn)
 
 	/* adjust the current idea of how many bytes have been sent in the
 	 * last second */
-	if (TICK_DIFF(now, conn->sincetime) > (1000/7))
+	while (TICK_DIFF(now, conn->sincetime) > (1000/7))
 	{
 		conn->bytessince = conn->bytessince * 7 / 8;
 		conn->sincetime = TICK_MAKE(conn->sincetime + (1000/7));
@@ -1582,6 +1582,9 @@ local void process_lagouts(Player *p, unsigned int gtc, LinkedList *tokill, Link
 	    /* these three are our kicking conditions, for now */
 	    (diff > config.droptimeout || conn->hitmaxretries || conn->hitmaxoutlist))
 	{
+		/* manually create an unreliable chat packet because we won't
+		 * have time to send it properly. */
+		byte pkt[128] = "\x07\x08\x00\x00\x00You have been disconnected because of lag (";
 		const char *reason;
 
 		if (conn->hitmaxretries)
@@ -1591,11 +1594,8 @@ local void process_lagouts(Player *p, unsigned int gtc, LinkedList *tokill, Link
 		else
 			reason = "no data";
 
-		/* manually create an unreliable chat packet because we won't
-		 * have time to send it properly. */
-		byte pkt[128] = "\x07\x08\x00\x00\x00You have been disconnected because of lag (";
-		strcat(pkt, reason);
-		strcat(pkt, ").");
+		strcat(pkt+5, reason);
+		strcat(pkt+5, ").");
 		pthread_mutex_lock(&conn->olmtx);
 		SendRaw(conn, pkt, strlen(pkt+5)+6);
 		pthread_mutex_unlock(&conn->olmtx);

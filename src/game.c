@@ -885,7 +885,7 @@ local void PAttach(Player *p, byte *pkt2, int len)
 	if (p->status != S_PLAYING || !arena)
 		return;
 
-	if (pid2 == -1)
+	if (pid2 != -1)
 	{
 		Player *to = pd->PidToPlayer(pid2);
 		if (!to ||

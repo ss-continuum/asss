@@ -964,7 +964,8 @@ local helptext_t recyclearena_help =
 
 local void Crecyclearena(const char *params, Player *p, const Target *target)
 {
-	aman->RecycleArena(p->arena);
+	if (aman->RecycleArena(p->arena) == MM_FAIL)
+		chat->SendMessage(p, "Arena recycle failed; check the log for details.");
 }
 
 
@@ -1050,7 +1051,7 @@ local void Csetg(const char *params, Player *p, const Target *target)
 	char info[128], key[MAXSECTIONLEN+MAXKEYLEN+2], *k = key;
 	const char *t = params;
 
-	snprintf(info, 128, "set by %s on ", p->name);
+	snprintf(info, sizeof(info), "set by %s on ", p->name);
 	ctime_r(&tm, info + strlen(info));
 	RemoveCRLF(info);
 
@@ -1098,7 +1099,7 @@ local void Cseta(const char *params, Player *p, const Target *target)
 
 	if (!arena) return;
 
-	snprintf(info, 128, "set by %s on ", p->name);
+	snprintf(info, sizeof(info), "set by %s on ", p->name);
 	ctime_r(&tm, info + strlen(info));
 	RemoveCRLF(info);
 

@@ -394,7 +394,7 @@ local void LeaveArena(Player *p)
 }
 
 
-local void RecycleArena(Arena *a)
+local int RecycleArena(Arena *a)
 {
 	Link *link;
 	Player *p;
@@ -405,10 +405,21 @@ local void RecycleArena(Arena *a)
 	if (a->status != ARENA_RUNNING)
 	{
 		UNLOCK();
-		return;
+		return MM_FAIL;
 	}
 
 	pd->WriteLock();
+
+	FOR_EACH_PLAYER(p)
+		if (p->arena == a &&
+		    !IS_STANDARD(p) &&
+		    !IS_CHAT(p))
+		{
+			pd->WriteUnlock();
+			UNLOCK();
+			lm->LogA(L_WARN, "arenaman", a, "can't recycle arena with fake players");
+			return MM_FAIL;
+		}
 
 	/* first move playing players elsewhere */
 	FOR_EACH_PLAYER(p)
@@ -440,6 +451,8 @@ local void RecycleArena(Arena *a)
 	ad->resurrect = TRUE;
 
 	UNLOCK();
+
+	return MM_OK;
 }
 
 

@@ -53,22 +53,27 @@ local int EndFaked(Player *p)
 
 	if (!p)
 		return 0;
-	if (p->type != T_FAKE || p->status != S_PLAYING)
+	if (p->type != T_FAKE)
 		return 0;
+	if (p->status != S_PLAYING || !p->arena)
+		lm->LogP(L_WARN, "fake", p, "fake player with bad status");
 
 	arena = p->arena;
 	p->arena = NULL;
 
 	/* leave arena */
-	pk.d1 = p->pid;
-	if (net) net->SendToArena(arena, p, (byte*)&pk, 3, NET_RELIABLE);
-	if (chatnet) chatnet->SendToArena(arena, p,
-			"LEAVING:%s", p->name);
+	if (arena)
+	{
+		pk.d1 = p->pid;
+		if (net) net->SendToArena(arena, p, (byte*)&pk, 3, NET_RELIABLE);
+		if (chatnet) chatnet->SendToArena(arena, p,
+				"LEAVING:%s", p->name);
+	}
 
 	/* log before freeing pid to avoid races */
 	if (lm)
 		lm->Log(L_INFO, "<fake> {%s} [%s] fake player destroyed",
-				arena->name,
+				arena ? arena->name : "???",
 				p->name);
 
 	/* leave game */

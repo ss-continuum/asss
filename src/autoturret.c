@@ -229,7 +229,7 @@ local void mlfunc()
 		struct TurretData *td = l->data;
 		next = l->next; /* so we can remove during the loop */
 		now = current_ticks();
-		if (TICK_GT(now, td->endtime))
+		if (TICK_GT(now, td->endtime) || !td->p->arena)
 		{
 			/* remove it from the list, kill the turret, and free the
 			 * memory */

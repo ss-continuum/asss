@@ -114,6 +114,7 @@ void LogSysop(const char *s)
 		}
 		pd->Unlock();
 		chat->SendAnyMessage(&set, MSG_SYSOPWARNING, 0, NULL, "%s", s);
+		LLEmpty(&set);
 	}
 
 	if (lm->FilterLog(s, "log_lastlog"))
@@ -128,18 +129,18 @@ void LogSysop(const char *s)
 
 void PA(Player *p, int action, Arena *arena)
 {
-	int seewhat = *(int*)PPDATA(p, seewhatkey);
+	int *seewhat = (int*)PPDATA(p, seewhatkey);
 	if (action == PA_CONNECT || action == PA_ENTERARENA)
 	{
 		if (capman->HasCapability(p, CAP_SEESYSOPLOGALL))
-			seewhat = SEE_ALL;
+			*seewhat = SEE_ALL;
 		else if (capman->HasCapability(p, CAP_SEESYSOPLOGARENA))
-			seewhat = SEE_ARENA;
+			*seewhat = SEE_ARENA;
 		else
-			seewhat = SEE_NONE;
+			*seewhat = SEE_NONE;
 	}
 	else
-		seewhat = SEE_NONE;
+		*seewhat = SEE_NONE;
 }
 
 

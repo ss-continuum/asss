@@ -2077,8 +2077,8 @@ local void postRewardCleanup(TurfArena *ta)
 	/* players list maintenance */
 	for(l=LLGetHead(&ta->players) ; l ; l=next)
 	{
-		next = l->next;
 		TurfPlayer *pPlayer = l->data;
+		next = l->next;
 
 		if( (!pPlayer->isActive) && (LLIsEmpty(&pPlayer->flags)) )
 		{

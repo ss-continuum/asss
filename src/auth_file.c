@@ -23,6 +23,7 @@ someone = any
  */
 
 #include <string.h>
+#include <stdio.h>
 
 #include "asss.h"
 
@@ -143,6 +144,7 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 
 
 local helptext_t passwd_help =
+"Module: auth_file\n"
 "Targets: none\n"
 "Args: <new password>\n"
 "Changes your local server password. Note that this command only changes\n"
@@ -151,6 +153,7 @@ local helptext_t passwd_help =
 
 local void Cpasswd(const char *params, Player *p, const Target *target)
 {
+	Ichat *chat;
 	char hex[33];
 
 	if (!*params)
@@ -160,11 +163,46 @@ local void Cpasswd(const char *params, Player *p, const Target *target)
 
 	cfg->SetStr(pwdfile, "users", p->name, hex, NULL);
 
+	chat = mm->GetInterface(I_CHAT, ALLARENAS);
+	if (chat) chat->SendMessage(p, "Password set");
+	mm->ReleaseInterface(chat);
+}
+
+
+local helptext_t addallowed_help =
+"Module: auth_file\n"
+"Targets: none\n"
+"Args: <player name>\n"
+"Adds a player to passwd.conf with no set password. This will allow them\n"
+"to log in when AllowUnknown is set to false, and has no use otherwise.\n";
+
+local void Caddallowed(const char *params, Player *p, const Target *target)
+{
+	Ichat *chat;
+	const char *pwd;
+
+	if (!*params)
+		return;
+
+	pwd = cfg->GetStr(pwdfile, "users", params);
+	chat = mm->GetInterface(I_CHAT, ALLARENAS);
+
+	if (pwd)
+		chat->SendMessage(p, "%s has already set a password.", params);
+	else
 	{
-		Ichat *chat = mm->GetInterface(I_CHAT, ALLARENAS);
-		if (chat) chat->SendMessage(p, "Password set");
-		mm->ReleaseInterface(chat);
+		char buf[128];
+		time_t tm = time(NULL);
+
+		snprintf(buf, sizeof(buf), "added by %s on ", p->name);
+		ctime_r(&tm, buf + strlen(buf));
+		RemoveCRLF(buf);
+
+		cfg->SetStr(pwdfile, "users", p->name, "any", buf);
+		chat->SendMessage(p, "Added %s to the allowed player list.", params);
 	}
+
+	mm->ReleaseInterface(chat);
 }
 
 
@@ -192,6 +230,7 @@ EXPORT int MM_auth_file(int action, Imodman *mm_, Arena *arena)
 		if (!pwdfile) return MM_FAIL;
 
 		cmd->AddCommand("passwd", Cpasswd, passwd_help);
+		cmd->AddCommand("addallowed", Caddallowed, addallowed_help);
 
 		mm->RegInterface(&myauth, ALLARENAS);
 
@@ -202,6 +241,7 @@ EXPORT int MM_auth_file(int action, Imodman *mm_, Arena *arena)
 		if (mm->UnregInterface(&myauth, ALLARENAS))
 			return MM_FAIL;
 		cmd->RemoveCommand("passwd", Cpasswd);
+		cmd->RemoveCommand("addallowed", Caddallowed);
 		cfg->CloseConfigFile(pwdfile);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(cmd);
