@@ -194,9 +194,9 @@ E2A_SETSETTING - changes a dynamic setting - no response
 struct SetSettingData
 {
     int arena; /* -1 = global, else = specific arena */
-    char section[MAXVALUELEN];
+    char section[MAXNAMELEN];
     char key[MAXKEYLEN];
-    char data[MAXDATALEN];
+    char data[MAXVALUELEN];
 }
 
 E2A_GETSETTING - gets the value of a setting - wants response
