@@ -4,16 +4,18 @@ seesysoplogarena
 ; bypass checksums
 bypasssecurity
 
+; what groups can this group control
+higher_than_mod
+
+; prefix chars
+prefix_>
+
 privcmd_info
 
 cmd_aa
-cmd_za
+cmd_az
 
 cmd_attmod
-
-; not implemented
-cmd_recycle
-cmd_restart
 
 cmd_moveflag
 
@@ -25,13 +27,9 @@ cmd_quickfix
 cmd_getsettings
 changesettings
 
+cmd_putmap
+
 cmd_userdbadm
 
 privcmd_send
-
-; prefix chars
-prefix_>
-
-; what groups can this group control
-higher_than_mod
 

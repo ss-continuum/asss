@@ -9,6 +9,15 @@ seeepd
 findinprivs
 bypasslock
 
+; mod and anything higher shows up in ?listmod
+isstaff
+
+; what groups can this group control
+higher_than_default
+
+; prefix chars
+prefix_+
+
 cmd_ballcount
 cmd_flagreset
 cmd_listmod
@@ -39,6 +48,7 @@ privcmd_prize
 privcmd_shipreset
 
 privcmd_laginfo
+privcmd_spec
 
 privcmd_usage
 privcmd_billingid
@@ -74,10 +84,4 @@ cmd_getcm
 cmd_setcm
 privcmd_getcm
 privcmd_setcm
-
-; prefix chars
-prefix_+
-
-; what groups can this group control
-higher_than_default
 

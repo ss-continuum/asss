@@ -1,6 +1,8 @@
 
-Hi. This is a development release of asss ("a small subspace server").
-If you have any questions or comments, mail them to grelminar@yahoo.com.
+Hi. This is a (hopefully) stable release of asss ("a small subspace
+server"). If you have any questions or comments, mail them to
+grelminar@yahoo.com. The forum at http://forums.minegoboom.com/ (not run
+by me) is also a helpful resource.
 
 Most of the documentation is available in the user guide, in directory
 "doc". You might want to read it before you try playing with this.
@@ -12,7 +14,7 @@ detached easily. Or you can run "bin/asss -d" to make it fork into the
 background.
 
 You can close it with the sysop command ?shutdown, or just with a
-Ctrl-C. The Ctrl-C isn't a clean shutdown, so you risk losing some data.
+Ctrl-C.
 
 Note the presence of several empty directories: log, data, and tmp.
 Don't remove any of them, the server needs them to be there to create

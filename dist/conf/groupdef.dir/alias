@@ -2,7 +2,7 @@
 ; permission to do alias queries
 
 cmd_qip
-cmd_qalias
-privcmd_qalias
+cmd_alias
+privcmd_alias
 cmd_rawquery
 

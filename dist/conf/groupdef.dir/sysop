@@ -2,6 +2,14 @@
 
 seesysoplogall
 
+; setgroup:
+higher_than_smod
+
+; prefix chars
+prefix_#
+prefix_$$
+prefix_@
+
 cmd_shutdown
 cmd_netstats
 cmd_lastlog
@@ -21,6 +29,8 @@ cmd_geta
 
 cmd_getfile
 cmd_putfile
+cmd_delfile
+cmd_renfile
 cmd_putzip
 cmd_makearena
 
@@ -34,12 +44,4 @@ cmd_addallowed
 
 ; temporary
 cmd_dropturret
-
-; prefix chars
-prefix_#
-prefix_$$
-prefix_@
-
-; setgroup:
-higher_than_smod
 
