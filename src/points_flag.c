@@ -50,19 +50,6 @@ EXPORT int MM_points_flag(int action, Imodman *mm_, int arena)
 }
 
 
-/*
-void MyKillFunc(int arena, int killer, int killed, int bounty, int flags)
-{
-	if (stats)
-	{
-		stats->IncrementStat(killer, STAT_KPOINTS, bounty + flags * 100);
-		stats->IncrementStat(killer, STAT_KILLS, 1);
-		stats->IncrementStat(killed, STAT_DEATHS, 1);
-		stats->SendUpdates(arena);
-	}
-}
-*/
-
 void MyFlagWin(int arena, int freq)
 {
 	int awardto[MAXPLAYERS];
@@ -91,6 +78,6 @@ void MyFlagWin(int arena, int freq)
 		points /= ponfreq;
 
 	for (i = 0; i < ponfreq; i++)
-		stats->IncrementStat(awardto[i], STAT_FPOINTS, points);
+		stats->IncrementStat(awardto[i], STAT_FLAG_POINTS, points);
 }
 

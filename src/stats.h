@@ -11,8 +11,8 @@
 typedef enum stat_t
 {
 	/* these four correspond to the standard subspace statistics */
-	STAT_KPOINTS = 0,
-	STAT_FPOINTS = 1,
+	STAT_KILL_POINTS = 0,
+	STAT_FLAG_POINTS = 1,
 	STAT_KILLS   = 2,
 	STAT_DEATHS  = 3,
 	/* this is the highest-numbered stat */

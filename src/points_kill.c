@@ -66,7 +66,7 @@ void MyKillFunc(int arena, int killer, int killed, int bounty, int flags)
 
 	if (stats)
 	{
-		stats->IncrementStat(killer, STAT_KPOINTS, pts);
+		stats->IncrementStat(killer, STAT_KILL_POINTS, pts);
 		stats->IncrementStat(killer, STAT_KILLS, 1);
 		stats->IncrementStat(killed, STAT_DEATHS, 1);
 		stats->SendUpdates();
