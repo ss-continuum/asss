@@ -15,6 +15,7 @@ typedef struct ModuleData
 {
 	mod_args_t args;
 	ModuleLoaderFunc loader;
+	char loadername[16];
 	LinkedList attached; /* this holds arena pointers */
 } ModuleData;
 
@@ -26,6 +27,7 @@ local int AttachModule(const char *, Arena *);
 local int DetachModule(const char *, Arena *);
 local void DetachAllFromArena(Arena *);
 local const char *GetModuleInfo(const char *);
+local const char *GetModuleLoader(const char *);
 
 local void RegInterface(void *iface, Arena *arena);
 local int UnregInterface(void *iface, Arena *arena);
@@ -65,7 +67,8 @@ local Imodman mmint =
 	RegCallback, UnregCallback, LookupCallback, FreeLookupResult,
 	NULL, NULL,
 	RegModuleLoader, UnregModuleLoader,
-	GetModuleInfo, DetachAllFromArena,
+	GetModuleInfo, GetModuleLoader,
+	DetachAllFromArena,
 	{ DoStage, UnloadAllModules, NoMoreModules }
 };
 
@@ -182,6 +185,7 @@ local int LoadModule_(const char *spec)
 		ret = loader(MM_LOAD, &mod->args, t, NULL);
 		if (ret == MM_OK)
 		{
+			astrncpy(mod->loadername, loadername, sizeof(mod->loadername));
 			mod->loader = loader;
 			LLInit(&mod->attached);
 			LLAdd(&mods, mod);
@@ -347,6 +351,18 @@ const char * GetModuleInfo(const char *name)
 	mod = get_module_by_name(name);
 	if (mod)
 		ret = mod->args.info;
+	pthread_mutex_unlock(&modmtx);
+	return ret;
+}
+
+const char * GetModuleLoader(const char *name)
+{
+	ModuleData *mod;
+	const char *ret = NULL;
+	pthread_mutex_lock(&modmtx);
+	mod = get_module_by_name(name);
+	if (mod)
+		ret = mod->loadername;
 	pthread_mutex_unlock(&modmtx);
 	return ret;
 }

@@ -388,15 +388,22 @@ local helptext_t modinfo_help =
 local void Cmodinfo(const char *tc, const char *params, Player *p, const Target *target)
 {
 	const char *info = mm->GetModuleInfo(params);
-	if (!info)
+	const char *loader = mm->GetModuleLoader(params);
+	if (!info && !loader)
 		chat->SendMessage(p, "No information for module '%s'", params);
 	else
 	{
-		const char *tmp = NULL;
+		const char *tmp = NULL, *prefix = "Info: ";
 		char buf[100];
-		chat->SendMessage(p, "Info for module '%s':", params);
-		while (strsplit(info, "\n", buf, sizeof(buf), &tmp))
-			chat->SendMessage(p, "  %s", buf);
+		chat->SendMessage(p, "Module: %s", params);
+		if (loader)
+			chat->SendMessage(p, "Loader: %s", loader);
+		if (info)
+			while (strsplit(info, "\n", buf, sizeof(buf), &tmp))
+			{
+				chat->SendMessage(p, "%s%s", prefix, buf);
+				prefix = "  ";
+			}
 	}
 }
 

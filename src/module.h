@@ -275,6 +275,9 @@ typedef struct Imodman
 	const char *(*GetModuleInfo)(const char *modname);
 	/* pyint: string -> string */
 
+	/** Gets the name of the loader for a module. */
+	const char *(*GetModuleLoader)(const char *modname);
+
 	/** Detaches all modules from an arena. */
 	void (*DetachAllFromArena)(Arena *arena);
 
