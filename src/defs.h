@@ -8,7 +8,7 @@
 
 #undef ATTR_FORMAT
 #undef ATTR_MALLOC
-#ifdef __GNUC__
+#if defined(__GNUC__) && __GNUC__ >= 3
 #define ATTR_FORMAT(type, idx, first) __attribute__ ((format (type, idx, first)))
 #define ATTR_MALLOC() __attribute__ ((malloc))
 #else
