@@ -170,7 +170,7 @@ local void get_data(void *clos, int offset, byte *buf, int needed)
 		afree(dd->fname);
 		afree(dd);
 	}
-	else if (offset == 0 && needed > 17)
+	else if (offset == 0 && needed >= 17)
 	{
 		*buf++ = S2C_INCOMINGFILE;
 		strncpy(buf, dd->fname, 16);
