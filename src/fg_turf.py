@@ -18,8 +18,8 @@ def init(a):
 	a.fg_turf_persist = cfg.GetInt(a.cfg, "Flag", "PersistentTurfOwners", 1)
 
 	# set up turf game
-	fc.SetCarryMode(a, asss.CARRY_NONE)
-	fc.ReserveFlags(a, fc)
+	flagcore.SetCarryMode(a, asss.CARRY_NONE)
+	flagcore.ReserveFlags(a, fc)
 
 	# set up initial flags
 	f = asss.flaginfo()
