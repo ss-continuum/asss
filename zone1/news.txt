@@ -11,7 +11,8 @@ Recent updates:
         module, and can now be replaced per-arena. also added hooks for
         setting freqs/ships.
 
-    * bricks!
+    * bricks (now with correct re-sending of old bricks upon entering
+        arenas, and the bricklayer)
 
     * energy/inventory info (including energy-viewing for team only)
 
