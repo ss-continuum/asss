@@ -125,12 +125,16 @@ Nov 26 11:43:34 M <net> {arena1} [playerx] tried to make us allocate 123152322 b
 16      space
 17      priority
 18      space
-19      {module} (arena) [player] message
+19      <module> {arena} [player] message
+
+strftime format string:
+%b %d %H:%M:%S
 
 conventions to make grepping/parsing easier:
 player names are in []
 arena names are in {}
 module names are in <>
+command names are in ''
 
 priority codes:
 name         letter   C constant

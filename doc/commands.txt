@@ -9,7 +9,7 @@
  ?owner = displays name of arena owner (see server.cfg Owner:Name)
  ?packetloss = displays your current packetloss percentages
  ?getsettings = if you own the arena or have sysop powers, this allows you to change
-	settings (same as ESC-C)
+               settings (same as ESC-C)
  ?setlevel = if you own the arena or are a sysop, allows you to change the level/map
  ?arena = displays list of public arenas (private ones too if you are sysop)
  ?time = displays amount of time remaining in current game (timed games)
@@ -46,10 +46,10 @@
  ?loadmacro = load message macros
  ?savemacro = save message macros
  ?setsettings = used to upload a modifed .set file (as downloaded via ?getsettings) --
-	not recommended method...
+               not recommended method...
  ?recycle = allows arena owner to recycle the arena
  ?cheater (name) = sends message to all online mods/smods/sysops and people logged into BanG 
-	(version 1.34.3 or higher. Or connected to bang)
+               (version 1.34.3 or higher. Or connected to bang)
  ?getnews = downloads news.txt to your SS folder (version 1.34.2 or higher)
  ?scorereset = Scoreresets yourself (version 1.34.4 or higher)
  ?lag = Will display both ping and ploss at once (version 1.34.5 or higher)
@@ -72,21 +72,21 @@
  *g* = get server.ini file variable, ex *g*MiscMaxPlayers
  *log = display a log of messages printed on server screen
  *energy = turns on viewing of other players energy levels
-	if sent privately, let's person it is sent to see energy levels
+               if sent privately, let's person it is sent to see energy levels
  *system (command) = Do DOS command access (priv to player or public to server) -REMOVED- 
-	(VIE Subgame)
+               (VIE Subgame)
  *addip (ip) = Adds ip# to ipblock.txt -REMOVED- (VIE Subgame)
  *removeip (ip) = removes ip from ipblock.txt -REMOVED- (VIE Subgame)
  *listip = lists all ip# from ipblock.txt -REMOVED- (VIE Subgame)
-	ipblock.txt still works for blocking IP#
+               ipblock.txt still works for blocking IP#
  *addmachine (id) = adds machineID# to idblock.txt -REMOVED- (VIE Subgame)
  *removemachine (id) = removes id# from idblock.txt -REMOVED- (VIE Subgame)
  *listmachine = lists all id# from idblock.txt -REMOVED- (VIE Subgame)
-	idblock.txt still works for blocking ID#
+               idblock.txt still works for blocking ID#
  *ufo = Give yourself UFO ship. Can be turned on and off (version 1.34.1 or higher)
  *super = Give yourself the super ship with everything (version 1.34.1 or higher)
  *mirror = Shows what everyone sees you as. No one else can see it, and will always be a spider 
-	(version 1.34.1 or higher)
+               (version 1.34.1 or higher)
  *getnews = Downloads news.txt to your comp (version 1.34.2 to 1.34.4)
  *putnews = Uploads news.txt from your SS folder to server (version 1.34.2 to 1.34.4)
  *getsysoplist = Downloads sysop.txt (version 1.34.2 to 1.34.4)
@@ -97,29 +97,29 @@
  *putobscene = Uploads obscene.txt (version 1.34.2 to 1.34.4)
  *getfile (name) = Downloads file from server (version 1.34.5 or higher)
  *putfile (name) = Uploads file from server. Cannot upload some files (.dll, .exe, etc) 
-	(version 1.34.5 or higher)
+               (version 1.34.5 or higher)
  *delfile (name) = Deletes file from server. Cannot delete some files (.dll, .exe, etc) 
-	(version 1.34.5 or higher)
+               (version 1.34.5 or higher)
  *version = Tells what subgame version it is. (version 1.34.6 or higher)
  *lag = List all player's quick lag info (version 1.34.8 or higher)
 
    - PRIVATELY SENT -
  *sysop = sent privately, grants sysop priviledges to player (temporary, allows no sounds)
  *smoderator = sent privately, grants super moderator priviledges to player (temporary, allows 
-	no sounds)
+               no sounds)
  *monitor # = Shows you all commands from player at certain text levels -REMOVED- (VIE Subgame)
-	0 = Public, 1 = priv/public, 2 = priv/public/team, 3 = priv/public/team/chat, 4 = all 
-	messages
+               0 = Public, 1 = priv/public, 2 = priv/public/team, 3 = priv/public/team/chat, 4 = all 
+               messages
  *say (text) = Makes a player say something without them really typing it (will allow ? and * 
-	commands through this) -REMOVED- (VIE Subgame)
+               commands through this) -REMOVED- (VIE Subgame)
  *getfile (name) = Download file from player's computer (priv one) -REMOVED- (VIE Subgame)
  *putfile (name) = Uploads file to player's computer (priv one) -REMOVED- (VIE Subgame)
  *thor # = Sets players thor level to #. 0 = normal, > 1 = instant death, larger the #, the 
-	larger the prox (version 1.34.1 or higher)
+               larger the prox (version 1.34.1 or higher)
  *lowbandwidth # = (# = 0 or 1) 0 means normal, 1 means gets/sends every packet doubled to help 
-	stop lag (version 1.34.1 or higher)
+               stop lag (version 1.34.1 or higher)
  *messagelogging  = sent privately, detects if a player is logging messages and at what level if 
-	a sysop (version 1.34.4 or higher)
+               a sysop (version 1.34.4 or higher)
  *super = gives someone super ship (1.34.4 or higher)
  *ufo = gives someone ufo ship (1.34.4 or higher)
  *einfo = Displays player's Userid# and their screen rez (1.34.5 or higher)
@@ -139,15 +139,15 @@
  *prize # = grant a specific prize to all players, sent privately, grants to that ship only
           (negative prizes take away -- see list above)
  *listmod = will display all players that have mod/smod/sysop curretly logged into the zone 
-	(1.34.4 or higher)
+               (1.34.4 or higher)
  
    - PRIVATELY SENT -
  *info = sent privately, displays lot of player info
  *where = sent privately, tells location of player
  *trace = sent privately, tells server to do a tracert to that person (NOTE: Needs the subgame 
-	version 1.34.1 or higher to be named subgame2.exe or else will not work)
+               version 1.34.1 or higher to be named subgame2.exe or else will not work)
  *moderator = sent privately, makes person it is sent to a moderator for that session (temporary,
-	allows no sounds)
+               allows no sounds)
 
  MODERATOR COMMANDS
  ------------------
@@ -175,14 +175,14 @@
            this to yourself, you can't undo unless you exit game and re-enter)
  *spec = sent privately, forces specified player into spec mode (locks him there too)
  *specall = send publicly, specs everyone. Doesn't lock them there. Can't spec people with 
-	higher level (version 1.34.3 or higher)
+               higher level (version 1.34.3 or higher)
  *setship # = sent privately, sets players ship to #, can't do to higher level (1 - 8) (version 
-	1.34.2 or higher)
+               1.34.2 or higher)
  *setfreq #### = sent privately, sets players freq to #, can't do to higher level (0 - 9999) 
-	(version 1.34.2 or higher)
+               (version 1.34.2 or higher)
  *locate (name) = if player is in zone, tells you which arena (version 1.34.2 or higher)
  *watchgreen = As long as that player stays in that arena, you can see every green he gets
-	(priv) (version 1.34.5 or higher)
+               (priv) (version 1.34.5 or higher)
  *listban = Will display all people banned by *kill, and their time (version 1.34.5 or higher)
  *removeban (ID#) = Will remove machineID# ban by *kill (version 1.34.5 or higher)
  *packetloss = Will display to you player's Packetloss -REMOVED- (version 1.34.5 pre-release)
@@ -203,115 +203,166 @@
 --------------------------------------------------------------------------------
 
 
-command			processedby		whocando	willidoit?
+command         processedby     whocando    willidoit?
 ----------------------------------------------------------
-usage			billing			anyone
-sheep			server			anyone		yes
-buy				server			anyone		yes
-userid			billing			anyone
-owner			server			anyone		no
-packetloss		server			sysop		yes
-getsettings		server			sysop		maybe
-setlevel		server			sysop		no (putfile and set)
-arena			server			anyone		yes
-time			server			anyone		in extra module
-crown			server			anyone		in extra module
-chat			billing			anyone
-best			server			anyone		no
-flags			client			anyone
-team			client			anyone
-score			client			anyone
-ignore			client			anyone
-log				client
-target			client
-status			client
-kill			client
-ping			client
-savemap			client
-go				client
-lines			client
-zone			client
-spec			???
-password		billing
-squad*			billing
-away			client
-lines			client
-namelen			client
-music			client
-*macro			client
-setsettings		server			sysop		not really
-recycle (arena)	server			owner		maybe
-cheater			server			anyone		yes
-getnews			server			anyone		yes
-scorereset		server			anyone		yes
-lag				server			anyone		yes
-find			server/billing	anyone		yes
-get				server			sysop		yes
-set				server			sysop		yes
-obscene			server			anyone		no!
-squadlist		billing			anyone
+listban         biller
+removeban       biller
+password        billing
+squad*          billing
+chat            billing         anyone
+squadlist       billing         anyone
+usage           billing         anyone
+userid          billing         anyone
+*macro          client
+away            client
+go              client
+kill            client
+lines           client
+lines           client
+log             client
+music           client
+namelen         client
+ping            client
+savemap         client
+status          client
+target          client
+zone            client
+flags           client          anyone
+ignore          client          anyone
+score           client          anyone
+team            client          anyone
 
-stat
-addword
-shutdown
-s
-g
-log
-energy
-system
-*ip
-*machine
-ufo
-super
-mirror
-getfile
-putfile
-delfile
-version
-lag
 
-sysop
-smoderator
-monitor
-say
-*file (on a person)
-thor
-lowbandwidth
-messagelogging
-einfo
-szone
-zone
-getlist
-putlist
-recycle
-restart
-prize
-listmod
-info
-where
-trace
-arena
-permit
-revoke
-beginlog
-endlog
-shipreset
-scorereset
-flagreset
-timereset
-banner
-lock
-lockspec
-lock*msg
-timer
-kill
-shutup
-spec
-specall
-setship
-setfreq
-locate
-watchgreen
-listban
-lag
-emoveban
+getsettings     server          sysop       maybe
+recycle (arena) server          owner       maybe
+restart         server          ?           maybe
+timereset       server          ?           maybe
+*ip             server          ?           no
+*machine        server          ?           no
+addword         server?         ?           no
+beginlog        server          ?           no
+best            server          anyone      no
+endlog          server          ?           no
+g               server          sysop       no
+getlist         server          ?           no
+lockspec        server          ?           no
+messagelogging  server?         ?           no
+monitor         server?         ?           no
+owner           server          anyone      no
+putlist         server          ?           no
+revoke          server          ?           no
+say             server          ?           no
+smoderator      server          ?           no
+stat            server          sysop       no
+system          server          sysop       no
+thor            server          ?           no
+timer           server          ?           no
+watchgreen      server          ?           no
+locate          server          ?           no (?find)
+banner          server          ?           no (accept all banners)
+einfo           server          ?           no (better info cmd)
+*file (priv)    server          ?           no (better p2p system)
+mirror          server          ?           no (but will have better things)
+sysop           server          ?           no (cap system)
+setlevel        server          sysop       no (putfile and set)
+listmod         server          ?           no (something else with cap system)
+recycle         server          ?           no (subcmd of shutdown)
+energy          server          ?           no (through cap system)
+s               server          sysop       no (universal set/get)
+obscene         server          anyone      no!
+permit          server          ?           not exactly
+setsettings     server          sysop       not really
+
+
+================================================================================
+commands to implement
+--------------------
+
+arena           server          ?           yes (rename to a)
+arena           server          anyone      yes
+buy             server          anyone      yes
+cheater         server          anyone      yes
+crown           server          anyone      yes
+delfile         server          ?           yes
+find            server/billing  anyone      yes
+flagreset       server          ?           yes
+get             server          sysop       yes
+getfile         server          ?           yes
+getnews         server          anyone      yes
+info            server          ?           yes (generalized)
+kill            server          ?           yes (rename kick)
+lag             server          ?           yes
+lag             server          anyone      yes
+lock            server          ?           yes (combine with lockspec)
+lock*msg        server          ?           yes (combine to one)
+log             server          sysop       yes
+lowbandwidth    server          ?           yes
+packetloss      server          sysop       yes
+prize           server          ?           yes
+putfile         server          ?           yes
+scorereset      server          ?           yes
+set             server          sysop       yes
+setfreq         server          ?           yes
+setship         server          ?           yes
+sheep           server          anyone      yes
+shipreset       server          ?           yes
+shutdown        server          sysop       yes
+shutup          server          ?           yes
+spec            server          ?           yes (rename [un]lockspec)
+spec            server          anyone      yes
+specall         server          ?           yes
+super           server          ?           yes
+szone           server(/biller) ?           yes
+time            server          anyone      yes
+trace           server          ?           yes
+ufo             server          ?           yes
+version         server          ?           yes
+where           server          ?           yes (rename to report)
+zone            server          ?           yes
+
+
+STUFF TO IMPLEMENT NOW
+
+command        D/I            module         desc
+
+DONE
+
+arena          D              commands       lists open arenas
+report         D              game           displays someone's loc, nrg, and bty
+
+TODO SOON
+
+a              I (chat)       commands       sends arena msg to all in arena
+find           D              commands       locates player
+kick           I (net)        commands       kicks player off
+prize          I (game)       commands       gives a player prizes
+version        D              commands       displays the server version
+whospec        D              game           lists who is speccing a player
+zone           I (chat)       commands       sends a message to the whole zone
+
+TODO LATER
+
+trace          ?              childproc      displays a traceroute to a player
+lockmsg        I (chat)       commands       blocks messages of a certain type
+setfreq        I (game)       commands       changes a player's freq
+setship        I (game)       commands       changes a player's ship (and maybe locks)
+shipreset      ?              commands       resets a ship
+getfile        I (fileops)    commands       downloads file
+lowbandwidth   I (net)        commands       modifies network parameters
+info           ?              commands       prints info on player
+delfile        I (fileops)    commands       removes file from server
+lag            I (net)        commands       reports lag stats
+scorereset     I (stats)      commands       reset someones score
+get            I (config)     commands       retrieves config setting
+cheater        D              commands       sends message to mods
+set            I (config)     commands       sets a config setting
+sheep          D              commands       sheep!
+shutdown       I (ml)         commands       shuts down the server
+shutup         I (chat)       commands       stops a player from talking
+ufo            I (game)       commands       toggles the ufo bit for someone
+putfile        I (fileops)    commands       uploads a file to the server
+moveflag       I (flags)      flags          moves a flag to a location
+flagreset      I (flags)      flags          resets flag game
+log            D              log_sysop      displays last 20 entries in server log
+
+

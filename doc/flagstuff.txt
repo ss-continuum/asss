@@ -1,0 +1,103 @@
+
+setting                            client/server
+
+FlaggerOnRadar=1                   C
+FlaggerKillMultiplier=2            C
+FlaggerGunUpgrade=1                C
+FlaggerBombUpgrade=1               C
+FlaggerFireCostPercent=1000        C
+FlaggerDamagePercent=1000          C
+FlaggerBombFireDelay=0             C
+FlaggerSpeedAdjustment=0           C
+FlaggerThrustAdjustment=0          C
+CarryFlags=1                       C
+FlagDropDelay=3000                 C
+FlagDropResetReward=0              C
+EnterGameFlaggingDelay=1000        C
+FlagBlankDelay=200                 C
+NoDataFlagDropDelay=500            C
+
+FlagMode=1                         S
+FlagResetDelay=1440000             S
+MaxFlags=3                         S
+RandomFlags=0                      S
+FlagReward=2500                    S
+FlagRewardMode=0                   S
+FlagTerritoryRadius=3              S
+FlagTerritoryRadiusCentroid=0      S
+FriendlyTransfer=0                 S
+
+
+FlagMode
+0 dropped are unowned, own all to win
+1 dropped are owned, own all to win
+2 turf-style
+
+FlagResetDelay
+time before unwon game is reset
+
+MaxFlags
+max flags in arena (0 to disable)
+
+RandomFlags
+0 actual number is max
+1 actual number random, up to max
+
+FlagReward
+Formula = (playersInGame * playersInGame * FlagReward / 1000)
+
+FlagRewardMode
+How flag reward points are divided up (0 = each team member gets
+rewardPoints) (1 = each team member gets (rewardPoints *
+numberOfTeamMembers / maximumAllowedPerTeam))
+
+FlagTerritoryRadius
+When flagger drops flags, this is how spread out they are (distance
+from drop-centroid in tiles)
+
+FlagTerritoryRadiusCentroid
+When flagger drops flags, this is how far the drop-centroid is randomly
+adjusted from the actual drop location)
+
+FriendlyTransfer
+Whether the flaggers can transfer flags to other teammates
+
+
+My settings:
+
+FlagMode
+0 no flag game
+1 dropped are unowned, own all to win
+2 dropped are owned, own all to win
+3 turf-style
+
+FlagResetDelay
+time before unwon game is reset
+
+MaxFlags
+max flags in arena (0 to disable)
+
+RandomFlags
+0 actual number is max
+1 actual number random, up to max
+
+FlagSpawnCenterX
+FlagSpawnCenterY
+FlagSpawnRadius
+where newly-spawned flags will appear
+
+FlagDropRadius
+how far from a drop the flag will appear
+
+FriendlyTransfer
+Whether the flaggers can transfer flags to other teammates
+
+
+Flag reward points will be determined by separate modules. points_flag
+will have it's own config settings:
+
+FlagReward
+
+UseJackpot
+
+
