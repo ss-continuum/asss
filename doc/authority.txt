@@ -1,0 +1,19 @@
+
+we need a better system to replace mod/smod/sysop. it should be based on
+capabilities. there will be a capability manager, 'capman'. other
+modules will ask it to determine if a player has a given capability.
+
+possible capabilities:
+see log messages from the log_sysop module
+see priv freqs
+see priv arenas
+for each command:
+	use command with target arena
+	use command with target person/freq
+
+the standard capability manager will:
+	have group definitions in a groups.conf file.
+	have group membership information stored per arena.
+	  OR
+	have groups contain the arenas they are valid in.
+

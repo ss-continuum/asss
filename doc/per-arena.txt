@@ -1,0 +1,65 @@
+
+ok, here are the interfaces that exist as of 12.19.01:
+
+#define I_NULL          0
+#define I_MODMAN        1
+#define I_PLAYERDATA    2
+#define I_MAINLOOP      3
+#define I_CONFIG        4
+#define I_NET           5
+#define I_LOGMAN        6
+#define I_CMDMAN        7
+#define I_CHAT          8
+#define I_ARENAMAN      9
+#define I_ASSIGNFREQ    10
+#define I_AUTH          11
+#define I_BILLCORE      12
+#define I_MAPNEWSDL     13
+#define I_CLIENTSET     14
+#define I_PERSIST       15
+#define I_ENCRYPTBASE   90
+
+
+which of them might want to be customized per-arena?
+
+I_ASSIGNFREQ
+
+
+how can we do this nicely?
+there will be another type of interface, which will all have id numbers
+over 255.
+
+how will they be accessed?
+Imodman will have a new function: GetArenaInterface(int arena, int iid)
+
+how will they be set?
+Imodman will have a function: SetArenaInterface(int arena, int iid, void *iface)
+
+how will they be initialized?
+i'm not sure yet.
+
+possible alternatives:
+
+have each arena contain a modules.conf file which describes what modules will
+be loaded when it is initalized, and those modules will be passed an arena
+parameter so they can register themselves with the right arena. (this
+autoloading may be good for other reasons.)
+problems: they aren't multiply instantiable! it's quite sketchy besides that:
+the modules can register themselves with other arenas too if they choose, and
+we have to be careful about unloading.
+
+have each arena contain a file that lists which of several alternatives for a
+given interface they will choose. this requires the ability to look up modules
+by name... and even then it won't work with the current system.
+
+i'd like to be able to load a module while it's running that provides a custom
+point-awarder for an arena, and then have the arena use that.
+
+so how about this: modules that provide interfaces for per-arena things (maybe
+all things?!) provide an identifying string when registering their interface.
+arenas can request interfaces by name.
+
+also keep in mind:
+we don't do things with just interfaces anymore! the [un]regcallback system
+will need to be enhanced to do arena-specific callbacks too!
+

@@ -3,8 +3,6 @@
 short term
 ----------
 
-test scoreman
-
 redo a bit of logging to use classes
 
 more game stuff
@@ -12,7 +10,7 @@ more game stuff
 persistant arena names for ?arena
 
 work on more modules, in roughly this order:
-clientset, scoreman, game/flag/ball, etc.
+game/flag/ball, etc.
 
 better authority model (groups, capabilities)
   write about it first!
@@ -24,9 +22,18 @@ does my implementation of acking (the lastack thing) really work?!
 fix it!
 and make outgoing queues separate per player.
 
+
 persist
 -------
 sort data entries by key so matching keys on read is faster
+
+sync every x seconds (implement in db loop with gtc())
+
+
+config
+------
+implement the suggestion that other arenas only have to supply settings
+that override main arena's. this has potentially large consequences.
 
 
 long term
