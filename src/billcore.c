@@ -54,7 +54,7 @@ local Ibillcore _ibillcore =
 local int cfg_pingtime, cfg_serverid, cfg_groupid, cfg_scoreid;
 
 
-int MM_billcore(int action, Imodman *_mm)
+int MM_billcore(int action, Imodman *_mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -92,6 +92,7 @@ int MM_billcore(int action, Imodman *_mm)
 
 		mm->RegInterface(I_AUTH, &_iauth);
 		mm->RegInterface(I_BILLCORE, &_ibillcore);
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
@@ -116,12 +117,9 @@ int MM_billcore(int action, Imodman *_mm)
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_CMDMAN, &cmd);
+		return MM_OK;
 	}
-	else if (action == MM_DESCRIBE)
-	{
-		mm->desc = "billcore - basic billing server communication";
-	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 

@@ -34,14 +34,6 @@
 #define MAXVALUELEN 256
 
 
-#define DEFAULTSEARCHPATH \
-	"arenas/%a/%n.conf" ":" \
-	"arenas/default/%n.conf" ":" \
-	"conf/%a-%n.conf" ":" \
-	"conf/default-%n.conf" ":" \
-	"conf/%n.conf"
-
-
 typedef struct ConfigFile *ConfigHandle;
 
 #define GLOBAL ((ConfigHandle)0)

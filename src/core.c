@@ -31,7 +31,7 @@ local void AuthDone(int, AuthData *);
 local void GSyncDone(int);
 local void ASyncDone(int);
 
-local void CallPA(int pid, int action);
+local void CallPA(int pid, int action, int arena);
 local int SendKeepalive(void *);
 local void ProcessLoginQueue();
 local void SendLoginResponse(int);
@@ -66,7 +66,7 @@ local Iauth _iauth = { DefaultAuth };
 
 /* FUNCTIONS */
 
-int MM_core(int action, Imodman *mm_)
+int MM_core(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -89,7 +89,7 @@ int MM_core(int action, Imodman *mm_)
 
 		/* set up callbacks */
 		net->AddPacket(C2S_LOGIN, PLogin);
-		mm->RegCallback(CALLBACK_MAINLOOP, ProcessLoginQueue);
+		mm->RegCallback(CALLBACK_MAINLOOP, ProcessLoginQueue, ALLARENAS);
 
 		/* register default interfaces which may be replaced later */
 		mm->RegInterface(I_AUTH, &_iauth);
@@ -97,11 +97,14 @@ int MM_core(int action, Imodman *mm_)
 
 		/* set up periodic events */
 		ml->SetTimer(SendKeepalive, 500, 500, NULL);
+
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregInterface(I_ASSIGNFREQ, &_iaf);
 		mm->UnregInterface(I_AUTH, &_iauth);
+		mm->UnregCallback(CALLBACK_MAINLOOP, ProcessLoginQueue, ALLARENAS);
 		net->RemovePacket(C2S_LOGIN, PLogin);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_NET, &net);
@@ -111,12 +114,9 @@ int MM_core(int action, Imodman *mm_)
 		mm->UnregInterest(I_MAPNEWSDL, &map);
 		mm->UnregInterest(I_AUTH, &auth);
 		mm->UnregInterest(I_PERSIST, &persist);
+		return MM_OK;
 	}
-	else if (action == MM_DESCRIBE)
-	{
-		mm->desc = "core - handles core game packets, including logins";
-	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 
@@ -163,17 +163,17 @@ void ProcessLoginQueue()
 			case S_LEAVING_ZONE:        ns = S_TIMEWAIT;            break;
 
 			case S_LOGGEDIN:
-				/* check whenloggedin. this is used to move players to
-				 * the leaving_zone status once various things are
-				 * completed */
-				if (player->whenloggedin)
-					player->status = player->whenloggedin;
-
 				/* check if the player's arena is ready.
 				 * LOCK: we don't grab the arena status lock because it
 				 * doesn't matter if we miss it this time around */
 				if (aman->data[player->arena].status == ARENA_RUNNING)
 					player->status = S_DO_FREQ_AND_ARENA_SYNC;
+
+				/* check whenloggedin. this is used to move players to
+				 * the leaving_zone status once various things are
+				 * completed */
+				if (player->whenloggedin)
+					player->status = player->whenloggedin;
 
 				continue;
 
@@ -189,7 +189,7 @@ void ProcessLoginQueue()
 		pd->UnlockStatus();
 		pd->LockPlayer(pid);
 
-		/*log->Log(LOG_DEBUG,"Processing status %i for pid %i",oldstatus,pid);*/
+		log->Log(LOG_DEBUG,"Processing status %i for pid %i",oldstatus,pid);
 
 		switch (oldstatus)
 		{
@@ -203,7 +203,7 @@ void ProcessLoginQueue()
 				break;
 
 			case S_DO_GLOBAL_CALLBACKS:
-				CallPA(pid, PA_CONNECT);
+				CallPA(pid, PA_CONNECT, ALLARENAS);
 				break;
 
 			case S_SEND_LOGIN_RESPONSE:
@@ -223,7 +223,7 @@ void ProcessLoginQueue()
 				break;
 
 			case S_DO_ARENA_CALLBACKS:
-				CallPA(pid, PA_ENTERARENA);
+				CallPA(pid, PA_ENTERARENA, player->arena);
 				break;
 
 			case S_SEND_ARENA_RESPONSE:
@@ -231,13 +231,13 @@ void ProcessLoginQueue()
 				break;
 
 			case S_LEAVING_ARENA:
-				CallPA(pid, PA_LEAVEARENA);
+				CallPA(pid, PA_LEAVEARENA, player->oldarena);
 				if (persist)
 					persist->SyncToFile(pid, player->oldarena, NULL);
 				break;
 
 			case S_LEAVING_ZONE:
-				CallPA(pid, PA_DISCONNECT);
+				CallPA(pid, PA_DISCONNECT, ALLARENAS);
 				if (persist)
 					persist->SyncToFile(pid, PERSIST_GLOBAL, NULL);
 				break;
@@ -266,15 +266,15 @@ void PLogin(int pid, byte *p, int l)
 }
 
 
-void CallPA(int pid, int action)
+void CallPA(int pid, int action, int arena)
 {
 	LinkedList *lst;
 	Link *l;
 
-	lst = mm->LookupCallback(CALLBACK_PLAYERACTION);
+	lst = mm->LookupCallback(CALLBACK_PLAYERACTION, arena);
 	for (l = LLGetHead(lst); l; l = l->next)
 		((PlayerActionFunc)l->data)(pid, action);
-	LLFree(lst);
+	mm->FreeLookupResult(lst);
 }
 
 

@@ -525,11 +525,15 @@ void HashRemove(HashTable *h, const char *s, void *p)
 
 LinkedList * HashGet(HashTable *h, const char *s)
 {
+	LinkedList *res = LLAlloc();
+	HashGetAppend(h, s, res);
+	return res;
+}
+
+void HashGetAppend(HashTable *h, const char *s, LinkedList *res)
+{
 	int slot;
 	HashEntry *l;
-	LinkedList *res;
-
-	res = LLAlloc();
 
 	slot = Hash(s, MAXHASHLEN, h->size);
 	l = h->lists[slot];
@@ -540,7 +544,6 @@ LinkedList * HashGet(HashTable *h, const char *s)
 			LLAdd(res, l->p);
 		l = l->next;
 	}
-	return res;
 }
 
 void *HashGetOne(HashTable *h, const char *s)

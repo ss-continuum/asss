@@ -82,7 +82,7 @@ local Ipersist _myint =
 
 
 
-int MM_persist(int action, Imodman *_mm)
+int MM_persist(int action, Imodman *_mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -95,7 +95,7 @@ int MM_persist(int action, Imodman *_mm)
 
 		arenas = aman->data;
 
-		mm->RegCallback(CALLBACK_ARENAACTION, ScoreAA);
+		mm->RegCallback(CALLBACK_ARENAACTION, ScoreAA, ALLARENAS);
 
 		LLInit(&ddlist);
 		MPInit(&dbq);
@@ -106,15 +106,17 @@ int MM_persist(int action, Imodman *_mm)
 		mm->RegInterface(I_PERSIST, &_myint);
 
 		cfg_syncseconds = cfg ?
-				cfg->GetInt("Persist", "SyncSeconds", 60) : 60;
+				cfg->GetInt(GLOBAL, "Persist", "SyncSeconds", 60) : 60;
 
 		ml->SetTimer(SyncTimer, 12000, cfg_syncseconds * 100, NULL);
+
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		ml->ClearTimer(SyncTimer);
 		mm->UnregInterface(I_PERSIST, &_myint);
-		mm->UnregCallback(CALLBACK_ARENAACTION, ScoreAA);
+		mm->UnregCallback(CALLBACK_ARENAACTION, ScoreAA, ALLARENAS);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_CONFIG, &cfg);
@@ -130,12 +132,10 @@ int MM_persist(int action, Imodman *_mm)
 		LLEmpty(&ddlist);
 
 		globaldb->close(globaldb);
+
+		return MM_OK;
 	}
-	else if (action == MM_DESCRIBE)
-	{
-		_mm->desc = "persist - keeps persistant info";
-	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 

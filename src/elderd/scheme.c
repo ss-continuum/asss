@@ -41,7 +41,7 @@ local MPQueue toscm;
 local int schemesock;
 
 
-int MM_scheme(int action, Imodman *_mm)
+int MM_scheme(int action, Imodman *_mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -66,9 +66,9 @@ int MM_scheme(int action, Imodman *_mm)
 		/* this thread handles all io on the schemesock */
 		StartThread(SchemeThread, NULL);
 
-		/* add registrations for things necessary for callbacks here */
-
 		cmd->AddCommand("scm", Cscm, 100);
+
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
@@ -81,12 +81,9 @@ int MM_scheme(int action, Imodman *_mm)
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_ARENAMAN, &aman);
+		return MM_OK;
 	}
-	else if (action == MM_DESCRIBE)
-	{
-		mm->desc = "scheme - interface to the scheme interpreter";
-	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 

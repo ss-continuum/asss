@@ -30,7 +30,7 @@ local CommandFunc defaultfunc;
 local Icmdman _int = { AddCommand, RemoveCommand, Command };
 
 
-int MM_cmdman(int action, Imodman *mm)
+int MM_cmdman(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -40,6 +40,7 @@ int MM_cmdman(int action, Imodman *mm)
 		cmds = HashAlloc(47);
 		defaultfunc = NULL;
 		mm->RegInterface(I_CMDMAN, &_int);
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
@@ -47,13 +48,9 @@ int MM_cmdman(int action, Imodman *mm)
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_LOGMAN, &log);
 		HashFree(cmds);
+		return MM_OK;
 	}
-	else if (action == MM_DESCRIBE)
-	{
-		mm->desc = "cmdman - manages typed commands for all modules";
-	}
-	return MM_OK;
-
+	return MM_FAIL;
 }
 
 

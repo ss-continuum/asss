@@ -65,7 +65,7 @@ local Imapnewsdl _int = { GetMapChecksum, GetMapFilename, GetNewsChecksum };
 
 /* FUNCTIONS */
 
-int MM_mapnewsdl(int action, Imodman *mm_)
+int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -87,7 +87,7 @@ int MM_mapnewsdl(int action, Imodman *mm_)
 		/* set up callbacks */
 		net->AddPacket(C2S_MAPREQUEST, PMapRequest);
 		net->AddPacket(C2S_NEWSREQUEST, PMapRequest);
-		mm->RegCallback(CALLBACK_ARENAACTION, ArenaAction);
+		mm->RegCallback(CALLBACK_ARENAACTION, ArenaAction, ALLARENAS);
 
 		/* reread news every 15 min */
 		ml->SetTimer(RefreshNewsTxt, 50, 
@@ -100,13 +100,14 @@ int MM_mapnewsdl(int action, Imodman *mm_)
 		newstime = 0; cmpnews = NULL;
 
 		mm->RegInterface(I_MAPNEWSDL, &_int);
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregInterface(I_MAPNEWSDL, &_int);
 		net->RemovePacket(C2S_MAPREQUEST, PMapRequest);
 		net->RemovePacket(C2S_NEWSREQUEST, PMapRequest);
-		mm->UnregCallback(CALLBACK_ARENAACTION, ArenaAction);
+		mm->UnregCallback(CALLBACK_ARENAACTION, ArenaAction, ALLARENAS);
 
 		afree(cmpnews);
 		ml->ClearTimer(RefreshNewsTxt);
@@ -117,12 +118,9 @@ int MM_mapnewsdl(int action, Imodman *mm_)
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_MAINLOOP, &ml);
 		mm->UnregInterest(I_ARENAMAN, &aman);
+		return MM_OK;
 	}
-	else if (action == MM_DESCRIBE)
-	{
-		mm->desc = "mapnewsdl - sends maps and news.txt to players";
-	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 

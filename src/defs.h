@@ -53,8 +53,8 @@
 /* action codes for module main functions */
 #define MM_LOAD     1
 #define MM_UNLOAD   2
-#define MM_GETDEPS  3 /* not used yet, maybe some time */
-#define MM_DESCRIBE 4
+#define MM_ATTACH   3
+#define MM_DETACH   4
 
 
 /* return values for the aforementioned */

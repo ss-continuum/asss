@@ -33,7 +33,7 @@ local ConfigHandle configops;
 
 
 
-int MM_playercmd(int action, Imodman *mm)
+int MM_playercmd(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -57,6 +57,8 @@ int MM_playercmd(int action, Imodman *mm)
 		cmd->AddCommand("login", Clogin, 0);
 		cmd->AddCommand("setop", Csetop, 0);
 		cmd->AddCommand("shutdown", Cshutdown, 200);
+
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
@@ -74,12 +76,9 @@ int MM_playercmd(int action, Imodman *mm)
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_ARENAMAN, &aman);
 		mm->UnregInterest(I_MAINLOOP, &ml);
+		return MM_OK;
 	}
-	else if (action == MM_DESCRIBE)
-	{
-		mm->desc = "playercmd - handles standard player commands (?)";
-	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 

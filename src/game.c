@@ -68,7 +68,7 @@ local int cfg_bulletpix, cfg_wpnpix, cfg_wpnbufsize, cfg_pospix;
 
 
 
-int MM_game(int action, Imodman *mm_)
+int MM_game(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -99,6 +99,8 @@ int MM_game(int action, Imodman *mm_)
 		net->AddPacket(C2S_ATTACHTO, PAttach);
 
 		mm->RegInterface(I_ASSIGNFREQ, &_myaf);
+
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
@@ -117,12 +119,9 @@ int MM_game(int action, Imodman *mm_)
 		/* do this last so we don't get prevented from unloading because
 		 * of ourself */
 		mm->UnregInterface(I_ASSIGNFREQ, &_myaf);
+		return MM_OK;
 	}
-	else if (action == MM_DESCRIBE)
-	{
-		mm->desc = "game - handles position and weapons packets";
-	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 
@@ -331,10 +330,10 @@ void PDie(int pid, byte *p, int n)
 	/* call callbacks */
 	{
 		Link *l;
-		LinkedList *funcs = mm->LookupCallback(CALLBACK_KILL);
+		LinkedList *funcs = mm->LookupCallback(CALLBACK_KILL, arena);
 		for (l = LLGetHead(funcs); l; l = l->next)
 			((KillFunc)l->data)(arena, killer, pid, bty, 0);
-		LLFree(funcs);
+		mm->FreeLookupResult(funcs);
 	}
 }
 

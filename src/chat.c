@@ -32,7 +32,7 @@ local int cfg_msgrel;
 local Ichat _int = { SendMessage };
 
 
-int MM_chat(int action, Imodman *mm_)
+int MM_chat(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -53,6 +53,7 @@ int MM_chat(int action, Imodman *mm_)
 		cfg_msgrel = cfg->GetInt(GLOBAL, "Chat", "MessageReliable", 1);
 		net->AddPacket(C2S_CHAT, PChat);
 		mm->RegInterface(I_CHAT, &_int);
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
@@ -64,12 +65,9 @@ int MM_chat(int action, Imodman *mm_)
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_ARENAMAN, &aman);
 		mm->UnregInterest(I_CMDMAN, &cmd);
+		return MM_OK;
 	}
-	else if (action == MM_DESCRIBE)
-	{
-		mm->desc = "chat - handles all chat packets and passes commands on to cmdman";
-	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 

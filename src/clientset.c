@@ -37,7 +37,7 @@ local ArenaData *arenas;
 local Iclientset _myint = { SendClientSettings, Reconfigure };
 
 
-int MM_clientset(int action, Imodman *mm_)
+int MM_clientset(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -52,25 +52,23 @@ int MM_clientset(int action, Imodman *mm_)
 
 		arenas = aman->data;
 
-		mm->RegCallback(CALLBACK_ARENAACTION, ActionFunc);
+		mm->RegCallback(CALLBACK_ARENAACTION, ActionFunc, ALLARENAS);
 
 		mm->RegInterface(I_CLIENTSET, &_myint);
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregInterface(I_CLIENTSET, &_myint);
-		mm->UnregCallback(CALLBACK_ARENAACTION, ActionFunc);
+		mm->UnregCallback(CALLBACK_ARENAACTION, ActionFunc, ALLARENAS);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_ARENAMAN, &aman);
+		return MM_OK;
 	}
-	else if (action == MM_DESCRIBE)
-	{
-		mm->desc = "clientset - manages client-side settings";
-	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 

@@ -21,8 +21,12 @@ typedef struct AuthData
 
 #define PA_CONNECT     1
 #define PA_DISCONNECT  2
+/* these first two actions involve no arena, so callbacks must be
+ * registered with ALLARENAS to get them. */
 #define PA_ENTERARENA  3
 #define PA_LEAVEARENA  4
+/* these two do involve arenas, so callbacks can be registered either
+ * globally or for a specific arena. */
 
 typedef void (*PlayerActionFunc)(int pid, int action);
 

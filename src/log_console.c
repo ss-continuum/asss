@@ -7,26 +7,19 @@
 local void LogConsole(int, char *);
 
 
-local Ilogman *log;
-
-
-int MM_log_console(int action, Imodman *mm)
+int MM_log_console(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
-		mm->RegInterest(I_LOGMAN, &log);
-		mm->RegCallback(CALLBACK_LOGFUNC, LogConsole);
+		mm->RegCallback(CALLBACK_LOGFUNC, LogConsole, ALLARENAS);
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregCallback(CALLBACK_LOGFUNC, LogConsole);
-		mm->UnregInterface(I_LOGMAN, &log);
+		mm->UnregCallback(CALLBACK_LOGFUNC, LogConsole, ALLARENAS);
+		return MM_OK;
 	}
-	else if (action == MM_DESCRIBE)
-	{
-		mm->desc = "log_console - logs output to stdout";
-	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 

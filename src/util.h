@@ -104,6 +104,7 @@ void HashAdd(HashTable *ht, const char *key, void *data);
 void HashReplace(HashTable *ht, const char *key, void *data);
 void HashRemove(HashTable *ht, const char *key, void *data);
 LinkedList *HashGet(HashTable *ht, const char *key);
+void HashGetAppend(HashTable *ht, const char *key, LinkedList *ll);
 void *HashGetOne(HashTable *ht, const char *key);
 
 

@@ -178,7 +178,7 @@ local Inet _int =
 /* START OF FUNCTIONS */
 
 
-int MM_net(int action, Imodman *mm)
+int MM_net(int action, Imodman *mm, int arena)
 {
 	int i;
 
@@ -230,6 +230,8 @@ int MM_net(int action, Imodman *mm)
 
 		/* install ourself */
 		mm->RegInterface(I_NET, &_int);
+
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
@@ -252,8 +254,10 @@ int MM_net(int action, Imodman *mm)
 		close(mysock);
 		close(myothersock);
 		if (config.usebilling) close(mybillingsock);
+
+		return MM_OK;
 	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 
@@ -442,17 +446,19 @@ void * RecvThread(void *dummy)
 					byte pk7[] = { 0x00, 0x07 };
 					sendto(mysock, pk7, 2, 0, (struct sockaddr*)&sin, sinsize);
 					log->Log(LOG_IMPORTANT,"Too many players! Dropping extra connections!");
+					FreeBuffer(buf);
 					goto donehere;
 				}
 				else
 				{
-					log->Log(LOG_USELESSINFO,"New connection (%s:%i) assigning pid %i",
+					log->Log(LOG_USELESSINFO,"net: New connection (%s:%i) assigning pid %i",
 							inet_ntoa(sin.sin_addr), ntohs(sin.sin_port), pid);
 				}
 			}
 
 			/* check that it's in a reasonable status */
 			status = players[pid].status;
+			log->Log(LOG_DEBUG, "net: pkt recv: %d bytes from status %d", len, status);
 			if (status <= S_FREE || status >= S_TIMEWAIT)
 			{
 				if (status <= S_FREE)
@@ -462,8 +468,6 @@ void * RecvThread(void *dummy)
 				FreeBuffer(buf);
 				goto donehere;
 			}
-
-			/* log->Log(LOG_DEBUG,"    --> has status %d", players[pid].status); */
 
 			buf->pid = pid;
 			/* set the last packet time */
@@ -641,13 +645,16 @@ void * SendThread(void *dummy)
 		pd->LockStatus();
 		for (i = 0; i < (MAXPLAYERS + EXTRA_PID_COUNT); i++)
 		{
+			/* this is used for lagouts and also for timewait */
+			int diff = (int)gtc - (int)clients[i].lastpkt;
+
 			/* process lagouts */
 			if (   players[i].status != S_FREE
 			    && players[i].whenloggedin == 0 /* acts as flag to prevent dups */
 			    && clients[i].lastpkt != 0 /* prevent race */
-			    && (gtc - clients[i].lastpkt) > config.droptimeout)
+			    && diff > config.droptimeout)
 			{
-				log->Log(LOG_USELESSINFO, "Lag out: %s", players[i].name);
+				log->Log(LOG_USELESSINFO, "net: player lagged out: %s", players[i].name);
 				/* FIXME: send "you have been disconnected..." msg */
 				/* can't hold lock here for deadlock-related reasons */
 				pd->UnlockStatus();
@@ -659,7 +666,7 @@ void * SendThread(void *dummy)
 			 * this is done with two states to ensure a complete pass
 			 * through the outgoing buffer before marking these pids as
 			 * free */
-			if (players[i].status == S_TIMEWAIT2)
+			if (players[i].status == S_TIMEWAIT2 && diff > 500)
 			{
 				/* remove from hash table. we do this now so that
 				 * packets that arrive after the connection is closed
@@ -683,6 +690,8 @@ void * SendThread(void *dummy)
 
 				players[i].status = S_FREE;
 
+				log->Log(LOG_DEBUG, "net: pid %d freed", i);
+
 				UnlockMutex(&hashmtx);
 			}
 			if (players[i].status == S_TIMEWAIT)
@@ -690,7 +699,6 @@ void * SendThread(void *dummy)
 				/* here, send disconnection packet */
 				char drop[2] = {0x00, 0x07};
 				SendToOne(i, drop, 2, NET_UNRELIABLE | NET_IMMEDIATE);
-
 				players[i].status = S_TIMEWAIT2;
 			}
 		}
@@ -875,15 +883,22 @@ void KillConnection(int pid)
 	int type;
 	byte leaving = C2S_LEAVING;
 
+	log->Log(LOG_DEBUG, "net: KillConnection(%d)", pid);
+
 	pd->LockPlayer(pid);
 
 	/* if we haven't processed the leaving arena packet yet (quite
-	 * likely), just generate one and process it. this must set status
+	 * likely), just generate one and process it. this will set status
 	 * to S_LEAVING_ARENA */
 	if (players[pid].arena >= 0)
 		ProcessPacket(pid, &leaving, 1);
 
 	pd->LockStatus();
+
+	/* make sure that he's on his way out, in case he was kicked before
+	 * fully logging in. */
+	if (players[pid].status < S_LEAVING_ARENA)
+		players[pid].status = S_LEAVING_ZONE;
 
 	/* set status */
 	if (pid == PID_BILLER)
@@ -1028,6 +1043,7 @@ void ProcessSyncRequest(Buffer *buf)
 
 void ProcessDrop(Buffer *buf)
 {
+	log->Log(LOG_DEBUG, "net: ProcessDrop(%d)", buf->pid);
 	KillConnection(buf->pid);
 	FreeBuffer(buf);
 }
@@ -1053,7 +1069,7 @@ void ProcessBigData(Buffer *buf)
 	if (newsize > MAXBIGPACKET)
 	{
 		log->Log(LOG_BADDATA,
-			"Big packet: refusing to allocate more than %i bytes for '%s'",
+			"Big packet: refusing to allocate more than %d bytes for '%s'",
 			MAXBIGPACKET, players[pid].name);
 		goto freebigbuf;
 	}

@@ -26,7 +26,7 @@ local Imodman *mm;
 local Ilogman _int = { Log };
 
 
-int MM_logman(int action, Imodman *mm_)
+int MM_logman(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -34,6 +34,7 @@ int MM_logman(int action, Imodman *mm_)
 		MPInit(&queue);
 		thd = StartThread(LoggingThread, NULL);
 		mm->RegInterface(I_LOGMAN, &_int);
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
@@ -41,13 +42,9 @@ int MM_logman(int action, Imodman *mm_)
 		JoinThread(thd);
 		MPDestroy(&queue);
 		mm->UnregInterface(I_LOGMAN, &_int);
+		return MM_OK;
 	}
-	else if (action == MM_DESCRIBE)
-	{
-		mm->desc = "logman - formats log entries and passes them to a managed "
-					"set of logging modules";
-	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 
@@ -59,12 +56,11 @@ void * LoggingThread(void *dummy)
 
 	for (;;)
 	{
-//		printf("waiting for data in logging thread\n");
 		ll = MPRemove(&queue);
 		if (ll == NULL)
 			return NULL;
 
-		lst = mm->LookupCallback(CALLBACK_LOGFUNC);
+		lst = mm->LookupCallback(CALLBACK_LOGFUNC, ALLARENAS);
 		for (l = LLGetHead(lst); l; l = l->next)
 			((LogFunc)(l->data))(ll->level, ll->line);
 		mm->FreeLookupResult(lst);
@@ -79,12 +75,10 @@ void Log(int level, char *format, ...)
 	int len;
 	va_list argptr;
 	char buf[1024];
-	
+
 	va_start(argptr, format);
 	len = vsnprintf(buf, 1024, format, argptr);
 	va_end(argptr);
-
-//	printf("log called in main thread: %s\n", buf);
 
 	if (len > 1024) len = 1024;
 

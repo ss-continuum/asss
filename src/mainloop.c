@@ -32,7 +32,7 @@ local LinkedList *timers;
 local Imodman *mm;
 
 
-int MM_mainloop(int action, Imodman *mm_)
+int MM_mainloop(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -40,18 +40,15 @@ int MM_mainloop(int action, Imodman *mm_)
 		privatequit = 0;
 		timers = LLAlloc();
 		mm->RegInterface(I_MAINLOOP, &_int);
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		LLFree(timers);
 		mm->UnregInterface(I_MAINLOOP, &_int);
+		return MM_OK;
 	}
-	else if (action == MM_DESCRIBE)
-	{
-		mm->desc = "mainloop - provides an interface for modules to insert "
-				   "events into the main server loop";
-	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 
@@ -67,7 +64,7 @@ void RunLoop()
 	while (!privatequit)
 	{
 		/* call all funcs */
-		lst = mm->LookupCallback(CALLBACK_MAINLOOP);
+		lst = mm->LookupCallback(CALLBACK_MAINLOOP, ALLARENAS);
 		for (l = LLGetHead(lst); l; l = l->next)
 			((MainLoopFunc)l->data)();
 		mm->FreeLookupResult(lst);

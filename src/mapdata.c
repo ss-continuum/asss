@@ -35,18 +35,17 @@ local Imapdata _int =
 
 
 
-int MM_mapdata(int action, Imodman *mm)
+int MM_mapdata(int action, Imodman *mm, int arenas)
 {
 	if (action == MM_LOAD)
 	{
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
+		return MM_OK;
 	}
-	else if (action == MM_DESCRIBE)
-	{
-	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 

@@ -34,22 +34,20 @@ local Iencrypt _int = {
 
 
 
-int MM_encrypt1(int action, Imodman *mm)
+int MM_encrypt1(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
 		InitMutex(&statmtx);
 		mm->RegInterface(I_ENCRYPTBASE + MYTYPE, &_int);
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregInterface(I_ENCRYPTBASE + MYTYPE, &_int);
+		return MM_OK;
 	}
-	else if (action == MM_DESCRIBE)
-	{
-		mm->desc = "encrypt1 - standard encryption used in 1.34 and below";
-	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 

@@ -59,7 +59,7 @@ local byte adata_dirty[MAXPLAYERS];
 local Istats _myint = { IncrementStat, SendUpdates };
 
 
-int MM_stats(int action, Imodman *mm_)
+int MM_stats(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -72,13 +72,14 @@ int MM_stats(int action, Imodman *mm_)
 
 		if (!net || !cmd || !persist) return MM_FAIL;
 
-		mm->RegCallback(CALLBACK_PLAYERACTION, PAFunc);
+		mm->RegCallback(CALLBACK_PLAYERACTION, PAFunc, ALLARENAS);
 		cmd->AddCommand("stats", CStats, 0);
-		cmd->AddCommand("scores", CScores, 0);
+		cmd->AddCommand("score", CScores, 0);
 		persist->RegPersistantData(&gdatadesc);
 		persist->RegPersistantData(&adatadesc);
 		net->AddPacket(C2S_CHAT, PChat);
 		mm->RegInterface(I_STATS, &_myint);
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
@@ -87,16 +88,17 @@ int MM_stats(int action, Imodman *mm_)
 		persist->UnregPersistantData(&gdatadesc);
 		persist->UnregPersistantData(&adatadesc);
 		cmd->RemoveCommand("stats", CStats);
-		cmd->RemoveCommand("scores", CScores);
-		mm->UnregCallback(CALLBACK_PLAYERACTION, PAFunc);
+		cmd->RemoveCommand("score", CScores);
+		mm->UnregCallback(CALLBACK_PLAYERACTION, PAFunc, ALLARENAS);
 
 		mm->UnregInterest(I_CHAT, &chat);
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_CMDMAN, &cmd);
 		mm->UnregInterest(I_PERSIST, &persist);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
+		return MM_OK;
 	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 

@@ -22,7 +22,7 @@ local Iplayerdata _myint =
 	{ players, LockPlayer, UnlockPlayer, LockStatus, UnlockStatus };
 
 
-int MM_playerdata(int action, Imodman *mm)
+int MM_playerdata(int action, Imodman *mm, int arena)
 {
 	int i;
 	if (action == MM_LOAD)
@@ -39,6 +39,7 @@ int MM_playerdata(int action, Imodman *mm)
 
 		/* register interface */
 		mm->RegInterface(I_PLAYERDATA, &_myint);
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
@@ -48,8 +49,9 @@ int MM_playerdata(int action, Imodman *mm)
 		for (i = 0; i < MAXPLAYERS; i++)
 			pthread_mutex_destroy(playermtx + i);
 		pthread_mutex_destroy(&statusmtx);
+		return MM_OK;
 	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 

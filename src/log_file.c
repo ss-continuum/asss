@@ -9,17 +9,15 @@ local void LogFile(int, char *);
 
 
 local FILE *logfile;
-Ilogman *log;
 Iconfig *cfg;
 
 
-int MM_log_file(int action, Imodman *mm)
+int MM_log_file(int action, Imodman *mm, int arenas)
 {
 	char fname[64], *ln;
 
 	if (action == MM_LOAD)
 	{
-		mm->RegInterest(I_LOGMAN, &log);
 		mm->RegInterest(I_CONFIG, &cfg);
 
 		if (!log || !cfg) return MM_FAIL;
@@ -29,20 +27,18 @@ int MM_log_file(int action, Imodman *mm)
 		sprintf(fname, "log/%s", ln);
 		logfile = fopen(fname, "a");
 		if (!logfile) return MM_FAIL;
-		mm->RegCallback(CALLBACK_LOGFUNC, LogFile);
+		mm->RegCallback(CALLBACK_LOGFUNC, LogFile, ALLARENAS);
+
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregCallback(CALLBACK_LOGFUNC, LogFile);
+		mm->UnregCallback(CALLBACK_LOGFUNC, LogFile, ALLARENAS);
 		fclose(logfile);
-		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_CONFIG, &cfg);
+		return MM_OK;
 	}
-	else if (action == MM_DESCRIBE)
-	{
-		mm->desc = "log_file - logs output to a file";
-	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 

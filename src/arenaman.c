@@ -64,7 +64,7 @@ local Iarenaman _int =
 
 
 
-int MM_arenaman(int action, Imodman *mm_)
+int MM_arenaman(int action, Imodman *mm_, int arena)
 {
 	pthread_mutexattr_t attr;
 
@@ -91,7 +91,7 @@ int MM_arenaman(int action, Imodman *mm_)
 		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 		pthread_mutex_init(&arenastatusmtx, &attr);
 
-		mm->RegCallback(CALLBACK_MAINLOOP, ProcessArenaQueue);
+		mm->RegCallback(CALLBACK_MAINLOOP, ProcessArenaQueue, ALLARENAS);
 
 		net->AddPacket(C2S_GOTOARENA, PArena);
 		net->AddPacket(C2S_LEAVING, PLeaving);
@@ -99,13 +99,14 @@ int MM_arenaman(int action, Imodman *mm_)
 		ml->SetTimer(ReapArenas, 1000, 1500, NULL);
 
 		mm->RegInterface(I_ARENAMAN, &_int);
+		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregInterface(I_ARENAMAN, &_int);
 		net->RemovePacket(C2S_GOTOARENA, PArena);
 		net->RemovePacket(C2S_LEAVING, PLeaving);
-		mm->UnregCallback(CALLBACK_MAINLOOP, ProcessArenaQueue);
+		mm->UnregCallback(CALLBACK_MAINLOOP, ProcessArenaQueue, ALLARENAS);
 		ml->ClearTimer(ReapArenas);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_NET, &net);
@@ -115,12 +116,9 @@ int MM_arenaman(int action, Imodman *mm_)
 		mm->UnregInterest(I_MAPNEWSDL, &map);
 		mm->UnregInterest(I_ASSIGNFREQ, &afreq);
 		mm->UnregInterest(I_CLIENTSET, &clientset);
+		return MM_OK;
 	}
-	else if (action == MM_DESCRIBE)
-	{
-		mm->desc = "arenaman - handles arena creating/destruction";
-	}
-	return MM_OK;
+	return MM_FAIL;
 }
 
 
@@ -140,12 +138,12 @@ local void CallAA(int action, int arena)
 	LinkedList *funcs;
 	Link *l;
 
-	funcs = mm->LookupCallback(CALLBACK_ARENAACTION);
+	funcs = mm->LookupCallback(CALLBACK_ARENAACTION, arena);
 
 	for (l = LLGetHead(funcs); l; l = l->next)
 		((ArenaActionFunc)l->data)(action, arena);
 
-	LLFree(funcs);
+	mm->FreeLookupResult(funcs);
 }
 
 
@@ -437,6 +435,7 @@ void PArena(int pid, byte *p, int l)
 
 	/* set up player info */
 	players[pid].arena = arena;
+	players[pid].oldarena = arena;
 	players[pid].shiptype = go->shiptype;
 	players[pid].xres = go->xres;
 	players[pid].yres = go->yres;
@@ -464,6 +463,8 @@ void PLeaving(int pid, byte *p, int q)
 	}
 
 	players[pid].oldarena = arena;
+	/* this needs to be done for some good reason. i think it has to do
+	 * with KillConnection in net. */
 	players[pid].arena = -1;
 	players[pid].status = S_LEAVING_ARENA;
 
