@@ -19,6 +19,7 @@ someone = any
  * and password, set by the ?passwd command.
  */
 
+#include <string.h>
 
 #include "asss.h"
 
@@ -155,7 +156,7 @@ EXPORT int MM_auth_file(int action, Imodman *mm, int arena)
 
 		return MM_OK;
 	}
-	else
+	else if (action == MM_UNLOAD)
 	{
 		if (mm->UnregInterface(&myauth, ALLARENAS))
 			return MM_FAIL;
@@ -163,6 +164,7 @@ EXPORT int MM_auth_file(int action, Imodman *mm, int arena)
 		cfg->CloseConfigFile(pwdfile);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(cmd);
+		mm->ReleaseInterface(pd);
 		return MM_OK;
 	}
 	return MM_FAIL;

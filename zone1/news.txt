@@ -10,6 +10,8 @@ see it eventually (it all gets logged).
 
 
 Recent updates:
+    * password security - type ?passwd=foobar to set one
+
     * alias database with mysql support
 
     * some basic lag statistics gathering

@@ -93,6 +93,7 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, int arena)
 		pthread_mutexattr_init(&attr);
 		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 		pthread_mutex_init(&arenastatusmtx, &attr);
+		pthread_mutexattr_destroy(&attr);
 
 		mm->RegCallback(CB_MAINLOOP, ProcessArenaQueue, ALLARENAS);
 

@@ -83,7 +83,7 @@ arpc_stubs.c: $(SCRIPTS)/arpc.py *.h
 	$(SCRIPTS)/arpc.py makestubs > $@
 
 
-Makefile.deps: sparse.inc letters.inc *.c *.h
+Makefile.deps: sparse.inc letters.inc # *.c *.h
 	-$(CC) $(ALL_CFLAGS) -MM *.c > $@
 
 

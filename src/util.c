@@ -460,16 +460,16 @@ void HashAdd(HashTable *h, const char *s, void *p)
 	e->next = NULL;
 
 	l = h->lists[slot];
-	if (!l)
-	{
-		/* this is first hash entry for this key */
-		h->lists[slot] = e;
-	}
-	else
+	if (l)
 	{
 		/* find end of list and insert it */
 		while (l->next) l = l->next;
 		l->next = e;
+	}
+	else
+	{
+		/* this is first hash entry for this key */
+		h->lists[slot] = e;
 	}
 }
 

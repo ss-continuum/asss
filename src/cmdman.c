@@ -30,6 +30,7 @@ local Icapman *capman;
 local Iconfig *cfg;
 local Imodman *mm;
 
+local pthread_mutex_t cmdmtx;
 local HashTable *cmds;
 local CommandFunc defaultfunc;
 
@@ -44,11 +45,18 @@ EXPORT int MM_cmdman(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
+		pthread_mutexattr_t attr;
+
 		mm = mm_;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+
+		pthread_mutexattr_init(&attr);
+		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+		pthread_mutex_init(&cmdmtx, &attr);
+		pthread_mutexattr_destroy(&attr);
 
 		cmds = HashAlloc(47);
 
@@ -70,6 +78,7 @@ EXPORT int MM_cmdman(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(capman);
 		mm->ReleaseInterface(cfg);
 		HashFree(cmds);
+		pthread_mutex_destroy(&cmdmtx);
 		return MM_OK;
 	}
 	return MM_FAIL;
@@ -82,11 +91,12 @@ void AddCommand(const char *cmd, CommandFunc f, helptext_t helptext)
 		defaultfunc = f;
 	else
 	{
-		CommandData *data;
-		data = amalloc(sizeof(CommandData));
+		CommandData *data = amalloc(sizeof(*data));
 		data->func = f;
 		data->helptext = helptext;
+		pthread_mutex_lock(&cmdmtx);
 		HashAdd(cmds, cmd, data);
+		pthread_mutex_unlock(&cmdmtx);
 	}
 }
 
@@ -96,7 +106,7 @@ void RemoveCommand(const char *cmd, CommandFunc f)
 	if (!cmd)
 	{
 		if (defaultfunc == f)
-			f = NULL;
+			defaultfunc = NULL;
 	}
 	else
 	{
@@ -104,6 +114,7 @@ void RemoveCommand(const char *cmd, CommandFunc f)
 		LinkedList *lst;
 		Link *l;
 
+		pthread_mutex_lock(&cmdmtx);
 		lst = HashGet(cmds, cmd);
 		for (l = LLGetHead(lst); l; l = l->next)
 		{
@@ -113,10 +124,12 @@ void RemoveCommand(const char *cmd, CommandFunc f)
 				HashRemove(cmds, cmd, data);
 				LLFree(lst);
 				afree(data);
+				pthread_mutex_unlock(&cmdmtx);
 				return;
 			}
 		}
 		LLFree(lst);
+		pthread_mutex_unlock(&cmdmtx);
 	}
 }
 
@@ -215,6 +228,8 @@ void Chelp(const char *params, int pid, const Target *target)
 	if (params[0] == '\0')
 		params = CFG_HELP_COMMAND;
 
+	pthread_mutex_lock(&cmdmtx);
+
 	lst = HashGet(cmds, params);
 
 	if (LLIsEmpty(lst))
@@ -243,6 +258,9 @@ void Chelp(const char *params, int pid, const Target *target)
 		chat->SendMessage(pid, "You don't have permission to use '?%s'", params);
 
 	LLFree(lst);
+
+	pthread_mutex_unlock(&cmdmtx);
+
 	mm->ReleaseInterface(chat);
 }
 
@@ -273,6 +291,7 @@ void Command(const char *line, int pid, const Target *target)
 
 	if (allowed(pid, cmd, check))
 	{
+		pthread_mutex_lock(&cmdmtx);
 		lst = HashGet(cmds, cmd);
 		for (l = LLGetHead(lst); l; l = l->next)
 		{
@@ -280,6 +299,7 @@ void Command(const char *line, int pid, const Target *target)
 			found = 1;
 		}
 		LLFree(lst);
+		pthread_mutex_unlock(&cmdmtx);
 		log_command(pid, target, cmd, line);
 	}
 	else

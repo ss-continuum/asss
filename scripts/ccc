@@ -656,8 +656,11 @@ def main():
 	elif os.environ.get('CCC_CONFIG_FILE'):
 		opts = process_config(os.environ.get('CCC_CONFIG_FILE'))
 	else:
-		print "You must supply a configuration file."
-		sys.exit(1)
+		try:
+			opts = process_config(os.environ.get('HOME') + '/.ccc-config')
+		except:
+			print "You must supply a configuration file."
+			sys.exit(1)
 
 	# check for required options
 	if not opts.has_key('name') or not opts.has_key('password') or \

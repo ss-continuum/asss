@@ -1,5 +1,7 @@
 
 #include <unistd.h>
+#include <signal.h>
+
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -238,6 +240,8 @@ local Ireldb my_int =
 
 EXPORT int MM_mysql(int action, Imodman *mm, int arena)
 {
+	sighandler_t oldh;
+
 	if (action == MM_LOAD)
 	{
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
@@ -261,6 +265,8 @@ EXPORT int MM_mysql(int action, Imodman *mm, int arena)
 		pw = astrdup(pw);
 		dbname = astrdup(dbname);
 
+		oldh = signal(SIGPIPE, SIG_IGN);
+
 		pthread_create(&wthd, NULL, work_thread, NULL);
 
 		mm->RegInterface(&my_int, ALLARENAS);
@@ -280,6 +286,9 @@ EXPORT int MM_mysql(int action, Imodman *mm, int arena)
 
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(lm);
+
+		signal(SIGPIPE, oldh);
+
 		return MM_OK;
 	}
 	return MM_FAIL;
