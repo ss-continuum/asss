@@ -1,10 +1,12 @@
 
-LDFLAGS = -fPIC
+#PROF_FLAGS = -pg
+
+LDFLAGS = -fPIC $(PROF_FLAGS)
 
 OPT_CFLAGS = -O2 -fomit-frame-pointer -Wall -fpedantic
 DEBUG_CFLAGS = -g -Wall -fpedantic
 
-CFLAGS = -D_REENTRANT -D_GNU_SOURCE -fPIC $(DEBUG_CFLAGS)
+CFLAGS = -D_REENTRANT -D_GNU_SOURCE -fPIC $(DEBUG_CFLAGS) $(PROF_FLAGS)
 
 ASSSLIBS = -ldl -lz -lpthread
 

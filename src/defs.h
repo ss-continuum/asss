@@ -126,11 +126,6 @@
 /* second part of time-wait state. goes to S_FREE after this */
 
 
-/* useful macros */
-
-#define PLAYER_IS_CONNECTED(pid) \
-	((players[pid].status > S_FREE) && (players[pid].status < S_TIMEWAIT2))
-
 
 /* hopefully useful exit codes */
 #define ERROR_NONE      0

@@ -77,7 +77,6 @@ local void SendToOne(int, byte *, int, int);
 local void SendToArena(int, int, byte *, int, int);
 local void SendToSet(int *, byte *, int, int);
 local void SendToAll(byte *, int, int);
-local void DropClient(int);
 local void ProcessPacket(int, byte *, int);
 local void AddPacket(byte, PacketFunc);
 local void RemovePacket(byte, PacketFunc);
@@ -170,7 +169,7 @@ local void (*oohandlers[])(Buffer*) =
 local Inet _int =
 {
 	SendToOne, SendToArena, SendToSet, SendToAll,
-	DropClient, ProcessPacket, AddPacket, RemovePacket,
+	KillConnection, ProcessPacket, AddPacket, RemovePacket,
 	NewConnection, GetIP
 };
 
@@ -389,6 +388,7 @@ void * RecvThread(void *dummy)
 		/* first handle the main socket */
 		if (FD_ISSET(mysock, &fds))
 		{
+			int status;
 			Buffer *buf;
 
 			buf = GetBuffer();
@@ -402,7 +402,7 @@ void * RecvThread(void *dummy)
 				goto donehere;
 			}
 
-			
+
 			/* log->Log(LOG_DEBUG,"Got %i bytes from %s:%i", len, inet_ntoa(sin.sin_addr), ntohs(sin.sin_port)); */
 			/*
 			log->Log(LOG_DEBUG,"recv: %2x %2x %2x %2x %2x %2x %2x %2x",
@@ -426,7 +426,7 @@ void * RecvThread(void *dummy)
 			pid = clienthash[hashbucket];
 			while (pid >= 0)
 			{
-				if (    PLAYER_IS_CONNECTED(pid)
+				if (    players[pid].status > S_FREE
 					 && clients[pid].sin.sin_addr.s_addr == sin.sin_addr.s_addr
 					 && clients[pid].sin.sin_port == sin.sin_port)
 					break;
@@ -449,6 +449,18 @@ void * RecvThread(void *dummy)
 					log->Log(LOG_USELESSINFO,"New connection (%s:%i) assigning pid %i",
 							inet_ntoa(sin.sin_addr), ntohs(sin.sin_port), pid);
 				}
+			}
+
+			/* check that it's in a reasonable status */
+			status = players[pid].status;
+			if (status <= S_FREE || status >= S_TIMEWAIT)
+			{
+				if (status <= S_FREE)
+					log->Log(LOG_ERROR, "Packet recieved from bad state %d", status);
+				if (status >= S_TIMEWAIT)
+					log->Log(LOG_DEBUG, "Packet recieved from timewait state");
+				FreeBuffer(buf);
+				goto donehere;
 			}
 
 			/* log->Log(LOG_DEBUG,"    --> has status %d", players[pid].status); */
@@ -538,7 +550,7 @@ void * SendThread(void *dummy)
 
 		/* grab first buffer */
 		LockMutex(&outmtx);
-		WaitConditionTimed(&outcond, &outmtx, 200);
+		WaitConditionTimed(&outcond, &outmtx, 500);
 		buf = (Buffer*)outlist.next;
 
 		for (buf = (Buffer*)outlist.next; (DQNode*)buf != &outlist; buf = nbuf)
@@ -553,7 +565,8 @@ void * SendThread(void *dummy)
 
 			/* LOCK: lock status here? */
 			/* check if the player still exists */
-			if (!PLAYER_IS_CONNECTED(buf->pid))
+			if (    players[buf->pid].status > S_FREE
+			     && players[buf->pid].status < S_TIMEWAIT)
 				buf->retries = 0;
 
 			/* check if we can send it now */
@@ -666,7 +679,7 @@ void * SendThread(void *dummy)
 					if (j >= 0)
 						clients[j].nextinbucket = clients[i].nextinbucket;
 					else
-						log->Log(LOG_BADDATA, "net: Internal error: established connection not in hash table");
+						log->Log(LOG_ERROR, "net: Internal error: established connection not in hash table");
 				}
 
 				players[i].status = S_FREE;
@@ -1132,18 +1145,6 @@ freepacket:
 	clients[pid].flags &= ~NET_INPRESIZE;
 reallyexit:
 	FreeBuffer(buf);
-}
-
-
-void DropClient(int pid)
-{
-	byte pkt1[2] = {0x00, 0x07};
-
-	if (PLAYER_IS_CONNECTED(pid))
-	{
-		SendRaw(pid, pkt1, 2);
-		KillConnection(pid);
-	}
 }
 
 
