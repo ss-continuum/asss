@@ -44,6 +44,9 @@ local int Place(char *retname, int namelen, int *x, int *y, Player *pp)
 	else
 		trylist = &pubnames;
 
+	/* clear this buffer, use it for an empty arena as a backup choice */
+	*retname = 0;
+
 	/* if we don't find anything in 9 passes (unlikely), just do the
 	 * default action */
 	for (pass = 1; pass < 10; pass++)
@@ -57,9 +60,9 @@ local int Place(char *retname, int namelen, int *x, int *y, Player *pp)
 			arena = aman->FindArena(buf, &total, &playing);
 			if (!arena)
 			{
-				/* doesn't exist yet, perfect */
-				astrncpy(retname, buf, namelen);
-				return TRUE;
+				/* doesn't exist yet, use a backup only */
+				if (!*retname)
+					astrncpy(retname, buf, namelen);
 			}
 			else
 			{
@@ -78,7 +81,7 @@ local int Place(char *retname, int namelen, int *x, int *y, Player *pp)
 			}
 		}
 
-	return FALSE;
+	return *retname;
 }
 
 
