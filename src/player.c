@@ -373,6 +373,7 @@ local void FreePlayerData(int key)
 }
 
 
+#ifdef CFG_DYNAMIC_PPD
 local void * GetPD(Player *p, int key)
 {
 	void *ret;
@@ -382,6 +383,7 @@ local void * GetPD(Player *p, int key)
 	pthread_mutex_unlock(&extradatamtx);
 	return ret;
 }
+#endif
 
 
 /* interface */

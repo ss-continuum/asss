@@ -113,11 +113,11 @@
 /* whether the unixsignal module should trap segfaults and attempt to
  * generate a backtrace. set this to 1 to use glibc's internal backtrace
  * functionality, to 2 to invoke gdb. */
-#define CFG_HANDLE_SEGV 1
+#define CFG_HANDLE_SEGV 2
 
 
 /* whether per-player space is allocated dynamically. */
-#define CFG_DYNAMIC_PPD
+/* #define CFG_DYNAMIC_PPD */
 
 
 /* pyconst: config end */
