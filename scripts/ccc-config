@@ -5,3 +5,8 @@ port = 5002
 name = 'grelminar'
 password = 'foo'
 
+bind('^[[5;5~', scroll_up, 5)
+bind('^[[6;5~', scroll_down, 5)
+bind('^[[5;3~', scroll_up, 15)
+bind('^[[6;3~', scroll_down, 15)
+

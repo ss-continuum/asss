@@ -10,6 +10,95 @@ class MyWindows:
 		me.stdscr = me.twin = me.iwin = me.pwin = None
 
 
+class Bindings:
+	def __init__(me):
+		me.bindings = {}
+
+		me.yes = 1
+		me.no = 0
+		me.true = 1
+		me.false = 0
+
+	def bind(me, seq, func, *args):
+		if type(seq) == type(''):
+			for c in range(1, 32):
+				seq = seq.replace('^%c' % (c + ord('A') - 1), '%c' % c)
+			seq = seq.replace('\\e', chr(27))
+			seq = seq.replace('\\E', chr(27))
+			seq = map(ord, seq)
+		if type(seq) == type(0):
+			seq = [seq]
+		if type(seq) == type([]):
+			seq = tuple(seq)
+
+		def realfunc(args = args):
+			func(*args)
+
+		me.bindings[seq] = realfunc
+
+	def getbinding(me, seq):
+		if type(seq) == type(''):
+			seq = map(ord, seq)
+		seq = tuple(seq)
+		return me.bindings.get(seq)
+
+
+	# the possible functions
+	def finish_line(me):
+		global edit
+		l = edit.gettext()
+		edit.cleartext()
+		if l:
+			process_typed(l)
+
+	def kill_line(me):
+		global edit
+		edit.cleartext()
+
+	def backspace(me):
+		global edit
+		edit.backspace()
+
+	def delete(me):
+		global edit
+		edit.delete()
+
+	def curs_left(me):
+		global edit
+		edit.curs_left()
+
+	def curs_right(me):
+		global edit
+		edit.curs_right()
+
+	def curs_up(me):
+		global edit
+		edit.curs_up()
+
+	def curs_down(me):
+		global edit
+		edit.curs_down()
+
+	def curs_home(me):
+		global edit
+		edit.curs_home()
+
+	def curs_end(me):
+		global edit
+		edit.curs_end()
+
+	def scroll_up(me, lines = 1):
+		global scrollback
+		scrollback += lines
+
+	def scroll_down(me, lines = 1):
+		global scrollback
+		scrollback -= lines
+		if scrollback < 0:
+			scrollback = 0
+
+
+
 class Line:
 	def __init__(me, msg, color, tm = 0):
 		me.msg = msg
@@ -72,7 +161,10 @@ class Text:
 		me.lines = []
 
 	def addline(me, l):
+		global keeplines
 		me.lines.append(l)
+		if len(me.lines) > keeplines:
+			me.lines = me.lines[-keeplines:]
 
 	def display(me, scr):
 		global scrollback, showtime, indent, newcrap
@@ -100,10 +192,11 @@ class Text:
 			scr.addstr(y, 0, l, c)
 			y = y - 1
 
-		if scrollback == 0:
-			newcrap = 0
+		if scrollback < newcrap:
+			newcrap = scrollback
 		if newcrap:
-			scr.addstr(h-1, w-5, 'more', curses.A_REVERSE)
+			s = '%d more' % newcrap
+			scr.addstr(h-1, w-len(s)-1, s, curses.A_REVERSE)
 
 		scr.noutrefresh()
 
@@ -119,44 +212,56 @@ class Edit:
 		h, w = scr.getmaxyx()
 		me.lastw = w
 		me.lastmax = w * h - 1
+		if len(me.line) > me.lastmax:
+			me.line = me.line[:me.lastmax]
+		if me.i > me.lastmax:
+			me.i = me.lastmax
 		scr.erase()
 		for c in me.line:
 			scr.addch(c)
 		scr.move(me.i / w, me.i % w)
 		scr.noutrefresh()
 
-	def process(me, ch):
-		if ch in [10, curses.KEY_ENTER]:
-			r = ''.join(map(chr, me.line))
-			me.__init__()
-			return r
-		elif ch == curses.KEY_BACKSPACE:
-			if me.i > 0:
-				me.line = me.line[:me.i-1] + me.line[me.i:]
-				me.i -= 1
-		elif ch == curses.KEY_DC:
-			if me.i < len(me.line):
-				me.line = me.line[:me.i] + me.line[me.i+1:]
-		elif ch == curses.KEY_LEFT:
-			if me.i > 0:
-				me.i -= 1
-		elif ch == curses.KEY_RIGHT:
-			if me.i < len(me.line):
-				me.i += 1
-		elif ch == curses.KEY_UP:
-			if me.i > me.lastw:
-				me.i -= me.lastw
-		elif ch == curses.KEY_DOWN:
-			if me.i + me.lastw <= len(me.line):
-				me.i += me.lastw
-		elif ch in [1, curses.KEY_HOME, curses.KEY_BEG]:
-			me.i = 0
-		elif ch in [5, curses.KEY_END]:
-			me.i = len(me.line)
-		elif ch >= ord(' ') and ch < curses.KEY_MIN:
-			if len(me.line) < me.lastmax:
-				me.line.insert(me.i, ch)
-				me.i += 1
+	def gettext(me):
+		return ''.join(map(chr, me.line))
+
+	def cleartext(me):
+		me.__init__()
+
+	def backspace(me):
+		if me.i > 0:
+			me.line = me.line[:me.i-1] + me.line[me.i:]
+			me.i -= 1
+
+	def delete(me):
+		if me.i < len(me.line):
+			me.line = me.line[:me.i] + me.line[me.i+1:]
+
+	def curs_left(me):
+		if me.i > 0:
+			me.i -= 1
+
+	def curs_right(me):
+		if me.i < len(me.line):
+			me.i += 1
+
+	def curs_up(me):
+		if me.i > me.lastw:
+			me.i -= me.lastw
+
+	def curs_down(me):
+		if me.i + me.lastw <= len(me.line):
+			me.i += me.lastw
+
+	def curs_home(me):
+		me.i = 0
+	def curs_end(me):
+		me.i = len(me.line)
+
+	def insert(me, ch):
+		if len(me.line) < me.lastmax:
+			me.line.insert(me.i, ch)
+			me.i += 1
 
 
 class Player:
@@ -208,13 +313,18 @@ def init_wins():
 
 	h, w = wins.stdscr.getmaxyx()
 
-	wins.twin = wins.stdscr.subwin(h-editheight-1, w-pwidth-1, 0, 0)
-	wins.iwin = wins.stdscr.subwin(editheight, w, h-editheight, 0)
-	wins.pwin = wins.stdscr.subwin(h-editheight-1, pwidth, 0, w-pwidth)
-
 	wins.stdscr.erase()
+
+	wins.iwin = wins.stdscr.subwin(editheight, w, h-editheight, 0)
 	wins.stdscr.hline(h-editheight-1, 0, '-', w)
-	wins.stdscr.vline(0, w-pwidth-1, '|', h-editheight-1)
+
+	if pwidth:
+		wins.twin = wins.stdscr.subwin(h-editheight-1, w-pwidth-1, 0, 0)
+		wins.pwin = wins.stdscr.subwin(h-editheight-1, pwidth, 0, w-pwidth)
+		wins.stdscr.vline(0, w-pwidth-1, '|', h-editheight-1)
+	else:
+		wins.twin = wins.stdscr.subwin(h-editheight-1, w, 0, 0)
+
 	wins.stdscr.refresh()
 
 
@@ -228,7 +338,7 @@ def end_curses():
 
 
 def process_typed(line):
-	global myname, colors, showtime
+	global myname, colors, showtime, breakloop
 
 	if line.startswith(';'):
 		# chat message
@@ -256,7 +366,7 @@ def process_typed(line):
 		# possible command
 		cmd = line[1:].lower()
 		if cmd.startswith('exit') or cmd.startswith('quit'):
-			return 1
+			breakloop = 1
 		elif cmd.startswith('showtime'):
 			showtime = 1
 		elif cmd.startswith('hidetime'):
@@ -383,12 +493,15 @@ def add_line(line, color = None):
 	if jumpback:
 		scrollback = 0
 	elif scrollback > 0:
-		newcrap = 1
+		newcrap += 1
 		scrollback += 1
 
 
 def display_players(scr):
 	global players, colors
+
+	if not scr:
+		return
 
 	h, w = scr.getmaxyx()
 
@@ -405,10 +518,62 @@ def display_players(scr):
 	scr.noutrefresh()
 
 
-def main_loop():
-	global wins, text, edit, sock, scrollback
+def process_key():
+	global wins
 
-	inbuf = ''
+	ch = wins.stdscr.getch()
+	if ch == -1:
+		pass
+	elif ch == curses.KEY_RESIZE:
+		init_wins()
+		curses.doupdate()
+	elif ch == 27:
+		# get all chars of an escape sequence
+		seq = []
+		while ch != -1:
+			seq.append(ch)
+			ch = wins.stdscr.getch()
+		f = bindings.getbinding(seq)
+		if f:
+			f()
+	else:
+		# hand off to bindings
+		f = bindings.getbinding([ch])
+		if f:
+			f()
+		elif ch in range(32, 127):
+			global edit
+			edit.insert(ch)
+
+
+inbuf = ''
+def read_data():
+	global sock, inbuf
+
+	try:
+		r = sock.recv(1024)
+		if r:
+			inbuf = inbuf + r
+		else:
+			raise "Server disconnected!"
+
+		lines = inbuf.splitlines(1)
+		inbuf = ''
+		for l in lines:
+			if l.endswith('\n') or l.endswith('\r'):
+				process_incoming(l.strip())
+			else:
+				inbuf = l
+		del lines
+
+	except:
+		pass
+
+
+def main_loop():
+	global wins, text, edit, sock, breakloop
+
+	breakloop = 0
 
 	while 1:
 		# show stuff
@@ -419,58 +584,78 @@ def main_loop():
 
 		# do a select
 		try:
-			select.select([sys.stdin, sock], [], [], 1)
+			select.select([sys.stdin, sock], [], [], 10)
 		except:
 			pass
 
 		# get key
-		ch = wins.stdscr.getch()
-		if ch == curses.KEY_RESIZE:
-			init_wins()
-			curses.doupdate()
-		elif ch in [curses.KEY_NPAGE]:
-			if scrollback > 0:
-				scrollback -= 1
-		elif ch in [curses.KEY_PPAGE]:
-			scrollback += 1
-		else:
-			ret = edit.process(ch)
-			if ret:
-				if process_typed(ret):
-					break
+		process_key()
 
 		# read some data
-		try:
-			r = sock.recv(1024)
-			if r:
-				inbuf = inbuf + r
-			else:
-				raise "Server disconnected!"
+		read_data()
 
-			lines = inbuf.splitlines(1)
-			inbuf = ''
-			for l in lines:
-				if l.endswith('\n') or l.endswith('\r'):
-					process_incoming(l.strip())
-				else:
-					inbuf = l
-			del lines
+		if breakloop:
+			break
 
-		except:
-			pass
+
+def process_config(file):
+	global bindings
+	global editheight, pwidth, showtime, indent, jumpback, keeplines
+
+	bindings = Bindings()
+
+	# default bindings
+	bindings.bind('^J', bindings.finish_line)
+	bindings.bind(curses.KEY_ENTER, bindings.finish_line)
+	bindings.bind(curses.KEY_BACKSPACE, bindings.backspace)
+	bindings.bind(curses.KEY_DC, bindings.delete)
+	bindings.bind(curses.KEY_RIGHT, bindings.curs_right)
+	bindings.bind(curses.KEY_LEFT, bindings.curs_left)
+	bindings.bind(curses.KEY_UP, bindings.curs_up)
+	bindings.bind(curses.KEY_DOWN, bindings.curs_down)
+	bindings.bind('^A', bindings.curs_home)
+	bindings.bind(curses.KEY_HOME, bindings.curs_home)
+	bindings.bind(curses.KEY_END, bindings.curs_end)
+	bindings.bind('^E', bindings.curs_end)
+	bindings.bind(curses.KEY_PPAGE, bindings.scroll_up, 1)
+	bindings.bind(curses.KEY_NPAGE, bindings.scroll_down, 1)
+	bindings.bind('^U', bindings.kill_line)
+
+	opts = {}
+
+	# get 'bind' and the action funcs in there
+	for d in dir(Bindings):
+		opts[d] = getattr(bindings, d)
+
+	# get the KEY_* constants in there
+	for d in dir(curses):
+		if d.startswith('KEY_'):
+			opts[d] = getattr(curses, d)
+
+	execfile(file, opts, opts)
+
+	editheight = opts.get('editheight', 3)
+	pwidth = opts.get('playerwidth', 15)
+	indent = opts.get('indent', 2)
+	showtime = opts.get('showtime', 1)
+	jumpback = opts.get('jumpback', 0)
+	keeplines = opts.get('keeplines', 1000)
+
+	return opts
 
 
 def main():
 	global wins, text, edit, sock, players, myname, colors, scrollback
-	global editheight, pwidth, showtime, indent, jumpback
+	global newcrap
 
-	opts = { 'true': 1, 'false': 0, 'yes': 1, 'no': 0 }
 	players = {}
 	myname = ''
 
 	# get config file
 	if len(sys.argv) > 1:
-		execfile(sys.argv[1], opts, opts)
+		opts = process_config(sys.argv[1])
+	elif os.environ.get('CCC_CONFIG_FILE'):
+		opts = process_config(os.environ.get('CCC_CONFIG_FILE'))
 	else:
 		print "You must supply a configuration file."
 		sys.exit(1)
@@ -481,18 +666,17 @@ def main():
 		print "The config file must include a name, password, host, and port."
 		sys.exit(2)
 
-	editheight = opts.get('editheight', 3)
-	pwidth = opts.get('playerwidth', 10)
-	indent = opts.get('indent', 2)
-	showtime = opts.get('showtime', 1)
-	jumpback = opts.get('jumpback', 0)
 	scrollback = 0
+	newcrap = 0
 
 	wins = MyWindows()
 	text = Text()
 	edit = Edit()
 
 	start_curses()
+
+	bindings.bind(curses.erasechar(), bindings.backspace)
+	bindings.bind(curses.killchar(), bindings.kill_line)
 
 	try:
 
