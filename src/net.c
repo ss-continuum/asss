@@ -477,7 +477,13 @@ void ProcessReliable(int pid, byte *d, int len)
 {
 	int i = 0, snum = ((struct ReliablePacket*)d)->seqnum;
 
-	if (snum <= clients[pid].c2sn) return; /* drop duplicated packets */
+	/* ack, then drop duplicated packets */
+	if (snum <= clients[pid].c2sn)
+	{
+		d[1] = 0x04;
+		BufferPacket(pid, d, 6, NET_UNRELIABLE);
+		return;
+	}
 
 	/* find open spot in the buffer */
 	while (inbuf[i].filled && i < cfg_inbuflen) i++;
