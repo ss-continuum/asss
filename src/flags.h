@@ -53,7 +53,9 @@ struct FlagData
 struct ArenaFlagData
 {
 	int flagcount;
-	struct FlagData flags[MAXFLAGS];
+	/* the number of flags currently in play */
+	struct FlagData *flags;
+	/* points to an array of at least flagcount structs */
 };
 
 

@@ -234,24 +234,17 @@ int LocateConfigFile(char *dest, int destlen, const char *arena, const char *nam
 {
 	char *path = NULL;
 	struct replace_table repls[] =
-		{ { 'a', arena }, { 'n', name } };
+		{ { 'n', name }, { 'a', arena } };
 
-	if (arena)
-	{
-		if (!name)
-			repls[1].with = "arena";
-		if (global)
-			path = GetStr(global, "General", "ConfigSearchPath");
-		if (!path)
-			path = DEFAULTCONFIGSEARCHPATH;
-		return find_file_on_path(dest, destlen, path, repls, 2);
-	}
-	else
-	{
-		if (!name) name = "global";
-		snprintf(dest, destlen, "conf/%s.conf", name);
-		return 0;
-	}
+	if (!name)
+		repls[0].with = arena ? "arena.conf" : "global.conf";
+
+	if (global)
+		path = GetStr(global, "General", "ConfigSearchPath");
+	if (!path)
+		path = DEFAULTCONFIGSEARCHPATH;
+
+	return find_file_on_path(dest, destlen, path, repls, arena ? 2 : 1);
 }
 
 

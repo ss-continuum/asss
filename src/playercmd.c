@@ -57,7 +57,7 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		players = pd->players;
 		arenas = aman->arenas;
 
-		configops = cfg->OpenConfigFile(NULL, "oplevels");
+		configops = cfg->OpenConfigFile(NULL, "oplevels.conf");
 
 		cmd->AddCommand("arena", Carena, 0);
 		cmd->AddCommand("login", Clogin, 0);

@@ -104,7 +104,7 @@ install: $(ALL_STUFF)
 	-cp -f $(ALL_STUFF) ../bin
 
 clean:
-	-rm -f asss *.o *.so elderd elderd.log core sparse.inc
+	-rm -f asss *.o *.so elderd elderd.log core
 
 tags:
 	flist -d *.c

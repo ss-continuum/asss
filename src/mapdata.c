@@ -12,6 +12,7 @@
 #define TILE_SAFE 0xAB
 #define TILE_GOAL 0xAC
 
+#define MAXREGIONNAME 32
 
 /* structs for packet types and data */
 struct TileData
@@ -21,10 +22,20 @@ struct TileData
 	unsigned type : 8;
 };
 
+
+struct Region
+{
+	char name[MAXREGIONNAME];
+	int isbase;
+	int x1, y1, x2, y2;
+};
+
+
 struct MapData
 {
 	sparse_arr arr;
 	int flags, errors;
+	LinkedList *regions;
 };
 
 
@@ -36,6 +47,8 @@ int read_lvl(char *name, struct MapData *md);
 local int GetMapFilename(int arena, char *buffer, int bufferlen);
 local int GetFlagCount(int arena);
 local int GetTile(int arena, int x, int y);
+local char *GetRegion(int arena, int x, int y);
+local int ClipToRegion(int arena, char *region, int *x, int *y);
 local void FindFlagTile(int arena, int *x, int *y);
 local void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2);
 
@@ -150,10 +163,22 @@ int read_lvl(char *name, struct MapData *md)
 void ArenaAction(int arena, int action)
 {
 	/* no matter what is happening, destroy old mapdata */
-	if (mapdata[arena].arr)
+	if (action == AA_CREATE || action == AA_DESTROY)
 	{
-		delete_sparse(mapdata[arena].arr);
-		mapdata[arena].arr = NULL;
+		if (mapdata[arena].arr)
+		{
+			delete_sparse(mapdata[arena].arr);
+			mapdata[arena].arr = NULL;
+		}
+
+		if (mapdata[arena].regions)
+		{
+			Link *l;
+			for (l = LLGetHead(mapdata[arena].regions); l; l = l->next)
+				afree(l->data);
+			LLFree(mapdata[arena].regions);
+			mapdata[arena].regions = NULL;
+		}
 	}
 
 	/* now, if we're creating, do it */
@@ -164,9 +189,21 @@ void ArenaAction(int arena, int action)
 			log->Log(L_ERROR, "<mapdata> {%s} Can't find map file for arena",
 					aman->arenas[arena].name);
 		else
+		{
+			char *t;
+
 			if (read_lvl(mapname, mapdata + arena))
 				log->Log(L_ERROR, "<mapdata> {%s} Error parsing map file '%s'",
 						aman->arenas[arena].name, mapname);
+			/* if extension == .lvl */
+			t = strrchr(mapname, '.');
+			if (t && t[1] == 'l' && t[2] == 'v' && t[3] == 'l' && t[4] == 0)
+			{
+				/* change extension to rgn */
+				t[1] = 'r'; t[2] = 'g'; t[3] = 'n';
+				mapdata[arena].regions = LoadRegions(mapname);
+			}
+		}
 	}
 }
 
@@ -210,6 +247,7 @@ int GetFlagCount(int arena)
 {
 	return mapdata[arena].flags;
 }
+
 
 void FindFlagTile(int arena, int *x, int *y)
 {
@@ -279,6 +317,29 @@ void FindFlagTile(int arena, int *x, int *y)
 
 void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2)
 {
+}
+
+
+/* region stuff below here */
+
+
+LinkedList * LoadRegions(char *fname)
+{
+	LinkedList *lst;
+	char mapn[PATH_MAX];
+
+}
+
+char *GetRegion(int arena, int x, int y)
+{
+	return NULL;
+}
+
+int ClipToRegion(int arena, char *region, int *x, int *y)
+{
+	/* returns 0 if the point was already in the region, 1 if it was
+	 * clipped, and -1 if the region doesn't exist. */
+	return -1;
 }
 
 

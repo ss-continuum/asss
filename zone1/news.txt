@@ -7,12 +7,11 @@ have any suggestions of any kind, please let me know.
 
 
 Recent updates:
-    * flags! (plus with correct flag-kill handling)
-      no victories yet, but they're coming soon.
+    * flags! (with correct flag-kill handling, and victories)
 
     * mapdata module mostly written
-      it uses a cool sparse array structure to save memory but retain
-      really fast access speed. an average .lvl file takes just 200k.
+        it uses a cool sparse array structure to save memory but retain
+        really fast access speed. an average .lvl file takes just 200k.
 
     * updates to logging system: better priorities, consistent format
 
@@ -42,14 +41,14 @@ Stuff it does now:
     * speccing people (test this)
     * player counts on port+1
     * encryption (disabled most of the time, though)
-    * some commands (?arena, ?logon, ?setop, ?shutdown)
+    * some commands (?arena, ?login, ?setop, ?shutdown)
         note that my command structure is very different from subgame
         the most important difference is that there is no longer a difference
         between ? and *. both work for all commands, and all commands are
         logged
     * some mod structure: you can assign people oplevels, or use passwords
-        staff log on by default with no powers, you need to type ?logon to
-        enable them. you can also get rid of them by typing ?logon 0 or any
+        staff log on by default with no powers, you need to type ?login to
+        enable them. you can also get rid of them by typing ?login 0 or any
         text that isn't a password.
 
 

@@ -17,6 +17,7 @@ typedef enum db_command
 	DB_GET,
 	DB_PUT,
 	DB_SYNCWAIT,
+	DB_PUTALL,
 	DB_QUIT,
 } db_command;
 
@@ -46,8 +47,9 @@ int SyncTimer(void *);
 
 /* private funcs */
 local void *DBThread(void *);
-local void ScoreAA(int arena, int action);
+local void PersistAA(int arena, int action);
 local DB *OpenDB(char *fname);
+local void CloseDB(DB *db);
 
 
 /* private data */
@@ -70,7 +72,10 @@ local pthread_mutex_t dbmtx = PTHREAD_MUTEX_INITIALIZER;
 
 /* big array of DB's */
 local DB *databases[MAXARENA];
-local DB *globaldb;
+/* maintain these separately. globaldb is obvious. defarenadb is needed
+ * because otherwise we would end up opening the same scores.db file
+ * multiple times, and that would be bad. */
+local DB *globaldb, *defarenadb;
 
 local int cfg_syncseconds;
 
@@ -95,18 +100,19 @@ int MM_persist(int action, Imodman *_mm, int arena)
 
 		arenas = aman->arenas;
 
-		mm->RegCallback(CALLBACK_ARENAACTION, ScoreAA, ALLARENAS);
+		mm->RegCallback(CALLBACK_ARENAACTION, PersistAA, ALLARENAS);
 
 		LLInit(&ddlist);
 		MPInit(&dbq);
 		pthread_create(&dbthread, NULL, DBThread, NULL);
 
 		globaldb = OpenDB("global.db");
+		defarenadb = OpenDB("defaultarena/scores.db");
 
 		mm->RegInterface(I_PERSIST, &_myint);
 
 		cfg_syncseconds = cfg ?
-				cfg->GetInt(GLOBAL, "Persist", "SyncSeconds", 60) : 60;
+				cfg->GetInt(GLOBAL, "Persist", "SyncSeconds", 180) : 180;
 
 		ml->SetTimer(SyncTimer, 12000, cfg_syncseconds * 100, NULL);
 
@@ -116,7 +122,7 @@ int MM_persist(int action, Imodman *_mm, int arena)
 	{
 		ml->ClearTimer(SyncTimer);
 		mm->UnregInterface(I_PERSIST, &_myint);
-		mm->UnregCallback(CALLBACK_ARENAACTION, ScoreAA, ALLARENAS);
+		mm->UnregCallback(CALLBACK_ARENAACTION, PersistAA, ALLARENAS);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_CONFIG, &cfg);
@@ -131,7 +137,8 @@ int MM_persist(int action, Imodman *_mm, int arena)
 		MPDestroy(&dbq);
 		LLEmpty(&ddlist);
 
-		globaldb->close(globaldb);
+		if (globaldb) globaldb->close(globaldb);
+		if (defarenadb) defarenadb->close(defarenadb);
 
 		return MM_OK;
 	}
@@ -231,7 +238,7 @@ local void DoGet(int pid, int arena)
 	key.data = namebuf;
 	key.size = 24;
 
-	if (db->get(db, &key, &val, 0) == -1)
+	if (!db || db->get(db, &key, &val, 0) == -1)
 		return; /* new player */
 
 	cp = value = val.data;
@@ -273,15 +280,36 @@ void *DBThread(void *dummy)
 		{
 			case DB_NULL: break;
 
-			case DB_GET:  DoGet(msg->pid, msg->data); break;
+			case DB_GET: DoGet(msg->pid, msg->data); break;
 
-			case DB_PUT:  DoPut(msg->pid, msg->data); break;
+			case DB_PUT: DoPut(msg->pid, msg->data); break;
+
+			case DB_PUTALL:
+				/* try to sync all players */
+				for (i = 0; i < MAXPLAYERS; i++)
+				{
+					int status, arena;
+					pd->LockStatus();
+					status = pd->players[i].status;
+					arena = pd->players[i].arena;
+					pd->UnlockStatus();
+					if (status == S_PLAYING)
+					{
+						DoPut(i, PERSIST_GLOBAL);
+						DoPut(i, arena);
+					}
+					/* if we're doing a lot of work, at least be nice
+					 * about it */
+					sched_yield();
+				}
+				break;
 
 			case DB_SYNCWAIT:
 				for (i = 0; i < MAXARENA; i++)
 					if (databases[i])
 						databases[i]->sync(databases[i], 0);
 				globaldb->sync(globaldb, 0);
+				defarenadb->sync(defarenadb, 0);
 				/* make sure nobody modifies db's for some time */
 				sleep(msg->data);
 				break;
@@ -304,6 +332,7 @@ void *DBThread(void *dummy)
 		if (databases[i])
 			databases[i]->sync(databases[i], 0);
 	globaldb->sync(globaldb, 0);
+	defarenadb->sync(defarenadb, 0);
 
 	return NULL;
 }
@@ -314,8 +343,14 @@ DB *OpenDB(char *name)
 	return dbopen(name, O_CREAT|O_RDWR, 0644, DB_HASH, NULL);
 }
 
+void CloseDB(DB *db)
+{
+	if (db != globaldb && db != defarenadb)
+		db->close(db);
+}
 
-void ScoreAA(int arena, int action)
+
+void PersistAA(int arena, int action)
 {
 	DB *db;
 	if (action == AA_CREATE)
@@ -335,22 +370,16 @@ void ScoreAA(int arena, int action)
 
 		if (databases[arena])
 		{
-			DB *db = databases[arena];
 			log->Log(L_ERROR, "<persist> {%s} Score database already exists for new arena", arenas[arena].name);
-			db->close(db);
+			CloseDB(databases[arena]);
 		}
 
 		db = OpenDB(fname);
 
 		if (!db)
 		{
-			/* this db doesn't exist, try default */
-			/* sprintf(fname, template, "default"); */
-			astrncpy(fname, "defaultarena/scores.db", PATH_MAX);
-			db = OpenDB(fname);
-
-			if (!db)
-				log->Log(L_ERROR, "<persist> Error opening scores database '%s'", fname);
+			/* this db doesn't exist, use default */
+			db = defarenadb;
 		}
 
 		/* enter in db array */
@@ -362,17 +391,13 @@ void ScoreAA(int arena, int action)
 	else if (action == AA_DESTROY)
 	{
 		pthread_mutex_lock(&dbmtx);
-		
+
 		db = databases[arena];
 
 		if (db)
-		{
-			db->close(db);
-		}
+			CloseDB(db);
 		else
-		{
 			log->Log(L_ERROR, "<persist> {%s} Score database doesn't exist for closing arena", arenas[arena].name);
-		}
 
 		databases[arena] = NULL;
 
@@ -438,7 +463,19 @@ void StabilizeScores(int seconds)
 
 int SyncTimer(void *dummy)
 {
-	StabilizeScores(0);
+	DBMessage *msg = amalloc(sizeof(DBMessage));
+	msg->command = DB_PUTALL;
+	msg->callback = NULL;
+	MPAdd(&dbq, msg);
+
+	msg = amalloc(sizeof(DBMessage));
+	msg->command = DB_SYNCWAIT;
+	msg->data = 0;
+	msg->callback = NULL;
+	MPAdd(&dbq, msg);
+
+	log->Log(L_INFO, "<persist> Adding all persistant data and syncing to disk");
+
 	return 1;
 }
 

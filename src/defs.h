@@ -188,7 +188,7 @@
 #define BADFREQ (-423)
 
 
-#define DEFAULTCONFIGSEARCHPATH "arenas/%a/%n.conf:arenas/%a/%n:defaultarena/%n.conf:defaultarena/%n:conf/%n.conf:conf/%n:%n"
+#define DEFAULTCONFIGSEARCHPATH "arenas/%a/%n:defaultarena/%n:conf/%n:%n"
 
 #define DEFAULTMAPSEARCHPATH "arenas/%a/%m:defaultarena/%m:maps/%m:%m"
 
@@ -206,16 +206,6 @@ typedef unsigned char byte;
 
 #include "packets/simple.h"
 
-/* FIXME: eventually, playerdata should look like this
-typedef struct PlayerData
-{
-	int status, arena, oplevel;
-	char name[24], squad[24];
-	i16 xres, yres;
-
-	struct SentPlayerData sent;
-} PlayerData;
-*/
 
 #endif
 
