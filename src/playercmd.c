@@ -7,8 +7,15 @@
 #define DOUNAME
 #endif
 
+#define EXTRAARENAS
+
 #ifdef DOUNAME
 #include <sys/utsname.h>
+#endif
+
+#ifdef EXTRAARENAS
+#include <dirent.h>
+#include <unistd.h>
 #endif
 
 #include "asss.h"
@@ -173,6 +180,38 @@ void Carena(const char *params, int pid, int target)
 			pos += 2;
 		}
 	aman->UnlockStatus();
+
+#ifdef EXTRAARENAS
+	/* add in more arenas if requested */
+	if (!strcasecmp(params, "all"))
+	{
+		char aconf[PATH_MAX];
+		DIR *dir = opendir("arenas");
+		if (dir)
+		{
+			struct dirent *de;
+			while ((de = readdir(dir)))
+			{
+				/* every arena must have an arena.conf. this filters out
+				 * ., .., CVS, etc. */
+				snprintf(aconf, PATH_MAX, "arenas/%s/arena.conf", de->d_name);
+				if (
+						(pos-buf+strlen(de->d_name)) < 480 &&
+						access(aconf, R_OK) == 0 &&
+						(de->d_name[0] != '#' || seehid)
+				   )
+				{
+					l = strlen(de->d_name) + 1;
+					strncpy(pos, de->d_name, l);
+					pos += l;
+					*pos++ = 0;
+					*pos++ = 0;
+				}
+			}
+			closedir(dir);
+		}
+	}
+#endif
 
 	/* send it */
 	net->SendToOne(pid, buf, (pos-buf), NET_RELIABLE);
