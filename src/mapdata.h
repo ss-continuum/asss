@@ -130,17 +130,11 @@ typedef struct Imapdata
 
 #define MAKE_CHUNK_TYPE(s) (*(u32*)#s)
 
-/* lvl chunk types */
-#define LCT_ATTR            MAKE_CHUNK_TYPE(ATTR)
-#define LCT_REGION          MAKE_CHUNK_TYPE(REGN)
-#define LCT_TILESET         MAKE_CHUNK_TYPE(TSET)
-#define LCT_TILEDATA        MAKE_CHUNK_TYPE(TILE)
-
 /* region chunk types */
 #define RCT_ISBASE          MAKE_CHUNK_TYPE(rBSE)
 #define RCT_NOANTIWARP      MAKE_CHUNK_TYPE(rNAW)
 #define RCT_NOWEAPONS       MAKE_CHUNK_TYPE(rNWP)
-#define RCT_NONOFLAGS       MAKE_CHUNK_TYPE(rNFL)
+#define RCT_NOFLAGS         MAKE_CHUNK_TYPE(rNFL)
 
 	/** finds the region with a particular name.
 	 * @param arena the arena that contains the map we want to look for
@@ -149,18 +143,18 @@ typedef struct Imapdata
 	 * case-insensitive.
 	 * @return a handle for the specified region, or NULL if not found.
 	 */
-
 	Region * (*FindRegionByName)(Arena *arena, const char *name);
+
 	/** gets the name of a region.
 	 * @param region a region handle.
 	 * @return the region's name. never NULL.
 	 */
-	const char * (*RegionName)(Region *reg);
+	const char * (*RegionName)(Region *rgn);
 
 	/** gets chunk data for a particular region.
 	 * this checks if the given region has a chunk of the specified
 	 * type, and optionally returns a pointer to its data.
-	 * @param reg a region handle.
+	 * @param rgn a region handle.
 	 * @param ctype the chunk type to look for. you probably want to use
 	 * the MAKE_CHUNK_TYPE macro.
 	 * @param datap if this isn't NULL, and the chunk is found, it will
@@ -169,15 +163,15 @@ typedef struct Imapdata
 	 * be filled in with the length of the chunk's data.
 	 * @return true if the chunk was found, false if not.
 	 */
-	int (*RegionChunk)(Region *reg, u32 ctype, const void **datap, int *sizep);
+	int (*RegionChunk)(Region *rgn, u32 ctype, const void **datap, int *sizep);
 
 	/** checks if the specified point is in the specified region.
-	 * @param reg a region handle.
+	 * @param rgn a region handle.
 	 * @param x the x coordinate
 	 * @param y the y coordinate
 	 * @return true if the point is contained, false if not
 	 */
-	int (*Contains)(Region *reg, int x, int y);
+	int (*Contains)(Region *rgn, int x, int y);
 
 	/** calls the specified callback for each region defined in the map
 	 ** that contains the given point.
@@ -191,7 +185,7 @@ typedef struct Imapdata
 	 * @param clos a closure argument for the callback.
 	 */
 	void (*EnumContaining)(Arena *arena, int x, int y,
-			void (*cb)(void *clos, Region *reg), void *clos);
+			void (*cb)(void *clos, Region *rgrgn), void *clos);
 
 	/** finds some region containing the given point.
 	 * @param arena the arena whose map we're dealing with.

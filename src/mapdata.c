@@ -248,7 +248,7 @@ local int process_map_chunk(const char *key, void *vchunk, void *vlvl)
 	ELVL *lvl = vlvl;
 	chunk *chunk = vchunk;
 
-	if (chunk->type == LCT_ATTR)
+	if (chunk->type == MAKE_CHUNK_TYPE(ATTR))
 	{
 		char keybuf[64], *val;
 		const byte *t;
@@ -265,7 +265,7 @@ local int process_map_chunk(const char *key, void *vchunk, void *vlvl)
 		afree(chunk);
 		return TRUE;
 	}
-	else if (chunk->type == LCT_REGION)
+	else if (chunk->type == MAKE_CHUNK_TYPE(REGN))
 	{
 		Region *rgn = amalloc(sizeof(*rgn));
 		rgn->chunks = HashAlloc();
@@ -287,13 +287,13 @@ local int process_map_chunk(const char *key, void *vchunk, void *vlvl)
 		afree(chunk);
 		return TRUE;
 	}
-	else if (chunk->type == LCT_TILESET)
+	else if (chunk->type == MAKE_CHUNK_TYPE(TSET))
 	{
 		/* we don't use this, free it to save some memory. */
 		afree(chunk);
 		return TRUE;
 	}
-	else if (chunk->type == LCT_TILEDATA)
+	else if (chunk->type == MAKE_CHUNK_TYPE(TILE))
 	{
 		read_plain_tile_data(lvl, chunk->data, chunk->size);
 		afree(chunk);
@@ -912,21 +912,21 @@ local Region * FindRegionByName(Arena *arena, const char *name)
 }
 
 
-local const char * RegionName(Region *reg)
+local const char * RegionName(Region *rgn)
 {
-	return reg->name;
+	return rgn->name;
 }
 
 
-local int RegionChunk(Region *reg, u32 ctype, const void **datap, int *sizep)
+local int RegionChunk(Region *rgn, u32 ctype, const void **datap, int *sizep)
 {
-	if (reg->chunks)
+	if (rgn->chunks)
 	{
 		chunk *c;
 
 		u32 buf[2] = { 0, 0 };
 		buf[0] = ctype;
-		c = HashGetOne(reg->chunks, (const char *)buf);
+		c = HashGetOne(rgn->chunks, (const char *)buf);
 		if (c)
 		{
 			if (datap) *datap = c->data;
@@ -938,10 +938,10 @@ local int RegionChunk(Region *reg, u32 ctype, const void **datap, int *sizep)
 }
 
 
-local int Contains(Region *reg, int x, int y)
+local int Contains(Region *rgn, int x, int y)
 {
-	if (reg->tiles)
-		return lookup_sparse(reg->tiles, x, y);
+	if (rgn->tiles)
+		return lookup_sparse(rgn->tiles, x, y);
 	else
 		return FALSE;
 }
@@ -951,24 +951,24 @@ struct enum_containing_clos
 {
 	int x, y;
 	void *clos;
-	void (*cb)(void *clos, Region *reg);
+	void (*cb)(void *clos, Region *rgn);
 };
 
 local int enum_containing_work(const char *rname, void *vreg, void *clos)
 {
-	Region *reg = vreg;
+	Region *rgn = vreg;
 	struct enum_containing_clos *ecc = clos;
 
 	if (ecc->x < 0 ||
 	    ecc->y < 0 ||
-	    (reg->tiles && lookup_sparse(reg->tiles, ecc->x, ecc->y)))
-		ecc->cb(ecc->clos, reg);
+	    (rgn->tiles && lookup_sparse(rgn->tiles, ecc->x, ecc->y)))
+		ecc->cb(ecc->clos, rgn);
 
 	return FALSE;
 }
 
 local void EnumContaining(Arena *arena, int x, int y,
-		void (*cb)(void *clos, Region *reg), void *clos)
+		void (*cb)(void *clos, Region *rgn), void *clos)
 {
 	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
 	struct enum_containing_clos ecc = { x, y, clos, cb };
@@ -978,17 +978,17 @@ local void EnumContaining(Arena *arena, int x, int y,
 }
 
 
-local void get_one_containing_work(void *clos, Region *reg)
+local void get_one_containing_work(void *clos, Region *rgn)
 {
-	*(Region**)clos = reg;
+	*(Region**)clos = rgn;
 }
 
 local Region * GetOneContaining(Arena *arena, int x, int y)
 {
 	/* FIXME: this implementation is, um, a little stupid */
-	Region *reg = NULL;
-	EnumContaining(arena, x, y, get_one_containing_work, &reg);
-	return reg;
+	Region *rgn = NULL;
+	EnumContaining(arena, x, y, get_one_containing_work, &rgn);
+	return rgn;
 }
 
 
