@@ -289,7 +289,7 @@ local struct MapDownloadData * compress_map(const char *fname, int docomp)
 	{
 		CloseHandle(hmap);
 		CloseHandle(hfile);
-		lm->Log(L_ERROR,"<mapnewsdl> mmap failed for map '%s'", fname);
+		lm->Log(L_ERROR,"<mapnewsdl> MapViewOfFile failed for map '%s'", fname);
 		goto fail1;
 	}
 #endif
@@ -403,15 +403,22 @@ local void ArenaAction(int arena, int action)
 		}
 
 		/* now look for lvzs */
-		lvzs = cfg->GetStr(aman->arenas[arena].cfg, "Misc", "LevelFiles");
-		if (!lvzs) lvzs = cfg->GetStr(aman->arenas[arena].cfg, "General", "Lvzs");
+		lvzs = cfg->GetStr(aman->arenas[arena].cfg, "General", "Lvzs");
+		if (!lvzs) lvzs = cfg->GetStr(aman->arenas[arena].cfg, "Misc", "LevelFiles");
 		while (strsplit(lvzs, ",: ", lvzname, 256, &tmp))
-			if (real_get_filename(arena, lvzname, fname, 256) != -1)
+		{
+			char *real = lvzname[0] == '+' ? lvzname+1 : lvzname;
+			if (real_get_filename(arena, real, fname, 256) != -1)
 			{
 				data = compress_map(fname, 0);
 				if (data)
+				{
+					if (lvzname[0] == '+')
+						data->optional = 1;
 					LLAdd(mapdldata + arena, data);
+				}
 			}
+		}
 	}
 }
 
