@@ -65,6 +65,8 @@ local void PAttach(Player *, byte *, int);
 local void PKickoff(Player *, byte *, int);
 local void PBrick(Player *, byte *, int);
 
+local void MChangeFreq(Player *p, const char *line);
+
 local inline void DoChecksum(struct S2CWeapons *);
 local inline long lhypot (register long dx, register long dy);
 
@@ -75,11 +77,13 @@ local void SetFreqAndShip(Player *p, int ship, int freq);
 local void DropBrick(Arena *arena, int freq, int x1, int y1, int x2, int y2, unsigned tm);
 local void WarpTo(const Target *target, int x, int y);
 local void GivePrize(const Target *target, int type, int count);
+local void FakePosition(Player *p, struct C2SPosition *pos);
 
 local Igame _myint =
 {
 	INTERFACE_HEAD_INIT(I_GAME, "game")
-	SetFreq, SetShip, SetFreqAndShip, DropBrick, WarpTo, GivePrize
+	SetFreq, SetShip, SetFreqAndShip, DropBrick, WarpTo, GivePrize,
+	FakePosition
 };
 
 
@@ -88,6 +92,7 @@ local Igame _myint =
 local Iplayerdata *pd;
 local Iconfig *cfg;
 local Inet *net;
+local Ichatnet *chatnet;
 local Ilogman *lm;
 local Imodman *mm;
 local Iarenaman *aman;
@@ -115,6 +120,7 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		net = mm->GetInterface(I_NET, ALLARENAS);
+		chatnet = mm->GetInterface(I_CHATNET, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		flags = mm->GetInterface(I_FLAGS, ALLARENAS);
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
@@ -168,6 +174,9 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		net->AddPacket(C2S_TURRETKICKOFF, PKickoff);
 		net->AddPacket(C2S_BRICK, PBrick);
 
+		if (chatnet)
+			chatnet->AddHandler("CHANGEFREQ", MChangeFreq);
+
 		mm->RegInterface(&_myint, ALLARENAS);
 
 		return MM_OK;
@@ -176,6 +185,8 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 	{
 		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
+		if (chatnet)
+			chatnet->RemoveHandler("CHANGEFREQ", MChangeFreq);
 		net->RemovePacket(C2S_POSITION, Pppk);
 		net->RemovePacket(C2S_SETSHIP, PSetShip);
 		net->RemovePacket(C2S_SETFREQ, PSetFreq);
@@ -225,6 +236,7 @@ void Pppk(Player *p, byte *p2, int n)
 	if (!arena || arena->status != ARENA_RUNNING) return;
 
 	/* do checksum */
+	if (p->type != T_FAKE)
 	{
 		byte checksum = 0;
 		int left = 22;
@@ -290,14 +302,20 @@ void Pppk(Player *p, byte *p2, int n)
 			wpn.weapon = pos->weapon;
 			wpn.extra = pos->extra;
 
-			nflags = NET_UNRELIABLE | (pos->weapon.type ? NET_PRI_P5 : NET_PRI_P3);
-			if (sendtoall == 2)
-				nflags |= NET_RELIABLE;
+			if (sendtoall != 2)
+				nflags = NET_UNRELIABLE;
+			else
+				nflags = NET_RELIABLE;
+
+			if (wpn.weapon.type == 0)
+				nflags |= NET_PRI_P3 | NET_DROPPABLE;
+			else
+				nflags |= NET_PRI_P5;
 
 			pd->Lock();
 			FOR_EACH_PLAYER_P(i, idata, pdkey)
 				if (i->status == S_PLAYING &&
-				    i->type != T_FAKE &&
+				    IS_STANDARD(i) &&
 				    i->arena == arena &&
 				    i != p)
 				{
@@ -325,12 +343,13 @@ void Pppk(Player *p, byte *p2, int n)
 							/* send it always to turreters */
 							i->p_attached == p->pid ||
 							/* and send some radar packets */
-							( ( pos->weapon.type == W_NULL &&
+							( ( wpn.weapon.type == W_NULL &&
 								dist <= cfg_pospix &&
 								randnum > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0)))))
 					{
 						LLAdd(set, i);
-						idata->wpnsent++;
+						if (wpn.weapon.type)
+							idata->wpnsent++;
 					}
 				}
 			pd->Unlock();
@@ -354,14 +373,14 @@ void Pppk(Player *p, byte *p2, int n)
 				pos->bounty, (u8)p->pid, pos->status, pos->yspeed, pos->y, pos->xspeed
 			};
 
-			nflags = NET_UNRELIABLE | NET_PRI_P3;
+			nflags = NET_UNRELIABLE | NET_PRI_P3 | NET_DROPPABLE;
 			if (sendtoall == 2)
 				nflags |= NET_RELIABLE;
 
 			pd->Lock();
 			FOR_EACH_PLAYER_P(i, idata, pdkey)
 				if (i->status == S_PLAYING &&
-				    i->type != T_FAKE &&
+				    IS_STANDARD(i) &&
 				    i->arena == arena &&
 				    i != p)
 				{
@@ -441,6 +460,12 @@ void Pppk(Player *p, byte *p2, int n)
 }
 
 
+void FakePosition(Player *p, struct C2SPosition *pos)
+{
+	Pppk(p, (byte*)pos, 22);
+}
+
+
 void PSpecRequest(Player *p, byte *pkt, int n)
 {
 	pdata *data = PPDATA(p, pdkey);
@@ -483,7 +508,8 @@ void SetFreqAndShip(Player *p, int ship, int freq)
 		return;
 	}
 
-	SET_DURING_CHANGE(p);
+	if (IS_STANDARD(p))
+		SET_DURING_CHANGE(p);
 	p->p_ship = ship;
 	data->speccing = NULL;
 	p->p_freq = freq;
@@ -491,9 +517,13 @@ void SetFreqAndShip(Player *p, int ship, int freq)
 	pd->UnlockPlayer(p);
 
 	/* send it to him, with a callback */
-	net->SendWithCallback(p, (byte*)&to, 6, reset_during_change, NULL);
+	if (IS_STANDARD(p))
+		net->SendWithCallback(p, (byte*)&to, 6, reset_during_change, NULL);
 	/* sent it to everyone else */
 	net->SendToArena(arena, p, (byte*)&to, 6, NET_RELIABLE);
+	if (chatnet)
+		chatnet->SendToArena(arena, NULL, "SHIPFREQCHANGE:%s:%d:%d",
+				p->name, p->p_ship, p->p_freq);
 
 	DO_CBS(CB_SHIPCHANGE, arena, ShipChangeFunc,
 			(p, ship, freq));
@@ -574,15 +604,20 @@ void SetFreq(Player *p, int freq)
 		return;
 	}
 
-	SET_DURING_CHANGE(p);
+	if (IS_STANDARD(p))
+		SET_DURING_CHANGE(p);
 	p->p_freq = freq;
 
 	pd->UnlockPlayer(p);
 
 	/* him, with callback */
-	net->SendWithCallback(p, (byte*)&to, 6, reset_during_change, NULL);
+	if (IS_STANDARD(p))
+		net->SendWithCallback(p, (byte*)&to, 6, reset_during_change, NULL);
 	/* everyone else */
 	net->SendToArena(arena, p, (byte*)&to, 6, NET_RELIABLE);
+	if (chatnet)
+		chatnet->SendToArena(arena, NULL, "SHIPFREQCHANGE:%s:%d:%d",
+				p->name, p->p_ship, p->p_freq);
 
 	DO_CBS(CB_FREQCHANGE, arena, FreqChangeFunc, (p, freq));
 
@@ -628,6 +663,39 @@ void PSetFreq(Player *p, byte *pkt, int n)
 }
 
 
+void MChangeFreq(Player *p, const char *line)
+{
+	int freq, ship;
+	Arena *arena;
+	Ifreqman *fm;
+
+	arena = p->arena;
+	freq = strtol(line, NULL, 0);
+	ship = p->p_ship;
+
+	if (!arena)
+	{
+		lm->LogP(L_MALICIOUS, "game", p, "freq change from bad arena");
+		return;
+	}
+
+	if (ship != SPEC)
+		return;
+
+	fm = mm->GetInterface(I_FREQMAN, arena);
+	if (fm)
+	{
+		fm->FreqChange(p, &ship, &freq);
+		mm->ReleaseInterface(fm);
+	}
+
+	if (ship == p->p_ship)
+		SetFreq(p, freq);
+	else
+		lm->LogP(L_WARN, "game", p, "freqman forced chat client into playing ship");
+}
+
+
 void PDie(Player *p, byte *pkt, int n)
 {
 	struct SimplePacket *dead = (struct SimplePacket*)pkt;
@@ -646,7 +714,7 @@ void PDie(Player *p, byte *pkt, int n)
 		return;
 	}
 
-	kp.green = 0;
+	kp.green = 0; /* FIXME */
 	kp.killer = killer->pid;
 	kp.killed = p->pid;
 	kp.bounty = bty;
@@ -661,6 +729,9 @@ void PDie(Player *p, byte *pkt, int n)
 
 	reldeaths = cfg->GetInt(arena->cfg, "Misc", "ReliableKills", 1);
 	net->SendToArena(arena, NULL, (byte*)&kp, sizeof(kp), reldeaths ? NET_RELIABLE : NET_UNRELIABLE);
+	if (chatnet)
+		chatnet->SendToArena(arena, NULL, "KILL:%s:%s:%d:%d",
+				killer->name, p->name, bty, flagcount);
 
 	lm->Log(L_DRIVEL, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d)",
 			arena->name,

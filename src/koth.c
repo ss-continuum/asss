@@ -68,7 +68,8 @@ local void start_koth(Arena *arena)
 	pd->Lock();
 	FOR_EACH_PLAYER_P(p, pdata, pkey)
 		if (p->status == S_PLAYING &&
-		    p->arena == arena)
+		    p->arena == arena &&
+		    IS_STANDARD(p))
 		{
 			if (p->p_ship != SPEC)
 			{
@@ -112,7 +113,8 @@ local void check_koth(Arena *arena)
 	FOR_EACH_PLAYER_P(p, pdata, pkey)
 		if (p->status == S_PLAYING &&
 		    p->arena == arena &&
-		    p->p_ship != SPEC)
+		    p->p_ship != SPEC &&
+		    IS_STANDARD(p))
 		{
 			playing++;
 			if (pdata->crown)

@@ -25,6 +25,10 @@
 
 /* defines */
 
+/* debugging option to dump raw packets to the console */
+/* #define CFG_DUMP_RAW_PACKETS */
+
+
 #define MAXTYPES 64
 
 /* ip/udp overhead, in bytes per physical packet */
@@ -130,7 +134,7 @@ typedef struct Buffer
 	/* p, len: valid for all buffers */
 	/* pri, lastretry: valid for buffers in outlist */
 	Player *p;
-	short len, pri, retries;
+	short len, pri, retries, flags;
 	unsigned int lastretry; /* in millis, not ticks! */
 	/* used for reliable buffers in the outlist only { */
 	RelCallback callback;
@@ -188,11 +192,13 @@ local int QueueMoreData(void *);
 /* network layer header handling: */
 local void ProcessReliable(Buffer *);
 local void ProcessGrouped(Buffer *);
+local void ProcessSpecial(Buffer *);
 local void ProcessAck(Buffer *);
 local void ProcessSyncRequest(Buffer *);
 local void ProcessBigData(Buffer *);
 local void ProcessPresize(Buffer *);
 local void ProcessDrop(Buffer *);
+local void ProcessCancelReq(Buffer *);
 local void ProcessCancel(Buffer *);
 
 
@@ -251,16 +257,25 @@ local void (*oohandlers[])(Buffer*) =
 	ProcessReliable, /* 03 - reliable */
 	ProcessAck, /* 04 - reliable response */
 	ProcessSyncRequest, /* 05 - time sync request */
-	NULL, /* 06 - time sync response (possible anti-spoof) */
+	NULL, /* 06 - time sync response */
 	ProcessDrop, /* 07 - close connection */
 	ProcessBigData, /* 08 - bigpacket */
 	ProcessBigData, /* 09 - bigpacket2 */
-	ProcessPresize, /* 0A - presized bigdata */
-	ProcessCancel, /* 0B - cancel presized */
-	NULL, /* 0C - nothing */
+	ProcessPresize, /* 0A - presized data (file transfer) */
+	ProcessCancelReq, /* 0B - cancel presized */
+	ProcessCancel, /* 0C - presized has been cancelled */
 	NULL, /* 0D - nothing */
-	ProcessGrouped /* 0E - grouped */
+	ProcessGrouped, /* 0E - grouped */
+	NULL, /* 0x0F */
+	NULL, /* 0x10 */
+	NULL, /* 0x11 */
+	NULL, /* 0x12 */
+	ProcessSpecial, /* 0x13 - cont key response */
+	NULL
 };
+
+local PacketFunc nethandlers[0x14];
+
 
 local Inet netint =
 {
@@ -412,13 +427,23 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 
 void AddPacket(int t, PacketFunc f)
 {
+	int b2 = t>>8;
 	if (t >= 0 && t < MAXTYPES)
 		LLAdd(handlers+t, f);
+	else if ((t & 0xff) == 0 && b2 >= 0 &&
+	         b2 < (sizeof(nethandlers)/sizeof(nethandlers[0])) &&
+	         nethandlers[b2] == NULL)
+		nethandlers[b2] = f;
 }
 void RemovePacket(int t, PacketFunc f)
 {
+	int b2 = t>>8;
 	if (t >= 0 && t < MAXTYPES)
 		LLRemove(handlers+t, f);
+	else if ((t & 0xff) == 0 && b2 >= 0 &&
+	         b2 < (sizeof(nethandlers)/sizeof(nethandlers[0])) &&
+	         nethandlers[b2] == f)
+		nethandlers[b2] = NULL;
 }
 
 void AddSizedPacket(int t, SizedPacketFunc f)
@@ -929,62 +954,77 @@ local void send_outgoing(Player *p)
 		{
 			nbuf = (Buffer*)buf->node.next;
 
-			if (buf->pri == pri &&
-			    /* increase the required timeout linearly by the number
-			     * of retries so far */
-			    (int)(now - buf->lastretry) > (timeout * buf->retries) &&
-			    ( ! IS_REL(buf) ||
-			      (buf->d.rel.seqnum - minseqnum) < CLIENT_CAN_BUFFER ) &&
-			    (bytessince + buf->len + IP_UDP_OVERHEAD) <= limit)
-			{
-				if (buf->retries != 0)
-				{
-					/* this is a retry, not an initial send. record it
-					 * for lag stats and also halve bw limit (with
-					 * clipping) */
-					retries++;
-					cli->limit /= 2;
-					CLIP(cli->limit, LOW_LIMIT, HIGH_LIMIT);
-				}
+			if (buf->pri != pri)
+				continue;
 
-				/* try to group it */
-				if (buf->len <= 255 &&
-				    buf->callback == NULL &&
-				    ((gptr - gbuf) + buf->len) < (MAXPACKET-10))
+			/* check if it's time to send this yet (increase timeout
+			 * linearly with the retry number) */
+			if ((int)(now - buf->lastretry) <= (timeout * buf->retries))
+				continue;
+
+			/* only buffer fixed number of rel packets to client */
+			if (IS_REL(buf) && (buf->d.rel.seqnum - minseqnum) > CLIENT_CAN_BUFFER)
+				continue;
+
+			if ((bytessince + buf->len + IP_UDP_OVERHEAD) > limit)
+			{
+				/* try dropping it, if we can */
+				if (buf->flags & NET_DROPPABLE)
 				{
-					*gptr++ = buf->len;
-					memcpy(gptr, buf->d.raw, buf->len);
-					gptr += buf->len;
-					bytessince += buf->len + 1;
-					gcount++;
-					if (IS_REL(buf))
-					{
-						buf->lastretry = now;
-						buf->retries++;
-					}
-					else
-					{
-						DQRemove((DQNode*)buf);
-						FreeBuffer(buf);
-					}
+					DQRemove((DQNode*)buf);
+					FreeBuffer(buf);
+				}
+				/* but in either case, skip it */
+				continue;
+			}
+
+			if (buf->retries != 0)
+			{
+				/* this is a retry, not an initial send. record it
+				 * for lag stats and also halve bw limit (with
+				 * clipping) */
+				retries++;
+				cli->limit /= 2;
+				CLIP(cli->limit, LOW_LIMIT, HIGH_LIMIT);
+			}
+
+			/* try to group it */
+			if (buf->len <= 255 &&
+			    buf->callback == NULL &&
+			    ((gptr - gbuf) + buf->len) < (MAXPACKET-10))
+			{
+				*gptr++ = buf->len;
+				memcpy(gptr, buf->d.raw, buf->len);
+				gptr += buf->len;
+				bytessince += buf->len + 1;
+				gcount++;
+				if (IS_REL(buf))
+				{
+					buf->lastretry = now;
+					buf->retries++;
 				}
 				else
 				{
-					/* send immediately */
-					bytessince += buf->len + IP_UDP_OVERHEAD;
-					SendRaw(p, buf->d.raw, buf->len);
-					if (IS_REL(buf))
-					{
-						buf->lastretry = now;
-						buf->retries++;
-					}
-					else
-					{
-						/* if we just sent an unreliable packet,
-						 * free it so we don't send it again. */
-						DQRemove((DQNode*)buf);
-						FreeBuffer(buf);
-					}
+					DQRemove((DQNode*)buf);
+					FreeBuffer(buf);
+				}
+			}
+			else
+			{
+				/* send immediately */
+				bytessince += buf->len + IP_UDP_OVERHEAD;
+				SendRaw(p, buf->d.raw, buf->len);
+				if (IS_REL(buf))
+				{
+					buf->lastretry = now;
+					buf->retries++;
+				}
+				else
+				{
+					/* if we just sent an unreliable packet,
+					 * free it so we don't send it again. */
+					DQRemove((DQNode*)buf);
+					FreeBuffer(buf);
 				}
 			}
 		}
@@ -1205,8 +1245,8 @@ void ProcessBuffer(Buffer *buf)
 	if (buf->d.rel.t1 == 0x00)
 	{
 		if (buf->d.rel.t2 < (sizeof(oohandlers)/sizeof(*oohandlers)) &&
-				oohandlers[(int)buf->d.rel.t2])
-			(oohandlers[(int)buf->d.rel.t2])(buf);
+				oohandlers[(unsigned)buf->d.rel.t2])
+			(oohandlers[(unsigned)buf->d.rel.t2])(buf);
 		else
 		{
 			lm->Log(L_MALICIOUS, "<net> [%s] [pid=%d] unknown network subtype %d",
@@ -1578,8 +1618,9 @@ presized_done:
 }
 
 
-void ProcessCancel(Buffer *req)
+void ProcessCancelReq(Buffer *req)
 {
+	byte pkt[] = {0x00, 0x0C};
 	/* the client has request a cancel for the file transfer */
 	ClientData *cli = PPDATA(req->p, clikey);
 	struct sized_send_data *sd;
@@ -1597,9 +1638,25 @@ void ProcessCancel(Buffer *req)
 
 	pthread_mutex_unlock(&cli->olmtx);
 
-	/* FIXME: we probably have to do something else here */
+	SendToOne(req->p, pkt, sizeof(pkt), NET_RELIABLE);
 
 	FreeBuffer(req);
+}
+
+
+void ProcessCancel(Buffer *req)
+{
+	/* the client is cancelling its current file transfer */
+	end_sized(req->p, 0);
+	FreeBuffer(req);
+}
+
+
+/* passes packet to the appropriate nethandlers function */
+void ProcessSpecial(Buffer *req)
+{
+	if (nethandlers[(unsigned)req->d.rel.t2])
+		nethandlers[(unsigned)req->d.rel.t2](req->p, req->d.raw, req->len);
 }
 
 
@@ -1682,6 +1739,7 @@ Buffer * BufferPacket(Player *p, byte *data, int len, int flags,
 	buf->pri = GET_PRI(flags);
 	buf->callback = callback;
 	buf->clos = clos;
+	buf->flags = 0;
 	global_stats.pri_stats[buf->pri]++;
 
 	/* get data into packet */

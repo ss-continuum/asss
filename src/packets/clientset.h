@@ -50,12 +50,20 @@ struct ClientSettings
 		unsigned int ExactDamage : 1;
 		unsigned int HideFlags : 1;
 		unsigned int NoXRadar : 1;
-		unsigned int Pad1 : 3;
-		unsigned int DisablePrintscreen : 1;
-		unsigned int Pad2 : 17;
+		unsigned int SlowFrameRate : 3;
+		unsigned int DisableScreenshot : 1;
+		unsigned int MaxTimerDrift : 3;
+		unsigned int Pad2 : 14;
 	} bit_set;
 	struct ShipSettings ships[8];
-	i32 long_set[24];
+	i32 long_set[20];
+	struct
+	{
+		unsigned int x : 10;
+		unsigned int y : 10;
+		unsigned int r : 9;
+		unsigned int pad : 3;
+	} spawn_pos[4];
 	i16 short_set[58];
 	i8 byte_set[32];
 	i8 prizeweight_set[28];

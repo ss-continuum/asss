@@ -12,8 +12,6 @@ struct Arena
 	int status, ispublic;
 	char name[20], basename[20];
 	ConfigHandle cfg;
-	/* if this isn't going to be dynamic, might as well allocate it
-	 * right here in the struct to make things a bit faster. */
 	byte arenaextradata[0];
 };
 

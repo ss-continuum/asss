@@ -38,7 +38,7 @@ local Player * CreateFakePlayer(const char *name, Arena *arena, int ship, int fr
 	p->status = S_PLAYING;
 
 	if (lm)
-		lm->Log(L_INFO, "<fake> {%s} [%s] Fake p created",
+		lm->Log(L_INFO, "<fake> {%s} [%s] fake player created",
 				arena->name,
 				name);
 
@@ -67,7 +67,7 @@ local int EndFaked(Player *p)
 
 	/* log before freeing pid to avoid races */
 	if (lm)
-		lm->Log(L_INFO, "<fake> {%s} [%s] Fake player destroyed",
+		lm->Log(L_INFO, "<fake> {%s} [%s] fake player destroyed",
 				arena->name,
 				p->name);
 

@@ -37,6 +37,7 @@ typedef struct Igame
 	void (*DropBrick)(Arena *arena, int freq, int x1, int y1, int x2, int y2, unsigned time);
 	void (*WarpTo)(const Target *target, int x, int y);
 	void (*GivePrize)(const Target *target, int type, int count);
+	void (*FakePosition)(Player *p, struct C2SPosition *pos);
 } Igame;
 
 

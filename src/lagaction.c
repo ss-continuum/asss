@@ -83,6 +83,8 @@ local void check_lag(Player *p, laglimits_t *ll)
 	/* weight reliable ping twice the s2c and c2s */
 	avg = (pping.avg + cping.avg + 2*rping.avg) / 4;
 
+	UNSET_NO_SHIP(p);
+
 	/* try to spec people */
 	if (avg > ll->ping.tospec)
 	{
@@ -90,6 +92,7 @@ local void check_lag(Player *p, laglimits_t *ll)
 			chat->SendMessage(p,
 					"You have been specced for excessive ping (%d > %d)",
 					avg, ll->ping.tospec);
+		SET_NO_SHIP(p);
 	}
 	if (ploss.s2c > ll->s2closs.tospec)
 	{
@@ -97,6 +100,7 @@ local void check_lag(Player *p, laglimits_t *ll)
 			chat->SendMessage(p,
 					"You have been specced for excessive S2C packetloss (%.2f > %.2f)",
 					100.0 * ploss.s2c, 100.0 * ll->s2closs.tospec);
+		SET_NO_SHIP(p);
 	}
 	if (ploss.s2cwpn > ll->wpnloss.tospec)
 	{
@@ -104,6 +108,7 @@ local void check_lag(Player *p, laglimits_t *ll)
 			chat->SendMessage(p,
 					"You have been specced for excessive S2C weapon packetloss (%.2f > %.2f)",
 					100.0 * ploss.s2cwpn, 100.0 * ll->wpnloss.tospec);
+		SET_NO_SHIP(p);
 	}
 	if (ploss.c2s > ll->c2sloss.tospec)
 	{
@@ -111,6 +116,7 @@ local void check_lag(Player *p, laglimits_t *ll)
 			chat->SendMessage(p,
 					"You have been specced for excessive C2S packetloss (%.2f > %.2f)",
 					100.0 * ploss.c2s, 100.0 * ll->c2sloss.tospec);
+		SET_NO_SHIP(p);
 	}
 
 	/* handle ignoring flags/balls */
@@ -293,6 +299,7 @@ EXPORT int MM_lagaction(int action, Imodman *mm, Arena *arena)
 		FOR_EACH_PLAYER(p)
 		{
 			UNSET_NO_FLAGS_BALLS(p);
+			UNSET_NO_SHIP(p);
 			p->ignoreweapons = 0;
 		}
 

@@ -57,6 +57,25 @@ local Ilagquery *lagq;
 local Imodman *mm;
 
 
+
+local void translate_arena_packet(Player *p, char *pkt, int len)
+{
+	const char *pos = pkt + 1;
+
+	chat->SendMessage(p, "Available arenas:");
+	while (pos-pkt < len)
+	{
+		const char *next = pos + strlen(pos) + 3;
+		int count = ((byte)next[-1] << 8) | (byte)next[-2];
+		/* manually sign extend. yuck. */
+		if (count & 0x8000)
+			chat->SendMessage(p, "  %-16s %3d (current)", pos, (count ^ 0xffff) + 1);
+		else
+			chat->SendMessage(p, "  %-16s %3d", pos, count);
+		pos = next;
+	}
+}
+
 /* returns 0 if found, 1 if not */
 local int check_arena(char *pkt, int len, char *check)
 {
@@ -134,7 +153,6 @@ local void Carena(const char *params, Player *p, const Target *target)
 	/* add in more arenas if requested */
 	if (!strcasecmp(params, "all"))
 	{
-#ifndef WIN32
 		char aconf[PATH_MAX];
 		DIR *dir = opendir("arenas");
 		if (dir)
@@ -161,43 +179,14 @@ local void Carena(const char *params, Player *p, const Target *target)
 			}
 			closedir(dir);
 		}
-#else
-		char aconf[PATH_MAX];
-		struct _finddata_t fi;
-		long FH = _findfirst("arenas/*", &fi);
-		if (FH != -1)
-		{
-			do
-			{
-				if ((fi.attrib & _A_SUBDIR) &&
-				    strcmp(fi.name, "..") &&
-				    strcmp(fi.name, "."))
-				{
-					/* every arena must have an arena.conf */
-					snprintf(aconf, PATH_MAX, "arenas/%s/arena.conf", fi.name);
-					if (
-							(pos-buf+strlen(fi.name)) < 480 &&
-							access(aconf, R_OK) == 0 &&
-							(fi.name[0] != '#' || seehid) &&
-							check_arena(buf, pos-buf, fi.name)
-					   )
-					{
-						l = strlen(fi.name) + 1;
-						strncpy(pos, fi.name, l);
-						pos += l;
-						*pos++ = 0;
-						*pos++ = 0;
-					}
-				}
-			} while (_findnext(FH,&fi) != -1);
-			_findclose(FH);
-		}
-#endif
 	}
 #endif
 
 	/* send it */
-	net->SendToOne(p, buf, (pos-buf), NET_RELIABLE);
+	if (IS_STANDARD(p))
+		net->SendToOne(p, buf, pos-buf, NET_RELIABLE);
+	else if (IS_CHAT(p)) /* send it as chat messages */
+		translate_arena_packet(p, buf, pos-buf);
 }
 
 
@@ -360,11 +349,10 @@ local void add_mod(const char *name, const char *info, void *buf)
 	char *start = buf, *p;
 	int l = strlen(buf);
 	p = start + l;
-
 	if (info)
-		snprintf(p, MAXDATA - l, "%s (%s), ", name, info);
+		snprintf(p, MAXDATA - l, ", %s (%s)", name, info);
 	else
-		snprintf(p, MAXDATA - l, "%s, ", name);
+		snprintf(p, MAXDATA - l, ", %s", name);
 }
 
 local void send_msg_cb(const char *line, void *clos)
@@ -382,9 +370,8 @@ local void Clsmod(const char *params, Player *p, const Target *target)
 	char data[MAXDATA+6];
 	memset(data, 0, sizeof(data));
 	mm->EnumModules(add_mod, (void*)data);
-	data[strlen(data)-2] = 0; /* kill last ', ' */
 	chat->SendMessage(p, "Loaded modules:");
-	wrap_text(data, 80, ' ', send_msg_cb, p);
+	wrap_text(data+2, 80, ' ', send_msg_cb, p);
 }
 
 
@@ -1359,6 +1346,60 @@ local void Claghist(const char *params, Player *p, const Target *target)
 }
 
 
+local helptext_t listarena_help =
+"Targets: none\n"
+"Args: <arena name>\n"
+"Lists the players in the given arena.\n";
+
+local void Clistarena(const char *params, Player *p, const Target *target)
+{
+	char text[850], *pos = text;
+	int total = 0, playing = 0, donedots = 0;
+	Arena *a;
+	Player *p2;
+	Link *link;
+
+	if (params[0] == '#' && !capman->HasCapability(p, CAP_SEEPRIVARENA))
+	{
+		chat->SendMessage(p, "You don't have permission to view private arenas.");
+		return;
+	}
+
+	if (params[0] == '\0')
+		params = p->arena->name;
+
+	a = aman->FindArena(params, NULL, NULL);
+	if (!a)
+	{
+		chat->SendMessage(p, "Arena '%s' doesn't exist.", params);
+		return;
+	}
+
+	pd->Lock();
+	FOR_EACH_PLAYER(p2)
+		if (p2->status == S_PLAYING && p2->arena == a)
+		{
+			total++;
+			if (p2->p_ship != SPEC)
+				playing++;
+			if ((pos - text) < (sizeof(text) - 10))
+			{
+				snprintf(pos, sizeof(text)-(pos-text), ", %s", p2->name);
+				pos = pos + strlen(pos);
+			}
+			else if (!donedots)
+			{
+				strcpy(pos, ", ...");
+				donedots = 1;
+			}
+		}
+	pd->Unlock();
+
+	chat->SendMessage(p, "Arena '%s': %d total, %d playing", a->name, total, playing);
+	wrap_text(text+2, 80, ' ', send_msg_cb, p);
+}
+
+
 
 /* command group system */
 
@@ -1615,6 +1656,7 @@ local const struct cmd_info misc_commands[] =
 	CMD(listmods)
 	CMD(setcm)
 	CMD(getcm)
+	CMD(listarena)
 	CMD(sheep)
 	END()
 };

@@ -67,7 +67,7 @@
 /* u8 type - ui16 x tile coords - ui16 y tile coords */
 #define S2C_WARPTO 0x32
 #define S2C_LOGINTEXT 0x33
-/* missing 34 */
+#define S2C_CONTVERSION 0x34
 /* u8 type - unlimited number of ui16 with obj id (if & 0xF000, means
  * turning off) */
 #define S2C_TOGGLEOBJ 0x35

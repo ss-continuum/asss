@@ -1,4 +1,6 @@
 
+/* dist: public */
+
 #include "asss.h"
 #include "fake.h"
 
@@ -18,6 +20,7 @@ local pthread_mutex_t turret_mtx = PTHREAD_MUTEX_INITIALIZER;
 local Imodman *mm;
 local Iplayerdata *pd;
 local Icmdman *cmd;
+local Igame *game;
 local Ifake *fake;
 
 
@@ -78,16 +81,6 @@ local void Cdropturret(const char *params, Player *p, const Target *target)
 }
 
 
-local void checksum(struct C2SPosition *pkt, int n)
-{
-	int i = n;
-	u8 ck = 0, *p = (u8*)pkt;
-	pkt->checksum = 0;
-	while (i--)
-		ck ^= *p++;
-	pkt->checksum = ck;
-}
-
 local void mlfunc()
 {
 	unsigned now;
@@ -115,10 +108,7 @@ local void mlfunc()
 			td->pos.bounty = (td->endtime - now) / 100;
 			td->pos.time = now;
 			td->pos.weapon.type = td->weapon;
-			checksum(&td->pos, 22);
-			/* FIXME: do this the right way
-			 * fake->ProcessPacket(td->pid, (byte*)&td->pos, 22);
-			 */
+			game->FakePosition(td->p, &td->pos);
 		}
 		else if (now > td->tosend)
 		{
@@ -126,10 +116,7 @@ local void mlfunc()
 			td->pos.bounty = (td->endtime - now) / 100;
 			td->pos.time = now;
 			td->pos.weapon.type = 0;
-			checksum(&td->pos, 22);
-			/* FIXME
-			 * fake->ProcessPacket(td->pid, (byte*)&td->pos, 22);
-			 */
+			game->FakePosition(td->p, &td->pos);
 		}
 	}
 	pthread_mutex_unlock(&turret_mtx);
@@ -143,8 +130,9 @@ EXPORT int MM_autoturret(int action, Imodman *mm_, Arena *arena)
 		mm = mm_;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
+		game = mm->GetInterface(I_GAME, ALLARENAS);
 		fake = mm->GetInterface(I_FAKE, ALLARENAS);
-		if (!pd || !cmd || !fake) return MM_FAIL;
+		if (!pd || !cmd || !game || !fake) return MM_FAIL;
 		LLInit(&turrets);
 		mm->RegCallback(CB_MAINLOOP, mlfunc, ALLARENAS);
 		cmd->AddCommand("dropturret", Cdropturret, dropturret_help);
@@ -157,6 +145,7 @@ EXPORT int MM_autoturret(int action, Imodman *mm_, Arena *arena)
 		LLEmpty(&turrets);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(cmd);
+		mm->ReleaseInterface(game);
 		mm->ReleaseInterface(fake);
 		return MM_OK;
 	}

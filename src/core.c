@@ -19,9 +19,6 @@
 #include "asss.h"
 
 
-#define EXECHECKSUM 0xF1429CE8
-
-
 /* STRUCTS */
 
 #include "packets/login.h"
@@ -70,6 +67,7 @@ local Ipersist *persist;
 local Istats *stats;
 
 local int pdkey;
+local u32 contchecksum, codechecksum;
 
 local Iauth _iauth =
 {
@@ -79,6 +77,37 @@ local Iauth _iauth =
 
 
 /* FUNCTIONS */
+
+
+local u32 get_checksum(const char *file)
+{
+	FILE *f;
+	char buf[8192];
+	uLong crc = crc32(0, Z_NULL, 0);
+	if (!(f = fopen(file, "rb")))
+		return (u32)-1;
+	while (!feof(f))
+	{
+		int b = fread(buf, 1, sizeof(buf), f);
+		crc = crc32(crc, buf, b);
+	}
+	fclose(f);
+	return crc;
+}
+
+local u32 get_u32(const char *file, int offset)
+{
+	FILE *f;
+	u32 buf = -1;
+	if ((f = fopen(file, "rb")))
+	{
+		if (fseek(f, offset, SEEK_SET) == 0)
+			fread(&buf, sizeof(u32), 1, f);
+		fclose(f);
+	}
+	return buf;
+}
+
 
 EXPORT int MM_core(int action, Imodman *mm_, Arena *arena)
 {
@@ -116,6 +145,9 @@ EXPORT int MM_core(int action, Imodman *mm_, Arena *arena)
 
 		/* set up periodic events */
 		ml->SetTimer(SendKeepalive, 500, 500, NULL, NULL);
+
+		contchecksum = get_checksum("clients/continuum.exe");
+		codechecksum = get_u32("scrty", 4);
 
 		return MM_OK;
 	}
@@ -564,22 +596,39 @@ void SendLoginResponse(Player *p)
 	}
 	else if (IS_STANDARD(p))
 	{
-		struct LoginResponse lr =
-			{ S2C_LOGINRESPONSE, 0, 134, 0, EXECHECKSUM, {0, 0},
-				0, 0x281CC948, 0, {0, 0, 0, 0, 0, 0, 0, 0} };
+		struct S2CLoginResponse lr =
+			{ S2C_LOGINRESPONSE, 0, 134, 0, 0, {0, 0},
+				0, 0, 0, {0, 0, 0, 0, 0, 0, 0, 0} };
 		lr.code = auth->code;
 		lr.demodata = auth->demodata;
 		lr.newschecksum = map->GetNewsChecksum();
 
-#ifndef CFG_IGNORE_CHECKSUMS
+		if (p->type == T_CONT)
+		{
+			struct {
+				u8 type;
+				u16 contversion;
+				u32 checksum;
+			} pkt = { S2C_CONTVERSION, 38, contchecksum };
+			net->SendToOne(p, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
+
+			lr.exechecksum = contchecksum;
+			lr.codechecksum = codechecksum;
+		}
+		else
+		{
+			/* old vie exe checksums */
+			lr.exechecksum = 0xF1429CE8;
+			lr.codechecksum = 0x281CC948;
+		}
+
 		if (capman && capman->HasCapability(p, "seeprivfreq"))
-#endif
 		{
 			/* to make the client think it's a mod, set these checksums to -1 */
 			lr.exechecksum = -1;
-			lr.blah3 = -1;
+			lr.codechecksum = -1;
 		}
-		
+
 		if (lr.code == AUTH_CUSTOMTEXT)
 		{
 			if (p->type == T_CONT)

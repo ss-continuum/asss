@@ -47,7 +47,7 @@ local void Cadmlogfile(const char *params, Player *p, const Target *target)
 local helptext_t getfile_help =
 "Targets: none\n"
 "Args: <filename>\n"
-"Transfers the specified filefrom the server to the client.\n"
+"Transfers the specified file from the server to the client.\n"
 "The filename should include the full relative path from the server's\n"
 "base directory.\n";
 

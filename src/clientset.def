@@ -80,10 +80,6 @@ static char *long_names[] =
 	/* cfghelp: Shrapnel:ShrapnelSpeed, arena, int
 	 * Speed that shrapnel travels */
 	"Shrapnel:ShrapnelSpeed",
-	"Unused:Unused1",
-	"Unused:Unused2",
-	"Unused:Unused3",
-	"Unused:Unused4"
 };
 
 static char *short_names[] =
@@ -362,7 +358,10 @@ static char *byte_names[] =
 	/* cfghelp: Soccer:BallLocation, arena, bool
 	 * Whether the balls location is displayed at all times or not */
 	"Soccer:BallLocation",
-	"Unused:Unused1",
+	/* cfghelp: Misc:AntiWarpSettleDelay, arena, int
+	 * How many ticks to activate a fake antiwarp after attaching,
+	 * portaling, or warping. */
+	"Misc:AntiWarpSettleDelay",
 	"Unused:Unused2",
 	"Unused:Unused3",
 	"Unused:Unused4",
@@ -768,6 +767,18 @@ static char *ship_byte_names[] =
 /* cfghelp: Spectator:HideFlags, arena, bool, def: 0
  * Whether to show dropped flags to spectators (Cont .36+) */
 
-/* cfghelp: Spectator:HideFlags, arena, bool, def: 0
- * Whether spectators are disallowed from haveing X radar (Cont .36+) */
+/* cfghelp: Spectator:NoXRadar, arena, bool, def: 0
+ * Whether spectators are disallowed from having X radar (Cont .36+) */
+
+/* cfghelp: Misc:DisableScreenshot, arena, bool, def: 0
+ * Whether to disable Continuum's screenshot feature (Cont .37+) */
+
+/* FIXME: need cfghelp for Misc:SlowFrameRate, Misc:MaxTimerDrift */
+
+/* cfghelp: Spawn:TeamN-X/Y/Radius, arena, int
+ * Specify spawn location and radius per team. If only Team0 variables
+ * are set, all teams use them, if Team0 and Team1 variables are set,
+ * even teams use Team0 and odd teams use Team1. It is possible to set
+ * spawn positions for upto 4 teams (Team0-Team3). (Cont .38+) */
+
 

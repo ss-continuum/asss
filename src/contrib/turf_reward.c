@@ -159,7 +159,7 @@ local Iturfreward _myint =
 };
 
 
-EXPORT const char info_turf_reward[] = "v3.6 by GiGaKiLLeR <gigamon@hotmail.com>";
+EXPORT const char info_turf_reward[] = "v0.3.7 by GiGaKiLLeR <gigamon@hotmail.com>";
 
 
 /* the actual entrypoint into this module */
@@ -721,6 +721,8 @@ local int calcWeight(Arena *arena, struct TurfFlag *tf)
 local int turfRewardTimer(void *v)
 {
 	Arena *arena = v;
+	struct TurfArena *tr, **p_tr = P_ARENA_DATA(arena, trkey);
+	if (!arena || !*p_tr) return FALSE; else tr = *p_tr;
 
 	if (!arena) return FALSE;
 
@@ -728,6 +730,7 @@ local int turfRewardTimer(void *v)
 	doReward(arena);
 	logman->LogA(L_DRIVEL, "turf_reward", arena, "Timer Ding");
 
+	tr->dingTime = GTC();
 	return TRUE;  // yes we want timer called again
 }
 

@@ -6,6 +6,18 @@
 
 import sys, time, curses, socket, select, os
 
+ship_names = \
+{
+	0: 'Warbird',
+	1: 'Javelin',
+	2: 'Spider',
+	3: 'Leviathan',
+	4: 'Terrier',
+	5: 'Weasel',
+	6: 'Lancaster',
+	7: 'Shark',
+	8: 'Spectator'
+}
 
 class MyWindows:
 	def __init__(me):
@@ -378,6 +390,13 @@ def process_typed(line):
 		else:
 			send_line("SEND:PUB:%s" % line)
 		add_line("%s> %s" % (myname, line), colors.default)
+	elif line.startswith('='):
+		# freq change
+		try:
+			freq = int(line[1:])
+			send_line("CHANGEFREQ:%d" % freq)
+		except:
+			add_line("Bad freq number", colors.info)
 	else:
 		# pub msg
 		send_line("SEND:PUB:%s" % line)
@@ -461,6 +480,19 @@ def process_msg(line):
 		add_line("Bad message subtype from server: '%s'" % type, colors.info)
 
 
+def process_sfc(line):
+	global colors
+
+	player, ship, freq = line.split(':')
+	ship = int(ship)
+	freq = int(freq)
+
+	if ship == 8:
+		add_line('%s is now on freq %s as a spectator' % (player, freq), colors.info)
+	else:
+		add_line('%s is now on freq %s in a %s' % (player, freq, ship_names[ship]), colors.info)
+
+
 dispatch = \
 {
 	'LOGINOK': process_loginok,
@@ -469,7 +501,8 @@ dispatch = \
 	'PLAYER': process_player,
 	'ENTERING': process_entering,
 	'LEAVING': process_leaving,
-	'MSG': process_msg
+	'MSG': process_msg,
+	'SHIPFREQCHANGE': process_sfc
 }
 
 def process_incoming(line):
@@ -506,6 +539,7 @@ def display_players(scr):
 		return
 
 	h, w = scr.getmaxyx()
+	scr.erase()
 
 	names = players.keys()
 	names.sort()

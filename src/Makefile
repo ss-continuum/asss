@@ -1,5 +1,4 @@
 
-
 ASSSHOME = ..
 SCRIPTS = $(ASSSHOME)/scripts
 
@@ -21,6 +20,8 @@ DEBUG_CFLAGS = -g -Wall -fpedantic
 ALL_CFLAGS = -D_REENTRANT -D_GNU_SOURCE -fPIC $(DBINC) $(MYSQLINC)
 
 CFLAGS = $(ALL_CFLAGS) $(DEBUG_CFLAGS) $(PROF_FLAGS) $(OPT_CFLAGS)
+
+CC = gcc -pipe
 
 ALL_STUFF = asss         \
             core.so      \
@@ -92,9 +93,6 @@ cfghelp.inc: $(SCRIPTS)/extract-cfg-docs.py
 	cat *.c *.def | $(SCRIPTS)/extract-cfg-docs.py -c > $@
 
 cfghelp.o: cfghelp.inc
-
-arpc_stubs.c: $(SCRIPTS)/arpc.py *.h
-	$(SCRIPTS)/arpc.py makestubs > $@
 
 
 Makefile.deps: sparse.inc letters.inc cfghelp.inc # *.c *.h

@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 0.9.11.
+Welcome to asss (a small subspace server) 0.9.13.
 
 This news.txt will be used for updates about new features and other
 important information. If you have any suggestions of any kind, please
@@ -7,21 +7,21 @@ let me know.
 
 
 Recent updates:
+    * autoturrets are back: type ?dropturret
+
+    * continuum 0.38 support: new settings, correct version info, more
+      secure encryption
+
+    * additions to simple chat protocol.
+
+    * bunches of bug fixes.
+
     * network layer improvements: faster and smoother downloads
 
     * billing server support re-added (plus a proxy to connect
       to older servers)
 
-    * improved ?putfile command
-
-    * big internal improvements: no more hard limits on
-      players or arenas, plus lower memory usage
-
-    * players can send files to each other with /?sendfile
-
-    * koth game in the default arena (?go 0)
-
-    * an arena placing module that supports multiple "public" arenas
+    * improved ?putfile command, plus ?putzip
 
 
 Lots more detail at:

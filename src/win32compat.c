@@ -34,3 +34,41 @@ int mkstemp(char *template)
 }
 
 
+struct DIR
+{
+	struct _finddata_t fi;
+	long handle;
+	long lastres;
+	struct dirent de;
+};
+
+DIR *opendir(const char *reqpath)
+{
+	char path[PATH_MAX];
+	DIR *dir = amalloc(sizeof(*dir));
+	snprintf(path, sizeof(path), "%s/*", path);
+	dir->fh = _findfirst(path, &dir->fi);
+	dir->lastres = dir->fh;
+	return dir;
+}
+
+struct dirent *readdir(DIR *dir)
+{
+	if (dir->lastres != -1)
+	{
+		astrncpy(de->d_name, dir->fi.name, sizeof(de->d_name));
+		dir->lastres = _findnext(dir->fh, &dir->fi);
+		return &dir->de;
+	}
+	else
+		return NULL;
+}
+
+void closedir(DIR *dir)
+{
+	if (dir->fh != -1)
+		_findclose(dir->fh);
+	afree(dir);
+}
+
+

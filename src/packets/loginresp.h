@@ -7,7 +7,7 @@
 /* loginresp.h - login repsonse packet */
 
 
-struct LoginResponse
+struct S2CLoginResponse
 {
 	u8 type;
 	u8 code;
@@ -15,7 +15,7 @@ struct LoginResponse
 	u32 blah;
 	u32 exechecksum;
 	u8 blah2[2];
-	u32 demodata, blah3;
+	u32 demodata, codechecksum;
 	u32 newschecksum;
 	u8 blah4[8];
 };

@@ -32,6 +32,7 @@ typedef struct ModuleData
 	ModMain mm;
 	const char *info;
 	int myself;
+	LinkedList attached;
 } ModuleData;
 
 
@@ -59,7 +60,7 @@ local void NoMoreModules(void);
 
 local HashTable *arenacallbacks, *globalcallbacks;
 local HashTable *arenaints, *globalints, *intsbyname;
-local LinkedList *mods;
+local LinkedList mods;
 local int nomoremods;
 
 local pthread_mutex_t modmtx = PTHREAD_MUTEX_INITIALIZER;
@@ -84,7 +85,7 @@ local Imodman mmint =
 
 Imodman * InitModuleManager(void)
 {
-	mods = LLAlloc();
+	LLInit(&mods);
 	arenacallbacks = HashAlloc(233);
 	globalcallbacks = HashAlloc(233);
 	arenaints = HashAlloc(43);
@@ -97,11 +98,11 @@ Imodman * InitModuleManager(void)
 
 void DeInitModuleManager(Imodman *mm)
 {
-	if (mods && LLGetHead(mods))
+	if (LLGetHead(&mods))
 		fprintf(stderr, "All modules not unloaded!!!\n");
 	if (mm && mm->head.refcount > 1)
 		fprintf(stderr, "There are remaining references to the module manager!!!\n");
-	LLFree(mods);
+	LLEmpty(&mods);
 	HashFree(arenacallbacks);
 	HashFree(globalcallbacks);
 	HashFree(arenaints);
@@ -262,7 +263,7 @@ int LoadMod(const char *_spec)
 	}
 
 	pthread_mutex_lock(&modmtx);
-	LLAdd(mods, mod);
+	LLAdd(&mods, mod);
 	pthread_mutex_unlock(&modmtx);
 	if (lm) ReleaseInterface(lm);
 
@@ -281,14 +282,22 @@ die:
 
 local int UnloadModuleByPtr(ModuleData *mod)
 {
+	Link *l;
+
 	if (mod)
 	{
+		pthread_mutex_lock(&modmtx);
+		/* detach this module from all arenas it's attached to */
+		for (l = LLGetHead(&mod->attached); l; l = l->next)
+			(mod->mm)(MM_DETACH, &mmint, (Arena*)l->data);
+		LLEmpty(&mod->attached);
+
+		/* now unload it */
 		if (mod->mm)
 			if ((mod->mm)(MM_UNLOAD, &mmint, ALLARENAS) == MM_FAIL)
 				return MM_FAIL;
 		if (mod->hand && !mod->myself) dlclose(mod->hand);
-		pthread_mutex_lock(&modmtx);
-		LLRemove(mods, mod);
+		LLRemove(&mods, mod);
 		pthread_mutex_unlock(&modmtx);
 		afree(mod);
 	}
@@ -302,7 +311,7 @@ local ModuleData *GetModuleByName(const char *name)
 	Link *l;
 
 	pthread_mutex_lock(&modmtx);
-	for (l = LLGetHead(mods); l; l = l->next)
+	for (l = LLGetHead(&mods); l; l = l->next)
 	{
 		mod = (ModuleData*) l->data;
 		if (!strcasecmp(mod->name,name))
@@ -339,7 +348,7 @@ void DoStage(int stage)
 {
 	Link *l;
 	pthread_mutex_lock(&modmtx);
-	for (l = LLGetHead(mods); l; l = l->next)
+	for (l = LLGetHead(&mods); l; l = l->next)
 		((ModuleData*)l->data)->mm(stage, &mmint, ALLARENAS);
 	pthread_mutex_unlock(&modmtx);
 }
@@ -347,8 +356,8 @@ void DoStage(int stage)
 
 void UnloadAllModules(void)
 {
-	RecursiveUnload(LLGetHead(mods));
-	LLEmpty(mods);
+	RecursiveUnload(LLGetHead(&mods));
+	LLEmpty(&mods);
 }
 
 
@@ -363,7 +372,7 @@ void EnumModules(void (*func)(const char *, const char *, void *), void *clos)
 	ModuleData *mod;
 	Link *l;
 	pthread_mutex_lock(&modmtx);
-	for (l = LLGetHead(mods); l; l = l->next)
+	for (l = LLGetHead(&mods); l; l = l->next)
 	{
 		mod = (ModuleData*) l->data;
 		func(mod->name, mod->info, clos);
@@ -376,14 +385,24 @@ void AttachModule(const char *name, Arena *arena)
 {
 	ModuleData *mod = GetModuleByName(name);
 	if (mod)
-		mod->mm(MM_ATTACH, &mmint, arena);
+	{
+		pthread_mutex_lock(&modmtx);
+		if (mod->mm(MM_ATTACH, &mmint, arena) == MM_OK)
+			LLAdd(&mod->attached, arena);
+		pthread_mutex_unlock(&modmtx);
+	}
 }
 
 void DetachModule(const char *name, Arena *arena)
 {
 	ModuleData *mod = GetModuleByName(name);
 	if (mod)
-		mod->mm(MM_DETACH, &mmint, arena);
+	{
+		pthread_mutex_lock(&modmtx);
+		if (LLRemove(&mod->attached, arena))
+			mod->mm(MM_DETACH, &mmint, arena);
+		pthread_mutex_unlock(&modmtx);
+	}
 }
 
 

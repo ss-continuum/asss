@@ -43,12 +43,6 @@
 #define CFG_DO_EXTRAARENAS
 
 
-/* whether to ignore exe and other checksums on login. unfortunately,
- * this needs to be enabled to allow continuum clients to log in for
- * now. */
-#define CFG_IGNORE_CHECKSUMS
-
-
 /* if this is defined and the capability mananger isn't loaded, all
  * commands will be allowed. if it's not defined, _no_ commands will be
  * allowed. that's probably not what you want, unless you're very
@@ -76,10 +70,6 @@
  * characters of each line to store. */
 #define CFG_LAST_LINES 100
 #define CFG_LAST_LENGTH 128
-
-
-/* debugging option to dump raw packets to the console */
-/* #define CFG_DUMP_RAW_PACKETS */
 
 
 /* relax checks on certain packet lengths. only useful for debugging. */

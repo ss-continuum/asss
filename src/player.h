@@ -26,8 +26,8 @@ enum
 };
 
 /* macros for testing types */
-#define IS_STANDARD(p) (p->type == T_CONT || p->type == T_VIE)
-#define IS_CHAT(p) (p->type == T_CHAT)
+#define IS_STANDARD(p) ((p)->type == T_CONT || (p)->type == T_VIE)
+#define IS_CHAT(p) ((p)->type == T_CHAT)
 #define IS_HUMAN(p) (IS_STANDARD(p) || IS_CHAT(p))
 
 
@@ -135,38 +135,44 @@ struct Player
 
 /* set when the player has changed freqs or ships, but before he has
  * acknowleged it */
-#define F_DURING_CHANGE 0x01
+#define F_DURING_CHANGE (1<<0)
 #define SET_DURING_CHANGE(p) ((p)->pflags |= F_DURING_CHANGE)
 #define RESET_DURING_CHANGE(p) ((p)->pflags &= ~F_DURING_CHANGE)
 #define IS_DURING_CHANGE(p) ((p)->pflags & F_DURING_CHANGE)
 
 /* if player wants optional .lvz files */
-#define F_ALL_LVZ 0x02
+#define F_ALL_LVZ (1<<1)
 #define SET_ALL_LVZ(p) ((p)->pflags |= F_ALL_LVZ)
 #define UNSET_ALL_LVZ(p) ((p)->pflags &= ~F_ALL_LVZ)
 #define WANT_ALL_LVZ(p) ((p)->pflags & F_ALL_LVZ)
 
 /* if player is waiting for db query results */
-#define F_DURING_QUERY 0x04
+#define F_DURING_QUERY (1<<2)
 #define SET_DURING_QUERY(p) ((p)->pflags |= F_DURING_QUERY)
 #define UNSET_DURING_QUERY(p) ((p)->pflags &= ~F_DURING_QUERY)
 #define IS_DURING_QUERY(p) ((p)->pflags & F_DURING_QUERY)
 
+/* if the player's lag is too high to let him be in a ship */
+#define F_NO_SHIP (1<<3)
+#define SET_NO_SHIP(p) ((p)->pflags |= F_NO_SHIP)
+#define UNSET_NO_SHIP(p) ((p)->pflags &= ~F_NO_SHIP)
+#define IS_NO_SHIP(p) ((p)->pflags & F_NO_SHIP)
+
 /* if the player's lag is too high to let him have flags or balls */
-#define F_NO_FLAGS_BALLS 0x08
+#define F_NO_FLAGS_BALLS (1<<4)
 #define SET_NO_FLAGS_BALLS(p) ((p)->pflags |= F_NO_FLAGS_BALLS)
 #define UNSET_NO_FLAGS_BALLS(p) ((p)->pflags &= ~F_NO_FLAGS_BALLS)
 #define IS_NO_FLAGS_BALLS(p) ((p)->pflags & F_NO_FLAGS_BALLS)
 
 /* if the player has sent a position packet since entering the arena */
-#define F_SENT_PPK 0x10
+#define F_SENT_PPK (1<<5)
 #define SET_SENT_PPK(p) ((p)->pflags |= F_SENT_PPK)
 #define UNSET_SENT_PPK(p) ((p)->pflags &= ~F_SENT_PPK)
 #define HAS_SENT_PPK(p) ((p)->pflags & F_SENT_PPK)
 
 /* if the player has been authenticated by either a billing server or a
  * password file */
-#define F_AUTHENTICATED 0x20
+#define F_AUTHENTICATED (1<<6)
 #define SET_AUTHENTICATED(p) ((p)->pflags |= F_AUTHENTICATED)
 #define UNSET_AUTHENTICATED(p) ((p)->pflags &= ~F_AUTHENTICATED)
 #define IS_AUTHENTICATED(p) ((p)->pflags & F_AUTHENTICATED)

@@ -1,4 +1,9 @@
 
+simple chat protocol
+version 1.3
+grelminar@yahoo.com
+
+--------------------
 
 the protocol is ascii over tcp. each message contains several fields,
 the first of which a type field that determines the meaning of the
@@ -10,6 +15,12 @@ either side can close the connection at any time. the other side should
 respond to this by closing their end of the connection also.
 
 for each message type, the last field is allowed to contain colons.
+
+player names are used to differentiate players. case is insignificant
+when comparing player names, but the server is required to use the same
+capitalization for all instances of the same player in the same session
+(i.e., if someone logs out and logs in again, the case of their name
+might change).
 
 
 login:
@@ -32,7 +43,8 @@ entering arenas:
 
 client sends:
 	GO:name
-		(use an empty name to mean "first public arena")
+		(use an empty name to mean "first public arena". note that even
+		if name is empty, the colon is still required.)
 
 
 server may reply:
@@ -41,7 +53,7 @@ server may reply:
 		the freq that the client has been assigned.)
 	PLAYER:name:ship:freq
 		(one line for each player who's in the arena at the time when it
-		is entered)
+		is entered.)
 
 
 enter/leave notification:
@@ -60,6 +72,13 @@ client sends:
 
 server sends:
 	SHIPFREQCHANGE:name:ship:freq
+		(ships are numbered from 0 (warbird) to 8 (spectator))
+
+
+kills:
+
+server sends:
+	KILL:killername:killedname:bounty:flagscarried
 
 
 chat (the important part):

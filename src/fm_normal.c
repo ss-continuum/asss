@@ -189,7 +189,7 @@ void Initial(Player *p, int *ship, int *freq)
 
 	ch = arena->cfg;
 
-	if (count_current_playing(arena) >= MAXPLAYING(ch))
+	if (count_current_playing(arena) >= MAXPLAYING(ch) || IS_NO_SHIP(p))
 		s = SPEC;
 
 	if (s == SPEC)
@@ -238,6 +238,14 @@ void Ship(Player *p, int *ship, int *freq)
 			if (chat)
 				chat->SendMessage(p,
 						"There are too many people playing in this arena.");
+		}
+		else if (IS_NO_SHIP(p))
+		{
+			s = p->p_ship;
+			f = p->p_freq;
+			if (chat)
+				chat->SendMessage(p,
+						"You have too much lag to play in this arena.");
 		}
 		else
 		{

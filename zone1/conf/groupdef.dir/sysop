@@ -25,6 +25,7 @@ cmd_disablecmdgroup
 cmd_enablecmdgroup
 
 cmd_admlogfile
+cmd_reloadconf
 
 ; temporary
 cmd_makefake

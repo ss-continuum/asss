@@ -9,6 +9,8 @@
 
 #ifndef WIN32
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #else
 #include <direct.h>
 #endif

@@ -46,12 +46,12 @@ local int perarenaspace;
 local Iarenaman myint;
 
 
-local void DoAttach(Arena *a, int action)
+local void do_attach(Arena *a, int action)
 {
+	char mod[32];
+	const char *attmods, *tmp = NULL;
 	void (*func)(const char *name, Arena *arena);
-	char *mods, *t, *_tok;
-	const char *attmods;
-
+	
 	if (action == MM_ATTACH)
 		func = mm->AttachModule;
 	else if (action == MM_DETACH)
@@ -66,24 +66,8 @@ local void DoAttach(Arena *a, int action)
 	attmods = cfg->GetStr(a->cfg, "Modules", "AttachModules");
 	if (!attmods) return;
 
-	mods = alloca(strlen(attmods)+1);
-	strcpy(mods, attmods);
-
-#define DELIMS " \t:;,"
-
-	t = strtok_r(mods, DELIMS, &_tok);
-	while (t)
-	{
-		func(t, a); /* attach or detach modules */
-		t = strtok_r(NULL, DELIMS, &_tok);
-	}
-}
-
-
-local void free_arena(const void *v)
-{
-	const Arena *a = v;
-	afree(a);
+	while (strsplit(attmods, " \t:;,", mod, sizeof(mod), &tmp))
+		func(mod, a);
 }
 
 
@@ -157,7 +141,7 @@ local int ProcessArenaStates(void *dummy)
 				/* config file */
 				a->cfg = cfg->OpenConfigFile(a->basename, NULL, arena_conf_changed, a);
 				/* attach modules */
-				DoAttach(a, MM_ATTACH);
+				do_attach(a, MM_ATTACH);
 				/* now callbacks */
 				DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_CREATE));
 				/* finally, persistant stuff */
@@ -198,12 +182,12 @@ local int ProcessArenaStates(void *dummy)
 			case ARENA_DO_DEINIT:
 				/* reverse order: callbacks, detach, close config file */
 				DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_DESTROY));
-				DoAttach(a, MM_DETACH);
+				do_attach(a, MM_DETACH);
 				cfg->CloseConfigFile(a->cfg);
 
 				LLRemove(&myint.arenalist, a);
 
-				free_arena(a);
+				afree(a);
 
 				break;
 		}
@@ -214,7 +198,8 @@ local int ProcessArenaStates(void *dummy)
 }
 
 
-local Arena * CreateArena(const char *name)
+/* call with write lock held */
+local Arena * create_arena(const char *name)
 {
 	char *t;
 	Arena *a;
@@ -231,9 +216,7 @@ local Arena * CreateArena(const char *name)
 	a->ispublic = (name[1] == '\0' && name[0] >= '0' && name[0] <= '9');
 	a->cfg = NULL;
 
-	WRLOCK();
 	LLAdd(&myint.arenalist, a);
-	UNLOCK();
 
 	return a;
 }
@@ -357,11 +340,11 @@ local void LeaveArena(Player *p)
 }
 
 
+/* call with read or write lock held */
 local Arena * do_find_arena(const char *name, int min, int max)
 {
 	Link *link;
 	Arena *a;
-	RDLOCK();
 	for (
 			link = LLGetHead(&myint.arenalist);
 			link && ((a = link->data) || 1);
@@ -369,11 +352,7 @@ local Arena * do_find_arena(const char *name, int min, int max)
 		if (a->status >= min &&
 		    a->status <= max &&
 		    !strcmp(a->name, name) )
-		{
-			UNLOCK();
 			return a;
-		}
-	UNLOCK();
 	return NULL;
 }
 
@@ -428,24 +407,28 @@ local void complete_go(Player *p, const char *reqname, int ship, int xres, int y
 		LeaveArena(p);
 
 	/* try to locate an existing arena */
+	WRLOCK();
 	a = do_find_arena(name, ARENA_DO_INIT, ARENA_RUNNING);
 
 	if (a == NULL)
 	{
 		lm->Log(L_INFO, "<arenaman> {%s} Creating arena", name);
-		a = CreateArena(name);
+		a = create_arena(name);
 		if (a == NULL)
 		{
 			/* if it fails, dump in first available */
 			Link *l = LLGetHead(&myint.arenalist);
 			if (!l)
 			{
-				lm->Log(L_ERROR, "<arenaman> Internal error: no running arenas but cannot create new one");
+				lm->Log(L_ERROR,
+						"<arenaman> Internal error: no running arenas but cannot create new one");
+				UNLOCK();
 				return;
 			}
 			a = l->data;
 		}
 	}
+	UNLOCK();
 
 	/* set up player info */
 	p->arena = a;
@@ -581,9 +564,11 @@ local Arena * FindArena(const char *name, int *totalp, int *playingp)
 {
 	Arena *arena;
 
+	RDLOCK();
 	arena = do_find_arena(name, ARENA_RUNNING, ARENA_RUNNING);
+	UNLOCK();
 
-	if (arena)
+	if (arena && (totalp || playingp))
 		count_players(arena, totalp, playingp);
 
 	return arena;
@@ -753,7 +738,7 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 		mm->ReleaseInterface(ml);
 
 		pthread_rwlock_destroy(&arenalock);
-		LLEnum(&myint.arenalist, free_arena);
+		LLEnum(&myint.arenalist, afree);
 		LLEmpty(&myint.arenalist);
 		return MM_OK;
 	}

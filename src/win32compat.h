@@ -13,6 +13,7 @@
 #define strncasecmp(a,b,c) strnicmp((a),(b),(c))
 #define M_PI 3.14159265358979323846
 #define PATH_MAX 256
+#define NAME_MAX 256
 #define snprintf _snprintf
 #define vsnprintf _vsnprintf
 #define usleep(x) Sleep((x)/1000)
@@ -30,6 +31,19 @@ typedef int socklen_t;
 #define BROKEN_VSNPRINTF
 
 /* a few things that windows is missing */
-extern const char * strcasestr(const char* haystack, const char* needle);
-extern int mkstemp(char *template);
+const char * strcasestr(const char* haystack, const char* needle);
+int mkstemp(char *template);
+
+
+/* directory listing */
+typedef struct DIR DIR;
+
+struct dirent
+{
+	char d_name[NAME_MAX];
+};
+
+DIR *opendir(const char *path);
+struct dirent *readdir(DIR *dir);
+void closedir(DIR *dir);
 

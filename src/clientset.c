@@ -110,7 +110,9 @@ local void load_settings(struct ClientSettings *cs, ConfigHandle conf)
 	cs->bit_set.ExactDamage = cfg->GetInt(conf, "Bullet", "ExactDamage", 0);
 	cs->bit_set.HideFlags = cfg->GetInt(conf, "Spectator", "HideFlags", 0);
 	cs->bit_set.NoXRadar = cfg->GetInt(conf, "Spectator", "NoXRadar", 0);
-	cs->bit_set.DisablePrintscreen = cfg->GetInt(conf, "General", "DisablePrintscreen", 0);
+	cs->bit_set.SlowFrameRate = cfg->GetInt(conf, "Misc", "SlowFrameRate", 0);
+	cs->bit_set.DisableScreenshot = cfg->GetInt(conf, "Misc", "DisableScreenshot", 0);
+	cs->bit_set.MaxTimerDrift = cfg->GetInt(conf, "Misc", "MaxTimerDrift", 0);
 
 	/* do ships */
 	for (i = 0; i < 8; i++)
@@ -152,7 +154,19 @@ local void load_settings(struct ClientSettings *cs, ConfigHandle conf)
 		ss->short_set[10] = *(unsigned short*)&misc;
 	}
 
-	/* do settings */
+	/* spawn locations */
+	for (i = 0; i < 4; i++)
+	{
+		char xname[] = "Team#-X";
+		char yname[] = "Team#-Y";
+		char rname[] = "Team#-Radius";
+		xname[4] = yname[4] = rname[4] = '0' + i;
+		cs->spawn_pos[i].x = cfg->GetInt(conf, "Spawn", xname, 0);
+		cs->spawn_pos[i].y = cfg->GetInt(conf, "Spawn", yname, 0);
+		cs->spawn_pos[i].r = cfg->GetInt(conf, "Spawn", rname, 0);
+	}
+
+	/* do rest of settings */
 	for (i = 0; i < COUNT(cs->long_set); i++)
 		cs->long_set[i] = cfg->GetInt(conf, long_names[i], NULL, 0);
 	for (i = 0; i < COUNT(cs->short_set); i++)
