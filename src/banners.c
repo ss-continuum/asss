@@ -79,7 +79,7 @@ local void check_and_send_banner(Player *p, int callothers)
 }
 
 
-local void SetBanner(Player *p, Banner *bnr)
+local void SetBanner(Player *p, Banner *bnr, int frombiller)
 {
 	bdata *bd = PPDATA(p, bdkey);
 
@@ -92,7 +92,7 @@ local void SetBanner(Player *p, Banner *bnr)
 	 * status at 1. we'll check it when he enters the arena.
 	 * if he is playing, though, do the check and send now. */
 	if (p->status == S_PLAYING)
-		check_and_send_banner(p, TRUE);
+		check_and_send_banner(p, !frombiller);
 
 	UNLOCK();
 }
@@ -124,7 +124,7 @@ local void PBanner(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	SetBanner(p, &b->banner);
+	SetBanner(p, &b->banner, FALSE);
 	if (lm) lm->LogP(L_DRIVEL, "banners", p, "set banner");
 }
 

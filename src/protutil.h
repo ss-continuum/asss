@@ -3,7 +3,7 @@
 
 #include "util.h"
 
-#define MAXMSGSIZE 1023
+#define MAXMSGSIZE 2035
 
 struct sp_buffer;
 

@@ -12,15 +12,16 @@ typedef void (*SetBannerFunc)(Player *p, Banner *banner);
 /* pycb: player, banner */
 
 
-#define I_BANNERS "banners-1"
+#define I_BANNERS "banners-2"
 
 typedef struct Ibanners
 {
 	INTERFACE_HEAD_DECL
 	/* pyint: use */
-	void (*SetBanner)(Player *p, Banner *banner);
-	/* sets banner. NULL to remove. */
-	/* pyint: player, banner -> void */
+	void (*SetBanner)(Player *p, Banner *banner, int frombiller);
+	/* sets banner. NULL to remove. everyone except the biller modules
+	 * should have frombiller false. */
+	/* pyint: player, banner, int -> void */
 } Ibanners;
 
 #endif

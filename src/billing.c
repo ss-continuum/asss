@@ -21,15 +21,18 @@
 
 #include "asss.h"
 #include "protutil.h"
+#include "banners.h"
+#include "persist.h"
 
+#define PINGINTERVAL 180
 
 typedef struct pdata
 {
-	long billingid;
+	long userdbid;
 	unsigned long usage;
 	char firstused[32];
 	void (*Done)(Player *p, AuthData *data);
-	int knowntobiller;
+	byte knowntobiller, sentpae, wantreg, demographics_set;
 } pdata;
 
 
@@ -46,19 +49,21 @@ local enum
 	s_disabled
 } state;
 
-local time_t lastretry;
+local time_t lastretry; /* doubles as lastping */
 local int pdkey;
 local sp_conn conn;
 local pthread_mutex_t mtx;
 
 local int cfg_retryseconds;
 
+local Imodman *mm;
 local Iplayerdata *pd;
 local Ilogman *lm;
 local Imainloop *ml;
 local Ichat *chat;
 local Icmdman *cmd;
 local Iconfig *cfg;
+local Inet *net;
 local Iauth *oldauth;
 
 
@@ -76,15 +81,14 @@ local void memtohex(char *dest, byte *mem, int bytes)
 	*dest = 0;
 }
 
-#if 0
-local void hextomem(byte *dest, char *text, int bytes)
+local int hextomem(byte *dest, const char *text, int bytes)
 {
 	int i;
 	for (i = 0; i < bytes; i++)
 	{
 		byte d = 0;
-		char c1 = *text++;
-		char c2 = *text++;
+		const char c1 = *text++;
+		const char c2 = *text++;
 
 		if (c1 >= '0' && c1 <= '9')
 			d = c1 - '0';
@@ -92,7 +96,7 @@ local void hextomem(byte *dest, char *text, int bytes)
 			d = c1 - 'a' + 10;
 		else if (c1 >= 'A' && c1 <= 'F')
 			d = c1 - 'A' + 10;
-		else return;
+		else return FALSE;
 
 		d <<= 4;
 
@@ -102,18 +106,11 @@ local void hextomem(byte *dest, char *text, int bytes)
 			d |= c2 - 'a' + 10;
 		else if (c2 >= 'A' && c2 <= 'F')
 			d |= c2 - 'A' + 10;
-		else return;
+		else return FALSE;
 
 		*dest++ = d;
 	}
-}
-#endif
-
-local void send_line(const char *line)
-{
-	pthread_mutex_lock(&mtx);
-	sp_send(&conn, line);
-	pthread_mutex_unlock(&mtx);
+	return TRUE;
 }
 
 
@@ -122,6 +119,10 @@ local void drop_connection(int newstate)
 	Player *p;
 	Link *link;
 	pdata *data;
+
+	/* only announce if changing from loggedin */
+	if (state == s_loggedin)
+		chat->SendArenaMessage(ALLARENAS, "Notice: Connection to user database server lost");
 
 	/* clear knowntobiller values */
 	pd->Lock();
@@ -133,8 +134,9 @@ local void drop_connection(int newstate)
 	if (conn.socket > 0)
 		close(conn.socket);
 	conn.socket = -1;
-	state = newstate;
 
+	state = newstate;
+	lastretry = time(NULL);
 }
 
 /* the auth interface */
@@ -143,7 +145,6 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 			void (*Done)(Player *p, AuthData *data))
 {
 	char buf[MAXMSGSIZE];
-	char ip[16] = "127.0.0.1";
 	pdata *data = PPDATA(p, pdkey);
 
 	pthread_mutex_lock(&mtx);
@@ -153,19 +154,22 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 		data->Done = Done;
 
 		snprintf(buf, MAXMSGSIZE - 128, "PLOGIN:%d:%d:%s:%s:%s:%d:",
-				p->pid, lp->flags, lp->name, lp->password, ip, lp->macid);
+				p->pid, lp->flags, lp->name, lp->password, p->ipaddr, lp->macid);
 		if (lplen == LEN_LOGINPACKET_CONT)
 			memtohex(buf + strlen(buf), lp->contid, 64);
 
 		sp_send(&conn, buf);
 
 		data->knowntobiller = TRUE;
+		data->sentpae = FALSE;
+		data->wantreg = FALSE;
+		data->demographics_set = FALSE;
 	}
 	else
 	{
 		/* biller isn't connected, fall back to next highest priority */
 		lm->Log(L_DRIVEL,
-				"<billing> biller not connected; falling back to '%s'",
+				"<billing> user db server not connected; falling back to '%s'",
 				oldauth->head.name);
 		oldauth->Authenticate(p, lp, lplen, Done);
 		data->knowntobiller = FALSE;
@@ -186,12 +190,25 @@ local struct Iauth myauth =
 local void paction(Player *p, int action, Arena *arena)
 {
 	pdata *data = PPDATA(p, pdkey);
-	if (action == PA_DISCONNECT && data->knowntobiller)
+
+	pthread_mutex_lock(&mtx);
+	if (!data->knowntobiller)
+		;
+	else if (action == PA_DISCONNECT)
 	{
 		char buf[128];
 		snprintf(buf, sizeof(buf), "PLEAVE:%d", p->pid);
-		send_line(buf);
+		sp_send(&conn, buf);
+		data->knowntobiller = FALSE;
 	}
+	else if (action == PA_ENTERARENA && !data->sentpae)
+	{
+		char buf[128];
+		snprintf(buf, sizeof(buf), "PENTERARENA:%d", p->pid);
+		sp_send(&conn, buf);
+		data->sentpae = TRUE;
+	}
+	pthread_mutex_unlock(&mtx);
 }
 
 
@@ -201,10 +218,10 @@ local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, c
 {
 	pdata *data = PPDATA(p, pdkey);
 
+	pthread_mutex_lock(&mtx);
 	if (!data->knowntobiller)
-		return;
-
-	if (type == MSG_CHAT)
+		;
+	else if (type == MSG_CHAT)
 	{
 		char buf[MAXMSGSIZE], chan[16];
 		const char *t;
@@ -216,7 +233,7 @@ local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, c
 			strcpy(chan, "1");
 
 		snprintf(buf, sizeof(buf), "CHAT:%d:%s:%d:%s", p->pid, chan, sound, text);
-		send_line(buf);
+		sp_send(&conn, buf);
 	}
 	else if (type == MSG_REMOTEPRIV && target == NULL)
 	{
@@ -231,15 +248,53 @@ local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, c
 		{
 			char buf[MAXMSGSIZE];
 			snprintf(buf, sizeof(buf), "RMTSQD:%d:%s:%d:%s", p->pid, dest+1, sound, t);
-			send_line(buf);
+			sp_send(&conn, buf);
 		}
 		else
 		{
 			char buf[MAXMSGSIZE];
 			snprintf(buf, sizeof(buf), "RMT:%d:%s:%d:%s", p->pid, dest, sound, t);
-			send_line(buf);
+			sp_send(&conn, buf);
 		}
 	}
+	pthread_mutex_unlock(&mtx);
+}
+
+local void setbanner(Player *p, Banner *banner)
+{
+	pdata *data = PPDATA(p, pdkey);
+
+	pthread_mutex_lock(&mtx);
+	if (data->knowntobiller)
+	{
+		char buf[24 + sizeof(banner->data) * 2], *t;
+		snprintf(buf, 24, "BNR:%d:", p->pid);
+		t = buf + strlen(buf);
+		memtohex(t, banner->data, sizeof(banner->data));
+		t[sizeof(banner->data) * 2] = '\0';
+		sp_send(&conn, buf);
+	}
+	pthread_mutex_unlock(&mtx);
+}
+
+local void pdemographics(Player *p, byte *pkt, int len)
+{
+	pdata *data = PPDATA(p, pdkey);
+
+	pthread_mutex_lock(&mtx);
+	if (data->demographics_set)
+		lm->LogP(L_MALICIOUS, "billing", p, "duplicate demographics packet");
+	else if (data->knowntobiller && len < 800)
+	{
+		char buf[2048], *t;
+		snprintf(buf, 32, "REGDATA:%d:", p->pid);
+		t = buf + strlen(buf);
+		memtohex(t, pkt, len);
+		t[len*2] = '\0';
+		sp_send(&conn, buf);
+		data->demographics_set = TRUE;
+	}
+	pthread_mutex_unlock(&mtx);
 }
 
 
@@ -250,17 +305,17 @@ local void Cdefault(const char *cmd, const char *params, Player *p, const Target
 	pdata *data = PPDATA(p, pdkey);
 	char buf[MAXMSGSIZE];
 
+	pthread_mutex_lock(&mtx);
 	if (!data->knowntobiller)
-		return;
-
-	if (target->type != T_ARENA)
-	{
+		;
+	else if (target->type != T_ARENA)
 		lm->LogP(L_DRIVEL, "billing", p, "unknown command with bad target: %s %s", cmd, params);
-		return;
+	else
+	{
+		snprintf(buf, sizeof(buf), "CMD:%d:%s:%s", p->pid, cmd, params);
+		sp_send(&conn, buf);
 	}
-
-	snprintf(buf, sizeof(buf), "CMD:%d:%s:%s", p->pid, cmd, params);
-	send_line(buf);
+	pthread_mutex_unlock(&mtx);
 }
 
 
@@ -279,6 +334,7 @@ local void Cusage(const char *params, Player *p, const Target *target)
 	pdata *tdata = PPDATA(t, pdkey);
 	unsigned int mins, secs;
 
+	pthread_mutex_lock(&mtx);
 	if (tdata->knowntobiller)
 	{
 		secs = TICK_DIFF(current_ticks(), t->connecttime) / 100;
@@ -295,38 +351,40 @@ local void Cusage(const char *params, Player *p, const Target *target)
 	}
 	else
 		chat->SendMessage(p, "usage unknown for %s", t->name);
+	pthread_mutex_unlock(&mtx);
 }
 
 
-local helptext_t billingid_help =
+local helptext_t userdbid_help =
 "Targets: player or none\n"
 "Args: none\n"
-"Displays the billing server id of the target player, or yours if no\n"
-"target.\n";
+"Displays the user database server id of the target player,\n"
+"or yours if no target.\n";
 
-local void Cbillingid(const char *params, Player *p, const Target *target)
+local void Cuserdbid(const char *params, Player *p, const Target *target)
 {
 	Player *t = target->type == T_PLAYER ? target->u.p : p;
 	pdata *tdata = PPDATA(t, pdkey);
+	pthread_mutex_lock(&mtx);
 	if (tdata->knowntobiller)
-		chat->SendMessage(p, "%s has billing id %ld",
-				t->name, tdata->billingid);
+		chat->SendMessage(p, "%s has user database id %ld",
+				t->name, tdata->userdbid);
 	else
-		chat->SendMessage(p, "billing id unknown for %s", t->name);
+		chat->SendMessage(p, "user database id unknown for %s", t->name);
+	pthread_mutex_unlock(&mtx);
 }
 
 
-local helptext_t billingadm_help =
+local helptext_t userdbadm_help =
 "Targets: none\n"
 "Args: status|drop|connect\n"
-"The subcommand 'status' reports the status of the billing server\n"
+"The subcommand 'status' reports the status of the user database server\n"
 "connection. 'drop' disconnects the connection if it's up, and 'connect'\n"
 "reconnects after dropping or failed login.\n";
 
-local void Cbillingadm(const char *params, Player *p, const Target *target)
+local void Cuserdbadm(const char *params, Player *p, const Target *target)
 {
 	pthread_mutex_lock(&mtx);
-
 	if (!strcmp(params, "drop"))
 	{
 		/* if we're up, drop the socket */
@@ -335,17 +393,17 @@ local void Cbillingadm(const char *params, Player *p, const Target *target)
 		else
 			state = s_disabled;
 		state = s_disabled;
-		chat->SendMessage(p, "billing connection disabled");
+		chat->SendMessage(p, "user db connection disabled");
 	}
 	else if (!strcmp(params, "connect"))
 	{
 		if (state == s_loginfailed || state == s_disabled)
 		{
 			state = s_no_socket;
-			chat->SendMessage(p, "billing server connection reactivated");
+			chat->SendMessage(p, "user db server connection reactivated");
 		}
 		else
-			chat->SendMessage(p, "billing server connection already active");
+			chat->SendMessage(p, "user db server connection already active");
 	}
 	else
 	{
@@ -369,9 +427,8 @@ local void Cbillingadm(const char *params, Player *p, const Target *target)
 			case s_disabled:
 				t = "disabled (by user)";  break;
 		}
-		chat->SendMessage(p, "billing status: %s", t);
+		chat->SendMessage(p, "user db status: %s", t);
 	}
-
 	pthread_mutex_unlock(&mtx);
 }
 
@@ -380,7 +437,7 @@ local void Cbillingadm(const char *params, Player *p, const Target *target)
 
 local void process_connectok(const char *line)
 {
-	lm->Log(L_INFO, "<billing> logged into billing server (%s)",
+	lm->Log(L_INFO, "<billing> logged into user db server (%s)",
 			line);
 	state = s_loggedin;
 }
@@ -392,11 +449,21 @@ local void process_connectbad(const char *line)
 
 	reason = delimcpy(billername, line, sizeof(billername), ':');
 
-	lm->Log(L_INFO, "<billing> billing server (%s) rejected login: %s",
+	lm->Log(L_INFO, "<billing> user db server (%s) rejected login: %s",
 			billername, reason);
 
 	/* now close it and don't try again */
 	drop_connection(s_loginfailed);
+}
+
+local void process_wantreg(const char *line)
+{
+	/* b->g: "WANTREG:pid" */
+	int pid = atoi(line);
+	Player *p = pd->PidToPlayer(pid);
+	pdata *data = PPDATA(p, pdkey);
+
+	if (p) data->wantreg = TRUE;
 }
 
 local void process_pok(const char *line)
@@ -427,8 +494,8 @@ local void process_pok(const char *line)
 		pdata *data = PPDATA(p, pdkey);
 		astrncpy(data->firstused, t, sizeof(data->firstused));
 		data->usage = atol(usagestr);
-		data->billingid = atol(bidstr);
-		ad.demodata = 0;
+		data->userdbid = atol(bidstr);
+		ad.demodata = data->wantreg;
 		ad.code = AUTH_OK;
 		ad.authenticated = TRUE;
 		data->Done(p, &ad);
@@ -439,13 +506,15 @@ local void process_pok(const char *line)
 
 local void process_pbad(const char *line)
 {
-	/* b->g: "PBAD:pid:rtext" */
+	/* b->g: "PBAD:pid:newname:rtext" */
 	AuthData ad;
-	char pidstr[16];
+	char pidstr[16], newname[16];
 	const char *t = line;
 	Player *p;
 
 	t = delimcpy(pidstr, t, sizeof(pidstr), ':');
+	if (!t) return;
+	t = delimcpy(newname, t, sizeof(newname), ':');
 	if (!t) return;
 
 	p = pd->PidToPlayer(atoi(pidstr));
@@ -456,6 +525,8 @@ local void process_pbad(const char *line)
 		/* ew.. i really wish i didn't have to do this */
 		if (!strncmp(t, "CODE", 4))
 			ad.code = atoi(t+4);
+		else if (atoi(newname) == 1)
+			ad.code = AUTH_NEWNAME;
 		else
 		{
 			ad.code = AUTH_CUSTOMTEXT;
@@ -467,10 +538,56 @@ local void process_pbad(const char *line)
 		lm->Log(L_WARN, "<billing> biller sent player auth response for unknown pid %s", pidstr);
 }
 
+local void process_pkick(const char *line)
+{
+	/* b->g: "PKICK:pid:reason" */
+	char pidstr[16];
+	const char *t = line;
+	Player *p;
+
+	t = delimcpy(pidstr, t, sizeof(pidstr), ':');
+	if (!t) return;
+
+	p = pd->PidToPlayer(atoi(pidstr));
+	if (p)
+	{
+		lm->LogP(L_INFO, "billing", p, "kicked off by biller: %s", t);
+		chat->SendMessage(p, "You were disconnected by the user database server: %s", t);
+		pd->KickPlayer(p);
+	}
+	else
+		lm->Log(L_WARN, "<billing> biller sent player kick request for "
+			"unknown pid %s, reason: %s", pidstr, t);
+}
+
 local void process_bnr(const char *line)
 {
 	/* b->g: "BNR:pid:banner" */
-	/* FIXME: banner support */
+	Banner banner;
+	char pidstr[16];
+	const char *t = line;
+	Player *p;
+	Ibanners *bnr = mm->GetInterface(I_BANNERS, ALLARENAS);
+
+	if (!bnr) return;
+
+	t = delimcpy(pidstr, t, sizeof(pidstr), ':');
+	if (!t) return;
+	
+	p = pd->PidToPlayer(atoi(pidstr));
+	if (p)
+	{
+		if (hextomem(banner.data, t, sizeof(banner.data)))
+			bnr->SetBanner(p, &banner, TRUE);
+		else
+			lm->Log(L_WARN, "<billing> biller sent bad banner string "
+					"for pid %s", pidstr);
+	}
+	else
+		lm->Log(L_WARN, "<billing> biller sent player banner for "
+			"unknown pid %s", pidstr);
+
+	mm->ReleaseInterface(bnr);
 }
 
 static struct
@@ -540,8 +657,7 @@ local void process_rmt(const char *line)
 		Link link = { NULL, p };
 		LinkedList list = { &link, &link };
 
-		chat->SendAnyMessage(&list, MSG_REMOTEPRIV, atoi(soundstr), NULL,
-				"%s> %s", sender, text);
+		chat->SendRemotePrivMessage(&list, atoi(soundstr), NULL, sender, text);
 	}
 }
 
@@ -556,7 +672,7 @@ local void process_rmtsqd(const char *line)
 	Player *p;
 
 	t = delimcpy(destsq, t, sizeof(destsq), ':');
-	if (!t) return;
+	if (!t || !destsq[0]) return;
 	t = delimcpy(sender, t, sizeof(sender), ':');
 	if (!t) return;
 	t = delimcpy(soundstr, t, sizeof(soundstr), ':');
@@ -568,8 +684,7 @@ local void process_rmtsqd(const char *line)
 			LLAdd(&list, p);
 	pd->Unlock();
 
-	chat->SendAnyMessage(&list, MSG_REMOTEPRIV, atoi(soundstr), NULL,
-			"S (%s)> %s", sender, t);
+	chat->SendRemotePrivMessage(&list, atoi(soundstr), destsq, sender, t);
 }
 
 local void process_msg(const char *line)
@@ -600,7 +715,7 @@ local void process_staffmsg(const char *line)
 	text = delimcpy(soundstr, text, sizeof(soundstr), ':');
 	if (!text) return;
 
-	chat->SendModMessage("Staff message from billing server> %s", text);
+	chat->SendModMessage("Network-wide broadcast: %s", text);
 }
 
 local void process_broadcast(const char *line)
@@ -615,26 +730,55 @@ local void process_broadcast(const char *line)
 	if (!text) return;
 
 	chat->SendArenaSoundMessage(ALLARENAS, atoi(soundstr),
-			"Broadcast from billing server> %s", text);
+			"Network-wide broadcast: %s", text);
+}
+
+local void process_scorereset(const char *line)
+{
+	/* b->g: "SCORERESET" */
+	Ipersist *persist = mm->GetInterface(I_PERSIST, ALLARENAS);
+
+	lm->Log(L_INFO, "<billing> billing server requested score reset");
+	if (persist)
+		persist->EndInterval(AG_PUBLIC, NULL, INTERVAL_RESET);
+	mm->ReleaseInterface(persist);
 }
 
 
 /* the dispatcher */
 
+local HashTable *dispatch;
+
+local void init_dispatch(void)
+{
+	dispatch = HashAlloc();
+	HashAdd(dispatch, "CONNECTOK",       process_connectok);
+	HashAdd(dispatch, "CONNECTBAD",      process_connectbad);
+	HashAdd(dispatch, "WANTREG",         process_wantreg);
+	HashAdd(dispatch, "POK",             process_pok);
+	HashAdd(dispatch, "PBAD",            process_pbad);
+	HashAdd(dispatch, "PKICK",           process_pkick);
+	HashAdd(dispatch, "BNR",             process_bnr);
+	HashAdd(dispatch, "CHATTXT",         process_chattxt);
+	HashAdd(dispatch, "CHAT",            process_chat);
+	HashAdd(dispatch, "RMT",             process_rmt);
+	HashAdd(dispatch, "RMTSQD",          process_rmtsqd);
+	HashAdd(dispatch, "MSG",             process_msg);
+	HashAdd(dispatch, "STAFFMSG",        process_staffmsg);
+	HashAdd(dispatch, "BROADCAST",       process_broadcast);
+	HashAdd(dispatch, "SCORERESET",      process_scorereset);
+}
+
+local void deinit_dispatch(void)
+{
+	HashFree(dispatch);
+	dispatch = NULL;
+}
+
 local void process_line(const char *cmd, const char *rest, void *dummy)
 {
-	     if (!strcmp(cmd, "CONNECTOK"))      process_connectok(rest);
-	else if (!strcmp(cmd, "CONNECTBAD"))     process_connectbad(rest);
-	else if (!strcmp(cmd, "POK"))            process_pok(rest);
-	else if (!strcmp(cmd, "PBAD"))           process_pbad(rest);
-	else if (!strcmp(cmd, "BNR"))            process_bnr(rest);
-	else if (!strcmp(cmd, "CHATTXT"))        process_chattxt(rest);
-	else if (!strcmp(cmd, "CHAT"))           process_chat(rest);
-	else if (!strcmp(cmd, "RMT"))            process_rmt(rest);
-	else if (!strcmp(cmd, "RMTSQD"))         process_rmtsqd(rest);
-	else if (!strcmp(cmd, "MSG"))            process_msg(rest);
-	else if (!strcmp(cmd, "STAFFMSG"))       process_staffmsg(rest);
-	else if (!strcmp(cmd, "BROADCAST"))      process_broadcast(rest);
+	void (*func)(const char *) = HashGetOne(dispatch, cmd);
+	if (func) func(rest);
 }
 
 
@@ -671,7 +815,7 @@ local void setup_proxy(const char *proxy, const char *ipaddr, int port)
 		/* in child */
 		char portstr[16];
 
-		/* set up fds, but leave stdout connected to stdout of the server */
+		/* set up fds, but leave stderr connected to stderr of the server */
 		close(sockets[1]);
 		dup2(sockets[0], STDIN_FILENO);
 		dup2(sockets[0], STDOUT_FILENO);
@@ -681,9 +825,9 @@ local void setup_proxy(const char *proxy, const char *ipaddr, int port)
 		execlp(proxy, proxy, ipaddr, portstr, NULL);
 
 		/* uh oh */
-		fprintf(stderr, "E <billing> can't exec billing proxy (%s): %s\n",
+		fprintf(stderr, "E <billing> can't exec user db proxy (%s): %s\n",
 				proxy, strerror(errno));
-		exit(123);
+		_exit(123);
 	}
 	else
 	{
@@ -707,11 +851,11 @@ local void remote_connect(const char *ipaddr, int port)
 
 	if (conn.socket == -1)
 	{
-		state = s_retry;
+		drop_connection(s_retry);
 		return;
 	}
 
-	lm->Log(L_INFO, "<billing> trying to connect to billing server at %s:%d",
+	lm->Log(L_DRIVEL, "<billing> trying to connect to user db server at %s:%d",
 			ipaddr, port);
 
 	memset(&sin, 0, sizeof(sin));
@@ -724,7 +868,7 @@ local void remote_connect(const char *ipaddr, int port)
 	{
 		/* successful connect. this is pretty unlikely since the socket
 		 * is nonblocking. */
-		lm->Log(L_INFO, "<billing> connected to billing server");
+		lm->Log(L_INFO, "<billing> connected to user db server");
 		state = s_connected;
 	}
 #ifndef WIN32
@@ -739,7 +883,7 @@ local void remote_connect(const char *ipaddr, int port)
 		lm->Log(L_WARN, "<billing> unexpected error from connect: %s",
 				strerror(errno));
 		/* retry again in a while */
-		state = s_retry;
+		drop_connection(s_retry);
 	}
 }
 
@@ -806,14 +950,14 @@ local void check_connected(void)
 			if (opt == 0)
 			{
 				/* successful connection */
-				lm->Log(L_INFO, "<billing> connected to billing server");
+				lm->Log(L_DRIVEL, "<billing> connected to billing server");
 				state = s_connected;
 			}
 			else
 			{
 				lm->Log(L_WARN, "<billing> can't connect to billing server: %s",
 						strerror(opt));
-				state = s_retry;
+				drop_connection(s_retry);
 			}
 		}
 	}
@@ -847,7 +991,7 @@ local void try_login(void)
 	if (!net) net = "";
 	if (!pwd) pwd = "";
 
-	snprintf(buf, sizeof(buf), "CONNECT:1:asss "ASSSVERSION":%s:%s:%s",
+	snprintf(buf, sizeof(buf), "CONNECT:1.3:asss "ASSSVERSION":%s:%s:%s",
 			zonename, net, pwd);
 	sp_send(&conn, buf);
 
@@ -859,6 +1003,7 @@ local void try_login(void)
 
 local void try_send_recv(void)
 {
+	time_t now;
 	fd_set rfds, wfds;
 	struct timeval tv = { 0, 0 };
 
@@ -886,6 +1031,13 @@ local void try_send_recv(void)
 
 	if (conn.inbuf)
 		do_sp_process(&conn, process_line, NULL);
+
+	now = time(NULL);
+	if ((now - lastretry) > PINGINTERVAL)
+	{
+		sp_send(&conn, "PING");
+		lastretry = now;
+	}
 }
 
 
@@ -910,29 +1062,33 @@ local int do_one_iter(void *v)
 
 
 
-EXPORT int MM_billing(int action, Imodman *mm, Arena *arena)
+EXPORT int MM_billing(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
+		mm = mm_;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		net = mm->GetInterface(I_NET, ALLARENAS);
 		oldauth = mm->GetInterface(I_AUTH, ALLARENAS);
 		if (!pd || !lm || !ml || !chat || !cmd || !cfg || !oldauth)
 			return MM_FAIL;
 		pdkey = pd->AllocatePlayerData(sizeof(pdata));
 		if (pdkey == -1) return MM_FAIL;
 
-		conn.socket = -1;
-		drop_connection(s_no_socket);
-
 		/* cfghelp: Billing:RetryInterval, global, int, def: 30
 		 * How many seconds to wait between tries to connect to the
 		 * billing server. */
 		cfg_retryseconds = cfg->GetInt(GLOBAL, "Billing", "RetryInterval", 30);
+
+		init_dispatch();
+
+		conn.socket = -1;
+		drop_connection(s_no_socket);
 
 		pthread_mutex_init(&mtx, NULL);
 
@@ -940,11 +1096,14 @@ EXPORT int MM_billing(int action, Imodman *mm, Arena *arena)
 
 		mm->RegCallback(CB_PLAYERACTION, paction, ALLARENAS);
 		mm->RegCallback(CB_CHATMSG, onchatmsg, ALLARENAS);
+		mm->RegCallback(CB_SET_BANNER, setbanner, ALLARENAS);
 
 		cmd->AddCommand("usage", Cusage, usage_help);
-		cmd->AddCommand("billingid", Cbillingid, billingid_help);
-		cmd->AddCommand("billingadm", Cbillingadm, billingadm_help);
+		cmd->AddCommand("userdbid", Cuserdbid, userdbid_help);
+		cmd->AddCommand("userdbadm", Cuserdbadm, userdbadm_help);
 		cmd->AddCommand2(NULL, Cdefault, NULL);
+
+		if (net) net->AddPacket(C2S_REGDATA, pdemographics);
 
 		mm->RegInterface(&myauth, ALLARENAS);
 
@@ -955,20 +1114,26 @@ EXPORT int MM_billing(int action, Imodman *mm, Arena *arena)
 		if (mm->UnregInterface(&myauth, ALLARENAS))
 			return MM_FAIL;
 
+		/* clean up sockets */
+		drop_connection(s_disabled);
+
+		if (net) net->RemovePacket(C2S_REGDATA, pdemographics);
 		cmd->RemoveCommand("usage", Cusage);
-		cmd->RemoveCommand("billingid", Cbillingid);
-		cmd->RemoveCommand("billingadm", Cbillingadm);
+		cmd->RemoveCommand("userdbid", Cuserdbid);
+		cmd->RemoveCommand("userdbadm", Cuserdbadm);
 		cmd->RemoveCommand2(NULL, Cdefault);
+		mm->UnregCallback(CB_SET_BANNER, setbanner, ALLARENAS);
 		mm->UnregCallback(CB_CHATMSG, onchatmsg, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
 		ml->ClearTimer(do_one_iter, NULL);
-
+		deinit_dispatch();
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(ml);
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(oldauth);
 		return MM_OK;
 	}

@@ -49,8 +49,7 @@ local enum
 	s_disabled
 } state;
 
-local time_t lastretry;
-local time_t lastsendtime;
+local time_t lastretry; /* doubles as lastping */
 local int pdkey;
 local pthread_mutex_t mtx;
 
@@ -105,7 +104,9 @@ local void drop_connection(int newstate)
 		netcli->DropConnection(cc);
 		cc = NULL;
 	}
+
 	state = newstate;
+	lastretry = time(NULL);
 }
 
 /* the auth interface */
@@ -581,7 +582,7 @@ local void process_user_login(const char *data,int len)
 		{
 			Ibanners *bnr = mm->GetInterface(I_BANNERS, ALLARENAS);
 			if (bnr)
-				bnr->SetBanner(p, (Banner*)pkt->Banner);
+				bnr->SetBanner(p, (Banner*)pkt->Banner, TRUE);
 			mm->ReleaseInterface(bnr);
 		}
 	}
@@ -941,7 +942,7 @@ local void got_connection(void)
 	lm->Log(L_INFO, "<billing_ssc> connected to user database server");
 
 	state = s_waitlogin;
-	lastsendtime = time(NULL);
+	lastretry = time(NULL);
 }
 
 
@@ -950,7 +951,6 @@ local void got_disconnection(void)
 	cc = NULL;
 	lm->Log(L_INFO, "<billing_ssc> lost connection to user database server "
 			"(auto-retry in %d seconds)", cfg_retryseconds);
-	time(&lastretry);
 	drop_connection(s_retry);
 }
 
@@ -984,13 +984,13 @@ local int do_one_iter(void *v)
 			cc = netcli->MakeClientConnection(ipaddr, port, &ccint, clienc);
 			if (cc)
 			{
-				lastretry = time(NULL);
 				state = s_connecting;
 				lm->Log(L_INFO, "<billing_ssc> connecting to user database server at %s:%d",
 						ipaddr, port);
 			}
 			else
 				state = s_retry;
+			lastretry = time(NULL);
 		}
 	}
 	else if (state == s_connecting)
@@ -1006,11 +1006,11 @@ local int do_one_iter(void *v)
 	else if (state == s_loggedin)
 	{
 		time_t now = time(NULL);
-		if (now - lastsendtime >= 60)
+		if (now - lastretry >= 60)
 		{
 			u8 pkt=S2B_PING;
 			netcli->SendPacket(cc, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
-			lastsendtime = now;
+			lastretry = now;
 		}
 
 		if (now - interrupted_damp_time >= 10)
