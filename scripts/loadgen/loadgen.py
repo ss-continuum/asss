@@ -9,6 +9,7 @@ def set_signal(conn):
 	def sigfunc(signum, frame):
 		util.log("caught signal, disconnecting")
 		conn.disconnect()
+		util.exit(0)
 	signal.signal(signal.SIGTERM, sigfunc)
 	signal.signal(signal.SIGINT, sigfunc)
 
