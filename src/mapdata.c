@@ -283,8 +283,15 @@ void ArenaAction(Arena *arena, int action)
 			}
 		}
 		else
-			lm->Log(L_ERROR, "<mapdata> {%s} can't find map file for arena",
-					arena->name);
+		{
+			/* fall back to emergency. this matches the compressed map
+			 * in mapnewsdl.c. */
+			lm->LogA(L_WARN, "mapdata", arena, "can't find level file");
+			md->arr = init_sparse();
+			insert_sparse(md->arr, 0, 0, 1);
+			md->flags = md->errors = 0;
+			md->regions = NULL;
+		}
 		pthread_mutex_unlock(&md->mtx);
 	}
 }

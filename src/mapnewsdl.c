@@ -281,7 +281,7 @@ local void ArenaAction(Arena *arena, int action)
 
 	if (action == AA_CREATE)
 	{
-		struct MapDownloadData *data;
+		struct MapDownloadData *data = NULL;
 		char lvzname[256], fname[256];
 		const char *lvzs, *tmp = NULL;
 
@@ -289,11 +289,30 @@ local void ArenaAction(Arena *arena, int action)
 		/* cfghelp: General:Map, arena, string
 		 * The name of the level file for this arena. */
 		if (mapdata->GetMapFilename(arena, fname, sizeof(fname), NULL))
-		{
 			data = compress_map(fname, 1);
-			if (data)
-				LLAdd(dls, data);
+
+		if (!data)
+		{
+			/* emergency hardcoded map: */
+			byte emergencymap[] =
+			{
+				0x2a, 0x74, 0x69, 0x6e, 0x79, 0x6d, 0x61, 0x70,
+				0x2e, 0x6c, 0x76, 0x6c, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x78, 0x9c, 0x63, 0x60, 0x60, 0x60, 0x04,
+				0x00, 0x00, 0x05, 0x00, 0x02
+			};
+
+			lm->LogA(L_WARN, "mapnewsdl", arena, "can't load level file, falling back to tinymap.lvl");
+			data = amalloc(sizeof(*data));
+			data->checksum = 0x5643ef8a;
+			data->uncmplen = 4;
+			data->cmplen = sizeof(emergencymap);
+			data->cmpmap  = amalloc(sizeof(emergencymap));
+			memcpy(data->cmpmap, emergencymap, sizeof(emergencymap));
+			astrncpy(data->filename, "tinymap.lvl", sizeof(data->filename));
 		}
+
+		LLAdd(dls, data);
 
 		/* now look for lvzs */
 		/* cfghelp: General:LevelFiles, arena, string
