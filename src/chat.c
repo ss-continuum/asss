@@ -75,7 +75,9 @@ local void check_flood(Player *p)
 
 	pm->msgs++;
 
-	if (pm->msgs >= cfg_floodlimit && cfg_floodlimit > 0)
+	if (pm->msgs >= cfg_floodlimit &&
+	    cfg_floodlimit > 0 &&
+	    !capman->HasCapability(p, CAP_CANSPAM))
 	{
 		pm->msgs >>= 1;
 		pm->mask |= MSG_PUBMACRO | MSG_PUB | MSG_FREQ | MSG_NMEFREQ |

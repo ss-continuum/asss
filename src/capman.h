@@ -82,6 +82,7 @@ typedef struct Igroupman
 #define CAP_BROADCAST_BOT         "broadcastbot"
 #define CAP_BROADCAST_ANY         "broadcastany"
 #define CAP_INVISIBLE_SPECTATOR   "invisiblespectator"
+#define CAP_CANSPAM               "unlimitedchat"
 
 
 #endif

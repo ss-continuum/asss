@@ -100,7 +100,8 @@ EXPORT int MM_mapdata(int action, Imodman *_mm, Arena *arena)
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
-		if (!cfg || !aman || !lm) return MM_FAIL;
+		prng = mm->GetInterface(I_PRNG, ALLARENAS);
+		if (!cfg || !aman || !lm || !prng) return MM_FAIL;
 
 		mdkey = aman->AllocateArenaData(sizeof(struct MapData));
 		if (mdkey == -1) return MM_FAIL;

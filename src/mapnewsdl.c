@@ -450,7 +450,8 @@ local void get_data(void *clos, int offset, byte *buf, int needed)
 	}
 	else if (dl->arena == NULL && dl->len == cmpnewssize)
 		memcpy(buf, cmpnews + offset, needed);
-	else if ((data = get_map(dl->arena, dl->lvznum, dl->wantopt)) &&
+	else if (dl->arena &&
+	         (data = get_map(dl->arena, dl->lvznum, dl->wantopt)) &&
 	         dl->len == data->cmplen)
 		memcpy(buf, data->cmpmap + offset, needed);
 	else if (buf)
@@ -524,7 +525,7 @@ local void PMapRequest(Player *p, byte *pkt, int len)
 			dl->arena = NULL;
 			dl->len = cmpnewssize;
 			net->SendSized(p, dl, cmpnewssize, get_data);
-			lm->Log(L_DRIVEL,"<mapnewsdl> [%s] Sending news.txt (transfer %p)", p->name, dl);
+			lm->LogP(L_DRIVEL, "mapnewsdl", p, "sending news.txt (transfer %p)", dl);
 		}
 		else
 			lm->Log(L_WARN, "<mapnewsdl> news request, but compressed news doesn't exist");

@@ -1173,10 +1173,10 @@ local void end_sized(Player *p, int success)
 local Player *get_next_player(int *pos)
 {
 	Link *l;
-	int i;
+	int i = 0;
 
 	pd->Lock();
-	for (i = 0, l = LLGetHead(&pd->playerlist); l; l = l->next)
+	for (l = LLGetHead(&pd->playerlist); l; l = l->next)
 	{
 		Player *cp = l->data;
 		if (!IS_OURS(cp))
@@ -1186,18 +1186,16 @@ local Player *get_next_player(int *pos)
 	}
 	pd->Unlock();
 
-	if (!l)
+	if (l)
+	{
+		(*pos)++;
+		return l->data;
+	}
+	else
 	{
 		*pos = 0;
-		l = LLGetHead(&pd->playerlist);
-	}
-
-	(*pos)++;
-
-	if (l && IS_OURS((Player*)(l->data)))
-		return l->data;
-	else
 		return NULL;
+	}
 }
 
 
@@ -1491,10 +1489,6 @@ local void process_lagouts(Player *p, unsigned int gtc, LinkedList *tokill, Link
 		}
 		pthread_mutex_unlock(&hashmtx);
 
-		/* one more time, just to be sure */
-		ClearOutlist(p);
-		pthread_mutex_destroy(&conn->olmtx);
-
 		LLAdd(tofree, p);
 	}
 }
@@ -1544,7 +1538,14 @@ void * SendThread(void *dummy)
 
 		/* and free ... */
 		for (link = LLGetHead(&tofree); link; link = link->next)
+		{
+			Player *p = link->data;
+			ConnData *conn = PPDATA(p, connkey);
+			/* one more time, just to be sure */
+			ClearOutlist(p);
+			pthread_mutex_destroy(&conn->olmtx);
 			pd->FreePlayer(link->data);
+		}
 		LLEmpty(&tofree);
 
 		/* outgoing packets and lagouts for client connections */
