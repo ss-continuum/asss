@@ -496,6 +496,87 @@ void LLEnum(LinkedList *lst, void (*func)(const void *ptr))
 }
 
 
+static void sort_work_split(Link *src, Link **a, Link **b)
+{
+	Link *s1 = src, *s2 = src;
+	/* s2 moves at double speed, so s1 will be half-way through the list
+	 * when s2 hits the end. */
+	for (;;)
+	{
+		s2 = s2->next ? s2->next->next : NULL;
+		if (!s2) break;
+		s1 = s1->next;
+	}
+
+	*a = src;
+	if (s1)
+	{
+		*b = s1->next;
+		s1->next = NULL;
+	}
+	else
+		*b = NULL;
+}
+
+static Link * sort_work_merge(Link *a, Link *b, int (*lt)(const void *a, const void *b))
+{
+	Link *list = NULL, **tail = &list;
+
+	while (a && b)
+	{
+		if (lt(a->data, b->data))
+		{
+			*tail = a;
+			tail = &a->next;
+			a = a->next;
+		}
+		else
+		{
+			*tail = b;
+			tail = &b->next;
+			b = b->next;
+		}
+	}
+
+	if (a)
+		*tail = a;
+	else if (b)
+		*tail = b;
+
+	return list;
+}
+
+static Link * sort_work(Link *l, int (*lt)(const void *a, const void *b))
+{
+	Link *a = NULL, *b = NULL;
+
+	if (!l || !l->next)
+		return l;
+
+	sort_work_split(l, &a, &b);
+	return sort_work_merge(sort_work(a, lt), sort_work(b, lt), lt);
+}
+
+static int generic_lt(const void *a, const void *b)
+{
+	return a < b;
+}
+
+void LLSort(LinkedList *lst, int (*lt)(const void *a, const void *b))
+{
+	/* this disregards the end pointer */
+	sort_work(lst->start, lt ? lt : generic_lt);
+	if (lst->start)
+	{
+		/* restore the end pointer */
+		Link *l = lst->start;
+		while (l->next)
+			l = l->next;
+		lst->end = l;
+	}
+}
+
+
 /* HashTable data type */
 
 

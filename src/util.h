@@ -179,6 +179,9 @@ int LLMember(LinkedList *lst, const void *data);
 void LLEnum(LinkedList *lst, void (*func)(const void *ptr));
 /** returns the first link in the list. */
 Link *LLGetHead(LinkedList *lst);
+/** sorts the list. the comparator must return true if a is less than b.
+ * the default comparator uses pointer value. */
+void LLSort(LinkedList *lst, int (*lt)(const void *a, const void *b));
 
 #ifndef USE_PROTOTYPES
 #define LLGetHead(lst) ((lst)->start)
