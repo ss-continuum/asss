@@ -26,25 +26,25 @@
 #define I_CAPMAN "capman-1"
 
 typedef struct Icapman
+/* arpc: interface capman remoteok callok */
 {
 	INTERFACE_HEAD_DECL
 
 	int (*HasCapability)(int pid, const char *cap);
-	/* arpc: int(int, string) */
+	/* arpc: int, string -> int (0) */
 	/* returns true if the given player has the given capability. */
 
 	int (*HasCapabilityByName)(const char *name, const char *cap);
-	/* arpc: int(string, string) */
+	/* arpc: string, string -> int (0) */
 	/* same as HasCapability, but intented to be used in strange places
 	 * like before the player has logged in yet */
 
 	const char *(*GetGroup)(int pid);
-	/* arpc: string(int) */
-
+	/* arpc: int -> string (NULL) */
 	void (*SetPermGroup)(int pid, const char *group, int global, const char *info);
-	/* arpc: void(int, string) */
+	/* arpc: int, string -> void */
 	void (*SetTempGroup)(int pid, const char *group);
-	/* arpc: void(int, string) */
+	/* arpc: int, string -> void */
 
 	/* gets/sets the group of the player as specified. these functions
 	 * are dependant on one specific implementation of capabilities, and

@@ -30,6 +30,9 @@
 
 #define CAP_SEEPRIVARENA "seeprivarena"
 
+#define REQUIRE_MOD(m) \
+	if (!m) { chat->SendMessage(pid, "Module '" #m "' not loaded"); return; }
+
 
 /* global data */
 
@@ -66,7 +69,7 @@ local int check_arena(char *pkt, int len, char *check)
 	return 1;
 }
 
-local void Carena(const char *params, int pid, int target)
+local void Carena(const char *params, int pid, const Target *target)
 {
 	byte buf[MAXPACKET];
 	byte *pos = buf;
@@ -177,7 +180,7 @@ local void Carena(const char *params, int pid, int target)
 }
 
 
-local void Cshutdown(const char *params, int pid, int target)
+local void Cshutdown(const char *params, int pid, const Target *target)
 {
 	byte drop[2] = {0x00, 0x07};
 	net->SendToAll(drop, 2, NET_PRI_P5);
@@ -186,8 +189,10 @@ local void Cshutdown(const char *params, int pid, int target)
 }
 
 
-local void Cadmlogfile(const char *params, int pid, int target)
+local void Cadmlogfile(const char *params, int pid, const Target *target)
 {
+	REQUIRE_MOD(logfile)
+
 	if (!strcasecmp(params, "flush"))
 		logfile->FlushLog();
 	else if (!strcasecmp(params, "reopen"))
@@ -195,63 +200,66 @@ local void Cadmlogfile(const char *params, int pid, int target)
 }
 
 
-local void Cflagreset(const char *params, int pid, int target)
+local void Cflagreset(const char *params, int pid, const Target *target)
 {
+	REQUIRE_MOD(flags)
+
 	flags->FlagVictory(players[pid].arena, -1, 0);
 }
 
 
-local void Cballcount(const char *params, int pid, int target)
+local void Cballcount(const char *params, int pid, const Target *target)
 {
 	int bc, arena = players[pid].arena, add;
+
+	REQUIRE_MOD(balls)
+
 	if (ARENA_OK(arena))
 	{
 		balls->LockBallStatus(arena);
 		bc = balls->balldata[arena].ballcount;
-		add = atoi(params);
+		add = strtol(params, NULL, 0);
 		balls->SetBallCount(arena, bc + add);
 		balls->UnlockBallStatus(arena);
 	}
 }
 
 
-local void Csetfreq(const char *params, int pid, int target)
+local void Csetfreq(const char *params, int pid, const Target *target)
 {
 	if (!*params)
 		return;
 
-	if (PID_OK(target))
-		game->SetFreq(target, atoi(params));
-	else if (target == TARGET_ARENA)
+	if (target->type == T_PID)
+		game->SetFreq(target->u.pid, atoi(params));
+	else
 	{
-		int i, arena = pd->players[pid].arena;
-		for (i = 0; i < MAXPLAYERS; i++)
-			if (players[i].status == S_PLAYING &&
-			    players[i].arena == arena)
-				game->SetFreq(i, atoi(params));
+		int set[MAXPLAYERS+1], *p, freq = atoi(params);
+		pd->TargetToSet(target, set);
+		for (p = set; *p != -1; p++)
+			game->SetFreq(*p, freq);
 	}
 }
 
 
-local void Csetship(const char *params, int pid, int target)
+local void Csetship(const char *params, int pid, const Target *target)
 {
 	if (!*params)
 		return;
 
-	if (PID_OK(target))
-		game->SetShip(target, atoi(params) - 1);
-	else if (target == TARGET_ARENA)
+	if (target->type == T_PID)
+		game->SetShip(target->u.pid, atoi(params) - 1);
+	else
 	{
-		int i, arena = pd->players[pid].arena;
-		for (i = 0; i < MAXPLAYERS; i++)
-			if (players[i].status == S_PLAYING &&
-			    players[i].arena == arena)
-				game->SetFreq(i, atoi(params) - 1);
+		int set[MAXPLAYERS+1], *p, ship = atoi(params) - 1;
+		pd->TargetToSet(target, set);
+		for (p = set; *p != -1; p++)
+			game->SetShip(*p, ship);
 	}
 }
 
 
-local void Cversion(const char *params, int pid, int target)
+local void Cversion(const char *params, int pid, const Target *target)
 {
 	chat->SendMessage(pid, "asss %s built at %s", ASSSVERSION, BUILDDATE);
 #ifdef CFG_EXTRA_VERSION_INFO
@@ -302,14 +310,14 @@ local void SendModInfo(const char *name, const char *info, void *p)
 		chat->SendMessage(pid, "  %s", name, info);
 }
 
-local void Clsmod(const char *params, int pid, int target)
+local void Clsmod(const char *params, int pid, const Target *target)
 {
 	int p = pid;
 	mm->EnumModules(SendModInfo, (void*)&p);
 }
 
 
-local void Cinsmod(const char *params, int pid, int target)
+local void Cinsmod(const char *params, int pid, const Target *target)
 {
 	int ret;
 	ret = mm->LoadModule(params);
@@ -320,7 +328,7 @@ local void Cinsmod(const char *params, int pid, int target)
 }
 
 
-local void Crmmod(const char *params, int pid, int target)
+local void Crmmod(const char *params, int pid, const Target *target)
 {
 	int ret;
 	ret = mm->UnloadModule(params);
@@ -331,13 +339,15 @@ local void Crmmod(const char *params, int pid, int target)
 }
 
 
-local void Cgetgroup(const char *params, int pid, int target)
+local void Cgetgroup(const char *params, int pid, const Target *target)
 {
-	if (PID_OK(target) && capman)
+	REQUIRE_MOD(capman)
+
+	if (target->type == T_PID)
 		chat->SendMessage(pid, "getgroup: %s is in group %s",
-				players[target].name,
-				capman->GetGroup(pid));
-	else if (target == TARGET_ARENA && capman)
+				players[target->u.pid].name,
+				capman->GetGroup(target->u.pid));
+	else if (target->type == T_ARENA)
 		chat->SendMessage(pid, "getgroup: You are in group %s",
 				capman->GetGroup(pid));
 	else
@@ -345,14 +355,15 @@ local void Cgetgroup(const char *params, int pid, int target)
 }
 
 
-local void Csetgroup(const char *params, int pid, int target)
+local void Csetgroup(const char *params, int pid, const Target *target)
 {
-	int perm = 1, global = 1;
+	int perm = 1, global = 1, t = target->u.pid;
 	char cap[MAXGROUPLEN+10];
 
+	REQUIRE_MOD(capman)
+
 	if (!*params) return;
-	if (PID_BAD(target)) return;
-	if (!capman) return;
+	if (target->type != T_PID) return;
 
 	while (*params && strchr(params, ' '))
 	{
@@ -374,12 +385,12 @@ local void Csetgroup(const char *params, int pid, int target)
 	}
 
 	/* make sure the target isn't in a group already */
-	if (strcasecmp(capman->GetGroup(target), "default"))
+	if (strcasecmp(capman->GetGroup(t), "default"))
 	{
 		lm->Log(L_WARN, "<playercmd> [%s] tried to set the group of [%s],"
 				"who is in '%s' already, to '%s'",
-				players[pid].name, players[target].name,
-				capman->GetGroup(target), params);
+				players[pid].name, players[t].name,
+				capman->GetGroup(t), params);
 		return;
 	}
 
@@ -392,24 +403,24 @@ local void Csetgroup(const char *params, int pid, int target)
 		ctime_r(&tm, info + strlen(info));
 		RemoveCRLF(info);
 
-		capman->SetPermGroup(target, params, global, info);
+		capman->SetPermGroup(t, params, global, info);
 		chat->SendMessage(pid, "%s is now in group %s",
-				players[target].name, params);
-		chat->SendMessage(target, "You have been assigned to group %s by %s",
+				players[t].name, params);
+		chat->SendMessage(t, "You have been assigned to group %s by %s",
 				params, players[pid].name);
 	}
 	else
 	{
-		capman->SetTempGroup(target, params);
+		capman->SetTempGroup(t, params);
 		chat->SendMessage(pid, "%s is now temporarily in group %s",
-				players[target].name, params);
-		chat->SendMessage(target, "You have temporarily been assigned to group %s by %s",
+				players[t].name, params);
+		chat->SendMessage(t, "You have temporarily been assigned to group %s by %s",
 				params, players[pid].name);
 	}
 }
 
 
-local void Clistmods(const char *params, int pid, int target)
+local void Clistmods(const char *params, int pid, const Target *target)
 {
 	int i;
 	const char *group;
@@ -426,7 +437,7 @@ local void Clistmods(const char *params, int pid, int target)
 }
 
 
-local void Cnetstats(const char *params, int pid, int target)
+local void Cnetstats(const char *params, int pid, const Target *target)
 {
 	struct net_stats stats;
 	net->GetStats(&stats);
@@ -442,9 +453,9 @@ local void Cnetstats(const char *params, int pid, int target)
 }
 
 
-local void Cinfo(const char *params, int pid, int target)
+local void Cinfo(const char *params, int pid, const Target *target)
 {
-	if (PID_BAD(target))
+	if (target->type != T_PID)
 		chat->SendMessage(pid, "info: must use on a player");
 	else
 	{
@@ -453,18 +464,19 @@ local void Cinfo(const char *params, int pid, int target)
 			"unknown", "vie", "cont", "fake"
 		};
 		struct client_stats s;
-		struct PlayerData *p = players + target;
 		const char *type, *prefix;
 		unsigned int tm;
+		int t = target->u.pid;
+		struct PlayerData *p = players + t;
 
-		net->GetClientStats(target, &s);
+		net->GetClientStats(t, &s);
 		type = p->type < 4 ? type_names[p->type] : "really_unknown";
 		prefix = params[0] ? params : "info";
 		tm = GTC() - s.connecttime;
 
 		chat->SendMessage(pid,
 				"%s: pid=%d  status=%d  name='%s'  squad='%s'",
-				prefix, target, p->status, p->name, p->squad);
+				prefix, t, p->status, p->name, p->squad);
 		chat->SendMessage(pid,
 				"%s: arena=%d  type=%s  res=%dx%d",
 				prefix, p->arena, type, p->xres, p->yres);
@@ -479,16 +491,16 @@ local void Cinfo(const char *params, int pid, int target)
 }
 
 
-local void Csetcm(const char *params, int pid, int target)
+local void Csetcm(const char *params, int pid, const Target *target)
 {
 	chat_mask_t mask;
 	const char *c = params;
 
 	/* grab the original mask */
-	if (target == TARGET_ARENA)
-		mask = chat->GetArenaChatMask(players[pid].arena);
-	else if (PID_OK(target))
-		mask = chat->GetPlayerChatMask(target);
+	if (target->type == T_ARENA)
+		mask = chat->GetArenaChatMask(target->u.arena);
+	else if (target->type == T_PID)
+		mask = chat->GetPlayerChatMask(target->u.pid);
 	else
 	{
 		chat->SendMessage(pid, "setcm: Bad target");
@@ -534,20 +546,20 @@ local void Csetcm(const char *params, int pid, int target)
 	}
 
 	/* and install it back where it came from */
-	if (target == TARGET_ARENA)
-		chat->SetArenaChatMask(players[pid].arena, mask);
+	if (target->type == T_ARENA)
+		chat->SetArenaChatMask(target->u.arena, mask);
 	else
-		chat->SetPlayerChatMask(pid, mask);
+		chat->SetPlayerChatMask(target->u.pid, mask);
 }
 
-local void Cgetcm(const char *params, int pid, int target)
+local void Cgetcm(const char *params, int pid, const Target *target)
 {
 	chat_mask_t mask;
 
-	if (target == TARGET_ARENA)
-		mask = chat->GetArenaChatMask(players[pid].arena);
-	else if (PID_OK(target))
-		mask = chat->GetPlayerChatMask(target);
+	if (target->type == T_ARENA)
+		mask = chat->GetArenaChatMask(target->u.arena);
+	else if (target->type == T_PID)
+		mask = chat->GetPlayerChatMask(target->u.pid);
 	else
 	{
 		chat->SendMessage(pid, "getcm: Bad target");
@@ -566,47 +578,41 @@ local void Cgetcm(const char *params, int pid, int target)
 			);
 }
 
-local void Ca(const char *params, int pid, int target)
+local void Ca(const char *params, int pid, const Target *target)
 {
-	int arena = players[pid].arena;
-
-	if (target == TARGET_ARENA)
-		chat->SendArenaMessage(arena,"%s  -%s",params,players[pid].name);
-	else if (PID_OK(target))
-		chat->SendMessage(target, "%s  -%s", params, players[pid].name);
+	int set[MAXPLAYERS+1];
+	pd->TargetToSet(target, set);
+	chat->SendSetMessage(set, "%s  -%s", params, players[pid].name);
 }
 
-local void Cwarpto(const char *params, int pid, int target)
+local void Cwarpto(const char *params, int pid, const Target *target)
 {
-	int x,y;
-
-	if (PID_OK(target) && players[target].shiptype != SPEC)
-	{
-		if (sscanf(params,"%d,%d",&x,&y) == 2 ||
-			sscanf(params,"%d %d",&x,&y) == 2)
-				game->WarpTo(target,x,y);
-		else
-			chat->SendMessage(pid,"warpto format is either: \"*warpto x,y\" or \"*warpto x y\"");
-	}
+	char *next;
+	int x, y;
+	
+	x = strtol(params, &next, 0);
+	if (next == params) return;
+	while (*next == ',' || *next == ' ') next++;
+	y = strtol(next, NULL, 0);
+	if (x == 0 || y == 0) return;
+	game->WarpTo(target, x, y);
 }
 
-local void Cshipreset(const char *params, int pid, int target)
+local void Cshipreset(const char *params, int pid, const Target *target)
 {
-	int arena = players[pid].arena;
 	byte pkt = S2C_SHIPRESET;
+	int set[MAXPLAYERS+1];
 
-	if (target == TARGET_ARENA)
-		net->SendToArena(arena, -1, &pkt, 1, NET_RELIABLE);
-	else if (PID_OK(target))
-		net->SendToOne(pid, &pkt, 1, NET_RELIABLE);
+	pd->TargetToSet(target, set);
+	net->SendToSet(set, &pkt, 1, NET_RELIABLE);
 }
 
-local void Csheep(const char *params, int pid, int target)
+local void Csheep(const char *params, int pid, const Target *target)
 {
 	int arena = players[pid].arena;
 	const char *sheepmsg = NULL;
 
-	if (target != TARGET_ARENA)
+	if (target->type != T_ARENA)
 		return;
 
 	if (ARENA_OK(arena))
@@ -618,23 +624,22 @@ local void Csheep(const char *params, int pid, int target)
 		chat->SendSoundMessage(pid, 24, "Sheep successfully cloned -- hello Dolly");
 }
 
-local void Cspecall(const char *params, int pid, int target)
+local void Cspecall(const char *params, int pid, const Target *target)
 {
-	int arena = players[pid].arena, i;
-	int freq = cfg->GetInt(arenas[arena].cfg, "Team", "SpectatorFrequency", 8025);
+	int set[MAXPLAYERS+1], *p, arena, freq;
 
-	if (target == TARGET_ARENA)
-	{
-		for (i = 0; i < MAXPLAYERS; i++)
-		{
-			if (players[pid].arena == arena && players[pid].status == S_PLAYING &&
-					players[pid].shiptype != SPEC)
-					game->SetFreqAndShip(i, SPEC, freq);
-		}
-	}
+	arena = players[pid].arena;
+	if (ARENA_BAD(arena))
+		return;
+
+	freq = cfg->GetInt(arenas[arena].cfg, "Team", "SpectatorFrequency", 8025);
+
+	pd->TargetToSet(target, set);
+	for (p = set; *p != -1; p++)
+		game->SetFreqAndShip(*p, SPEC, freq);
 }
 
-local void Cgetg(const char *params, int pid, int target)
+local void Cgetg(const char *params, int pid, const Target *target)
 {
 	const char *res = cfg->GetStr(GLOBAL, params, NULL);
 	if (res)
@@ -643,7 +648,7 @@ local void Cgetg(const char *params, int pid, int target)
 		chat->SendMessage(pid, "%s not found", params);
 }
 
-local void Csetg(const char *params, int pid, int target)
+local void Csetg(const char *params, int pid, const Target *target)
 {
 	time_t tm = time(NULL);
 	char info[128], key[MAXSECTIONLEN+MAXKEYLEN+2], *k = key;
@@ -662,7 +667,7 @@ local void Csetg(const char *params, int pid, int target)
 	cfg->SetStr(GLOBAL, key, NULL, t, info);
 }
 
-local void Cgeta(const char *params, int pid, int target)
+local void Cgeta(const char *params, int pid, const Target *target)
 {
 	int arena = players[pid].arena;
 	const char *res;
@@ -676,7 +681,7 @@ local void Cgeta(const char *params, int pid, int target)
 		chat->SendMessage(pid, "%s not found", params);
 }
 
-local void Cseta(const char *params, int pid, int target)
+local void Cseta(const char *params, int pid, const Target *target)
 {
 	int arena = players[pid].arena;
 	time_t tm = time(NULL);
@@ -696,6 +701,214 @@ local void Cseta(const char *params, int pid, int target)
 	t++; /* skip over = */
 
 	cfg->SetStr(arenas[arena].cfg, key, NULL, t, info);
+}
+
+
+local void Cprize(const char *params, int pid, const Target *target)
+{
+#define BAD_TYPE 10000
+	const char *tmp = NULL;
+	char word[32];
+	int i, type, count = 1, t;
+	enum { last_none, last_count, last_word } last = last_none;
+	struct
+	{
+		const char *string;
+		int type;
+	}
+	lookup[] =
+	{
+		{ "random",    0 },
+		{ "charge",   13 }, /* must come before "recharge" */
+		{ "x",         6 }, /* must come before "prox" */
+		{ "recharge",  1 },
+		{ "energy",    2 },
+		{ "rot",       3 },
+		{ "stealth",   4 },
+		{ "cloak",     5 },
+		{ "warp",      7 },
+		{ "gun",       8 },
+		{ "bomb",      9 },
+		{ "bounce",   10 },
+		{ "thrust",   11 },
+		{ "speed",    12 },
+		{ "shutdown", 14 },
+		{ "multi",    15 },
+		{ "prox",     16 },
+		{ "super",    17 },
+		{ "shield",   18 },
+		{ "shrap",    19 },
+		{ "anti",     20 },
+		{ "rep",      21 },
+		{ "burst",    22 },
+		{ "decoy",    23 },
+		{ "thor",     24 },
+		{ "mprize",   25 },
+		{ "brick",    26 },
+		{ "rocket",   27 },
+		{ "port",     28 },
+	};
+
+	while (strsplit(params, " ,", word, sizeof(word), &tmp))
+		if ((t = strtol(word, NULL, 0)) != 0)
+		{
+			/* this is a count */
+			count = t;
+			last = last_count;
+		}
+		else /* try a word */
+		{
+			/* negative prizes are marked with negative counts, for now */
+			if (word[0] == '-')
+				count = -count;
+
+			/* now try to find the word */
+			type = BAD_TYPE;
+			if (word[0] == '#')
+				type = strtol(word+1, NULL, 0);
+			else
+				for (i = 0; i < sizeof(lookup)/sizeof(lookup[0]); i++)
+					if (strstr(word, lookup[i].string))
+						type = lookup[i].type;
+
+			if (type != BAD_TYPE)
+			{
+				/* but for actually sending them, they must be marked with
+				 * negative types and positive counts. */
+				if (count < 0)
+				{
+					type = -type;
+					count = -count;
+				}
+
+				game->GivePrize(target, type, count);
+
+				/* reset count to 1 once we hit a successful word */
+				count = 1;
+			}
+
+			last = last_word;
+		}
+
+	if (last == last_count)
+		/* if the line ends in a count, do that many of random */
+		game->GivePrize(target, 0, count);
+
+#undef BAD_TYPE
+}
+
+
+local void Cflaginfo(const char *params, int pid, const Target *target)
+{
+	struct ArenaFlagData *fd;
+	int arena, i;
+
+	REQUIRE_MOD(flags)
+
+	if (PID_BAD(pid) || ARENA_BAD(players[pid].arena) || target->type != T_ARENA)
+		return;
+
+	arena = players[pid].arena;
+
+	flags->LockFlagStatus(arena);
+
+	fd = flags->flagdata + arena;
+
+	for (i = 0; i < fd->flagcount; i++)
+		switch (fd->flags[i].state)
+		{
+			case FLAG_NONE:
+				chat->SendMessage(pid,
+						"flaginfo: Flag %d doesn't exist",
+						i);
+				break;
+
+			case FLAG_ONMAP:
+				chat->SendMessage(pid,
+						"flaginfo: Flag %d is on the map at (%d,%d), owned by freq %d",
+						i, fd->flags[i].x, fd->flags[i].y, fd->flags[i].freq);
+				break;
+
+			case FLAG_CARRIED:
+				chat->SendMessage(pid,
+						"flaginfo: Flag %d is carried by %s",
+						i, players[fd->flags[i].carrier].name);
+				break;
+
+			case FLAG_NEUTED:
+				chat->SendMessage(pid,
+						"flaginfo: Flag %d was neuted and has not reappeared yet",
+						i);
+				break;
+		}
+
+	flags->UnlockFlagStatus(arena);
+}
+
+
+local void Cneutflag(const char *params, int pid, const Target *target)
+{
+	int flagid, arena = players[pid].arena;
+	char *next;
+
+	REQUIRE_MOD(flags)
+
+	flags->LockFlagStatus(arena);
+
+	flagid = strtol(params, &next, 0);
+	if (next == params || flagid < 0 || flagid >= flags->flagdata[arena].flagcount)
+		chat->SendMessage(pid, "neutflag: Bad flag id");
+	else
+		/* set flag state to none, so that the flag timer will neut it
+		 * next time it runs. */
+		flags->flagdata[arena].flags[flagid].state = FLAG_NONE;
+
+	flags->UnlockFlagStatus(arena);
+}
+
+
+local void Cmoveflag(const char *params, int pid, const Target *target)
+{
+	/* syntax: ?moveflag <flagid> <freq> <x> <y> */
+	char *next, *next2;
+	int flagid, x, y, freq, arena = players[pid].arena;
+
+	REQUIRE_MOD(flags)
+
+	if (ARENA_BAD(arena))
+		return;
+
+	flags->LockFlagStatus(arena);
+
+	flagid = strtol(params, &next, 0);
+	if (next == params || flagid < 0 || flagid >= flags->flagdata[arena].flagcount)
+	{
+		chat->SendMessage(pid, "moveflag: Bad flag id");
+		goto mf_unlock;
+	}
+
+	freq = strtol(next, &next2, 0);
+	if (next == next2)
+	{
+		/* bad freq */
+		chat->SendMessage(pid, "moveflag: Bad freq");
+		goto mf_unlock;
+	}
+
+	x = strtol(next2, &next, 0);
+	while (*next == ',' || *next == ' ') next++;
+	y = strtol(next, NULL, 0);
+	if (x == 0 || y == 0)
+	{
+		/* missing coords */
+		x = flags->flagdata[arena].flags[flagid].x;
+		y = flags->flagdata[arena].flags[flagid].y;
+	}
+
+	flags->MoveFlag(arena, flagid, x, y, freq);
+
+mf_unlock:
+	flags->UnlockFlagStatus(arena);
 }
 
 
@@ -727,6 +940,8 @@ const all_commands[] =
 	CMD(sheep),
 	CMD(specall),
 	CMD(setg), CMD(getg), CMD(seta), CMD(geta),
+	CMD(prize),
+	CMD(flaginfo), CMD(neutflag), CMD(moveflag),
 	{ NULL }
 #undef CMD
 };

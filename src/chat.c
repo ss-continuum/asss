@@ -114,7 +114,7 @@ EXPORT int MM_chat(int action, Imodman *mm_, int arena)
 }
 
 
-local void run_commands(const char *text, int pid, int target)
+local void run_commands(const char *text, int pid, Target *target)
 {
 	char buf[512], *b;
 
@@ -146,7 +146,8 @@ void PChat(int pid, byte *p, int len)
 {
 	struct ChatPacket *from = (struct ChatPacket *)p, *to;
 	int setc = 0, i, arena, freq;
-	int set[MAXPLAYERS];
+	int set[MAXPLAYERS+1];
+	Target target;
 
 #define OK(type) IS_ALLOWED(player_mask[pid] | arena_mask[arena], type)
 
@@ -182,7 +183,9 @@ void PChat(int pid, byte *p, int len)
 			if (from->text[0] == CMD_CHAR_1 || from->text[0] == CMD_CHAR_2 ||
 					from->text[0] == CMD_CHAR_3)
 			{
-				run_commands(from->text, pid, TARGET_ARENA);
+				target.type = T_ARENA;
+				target.u.arena = players[pid].arena;
+				run_commands(from->text, pid, &target);
 			}
 			else if (from->text[0] == MOD_CHAT_CHAR)
 			{
@@ -232,7 +235,10 @@ void PChat(int pid, byte *p, int len)
 			if (from->text[0] == CMD_CHAR_1 || from->text[0] == CMD_CHAR_2 ||
 					from->text[0] == CMD_CHAR_3)
 			{
-				run_commands(from->text, pid, TARGET_FREQ);
+				target.type = T_FREQ;
+				target.u.freq.arena = players[pid].arena;
+				target.u.freq.freq = freq;
+				run_commands(from->text, pid, &target);
 			}
 			else if (OK(from->type))
 			{
@@ -254,7 +260,9 @@ void PChat(int pid, byte *p, int len)
 			if (from->text[0] == CMD_CHAR_1 || from->text[0] == CMD_CHAR_2 ||
 					from->text[0] == CMD_CHAR_3)
 			{
-				run_commands(from->text, pid, from->pid);
+				target.type = T_PID;
+				target.u.pid = from->pid;
+				run_commands(from->text, pid, &target);
 			}
 			else if (PID_OK(from->pid) && OK(MSG_PRIV))
 			{
@@ -368,7 +376,7 @@ local void get_arena_set(int *set, int arena)
 
 void SendArenaMessage(int arena, const char *str, ...)
 {
-	int set[MAXPLAYERS];
+	int set[MAXPLAYERS+1];
 	va_list args;
 
 	get_arena_set(set, arena);
@@ -380,7 +388,7 @@ void SendArenaMessage(int arena, const char *str, ...)
 
 void SendArenaSoundMessage(int arena, char sound, const char *str, ...)
 {
-	int set[MAXPLAYERS];
+	int set[MAXPLAYERS+1];
 	va_list args;
 
 	get_arena_set(set, arena);

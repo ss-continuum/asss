@@ -95,7 +95,7 @@ local int WatchCount(int pid)
 	return WATCHCOUNT(pid);
 }
 
-local void Cwatchdamage(const char *params, int pid, int target)
+local void Cwatchdamage(const char *params, int pid, const Target *target)
 {
 	int c;
 
@@ -105,53 +105,63 @@ local void Cwatchdamage(const char *params, int pid, int target)
 		return;
 	}
 
-	if (target == TARGET_ARENA)
+	if (target->type == T_ARENA)
 	{
 		if (params[0] == '0' && params[1] == 0)
 		{
 			/* if sent publicly, turns off all their watches */
-
 			for (c = 0; c < MAXPLAYERS; c++)
 				RemoveWatch(pid, c);
 
 			if (chat) chat->SendMessage(pid, "All damage watching turned off");
 		}
 	}
-	else if (PID_OK(target))
+	else if (target->type == T_PID)
 	{
-		if (pd->players[target].type != T_CONT)
+		int t = target->u.pid;
+
+		if (pd->players[t].type != T_CONT)
 		{
-			if (chat) chat->SendMessage(pid, "Watch damage requires %s to be a user to be used", pd->players[target].name);
+			if (chat) chat->SendMessage(pid, "watchdamage requires %s to use Continuum", pd->players[t].name);
 			return;
 		}
 
 		if (params[1] == 0 && (params[0] == '0' || params[0] == '1'))
 		{
 			/* force either on or off */
-
 			if (params[0] == '0')
 			{
-				RemoveWatch(pid, target);
-				if (chat) chat->SendMessage(pid, "Damage watching on %s turned off", pd->players[target].name);
+				RemoveWatch(pid, t);
+				if (chat) chat->SendMessage(pid, "Damage watching on %s turned off", pd->players[t].name);
 			}
 			else
 			{
-				AddWatch(pid, target);
-				if (chat) chat->SendMessage(pid, "Damage watching on %s turned on", pd->players[target].name);
+				AddWatch(pid, t);
+				if (chat) chat->SendMessage(pid, "Damage watching on %s turned on", pd->players[t].name);
 			}
 		}
 		else
 		{
 			/* toggle */
-
-			/* already on */
-			if (AddWatch(pid, target) == -1)
+			if (AddWatch(pid, t) == -1)
 			{
-				RemoveWatch(pid, target);
-				if (chat) chat->SendMessage(pid, "Damage watching on %s turned off", pd->players[target].name);
+				RemoveWatch(pid, t);
+				if (chat) chat->SendMessage(pid, "Damage watching on %s turned off", pd->players[t].name);
 			}
 			else
-				if (chat) chat->SendMessage(pid, "Damage watching on %s turned on", pd->players[target].name);
+				if (chat) chat->SendMessage(pid, "Damage watching on %s turned on", pd->players[t].name);
+		}
+	}
+	else
+	{
+		int set[MAXPLAYERS+1], *p;
+		Target newtarg = { T_PID };
+
+		pd->TargetToSet(target, set);
+		for (p = set; *p != -1; p++)
+		{
+			newtarg.u.pid = *p;
+			Cwatchdamage(params, pid, &newtarg);
 		}
 	}
 }

@@ -316,7 +316,7 @@ static %(ret)s %(name)s(%(args)s)
 	unreglines = ''
 	for i in ifaces:
 		print 'static I%s arpc_int_%s = {\n' \
-			'\tINTERFACE_HEAD_DECL("arpc-stubs-%s")' % (i, i, i)
+			'\tINTERFACE_HEAD_DECL("%s", "arpc-stubs-%s")' % (i, i, i, i)
 
 		for f in funcs:
 			if f.iface == i:
@@ -328,10 +328,10 @@ static %(ret)s %(name)s(%(args)s)
 		print "};\n"
 
 		reglines += """\
-		mm->RegInterface("%s", &arpc_int_%s, ALLARENAS);
+		mm->RegInterface(&arpc_int_%s, ALLARENAS);
 """ % (i, i)
 		unreglines += """\
-		mm->UnregInterface("%s", &arpc_int_%s, ALLARENAS);
+		mm->UnregInterface(&arpc_int_%s, ALLARENAS);
 """ % (i, i)
 
 
@@ -348,8 +348,6 @@ EXPORT int MM_arpc_send_stubs(int action, Imodman *mm, int arena)
 %s
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 """ % (reglines, unreglines)
@@ -402,8 +400,6 @@ EXPORT int MM_arpc_recv_stubs(int action, Imodman *mm, int arena)
 %s
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 """ % (getlines, rellines)
@@ -416,7 +412,10 @@ if __name__ == '__main__':
 	try:
 		cmd = sys.argv[1]
 	except:
-		print "You must specify a command on the command line."
+		print "You must specify a command on the command line:"
+		for f in dir():
+			if f.startswith('cmd_'):
+				print "\t%s" % f[4:]
 		sys.exit(1)
 	g = globals()
 	try:

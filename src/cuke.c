@@ -15,7 +15,7 @@
 
 struct CukeState
 {
-	int type; /* the packet type */
+	int type, seqnum; /* the packet type and sequence number */
 	unsigned char *str, *cur, *end; /* for writing to non-files */
 };
 
@@ -180,6 +180,7 @@ CukeState * new_cuke(void)
 	const int startsize = 128;
 	CukeState *cuke = amalloc(sizeof(*cuke));
 	cuke->type = 0;
+	cuke->seqnum = 0;
 	cuke->str = amalloc(startsize);
 	cuke->cur = cuke->str;
 	cuke->end = cuke->str + startsize;
@@ -195,18 +196,21 @@ void free_cuke(CukeState *cuke)
 
 /* sending and recving cukestates
  *
- * the protocol is dead simple: 4 bytes of len,
- * 4 bytes of type, then len bytes of cuke data. */
+ * the protocol is dead simple: 4 bytes of len, 4 bytes of type, 4 bytes
+ * of seqnum, then len bytes of cuke data. */
 
 int raw_send_cuke(CukeState *cuke, int socket)
 {
 	int ret;
 	int w_len = htonl(cuke->cur - cuke->str);
 	int w_type = htonl(cuke->type);
+	int w_sn = htonl(cuke->seqnum);
 
 	ret = write_full(socket, &w_len, sizeof(w_len));
 	if (ret == -1 || ret == 0) return 1;
 	ret = write_full(socket, &w_type, sizeof(w_type));
+	if (ret == -1 || ret == 0) return 1;
+	ret = write_full(socket, &w_sn, sizeof(w_sn));
 	if (ret == -1 || ret == 0) return 1;
 	ret = write_full(socket, cuke->str, cuke->cur - cuke->str);
 	if (ret == -1 || ret == 0) return 1;
@@ -217,19 +221,23 @@ int raw_send_cuke(CukeState *cuke, int socket)
 CukeState * raw_recv_cuke(int socket)
 {
 	CukeState *cuke;
-	int len, type, ret;
+	int len, type, sn, ret;
 
 	ret = read_full(socket, &len, sizeof(len));
 	if (ret == -1 || ret == 0) return NULL;
 	if (len < 1 || len > MAXCUKE) return NULL;
 	ret = read_full(socket, &type, sizeof(type));
 	if (ret == -1 || ret == 0) return NULL;
+	ret = read_full(socket, &sn, sizeof(sn));
+	if (ret == -1 || ret == 0) return NULL;
 
 	len = ntohl(len);
 	type = ntohl(type);
+	sn = ntohl(sn);
 
 	cuke = amalloc(sizeof(*cuke));
 	cuke->type = type;
+	cuke->seqnum = sn;
 	cuke->str = amalloc(len);
 	cuke->cur = cuke->str;
 	cuke->end = cuke->str + len;

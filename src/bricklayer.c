@@ -6,7 +6,7 @@
 #include "letters.inc"
 
 
-local void Cbrickwrite(const char *params, int pid, int target);
+local void Cbrickwrite(const char *params, int pid, const Target *target);
 
 local Iplayerdata *pd;
 local Igame *game;
@@ -35,7 +35,7 @@ EXPORT int MM_bricklayer(int action, Imodman *mm, int arena)
 }
 
 
-void Cbrickwrite(const char *params, int pid, int target)
+void Cbrickwrite(const char *params, int pid, const Target *target)
 {
 	int i, wid;
 	int arena = pd->players[pid].arena, freq = pd->players[pid].freq;

@@ -87,15 +87,16 @@ local int EndFaked(int pid)
 }
 
 
-local void Cmakefake(const char *params, int pid, int target)
+local void Cmakefake(const char *params, int pid, const Target *target)
 {
 	CreateFakePlayer(params, pd->players[pid].arena, SPEC, 9999, NULL);
 }
 
 
-local void Ckillfake(const char *params, int pid, int target)
+local void Ckillfake(const char *params, int pid, const Target *target)
 {
-	EndFaked(target);
+	if (target->type == T_PID)
+		EndFaked(target->u.pid);
 }
 
 

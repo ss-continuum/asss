@@ -554,7 +554,7 @@ be fully customized for each particular server.
 
 \subsection{arena}
 \targets{None}
-\args{None or \texttt{all}}
+\args{[\texttt{all}]}
 Lists the available arenas. Specifying \texttt{all} will also include
 empty arenas that the server knows about.
 
@@ -581,7 +581,7 @@ Causes the flag game to immediately reset.
 \subsection{ballcount}
 \requiremod{balls}
 \targets{None}
-\args{number of balls to add or remove}
+\args{$<$number of balls to add or remove$>$}
 Increases or decreases the number of balls in the arena. Takes an
 argument that is a positive or negative number, which is the number of
 balls to add (or, if negative, to remove).
@@ -593,7 +593,7 @@ Returns amount of time left in current game.
 
 \subsection{timer}
 \targets{None}
-\args{minutes:seconds}
+\args{$<$minutes$>$\texttt{:}$<$seconds$>$}
 Set arena timer to minutes:seconds, only in arenas with TimedGame setting
 off. Note, that the ':seconds' part is optional, but minutes must always
 be defined (even if zero). If successful, server replies with ?time response.
@@ -605,7 +605,7 @@ Reset a timed game, but only in arenas with Misc:TimedGame in use.
 
 \subsection{setscore}
 \targets{None}
-\args{freq1 freq2 ... freq8}
+\args{$<$freq 1 score$>$ [$<$freq 2 score$>$ [... [$<$freq 8 score$>$]]]}
 Changes score of current soccer game, based on arguments. Only supports
 first eight freqs, and arena must be in absolute scoring mode 
 (Soccer:CapturePoints $<$ 0).
@@ -622,7 +622,7 @@ Resets soccer game scores and balls.
 
 \subsection{warpto}
 \targets{Player}
-\args{x y OR x,y}
+\args{$<$x coord$>$ $<$y coord$>$}
 Warps target player to coordinate x,y.
 
 \subsection{specall}
@@ -632,12 +632,12 @@ Sets all players in an arena to spectator mode.
 
 \subsection{setfreq}
 \targets{Player}
-\args{freq number}
+\args{$<$freq number$>$}
 Moves the target player to the specified freq.
 
 \subsection{setship}
 \targets{Player}
-\args{freq number}
+\args{$<$freq number$>$}
 Sets the target player to the specified ship. The argument must be a
 number from 1 (Warbird) to 8 (Shark), or 9 (Spec).
 
@@ -655,13 +655,13 @@ Lists all the modules currently loaded into the server.
 
 \subsection{insmod}
 \targets{None}
-\args{module specifier}
+\args{$<$module specifier$>$}
 Immediately loads the specified module into the server. The argument
 should be a module specifier, as described in the section on modules.
 
 \subsection{rmmod}
 \targets{None}
-\args{module name}
+\args{$<$module name$>$}
 Attempts to unload the specified module from the server.
 
 \subsection{getgroup}
@@ -671,7 +671,7 @@ Prints out the group of the target player.
 
 \subsection{setgroup}
 \targets{Player}
-\args{\texttt{[-a]} \texttt{[-t]} group name}
+\args{[\texttt{-a}] [\texttt{-t}] $<$group name$>$}
 Assigns the group given as an argument to the target player. The player
 must be in group \verb/default/, or the server will refuse to change his
 group. Additionally, the player giving the command must have an
@@ -702,7 +702,7 @@ allowed.
 
 \subsection{setcm}
 \targets{Player or None}
-\args{see description}
+\args{\emph{see description}}
 Modified the chat mask for the target player, or if no target, for the
 current arena. The arguments must all be of the form
 \texttt{(-|+)(pub|pubmacro|freq|nmefreq|priv|chat|modchat|all)}. A minus
@@ -726,7 +726,7 @@ mask.
 \subsection{brickwrite}  % from bricklayer.c
 \requiremod{bricklayer}
 \targets{None}
-\args{text to write}
+\args{$<$text to write$>$}
 Writes the given text in bricks centered around your current position.
 Specify the text as an argument.
 
@@ -749,7 +749,7 @@ must be an owner.
 \subsection{lastlog}  % from log_sysop.c
 \requiremod{log\_sysop}
 \targets{None}
-\args{optional number of lines, followed by optional limiting text}
+\args{[$<$number of lines$>$] [$<$limiting text$>$]}
 Prints out the last 10 lines in the server log. You can specify a number
 as an argument, ant it will print that many lines instead. If you
 specify any text as an argument, besides a number, the display will be
@@ -796,6 +796,25 @@ Sets the value of a global or arena setting. Make sure there are no
 spaces around either the colon or the equals sign.
 
 
+\subsection{flaginfo}
+\targets{None}
+\args{None}
+Displays information (status, location, carrier) about all the flags in
+the arena.
+
+\subsection{neutflag}
+\targets{None}
+\args{$<$flag id$>$}
+Neuts the specified flag in the middle of the arena.
+
+\subsection{moveflag}
+\targets{None}
+\args{$<$flag id$>$ $<$owning freq$>$ [$<$x coord$>$ $<$y coord$>$]}
+Moves the specified flag. You must always specify the freq that will own
+the flag. The coordinates are optional: if they are specified, the flag
+will be moved there, otherwise it will remain where it is.
+
+
 \section{Temporary and Debugging Commands}
 
 \subsection{dropturret}  % from autoturret.c
@@ -808,7 +827,7 @@ bombs, 1.5 seconds apart, and then disappear.
 \subsection{makefake}  % from fake.c
 \requiremod{fake}
 \targets{None}
-\args{fake player name}
+\args{$<$fake player name$>$}
 Creates a fake player with the given name in the current arena. Specify
 the name as an argument.
 

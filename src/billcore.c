@@ -37,10 +37,10 @@ local void BSingleMessage(int, byte *, int);
 
 local void PChat(int, byte *, int);
 
-local void DefaultCmd(const char *, int, int);
+local void DefaultCmd(const char *, int, const Target *);
 
-local void Cusage(const char *, int, int);
-local void Cuserid(const char *, int, int);
+local void Cusage(const char *, int, const Target *);
+local void Cuserid(const char *, int, const Target *);
 
 
 /* global data */
@@ -215,11 +215,11 @@ void SendLogin(int pid, byte *p, int n)
 }
 
 
-void DefaultCmd(const char *cmd, int pid, int target)
+void DefaultCmd(const char *cmd, int pid, const Target *target)
 {
 	struct S2BCommand *to;
 
-	if (target == TARGET_ARENA)
+	if (target->type == T_ARENA)
 	{
 		to = alloca(strlen(cmd)+7);
 		to->type = S2B_COMMAND;
@@ -345,8 +345,9 @@ void BMessage(int pid, byte *p, int len)
 			to->type = MSG_INTERARENAPRIV;
 			strcpy(to->text, t+1);
 			if (msg[1] == '#')
-			{	/* squad msg */
-				int set[MAXPLAYERS], setc = 0, i;
+			{
+				/* squad msg */
+				int set[MAXPLAYERS+1], setc = 0, i;
 				pd->LockStatus();
 				for (i = 0; i < MAXPLAYERS; i++)
 					if (	players[i].status == S_CONNECTED &&
@@ -357,7 +358,8 @@ void BMessage(int pid, byte *p, int len)
 				net->SendToSet(set, (byte*)to, strlen(t+1)+6, NET_RELIABLE);
 			}
 			else
-			{	/* normal priv msg */
+			{
+				/* normal priv msg */
 				targ = pd->FindPlayer(msg+1);
 				if (targ >= 0)
 					net->SendToOne(targ, (byte*)to, strlen(t+1)+6, NET_RELIABLE);
@@ -452,39 +454,37 @@ void PChat(int pid, byte *p, int len)
 }
 
 
-void Cusage(const char *params, int pid, int target)
+void Cusage(const char *params, int pid, const Target *target)
 {
 	struct client_stats st;
-	int mins;
+	int mins, t;
 
-	if (PID_BAD(target))
-		target = pid;
+	t = target->type == T_PID ? target->u.pid : pid;
 
-	net->GetClientStats(target, &st);
+	net->GetClientStats(t, &st);
 	mins = (GTC() - st.connecttime) / 6000;
 
-	chat->SendMessage(pid, "usage: %s:", players[target].name);
+	chat->SendMessage(pid, "usage: %s:", players[t].name);
 	chat->SendMessage(pid, "usage: session: %5d:%02d",
 			mins / 60, mins % 60);
-	mins += billing_data[target].usage;
+	mins += billing_data[t].usage;
 	chat->SendMessage(pid, "usage:   total: %5d:%02d",
 			mins / 60, mins % 60);
 	chat->SendMessage(pid, "usage: first played: %d-%d-%d %d:%02d:%02d",
-			billing_data[target].month,
-			billing_data[target].day,
-			billing_data[target].year,
-			billing_data[target].hour,
-			billing_data[target].minute,
-			billing_data[target].second);
+			billing_data[t].month,
+			billing_data[t].day,
+			billing_data[t].year,
+			billing_data[t].hour,
+			billing_data[t].minute,
+			billing_data[t].second);
 }
 
 
-void Cuserid(const char *params, int pid, int target)
+void Cuserid(const char *params, int pid, const Target *target)
 {
-	if (PID_BAD(target))
-		target = pid;
+	int t = target->type == T_PID ? target->u.pid : pid;
 	chat->SendMessage(pid, "userid: %s has userid %d",
-			players[target].name, billing_data[target].userid);
+			players[t].name, billing_data[t].userid);
 }
 
 

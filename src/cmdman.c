@@ -17,7 +17,7 @@ typedef struct CommandData
 
 local void AddCommand(const char *, CommandFunc);
 local void RemoveCommand(const char *, CommandFunc);
-local void Command(const char *, int, int);
+local void Command(const char *, int, const Target *);
 
 /* static data */
 local Iplayerdata *pd;
@@ -109,7 +109,7 @@ void RemoveCommand(const char *cmd, CommandFunc f)
 }
 
 
-local void log_command(int pid, int target, const char *cmd, const char *params)
+local void log_command(int pid, const Target *target, const char *cmd, const char *params)
 {
 	char t[32];
 
@@ -120,12 +120,14 @@ local void log_command(int pid, int target, const char *cmd, const char *params)
 	if (cfg->GetStr(GLOBAL, "DontLogParams", cmd))
 		params = "...";
 
-	if (target == TARGET_ARENA)
+	if (target->type == T_ARENA)
 		astrncpy(t, "(arena)", 32);
-	else if (target == TARGET_FREQ)
-		astrncpy(t, "(freq)", 32);
-	else if (PID_OK(target))
-		snprintf(t, 32, "to [%s]", pd->players[target].name);
+	else if (target->type == T_FREQ)
+		snprintf(t, 32, "(freq %d)", target->u.freq.freq);
+	else if (target->type == T_PID)
+		snprintf(t, 32, "to [%s]", pd->players[target->u.pid].name);
+	else
+		astrncpy(t, "(other)", 32);
 
 	if (*params)
 		lm->LogP(L_INFO, "cmdman", pid, "Command %s '%s' '%s'",
@@ -136,7 +138,7 @@ local void log_command(int pid, int target, const char *cmd, const char *params)
 }
 
 
-void Command(const char *line, int pid, int target)
+void Command(const char *line, int pid, const Target *target)
 {
 	LinkedList *lst;
 	Link *l;
@@ -152,10 +154,10 @@ void Command(const char *line, int pid, int target)
 #endif
 	}
 
-	if (target == TARGET_ARENA || target == TARGET_NONE)
-		strncpy(cmd, "cmd_", 40);
+	if (target->type == T_ARENA || target->type == T_NONE)
+		astrncpy(cmd, "cmd_", 40);
 	else
-		strncpy(cmd, "privcmd_", 40);
+		astrncpy(cmd, "privcmd_", 40);
 	t = cmd + strlen(cmd);
 
 	/* find end of command */
@@ -167,7 +169,7 @@ void Command(const char *line, int pid, int target)
 	while (*line && (*line == ' ' || *line == '='))
 		line++;
 
-	if (pid == PID_INTERNAL || !capman || capman->HasCapability(pid, cmd))
+	if (!capman || capman->HasCapability(pid, cmd))
 	{
 		/* use strchr to get to the actual name again (from the cap name) */
 		char *cmdname = strchr(cmd, '_') + 1;

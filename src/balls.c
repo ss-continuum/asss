@@ -21,7 +21,7 @@ struct MyBallData
 {
 	int sendtime, lastsent;
 	/* these are in centiseconds. the timer event runs with a resolution
-	 * of 100 centiseconds, though, so that's the best resolution you're
+	 * of 50 centiseconds, though, so that's the best resolution you're
 	 * going to get. */
 	int spawnx, spawny, spawnr;
 	int goaldelay;
@@ -117,7 +117,7 @@ EXPORT int MM_balls(int action, Imodman *_mm, int arena)
 		}
 
 		/* timers */
-		ml->SetTimer(BasicBallTimer, 300, 100, NULL);
+		ml->SetTimer(BasicBallTimer, 300, 50, NULL);
 
 		mm->RegInterface(&_myint, ALLARENAS);
 
@@ -346,7 +346,7 @@ local void LoadBallSettings(int arena, int spawnballs)
 		d->spawny = cfg->GetInt(c, "Soccer", "SpawnY", 512);
 		d->spawnr = cfg->GetInt(c, "Soccer", "SpawnRadius", 20);
 		d->sendtime = cfg->GetInt(c, "Soccer", "SendTime", 1000);
-		d->goaldelay = cfg->GetInt(c, "Soccer", "GoalDelay", 0);
+		d->goaldelay = cfg->GetInt(c, "Soccer", "GoalDelay", 50);
 
 		if (spawnballs)
 		{
@@ -597,12 +597,6 @@ void PGoal(int pid, byte *p, int len)
 		return;
 	}
 
-	if (pd->players[pid].shiptype >= SPEC)
-	{
-		logm->Log(L_MALICIOUS, "<balls> [%s] Goal packet from spec", pd->players[pid].name);
-		return;
-	}
-
 	LOCK_STATUS(arena);
 
 	bid = g->ballid;
@@ -625,7 +619,7 @@ void PGoal(int pid, byte *p, int len)
 
 	if (bd->state != BALL_ONMAP)
 	{
-		logm->Log(L_MALICIOUS, "<balls> [%s] Player sent goal for ball he didn't fire or that's being carried", pd->players[pid].name);
+		logm->Log(L_MALICIOUS, "<balls> [%s] Player sent goal for bad ball", pd->players[pid].name);
 		UNLOCK_STATUS(arena);
 		return;
 	}

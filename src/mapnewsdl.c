@@ -426,6 +426,7 @@ local void ArenaAction(int arena, int action)
 local void PMapRequest(int pid, byte *p, int len)
 {
 	int arena = players[pid].arena;
+	int wantopt = WANT_ALL_LVZ(pid);
 
 	if (p[0] == C2S_MAPREQUEST)
 	{
@@ -441,7 +442,9 @@ local void PMapRequest(int pid, byte *p, int len)
 		}
 
 		/* find the right spot */
-		for (idx = lvznum, l = LLGetHead(mapdldata + arena); idx && l; idx--, l = l->next) ;
+		for (idx = lvznum, l = LLGetHead(mapdldata + arena); idx && l; l = l->next)
+			if (!((struct MapDownloadData*)(l->data))->optional || wantopt)
+				idx--;
 
 		if (!l || !l->data)
 		{

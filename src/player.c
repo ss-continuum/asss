@@ -10,6 +10,7 @@ local void UnlockPlayer(int pid);
 local void LockStatus(void);
 local void UnlockStatus(void);
 local int FindPlayer(const char *name);
+local void TargetToSet(const Target *target, int set[MAXPLAYERS+1]);
 
 
 /* static data */
@@ -24,7 +25,11 @@ local PlayerData players[MAXPLAYERS+EXTRA_PID_COUNT];
 local Iplayerdata _myint =
 {
 	INTERFACE_HEAD_INIT(I_PLAYERDATA, "playerdata")
-	players, LockPlayer, UnlockPlayer, LockStatus, UnlockStatus, FindPlayer
+	players,
+	LockPlayer, UnlockPlayer,
+	LockStatus, UnlockStatus,
+	FindPlayer,
+	TargetToSet
 };
 
 
@@ -108,6 +113,55 @@ int FindPlayer(const char *name)
 		}
 	pthread_mutex_unlock(&statusmtx);
 	return -1;
+}
+
+
+local inline int matches(const Target *t, int pid)
+{
+	switch (t->type)
+	{
+		case T_NONE:
+			return 0;
+
+		case T_PID:
+			return pid == t->u.pid;
+
+		case T_ARENA:
+			return players[pid].arena == t->u.arena;
+
+		case T_FREQ:
+			return players[pid].arena == t->u.freq.arena &&
+			       players[pid].freq == t->u.freq.freq;
+
+		case T_ZONE:
+			return 1;
+
+		default:
+			return 0;
+	}
+}
+
+void TargetToSet(const Target *target, int set_[MAXPLAYERS+1])
+{
+	int *set = set_, i;
+
+	if (target->type == T_SET)
+	{
+		int *src = target->u.set;
+		while (*src != -1)
+			*set++ = *src++;
+		*set = -1;
+	}
+	else
+	{
+		pthread_mutex_lock(&statusmtx);
+		for (i = 0; i < MAXPLAYERS; i++)
+			if (players[i].status == S_PLAYING &&
+			    matches(target, i))
+				*set++ = i;
+		*set = -1;
+		pthread_mutex_unlock(&statusmtx);
+	}
 }
 
 

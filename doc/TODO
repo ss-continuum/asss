@@ -20,23 +20,12 @@ locking. lots of options here:
 allow commands to be targeted to specific freqs (using nmefreq
 messages). this probably requires changes to the command interface.
 
-the config manager has to monitor config files for changes. it also
-needs some interface to inform clients when changes occur. there should
-be sufficiently fine granularity that the whole server doesn't need to
-stop and re-read settings every time someone touches a file, but it
-shouldn't be so fine that it's a pain in the ass to use.
-
-the config manager also needs a way to change settings in memory AND
-also write those updates back to disk, so that they aren't lost in a
-recycle or crash.
-
 fix flag drops at edges
 
 fix brick drop algorithm (it should snap to edges of other bricks)
 
-implement emulation for ekted's bots.
-
-allow sharing for compressed .lvl's and .lvz's between arenas.
+allow sharing and cacheing of compressed .lvl's and .lvz's between
+arenas.
 
 
 hard

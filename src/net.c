@@ -103,6 +103,7 @@ typedef struct Buffer
 local void SendToOne(int, byte *, int, int);
 local void SendToArena(int, int, byte *, int, int);
 local void SendToSet(int *, byte *, int, int);
+local void SendToTarget(const Target *, byte *, int, int);
 local void SendToAll(byte *, int, int);
 local void SendWithCallback(int *pidset, byte *data, int length,
 		RelCallback callback, void *clos);
@@ -214,7 +215,8 @@ local void (*oohandlers[])(Buffer*) =
 local Inet _int =
 {
 	INTERFACE_HEAD_INIT(I_NET, "net-udp")
-	SendToOne, SendToArena, SendToSet, SendToAll, SendWithCallback,
+	SendToOne, SendToArena, SendToSet, SendToTarget,
+	SendToAll, SendWithCallback,
 	ReallyRawSend,
 	KillConnection, ProcessPacket, AddPacket, RemovePacket,
 	NewConnection, SetLimit, GetStats, GetClientStats
@@ -1614,6 +1616,14 @@ void SendToAll(byte *data, int len, int flags)
 			set[p++] = i;
 	pd->UnlockStatus();
 	set[p] = -1;
+	SendToSet(set, data, len, flags);
+}
+
+
+void SendToTarget(const Target *target, byte *data, int len, int flags)
+{
+	int set[MAXPLAYERS+1];
+	pd->TargetToSet(target, set);
 	SendToSet(set, data, len, flags);
 }
 

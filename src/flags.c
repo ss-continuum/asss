@@ -124,8 +124,6 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 
 		mm->RegInterface(&_myint, ALLARENAS);
 
-		/* seed random number generator */
-		srand(GTC());
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)

@@ -20,7 +20,8 @@ typedef void (*ShipChangeFunc)(int pid, int newship, int newfreq);
 #define CB_TIMESUP ("timesup")
 typedef void (*GameTimerFunc)(int arena);
 
-#define I_GAME "game-1"
+
+#define I_GAME "game-2"
 
 typedef struct Igame
 {
@@ -34,7 +35,9 @@ typedef struct Igame
 	/* arpc: void(int, int, int) */
 	void (*DropBrick)(int arena, int freq, int x1, int y1, int x2, int y2);
 	/* arpc: void(int, int, int, int, int, int) */
-	void (*WarpTo)(int pid, int x, int y);
+	void (*WarpTo)(const Target *target, int x, int y);
+	/* arpc: void(int, int, int) */
+	void (*GivePrize)(const Target *target, int type, int count);
 	/* arpc: void(int, int, int) */
 } Igame;
 

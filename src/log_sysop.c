@@ -11,7 +11,7 @@
 
 local void LogSysop(const char *);
 local void PA(int pid, int action, int arena);
-local void Clastlog(const char *params, int pid, int target);
+local void Clastlog(const char *params, int pid, const Target *target);
 
 enum { SEE_NONE, SEE_ARENA, SEE_ALL };
 local byte seewhat[MAXPLAYERS];
@@ -137,7 +137,7 @@ void PA(int pid, int action, int arena)
 }
 
 
-void Clastlog(const char *params, int pid, int target)
+void Clastlog(const char *params, int pid, const Target *target)
 {
 	int count, c, set[2] = {pid, -1};
 	char *end;

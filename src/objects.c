@@ -7,9 +7,9 @@
 #include "packets/objects.h"
 
 /* command funcs */
-local void Cobjon(const char *params, int pid, int target);
-local void Cobjoff(const char *params, int pid, int target);
-local void Cobjset(const char *params, int pid, int target);
+local void Cobjon(const char *params, int pid, const Target *target);
+local void Cobjoff(const char *params, int pid, const Target *target);
+local void Cobjset(const char *params, int pid, const Target *target);
 
 /* interface funcs */
 local void ToggleArenaMultiObjects(int arena, short *objs, char *ons, int size);
@@ -70,33 +70,29 @@ EXPORT int MM_objects(int action, Imodman *_mm, int arena)
 	return MM_FAIL;
 }
 
-void Cobjon(const char *params, int pid, int target)
+void Cobjon(const char *params, int pid, const Target *target)
 {
-	int arena = pd->players[pid].arena;
+	int set[MAXPLAYERS+1];
+	short obj = atoi(params);
+	char on = 1;
 
-	if (PID_OK(target)) {
-		if (pd->players[target].arena == pd->players[pid].arena)
-			ToggleObject(target, (short)atoi(params), 1);
-	}
-	else
-		ToggleArenaObject(arena, (short)atoi(params), 1);
+	pd->TargetToSet(target, set);
+	TogglePidSetMultiObjects(set, &obj, &on, 1);
 }
 
-void Cobjoff(const char *params, int pid, int target)
+void Cobjoff(const char *params, int pid, const Target *target)
 {
-	int arena = pd->players[pid].arena;
+	int set[MAXPLAYERS+1];
+	short obj = atoi(params);
+	char on = 0;
 
-	if (PID_OK(target)) {
-		if (pd->players[target].arena == pd->players[pid].arena)
-			ToggleObject(target, (short)atoi(params), 1);
-	}
-	else
-		ToggleArenaObject(arena, (short)atoi(params), 1);
+	pd->TargetToSet(target, set);
+	TogglePidSetMultiObjects(set, &obj, &on, 1);
 }
 
-void Cobjset(const char *params, int pid, int target)
+void Cobjset(const char *params, int pid, const Target *target)
 {
-	int l = strlen(params) + 1, arena = pd->players[pid].arena;
+	int l = strlen(params) + 1;
 	const char *c = params;
 	short *objs = alloca(l * sizeof(short));
 	char *ons = alloca(l * sizeof(char));
@@ -120,34 +116,37 @@ void Cobjset(const char *params, int pid, int target)
 		objs[l++] = atoi(c);
 	}
 
-	if (c)
+	if (l)
 	{
-		if (pid == TARGET_ARENA)
-			ToggleArenaMultiObjects(arena, objs, ons, l);
-		else
-			ToggleMultiObjects(pid, objs, ons, l);
+		int set[MAXPLAYERS+1];
+		pd->TargetToSet(target, set);
+		TogglePidSetMultiObjects(set, objs, ons, l);
 	}
+}
+
+void ToggleArenaObject(int arena, short obj, char on)
+{
+	ToggleArenaMultiObjects(arena, &obj, &on, 1);
+}
+
+void ToggleObject(int pid, short obj, char on)
+{
+	ToggleMultiObjects(pid, &obj, &on, 1);
 }
 
 void ToggleArenaMultiObjects(int arena, short *objs, char *ons, int size)
 {
-	struct ObjectToggling *pkt;
-	int c;
+	int set[MAXPLAYERS+1];
+	Target targ = { T_ARENA };
+	targ.u.arena = arena;
+	pd->TargetToSet(&targ, set);
+	TogglePidSetMultiObjects(set, objs, ons, size);
+}
 
-	if (size < 1 || ARENA_BAD(arena))
-		return;
-
-	pkt = alloca(1 + 2 * size);
-	pkt->type = S2C_TOGGLEOBJ;
-
-	for (c = 0; c < size; c++)
-		pkt->objs[c] = ons[c] ? objs[c] | 0xF000 : objs[c];
-
-	if (ARENA_OK(arena))
-		net->SendToArena(arena, -1, (byte*)pkt, 1 + 2 * size, NET_RELIABLE);
-
-	DO_CBS(CB_OBJECTTOGGLEARENA, arena, ObjectToggleArena,
-			(arena, objs, ons, size));
+void ToggleMultiObjects(int pid, short *objs, char *ons, int size)
+{
+	int set[2] = { pid, -1 };
+	TogglePidSetMultiObjects(set, objs, ons, size);
 }
 
 void TogglePidSetMultiObjects(int *pidset, short *objs, char *ons, int size)
@@ -165,36 +164,5 @@ void TogglePidSetMultiObjects(int *pidset, short *objs, char *ons, int size)
 		pkt->objs[c] = ons[c] ? objs[c] | 0xF000 : objs[c];
 
 	net->SendToSet(pidset, (byte*)pkt, 1 + 2 * size, NET_RELIABLE);
-
-	for (c = 0; pidset[c] != -1; c++)
-		DO_CBS(CB_OBJECTTOGGLEPID, pd->players[pidset[c]].arena, ObjectTogglePid,
-				(pidset[c], objs, ons, size));
-}
-
-void ToggleMultiObjects(int pid, short *objs, char *ons, int size)
-{
-	struct ObjectToggling *pkt;
-	int c;
-
-	if (size < 1 || PID_BAD(pid))
-		return;
-
-	pkt = alloca(1 + 2 * size);
-	pkt->type = S2C_TOGGLEOBJ;
-
-	for (c = 0; c < size; c++)
-		pkt->objs[c] = ons[c] ? objs[c] | 0xF000 : objs[c];
-
-	net->SendToOne(pid, (byte*)pkt, 1 + 2 * size, NET_RELIABLE);
-}
-
-void ToggleArenaObject(int arena, short obj, char on)
-{
-	ToggleArenaMultiObjects(arena, &obj, &on, 1);
-}
-
-void ToggleObject(int pid, short obj, char on)
-{
-	ToggleMultiObjects(pid, &obj, &on, 1);
 }
 

@@ -52,9 +52,9 @@ local void MyAA(int, int);
 //local int  IdGoalScored(int, int, int);
 local void CheckGameOver(int, int);
 local void ScoreMsg(int, int);
-local void Csetscore(const char *,int, int);
-local void Cscore(const char *,int, int);
-local void Cresetgame(const char *, int, int);
+local void Csetscore(const char *,int, const Target *);
+local void Cscore(const char *, int, const Target *);
+local void Cresetgame(const char *, int, const Target *);
 
 /* global data */
 local struct ArenaScores scores[MAXARENA];
@@ -178,7 +178,7 @@ void MyAA(int arena, int action)
 void MyGoal(int arena, int pid, int bid, int x, int y)
 {
 	int freq = -1, i, nullgoal = 0;
-	int teamset[MAXPLAYERS], nmeset[MAXPLAYERS];
+	int teamset[MAXPLAYERS+1], nmeset[MAXPLAYERS+1];
 	int teamc = 0, nmec = 0;
 
 	switch (scores[arena].mode)
@@ -261,7 +261,7 @@ void MyGoal(int arena, int pid, int bid, int x, int y)
 
 	if (scores[arena].mode)
 	{
-		ScoreMsg(arena, 0);
+		ScoreMsg(arena, -1);
 		CheckGameOver(arena, bid);
 	}
 
@@ -371,7 +371,7 @@ void ScoreMsg(int arena, int pid)  // pid = -1 means arena-wide, otherwise priva
 			else chat->SendMessage(pid,_buf,scores[arena].score[0],scores[arena].score[1]);
 }
 
-void Csetscore(const char *params, int pid, int target)
+void Csetscore(const char *params, int pid, const Target *target)
 {
 	int i, newscores[MAXFREQ], arena = pd->players[pid].arena;
 
@@ -398,14 +398,14 @@ void Csetscore(const char *params, int pid, int target)
 		chat->SendMessage(pid,"setscore format: *setscore x y z .... where x = freq 0, y = 1,etc");
 }
 
-void Cscore(const char *params, int pid, int target)
+void Cscore(const char *params, int pid, const Target *target)
 {
 	int arena = pd->players[pid].arena;
 
 	if (scores[arena].mode) ScoreMsg(arena, pid);
 }
 
-void Cresetgame(const char *params, int pid, int target)
+void Cresetgame(const char *params, int pid, const Target *target)
 {
 	int arena = pd->players[pid].arena, i, j = 0;
 

@@ -3,8 +3,8 @@
 
 
 /* commands */
-local void Cgiveowner(const char *, int, int);
-local void Cfreqkick(const char *, int, int);
+local void Cgiveowner(const char *, int, const Target *);
+local void Cfreqkick(const char *, int, const Target *);
 
 /* callbacks */
 local void MyPA(int pid, int action, int arena);
@@ -77,29 +77,31 @@ local int CountFreq(int arena, int freq, int excl)
 }
 
 
-void Cgiveowner(const char *params, int pid, int target)
+void Cgiveowner(const char *params, int pid, const Target *target)
 {
-	if (PID_BAD(pid) || PID_BAD(target))
+	if (target->type != T_PID)
 		return;
-
+	
 	if (ownsfreq[pid] &&
-	    pd->players[pid].arena == pd->players[target].arena &&
-	    pd->players[pid].freq == pd->players[target].freq)
-		ownsfreq[target] = 1;
+	    pd->players[pid].arena == pd->players[target->u.pid].arena &&
+	    pd->players[pid].freq == pd->players[target->u.pid].freq)
+		ownsfreq[target->u.pid] = 1;
 }
 
 
-void Cfreqkick(const char *params, int pid, int target)
+void Cfreqkick(const char *params, int pid, const Target *target)
 {
-	if (PID_BAD(pid) || PID_BAD(target))
+	int t = target->u.pid;
+
+	if (target->type != T_PID)
 		return;
 
-	if (ownsfreq[pid] && !ownsfreq[target] &&
-	    pd->players[pid].arena == pd->players[target].arena &&
-	    pd->players[pid].freq == pd->players[target].freq)
+	if (ownsfreq[pid] && !ownsfreq[t] &&
+	    pd->players[pid].arena == pd->players[t].arena &&
+	    pd->players[pid].freq == pd->players[t].freq)
 	{
-		game->SetShip(target, SPEC);
-		chat->SendMessage(target, "You have been kicked off the freq by %s",
+		game->SetShip(t, SPEC);
+		chat->SendMessage(t, "You have been kicked off the freq by %s",
 				pd->players[pid].name);
 	}
 }

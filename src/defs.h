@@ -5,8 +5,8 @@
 #include <stddef.h>
 
 
-#define ASSSVERSION "0.6.0"
-#define ASSSVERSION_NUM 0x00000600
+#define ASSSVERSION "0.7.0"
+#define ASSSVERSION_NUM 0x00000700
 #define BUILDDATE __DATE__ " " __TIME__
 
 
@@ -210,13 +210,26 @@ enum
 };
 
 
-/* constants for targets and pids */
-#define PID_INTERNAL (-1)
-
-#define TARGET_NONE (-1)
-#define TARGET_ARENA (-2)
-#define TARGET_FREQ (-3)
-#define TARGET_ZONE (-4)
+/* this struct/union thing will be used to refer to a set of players */
+typedef struct
+{
+	enum
+	{
+		T_NONE,
+		T_PID,
+		T_ARENA,
+		T_FREQ,
+		T_ZONE,
+		T_SET
+	} type;
+	union
+	{
+		int pid;
+		int arena;
+		struct { int arena, freq; } freq;
+		int *set;
+	} u;
+} Target;
 
 
 /* useful typedefs */

@@ -9,7 +9,7 @@
  *
  * that way, each new connection only needs one new thread.
  *
- * OR: use select in the mainloop method and avoid the recv thread too?
+ * BETTER: let one recv_thread service multiple connections
  *
  */
 
@@ -25,6 +25,11 @@ typedef struct ConnectionData
 	 * occur at any time. reads only ever occur from one place in one
 	 * thread, so we don't have to protect them. */
 	pthread_mutex_t send_mtx;
+
+	/* this will increase for each request sent that's expecting a
+	 * response. this allows responses to be sorted out among threads.
+	 * it's protected by the FIXME mutex. */
+	int seqnum;
 
 	/* this holds the thread id of this connection's thread */
 	pthread_t recvthread;
@@ -62,6 +67,7 @@ ConnectionData * new_con_data(int socket)
 
 	/* set up */
 	con->socket = socket;
+	con->seqnum = 100;
 	pthread_mutex_init(&con->send_mtx, NULL);
 	LLInit(&con->req_q);
 	pthread_mutex_init(&con->req_mtx, NULL);
@@ -177,16 +183,27 @@ void send_cuke(ConnectionData *con, CukeState *cuke)
 {
 	if (!con) con = default_conn;
 	if (!con) return;
+
 	pthread_mutex_lock(&con->send_mtx);
 	raw_send_cuke(cuke, con->socket);
 	pthread_mutex_unlock(&con->send_mtx);
 }
 
 
-CukeState * wait_for_resp(ConnectionData *con, int type)
+CukeState * send_and_wait_for_resp(ConnectionData *con, CukeState *cuke)
 {
+	int oursn;
+
 	if (!con) con = default_conn;
 	if (!con) return;
+
+	pthread_mutex_lock(&con->send_mtx);
+	/* get a new unique seqnum */
+	oursn = con->seqnum++;
+	set_cuke_seqnum(cuke, oursn);
+	raw_send_cuke(cuke, con->socket);
+	pthread_mutex_unlock(&con->send_mtx);
+
 	pthread_mutex_lock(&con->resp_mtx);
 	for (;;)
 	{
@@ -194,10 +211,11 @@ CukeState * wait_for_resp(ConnectionData *con, int type)
 		Link *l;
 		for (l = LLGetHead(&con->resp_q); l; l = l->next)
 		{
-			CukeState *cuke = l->data;
-			if (get_cuke_type(cuke) == type)
+			CukeState *rcuke = l->data;
+			if (get_cuke_type(rcuke) == type &&
+			    get_cuke_seqnum(rcuke) == oursn)
 			{
-				LLRemove(&con->resp_q, cuke);
+				LLRemove(&con->resp_q, rcuke);
 				pthread_mutex_unlock(&con->resp_mtx);
 				return cuke;
 			}

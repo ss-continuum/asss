@@ -20,6 +20,7 @@ typedef struct Iplayerdata
 
 	PlayerData *players;
 	/* arpc: null */
+
 	void (*LockPlayer)(int pid);
 	/* arpc: void(int) noop */
 	void (*UnlockPlayer)(int pid);
@@ -30,6 +31,9 @@ typedef struct Iplayerdata
 	/* arpc: void(void) noop */
 	int (*FindPlayer)(const char *name);
 	/* arpc: int(string) */
+
+	void (*TargetToSet)(const Target *target, int set[MAXPLAYERS+1]);
+	/* arpc: null */
 } Iplayerdata;
 
 #endif

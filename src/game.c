@@ -34,26 +34,28 @@ local void PAttach(int, byte *, int);
 local void PKickoff(int, byte *, int);
 local void PBrick(int, byte *, int);
 
-local void Creport(const char *params, int pid, int target);
-local void Ctimer(const char *params, int pid, int target);
-local void Ctime(const char *params, int pid, int target);
-local void Ctimereset(const char *params, int pid, int target);
+local void Creport(const char *params, int pid, const Target *target);
+local void Ctimer(const char *params, int pid, const Target *target);
+local void Ctime(const char *params, int pid, const Target *target);
+local void Ctimereset(const char *params, int pid, const Target *target);
 
 local inline void DoChecksum(struct S2CWeapons *);
 local inline long lhypot (register long dx, register long dy);
 
-/* interface? */
+/* interface */
 local void SetFreq(int pid, int freq);
 local void SetShip(int pid, int ship);
 local void SetFreqAndShip(int pid, int ship, int freq);
 local void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2);
-local void WarpTo(int pid, int x, int y);
+local void WarpTo(const Target *target, int x, int y);
+local void GivePrize(const Target *target, int type, int count);
+
 local int TimerMaster(void *);
 
 local Igame _myint =
 {
 	INTERFACE_HEAD_INIT(I_GAME, "game")
-	SetFreq, SetShip, SetFreqAndShip, DropBrick, WarpTo
+	SetFreq, SetShip, SetFreqAndShip, DropBrick, WarpTo, GivePrize
 };
 
 
@@ -405,9 +407,19 @@ void SetFreqAndShip(int pid, int ship, int freq)
 	arena = players[pid].arena;
 
 	pd->LockPlayer(pid);
+
+	if (players[pid].shiptype == ship &&
+	    players[pid].freq == freq)
+	{
+		/* nothing to do */
+		pd->UnlockPlayer(pid);
+		return;
+	}
+
 	SET_DURING_CHANGE(pid);
 	players[pid].shiptype = ship;
 	players[pid].freq = freq;
+
 	pd->UnlockPlayer(pid);
 
 	/* send it to him, with a callback */
@@ -418,10 +430,8 @@ void SetFreqAndShip(int pid, int ship, int freq)
 	DO_CBS(CB_SHIPCHANGE, arena, ShipChangeFunc,
 			(pid, ship, freq));
 
-	lm->Log(L_DRIVEL, "<game> {%s} [%s] Changed ship to %d",
-			arenas[arena].name,
-			players[pid].name,
-			ship);
+	lm->LogP(L_DRIVEL, "game", pid, "Changed ship/freq to ship %d, freq %d",
+			ship, freq);
 }
 
 void SetShip(int pid, int ship)
@@ -477,8 +487,16 @@ void SetFreq(int pid, int freq)
 	int arena = players[pid].arena, set[] = { pid, -1 };
 
 	pd->LockPlayer(pid);
+
+	if (players[pid].freq == freq)
+	{
+		pd->UnlockPlayer(pid);
+		return;
+	}
+
 	SET_DURING_CHANGE(pid);
 	players[pid].freq = freq;
+
 	pd->UnlockPlayer(pid);
 
 	/* him, with callback */
@@ -618,16 +636,18 @@ void PKickoff(int pid, byte *p, int len)
 			net->SendToOne(i, &pkt, 1, NET_RELIABLE);
 }
 
-void WarpTo(int pid, int x, int y)
+
+void WarpTo(const Target *target, int x, int y)
 {
 	struct SimplePacket wto = { S2C_WARPTO, x, y };
-	int arena = players[pid].arena;
+	net->SendToTarget(target, (byte *)&wto, 5, NET_RELIABLE | NET_PRI_P1);
+}
 
-	net->SendToOne(pid, (byte *)&wto, 5, NET_RELIABLE | NET_PRI_P1);
-	lm->Log(L_DRIVEL, "<game> {%s} [%s] Warped to %d,%d",
-			arenas[arena].name,
-			players[pid].name,
-			x, y);
+
+void GivePrize(const Target *target, int type, int count)
+{
+	struct SimplePacket prize = { S2C_PRIZERECV, (short)count, (short)type };
+	net->SendToTarget(target, (byte*)&prize, 5, NET_RELIABLE);
 }
 
 
@@ -684,22 +704,24 @@ void ArenaAction(int arena, int action)
 }
 
 
-void Creport(const char *params, int pid, int target)
+void Creport(const char *params, int pid, const Target *target)
 {
-	if (PID_BAD(target)) return;
+	int t = target->u.pid;
+	if (target->type != T_PID)
+		return;
 
 	if (chat)
 	{
-		struct C2SPosition *p = pos + target;
+		struct C2SPosition *p = pos + t;
 		chat->SendMessage(pid, "%s is at (%d, %d) with %d bounty and %d energy",
-				players[target].name,
+				players[t].name,
 				p->x >> 4, p->y >> 4,
 				p->bounty,
 				p->energy);
 	}
 }
 
-void Ctimer(const char *params, int pid, int target)
+void Ctimer(const char *params, int pid, const Target *target)
 {
 	int arena = pd->players[pid].arena, mins = 0, secs = 0;
 	
@@ -717,7 +739,7 @@ void Ctimer(const char *params, int pid, int target)
 }
 
 
-void Ctime(const char *params, int pid, int target)
+void Ctime(const char *params, int pid, const Target *target)
 {
 	int arena = pd->players[pid].arena, mins, secs;
 	long tout;
@@ -733,7 +755,7 @@ void Ctime(const char *params, int pid, int target)
 		chat->SendMessage(pid, "Time left: 0 minutes 0 seconds");
 }
 
-void Ctimereset(const char *params, int pid, int target)
+void Ctimereset(const char *params, int pid, const Target *target)
 {
 	int arena = pd->players[pid].arena;
 	long gamelen = cfg->GetInt(arenas[arena].cfg, "Misc", "TimedGame", 0);

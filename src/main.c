@@ -145,6 +145,9 @@ int main(int argc, char *argv[])
 	Ilogman *lm;
 	Imainloop *ml;
 
+	/* seed random number generator */
+	srand(GTC());
+
 	ProcessArgs(argc,argv);
 
 	CheckBin(argv[0]);

@@ -33,8 +33,8 @@ local void SetG(int, void *);
 local void ClearG(int);
 
 local void PChat(int, byte *, int);
-local void Cstats(const char *, int, int);
-local void Cmyscore(const char *, int, int);
+local void Cstats(const char *, int, const Target *);
+local void Cmyscore(const char *, int, const Target *);
 local void PAFunc(int, int, int);
 
 
@@ -226,15 +226,14 @@ void ClearA(int pid)
 }
 
 
-void Cstats(const char *params, int pid, int target)
+void Cstats(const char *params, int pid, const Target *target)
 {
 	struct GlobalStats *d;
+	int t = target->type == T_PID ? target->u.pid : pid;
 
-	if (target == TARGET_ARENA) target = pid;
+	d = gdata + t;
 
-	d = gdata + target;
-
-	if (PID_OK(target) && chat)
+	if (PID_OK(t) && chat)
 	{
 		chat->SendMessage(pid, "%6d logins", d->logins);
 		chat->SendMessage(pid, "%6d public messages", d->messages[MSG_PUB]);
@@ -248,15 +247,14 @@ void Cstats(const char *params, int pid, int target)
 	}
 }
 
-void Cmyscore(const char *params, int pid, int target)
+void Cmyscore(const char *params, int pid, const Target *target)
 {
 	struct ArenaStats *d;
+	int t = target->type == T_PID ? target->u.pid : pid;
 
-	if (target == TARGET_ARENA) target = pid;
+	d = adata + t;
 
-	d = adata + target;
-
-	if (PID_OK(target) && chat)
+	if (PID_OK(t) && chat)
 	{
 		chat->SendMessage(pid, "%d kill points, %d flag points",
 				d->stats[STAT_KILL_POINTS], d->stats[STAT_FLAG_POINTS]);

@@ -43,10 +43,10 @@
  */
 
 
-typedef void (*CommandFunc)(const char *params, int pid, int target);
+typedef void (*CommandFunc)(const char *params, int pid, const Target *target);
 
 
-#define I_CMDMAN "cmdman-1"
+#define I_CMDMAN "cmdman-2"
 
 typedef struct Icmdman
 {
@@ -56,7 +56,7 @@ typedef struct Icmdman
 	/* arpc: void(string, CommandFunc callback) */
 	void (*RemoveCommand)(const char *cmdname, CommandFunc func);
 	/* arpc: void(string, CommandFunc callback) */
-	void (*Command)(const char *typedline, int pid, int target);
+	void (*Command)(const char *typedline, int pid, const Target *target);
 	/* arpc: void(string, int, int) */
 } Icmdman;
 

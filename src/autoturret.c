@@ -53,7 +53,7 @@ local struct TurretData * new_turret(int pid, int timeout, int interval, int pid
 }
 
 
-local void Cdropturret(const char *params, int pid, int target)
+local void Cdropturret(const char *params, int pid, const Target *target)
 {
 	int tpid;
 
