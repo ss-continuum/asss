@@ -148,10 +148,11 @@ local void QueryPPing(int pid, struct PingSummary *p)
 	PEDANTIC_LOCK();
 	if (data[pid])
 	{
-		p->cur = data[pid]->pping.current;
-		p->avg = data[pid]->pping.total / data[pid]->pping.count;
-		p->min = data[pid]->pping.min;
-		p->max = data[pid]->pping.max;
+		struct PingData *pd = &data[pid]->pping;
+		p->cur = pd->current;
+		p->avg = pd->count ? pd->total / pd->count : 0;
+		p->min = pd->min;
+		p->max = pd->max;
 	}
 	else
 		memset(p, 0, sizeof(*p));
@@ -185,10 +186,11 @@ local void QueryRPing(int pid, struct PingSummary *p)
 	PEDANTIC_LOCK();
 	if (data[pid])
 	{
-		p->cur = data[pid]->rping.current;
-		p->avg = data[pid]->rping.total / data[pid]->rping.count;
-		p->min = data[pid]->rping.min;
-		p->max = data[pid]->rping.max;
+		struct PingData *pd = &data[pid]->rping;
+		p->cur = pd->current;
+		p->avg = pd->count ? pd->total / pd->count : 0;
+		p->min = pd->min;
+		p->max = pd->max;
 	}
 	else
 		memset(p, 0, sizeof(*p));
@@ -205,15 +207,15 @@ local void QueryPLoss(int pid, struct PLossSummary *d)
 		int s, r;
 		s = data[pid]->ploss.s_pktsent;
 		r = data[pid]->ploss.c_pktrcvd;
-		d->s2c = (double)(s - r) / (double)s;
+		d->s2c = s ? (double)(s - r) / (double)s : 0;
 
 		s = data[pid]->ploss.c_pktsent;
 		r = data[pid]->ploss.s_pktrcvd;
-		d->c2s = (double)(s - r) / (double)s;
+		d->c2s = s ? (double)(s - r) / (double)s : 0;
 
 		s = data[pid]->wpnsent;
 		r = data[pid]->wpnrcvd;
-		d->s2cwpn = (double)(s - r) / (double)s;
+		d->s2cwpn = s ? (double)(s - r) / (double)s : 0;
 	}
 	else
 		memset(d, 0, sizeof(*d));
