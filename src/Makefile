@@ -62,6 +62,7 @@ external.so: billcore.o directory.o
 scoring.so: persist.o stats.o statcodes.o points_kill.o points_flag.o \
 	points_goal.o jackpot.o periodic.o points_periodic.o basicstats.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -L$(DBLIB) -Wl,-rpath,$(DBLIB) -ldb-4
+	#$(CC) $(LDFLAGS) -shared -o $@ $^ $(DBLIB)/libdb.a
 
 admin.so: filetrans.o quickfix.o
 
@@ -70,6 +71,9 @@ database.so: mysql.o aliasdb.o
 
 funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
 	fake.o autoturret.o chatnet.o md5.o auth_file.o turf_reward.o
+
+stablefunky.so: bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
+	chatnet.o md5.o auth_file.o
 
 
 

@@ -635,7 +635,7 @@ void * RecvThread(void *dummy)
 	struct sockaddr_in sin;
 	struct timeval tv;
 	fd_set fds;
-	int len, pid, sinsize, maxfd = 5, n;
+	int len, pid, sinsize, maxfd = 5;
 
 	while (!killallthreads)
 	{
@@ -786,17 +786,17 @@ donehere:
 			unsigned int data[2];
 
 			sinsize = sizeof(sin);
-			n = recvfrom(pingsock, (char*)data, 4, 0,
+			len = recvfrom(pingsock, (char*)data, 4, 0,
 					(struct sockaddr*)&sin, &sinsize);
 
-			if (n == 4)
+			if (len == 4)
 			{
 				data[1] = data[0];
 				data[0] = 0;
 				pd->LockStatus();
-				for (n = 0; n < MAXPLAYERS; n++)
-					if (players[n].status == S_PLAYING &&
-					    players[n].type != T_FAKE)
+				for (pid = 0; pid < MAXPLAYERS; pid++)
+					if (players[pid].status == S_PLAYING &&
+					    players[pid].type != T_FAKE)
 						data[0]++;
 				pd->UnlockStatus();
 				sendto(pingsock, (char*)data, 8, 0,
@@ -806,16 +806,18 @@ donehere:
 			}
 		}
 
-		if (FD_ISSET(clientsock, &fds))
+		if (clientsock >= 0 && FD_ISSET(clientsock, &fds))
 		{
 			/* data from billing server */
 			Buffer *buf = GetBuffer();
 
 			sinsize = sizeof(sin);
-			n = recvfrom(clientsock, buf->d.raw, MAXPACKET, 0,
+			len = recvfrom(clientsock, buf->d.raw, MAXPACKET, 0,
 					(struct sockaddr*)&sin, &sinsize);
 
-			if (memcmp(&sin, &clients[PID_BILLER].sin, sizeof(sin) - sizeof(sin.sin_zero)))
+			pid = PID_BILLER;
+
+			if (memcmp(&sin, &clients[pid].sin, sizeof(sin) - sizeof(sin.sin_zero)))
 			{
 				lm->Log(L_MALICIOUS,
 						"<net> Data recieved on billing server socket "
@@ -823,13 +825,13 @@ donehere:
 						inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
 				FreeBuffer(buf);
 			}
-			else if (n > 0)
+			else if (len > 0)
 			{
-				Iencrypt *enc = clients[PID_BILLER].enc;
+				Iencrypt *enc = clients[pid].enc;
 				if (IS_CONNINIT(buf))
 				{
 					int done;
-					done = enc->HandleResponse(PID_BILLER, buf->d.raw, n);
+					done = enc->HandleResponse(pid, buf->d.raw, len);
 					/* that will return true if the connection is ready
 					 * to be used. */
 					if (done)
@@ -840,16 +842,16 @@ donehere:
 				else
 				{
 					/* try to decrypt the packet */
-					n = enc->Decrypt(PID_BILLER, buf->d.raw, n);
+					len = enc->Decrypt(pid, buf->d.raw, len);
 
-					if (n != 0)
+					if (len != 0)
 					{
-						buf->len = n;
-						buf->pid = PID_BILLER;
+						buf->len = len;
+						buf->pid = pid;
 						ProcessBuffer(buf);
-						clients[PID_BILLER].lastpkt = GTC();
-						clients[PID_BILLER].byterecvd += len + IP_UDP_OVERHEAD;
-						clients[PID_BILLER].pktrecvd++;
+						clients[pid].lastpkt = GTC();
+						clients[pid].byterecvd += len + IP_UDP_OVERHEAD;
+						clients[pid].pktrecvd++;
 						global_stats.pktrecvd++;
 					}
 					else /* bad crc, or something */
