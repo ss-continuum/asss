@@ -9,5 +9,5 @@ sparse.inc: $(SPDIR)/gensparse.py $(SPDIR)/regiongen_params.py
 	$(SPDIR)/gensparse.py $@ $(SPDIR)/regiongen_params.py
 
 clean:
-	rm -f regiongen *.o *.rgn
+	rm -f regiongen *.o *.rgn sparse.inc
 
