@@ -272,7 +272,7 @@ that's deliberate. don't use them.
 
 3.2.2.3. "rBSE" chunks
 
-this is a 0-byte chunk. it's presence signifies that this region should
+this is a 0-byte chunk. its presence signifies that this region should
 be considered a "base".
 
 3.2.2.4. "rNAW" chunks
@@ -339,7 +339,7 @@ with the "elvl" metadata header described above, and they will contain
 the tileset bitmap and tile data as chunks.
 
 the format of a "TSET" chunk is a windows format bitmap, _without_ the
-bitmapfileheader stuff (because it's function is taken care of by the
+bitmapfileheader stuff (because its function is taken care of by the
 chunk header). that is, it starts with a bitmapinfoheader, which is
 followed directly by the color table, which is followed directly by the
 bitmap data. the bitmap data should be in 8-bit format with no
