@@ -107,10 +107,13 @@ class BMPFile:
 			offbits = 54
 
 		if extrabytes:
+			padding = ((size + 3) & ~3) - size
+			size += padding
 			res1 = size
 			size += extrabytes
 		else:
 			res1 = 0
+			padding = 0
 
 		bmfh = struct.pack(BMFH_FMT, 19778, size, res1, 0, offbits)
 		f.write(bmfh)
@@ -123,6 +126,7 @@ class BMPFile:
 			me.tab.tofile(f)
 
 		f.write(me.pixeldata)
+		f.write('\0' * padding)
 
 
 if __name__ == '__main__':

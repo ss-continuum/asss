@@ -400,7 +400,7 @@ def main():
 		print "successfully wrote %s" % opts.outfile
 
 	else:
-		op.print_help()
+		make_op().print_help()
 
 
 if __name__ == '__main__':

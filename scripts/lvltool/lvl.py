@@ -160,6 +160,7 @@ class LVLFile:
 		if me.bmp:
 			me.bmp.write_to_file(f, len(meta))
 			f.write(meta)
+			assert (f.tell() & 3) == 0
 		elif meta:
 			print "WARNING: metadata can't be saved because no tileset is present"
 
