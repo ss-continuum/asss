@@ -73,7 +73,13 @@ void MyFlagWin(int arena, int freq)
 		}
 	pd->UnlockStatus();
 
+	/* cfghelp: Flag:FlagReward, arena, int, def: 5000, mod: points_flag
+	 * The basic flag reward is calculated as (players in arena)^2 *
+	 * reward / 1000. */
 	reward = cfg->GetInt(aman->arenas[arena].cfg, "Flag", "FlagReward", 5000);
+	/* cfghelp: Flag:SplitPoints, arena, bool, def: 0
+	 * Whether to split a flag reward between the members of a freq or
+	 * give them each the full amount. */
 	splitpts = cfg->GetInt(aman->arenas[arena].cfg, "Flag", "SplitPoints", 0);
 
 	points = players * players * reward / 1000;

@@ -51,6 +51,11 @@ local int HasPermission(int pid, int arena)
 	if (ARENA_OK(arena) && aman->arenas[arena].status == ARENA_RUNNING)
 	{
 		ConfigHandle c = aman->arenas[arena].cfg;
+		/* cfghelp: General:NeedCap, arena, string, mod: arenaperm
+		 * If this setting is present for an arena, any player entering
+		 * the arena must have the capability specified this setting.
+		 * This can be used to restrict arenas to certain groups of
+		 * players. */
 		const char *capname = cfg->GetStr(c, "General", "NeedCap");
 		return capname ? capman->HasCapability(pid, capname) : 1;
 	}

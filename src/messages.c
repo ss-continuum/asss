@@ -65,6 +65,8 @@ local void paction(int pid, int action, int arena)
 	{
 		int arena = pd->players[pid].arena;
 		ConfigHandle ch = ARENA_OK(arena) ? aman->arenas[arena].cfg : NULL;
+		/* cfghelp: Misc:GreetMessage, arena, string
+		 * The message to send to each player on entering the arena. */
 		const char *msg = ch ? cfg->GetStr(ch, "Misc", "GreetMessage") : NULL;
 
 		if (msg)

@@ -6,6 +6,12 @@ local Iconfig *cfg;
 
 local int getpoints(int arena, int freq, int freqplayers, int totalplayers, int flagsowned)
 {
+	/* cfghelp: Periodic:RewardPoints, arena, int, def: 100, mod: \
+	 * points_periodic
+	 * Periodic rewards are calculated as follows: If this setting is
+	 * positive, you get this many points per flag. If it's negative,
+	 * you get it's absolute value points per flag, times the number of
+	 * players in the arena. */
 	int rwpts = cfg->GetInt(aman->arenas[arena].cfg, "Periodic", "RewardPoints", 100);
 	if (rwpts > 0)
 		return flagsowned * rwpts;

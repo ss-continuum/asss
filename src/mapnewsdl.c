@@ -396,6 +396,8 @@ local void ArenaAction(int arena, int action)
 		const char *lvzs, *tmp = NULL;
 
 		/* first add the map itself */
+		/* cfghelp: General:Map, arena, string
+		 * The name of the level file for this arena. */
 		if (real_get_filename(
 					arena,
 					cfg->GetStr(aman->arenas[arena].cfg, "General", "Map"),
@@ -408,7 +410,10 @@ local void ArenaAction(int arena, int action)
 		}
 
 		/* now look for lvzs */
-		lvzs = cfg->GetStr(aman->arenas[arena].cfg, "General", "Lvzs");
+		/* cfghelp: General:LevelFiles, arena, string
+		 * A list of extra files to send to the client for downloading.
+		 * A '+' before any file means it's marked as optional. */
+		lvzs = cfg->GetStr(aman->arenas[arena].cfg, "General", "LevelFiles");
 		if (!lvzs) lvzs = cfg->GetStr(aman->arenas[arena].cfg, "Misc", "LevelFiles");
 		while (strsplit(lvzs, ",: ", lvzname, 256, &tmp))
 		{
@@ -550,11 +555,15 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
 		/* reread news every 5 min */
+		/* cfghelp: General:NewsRefreshMinutes, global, int, def: 5
+		 * How often to check for an updated news.txt. */
 		ml->SetTimer(RefreshNewsTxt, 50,
 				cfg->GetInt(GLOBAL, "General", "NewsRefreshMinutes", 5)
 				* 60 * 100, NULL, -1);
 
 		/* cache some config data */
+		/* cfghelp: General:NewsFile, global, string, def: news.txt
+		 * The filename of the news file. */
 		cfg_newsfile = cfg->GetStr(GLOBAL, "General", "NewsFile");
 		if (!cfg_newsfile) cfg_newsfile = "news.txt";
 		newstime = 0; cmpnews = NULL;

@@ -459,7 +459,12 @@ local void set_timers()
 {
 	int dirty, files;
 
+	/* cfghelp: Config:FlushDirtyValuesInterval, global, int, def: 500
+	 * How often to write modified config settings back to disk (in
+	 * ticks). */
 	dirty = GetInt(global, "Config", "FlushDirtyValuesInterval", 500);
+	/* cfghelp: Config:CheckModifiedFilesInterval, global, int, def: 1500
+	 * How often to check for modified config files on disk (in ticks). */
 	files = GetInt(global, "Config", "CheckModifiedFilesInterval", 1500);
 
 	ml->ClearTimer(write_dirty_values, -1);

@@ -42,7 +42,8 @@ EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
 
 		mm->RegCallback(CB_LOGFUNC, LogFile, ALLARENAS);
 
-		/* in minutes */
+		/* cfghelp: Log:FileFlushPeriod, global, int, def: 10
+		 * How often to flush the log file to disk (in minutes). */
 		fp = cfg->GetInt(GLOBAL, "Log", "FileFlushPeriod", 10);
 
 		if (fp)
@@ -113,6 +114,8 @@ void ReopenLog(void)
 	if (logfile)
 		fclose(logfile);
 
+	/* cfghelp: Log:LogFile, global, string, def: asss.log
+	 * The name of the log file. */
 	ln = cfg->GetStr(GLOBAL, "Log", "LogFile");
 	if (!ln)
 		ln = "asss.log";

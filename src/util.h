@@ -64,6 +64,9 @@ const char *delimcpy(char *dest, const char *source, size_t destlen, char delim)
 
 int strsplit(const char *big, const char *delims, char *buf, int buflen, const char **ptmp);
 
+void wrap_text(const char *txt, int mlen, char delim,
+		void (*cb)(const char *line, void *clos), void *clos);
+
 void Error(int errorcode, char *message, ...);
 
 

@@ -312,9 +312,8 @@ local void Csetship(const char *params, int pid, const Target *target)
 local helptext_t version_help =
 "Targets: none\n"
 "Args: none\n"
-"Prints out the version and buildnumber of asss. If the server was built\n"
-"with certain options, it might also print out some information about the\n"
-"machine that it's running on.\n";
+"Prints out the version and compilation date of the server. It might also\n"
+"print out some information about the machine that it's running on.\n";
 
 local void Cversion(const char *params, int pid, const Target *target)
 {
@@ -367,9 +366,14 @@ local void add_mod(const char *name, const char *info, void *buf)
 	p = start + l;
 
 	if (info)
-		snprintf(p, MAXDATA - l, "%s: %s\x01", name, info);
+		snprintf(p, MAXDATA - l, "%s (%s), ", name, info);
 	else
-		snprintf(p, MAXDATA - l, "%s\x01", name);
+		snprintf(p, MAXDATA - l, "%s, ", name);
+}
+
+local void send_msg_cb(const char *line, void *clos)
+{
+	chat->SendMessage(*(int*)clos, "  %s", line);
 }
 
 local helptext_t lsmod_help =
@@ -379,45 +383,12 @@ local helptext_t lsmod_help =
 
 local void Clsmod(const char *params, int pid, const Target *target)
 {
-	char data[MAXDATA+6], *p = data;
-	char line[84];
-
+	char data[MAXDATA+6];
 	memset(data, 0, sizeof(data));
-
 	mm->EnumModules(add_mod, (void*)data);
-
-	strcpy(line, "  ");
-	while (*p)
-	{
-		int n;
-		char *t = strchr(p, '\x01');
-		if (!t) t = p + strlen(p);
-		*t = 0;
-
-		/* force wrap */
-		if (strlen(p) > 70)
-			p[70] = 0;
-
-		/* find eventual width */
-		n = strlen(line) + strlen(p) + 2;
-		if (n > 80)
-		{
-			chat->SendMessage(pid, line);
-			strcpy(line, "  ");
-		}
-
-		strcat(line, p);
-		strcat(line, ", ");
-
-		p = t + 1;
-	}
-
-	if (strlen(line) > 2)
-	{
-		char *t = strrchr(line, ',');
-		if (t) *t = 0;
-		chat->SendMessage(pid, line);
-	}
+	data[strlen(data)-2] = 0; /* kill last ', ' */
+	chat->SendMessage(pid, "Loaded modules:");
+	wrap_text(data, 100, ' ', send_msg_cb, &pid);
 }
 
 
@@ -861,6 +832,8 @@ local void Csheep(const char *params, int pid, const Target *target)
 	if (target->type != T_ARENA)
 		return;
 
+	/* cfghelp: Misc:SheepMessage, arena, string
+	 * The message that appears when someone says ?sheep */
 	if (ARENA_OK(arena))
 		sheepmsg = cfg->GetStr(aman->arenas[arena].cfg, "Misc", "SheepMessage");
 

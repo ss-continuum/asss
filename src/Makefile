@@ -55,7 +55,7 @@ game.so: game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
 	banners.o objects.o messages.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -lm
 
-command.so: cmdman.o playercmd.o watchdamage.o buy.o
+command.so: cmdman.o help.o playercmd.o watchdamage.o buy.o
 
 external.so: billcore.o directory.o
 
@@ -78,6 +78,11 @@ sparse.inc: $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py
 
 letters.inc: $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font
 	$(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font > $@
+
+cfghelp.inc: $(SCRIPTS)/extract-cfg-docs.py *.c *.def
+	cat *.c *.def | $(SCRIPTS)/extract-cfg-docs.py -c > $@
+
+help.o: cfghelp.inc
 
 arpc_stubs.c: $(SCRIPTS)/arpc.py *.h
 	$(SCRIPTS)/arpc.py makestubs > $@

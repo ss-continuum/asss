@@ -174,6 +174,10 @@ local void DoAttach(int arena, int action)
 	else
 		return;
 
+	/* cfghelp: Modules:AttachModules, arena, string
+	 * This is a list of modules that you want to take effect in this
+	 * arena. Not all modules need to be attached to arenas to function,
+	 * but some do. */
 	attmods = cfg->GetStr(arenas[arena].cfg, "Modules", "AttachModules");
 	if (!attmods) return;
 

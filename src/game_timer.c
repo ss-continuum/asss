@@ -72,6 +72,7 @@ local void ArenaAction(int arena, int action)
 
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
 	{
+		/* FIXME: document this setting */
 		warnvals = cfg->GetStr(aman->arenas[arena].cfg, "Misc", "TimerWarnings");
 		for (i = 0; i < MAXWARNMSGS; i++)
 			ar_tmr[arena].warnmsgs[i] = 0;
@@ -80,6 +81,8 @@ local void ArenaAction(int arena, int action)
 				ar_tmr[arena].warnmsgs[i] = strtol(num, NULL, 0);
 
 		savedlen = ar_tmr[arena].gamelen;
+		/* cfghelp: Misc:TimedGame, arena, int, def: 0
+		 * How long the game timer lasts (in ticks). Zero to disable. */
 		ar_tmr[arena].gamelen = cfg->GetInt(aman->arenas[arena].cfg, "Misc", "TimedGame", 0);
 		if (action == AA_CREATE && ar_tmr[arena].gamelen)
 		{

@@ -97,7 +97,12 @@ local void authenticate(int pid, struct LoginPacket *lp, int lplen,
 	else
 	{
 		/* no match found */
-		int allow = cfg->GetInt(pwdfile, "general", "allowunknown", 1);
+
+		/* cfghelp: General:AllowUnknown, passwd.conf, bool, def: 1, \
+		 * mod: auth_file
+		 * Determines whether to allow players not listed in the
+		 * password file. */
+		int allow = cfg->GetInt(pwdfile, "General", "AllowUnknown", 1);
 
 		if (allow)
 			ad.code = AUTH_OK;

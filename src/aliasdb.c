@@ -164,7 +164,7 @@ local helptext_t qip_help =
 "Targets: none\n"
 "Args: <ip address or pattern>\n"
 "Queries the alias database for players connecting from that ip.\n"
-"Queries can be an exact addreess, ?qip 216.34.65.%, or ?qip 216.34.65.0/24\n.";
+"Queries can be an exact addreess, ?qip 216.34.65.%, or ?qip 216.34.65.0/24.\n";
 
 local void Cqip(const char *params, int pid, const Target *target)
 {
@@ -220,7 +220,7 @@ local helptext_t rawquery_help =
 "Args: <sql code>\n"
 "Performs a custom sql query on the alias data. The text you type\n"
 "after ?rawquery will be used as the WHERE clause in the query.\n"
-"Examples:  ?rawquery name like \"%blah%\"\n"
+"Examples:  ?rawquery name like '%blah%'\n"
 "           ?rawquery macid = 34127563 order by lastseen desc\n";
 
 local void Crawquery(const char *params, int pid, const Target *target)

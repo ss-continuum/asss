@@ -120,6 +120,9 @@ local int init_socket(void)
 		return -1;
 #endif
 
+	/* cfghelp: Net:ChatPort, global, int, def: Net:Port + 2, \
+	 * mod: chatnet
+	 * The port that the text-based chat protocol runs on. */
 	port = cfg->GetInt(GLOBAL, "Net", "ChatPort", -1);
 	if (port == -1)
 		port = cfg->GetInt(GLOBAL, "Net", "Port", 5000) + 2;
@@ -543,7 +546,12 @@ EXPORT int MM_chatnet(int action, Imodman *mm_, int arena)
 		if (mysock == -1)
 			return MM_FAIL;
 
-		cfg_msgdelay = cfg->GetInt(GLOBAL, "Net", "ChatMessageDelay", 50);
+		/* cfghelp: Net:ChatMessageDelay, global, int, def: 20 \
+		 * mod: chatnet
+		 * The delay between sending messages to clients using the
+		 * text-based chat protocol. (To limit bandwidth used by
+		 * non-playing cilents.) */
+		cfg_msgdelay = cfg->GetInt(GLOBAL, "Net", "ChatMessageDelay", 20);
 
 		/* init mutx */
 		pthread_mutexattr_init(&attr);

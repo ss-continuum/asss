@@ -356,6 +356,10 @@ local void LoadFlagSettings(int arena, int init)
 	ConfigHandle c = aman->arenas[arena].cfg;
 
 	/* get flag game type, only the first time */
+	/* cfghelp: Flag:GameType, arena, enum, def: $FLAGGAME_NONE
+	 * The flag game type for this arena. $FLAGGAME_NONE means no flag
+	 * game, $FLAGGAME_BASIC is a standard warzone or running zone game,
+	 * and $FLAGGAME_TURF specifies immobile flags. */
 	if (init)
 		d->gametype = cfg->GetInt(c, "Flag", "GameType", FLAGGAME_NONE);
 
@@ -364,27 +368,51 @@ local void LoadFlagSettings(int arena, int init)
 	{
 		const char *count, *c2;
 
+		/* cfghelp: Flag:ResetDelay, arena, int, def: 0
+		 * The length of the delay between flag games. */
 		d->resetdelay = cfg->GetInt(c, "Flag", "ResetDelay", 0);
+		/* cfghelp: Flag:SpawnX, arena, int, def: 512
+		 * The X coordinate that new flags spawn at (in tiles). */
 		d->spawnx = cfg->GetInt(c, "Flag", "SpawnX", 512);
+		/* cfghelp: Flag:SpawnY, arena, int, def: 512
+		 * The Y coordinate that new flags spawn at (in tiles). */
 		d->spawny = cfg->GetInt(c, "Flag", "SpawnY", 512);
-		d->spawnr = cfg->GetInt(c, "Flag", "SpawnRadius", 1024);
+		/* cfghelp: Flag:SpawnRadius, arena, int, def: 50
+		 * How far from the spawn center that new flags spawn (in
+		 * tiles). */
+		d->spawnr = cfg->GetInt(c, "Flag", "SpawnRadius", 50);
+		/* cfghelp: Flag:DropRadius, arena, int, def: 2
+		 * How far from a player do dropped flags appear (in tiles). */
 		d->dropr = cfg->GetInt(c, "Flag", "DropRadius", 2);
+		/* cfghelp: Flag:NeutRadius, arena, int, def: 2
+		 * How far from a player do neut-dropped flags appear (in
+		 * tiles). */
 		d->neutr = cfg->GetInt(c, "Flag", "NeutRadius", 2);
+		/* cfghelp: Flag:FriendlyTransfer , arena, bool, def: 1
+		 * Whether you get a teammates flags when you kill him. */
 		d->friendlytransfer = cfg->GetInt(c, "Flag", "FriendlyTransfer", 1);
+		/* cfghelp: Flag:DropOwned, arena, bool, def: 1
+		 * Whether flags you drop are owned by your team. */
 		d->dropowned = cfg->GetInt(c, "Flag", "DropOwned", 1);
+		/* cfghelp: Flag:NeutOwned, arena, bool, def: 0
+		 * Whether flags you neut-drop are owned by your team. */
 		d->neutowned = cfg->GetInt(c, "Flag", "NeutOwned", 0);
 
 		if (init)
 		{
+			/* cfghelp: Flag:FlagCount, arena, rng, range: 0-256, def: 0
+			 * How many flags are present in this arena. */
 			count = cfg->GetStr(c, "Flag", "FlagCount");
 			if (count)
 			{
 				d->minflags = strtol(count, NULL, 0);
 				if (d->minflags < 0) d->minflags = 0;
+				if (d->minflags > 256) d->minflags = 256;
 				c2 = strchr(count, '-');
 				if (c2)
 				{
 					d->maxflags = strtol(c2+1, NULL, 0);
+					if (d->maxflags > 256) d->maxflags = 256;
 					if (d->maxflags < d->minflags)
 						d->maxflags = d->minflags;
 				}
@@ -407,6 +435,9 @@ local void LoadFlagSettings(int arena, int init)
 		int i;
 		struct FlagData *f;
 
+		/* cfghelp: Flag:PersistentTurfOwners, arena, bool, def: 1
+		 * Whether ownership of turf flags persists even when the arena
+		 * is empty (or the server crashes). */
 		d->persistturf = cfg->GetInt(c, "Flag", "PersistentTurfOwners", 1);
 
 		d->minflags = d->maxflags = flagdata[arena].flagcount =

@@ -161,6 +161,43 @@ int strsplit(const char *big, const char *delims, char *buf, int buflen, const c
 }
 
 
+void wrap_text(const char *txt, int mlen, char delim,
+		void (*cb)(const char *line, void *clos), void *clos)
+{
+	char line[256], buf[256], delimstr[2] = { delim, '\0' };
+	const char *p = txt;
+	int l;
+
+	if (mlen > 250) mlen = 250;
+
+	strcpy(line, "");
+
+	while (*p)
+	{
+		p = delimcpy(buf, p, mlen, delim);
+		if (!p) p = "";
+
+		/* find eventual width */
+		l = strlen(line) + strlen(buf);
+		if (l > mlen)
+		{
+			/* kill last delim */
+			int lst = strlen(line)-1;
+			if (line[lst] == delim) line[lst] = 0;
+
+			cb(line, clos);
+			line[0] = 0;
+		}
+
+		strcat(line, buf);
+		strcat(line, delimstr);
+	}
+
+	if (line[0] && line[0] != delim)
+		cb(line, clos);
+}
+
+
 /* LinkedList data type */
 
 #define LINKSATONCE 510 /* enough to almost fill a page */

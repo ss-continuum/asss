@@ -742,7 +742,16 @@ local void aaction(int arena, int action)
 
 	if (action == AA_CREATE)
 	{
-		const char *sg = cfg->GetStr(aman->arenas[arena].cfg, "General", "ArenaGroup");
+		/* cfghelp: General:ScoreGroup, arena, string, def: (arena name)
+		 * If multiple arenas share the same value for this setting,
+		 * they will share scores for intervals that allow shared
+		 * scores. */
+		const char *sg;
+		
+		if (aman->arenas[arena].ispublic)
+			sg = "public";
+		else
+			sg = cfg->GetStr(aman->arenas[arena].cfg, "General", "ScoreGroup");
 		snprintf(arena_data[arena].score_group, MAXSGLEN, "<%s>", sg ? sg : aman->arenas[arena].name);
 		strncpy(arena_data[arena].name, aman->arenas[arena].name, MAXSGLEN);
 	}
@@ -847,6 +856,9 @@ EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 
 		mm->RegInterface(&_myint, ALLARENAS);
 
+		/* cfghelp: Persist:SyncSeconds, global, int, def: 180
+		 * The interval at which all persistent data is synced to the
+		 * database. */
 		cfg_syncseconds = cfg ?
 				cfg->GetInt(GLOBAL, "Persist", "SyncSeconds", 180) : 180;
 

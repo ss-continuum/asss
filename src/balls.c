@@ -318,6 +318,10 @@ void EndGame(int arena)
 		balldata[arena].balls[i].carrier = -1;
 	}
 
+	/* cfghelp: Soccer:NewGameDelay, arena, int, def: -3000
+	 * How long to wait between games. If this is negative, the actual
+	 * delay is random, between zero and the absolute value. Units:
+	 * ticks. */
 	newgame = cfg->GetInt(c, "Soccer", "NewGameDelay", -3000);
 	if (newgame < 0)
 		newgame = rand()%(newgame*-1);
@@ -346,18 +350,32 @@ local void LoadBallSettings(int arena, int spawnballs)
 	ConfigHandle c = aman->arenas[arena].cfg;
 	int bc, i;
 
-	/* get ball game type */
+	/* cfghelp: Soccer:BallCount, arena, int, def: 0
+	 * The number of balls in this arena. */
 	bc = cfg->GetInt(c, "Soccer", "BallCount", 0);
 
 	/* and initialize settings for that type */
 	if (bc)
 	{
 		LOCK_STATUS(arena);
+		/* cfghelp: Soccer:SpawnX, arena, int, range: 0-1023, def: 512
+		 * The X coordinate that the ball spawns at (in tiles). */
 		d->spawnx = cfg->GetInt(c, "Soccer", "SpawnX", 512);
+		/* cfghelp: Soccer:SpawnY, arena, int, range: 0-1023, def: 512
+		 * The Y coordinate that the ball spawns at (in tiles). */
 		d->spawny = cfg->GetInt(c, "Soccer", "SpawnY", 512);
+		/* cfghelp: Soccer:SpawnRadius, arena, int, def: 20
+		 * How far from the spawn center the ball can spawn (in tiles). */
 		d->spawnr = cfg->GetInt(c, "Soccer", "SpawnRadius", 20);
+		/* cfghelp: Soccer:SendTime, arena, int, range: 100-3000, def: 1000
+		 * How often the server sends ball positions (in ticks). */
 		d->sendtime = cfg->GetInt(c, "Soccer", "SendTime", 1000);
+		/* cfghelp: Soccer:GoalDelay, arena, int, def: 0
+		 * How long after a goal before the ball appears (in ticks). */
 		d->goaldelay = cfg->GetInt(c, "Soccer", "GoalDelay", 0);
+		/* cfghelp: Soccer:AllowGoalByDeath, arena, bool, def: 0
+		 * Whether a goal is scored if a player dies carrying the ball
+		 * on a goal tile. */
 		d->deathgoal = cfg->GetInt(c, "Soccer", "AllowGoalByDeath", 0);
 
 		if (spawnballs)

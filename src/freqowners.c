@@ -137,6 +137,8 @@ void MyFreqCh(int pid, int newfreq)
 
 	ch = aman->arenas[arena].cfg;
 
+	/* cfghelp: Team:AllowFreqOwners, arena, bool, def: 1
+	 * Whether to enable the freq ownership feature in this arena. */
 	if (CountFreq(arena, newfreq, pid) == 0 &&
 	    cfg->GetInt(ch, "Team", "AllowFreqOwners", 1) &&
 	    newfreq >= cfg->GetInt(ch, "Team", "PrivFreqStart", 100) &&

@@ -6,12 +6,21 @@
 \addtolength{\textwidth}{1.6cm}
 
 % make new commands to enforce some style
+\newcommand{\asss}{asss}
+\newcommand{\subgame}{subgame}
+
+% for the output of the command doc generator
 \newcommand{\command}[1]{\subsection*{#1}}
 \newcommand{\requiremod}[1]{\noindent\textbf{Requires module:} \texttt{#1}\\}
 \newcommand{\targets}[1]{\noindent\textbf{Possible targets:} #1\\}
 \newcommand{\args}[1]{\noindent\textbf{Arguments:} #1\\}
-\newcommand{\asss}{asss}
-\newcommand{\subgame}{subgame}
+
+% for the output of the setting doc generator
+\newcommand{\setting}[2]{\vspace{10pt}\noindent\textbf{#1:#2}\\}
+\newcommand{\settingtype}[1]{\noindent\textbf{Type}: #1\\}
+\newcommand{\settingfile}[1]{\noindent\textbf{File}: \texttt{#1}\\}
+\newcommand{\settingdefault}[1]{\noindent\textbf{Default}: #1\\}
+\newcommand{\settingrange}[1]{\noindent\textbf{Range}: #1\\}
 
 % this is for making tex2page output have nice angle brackets
 \ifx\shipout\undefined
@@ -32,10 +41,9 @@
 \section{Introduction}
 
 \asss{} is a new server for Subspace/Continuum. It was written from
-scratch by Grelminar (\verb/grelminar@yahoo.com/), with help from Mine
-GO BOOM, Stag Shot, and divine.216.
-% and numpf, if he ever gets around to helping
-The name \asss{} stands for ``a small subspace server.''
+scratch by Grelminar (\verb/grelminar@yahoo.com/), with help from
+several other people (see the Acknowledgements section). The name
+\asss{} stands for ``a small subspace server.''
 
 Although care has been taken to remain compatible with the original
 Subspace server, known as \subgame{}, players, and especially staff and
@@ -724,9 +732,17 @@ the colon is treated as the section name for this key only (it doesn't
 modify the idea of the ``current section'') and the text after the colon
 is the key name.
 
-The following sections describe specific settings.
+The following sections describe specific settings. They are sorted
+alphabetically by section and then by key. The settings are listed with
+the section and key names separated by a colon. The section name ``All''
+isn't a real section name but means the setting is present in a section
+for each ship.
 
-\subsection{Flags}
+\input{settings.tex}
+
+\subsection{More detail on specific sections}
+
+\subsubsection{Flags}
 
 Until I have time to rework my notes into a nice document, this will
 have to do:
@@ -790,11 +806,8 @@ NeutOwned = NO
   are neuted flags owned by the freq? (obviously, YES prevents neuting)
 \end{verbatim}
 
-\subsection{Balls}
 
-FIXME
-
-\subsection{Energy viewing}
+\subsubsection{Energy viewing}
 
 There are two arena settings that control whether players see other
 player's energy and ship inventory (from spec):
@@ -836,6 +849,8 @@ contribute code to \asss{}.
 \item{Stag Shot} for making sure powerball isn't left out, and other
 contributions.
 
+\item{GiGaKiLLeR} for contributing a turf rewards module.
+
 \item{Mr. Ekted} for all his technical help and discussions.
 
 \item{ZippyDan}, ball master, for moral support and comic relief.
@@ -850,11 +865,13 @@ me, of course), and help testing.
 \item{The rest of the PowerBot chat} for friendly conversation and
 entertainment.
 
-\item{The Subspace Council} for not dismissing this project immediately.
+\item{The Subspace Council} for not dismissing this project immediately,
+and specifically PriitK for information on communicating with Continuum.
+% although it would be nice if it didn't take three months.
 
-% make sure this is correct first
-%\item{dgus} for naming ASWZ (a small warzone), which provided
-%inspiration for the name of my own server.
+% make sure this is correct first:
+%\item{dgus} for naming ASWZ (a small warzone), which suggested the name
+% of this server.
 
 \item{D.A.F. (not a subspace player)} for conversations on design and
 more.

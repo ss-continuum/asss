@@ -77,7 +77,7 @@ local struct { unsigned changes, lastcheck; } changes[MAXPLAYERS];
 local struct { char see, cap, capnrg, pad__; } pl_epd[MAXPLAYERS];
 local struct { char spec, nrg; } ar_epd[MAXARENA];
 
-local int cfg_bulletpix, cfg_wpnpix, cfg_wpnbufsize, cfg_pospix;
+local int cfg_bulletpix, cfg_wpnpix, cfg_pospix;
 local int cfg_sendanti, cfg_changelimit;
 local int wpnrange[WEAPONCOUNT]; /* there are 5 bits in the weapon type */
 
@@ -104,13 +104,24 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		players = pd->players;
 		arenas = aman->arenas;
 
+		/* cfghelp: Net:BulletPixels, global, int, def: 1500
+		 * How far away to always send bullets (in pixels). */
 		cfg_bulletpix = cfg->GetInt(GLOBAL, "Net", "BulletPixels", 1500);
+		/* cfghelp: Net:WeaponPixels, global, int, def: 2000
+		 * How far away to always send weapons (in pixels). */
 		cfg_wpnpix = cfg->GetInt(GLOBAL, "Net", "WeaponPixels", 2000);
-		cfg_wpnbufsize = cfg->GetInt(GLOBAL, "Net", "WeaponBuffer", 300);
-		cfg_pospix = cfg->GetInt(GLOBAL, "Net", "PositionExtraPixels", 8192);
+		/* cfghelp: Net:PositionExtraPixels, global, int, def: 8000
+		 * How far away to send positions of players on radar. */
+		cfg_pospix = cfg->GetInt(GLOBAL, "Net", "PositionExtraPixels", 8000);
+		/* cfghelp: Net:AntiwarpSendPercent, global, int, def: 5
+		 * Percent of position packets with antiwarp enabled to send to
+		 * the whole arena. */
 		cfg_sendanti = cfg->GetInt(GLOBAL, "Net", "AntiwarpSendPercent", 5);
 		/* convert to a percentage of RAND_MAX */
 		cfg_sendanti = RAND_MAX / 100 * cfg_sendanti;
+		/* cfghelp: General:ShipChangeLimit, global, int, def: 10
+		 * The number of ship changes in a short time (about 10 seconds)
+		 * before ship changing is disabled (for about 30 seconds). */
 		cfg_changelimit = cfg->GetInt(GLOBAL, "General", "ShipChangeLimit", 10);
 
 		for (i = 0; i < WEAPONCOUNT; i++)
@@ -712,10 +723,17 @@ void ArenaAction(int arena, int action)
 {
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
 	{
+		/* cfghelp: Misc:SpecSeeEnergy, arena, enum, def: $SEE_NONE
+		 * Whose energy levels spectators can see. Check 'SeeEnergy' for
+		 * the description of the options. */
 		ar_epd[arena].spec =
-			cfg->GetInt(arenas[arena].cfg, "Misc", "SpecSeeEnergy", 0);
+			cfg->GetInt(arenas[arena].cfg, "Misc", "SpecSeeEnergy", SEE_NONE);
+		/* cfghelp: Misc:SeeEnergy, arena, enum, def: $SEE_NONE
+		 * Whose energy levels everyone can see: $SEE_NONE means nobody
+		 * else's, $SEE_ALL is everyone's, $SEE_TEAM is only teammates,
+		 * and $SEE_SPEC is only the player you're spectating. */
 		ar_epd[arena].nrg =
-			cfg->GetInt(arenas[arena].cfg, "Misc", "SeeEnergy", 0);
+			cfg->GetInt(arenas[arena].cfg, "Misc", "SeeEnergy", SEE_NONE);
 	}
 }
 
@@ -893,6 +911,8 @@ void PBrick(int pid, byte *p, int len)
 
 	if (ARENA_BAD(arena)) return;
 
+	/* cfghelp: Brick:BrickSpan, arena, int, def: 10
+	 * The maximum length of a dropped brick. */
 	l = cfg->GetInt(arenas[arena].cfg, "Brick", "BrickSpan", 10);
 
 	dx = ((struct C2SBrickPacket*)p)->x;

@@ -75,6 +75,8 @@ local void Cbuy(const char *params, int pid, const Target *target)
 
 	if (ARENA_BAD(arena)) return;
 
+	/* cfghelp: Cost:PurchaseAnytime, arena, bool, def: 0
+	 * Whether players can buy items outside a safe zone. */
 	anywhere = cfg->GetInt(ch, "Cost", "PurchaseAnytime", 0);
 
 	if (pd->players[pid].shiptype == SPEC)

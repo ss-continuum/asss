@@ -33,9 +33,12 @@ def print_line(line):
 	line = line.replace('<', '\\lt{}')
 	line = line.replace('>', '\\gt{}')
 
-	# handle underscores and hash marks
-	line = line.replace('_', '\_')
-	line = line.replace('#', '\#')
+	# handle other punctuation
+	line = line.replace('_', '\\_')
+	line = line.replace('#', '\\#')
+	line = line.replace('$', '\\$')
+	line = line.replace('^', '\\^')
+	line = line.replace('%', '\\%')
 
 	# check itemized lists
 	if line.startswith(' * '):

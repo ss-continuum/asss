@@ -90,6 +90,9 @@ local void kill(int arena, int killer, int killed, int bounty, int flags)
 local void aaction(int arena, int action)
 {
 	LOCK();
+	/* cfghelp: Kill:JackpotBountyPercent, arena, int, def: 0
+	 * The percent of a player's bounty added to the jackpot on each
+	 * kill. Units: 0.1%. */
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
 		data[arena].percent = cfg->GetInt(aman->arenas[arena].cfg, "Kill", "JackpotBountyPercent", 0);
 	UNLOCK();

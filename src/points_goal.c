@@ -128,6 +128,7 @@ void MyAA(int arena, int action)
 	{
 		int i, cpts;
 
+		/* FIXME: document these settings */
 		scores[arena].mode = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "Mode",0);
 		cpts = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "CapturePoints",1);
 
@@ -312,6 +313,7 @@ void RewardPoints(int arena, int winfreq)
 {
 	int awardto[MAXPLAYERS];
 	int i, players = 0, points, ponfreq = 0;
+	/* FIXME: document this setting */
 	int reward = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "Reward", 0);
 
 	pd->LockStatus();
@@ -381,6 +383,7 @@ void CheckGameOver(int arena, int bid)
 	else // is mode 1-6 with absolute scoring
 	{
 		int win = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "CapturePoints",0);
+		/* FIXME: document this */
 		int by  = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "WinBy",0);
 
 		if (scores[arena].score[freq] >= win*-1)

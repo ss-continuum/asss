@@ -188,24 +188,66 @@ local void arenaaction(int arena, int action)
 #define DODBL(field, key, def) \
 		ll->field = (double)cfg->GetInt(ch, "Lag", key, def) / 1000.0
 
+		/* cfghelp: Lag:PingToSpec, arena, int, def: 600
+		 * The average ping at which to force a player to spec. */
 		DOINT(ping.tospec, "PingToSpec", 600);
+		/* cfghelp: Lag:PingToStartIgnoringWeapons, arena, int, def: 300
+		 * The average ping to start ignoring weapons at. */
 		DOINT(ping.wpnstart, "PingToStartIgnoringWeapons", 300);
+		/* cfghelp: Lag:PingToIgnoreAllWeapons, arena, int, def: 1000
+		 * The average ping when all weapons should be ignored. */
 		DOINT(ping.wpnall, "PingToIgnoreAllWeapons", 1000);
+		/* cfghelp: Lag:PingToDisallowFlags, arena, int, def: 500
+		 * The average ping when a player isn't allowed to pick up flags
+		 * or balls. */
 		DOINT(ping.noflags, "PingToDisallowFlags", 500);
 
+		/* cfghelp: Lag:S2CLossToSpec, arena, int, def: 150
+		 * The S2C packetloss at which to force a player to spec. Units
+		 * 0.1%. */
 		DODBL(s2closs.tospec, "S2CLossToSpec", 150); /* 15% */
+		/* cfghelp: Lag:S2CLossToStartIgnoringWeapons, arena, int, def: 40
+		 * The S2C packetloss to start ignoring weapons at. Units 0.1%. */
 		DODBL(s2closs.wpnstart, "S2CLossToStartIgnoringWeapons", 40);
+		/* cfghelp: Lag:S2CLossToIgnoreAllWeapons, arena, int, def: 500
+		 * The S2C packetloss when all weapons should be ignored. Units
+		 * 0.1%. */
 		DODBL(s2closs.wpnall, "S2CLossToIgnoreAllWeapons", 500);
+		/* cfghelp: Lag:S2CLossToDisallowFlags, arena, int, def: 50
+		 * The S2C packetloss when a player isn't allowed to pick up
+		 * flags or balls. Units 0.1%. */
 		DODBL(s2closs.noflags, "S2CLossToDisallowFlags", 50);
 
+		/* cfghelp: Lag:WeaponLossToSpec, arena, int, def: 150
+		 * The weapon packetloss at which to force a player to spec.
+		 * Units 0.1%. */
 		DODBL(s2closs.tospec, "WeaponLossToSpec", 150);
+		/* cfghelp: Lag:WeaponLossToStartIgnoringWeapons, arena, int, \
+		 * def: 40
+		 * The weapon packetloss to start ignoring weapons at. Units
+		 * 0.1%. */
 		DODBL(s2closs.wpnstart, "WeaponLossToStartIgnoringWeapons", 40);
+		/* cfghelp: Lag:WeaponLossToIgnoreAllWeapons, arena, int, def: 500
+		 * The weapon packetloss when all weapons should be ignored.
+		 * Units 0.1%. */
 		DODBL(s2closs.wpnall, "WeaponLossToIgnoreAllWeapons", 500);
+		/* cfghelp: Lag:WeaponLossToDisallowFlags, arena, int, def: 50
+		 * The weapon packetloss when a player isn't allowed to pick up
+		 * flags or balls. Units 0.1%. */
 		DODBL(s2closs.noflags, "WeaponLossToDisallowFlags", 50);
 
+		/* cfghelp: Lag:C2SLossToSpec, arena, int, def: 150
+		 * The C2S packetloss at which to force a player to spec.
+		 * Units 0.1%. */
 		DODBL(c2sloss.tospec, "C2SLossToSpec", 150);
+		/* cfghelp: Lag:C2SLossToDisallowFlags, arena, int, def: 50
+		 * The C2S packetloss when a player isn't allowed to pick up
+		 * flags or balls. Units 0.1%. */
 		DODBL(c2sloss.noflags, "C2SLossToDisallowFlags", 50);
-		DOINT(spiketospec, "SpikeToSpec", 3000);
+		/* cfghelp: Lag:SpikeToSpec, arena, int, def: 3000
+		 * The amount of time the server can get no data from a player
+		 * before forcing him to spectator mode (in ticks). */
+		DOINT(spiketospec, "SpikeToSpec", 300);
 
 		/* cache this for later */
 		ll->specfreq = cfg->GetInt(ch, "Team", "SpectatorFrequency", 8025);
@@ -234,6 +276,9 @@ EXPORT int MM_lagaction(int action, Imodman *mm, int arena)
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		if (!pd || !aman || !cfg || !lag || !game || !net) return MM_FAIL;
 
+		/* cfghelp: Lag:CheckInterval, global, int, def: 300
+		 * How often to check each player for out-of-bounds lag values
+		 * (in ticks). */
 		cfg_checkinterval = cfg->GetInt(GLOBAL, "Lag", "CheckInterval", 300);
 
 		mm->RegCallback(CB_MAINLOOP, mainloop, ALLARENAS);

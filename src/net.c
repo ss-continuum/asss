@@ -225,8 +225,8 @@ local int pri_limits[8] =
 
 local struct
 {
-	int port, timeout, selectusec, process;
-	int usebilling, droptimeout, billping;
+	int port, timeout;
+	int usebilling, droptimeout;
 	int bufferdelta, deflimit;
 } config;
 
@@ -286,14 +286,27 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		players = pd->players;
 
 		/* store configuration params */
+		/* cfghelp: Net:Port, global, int, def: 5000
+		 * The main port that the server runs on. */
 		config.port = cfg->GetInt(GLOBAL, "Net", "Port", 5000);
-		config.timeout = cfg->GetInt(GLOBAL, "Net", "ReliableTimeout", 150);
-		config.selectusec = cfg->GetInt(GLOBAL, "Net", "SelectUSec", 10000);
-		config.process = cfg->GetInt(GLOBAL, "Net", "ProcessGroup", 5);
+		/* cfghelp: Net:ReliableTimeout, global, int, def: 100
+		 * How long to wait to resend reliable packets (in ticks). */
+		config.timeout = cfg->GetInt(GLOBAL, "Net", "ReliableTimeout", 100);
+		/* cfghelp: Net:DropTimeout, global, int, def: 3000
+		 * How long to get no data from a cilent before disconnecting
+		 * him (in ticks). */
 		config.droptimeout = cfg->GetInt(GLOBAL, "Net", "DropTimeout", 3000);
-		config.bufferdelta = cfg->GetInt(GLOBAL, "Net", "MaxBufferDelta", 15);
+		/* cfghelp: Net:MaxBufferDelta, global, int, def: 30
+		 * The maximum number of reliable packets to buffer for a player. */
+		config.bufferdelta = cfg->GetInt(GLOBAL, "Net", "MaxBufferDelta", 30);
+		/* cfghelp: Billing:UseBilling, global, bool, def: 0
+		 * This must be enabled to make a connection to the billing
+		 * server. In addition, the 'billcore' module needs to be
+		 * loaded. */
 		config.usebilling = cfg->GetInt(GLOBAL, "Billing", "UseBilling", 0);
-		config.billping = cfg->GetInt(GLOBAL, "Billing", "PingTime", 3000);
+		/* cfghelp: Net:BandwidthLimit, global, int, def: 3500
+		 * The maximum number of bytes per second to send to each
+		 * player by default. */
 		config.deflimit = cfg->GetInt(GLOBAL, "Net", "BandwidthLimit", 3500);
 
 		/* get the sockets */
@@ -581,10 +594,18 @@ int InitSockets(void)
 		strcpy(players[PID_BILLER].name, "<<Billing Server>>");
 		clients[PID_BILLER].c2sn = -1;
 		clients[PID_BILLER].sin.sin_family = AF_INET;
+		/* cfghelp: Billing:IP, global, string
+		 * The ip address of the billing server (no dns hostnames
+		 * allowed). */
 		clients[PID_BILLER].sin.sin_addr.s_addr =
 			inet_addr(cfg->GetStr(GLOBAL, "Billing", "IP"));
+		/* cfghelp: Billing:Port, global, int, def: 1850
+		 * The port to connect to on the billing server. */
 		clients[PID_BILLER].sin.sin_port =
 			htons(cfg->GetInt(GLOBAL, "Billing", "Port", 1850));
+		/* cfghelp: Billing:Limit, global, int, def: 15000
+		 * The bandwidth limit (in bytes per second) for the billing
+		 * server. */
 		clients[PID_BILLER].limit =
 			cfg->GetInt(GLOBAL, "Billing", "Limit", 15000);
 		clients[PID_BILLER].enc = NULL;
@@ -916,7 +937,7 @@ local void send_outgoing(int pid)
 
 	unsigned int gtc = GTC();
 	int ucount = 0, rcount = 0, bytessince, pri;
-	int retries = 0;
+	int retries = 0, rgok = 1;
 	Buffer *buf, *nbuf, *rebuf;
 	byte *uptr = ubuf + 2;
 	byte *rptr = rbuf + 2;
@@ -1005,7 +1026,7 @@ local void send_outgoing(int pid)
 				 * treated as unreliable here) */
 				else if (buf->reliable)
 				{
-					if (((rptr - rbuf) + buf->len) < (MAXPACKET-16))
+					if (((rptr - rbuf) + buf->len) < (MAXPACKET-16) && rgok)
 					{
 						/* add to current reliable grouped packet, if
 						 * there is room */
@@ -1019,6 +1040,13 @@ local void send_outgoing(int pid)
 						DQRemove((DQNode*)buf);
 						FreeBuffer(buf);
 					}
+					else
+						/* we've found a reliable packet that's too big
+						 * to fit in this reliable group. fine, wait
+						 * until next time. but we need to make sure to
+						 * put any more reliable packets in this group
+						 * also. */
+						rgok = 0;
 				}
 				else
 				{

@@ -111,9 +111,18 @@ EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
 
 		players = pd->players;
 
+		/* cfghelp: Billing:PingTime, global, int, range: 500-6000, def: 3000
+		 * How often the server sends a ping to the billing server. */
 		cfg_pingtime = cfg->GetInt(GLOBAL, "Billing", "PingTime", 3000);
+		/* cfghelp: Billing:ServerId, global, int
+		 * The server id to send to the billing server. */
 		cfg_serverid = cfg->GetInt(GLOBAL, "Billing", "ServerId", 5000),
+		/* cfghelp: Billing:GroupId, global, int
+		 * The group id to send to the billing server. */
 		cfg_groupid = cfg->GetInt(GLOBAL, "Billing", "GroupId", 1),
+		/* cfghelp: Billing:ScoreId, global, int
+		 * The score id to send to the billing server. Note that this
+		 * server doesn't keep scores on the billing server. */
 		cfg_scoreid = cfg->GetInt(GLOBAL, "Billing", "ScoreId", 5000),
 
 		ml->SetTimer(SendPing, 300, 3000, NULL, -1);
@@ -231,8 +240,12 @@ void SendLogin(int pid, byte *p, int n)
 	const char *t;
 
 	lm->Log(L_INFO, "<billcore> Billing server contacted, sending zone information");
+	/* cfghelp: Billing:ServerName, global, string
+	 * The server name to send to the billing server. */
 	t = cfg->GetStr(GLOBAL, "Billing", "ServerName");
 	if (t) astrncpy(to.name, t, 0x80);
+	/* cfghelp: Billing:Password, global, string
+	 * The password to log in to the billing server with. */
 	t = cfg->GetStr(GLOBAL, "Billing", "Password");
 	if (t) astrncpy(to.pw, t, 0x20);
 	SendToBiller((byte*)&to, sizeof(to), NET_RELIABLE);

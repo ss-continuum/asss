@@ -87,14 +87,20 @@ local void init_data()
 	data.scoresp = 1; /* always keep scores */
 	data.version = ASSSVERSION_NUM;
 	data.version = 134; /* priit's updated dirserv require this */
+	/* cfghelp: Directory:Name, global, string
+	 * The server name to send to the directory server. */
 	if ((t = cfg->GetStr(GLOBAL, "Directory", "Name")))
 		astrncpy(data.servername, t, sizeof(data.servername));
 	else
 		astrncpy(data.servername, "<no name provided>", sizeof(data.servername));
+	/* cfghelp: Directory:Password, global, string
+	 * The password used to send information to the directory server. */
 	if ((t = cfg->GetStr(GLOBAL, "Directory", "Password")))
 		astrncpy(data.password, t, sizeof(data.password));
 	else
 		astrncpy(data.password, "cane", sizeof(data.password));
+	/* cfghelp: Directory:Description, global, string
+	 * The server description to send to the directory server. */
 	if ((t = cfg->GetStr(GLOBAL, "Directory", "Description")))
 		astrncpy(data.description, t, sizeof(data.description));
 	else
@@ -110,6 +116,8 @@ local void init_servers()
 
 	LLInit(&servers);
 
+	/* cfghelp: Directory:Port, global, int, def: 4991
+	 * The port to connect to for the directory server. */
 	defport = cfg->GetInt(GLOBAL, "Directory", "Port", 4991);
 
 	for (i = 1; i < 10; i++)

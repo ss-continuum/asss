@@ -256,9 +256,17 @@ EXPORT int MM_mysql(int action, Imodman *mm, int arena)
 		connected = 0;
 		MPInit(&dbq);
 
+		/* cfghelp: mysql:hostname, global, string, mod: mysql
+		 * The name of the mysql server. */
 		host = cfg->GetStr(GLOBAL, "mysql", "hostname");
+		/* cfghelp: mysql:user, global, string, mod: mysql
+		 * The mysql user to log in to the server as. */
 		user = cfg->GetStr(GLOBAL, "mysql", "user");
+		/* cfghelp: mysql:password, global, string, mod: mysql
+		 * The password to log in to the mysql server as. */
 		pw = cfg->GetStr(GLOBAL, "mysql", "password");
+		/* cfghelp: mysql:database, global, string, mod: mysql
+		 * The database on the mysql server to use. */
 		dbname = cfg->GetStr(GLOBAL, "mysql", "database");
 
 		if (!host || !user || !pw || !dbname)

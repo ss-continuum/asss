@@ -143,6 +143,8 @@ local void aaction(int arena, int action)
 {
 	int delay;
 
+	/* cfghelp: Periodic:RewardDelay, arena, int, def: 0
+	 * The interval between periodic rewards (in ticks). Zero to disable. */
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
 		delay = cfg->GetInt(aman->arenas[arena].cfg, "Periodic", "RewardDelay", 0);
 	else if (action == AA_DESTROY)
@@ -162,6 +164,9 @@ local void aaction(int arena, int action)
 			periodic_settings *set = amalloc(sizeof(*set));
 			set->arena = arena;
 			set->delay = delay;
+			/* cfghelp: Periodic:RewardMinimumPlayers, arena, int, def: 0
+			 * The minimum players necessary in the arena to give out
+			 * periodic rewards. */
 			set->minplayers = cfg->GetInt(aman->arenas[arena].cfg, "Periodic", "RewardMinimumPlayers", 0);
 			set->pp = pp;
 			ml->SetTimer(timer, delay, delay, set, arena);

@@ -56,10 +56,15 @@ void MyKillFunc(int arena, int killer, int killed, int bounty, int flags)
 	tk = pd->players[killer].freq == pd->players[killed].freq;
 	pts = bounty;
 
+	/* cfghelp: Kill:FlagValue, arena, int, def: 100
+	 * The number of extra points to give for each flag a killed player
+	 * was carrying. */
 	if (flags)
 		pts += flags *
 			cfg->GetInt(aman->arenas[arena].cfg, "Kill", "FlagValue", 100);
 
+	/* cfghelp: Misc:TeamKillPoints, arena, bool, def: 0
+	 * Whether points are awarded for a team-kill. */
 	if (tk &&
 	    cfg->GetInt(aman->arenas[arena].cfg, "Misc", "TeamKillPoints", 0))
 		pts = 0;

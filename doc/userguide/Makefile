@@ -14,7 +14,7 @@ DVITARGETS = userguide.dvi
 PSTARGETS = userguide.ps
 PDFTARGETS = userguide.pdf
 HTMLTARGETS = userguide.html
-TEXTARGETS = commands.tex
+TEXTARGETS = commands.tex settings.tex
 ALLTARGETS = $(DVITARGETS) $(PSTARGETS) $(PDFTARGETS) $(HTMLTARGETS) $(TEXTARGETS)
 
 ### Dummy targets
@@ -46,7 +46,10 @@ publish: pdf html
 commands.tex: $(ASSSDIR)/src/*.c $(ASSSDIR)/scripts/extract-docs.py
 	cat $(ASSSDIR)/src/*.c | $(ASSSDIR)/scripts/extract-docs.py > $@
 
-userguide.dvi: userguide.tex commands.tex
+settings.tex: $(ASSSDIR)/src/*.c $(ASSSDIR)/scripts/extract-cfg-docs.py
+	cat $(ASSSDIR)/src/*.{c,def} | $(ASSSDIR)/scripts/extract-cfg-docs.py -l > $@
+
+userguide.dvi: userguide.tex commands.tex settings.tex
 	latex userguide.tex
 
 userguide.ps: userguide.dvi

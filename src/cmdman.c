@@ -19,9 +19,7 @@ typedef struct CommandData
 local void AddCommand(const char *, CommandFunc, helptext_t helptext);
 local void RemoveCommand(const char *, CommandFunc);
 local void Command(const char *, int, const Target *);
-
-local void Chelp(const char *, int, const Target *);
-local helptext_t help_help;
+local helptext_t GetHelpText(const char *);
 
 /* static data */
 local Iplayerdata *pd;
@@ -37,7 +35,7 @@ local CommandFunc defaultfunc;
 local Icmdman _int =
 {
 	INTERFACE_HEAD_INIT(I_CMDMAN, "cmdman")
-	AddCommand, RemoveCommand, Command
+	AddCommand, RemoveCommand, Command, GetHelpText
 };
 
 
@@ -62,8 +60,6 @@ EXPORT int MM_cmdman(int action, Imodman *mm_, int arena)
 
 		defaultfunc = NULL;
 
-		if (CFG_HELP_COMMAND)
-			AddCommand(CFG_HELP_COMMAND, Chelp, help_help);
 		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
@@ -71,8 +67,6 @@ EXPORT int MM_cmdman(int action, Imodman *mm_, int arena)
 	{
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
-		if (CFG_HELP_COMMAND)
-			RemoveCommand(CFG_HELP_COMMAND, Chelp);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(capman);
@@ -209,63 +203,6 @@ local int allowed(int pid, const char *cmd, int check)
 }
 
 
-local helptext_t help_help =
-"Targets: none\n"
-"Args: <command name>\n"
-"Displays help on other commands.";
-
-void Chelp(const char *params, int pid, const Target *target)
-{
-	LinkedList *lst;
-	Link *l;
-	Ichat *chat = mm->GetInterface(I_CHAT, ALLARENAS);
-
-	if (!chat) return;
-
-	if (params[0] == '?' || params[0] == '*' || params[0] == '!')
-		params++;
-
-	if (params[0] == '\0')
-		params = CFG_HELP_COMMAND;
-
-	pthread_mutex_lock(&cmdmtx);
-
-	lst = HashGet(cmds, params);
-
-	if (LLIsEmpty(lst))
-		chat->SendMessage(pid, "I don't know anything about '?%s'", params);
-	else if (allowed(pid, params, check_either))
-		for (l = LLGetHead(lst); l; l = l->next)
-		{
-			char buf[256], *t;
-			const char *temp = NULL;
-			helptext_t ht = ((CommandData*)(l->data))->helptext;
-			if (ht)
-			{
-				chat->SendMessage(pid, "Help on '?%s':", params);
-				while (strsplit(ht, "\n", buf, 256, &temp))
-				{
-					for (t = buf; *t; t++)
-						if (*t == '{' || *t == '}')
-							*t = '\'';
-					chat->SendMessage(pid, "  %s", buf);
-				}
-			}
-			else
-				chat->SendMessage(pid, "There is no help for '?%s'", params);
-		}
-	else
-		chat->SendMessage(pid, "You don't have permission to use '?%s'", params);
-
-	LLFree(lst);
-
-	pthread_mutex_unlock(&cmdmtx);
-
-	mm->ReleaseInterface(chat);
-}
-
-
-
 void Command(const char *line, int pid, const Target *target)
 {
 	LinkedList *lst;
@@ -311,4 +248,16 @@ void Command(const char *line, int pid, const Target *target)
 }
 
 
+helptext_t GetHelpText(const char *cmd)
+{
+	CommandData *cd;
+	helptext_t ret;
+
+	pthread_mutex_lock(&cmdmtx);
+	cd = HashGetOne(cmds, cmd);
+	ret = cd ? cd->helptext : NULL;
+	pthread_mutex_unlock(&cmdmtx);
+
+	return ret;
+}
 

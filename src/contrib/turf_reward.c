@@ -425,6 +425,7 @@ local void loadSettings(int arena)
 {
 	ConfigHandle c = arenaman->arenas[arena].cfg;
 
+	/* FIXME: document these settings */
 	tr[arena].reward_style = REWARD_STD;
 	tr[arena].min_players_on_freq  = config->GetInt(c, "TurfReward", "MinPlayersFreq", MIN_PLAYERS_ON_FREQ);
 	tr[arena].min_players_in_arena = config->GetInt(c, "TurfReward", "MinPlayersArena", MIN_PLAYERS_IN_ARENA);

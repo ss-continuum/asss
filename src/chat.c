@@ -83,11 +83,11 @@ local void check_flood(int pid)
 		pm->mask |= MSG_PUBMACRO | MSG_PUB | MSG_FREQ | MSG_NMEFREQ | MSG_PRIV | MSG_INTERARENAPRIV | MSG_CHAT | MSG_MODCHAT | MSG_BCOMMAND;
 		if (pm->expires)
 			/* already has a mask, add time */
-			pm->expires += cfg_floodshutup * 60;
+			pm->expires += cfg_floodshutup;
 		else
-			pm->expires = time(NULL) + cfg_floodshutup * 60;
-		SendMessage_(pid, "You have been shut up for %d minutes for flooding.", cfg_floodshutup);
-		lm->LogP(L_INFO, "chat", pid, "flooded chat, shut up for %d minutes", cfg_floodshutup);
+			pm->expires = time(NULL) + cfg_floodshutup;
+		SendMessage_(pid, "You have been shut up for %d seconds for flooding.", cfg_floodshutup);
+		lm->LogP(L_INFO, "chat", pid, "flooded chat, shut up for %d seconds", cfg_floodshutup);
 	}
 }
 
@@ -536,6 +536,9 @@ local void aaction(int arena, int action)
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
 	{
 		ConfigHandle ch = aman->arenas[arena].cfg;
+		/* cfghelp: Chat:RestrictChat, arena, int, def: 0
+		 * This specifies an initial chat mask for the arena. Don't use
+		 * this unless you know what you're doing. */
 		arena_mask[arena] = cfg->GetInt(ch, "Chat", "RestrictChat", 0);
 	}
 }
@@ -627,9 +630,17 @@ EXPORT int MM_chat(int action, Imodman *mm_, int arena)
 #endif
 		mm->RegCallback(CB_ARENAACTION, aaction, ALLARENAS);
 
+		/* cfghelp: Chat:MessageReliable, global, bool, def: 1
+		 * Whether to send chat messages reliably. */
 		cfg_msgrel = cfg->GetInt(GLOBAL, "Chat", "MessageReliable", 1);
+		/* cfghelp: Chat:FloodLimit, global, int, def: 10
+		 * How many messages needed to be sent in a short period of time
+		 * (about a second) to qualify for chat flooding. */
 		cfg_floodlimit = cfg->GetInt(GLOBAL, "Chat", "FloodLimit", 10);
-		cfg_floodshutup = cfg->GetInt(GLOBAL, "Chat", "FloodShutup", 1);
+		/* cfghelp: Chat:FloodShutup, global, int, def: 60
+		 * How many seconds to disable chat for a player that is
+		 * flooding chat messages. */
+		cfg_floodshutup = cfg->GetInt(GLOBAL, "Chat", "FloodShutup", 60);
 
 		if (net)
 			net->AddPacket(C2S_CHAT, PChat);
