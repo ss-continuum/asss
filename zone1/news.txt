@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 1.3.5.
+Welcome to asss (a small subspace server) 1.3.6.
 
 asss is a new subspace server, written from scratch. It has lots of cool
 new features and improvements over subgame.
@@ -14,10 +14,11 @@ server), please let me know.
 
 
 Recent updates:
-    * brand new flags code, fixing lots of bugs, and enabling new flag
-      games
+    * lots of bug fixes for the new flags code.
 
-    * ?modinfo command, cont 0.39pr1 support
+    * improved ?reloadconf and ?modinfo.
+
+    * a bunch more bug fixes.
 
     * more detail at http://sscx.net/asss/changelog.txt
 
