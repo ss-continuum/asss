@@ -247,7 +247,7 @@ void ProcessLoginQueue(void)
 
 			case S_NEED_GLOBAL_SYNC:
 				if (persist)
-					persist->SyncFromFile(pid, PERSIST_GLOBAL, GSyncDone);
+					persist->GetPlayer(pid, PERSIST_GLOBAL, GSyncDone);
 				else
 					GSyncDone(pid);
 				break;
@@ -288,7 +288,7 @@ void ProcessLoginQueue(void)
 				}
 				/* then, sync scores */
 				if (persist)
-					persist->SyncFromFile(pid, player->arena, ASyncDone);
+					persist->GetPlayer(pid, player->arena, ASyncDone);
 				else
 					ASyncDone(pid);
 				break;
@@ -318,7 +318,7 @@ void ProcessLoginQueue(void)
 				       PlayerActionFunc,
 				       (pid, PA_LEAVEARENA, player->oldarena));
 				if (persist)
-					persist->SyncToFile(pid, player->oldarena, NULL);
+					persist->PutPlayer(pid, player->oldarena, NULL);
 				break;
 
 			case S_LEAVING_ZONE:
@@ -327,7 +327,7 @@ void ProcessLoginQueue(void)
 				       PlayerActionFunc,
 					   (pid, PA_DISCONNECT, -1));
 				if (persist)
-					persist->SyncToFile(pid, PERSIST_GLOBAL, NULL);
+					persist->PutPlayer(pid, PERSIST_GLOBAL, NULL);
 				break;
 		}
 

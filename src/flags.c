@@ -311,8 +311,11 @@ int GetFreqFlags(int arena, int freq)
 	LOCK_STATUS(arena);
 	fc = pflagdata[arena].maxflags;
 	for (i = 0; i < fc; i++, f++)
-		if (f->state == FLAG_ONMAP &&
-		    f->freq == freq)
+		if ( ( f->state == FLAG_ONMAP &&
+		       f->freq == freq ) ||
+		     ( f->state == FLAG_CARRIED &&
+		       PID_OK(f->carrier) &&
+		       pd->players[f->carrier].freq == freq ) )
 			tot++;
 	UNLOCK_STATUS(arena);
 	return tot;

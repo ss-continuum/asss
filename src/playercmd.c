@@ -47,6 +47,7 @@ local Icapman *capman;
 local Imainloop *ml;
 local Iarenaman *aman;
 local Igame *game;
+local Ijackpot *jackpot;
 local Ilog_file *logfile;
 local Iflags *flags;
 local Iballs *balls;
@@ -1187,6 +1188,15 @@ local void Cputfile(const char *params, int pid, const Target *target)
 }
 
 
+local helptext_t jackpot_help =
+"Targets: none\n"
+"Args: none\n"
+"Displays the current jackpot for this arena.\n";
+
+local void Cjackpot(const char *params, int pid, const Target *target)
+{
+	chat->SendMessage(pid, "jackpot: %d", jackpot->GetJP(players[pid].arena));
+}
 
 
 /* command group system */
@@ -1347,6 +1357,7 @@ local const struct interface_info game_requires[] =
 	REQUIRE(net, I_NET)
 	REQUIRE(aman, I_ARENAMAN)
 	REQUIRE(game, I_GAME)
+	REQUIRE(jackpot, I_JACKPOT)
 	REQUIRE(cfg, I_CONFIG)
 	END()
 };
@@ -1358,6 +1369,7 @@ local const struct cmd_info game_commands[] =
 	CMD(warpto)
 	CMD(shipreset)
 	CMD(prize)
+	CMD(jackpot)
 	END()
 };
 

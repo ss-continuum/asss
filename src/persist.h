@@ -48,28 +48,55 @@
 
 
 #define PERSIST_ALLARENAS (-1)
+/* using this for scope means per-player data in every arena */
+
 #define PERSIST_GLOBAL (-2)
+/* using this for scope means per-player data shared among all arenas */
 
 
 typedef struct PersistentData
 {
 	int key, scope, interval;
-	int (*GetData)(int pid, void *data, int len);
-	void (*SetData)(int pid, void *data, int len);
-	void (*ClearData)(int pid);
+	int (*GetData)(int thing, void *data, int len);
+	void (*SetData)(int thing, void *data, int len);
+	void (*ClearData)(int thing);
 } PersistentData;
 
+/* the same struct is used for per-player data and per-arena data. for
+ * per-player data, scope can be a single arena, or one of the constants
+ * above. for per-arena data, scope can be a single arena, or
+ * PERSIST_ALLARENAS.
+ *
+ * for per-player data, thing is a pid. for per-arena data, thing is an
+ * arena id.
+ *
+ * for per-player data, any data in the forever and reset intervals will
+ * be shared among arenas with the same arenagroup. data in game
+ * intervals is never shared among arenas. per-arena data is also never
+ * shared among arenas.
+ */
 
-#define I_PERSIST "persist-2"
+
+#define I_PERSIST "persist-3"
 
 typedef struct Ipersist
 {
 	INTERFACE_HEAD_DECL
-	void (*RegPersistentData)(const PersistentData *pd);
-	void (*UnregPersistentData)(const PersistentData *pd);
-	void (*SyncToFile)(int pid, int arena, void (*callback)(int pid));
-	void (*SyncFromFile)(int pid, int arena, void (*callback)(int pid));
+
+	void (*RegPlayerPD)(const PersistentData *pd);
+	void (*UnregPlayerPD)(const PersistentData *pd);
+
+	void (*RegArenaPD)(const PersistentData *pd);
+	void (*UnregArenaPD)(const PersistentData *pd);
+
+	void (*PutPlayer)(int pid, int arena, void (*callback)(int pid));
+	void (*GetPlayer)(int pid, int arena, void (*callback)(int pid));
+
+	void (*PutArena)(int arena, void (*callback)(int arena));
+	void (*GetArena)(int arena, void (*callback)(int arena));
+
 	void (*EndInterval)(int arena, int interval);
+
 	void (*StabilizeScores)(int seconds, int query, void (*callback)(int dummy));
 } Ipersist;
 

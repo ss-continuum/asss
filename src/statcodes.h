@@ -61,6 +61,7 @@ enum interval_t
 	/* these are shared between arenas with the same arenagrp */
 	INTERVAL_FOREVER = 0,
 	INTERVAL_RESET,
+	INTERVAL_MAPROTATION,
 	/* these are not shared between arenas */
 	INTERVAL_GAME = 5
 };

@@ -14,6 +14,8 @@
 #define CAP_MODCHAT "seemodchat"
 #define CAP_SENDMODCHAT "sendmodchat"
 
+#define KEY_CHAT 47
+
 
 /* global data */
 
@@ -222,8 +224,11 @@ local void handle_pub(int pid, const char *msg, int ismacro)
 
 		lm->LogP(L_DRIVEL, "chat", pid, "Pub msg: %s", msg);
 
-		if (net) net->SendToArena(arena, pid, (byte*)to, strlen(msg)+6, cfg_msgrel);
-		if (chatnet) chatnet->SendToArena(arena, pid, "MSG:PUB:%s:%s",
+		if (net)
+			net->SendToArena(arena, pid, (byte*)to, strlen(msg)+6,
+					ismacro ? cfg_msgrel | NET_PRI_N1 : cfg_msgrel);
+		if (chatnet)
+			chatnet->SendToArena(arena, pid, "MSG:PUB:%s:%s",
 				players[pid].name,
 				msg);
 	}
@@ -517,7 +522,7 @@ local void set_data(int pid, void *data, int len)
 
 local PersistentData pdata =
 {
-	47, PERSIST_ALLARENAS, INTERVAL_FOREVER,
+	KEY_CHAT, PERSIST_ALLARENAS, INTERVAL_FOREVER,
 	get_data, set_data, clear_data
 };
 
@@ -561,7 +566,7 @@ EXPORT int MM_chat(int action, Imodman *mm_, int arena)
 #ifdef CFG_PERSISTENT_CHAT_MASKS
 		persist = mm->GetInterface(I_PERSIST, ALLARENAS);
 		if (!persist) return MM_FAIL;
-		persist->RegPersistentData(&pdata);
+		persist->RegPlayerPD(&pdata);
 #endif
 
 		if (!cfg || !aman || !pd) return MM_FAIL;
@@ -595,7 +600,7 @@ EXPORT int MM_chat(int action, Imodman *mm_, int arena)
 			chatnet->RemoveHandler("SEND", MChat);
 		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
 #ifdef CFG_PERSISTENT_CHAT_MASKS
-		persist->UnregPersistentData(&pdata);
+		persist->UnregPlayerPD(&pdata);
 		mm->ReleaseInterface(persist);
 #else
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);

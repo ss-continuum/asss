@@ -1789,7 +1789,7 @@ void SendToSet(int *set, byte *data, int len, int flags)
 		}
 		buf[1] = 0x09;
 		memcpy(buf+2, dp, len);
-		SendToSet(set, buf, len+2, flags);
+		SendToSet(set, buf, len+2, flags | NET_RELIABLE);
 	}
 	else
 		for ( ; *set != -1; set++)

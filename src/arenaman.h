@@ -28,25 +28,35 @@ typedef void (*ArenaActionFunc)(int arena, int action);
 
 /* status conditions */
 
-#define ARENA_NONE                  0
+enum
+{
+	ARENA_NONE,
 /* free arena ids have this status */
 
-#define ARENA_DO_LOAD_CONFIG        1
+	ARENA_DO_INIT,
 /* someone wants to enter the arena. first, the config file must be
- * loaded */
+ * loaded and the persistant data loaded  */
 
-#define ARENA_DO_CREATE_CALLBACKS   2
+	ARENA_WAIT_SYNC1,
+/* waiting on the database */
+
+	ARENA_DO_CREATE_CALLBACKS,
 /* and the arena creation callbacks called */
 
-#define ARENA_RUNNING               3
+	ARENA_RUNNING,
 /* now the arena is fully created. core can now send the arena responses
  * to players waiting to enter this arena */
 
-#define ARENA_DO_DESTROY_CALLBACKS  4
-/* the arena is being reaped, first call destroy callbacks */
+	ARENA_DO_DESTROY_CALLBACKS,
+/* the arena is being reaped, first call destroy callbacks and put info
+ * in database*/
 
-#define ARENA_DO_UNLOAD_CONFIG      5
+	ARENA_WAIT_SYNC2,
+/* waiting on the database to finish before we can unregister modules */
+
+	ARENA_DO_DEINIT
 /* then unload the config file. status returns to free after this */
+};
 
 
 

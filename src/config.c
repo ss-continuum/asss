@@ -267,6 +267,9 @@ local int check_modified_files(void *dummy)
 					lm->Log(L_INFO, "<config> Reloading modified file from disk '%s'",
 							ch->filename);
 				ReloadConfigFile(ch);
+				/* call changed callback */
+				if (ch->changed)
+					ch->changed(ch->clos);
 			}
 	}
 	pthread_mutex_unlock(&cfgmtx);
@@ -452,12 +455,12 @@ local void set_timers()
 {
 	int dirty, files;
 
-	dirty = GetInt(global, "Config", "FlushDirtyValuesInterval", 18000);
+	dirty = GetInt(global, "Config", "FlushDirtyValuesInterval", 500);
 	files = GetInt(global, "Config", "CheckModifiedFilesInterval", 18000);
 
 	ml->ClearTimer(write_dirty_values);
 	if (dirty)
-		ml->SetTimer(write_dirty_values, 4500, dirty, NULL);
+		ml->SetTimer(write_dirty_values, 700, dirty, NULL);
 
 	ml->ClearTimer(check_modified_files);
 	if (files)

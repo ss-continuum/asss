@@ -28,7 +28,10 @@ local Icmdman *cmd;
 local Ipersist *persist;
 local Ichat *chat;
 
-/* these are protected by the player mutex */
+/* this mutex protects these treaps */
+local pthread_mutex_t stat_mtx[MAXPLAYERS];
+#define LOCK_PLAYER(pid) pthread_mutex_lock(stat_mtx + pid)
+#define UNLOCK_PLAYER(pid) pthread_mutex_unlock(stat_mtx + pid)
 local stat_info *forever_stats[MAXPLAYERS];
 local stat_info *reset_stats[MAXPLAYERS];
 local stat_info *game_stats[MAXPLAYERS];
@@ -61,7 +64,7 @@ local void IncrementStat(int pid, int stat, int amount)
 
 	if (PID_OK(pid))
 	{
-		pd->LockPlayer(pid);
+		LOCK_PLAYER(pid);
 
 #define INC(iv) \
 		if ((si = (stat_info*)TrGet((TreapHead*)iv[pid], stat)) == NULL) \
@@ -77,7 +80,7 @@ local void IncrementStat(int pid, int stat, int amount)
 		INC(game_stats)
 #undef INC
 
-		pd->UnlockPlayer(pid);
+		UNLOCK_PLAYER(pid);
 	}
 }
 
@@ -114,7 +117,7 @@ local void StartTimer(int pid, int stat)
 
 	if (PID_OK(pid))
 	{
-		pd->LockPlayer(pid);
+		LOCK_PLAYER(pid);
 
 #define INC(iv) \
 		if ((si = (stat_info*)TrGet((TreapHead*)iv[pid], stat)) == NULL) \
@@ -129,7 +132,7 @@ local void StartTimer(int pid, int stat)
 		INC(game_stats)
 #undef INC
 
-		pd->UnlockPlayer(pid);
+		UNLOCK_PLAYER(pid);
 	}
 }
 
@@ -141,7 +144,7 @@ local void StopTimer(int pid, int stat)
 
 	if (PID_OK(pid))
 	{
-		pd->LockPlayer(pid);
+		LOCK_PLAYER(pid);
 
 #define INC(iv) \
 		if ((si = (stat_info*)TrGet((TreapHead*)iv[pid], stat)) == NULL) \
@@ -156,7 +159,7 @@ local void StopTimer(int pid, int stat)
 		INC(game_stats)
 #undef INC
 
-		pd->UnlockPlayer(pid);
+		UNLOCK_PLAYER(pid);
 	}
 }
 
@@ -180,9 +183,9 @@ local void SetStat(int pid, int stat, int interval, int amount)
 	stat_info **arr = get_array(interval);
 	if (PID_OK(pid) && arr)
 	{
-		pd->LockPlayer(pid);
+		LOCK_PLAYER(pid);
 		set_stat(pid, stat, arr, amount);
-		pd->UnlockPlayer(pid);
+		UNLOCK_PLAYER(pid);
 	}
 }
 
@@ -202,9 +205,9 @@ local int GetStat(int pid, int stat, int iv)
 		stat_info **arr = get_array(iv);
 		if (!arr)
 			return 0;
-		pd->LockPlayer(pid);
+		LOCK_PLAYER(pid);
 		val = get_stat(pid, stat, arr);
-		pd->UnlockPlayer(pid);
+		UNLOCK_PLAYER(pid);
 		return val;
 	}
 	else
@@ -222,7 +225,7 @@ local void update_timers_work(TreapHead *node, void *clos)
 
 local void update_timers(stat_info *si, unsigned gtc)
 {
-	TrEnum((TreapHead*)si, (void*)&gtc, update_timers_work);
+	TrEnum((TreapHead*)si, update_timers_work, (void*)&gtc);
 }
 #endif
 
@@ -235,7 +238,7 @@ local void dirty_count_work(TreapHead *node, void *clos)
 local int dirty_count(stat_info *si)
 {
 	int c = 0;
-	TrEnum((TreapHead*)si, &c, dirty_count_work);
+	TrEnum((TreapHead*)si, dirty_count_work, &c);
 	return c;
 }
 
@@ -255,7 +258,7 @@ void SendUpdates(void)
 	for (pid = 0; pid < MAXPLAYERS; pid++)
 		if (pd->players[pid].status == S_PLAYING)
 		{
-			pd->LockPlayer(pid);
+			LOCK_PLAYER(pid);
 			if (dirty_count(reset_stats[pid]))
 			{
 				p = pd->players + pid;
@@ -266,7 +269,7 @@ void SendUpdates(void)
 				sp.kills = p->wins = get_stat(pid, STAT_KILLS, reset_stats);
 				sp.deaths = p->losses = get_stat(pid, STAT_DEATHS, reset_stats);
 
-				pd->UnlockPlayer(pid);
+				UNLOCK_PLAYER(pid);
 
 				net->SendToArena(
 						p->arena,
@@ -277,7 +280,7 @@ void SendUpdates(void)
 				/* printf("DEBUG: SendUpdates sent scores of %s\n", pd->players[pid].name); */
 			}
 			else
-				pd->UnlockPlayer(pid);
+				UNLOCK_PLAYER(pid);
 		}
 }
 
@@ -326,21 +329,27 @@ local int get_##ival##_data(int pid, void *data, int len)                      \
 {                                                                              \
     struct get_stats_clos clos = { data, len / sizeof(struct stored_stat),     \
         GTC() };                                                               \
-    TrEnum((TreapHead*)ival##_stats[pid], &clos, get_stats_enum);              \
+    LOCK_PLAYER(pid);                                                          \
+    TrEnum((TreapHead*)ival##_stats[pid], get_stats_enum, &clos);              \
+    UNLOCK_PLAYER(pid);                                                        \
     return (byte*)clos.ss - (byte*)data;                                       \
 }                                                                              \
                                                                                \
 local void set_##ival##_data(int pid, void *data, int len)                     \
 {                                                                              \
     struct stored_stat *ss = (struct stored_stat*)data;                        \
+    LOCK_PLAYER(pid);                                                          \
     for ( ; len >= sizeof(struct stored_stat);                                 \
             ss++, len -= sizeof(struct stored_stat))                           \
         set_stat(pid, ss->stat, ival##_stats, ss->value);                      \
+    UNLOCK_PLAYER(pid);                                                        \
 }                                                                              \
                                                                                \
 local void clear_##ival##_data(int pid)                                        \
 {                                                                              \
-    TrEnum((TreapHead*)ival##_stats[pid], NULL, clear_stats_enum);             \
+    LOCK_PLAYER(pid);                                                          \
+    TrEnum((TreapHead*)ival##_stats[pid], clear_stats_enum, NULL);             \
+    UNLOCK_PLAYER(pid);                                                        \
 }                                                                              \
                                                                                \
 local PersistentData my_##ival##_data =                                        \
@@ -390,12 +399,12 @@ local void Cstats(const char *params, int pid, const Target *target)
 
 	if (PID_OK(t) && chat)
 	{
-		pd->LockPlayer(pid);
 		chat->SendMessage(pid,
 				"The server is keeping track of the following stats about %s:",
 				target->type == T_PID ? pd->players[t].name : "you");
-		TrEnum((TreapHead*)arr[pid], &clos, enum_send_msg);
-		pd->UnlockPlayer(pid);
+		LOCK_PLAYER(t);
+		TrEnum((TreapHead*)arr[t], enum_send_msg, &clos);
+		UNLOCK_PLAYER(t);
 	}
 }
 
@@ -410,6 +419,7 @@ local Istats _myint =
 
 EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 {
+	int i;
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
@@ -421,11 +431,14 @@ EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 
 		if (!net || !cmd || !persist) return MM_FAIL;
 
+		for (i = 0; i < MAXPLAYERS; i++)
+			pthread_mutex_init(stat_mtx + i, NULL);
+
 		cmd->AddCommand("stats", Cstats, stats_help);
 
-		persist->RegPersistentData(&my_forever_data);
-		persist->RegPersistentData(&my_reset_data);
-		persist->RegPersistentData(&my_game_data);
+		persist->RegPlayerPD(&my_forever_data);
+		persist->RegPlayerPD(&my_reset_data);
+		persist->RegPlayerPD(&my_game_data);
 
 		mm->RegInterface(&_myint, ALLARENAS);
 		return MM_OK;
@@ -434,11 +447,14 @@ EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 	{
 		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
-		persist->UnregPersistentData(&my_forever_data);
-		persist->UnregPersistentData(&my_reset_data);
-		persist->UnregPersistentData(&my_game_data);
+		persist->UnregPlayerPD(&my_forever_data);
+		persist->UnregPlayerPD(&my_reset_data);
+		persist->UnregPlayerPD(&my_game_data);
 
 		cmd->RemoveCommand("stats", Cstats);
+
+		for (i = 0; i < MAXPLAYERS; i++)
+			pthread_mutex_destroy(stat_mtx + i);
 
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(net);

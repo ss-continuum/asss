@@ -146,7 +146,7 @@ typedef struct TreapHead
 TreapHead *TrGet(TreapHead *root, int key);
 void TrPut(TreapHead **root, TreapHead *node);
 TreapHead *TrRemove(TreapHead **root, int key);
-void TrEnum(TreapHead *root, void *clos, void (*func)(TreapHead *node, void *clos));
+void TrEnum(TreapHead *root, void (*func)(TreapHead *node, void *clos), void *clos);
 void tr_enum_afree(TreapHead *node, void *dummy);
 
 #endif

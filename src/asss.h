@@ -20,6 +20,8 @@
 #include "clientset.h"
 #include "persist.h"
 #include "game.h"
+#include "jackpot.h"
+#include "periodic.h"
 #include "stats.h"
 #include "log_file.h"
 #include "flags.h"

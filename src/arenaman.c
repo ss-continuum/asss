@@ -43,7 +43,7 @@ local void LeaveArena(int);
 local void SendArenaResponse(int);
 
 
-/* GLOBALS */
+/* globals */
 
 local Imainloop *ml;
 local Iplayerdata *pd;
@@ -52,6 +52,7 @@ local Inet *net;
 local Ichatnet *chatnet;
 local Imodman *mm;
 local Ilogman *lm;
+local Ipersist *persist;
 
 local PlayerData *players;
 
@@ -111,6 +112,14 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, int arena)
 
 		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
+	}
+	else if (action == MM_POSTLOAD)
+	{
+		persist = mm->GetInterface(I_PERSIST, ALLARENAS);
+	}
+	else if (action == MM_PREUNLOAD)
+	{
+		mm->ReleaseInterface(persist);
 	}
 	else if (action == MM_UNLOAD)
 	{
@@ -189,6 +198,27 @@ local void arena_conf_changed(void *aptr)
 		DO_CBS(CB_ARENAACTION, arena, ArenaActionFunc, (arena, AA_CONFCHANGED));
 }
 
+local void syncdone1(int arena)
+{
+	LOCK_STATUS();
+	if (arenas[arena].status == ARENA_WAIT_SYNC1)
+		arenas[arena].status = ARENA_DO_CREATE_CALLBACKS;
+	else
+		lm->LogA(L_WARN, "arenaman", arena, "syncdone1 called from wrong state");
+	UNLOCK_STATUS();
+}
+
+
+local void syncdone2(int arena)
+{
+	LOCK_STATUS();
+	if (arenas[arena].status == ARENA_WAIT_SYNC2)
+		arenas[arena].status = ARENA_DO_DEINIT;
+	else
+		lm->LogA(L_WARN, "arenaman", arena, "syncdone2 called from wrong state");
+	UNLOCK_STATUS();
+}
+
 
 void ProcessArenaQueue(void)
 {
@@ -205,17 +235,23 @@ void ProcessArenaQueue(void)
 		{
 			case ARENA_NONE:
 			case ARENA_RUNNING:
+			case ARENA_WAIT_SYNC1:
+			case ARENA_WAIT_SYNC2:
 				continue;
 		}
 
-		UNLOCK_STATUS();
-
 		switch (nextstatus)
 		{
-			case ARENA_DO_LOAD_CONFIG:
+			case ARENA_DO_INIT:
 				a->cfg = cfg->OpenConfigFile(a->name, NULL, arena_conf_changed, a);
 				DoAttach(i, MM_ATTACH);
-				nextstatus = ARENA_DO_CREATE_CALLBACKS;
+				if (persist)
+				{
+					persist->GetArena(i, syncdone1);
+					nextstatus = ARENA_WAIT_SYNC1;
+				}
+				else
+					nextstatus = ARENA_DO_CREATE_CALLBACKS;
 				break;
 
 			case ARENA_DO_CREATE_CALLBACKS:
@@ -238,7 +274,13 @@ void ProcessArenaQueue(void)
 				if (!oops)
 				{
 					DO_CBS(CB_ARENAACTION, i, ArenaActionFunc, (i, AA_DESTROY));
-					nextstatus = ARENA_DO_UNLOAD_CONFIG;
+					if (persist)
+					{
+						persist->PutArena(i, syncdone2);
+						nextstatus = ARENA_WAIT_SYNC2;
+					}
+					else
+						nextstatus = ARENA_DO_DEINIT;
 				}
 				else
 				{
@@ -247,7 +289,7 @@ void ProcessArenaQueue(void)
 				}
 				break;
 
-			case ARENA_DO_UNLOAD_CONFIG:
+			case ARENA_DO_DEINIT:
 				DoAttach(i, MM_DETACH);
 				cfg->CloseConfigFile(a->cfg);
 				a->cfg = NULL;
@@ -255,7 +297,6 @@ void ProcessArenaQueue(void)
 				break;
 		}
 
-		LOCK_STATUS();
 		a->status = nextstatus;
 	}
 	UNLOCK_STATUS();
@@ -277,7 +318,7 @@ local int CreateArena(const char *name)
 	}
 
 	astrncpy(arenas[i].name, name, 20);
-	arenas[i].status = ARENA_DO_LOAD_CONFIG;
+	arenas[i].status = ARENA_DO_INIT;
 	if (name[1] == '\0' && name[0] >= '0' && name[0] <= '9')
 		arenas[i].ispublic = 1;
 	else
@@ -410,7 +451,7 @@ local void complete_go(int pid, const char *name, int ship, int xres, int yres, 
 	LOCK_STATUS();
 
 	/* try to locate an existing arena */
-	arena = FindArena(name, ARENA_DO_LOAD_CONFIG, ARENA_RUNNING);
+	arena = FindArena(name, ARENA_DO_INIT, ARENA_RUNNING);
 
 	if (arena == -1)
 	{

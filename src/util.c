@@ -699,16 +699,16 @@ TreapHead *TrRemove(TreapHead **root, int key)
 	return tmp;
 }
 
-void TrEnum(TreapHead *root, void *clos, void (*func)(TreapHead *node, void *clos))
+void TrEnum(TreapHead *root, void (*func)(TreapHead *node, void *clos), void *clos)
 {
 	if (root)
 	{
 		TreapHead *t;
-		TrEnum(root->left, clos, func);
+		TrEnum(root->left, func, clos);
 		/* save right child now because func might free it */
 		t = root->right;
 		func(root, clos);
-		TrEnum(t, clos, func);
+		TrEnum(t, func, clos);
 	}
 }
 

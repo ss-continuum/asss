@@ -2,7 +2,7 @@
 #ifndef __DB_LAYOUT_H
 #define __DB_LAYOUT_H
 
-/* these names descrive where to find the database. */
+/* these names describe where to find the database. */
 #define DB_HOME "data"
 #define DB_FILENAME "data.db"
 
@@ -21,9 +21,9 @@
  * or global to the zone. (e.g. one player's scores in "turf", or a
  * player's chat mask in league)
  *
- * arenagrp records hold data about an arena group (or single arena, for
- * non-shared intervals). (e.g. base win stats in pub for this reset,
- * game start times in "duel")
+ * arena records hold data about a single arena. no intervals are shared
+ * for arena records. (e.g. base win stats in pub 0 for this reset, game
+ * start times in "duel")
  *
  * current serial records hold the current serial number for an interval
  * in an arena group. (e.g. arena "aswz" is up to reset 17, "smallpb" is
@@ -50,9 +50,9 @@ struct player_record_key
 
 
 /* this is the key for arenagrp data. */
-struct arenagrp_record_key
+struct arena_record_key
 {
-	char arenagrp[16];
+	char arena[16];
 	short interval;
 	unsigned int serialno;
 	int key;
