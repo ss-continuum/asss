@@ -112,18 +112,10 @@
 /* size of 0x0F settings packet  FIXME: unnecesary */
 #define SETTINGSIZE 1428
 
-
 /* useful typedefs */
 typedef unsigned char byte;
 
-typedef char i8;
-typedef short i16;
-typedef int i32;
-
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int u32;
-
+#include "packets/sizes.h"
 
 #include "packets/types.h"
 

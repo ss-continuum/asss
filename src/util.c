@@ -7,13 +7,31 @@
 #include <stdio.h>
 #include <ctype.h>
 
-#ifndef NOTHREAD
-#include <pthread.h>
-#endif
-
+/* make sure to get the prototypes for thread functions instead of macros */
+#define USE_PROTOTYPES
 
 #include "util.h"
 #include "defs.h"
+
+
+/* NOTE about util and memory allocation
+ *
+ * Since I want this file to be used in both the main server and the
+ * scheme server, which uses garbage collection, it has to be a bit
+ * flexible with regard to memory management. To use it normally just
+ * compile it normally. It will use the system malloc. To use it with a
+ * garbage collector, #define USE_GC, and #define MALLOC to whatever you
+ * want to use to allocate pointerful memory.
+ */
+
+
+#ifdef MALLOC
+/* prototype it */
+void *MALLOC(size_t);
+#else
+/* default */
+#define MALLOC(s) malloc(s)
+#endif
 
 
 #define DEFTABLESIZE 229
@@ -37,11 +55,12 @@ struct HashTable
 
 
 
+#ifndef USE_GC
 
 static Link *freelinks = NULL;
 static HashEntry *freehashentries = NULL;
 
-
+#endif
 
 
 unsigned int GTC()
@@ -60,13 +79,15 @@ char* RemoveCRLF(char *p)
 	return p;
 }
 
-
 void *amalloc(size_t s)
 {
-	void *ptr = malloc(s);
+	void *ptr;
+	ptr = MALLOC(s);
 	if (!ptr)
 		Error(ERROR_MEMORY,"malloc error: requested %i bytes\n",s);
+#ifndef USE_GC
 	memset(ptr, 0, s);
+#endif
 	return ptr;
 }
 
@@ -80,9 +101,10 @@ char *astrdup(const char *s)
 
 void afree(void *ptr)
 {
+#ifndef USE_GC
 	free(ptr);
+#endif
 }
-
 
 void Error(int level, char *format, ...)
 {
@@ -105,6 +127,8 @@ char *astrncpy(char *dest, const char *source, size_t n)
 
 /* LinkedList data type */
 
+#ifndef USE_GC
+
 #define LINKSATONCE 510 /* enough to almost fill a page */
 
 local void GetSomeLinks()
@@ -119,6 +143,8 @@ local void GetSomeLinks()
 	freelinks = start;
 }
 
+#endif
+
 void LLInit(LinkedList *lst)
 {
 	lst->start = lst->end = NULL;
@@ -127,18 +153,23 @@ void LLInit(LinkedList *lst)
 LinkedList * LLAlloc()
 {
 	LinkedList *ret;
+#ifdef USE_GC
+	ret = amalloc(sizeof(Link));
+#else
 	/* HUGE HACK!!!
 	 * depends on LinkedList and Link being the same size!
 	 */
 	if (!freelinks) GetSomeLinks();
 	ret = (LinkedList*) freelinks;
 	freelinks = freelinks->next;
+#endif
 	LLInit(ret);
 	return ret;
 }
 
 void LLEmpty(LinkedList *l)
 {
+#ifndef USE_GC
 	Link *n = l->start, *t;
 
 	if (n)
@@ -149,6 +180,7 @@ void LLEmpty(LinkedList *l)
 			n = n->next;
 		n->next = t;
 	}
+#endif
 	l->start = l->end = NULL;
 }
 
@@ -157,20 +189,24 @@ void LLFree(LinkedList *lst)
 	/* HUGE HACK!!!
 	 * see above
 	 */
-	Link *l;
 	LLEmpty(lst);
-	l = (Link*) lst;
-	l->next = freelinks;
-	freelinks = l;
+#ifndef USE_GC
+	((Link*)lst)->next = freelinks;
+	freelinks = (Link*)lst;
+#endif
 }
 
 void LLAdd(LinkedList *l, void *p)
 {
 	Link *n;
 
+#ifdef USE_GC
+	n = amalloc(sizeof(Link));
+#else
 	if (!freelinks) GetSomeLinks();
 	n = freelinks;
 	freelinks = freelinks->next;
+#endif
 
 	n->next = NULL;
 	n->data = p;
@@ -189,10 +225,14 @@ void LLAdd(LinkedList *l, void *p)
 void LLAddFirst(LinkedList *lst, void *data)
 {
 	Link *n;
-
+	
+#ifdef USE_GC
+	n = amalloc(sizeof(Link));
+#else
 	if (!freelinks) GetSomeLinks();
 	n = freelinks;
 	freelinks = freelinks->next;
+#endif
 
 	n->next = lst->start;
 	n->data = data;
@@ -219,8 +259,12 @@ int LLRemove(LinkedList *l, void *p)
 				prev->next = n->next;
 				if (n == l->end) l->end = prev;
 			}
+#ifdef USE_GC
+			n = NULL;
+#else
 			n->next = freelinks;
 			freelinks = n;
+#endif
 			return 1;
 		}
 		prev = n;
@@ -242,8 +286,12 @@ void *LLRemoveFirst(LinkedList *lst)
 	lnk = lst->start;
 	lst->start = lst->start->next;
 
+#ifdef USE_GC
+	lnk = NULL;
+#else
 	lnk->next = freelinks;
 	freelinks = lnk;
+#endif
 
 	if (lst->start == NULL)
 		lst->end = NULL;
@@ -281,6 +329,7 @@ HashTable * HashAlloc(int req)
 
 void HashFree(HashTable *h)
 {
+#ifndef USE_GC
 	HashEntry *e, *old;
 	int i;
 	for (i = 0; i < h->size; i++)
@@ -296,6 +345,7 @@ void HashFree(HashTable *h)
 		}
 	}
 	afree(h);
+#endif
 }
 
 void HashEnum(HashTable *h, void (*func)(void *))
@@ -318,12 +368,14 @@ void HashAdd(HashTable *h, const char *s, void *p)
 	int slot;
 	HashEntry *e, *l;
 
+#ifndef USE_GC
 	if (freehashentries)
 	{
 		e = freehashentries;
 		freehashentries = e->next;
 	}
 	else
+#endif
 		e = amalloc(sizeof(HashEntry));
 
 	slot = Hash(s, MAXHASHLEN, h->size);
@@ -356,12 +408,14 @@ void HashReplace(HashTable *h, const char *s, void *p)
 	{	/* this is first hash entry for this key */
 
 		/* allocate entry */
+#ifndef USE_GC
 		if (freehashentries)
 		{
 			e = freehashentries;
 			freehashentries = e->next;
 		}
 		else
+#endif
 			e = amalloc(sizeof(HashEntry));
 
 		/* init entry */
@@ -387,12 +441,14 @@ void HashReplace(HashTable *h, const char *s, void *p)
 		/* it's not in the table, last should point to last entry */
 		
 		/* allocate entry */
+#ifndef USE_GC
 		if (freehashentries)
 		{
 			e = freehashentries;
 			freehashentries = e->next;
 		}
 		else
+#endif
 			e = amalloc(sizeof(HashEntry));
 
 		/* init entry */
@@ -421,8 +477,12 @@ void HashRemove(HashTable *h, const char *s, void *p)
 				prev->next = l->next;
 			else /* removing first item */
 				h->lists[slot] = l->next;
+#ifdef USE_GC
+			l = NULL;
+#else
 			l->next = freehashentries;
 			freehashentries = l;
+#endif
 		}
 		prev = l;
 		l = l->next;
@@ -474,6 +534,8 @@ void *HashGetOne(HashTable *h, const char *s)
 
 
 #ifndef NOTHREAD
+
+#include <pthread.h>
 
 #ifndef NOMPQUEUE
 

@@ -16,6 +16,8 @@
 #include <scheme.h>
 #include "elderd.h"
 
+/* util options */
+
 #define NOTHREAD
 #define NOMPQUEUE
 
@@ -29,6 +31,7 @@
 /* prototypes */
 
 void run_child(int);
+void install_primitives();
 
 
 /* globals */
@@ -140,7 +143,7 @@ int main(int argc, char *argv[])
 
 	printf("Elder Daemon " VERSION "\n");
 	printf("Logging to " DEFAULT_LOG_FILE "\n");
-	printf("Forking... (use -n to prevent)\n");
+	printf("Daemonizing... (use -n to prevent)\n");
 
 	if (argc < 2 || strcmp(argv[1], "-n"))
 		daemonize(0);
@@ -151,6 +154,7 @@ int main(int argc, char *argv[])
 	log("Initializing Scheme environment");
 	
 	global = scheme_basic_env();
+	install_primitives();
 
 	log("Opening listening socket");
 
@@ -207,17 +211,68 @@ int main(int argc, char *argv[])
 /* child prototypes */
 
 void send_text_message(int pid, char *msg);
-
+void * listen_for_packet(int type);
 
 /* child global data */
 
-LinkedList *evalqueue;
+LinkedList evalqueue;
 
 /* child main */
 
 void run_child(int sock)
 {
+	struct data_a2e_evalstring *eval;
+	char *msgbuf;
 
+	/* initialize */
+	LLInit(&evalqueue);
+	msgbuf = scheme_malloc_atomic(100);
+
+	/* enter loop */
+	for ( ; ; )
+	{
+		/* check if there are any expressions in the queue */
+		eval = LLRemoveFirst(&evalqueue);
+		if (eval)
+		{
+			Scheme_Object *res;
+
+			if (scheme_setjmp(scheme_error_buf))
+			{
+				/* error caught */
+				if (eval->pid >= 0)
+				{
+					send_text_message(eval->pid, "Error in Scheme expression");
+				}
+			}
+			else
+			{
+				res = scheme_eval_string(eval->string, global);
+				if (eval->pid >= 0)
+				{
+					sprintf(msgbuf, "Scheme: %s", scheme_display_to_string_w_max(res, NULL, 80));
+					send_text_message(eval->pid, msgbuf);
+				}
+			}
+			eval = NULL;
+		}
+		else
+		{
+			/* try some network listening */
+			listen_for_packet(A2E_EVALSTRING);
+		}
+	}
+}
+
+
+void install_primitives()
+{
+
+}
+
+
+void * listen_for_packet(int type)
+{
 
 }
 

@@ -120,6 +120,9 @@ typedef pthread_cond_t Condition;
 
 Thread StartThread(ThreadFunc func, void *data);
 void JoinThread(Thread th);
+
+#ifdef USE_PROTOTYPES
+
 void InitMutex(Mutex *mtx);
 void LockMutex(Mutex *mtx);
 void UnlockMutex(Mutex *mtx);
@@ -127,10 +130,21 @@ void InitCondition(Condition *cond);
 void SignalCondition(Condition *cond, int all);
 void WaitCondition(Condition *cond, Mutex *mtx);
 
+#else
+
+#define InitMutex(mtx) pthread_mutex_init(mtx, NULL)
+#define LockMutex(mtx) pthread_mutex_lock(mtx)
+#define UnlockMutex(mtx) pthread_mutex_unlock(mtx)
+#define InitCondition(cond) pthread_cond_init(cond, NULL)
+#define SignalCondition(cond, all) ((all) ? pthread_cond_broadcast(cond) : pthread_cond_signal(cond))
+#define WaitCondition(cond, mtx) pthread_cond_wait(cond, mtx)
+
+#endif
+
 
 #ifndef NOMPQUEUE
 
-/* mpqueue stuff */
+/* message passing queue stuff */
 
 typedef struct MPQueue
 {

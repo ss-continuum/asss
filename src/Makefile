@@ -3,10 +3,10 @@ CC = gcc
 LDFLAGS = -fPIC
 
 
-OPT_CFLAGS = -fPIC -O2 -fomit-frame-pointer -Wall -fpedantic
-DEBUG_CFLAGS = -fPIC -g -Wall -fpedantic
+OPT_CFLAGS = -O2 -fomit-frame-pointer -Wall -fpedantic
+DEBUG_CFLAGS = -g -Wall -fpedantic
 
-CFLAGS = $(DEBUG_CFLAGS)
+CFLAGS = -fPIC $(DEBUG_CFLAGS)
 
 ASSSLIBS = -ldl -lz -lpthread
 
@@ -51,12 +51,12 @@ asss: main.o module.o util.o $(INTMODS)
 	$(CC) -rdynamic -o $@ $^ $(ASSSLIBS)
 
 
-elderd: elderd.c util-nothread.o
-	$(CC) -L$(SCHEMELIB) -I $(SCHEMEINC) -o $@ $^ -lmzscheme -lgc -ldl
+elderd: elderd.c util-elderd.o
+	$(CC) $(OPT_CFLAGS) -L$(SCHEMELIB) -I $(SCHEMEINC) -o $@ $^ -lmzscheme -lgc -ldl
 
 
-util-nothread.o: util.c
-	$(CC) $(CFLAGS) -DNOTHREAD -c -o $@ $^
+util-elderd.o: util.c
+	$(CC) $(OPT_CFLAGS) -DNOTHREAD -DUSE_GC -DMALLOC=GC_malloc -c -o $@ $^
 
 
 Makefile.deps: *.c *.h

@@ -8,12 +8,6 @@
 #include "asss.h"
 
 
-/* some defines for maximums */
-
-#define MAXNAMELEN 32
-#define MAXKEYLEN 32
-#define MAXVALUELEN 256
-
 
 /* function prototypes */
 
