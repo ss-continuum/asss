@@ -196,12 +196,15 @@ local void add_rgn_tile(Region *newrgn, int x, int y)
 	/* the correct set doesn't exist yet */
 	if (i < 256)
 	{
+		int j, offset = i >> 5;
+		u32 mask = 1 << (i & 31);
+
 		newset = amalloc((len + 2) * sizeof(Region *));
-		memcpy(newset, oldset, len * sizeof(Region *));
-		newset[len] = newrgn;
+		for (j = 0; j < len; j++)
+			(newset[j] = oldset[j])->setmap[offset] |= mask;
+		(newset[len] = newrgn)->setmap[offset] |= mask;
 		newset[len+1] = NULL;
 		lvl->rgnsets[i] = newset;
-		newrgn->setmap[i >> 5] |= (1 << (i & 31));
 		insert_sparse(lvl->rgntiles, x, y, i);
 	}
 	else
