@@ -222,7 +222,7 @@ local db_row * GetRow(db_res *res)
 	return (db_row*)mysql_fetch_row((MYSQL_RES*)res);
 }
 
-local char * GetField(db_row *row, int fieldnum)
+local const char * GetField(db_row *row, int fieldnum)
 {
 	return ((MYSQL_ROW)row)[fieldnum];
 }

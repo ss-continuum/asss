@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
 		if (chat)
 		{
 			chat->SendArenaMessage(ALLARENAS, "The server is %s now!",
-					code == EXIT_RECYCLE ? "recycing" : "shutting down");
+					code == EXIT_RECYCLE ? "recycling" : "shutting down");
 			mm->ReleaseInterface(chat);
 		}
 	}

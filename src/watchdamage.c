@@ -178,6 +178,38 @@ local void Cwatchdamage(const char *params, int pid, const Target *target)
 	}
 }
 
+
+local helptext_t watchwatchdamage_help = NULL;
+
+local void Cwatchwatchdamage(const char *params, int pid, const Target *target)
+{
+	int i, mw = 0, tot = 0;
+	Link *l;
+	int on[MAXPLAYERS];
+
+	memset(on, 0, sizeof(on));
+
+	for (i = 0; i < MAXPLAYERS; i++)
+	{
+		if (modwatch[i])
+			mw++;
+
+		if (modwatch[i] || !LLIsEmpty(watches + i))
+			tot++;
+
+		for (l = LLGetHead(watches + i); l; l = l->next)
+			on[((short*)l->data) - modwatch]++;
+	}
+
+	chat->SendMessage(pid, "wwd: total players reporting damage: %d", tot);
+	chat->SendMessage(pid, "wwd: players reporting damage to modules: %d", mw);
+	for (i = 0; i < MAXPLAYERS; i++)
+		if (on[i])
+			chat->SendMessage(pid, "wwd: %s is watching damage on %d players",
+					pd->players[i].name, on[i]);
+}
+
+
 local void PAWatch(int pid, int action, int arena)
 {
 	/* if he leaves arena, clear all watches on him and his watches */
@@ -246,6 +278,7 @@ EXPORT int MM_watchdamage(int action, Imodman *_mm, int arena)
 		net->AddPacket(C2S_DAMAGE, PDamage);
 
 		cmd->AddCommand("watchdamage", Cwatchdamage, watchdamage_help);
+		cmd->AddCommand("watchwatchdamage", Cwatchwatchdamage, watchdamage_help);
 
 		mm->RegInterface(&_int, ALLARENAS);
 
@@ -263,6 +296,7 @@ EXPORT int MM_watchdamage(int action, Imodman *_mm, int arena)
 			return MM_FAIL;
 
 		cmd->RemoveCommand("watchdamage", Cwatchdamage);
+		cmd->RemoveCommand("watchwatchdamage", Cwatchwatchdamage);
 
 		net->RemovePacket(C2S_DAMAGE, PDamage);
 

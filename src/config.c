@@ -77,6 +77,7 @@ local int write_dirty_values(void *dummy)
 
 			if ((fp = fopen(ch->filename, "a")))
 			{
+				struct stat st;
 				for (; l2; l2 = l2->next)
 				{
 					struct Entry *e = l2->data;
@@ -86,6 +87,9 @@ local int write_dirty_values(void *dummy)
 					afree(e->info);
 					afree(e);
 				}
+				/* set lastmod so that we don't think it's dirty */
+				if (fstat(fileno(fp), &st) == 0)
+					ch->lastmod = st.st_mtime;
 				fclose(fp);
 			}
 			else

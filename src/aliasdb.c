@@ -240,6 +240,85 @@ local void Crawquery(const char *params, int pid, const Target *target)
 
 
 
+local void dbcb_last(int status, db_res *res, void *clos)
+{
+	int pid = ((PlayerData*)clos)->pid;
+	int results;
+	db_row *row;
+
+	if (!IS_DURING_QUERY(pid))
+	{
+		if (lm)
+			lm->LogP(L_WARN, "aliasdb", pid, "recieved query result he didn't ask for");
+		return;
+	}
+
+	UNSET_DURING_QUERY(pid);
+
+	if (status != 0 || res == NULL)
+	{
+		chat->SendMessage(pid, "Unexpected database error.");
+		return;
+	}
+
+	results = db->GetRowCount(res);
+
+	if (results == 0)
+	{
+		chat->SendMessage(pid, "No one has logged in recently.");
+		return;
+	}
+
+	while ((row = db->GetRow(res)))
+	{
+		const char *name = db->GetField(row, 0), *secss = db->GetField(row, 1);
+		int days, hours, mins, secs = atoi(secss);
+
+		mins = secs / 60;
+		secs %= 60;
+		hours = mins / 60;
+		mins %= 60;
+		days = hours / 24;
+		hours %= 24;
+
+		if (days == 0)
+		{
+			if (hours == 0)
+			{
+				if (mins == 0)
+					chat->SendMessage(pid, "%-20.20s  %d seconds ago", name, secs);
+				else
+					chat->SendMessage(pid, "%-20.20s  %d minutess ago", name, mins);
+			}
+			else
+				chat->SendMessage(pid, "%-20.20s  %d hours ago", name, hours);
+		}
+		else
+			chat->SendMessage(pid, "%-20.20s  %d days ago", name, days);
+	}
+}
+
+
+
+local helptext_t last_help =
+"Targets: none\n"
+"Args: none\n"
+"Tells you the last 10 people to log in.\n";
+
+local void Clast(const char *params, int pid, const Target *target)
+{
+	if (target->type != T_ARENA)
+		return;
+
+	SET_DURING_QUERY(pid);
+
+	/* MYSQLISM: unix_timestamp */
+	db->Query(dbcb_last, pd->players + pid, 1,
+			"select name, unix_timestamp(now()) - unix_timestamp(lastseen) as secsago "
+			"from " TABLE_NAME " order by secsago asc limit 10");
+}
+
+
 
 EXPORT int MM_aliasdb(int action, Imodman *mm_, int arena)
 {
@@ -263,6 +342,7 @@ EXPORT int MM_aliasdb(int action, Imodman *mm_, int arena)
 
 		cmd->AddCommand("qip", Cqip, qip_help);
 		cmd->AddCommand("rawquery", Crawquery, rawquery_help);
+		cmd->AddCommand("last", Clast, last_help);
 
 		mm->RegCallback(CB_PLAYERACTION, playera, ALLARENAS);
 
@@ -273,6 +353,7 @@ EXPORT int MM_aliasdb(int action, Imodman *mm_, int arena)
 		mm->UnregCallback(CB_PLAYERACTION, playera, ALLARENAS);
 		cmd->RemoveCommand("qip", Cqip);
 		cmd->RemoveCommand("rawquery", Crawquery);
+		cmd->RemoveCommand("last", Clast);
 
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(lm);

@@ -26,7 +26,7 @@ typedef struct Ireldb
 
 	int (*GetRowCount)(db_res *res);
 	db_row * (*GetRow)(db_res *res);
-	char * (*GetField)(db_row *row, int fieldnum);
+	const char * (*GetField)(db_row *row, int fieldnum);
 } Ireldb;
 
 

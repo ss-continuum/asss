@@ -199,13 +199,13 @@ int SendPing(void *dummy)
 	if (status == BNET_NOBILLING)
 	{	/* no communication yet, send initiation packet */
 		byte initiate[8] = { 0x00, 0x01, 0xDA, 0x8F, 0xFD, 0xFF, 0x01, 0x00 };
-		SendToBiller(initiate, 8, NET_UNRELIABLE);
+		SendToBiller(initiate, 8, NET_UNRELIABLE | NET_PRI_P3);
 		lm->Log(L_INFO, "<billcore> Attempting to connect to billing server");
 	}
 	else if (status == BNET_CONNECTED)
 	{	/* connection established, send ping */
 		byte ping = S2B_KEEPALIVE;
-		SendToBiller(&ping, 1, NET_RELIABLE);
+		SendToBiller(&ping, 1, NET_RELIABLE | NET_PRI_P3);
 	}
 	return 1;
 }
@@ -287,7 +287,7 @@ void BillingAuth(int pid, struct LoginPacket *lp, int lplen,
 		astrncpy(to.pw, lp->password, 32);
 		/* only send extra 64 bytes if they were supplied by the client */
 		len = (lplen == LEN_LOGINPACKET_CONT) ? sizeof(to) : sizeof(to) - 64;
-		SendToBiller((byte*)&to, len, NET_RELIABLE);
+		SendToBiller((byte*)&to, len, NET_RELIABLE | NET_PRI_P3);
 		CachedAuthDone = Done;
 	}
 	else
@@ -468,7 +468,7 @@ local void handle_priv(int pid, const char *msg)
 				msg+1,
 				players[pid].name,
 				t+1);
-		SendToBiller((byte*)to, l+12, NET_RELIABLE);
+		SendToBiller((byte*)to, l+12, NET_RELIABLE | NET_PRI_P1);
 		*t = ':';
 	}
 }
