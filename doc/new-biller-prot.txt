@@ -1,6 +1,6 @@
 
 subspace billing server protocol proposal
-version 1.22
+version 1.3.1
 grelminar@yahoo.com
 
 
@@ -21,32 +21,48 @@ the agreed port.
 server", and the billing server "the biller". i'll use g->b and b->g to
 describe the two directions.)
 
+the protocol is versioned with a three-part number (major revision,
+minor revision, patch). backwards compatbility is guaranteed when two
+version differ only by the patch number. when two versions differ by a
+major or minor revision number, all bets are off.
+
+the server sends the protocol version that it speaks to the biller. if
+the biller supports it (and everything else is ok), the biller can reply
+successfully and a connection is established. if the biller doesn't
+support the version requested (module the patch number), or if anything
+else is wrong with the login, it should return failure and close the
+connection. no further protocol version negociation takes places.
+
+
+::::: server login stuff
+
 to login:
-g->b: "SETIDS:serverid:groupid:scoreid"
-    used _only_ for compatibility with older billing servers through the
-    proxy. new billing servers should ignore this command.
-g->b: "CONNECT:version:swname:zonename:network:password"
-    version is the version of the protocol used.
+g->b: "CONNECT:version:swname:zonename:hostname:password"
+    version is the version of the protocol used. it should have three
+    numbers separated by dots (major, minor, patch). the current version
+    is at the top of this document.
     swname is something idenifying the software used, like "asss 1.0.5".
     zonename is the name of this zone, like "A Small Warzone".
-    network is where this zone is hosted, like "SSCX".
+    hostname is where this zone is hosted, like "SSCX".
     password is a password to authenticate this zone.
 
 the response will either be this:
-b->g: "CONNECTOK:billername"
-    billername is something identifying the biller used, like "mybiller 0.29".
+b->g: "CONNECTOK:swname:billername"
+    swname is something identifying the biller used, like "mybiller 0.29".
+    billername is a string identifying this biller network, like "SSC".
 or
-b->g: "CONNECTBAD:billername:reason"
-    billername is as above.
+b->g: "CONNECTBAD:swname:billername:reason"
+    swname and billername are as above.
     reason is something describing why the connection was refused, like
-    "bad password".
+    "bad password", or "wrong protocol version".
 
 the biller will most likely close the connection after sending a
 CONNECTBAD, but if it doesn't, the game server should.
 
-once you're connected:
+the rest can only be used after a successful connection.
 
-when a player logs in:
+
+::::: player login stuff
 
 game sends:
 g->b: "PLOGIN:pid:flag:name:pw:ip:macid:contid"
@@ -75,10 +91,29 @@ b->g: "POK:pid:rtext:name:squad:billerid:usage:firstused"
     firstused is a string describing when this named account was
     created, in roughly this form: "1-2-1999 6:13:35"
 or
-b->g: "PBAD:pid:rtext"
+b->g: "PBAD:pid:newname:rtext"
     pid is the player id passed in PLOGIN.
+    newname is 1 if the requested name doesn't exist in the biller's
+    database and is available for creation. it is 0 otherwise.
     rtext is some text describing the reason this login was denied.
 
+
+::::: player registration (optional)
+
+_before_ sending a POK, the biller can request registration information
+by sending:
+b->g: "WANTREG:pid"
+    pid is the pid for which registration information is requested.
+
+the server may eventually respond:
+g->b: "REGDATA:pid:data"
+    pid is the pid of the player whose information is being submitted.
+    data is hex-encoded binary data containing the registration
+    information. the format or length of this data is not specified in
+    this document, and may be client-specific.
+
+
+::::: banners
 
 the biller can send this any any time, but will typically send it right
 after a PLOGINOK message:
@@ -93,9 +128,24 @@ g->b: "BNR:pid:banner"
     banner is the new banner, encoded as above.
 
 
+::::: player status changes
+
+when a player enters an arena for the first time after logging in, the
+server sends:
+g->b: "PENTERARENA:pid"
+
+
 when a player disconnects from the server, the server sends:
 g->b: "PLEAVE:pid"
 
+
+the biller can request that the server disconnect a player by sending:
+b->g: "PKICK:pid:reason"
+    pid is the pid of the player to be kicked.
+    reason is some text describing the reason the player was kicked.
+
+
+::::: messaging
 
 when a player sends a ?chat message, the server sends:
 g->b: "CHAT:pid:channel:sound:text"
@@ -205,6 +255,24 @@ b->g: "BROADCAST:sender:sound:text"
 if the server is going down (for a shutdown or whatever), it should
 close the tcp socket. if the biller is going down (for any reason), it
 should close the tcp socket.
+
+
+::::: misc.
+
+either side is allowed to send ping messages which act as a keepalive to
+force tcp to detect when one or the other side of the connection crashes
+or becomes unavailable. a suggested interval between pings is 180
+seconds, although neither side should assume anything about the interval
+that the other side is using, and should send its own keepalives if it
+wants quick notification if the other side crashes or becomes
+unavailable.
+
+b->g: "PING"
+g->b: "PING"
+
+
+the biller can indicate that it's time for a scorereset by sending:
+b->g: "SCORERESET"
 
 
 # dist: public
