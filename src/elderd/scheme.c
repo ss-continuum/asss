@@ -31,6 +31,7 @@ local Icmdman *cmd;
 local Inet *net;
 local Iconfig *cfg;
 local Iarenaman *aman;
+local Imodman *mm;
 local PlayerData *players;
 local ArenaData *arenas;
 
@@ -39,10 +40,11 @@ local MPQueue toscm;
 local int schemesock;
 
 
-int MM_scheme(int action, Imodman *mm)
+int MM_scheme(int action, Imodman *_mm)
 {
 	if (action == MM_LOAD)
 	{
+		mm = _mm;
 		mm->RegInterest(I_CHAT, &chat);
 		mm->RegInterest(I_LOGMAN, &log);
 		mm->RegInterest(I_CMDMAN, &cmd);
@@ -193,6 +195,20 @@ void * SchemeThread(void *dummy)
 }
 
 
+void SendPlayerData(int pid)
+{
+	struct data_a2e_playerdata pd;
+
+	pd.type = A2E_PLAYERDATA;
+	pd.pid = pid;
+	if (pid >= 0 && pid <= MAXPLAYERS)
+		memcpy(&pd.data, players + pid, sizeof(PlayerData));
+	else
+		memset(&pd.data, 0, sizeof(PlayerData));
+	write_message(schemesock, &pd, sizeof(struct data_a2e_playerdata));
+}
+
+
 int ProcessMessage(void *data, int size)
 {
 	/* log->Log(LOG_DEBUG, "Processing scheme message: %i (%i bytes)", *(int*)data, size); */
@@ -213,6 +229,13 @@ int ProcessMessage(void *data, int size)
 		case E2A_GETPLAYERDATA:
 			break;
 		case E2A_GETPLAYERLIST:
+			break;
+		case E2A_FINDPLAYER:
+			{
+				struct data_e2a_findplayer *d = data;
+				int res = mm->FindPlayer(d->name);
+				SendPlayerData(res);
+			}
 			break;
 		case E2A_GETSETTING:
 			break;

@@ -26,10 +26,11 @@
 #define E2A_SENDMESSAGE       2
 #define E2A_GETPLAYERDATA     3
 #define E2A_GETPLAYERLIST     4
-#define E2A_GETSETTING        5
-#define E2A_SETSETTING        6
-#define E2A_INSTALLCALLBACK   7
-#define E2A_RUNCOMMAND        8
+#define E2A_FINDPLAYER        5
+#define E2A_GETSETTING        6
+#define E2A_SETSETTING        7
+#define E2A_INSTALLCALLBACK   8
+#define E2A_RUNCOMMAND        9
 
 
 /* structs of all sizes. asss->extension first */
@@ -110,9 +111,15 @@ struct data_e2a_getplayerdata
 struct data_e2a_getplayerlist
 {
 	int type;
-    int arena; /* -1 = all arenas, else = specific arena */
-    int freq; /* -1 = all freqs, else = specific freq */
-    int shiptype; /* -1 = all shiptypes, else = specific ones */
+	int arena; /* -1 = all arenas, else = specific arena */
+	int freq; /* -1 = all freqs, else = specific freq */
+	int shiptype; /* -1 = all shiptypes, else = specific ones */
+};
+
+struct data_e2a_findplayer
+{
+	int type;
+	char name[1];
 };
 
 #include "config.h"
@@ -120,16 +127,16 @@ struct data_e2a_getplayerlist
 struct data_e2a_getsetting
 {
 	int type;
-    char section[MAXNAMELEN];
-    char key[MAXKEYLEN];
+	char section[MAXNAMELEN];
+	char key[MAXKEYLEN];
 };
 
 struct data_e2a_setsetting
 {
 	int type;
-    char section[MAXNAMELEN];
-    char key[MAXKEYLEN];
-    char data[MAXVALUELEN];
+	char section[MAXNAMELEN];
+	char key[MAXKEYLEN];
+	char data[MAXVALUELEN];
 };
 
 struct data_e2a_installcallback

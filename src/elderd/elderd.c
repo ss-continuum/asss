@@ -212,17 +212,19 @@ int main(int argc, char *argv[])
  *
 \**********************************************************************/
 
+
 /* child prototypes */
 
 void send_text_message(int pid, char *msg);
 void * listen_for_packet(int type);
-size_t read_full(int fd, void *buf, size_t req);
-size_t write_full(int fd, void *buf, size_t req);
+
 
 /* child global data */
 
 LinkedList evalqueue;
 int sck;
+struct data_a2e_playerdata *cachedpd;
+
 
 /* child main */
 
@@ -264,6 +266,7 @@ void run_child(int s)
 				}
 			}
 			eval = NULL;
+			cachedpd = NULL; /* only cache for duration of one top-level eval */
 		}
 		else
 		{
@@ -285,7 +288,7 @@ void * listen_for_packet(int reqtype)
 		if (bytes == 0)
 		{
 			/* connection closed, exit */
-			exit(0);
+			_exit(0);
 		}
 		else if (size > MAX_MESSAGE_SIZE)
 		{
@@ -304,7 +307,7 @@ void * listen_for_packet(int reqtype)
 			bytes = read_full(sck, msg, size);
 			if (bytes == 0)
 			{
-				exit(0);
+				_exit(0);
 			}
 			else
 			{
@@ -316,6 +319,8 @@ void * listen_for_packet(int reqtype)
 
 				if (type == A2E_EVALSTRING) /* queue it */
 					LLAdd(&evalqueue, msg);
+				if (type == A2E_PLAYERDATA) /* cache it */
+					cachedpd = msg;
 
 				if (type == reqtype)
 					return msg;
@@ -334,10 +339,48 @@ Scheme_Object * prim_test(int argc, Scheme_Object **argv)
 	return scheme_make_string("fooo!");
 }
 
+Scheme_Object * prim_findplayer(int argc, Scheme_Object **argv)
+{
+	struct data_e2a_findplayer *msg;
+	struct data_a2e_playerdata *pd;
+	char *name;
+	int len;
+	
+	if (!SCHEME_STRINGP(argv[0]))
+		return scheme_make_integer(-1);
+
+	name = SCHEME_STR_VAL(argv[0]);
+	len = SCHEME_STRLEN_VAL(argv[0]) + sizeof(struct data_e2a_findplayer);
+
+	msg = scheme_malloc_atomic(len);
+	msg->type = E2A_FINDPLAYER;
+	strcpy(msg->name, name);
+	write_message(sck, msg, len);
+	msg = NULL;
+
+	pd = listen_for_packet(A2E_PLAYERDATA);
+	return scheme_make_integer(pd->pid);
+}
+
+
+Scheme_Object * prim_sendmessage(int argc, Scheme_Object **argv)
+{
+	if (SCHEME_INTP(argv[0]) && SCHEME_STRINGP(argv[1]))
+		send_text_message(SCHEME_INT_VAL(argv[0]), SCHEME_STR_VAL(argv[1]));
+	return scheme_void;
+}
+
+/* end of new primitives */
 
 void install_primitives()
 {
-	scheme_make_prim_w_arity(prim_test, "test", 0, 0);
+#define ADD_PRIM(name, mina, maxa) \
+	scheme_add_global(#name, scheme_make_prim_w_arity(prim_##name, #name, mina, maxa), global)
+
+	ADD_PRIM(test, 0, 0);
+	ADD_PRIM(findplayer, 1, 1);
+	ADD_PRIM(sendmessage, 2, 2);
+#undef ADD_PRIM
 }
 
 
