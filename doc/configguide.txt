@@ -1,0 +1,35 @@
+
+
+
+FLAGS
+-----
+
+
+
+BALLS
+-----
+
+
+ENERGY / EXTRA POSITION DATA
+----------------------------
+
+There are two arena settings that control whether players see other
+player's energy and ship inventory (from spec):
+
+Misc:SpecSeeEnergy
+  This affects what players in spec see. If it's set to SEE_ALL, a
+  player will see inventory/energy for the player he is speccing, plus
+  energy for all other players. If it's SEE_SPEC, a player will only see
+  energy/inventory for the player he is speccing. SEE_NONE will disable
+  all extra information for speccers.
+
+Misc:SeeEnergy
+  If this is set to SEE_ALL, everyone will see everyone else's energy.
+  If it's SEE_TEAM, you will only see the energy of your teammates. If
+  it's SEE_NONE, no one will see other's energy.
+
+In addition, there are two capabilities that override the above
+settings. "seeepd" allows players to see energy/inventory from spec, and
+"seenrg" allows energy viewing while playing.
+
+
