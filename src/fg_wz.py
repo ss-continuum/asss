@@ -129,7 +129,7 @@ class WZSets:
 
 def neut_flag(a, i, x, y, r, freq):
 	# record it as a neut so we can behave differently when spawning it
-	a.fg_wz.neuts.append(i)
+	a.fg_wz_neuts.append(i)
 	# move it to none, but record x, y, freq
 	f = asss.flaginfo()
 	f.state = asss.FI_NONE
