@@ -46,7 +46,6 @@ local Inet *net;
 local Imodman *mm;
 local Ilogman *log;
 local Imapnewsdl *map;
-local Iassignfreq *afreq;
 local Iclientset *clientset;
 
 local PlayerData *players;
@@ -75,7 +74,6 @@ int MM_arenaman(int action, Imodman *mm_, int arena)
 		mm->RegInterest(I_CONFIG, &cfg);
 		mm->RegInterest(I_MAINLOOP, &ml);
 		mm->RegInterest(I_MAPNEWSDL, &map);
-		mm->RegInterest(I_ASSIGNFREQ, &afreq);
 		mm->RegInterest(I_CLIENTSET, &clientset);
 
 		if (!net || !log || !ml) return MM_FAIL;
@@ -112,7 +110,6 @@ int MM_arenaman(int action, Imodman *mm_, int arena)
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_MAINLOOP, &ml);
 		mm->UnregInterest(I_MAPNEWSDL, &map);
-		mm->UnregInterest(I_ASSIGNFREQ, &afreq);
 		mm->UnregInterest(I_CLIENTSET, &clientset);
 		return MM_OK;
 	}

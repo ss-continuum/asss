@@ -1,0 +1,24 @@
+; conf/groups/sysop
+
+cmd_shutdown
+cmd_scm
+
+; not implemented
+cmd_stat
+cmd_set
+cmd_get
+cmd_sysoplog
+
+cmd_getfile
+cmd_putfile
+cmd_delfile
+
+cmd_lsmod
+cmd_insmod
+cmd_rmmod
+
+privcmd_ufo
+
+privcmd_messagelogging
+privcmd_tweaknet
+

@@ -1,0 +1,16 @@
+; conf/groups/default
+
+cmd_arena
+cmd_stats
+cmd_score
+cmd_chat
+
+; not implemented yet
+cmd_usage
+cmd_sheep
+cmd_packetloss
+cmd_zone
+cmd_lag
+cmd_find
+cmd_version
+

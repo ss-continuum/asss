@@ -63,3 +63,46 @@ also keep in mind:
 we don't do things with just interfaces anymore! the [un]regcallback system
 will need to be enhanced to do arena-specific callbacks too!
 
+
+new ideas about assignfreq:
+
+i hate the current interface.
+
+decouple the request and response: let ship/freq requests generate
+events, and then let modules pick up the events and call things in core.
+this requires a game interface, which it's about damn time for.
+
+there is no more BADFREQ: if you want to deny a request, just ignore it.
+
+for initial freq assignment:
+generate a "fake" ship change to the requested ship.
+
+enum
+{
+	REQUEST_SHIPCHANGE,
+	REQUEST_FREQCHANGE
+};
+
+typedef void (*FreqManager)(int type, int pid, int ship, int freq);
+
+typedef struct Igame
+{
+	void (*SetShip)(...)
+	void (*SetFreq)(...)
+};
+
+if type == REQUEST_SHIPCHANGE:
+	ship = requested ship
+	freq = current freq
+
+if type == REQUEST_FREQCHANGE:
+	ship = current ship
+	freq = requested freq
+
+for entering game:
+aman will set the ship to spec, initially.
+aman will generate a fake ship change event. the handler will call
+  SetShip to set ship/freq. it will call SendToArena, but that will not
+  send a packet because .... well, we'll think of something.
+aman will then read those values.
+
