@@ -113,6 +113,7 @@ void Error(int level, char *format, ...)
 	va_start(argptr, format);
 	vfprintf(stderr, format, argptr);
 	va_end(argptr);
+	fprintf(stderr, "\n");
 	exit(level);
 }
 

@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 0.4
+Welcome to asss (a small subspace server) 0.5
 
 This news.txt will be used for updates about new features and other important
 information. I have my own internal to-do list apart from this file. If you
@@ -7,6 +7,8 @@ have any suggestions of any kind, please let me know.
 
 
 Recent updates:
+    * bricks!
+
     * energy/inventory info (including energy-viewing for team only)
 
     * capability manager that uses user-definable groups to allow access
@@ -16,9 +18,10 @@ Recent updates:
 
     * flags! (with correct flag-kill handling, and victories)
 
-    * mapdata module mostly written
-        it uses a cool sparse array structure to save memory but retain
-        really fast access speed. an average .lvl file takes just 200k.
+    * mapdata module
+        keeps entire maps in memory in only around 200k per map.
+        also manages named regions (which are only used for the
+        autowarper so far).
 
 
 High-level to-do list:
