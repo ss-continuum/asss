@@ -53,6 +53,7 @@
 unsigned int GTC(void);
 
 char *RemoveCRLF(char *str);
+char *ToLowerStr(char *str);
 
 void *amalloc(size_t bytes);
 char *astrdup(const char *str);
@@ -129,7 +130,7 @@ void DQRemove(DQNode *node);
 typedef struct StringChunk StringChunk;
 
 StringChunk *SCAlloc(void);
-char *SCAdd(StringChunk *chunk, char *str);
+char *SCAdd(StringChunk *chunk, const char *str);
 void SCFree(StringChunk *chunk);
 
 #endif

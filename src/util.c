@@ -37,9 +37,7 @@ void *MALLOC(size_t);
 #endif
 
 
-#define DEFTABLESIZE 229
-#define MAXHASHLEN 63
-
+#define DEFTABLESIZE 29
 
 
 
@@ -47,12 +45,13 @@ typedef struct HashEntry
 {
 	void *p;
 	struct HashEntry *next;
-	char key[MAXHASHLEN+1];
+	char *key; /* points into the table's stringchunk */
 } HashEntry;
 
 struct HashTable
 {
 	int size;
+	StringChunk *sc;
 	HashEntry *lists[0];
 };
 
@@ -78,12 +77,23 @@ unsigned int GTC(void)
 }
 
 
-char* RemoveCRLF(char *p)
+char *RemoveCRLF(char *p)
 {
 	char *t;
 	if ((t = strchr(p,0x0A))) *t = 0;
 	if ((t = strchr(p,0x0D))) *t = 0;
 	return p;
+}
+
+char *ToLowerStr(char *str)
+{
+	char *orig = str;
+	while (*str)
+	{
+		*str = tolower(*str);
+		str++;
+	}
+	return orig;
 }
 
 void *amalloc(size_t s)
@@ -353,11 +363,12 @@ int LLIsEmpty(LinkedList *lst)
 
 /* HashTable data type */
 
-inline unsigned Hash(const char *s, int maxlen, int modulus)
+/* note: this is a case-insensitive hash! */
+inline unsigned Hash(const char *s, int modulus)
 {
-	unsigned len = 0, ret = 1447;
-	while (*s && len++ < maxlen)
-		ret = (ret * tolower(*s++) + len*7) % modulus;
+	unsigned len = 3, ret = 1447;
+	while (*s)
+		ret = (ret * tolower(*s++) + len++ *7) % modulus;
 	return ret % modulus;
 }
 
@@ -365,6 +376,7 @@ HashTable * HashAlloc(int req)
 {
 	int size = req ? req : DEFTABLESIZE;
 	HashTable *h = amalloc(sizeof(HashTable) + size * sizeof(HashEntry));
+	h->sc = SCAlloc();
 	h->size = size;
 	return h;
 }
@@ -386,6 +398,7 @@ void HashFree(HashTable *h)
 			e->next = old;
 		}
 	}
+	SCFree(h->sc);
 	afree(h);
 #endif
 }
@@ -420,13 +433,30 @@ void HashAdd(HashTable *h, const char *s, void *p)
 #endif
 		e = amalloc(sizeof(HashEntry));
 
-	slot = Hash(s, MAXHASHLEN, h->size);
-	l = h->lists[slot];
+	slot = Hash(s, h->size);
 
-	astrncpy(e->key, s, MAXHASHLEN+1);
+	/* look through the bucket for matching keys to see if we can steal
+	 * their stored key. */
+	l = h->lists[slot];
+	e->key = NULL;
+	while (l)
+	{
+		if (!strcasecmp(l->key, s))
+		{
+			e->key = l->key;
+			break;
+		}
+		l = l->next;
+	}
+
+	/* if we couldn't find one, make new key */
+	if (e->key == NULL)
+		e->key = SCAdd(h->sc, s);
+
 	e->p = p;
 	e->next = NULL;
 
+	l = h->lists[slot];
 	if (!l)
 	{	/* this is first hash entry for this key */
 		h->lists[slot] = e;
@@ -443,7 +473,7 @@ void HashReplace(HashTable *h, const char *s, void *p)
 	int slot;
 	HashEntry *e, *l;
 
-	slot = Hash(s, MAXHASHLEN, h->size);
+	slot = Hash(s, h->size);
 	l = h->lists[slot];
 
 	if (!l)
@@ -461,7 +491,7 @@ void HashReplace(HashTable *h, const char *s, void *p)
 			e = amalloc(sizeof(HashEntry));
 
 		/* init entry */
-		astrncpy(e->key, s, MAXHASHLEN+1);
+		e->key = SCAdd(h->sc, s);
 		e->p = p;
 		e->next = NULL;
 
@@ -494,7 +524,7 @@ void HashReplace(HashTable *h, const char *s, void *p)
 			e = amalloc(sizeof(HashEntry));
 
 		/* init entry */
-		astrncpy(e->key, s, MAXHASHLEN+1);
+		e->key = SCAdd(h->sc, s);
 		e->p = p;
 		e->next = NULL;
 
@@ -508,7 +538,7 @@ void HashRemove(HashTable *h, const char *s, void *p)
 	int slot;
 	HashEntry *l, *prev = NULL;
 
-	slot = Hash(s, MAXHASHLEN, h->size);
+	slot = Hash(s, h->size);
 	l = h->lists[slot];
 
 	while (l)
@@ -544,7 +574,7 @@ void HashGetAppend(HashTable *h, const char *s, LinkedList *res)
 	int slot;
 	HashEntry *l;
 
-	slot = Hash(s, MAXHASHLEN, h->size);
+	slot = Hash(s, h->size);
 	l = h->lists[slot];
 
 	while (l)
@@ -560,7 +590,7 @@ void *HashGetOne(HashTable *h, const char *s)
 	int slot;
 	HashEntry *l;
 
-	slot = Hash(s, MAXHASHLEN, h->size);
+	slot = Hash(s, h->size);
 	l = h->lists[slot];
 
 	while (l)
@@ -619,14 +649,33 @@ StringChunk *SCAlloc(void)
 	return c;
 }
 
-char *SCAdd(StringChunk *chunk, char *str)
+char *SCAdd(StringChunk *chunk, const char *str)
 {
 	int len;
 	StringChunk *prev = NULL;
 
 	len = strlen(str)+1;
+
 	if (len > SCSIZE)
-		return NULL; /* too big */
+	{
+		/* too big for normal chunk. get specially sized chunk. */
+		while (chunk)
+		{
+			prev = chunk;
+			chunk = chunk->next;
+		}
+		if (prev)
+		{
+			StringChunk *new = amalloc(sizeof(StringChunk) - SCSIZE + len);
+			new->next = NULL;
+			new->room = 0;
+			memcpy(new->data, str, len);
+			prev->next = new;
+			return new->data;
+		}
+		else
+			return NULL;
+	}
 
 	while (chunk)
 	{
