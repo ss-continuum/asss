@@ -114,10 +114,15 @@ local void LoadSettings(int arena)
 	memset(cs, 0, sizeof(*cs));
 	cs->type = S2C_SETTINGS;
 
+	cs->bit_set.ExactDamage = cfg->GetInt(conf, "Bullet", "ExactDamage", 0);
+	cs->bit_set.HideFlags = cfg->GetInt(conf, "Spectator", "HideFlags", 0);
+	cs->bit_set.NoXRadar = cfg->GetInt(conf, "Spectator", "NoXRadar", 0);
+
 	/* do ships */
 	for (i = 0; i < 8; i++)
 	{
 		struct WeaponBits wb;
+		struct MiscBitfield misc;
 		struct ShipSettings *ss = cs->ships + i;
 		char *shipname = ship_names[i];
 
@@ -135,13 +140,22 @@ local void LoadSettings(int arena)
 		/* weapons bits */
 #define DO(x) \
 		wb.x = cfg->GetInt(conf, shipname, #x, 0)
-		DO(ShrapnelMax); DO(ShrapnelRate);  DO(AntiWarpStatus);
-		DO(CloakStatus); DO(StealthStatus); DO(XRadarStatus);
-		DO(InitialGuns); DO(MaxGuns);       DO(InitialBombs);
-		DO(MaxBombs);    DO(DoubleBarrel);  DO(EmpBomb);
-		DO(SeeMines);    DO(Unused1);
+		DO(ShrapnelMax);  DO(ShrapnelRate);  DO(AntiWarpStatus);
+		DO(CloakStatus);  DO(StealthStatus); DO(XRadarStatus);
+		DO(InitialGuns);  DO(MaxGuns);
+		DO(InitialBombs); DO(MaxBombs);
+		DO(DoubleBarrel); DO(EmpBomb); DO(SeeMines);
+		DO(Unused1);
 #undef DO
 		ss->Weapons = wb;
+
+		/* now do the strange bitfield */
+		memset(&misc, 0, sizeof(misc));
+		misc.SeeBombLevel = cfg->GetInt(conf, shipname, "SeeBombLevel", 0);
+		misc.DisableFastShooting = cfg->GetInt(conf, shipname,
+				"DisableFastShooting", 0);
+		misc.Radius = cfg->GetInt(conf, shipname, "Radius", 0);
+		ss->short_set[10] = *(unsigned short*)&misc;
 	}
 
 	/* do settings */

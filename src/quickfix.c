@@ -46,6 +46,8 @@ local void try_section(const char *limit, const struct section_help *sh,
 {
 	int secgood, keygood, j;
 	const struct key_help *kh;
+	char min[16];
+	const char *max;
 
 	secgood = !limit || strcasestr(secname, limit) != NULL;
 	for (j = 0; j < sh->keycount; j++)
@@ -55,13 +57,22 @@ local void try_section(const char *limit, const struct section_help *sh,
 		if ((secgood || keygood) && strcmp(kh->loc, "Arena") == 0)
 		{
 			const char *val = cfg->GetStr(ch, secname, kh->name);
-			if (val)
+			if (val == NULL)
+				val = "<unset>";
+			if (kh->range)
 			{
-				/* sec:key:val:min:max:help */
-				fprintf(f, "%s:%s:%s:%s:%s:%s\r\n",
-						secname, kh->name,
-						val, "", "", kh->helptext);
+				max = delimcpy(min, kh->range, 16, '-');
+				if (max == NULL) max = "";
 			}
+			else
+			{
+				min[0] = 0;
+				max = "";
+			}
+			/* sec:key:val:min:max:help */
+			fprintf(f, "%s:%s:%s:%s:%s:%s\r\n",
+					secname, kh->name,
+					val, min, max, kh->helptext);
 		}
 	}
 }

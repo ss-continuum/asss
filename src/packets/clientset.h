@@ -22,6 +22,13 @@ struct WeaponBits
 	unsigned Unused1        : 3;
 };
 
+struct MiscBitfield
+{
+	unsigned SeeBombLevel   : 2;
+	unsigned DisableFastShooting : 1;
+	unsigned Padding1       : 5;
+	unsigned Radius         : 8;
+};
 
 struct ShipSettings /* 144 bytes */
 {
@@ -35,7 +42,14 @@ struct ShipSettings /* 144 bytes */
 
 struct ClientSettings
 {
-	i32 type; /* 0x0F */
+	i8 type; /* 0x0F */
+	struct
+	{
+		unsigned ExactDamage : 1;
+		unsigned HideFlags : 1;
+		unsigned NoXRadar : 1;
+		unsigned Padding : 21;
+	} bit_set;
 	struct ShipSettings ships[8];
 	i32 long_set[24];
 	i16 short_set[58];

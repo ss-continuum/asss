@@ -23,9 +23,10 @@ Bomb:BBombDamagePercent:::Percentage of normal damage applied to a bouncing bomb
 Brick:BrickTime:::How long bricks last (in hundredths of a second)
 Brick:BrickSpan:::How many tiles bricks are able to span
 
-Bullet:BulletDamageLevel:::Maximum amount of damage that a L1 bullet will cause
+Bullet:BulletDamageLevel:::Maximum amount of damage that a L1 bullet will cause. Formula; damage = squareroot(rand# * (max damage^2 + 1))
 Bullet:BulletDamageUpgrade:::Amount of extra damage each bullet level will cause
 Bullet:BulletAliveTime:::How long bullets live before disappearing (in hundredths of a second)
+Bullet:ExactDamage:0:1:If damage is to be random or not (1=exact, 0=random) [Continuum .36]
 
 Burst:BurstDamageLevel:::Maximum amount of damage caused by a single burst bullet.
 
@@ -121,6 +122,8 @@ Latency:MaxLatencyForKickOut:40:200:Maximum latency that allowed before kickout.
 Latency:LatencyKickOutTime:300:3000:Amount of time that MaxLatencyForKickOut must be bad before the kickout occurs.
 Latency:S2CNoDataKickoutDelay:100:32000:Amount of time a user can receive no data from server before connection is terminated.
 Latency:CutbackWatermark:500:32000:Amount of data the server is allowed to send the user per second before it starts trying to cutback by skipping non-critical packets.
+Latency:C2SNoDataAction:::0=Use Normal Method (Above settings) 1=Display Sysop Warning, 2=Spec Player, 3=Warning&Spec, 4=Kick, 5=Warning&Kick, 6=Kick&Spec, 7=Warning&Kick&Spec
+Latency:C2SNoDataTime:::If above setting (C2SNoDataAction) is set, this is the delay (in 1/100 of a second [100 = 1 second, 60000=1 minute]) that a player's ping can be maxed at during a position packet before action takes place
 
 Message:MessageReliable:0:1:Whether messages are sent reliably.
 Message:AllowAudioMessages:0:1:Whether players can send audio messages (0=no 1=yes)
@@ -150,7 +153,8 @@ Misc:TimedGame:::Amount of time in a timed game (like speed zone) (0=not a timed
 Misc:ResetScoreOnFrequencyChange:0:1:Whether a players score should be reset when they change frequencies (used primarily for timed games like soccer)
 Misc:SendPositionDelay:0:20:Amount of time between position packets sent by client.
 Misc:SlowFrameCheck:0:1:Whether to check for slow frames on the client (possible cheat technique) (flawed on some machines, do not use)
-Misc:AllowSavedShips:0:1:Whether saved ships are allowed (do not allow saved ship in zones where sub-arenas may have differing parameters)
+Misc:SlowFrameRate:0:35:Check whether client has too slow frame rate to play (0=disabled, 1-35=Frame Rate limit, if < than this, kicked) [Continuum .36]
+Misc:AllowSavedShips:0:1:Whether saved ships are allowed (do not allow saved ship in zones where sub-arenas may have differing parameters) 1 = Savedfrom last arena/lagout, 0 = New Ship when entering arena/zone
 Misc:FrequencyShift:0:10000:Amount of random frequency shift applied to sounds in the game.
 Misc:ExtraPositionData:0:1:Whether regular players receive sysop data about a ship (leave this at zero)
 Misc:SheepMessage:::String that Appears when a player types ?sheep
@@ -161,6 +165,12 @@ Misc:PeriodicMessage1:::Must be set to this format: (Time for repeating) (Delay 
 Misc:PeriodicMessage2:::Time for repeating will be after every X mins (60=1hour, 1440=1day), will display this message. *READ NEXT!
 Misc:PeriodicMessage3:::Delay will be after first person enters arena, it will then start this many mins after they enter. Good so they don't get one instantly for no reason. *READ NEXT!
 Misc:PeriodicMessage4:::Text will be the text. If text starts with a * (ie: *Hello), will act as a *zone message. If no * (ie: Hello), will act as a *arena command.
+Misc:MaxXRes:::Max X res limit, 0 = no limit
+Misc:MaxYRes:::Max Y res limit, 0 = no limit
+Misc:ContinuumOnly:::If set to 0, anyone can play. If set to 1, only continuum uses can play in ship, while all VIE clients will be locked in spec.
+Misc:LevelFiles:::List of .lvz files, seperated by commas, that will be downloaded via client and used in this arena. A + in front of .lvz file will make it optional [Continuum .37]
+Misc:MinUsage:::Min total usage hours required to play in this arena.
+Misc:StartInSpec:::If set to 1, all users entering arena start in spec. Otherwise enter arena as normal.
 
 Owner:UserId:::User ID number for Users name
 Owner:Name:::Owners Username
@@ -259,6 +269,9 @@ Soccer:CapturePoints:::If positive, these points are distributed to each goal/te
 Soccer:UseFlagger:0:1:If player with soccer ball should use the Flag:Flagger* ship adjustments or not (0=no, 1=yes)
 Soccer:BallLocation:0:1:Whether the balls location is displayed at all times or not (0=not, 1=yes)
 Soccer:BallBlankDelay:::Amount of time a player can receive no data from server and still pick up the soccer ball.
+Soccer:CatchMinimum:::Minimun goals needed to win
+Soccer:CatchPoints:::Max goals needed to win
+Soccer:WinBy:::Have to beat other team by this many goals
 
 Team:MaxFrequency:::Maximum number of frequencies allowed in arena (5 would allow frequencies 0,1,2,3,4)
 Team:MaxPerTeam:::Maximum number of players on a non-private frequency
@@ -336,6 +349,7 @@ All:BombBounceCount:::Number of times a ship's bombs bounce before they explode 
 All:BombSpeed:::How fast bombs travel
 All:BombFireDelay:::delay that ship waits after a bomb is fired until another weapon may be fired (in hundredths of a second)
 All:EmpBomb:0:1:Whether ships fire EMP bombs 0=no 1=yes
+All:SeeBombLevel:0:4:If ship can see bombs on radar (0=Disabled, 1=All, 2=L2 and up, 3=L3 and up, 4=L4 bombs only) [Continuum .36]
 
 All:MaxMines:::Maximum number of mines allowed in ships
 All:SeeMines:0:1:Whether ships see mines on radar 0=no 1=yes
@@ -355,12 +369,14 @@ All:RocketTime:::How long a Rocket lasts (in hundredths of a second)
 All:InitialBounty:::Number of 'Greens' given to ships when they start
 All:AttachBounty:::Bounty required by ships to attach as a turret
 All:AfterburnerEnergy:::Amount of energy required to have 'Afterburners' activated.
+All:DisableFastShooting:0:1:If firing bullets, bombs, or thors is disabled after using afterburners (1=enabled) [Continuum .36]
 
+All:Radius:::The ship's radius from center to outside, in pixels. Standard value is 14 pixels. [Continuum .37]
 All:DamageFactor:::How likely a the ship is to take damamage (ie. lose a prize) (0=special-case-never, 1=extremely likely, 5000=almost never)
 All:PrizeShareLimit:::Maximum bounty that ships receive Team Prizes
 All:SuperTime:1::How long Super lasts on the ship (in hundredths of a second)
 All:ShieldsTime:1::How long Shields lasts on the ship (in hundredths of a second)
-All:Gravity:::How strong of an effect the wormhole has on this ship (0 = none)
+All:Gravity:::Uses this formula, where R = raduis (tiles) and g = this setting; R = 1.325 * (g ^ 0.507)  IE: If set to 500, then your ship will start to get pulled in by the wormhole once you come within 31 tiles of it
 All:GravityTopSpeed:::Ship are allowed to move faster than their maximum speed while effected by a wormhole.  This determines how much faster they can go (0 = no extra speed)
 
 All:SoccerBallFriction:::Amount the friction on the soccer ball (how quickly it slows down -- higher numbers mean faster slowdown)
@@ -368,4 +384,7 @@ All:SoccerBallProximity:::How close the player must be in order to pick up ball 
 All:SoccerBallSpeed:::Initial speed given to the ball when fired by the carrier.
 All:SoccerThrowTime:::Time player has to carry soccer ball (in hundredths of a second)
 
-+Maker:Maker:::Editor of this Template was done by Mine GO BOOM with the help of the letter K.
+Spectator:HideFlags:0:1:If flags are to be shown to specs when they are dropped (1=can't see them) [Continuum .36]
+Spectator:NoXRadar:0:1:If specs are allowed to have X (0=yes, 1=no) [Continuum .36]
+
++Maker:Maker:::Editing was done by Mine GO BOOM with the help of the letter K. Version 1.34.12a   For more help, visit http://www.shanky.com/server/
