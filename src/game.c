@@ -31,12 +31,14 @@ typedef struct
 	unsigned int wpnsent;
 	struct { int changes; unsigned lastcheck; } changes;
 	/* epd/energy stuff */
-	struct { char see, cap, capnrg; } pl_epd;
+	struct { int seenrg, seenrgspec, seeepd; } pl_epd;
+	/*           enum    enum        bool              */
 } pdata;
 
 typedef struct
 {
-	char spec_epd, nrg_epd;
+	int spec_epd, spec_nrg, all_nrg;
+	/*  bool      enum      enum     */
 	unsigned long personalgreen;
 } adata;
 
@@ -79,7 +81,7 @@ local void SetFreqAndShip(Player *p, int ship, int freq);
 local void DropBrick(Arena *arena, int freq, int x1, int y1, int x2, int y2);
 local void WarpTo(const Target *target, int x, int y);
 local void GivePrize(const Target *target, int type, int count);
-local void FakePosition(Player *p, struct C2SPosition *pos);
+local void FakePosition(Player *p, struct C2SPosition *pos, int len);
 local void FakeKill(Player *killer, Player *killed, int bounty, int flags);
 
 local Igame _myint =
@@ -223,12 +225,14 @@ void Pppk(Player *p, byte *p2, int n)
 {
 	struct C2SPosition *pos = (struct C2SPosition *)p2;
 	Arena *arena = p->arena;
-	adata *ad = P_ARENA_DATA(arena, adkey);
 	pdata *data = PPDATA(p, pdkey), *idata;
 	int sendwpn, x1, y1;
 	int sendtoall = 0, randnum = rand();
 	Player *i;
-	LinkedList regset = LL_INITIALIZER, epdset = LL_INITIALIZER;
+	LinkedList
+		regset = LL_INITIALIZER,
+		nrgset = LL_INITIALIZER,
+		epdset = LL_INITIALIZER;
 	Link *link;
 	ticks_t gtc = current_ticks();
 	int latency = TICK_DIFF(gtc, pos->time);
@@ -237,7 +241,7 @@ void Pppk(Player *p, byte *p2, int n)
 	if (latency > 255) latency = 255;
 
 	/* handle common errors */
-	if (!arena || arena->status != ARENA_RUNNING) return;
+	if (!arena || arena->status != ARENA_RUNNING || p->status != S_PLAYING) return;
 
 	/* do checksum */
 	if (p->type != T_FAKE)
@@ -256,13 +260,6 @@ void Pppk(Player *p, byte *p2, int n)
 	/* speccers don't get their position sent to anyone */
 	if (p->p_ship != SPEC)
 	{
-		/* epd thing */
-		int see = SEE_NONE;
-		/* because this might be SEE_TEAM */
-		if (ad->nrg_epd) see = ad->nrg_epd;
-		if (data->pl_epd.capnrg) see = SEE_ALL;
-		data->pl_epd.see = see;
-
 		x1 = pos->x;
 		y1 = pos->y;
 
@@ -290,7 +287,7 @@ void Pppk(Player *p, byte *p2, int n)
 		     (pos->status & 0x08) && /* FIXME: replace with symbolic constant or bitfield */
 		     rand() < cfg_sendanti)
 			sendtoall = 1;
-		/* send safe zone enters to everyone */
+		/* send safe zone enters to everyone, reliably */
 		if ((pos->status && 0x20) &&
 		    !(p->position.status & 0x20))
 			sendtoall = 2;
@@ -323,21 +320,7 @@ void Pppk(Player *p, byte *p2, int n)
 				    i->arena == arena &&
 				    i != p)
 				{
-					LinkedList *set = &regset;
 					long dist = lhypot(x1 - idata->pos.x, y1 - idata->pos.y);
-
-					/* figure out epd thing */
-					if (idata->pl_epd.see == SEE_ALL ||
-					    ( idata->pl_epd.see == SEE_TEAM &&
-					      p->p_freq == i->p_freq) ||
-					    ( idata->pl_epd.see == SEE_SPEC &&
-					      idata->speccing == p ))
-						set = &epdset;
-
-					/* FIXME: the server needs to keep cont up to date
-					 * on who's watching energy before it can send epd. */
-					if (i->type == T_CONT)
-						set = &regset;
 
 					if (
 							dist <= range ||
@@ -348,11 +331,41 @@ void Pppk(Player *p, byte *p2, int n)
 							i->p_attached == p->pid ||
 							/* and send some radar packets */
 							( ( wpn.weapon.type == W_NULL &&
-								dist <= cfg_pospix &&
-								randnum > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0)))) ||
+							    dist <= cfg_pospix &&
+							    randnum > ((float)dist / (float)cfg_pospix *
+							        (RAND_MAX+1.0)))) ||
 							/* bots */
 							i->flags.see_all_posn)
 					{
+						/* figure out which set to add him to */
+						LinkedList *set = &regset;
+						if (pos->extra.energy == 0)
+						{
+							/* use this to signal the epd doesn't exist; don't
+							 * send. */
+						}
+						else if (i->p_ship == SPEC)
+						{
+							if (idata->pl_epd.seenrgspec == SEE_ALL ||
+							    ( idata->pl_epd.seenrgspec == SEE_TEAM &&
+							      p->p_freq == i->p_freq ) ||
+							    ( idata->pl_epd.seenrgspec == SEE_SPEC &&
+							      idata->speccing == p ))
+								set = &nrgset;
+							/* for spectators, also check epd */
+							if (idata->pl_epd.seeepd)
+								set = &epdset;
+						}
+						else
+						{
+							if (idata->pl_epd.seenrg == SEE_ALL ||
+							    ( idata->pl_epd.seenrg == SEE_TEAM &&
+							      p->p_freq == i->p_freq ) ||
+							    ( idata->pl_epd.seenrg == SEE_SPEC &&
+							      idata->speccing == p ))
+								set = &nrgset;
+						}
+
 						LLAdd(set, i);
 						if (wpn.weapon.type)
 							idata->wpnsent++;
@@ -366,6 +379,10 @@ void Pppk(Player *p, byte *p2, int n)
 					(byte*)&wpn,
 					sizeof(struct S2CWeapons) - sizeof(struct ExtraPosData),
 					nflags);
+			net->SendToSet(&nrgset,
+					(byte*)&wpn,
+					sizeof(struct S2CWeapons) - sizeof(struct ExtraPosData) + 2,
+					nflags);
 			net->SendToSet(&epdset,
 					(byte*)&wpn,
 					sizeof(struct S2CWeapons),
@@ -378,6 +395,7 @@ void Pppk(Player *p, byte *p2, int n)
 				S2C_POSITION, pos->rotation, gtc & 0xFFFF, pos->x, (u8)latency,
 				pos->bounty, (u8)p->pid, pos->status, pos->yspeed, pos->y, pos->xspeed
 			};
+			sendpos.extra = pos->extra;
 
 			nflags = NET_UNRELIABLE | NET_PRI_P3 | NET_DROPPABLE;
 			if (sendtoall == 2)
@@ -390,20 +408,8 @@ void Pppk(Player *p, byte *p2, int n)
 				    i->arena == arena &&
 				    i != p)
 				{
-					LinkedList *set = &regset;
 					long dist = lhypot(x1 - idata->pos.x, y1 - data->pos.y);
 					int res = i->xres + i->yres;
-
-					if (idata->pl_epd.see == SEE_ALL ||
-					    ( idata->pl_epd.see == SEE_TEAM &&
-					      p->p_freq == i->p_freq) ||
-					    ( idata->pl_epd.see == SEE_SPEC &&
-					      idata->speccing == p ))
-						set = &epdset;
-
-					/* FIXME: see above */
-					if (i->type == T_CONT)
-						set = &regset;
 
 					if (
 							dist < res ||
@@ -414,10 +420,41 @@ void Pppk(Player *p, byte *p2, int n)
 							i->p_attached == p->pid ||
 							/* and send some radar packets */
 							( dist <= cfg_pospix &&
-							  (randnum > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0)))) ||
+							  (randnum > ((float)dist / (float)cfg_pospix *
+							              (RAND_MAX+1.0)))) ||
 							/* bots */
 							i->flags.see_all_posn)
+					{
+						/* figure out which set to add him to */
+						LinkedList *set = &regset;
+						if (pos->extra.energy == 0)
+						{
+							/* use this to signal the epd doesn't exist; don't
+							 * send. */
+						}
+						else if (i->p_ship == SPEC)
+						{
+							if (idata->pl_epd.seenrgspec == SEE_ALL ||
+							    ( idata->pl_epd.seenrgspec == SEE_TEAM &&
+							      p->p_freq == i->p_freq ) ||
+							    ( idata->pl_epd.seenrgspec == SEE_SPEC &&
+							      idata->speccing == p ))
+								set = &nrgset;
+							/* for spectators, also check epd */
+							if (idata->pl_epd.seeepd)
+								set = &epdset;
+						}
+						else
+						{
+							if (idata->pl_epd.seenrg == SEE_ALL ||
+							    ( idata->pl_epd.seenrg == SEE_TEAM &&
+							      p->p_freq == i->p_freq ) ||
+							    ( idata->pl_epd.seenrg == SEE_SPEC &&
+							      idata->speccing == p ))
+								set = &nrgset;
+						}
 						LLAdd(set, i);
+					}
 				}
 			pd->Unlock();
 
@@ -425,21 +462,18 @@ void Pppk(Player *p, byte *p2, int n)
 					(byte*)&sendpos,
 					sizeof(struct S2CPosition) - sizeof(struct ExtraPosData),
 					nflags);
+			net->SendToSet(&nrgset,
+					(byte*)&sendpos,
+					sizeof(struct S2CPosition) - sizeof(struct ExtraPosData) + 2,
+					nflags);
 			net->SendToSet(&epdset,
 					(byte*)&sendpos,
 					sizeof(struct S2CPosition),
 					nflags);
 		}
-	}
-	else
-	{
-		int see = SEE_NONE;
-
-		/* handle epd thing */
-		if (ad->spec_epd) see = ad->spec_epd;
-		if (data->pl_epd.cap) see = SEE_SPEC;
-		if (data->pl_epd.capnrg) see = SEE_ALL;
-		data->pl_epd.see = see;
+		LLEmpty(&regset);
+		LLEmpty(&nrgset);
+		LLEmpty(&epdset);
 	}
 
 	/* lag data */
@@ -471,9 +505,9 @@ void Pppk(Player *p, byte *p2, int n)
 }
 
 
-void FakePosition(Player *p, struct C2SPosition *pos)
+void FakePosition(Player *p, struct C2SPosition *pos, int len)
 {
-	Pppk(p, (byte*)pos, 22);
+	Pppk(p, (byte*)pos, len);
 }
 
 
@@ -846,12 +880,26 @@ void GivePrize(const Target *target, int type, int count)
 void PlayerAction(Player *p, int action, Arena *arena)
 {
 	pdata *data = PPDATA(p, pdkey), *idata;
+	adata *ad = P_ARENA_DATA(arena, adkey);
+
 	if (action == PA_ENTERARENA)
 	{
-		data->pl_epd.see = 0;
-		data->pl_epd.cap = capman ? capman->HasCapability(p, "seeepd") : 0;
-		data->pl_epd.capnrg = capman ? capman->HasCapability(p, "seenrg") : 0;
+		int seenrg = SEE_NONE, seenrgspec = SEE_NONE, seeepd = SEE_NONE;
+
+		if (ad->all_nrg)  seenrg = ad->all_nrg;
+		if (ad->spec_nrg) seenrgspec = ad->spec_nrg;
+		if (ad->spec_epd) seeepd = TRUE;
+		if (capman && capman->HasCapability(p, "seenrg"))
+			seenrg = seenrgspec = SEE_ALL;
+		if (capman && capman->HasCapability(p, "seeepd"))
+			seeepd = TRUE;
+
+		data->pl_epd.seenrg = seenrg;
+		data->pl_epd.seenrgspec = seenrgspec;
+		data->pl_epd.seeepd = seeepd;
+
 		data->wpnsent = 0;
+
 		SendOldBricks(p);
 	}
 	else if (action == PA_LEAVEARENA)
@@ -878,16 +926,21 @@ void ArenaAction(Arena *arena, int action)
 		adata *ad = P_ARENA_DATA(arena, adkey);
 		brickdata *bd = P_ARENA_DATA(arena, brickkey);
 
-		/* cfghelp: Misc:SpecSeeEnergy, arena, enum, def: $SEE_NONE
-		 * Whose energy levels spectators can see. Check 'SeeEnergy' for
-		 * the description of the options. */
+		/* cfghelp: Misc:SpecSeeExtra, arena, bool, def: 1
+		 * Whether spectators can see extra data for the person they're
+		 * spectating. */
 		ad->spec_epd =
-			cfg->GetInt(arena->cfg, "Misc", "SpecSeeEnergy", SEE_NONE);
+			cfg->GetInt(arena->cfg, "Misc", "SpecSeeExtra", 1);
+		/* cfghelp: Misc:SpecSeeEnergy, arena, enum, def: $SEE_NONE
+		 * Whose energy levels spectators can see. The options are the
+		 * same as for Misc:SeeEnergy, with one addition: $SEE_SPEC
+		 * means only the player you're spectating. */
+		ad->spec_nrg =
+			cfg->GetInt(arena->cfg, "Misc", "SpecSeeEnergy", SEE_ALL);
 		/* cfghelp: Misc:SeeEnergy, arena, enum, def: $SEE_NONE
 		 * Whose energy levels everyone can see: $SEE_NONE means nobody
-		 * else's, $SEE_ALL is everyone's, $SEE_TEAM is only teammates,
-		 * and $SEE_SPEC is only the player you're spectating. */
-		ad->nrg_epd =
+		 * else's, $SEE_ALL is everyone's, $SEE_TEAM is only teammates. */
+		ad->all_nrg =
 			cfg->GetInt(arena->cfg, "Misc", "SeeEnergy", SEE_NONE);
 
 		/* cfghelp: Misc:DontShareThor, arena, bool, def: 0

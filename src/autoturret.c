@@ -109,7 +109,8 @@ local void mlfunc()
 			td->pos.bounty = TICK_DIFF(td->endtime, now) / 100;
 			td->pos.time = now;
 			td->pos.weapon.type = td->weapon;
-			game->FakePosition(td->p, &td->pos);
+			td->pos.extra.energy++;
+			game->FakePosition(td->p, &td->pos, sizeof(td->pos));
 		}
 		else if (TICK_GT(now, td->tosend))
 		{
@@ -117,7 +118,8 @@ local void mlfunc()
 			td->pos.bounty = TICK_DIFF(td->endtime, now) / 100;
 			td->pos.time = now;
 			td->pos.weapon.type = 0;
-			game->FakePosition(td->p, &td->pos);
+			td->pos.extra.energy++;
+			game->FakePosition(td->p, &td->pos, sizeof(td->pos));
 		}
 	}
 	pthread_mutex_unlock(&turret_mtx);

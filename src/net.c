@@ -1078,12 +1078,12 @@ void * RecvThread(void *dummy)
 		FD_SET(ld->gamesock, &myfds);
 		if (ld->gamesock > maxfd)
 			maxfd = ld->gamesock;
-		if (clientsock >= 0)
-		{
-			FD_SET(clientsock, &myfds);
-			if (clientsock > maxfd)
-				maxfd = clientsock;
-		}
+	}
+	if (clientsock >= 0)
+	{
+		FD_SET(clientsock, &myfds);
+		if (clientsock > maxfd)
+			maxfd = clientsock;
 	}
 
 	for (;;)
@@ -1106,9 +1106,9 @@ void * RecvThread(void *dummy)
 			if (FD_ISSET(ld->pingsock, &selfds))
 				handle_ping_packet(ld);
 
-			if (clientsock >= 0 && FD_ISSET(clientsock, &selfds))
-				handle_client_packet();
 		}
+		if (clientsock >= 0 && FD_ISSET(clientsock, &selfds))
+			handle_client_packet();
 	}
 	return NULL;
 }
@@ -1487,6 +1487,7 @@ void * SendThread(void *dummy)
 		/* outgoing packets and lagouts for client connections */
 		dropme = NULL;
 		pthread_mutex_lock(&ccmtx);
+		gtc = current_ticks();
 		for (link = LLGetHead(&clientconns); link; link = link->next)
 		{
 			ClientConnection *cc = link->data;

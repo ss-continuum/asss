@@ -815,7 +815,7 @@ local void *playback_thread(void *v)
 					if (p1)
 					{
 						ev.pos.pos.time = now;
-						game->FakePosition(p1, &ev.pos.pos);
+						game->FakePosition(p1, &ev.pos.pos, ev.pos.pos.type);
 					}
 					else
 						lm->LogA(L_WARN, "record", a, "no mapping for pid %d",

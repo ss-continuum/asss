@@ -63,7 +63,7 @@ local void UpdateGroup(Player *p, Arena *arena)
 		{
 			char *t;
 			/* check if this is an 'arena:group' thing */
-			t = strstr(gg, arena->name);
+			t = strstr(gg, arena->basename);
 			if (t)
 			{
 				t = strchr(t, ':');
