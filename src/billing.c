@@ -224,6 +224,8 @@ local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, c
 		char buf[MAXMSGSIZE], chan[16];
 		const char *t;
 
+		/* note that this supports a channel name in place of the usual
+		 * channel number. e.g., ;foo;this is a message to the foo channel. */
 		t = strchr(text, ';');
 		if (t && (t-text) < 10)
 			text = delimcpy(chan, text, sizeof(chan), ';');

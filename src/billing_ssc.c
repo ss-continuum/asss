@@ -280,6 +280,9 @@ local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, c
 		pkt.Type = S2B_USER_CHANNEL_CHAT;
 		pkt.ConnectionID = p->pid;
 		memset(pkt.ChannelNr,0,sizeof(pkt.ChannelNr));
+		/* note that this supports a channel name in place of the usual
+		 * channel number. e.g., ;foo;this is a message to the foo channel.
+		 * most billers probably don't support this feature yet. */
 		t = strchr(text, ';');
 		if (t && (t-text) < 10)
 			text = delimcpy(pkt.ChannelNr, text, sizeof(pkt.ChannelNr), ';');
