@@ -873,11 +873,13 @@ local void remote_connect(const char *ipaddr, int port)
 	}
 #ifndef WIN32
 	else if (errno == EINPROGRESS)
+#else
+	else if (WSAGetLastError() == WSAEWOULDBLOCK)
+#endif
 	{
 		/* this is the most likely result */
 		state = s_connecting;
 	}
-#endif
 	else
 	{
 		lm->Log(L_WARN, "<billing> unexpected error from connect: %s",
