@@ -12,8 +12,6 @@ locking. lots of options here:
 	finite "lives" also fits in here
 	must be able to be controlled by mod commands and other modules
 
-fix brick drop algorithm (it should snap to edges of other bricks)
-
 allow sharing and cacheing of compressed .lvl's and .lvz's between
 arenas.
 

@@ -10,6 +10,10 @@ see it eventually (it all gets logged).
 
 
 Recent updates:
+    * koth game in the default arena (?go 0)
+
+    * an arena placing module that supports multiple "public" arenas
+
     * ?help supports config settings and ?quickfix works.
 
     * a new kick-ass turf reward module from GiGaKiLLeR. ?go turf with

@@ -801,110 +801,86 @@ void InitBrickSystem()
 }
 
 
-void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2, unsigned tm)
+/* call with mutex */
+local void expire_bricks(int arena)
 {
-	struct S2CBrickPacket *pkt = amalloc(sizeof(struct S2CBrickPacket));
+	int timeout, gtc;
+	LinkedList *list = &brickdata[arena].list;
+	Link *l, *next;
 
-	if (x2 < x1)
-	{
-		pkt->x1 = x2;
-		pkt->x2 = x1;
-	}
-	else
-	{
-		pkt->x1 = x1;
-		pkt->x2 = x2;
-	}
+	timeout = cfg->GetInt(arenas[arena].cfg, "Brick", "BrickTime", 0) + 10;
 
-	if (y2 < y1)
+	gtc = GTC();
+	for (l = LLGetHead(list); l; l = next)
 	{
-		pkt->y1 = y2;
-		pkt->y2 = y1;
-	}
-	else
-	{
-		pkt->y1 = y1;
-		pkt->y2 = y2;
-	}
+		struct S2CBrickPacket *pkt = l->data;
+		next = l->next;
 
+		if ( (pkt->starttime + timeout) < gtc )
+		{
+			mapdata->DoBrick(arena, 0, pkt->x1, pkt->y1, pkt->x2, pkt->y2);
+			LLRemove(list, pkt);
+			afree(pkt);
+		}
+	}
+}
+
+
+/* call with mutex */
+local void drop_brick(int arena, int freq, int x1, int y1, int x2, int y2, unsigned tm)
+{
+	struct S2CBrickPacket *pkt = amalloc(sizeof(*pkt));
+
+	pkt->x1 = x1; pkt->y1 = y1;
+	pkt->x2 = x2; pkt->y2 = y2;
 	pkt->type = S2C_BRICK;
 	pkt->freq = freq;
-
-	pthread_mutex_lock(&brickdata[arena].mtx);
 	pkt->brickid = brickdata[arena].cbrickid++;
 	pkt->starttime = (tm == 0) ? GTC(): tm;
-	/* stupid priitk */
+	/* workaround for stupid priitk */
 	if (pkt->starttime <= brickdata[arena].lasttime)
 		pkt->starttime = ++brickdata[arena].lasttime;
 	else
 		brickdata[arena].lasttime = pkt->starttime;
 	LLAdd(&brickdata[arena].list, pkt);
-	pthread_mutex_unlock(&brickdata[arena].mtx);
 
 	net->SendToArena(arena, -1, (byte*)pkt, sizeof(*pkt), NET_RELIABLE | NET_PRI_P4);
 	lm->Log(L_DRIVEL, "<game> {%s} Brick dropped (%d,%d)-(%d,%d) (freq=%d) (id=%d)",
 			arenas[arena].name,
 			x1, y1, x2, y2, freq,
 			pkt->brickid);
+
+	mapdata->DoBrick(arena, 1, x1, y1, x2, y2);
+}
+
+
+void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2, unsigned tm)
+{
+	pthread_mutex_lock(&brickdata[arena].mtx);
+	expire_bricks(arena);
+	drop_brick(arena, freq, x1, y1, x2, y2, tm);
+	pthread_mutex_unlock(&brickdata[arena].mtx);
 }
 
 
 void SendOldBricks(int pid)
 {
-	int arena = players[pid].arena, timeout, gtc;
-	LinkedList *list = &brickdata[arena].list, toremove;
-	Link *l;
-
-	LLInit(&toremove);
-	timeout = cfg->GetInt(arenas[arena].cfg, "Brick", "BrickTime", 0) + 50;
-	
-	pthread_mutex_lock(&brickdata[arena].mtx);
-	gtc = GTC();
-
-	for (l = LLGetHead(list); l; l = l->next)
-	{
-		struct S2CBrickPacket *pkt = (struct S2CBrickPacket*)l->data;
-		if ( (pkt->starttime + timeout) > gtc )
-			/* send it to the player */
-			net->SendToOne(pid, (byte*)pkt, sizeof(*pkt), NET_RELIABLE);
-		else
-			/* mark it to be removed below */
-			LLAdd(&toremove, pkt);
-	}
-
-	/* remove bricks marked above */
-	for (l = LLGetHead(&toremove); l; l = l->next)
-	{
-		LLRemove(list, l->data);
-		afree(l->data);
-	}
-
-	pthread_mutex_unlock(&brickdata[arena].mtx);
-
-	LLEmpty(&toremove);
-}
-
-
-#if 0
-void ClearAllBricks(int arena)
-{
-	byte pkt = S2C_BRICK;
+	int arena = players[pid].arena;
 	LinkedList *list = &brickdata[arena].list;
 	Link *l;
 
 	pthread_mutex_lock(&brickdata[arena].mtx);
 
-	/* clear the list */
-	for (l = LLGetHead(list); l; l = l->next)
-		afree(l->data);
-	LLEmpty(list);
+	expire_bricks(arena);
 
-	/* notify clients of all bricks gone */
-	net->SendToArena(arena, -1, &pkt, 1, NET_RELIABLE);
+	for (l = LLGetHead(list); l; l = l->next)
+	{
+		struct S2CBrickPacket *pkt = (struct S2CBrickPacket*)l->data;
+		net->SendToOne(pid, (byte*)pkt, sizeof(*pkt), NET_RELIABLE);
+	}
 
 	pthread_mutex_unlock(&brickdata[arena].mtx);
 }
-#endif
 
 
 void PBrick(int pid, byte *p, int len)
@@ -922,8 +898,11 @@ void PBrick(int pid, byte *p, int len)
 	dx = ((struct C2SBrickPacket*)p)->x;
 	dy = ((struct C2SBrickPacket*)p)->y;
 
+	pthread_mutex_lock(&brickdata[arena].mtx);
+	expire_bricks(arena);
 	mapdata->FindBrickEndpoints(arena, dx, dy, l, &x1, &y1, &x2, &y2);
-	DropBrick(arena, players[pid].freq, x1, y1, x2, y2, 0);
+	drop_brick(arena, players[pid].freq, x1, y1, x2, y2, 0);
+	pthread_mutex_unlock(&brickdata[arena].mtx);
 }
 
 

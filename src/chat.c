@@ -104,6 +104,7 @@ local const char *get_chat_type(int type)
 		case MSG_SYSOPWARNING: return "SYSOP";
 		case MSG_INTERARENAPRIV: return "REMOTEPRIV";
 		case MSG_CHAT: return "CHAT";
+		case MSG_MODCHAT: return "MOD";
 		default: return NULL;
 	}
 }
@@ -116,6 +117,8 @@ local void v_send_msg(int *set, char type, char sound, const char *str, va_list 
 	struct ChatPacket *cp = (struct ChatPacket*)_buf;
 
 	size = vsnprintf(cp->text, 250, str, ap) + 6;
+
+	if (type == MSG_MODCHAT) type = MSG_SYSOPWARNING;
 
 	cp->pktype = S2C_CHAT;
 	cp->type = type;
@@ -172,6 +175,18 @@ local void get_arena_set(int *set, int arena)
 	set[setc] = -1;
 }
 
+local void get_cap_set(int *set, const char *cap)
+{
+	int setc = 0, i;
+	pd->LockStatus();
+	for (i = 0; i < MAXPLAYERS; i++)
+		if (players[i].status == S_PLAYING &&
+		    capman->HasCapability(i, cap))
+			set[setc++] = i;
+	pd->UnlockStatus();
+	set[setc] = -1;
+}
+
 local void SendArenaMessage(int arena, const char *str, ...)
 {
 	int set[MAXPLAYERS+1];
@@ -201,6 +216,16 @@ local void SendAnyMessage(int *set, char type, char sound, const char *str, ...)
 	va_list args;
 	va_start(args, str);
 	v_send_msg(set, type, sound, str, args);
+	va_end(args);
+}
+
+local void SendModMessage(const char *fmt, ...)
+{
+	int set[MAXPLAYERS+1];
+	va_list args;
+	get_cap_set(set, CAP_MODCHAT);
+	va_start(args, fmt);
+	v_send_msg(set, MSG_MODCHAT, 0, fmt, args);
 	va_end(args);
 }
 
@@ -278,8 +303,8 @@ local void handle_pub(int pid, const char *msg, int ismacro)
 
 local void handle_modchat(int pid, const char *msg)
 {
-	int arena = players[pid].arena, i;
-	int set[MAXPLAYERS+1], setc = 0;
+	int arena = players[pid].arena;
+	int set[MAXPLAYERS+1];
 	struct ChatPacket *to = alloca(strlen(msg) + 40);
 
 	to->pktype = S2C_CHAT;
@@ -292,14 +317,7 @@ local void handle_modchat(int pid, const char *msg)
 	{
 		if (capman->HasCapability(pid, CAP_SENDMODCHAT) && OK(MSG_MODCHAT))
 		{
-			pd->LockStatus();
-			for (i = 0; i < MAXPLAYERS; i++)
-				if (players[i].status == S_PLAYING &&
-				    capman->HasCapability(i, CAP_MODCHAT) &&
-				    i != pid)
-					set[setc++] = i;
-			pd->UnlockStatus();
-			set[setc] = -1;
+			get_cap_set(set, CAP_MODCHAT);
 			if (net) net->SendToSet(set, (byte*)to, strlen(to->text)+6, NET_RELIABLE);
 			if (chatnet) chatnet->SendToSet(set, "MSG:MOD:%s:%s",
 					players[pid].name, msg);
@@ -603,7 +621,7 @@ local Ichat _int =
 	SendMessage_, SendSetMessage,
 	SendSoundMessage, SendSetSoundMessage,
 	SendAnyMessage, SendArenaMessage,
-	SendArenaSoundMessage,
+	SendArenaSoundMessage, SendModMessage,
 	GetArenaChatMask, SetArenaChatMask,
 	GetPlayerChatMask, SetPlayerChatMask
 };

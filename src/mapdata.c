@@ -18,6 +18,7 @@
 #define TILE_FLAG 0xAA
 #define TILE_SAFE 0xAB
 #define TILE_GOAL 0xAC
+#define TILE_BRICK 0xFA /* internal only */
 
 #define MAXREGIONNAME 32
 
@@ -42,6 +43,7 @@ struct MapData
 	sparse_arr arr;
 	int flags, errors;
 	HashTable *regions;
+	pthread_mutex_t mtx;
 };
 
 
@@ -58,6 +60,7 @@ local int InRegion(int arena, const char *region, int x, int y);
 local void FindFlagTile(int arena, int *x, int *y);
 local void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, int *y1, int *x2, int *y2);
 local u32 GetChecksum(int arena, u32 key);
+local void DoBrick(int arena, int drop, int x1, int y1, int x2, int y2);
 
 /* global data */
 
@@ -77,19 +80,23 @@ local Imapdata _int =
 	GetFlagCount, GetTile,
 	GetRegion, InRegion,
 	FindFlagTile, FindBrickEndpoints,
-	GetChecksum
+	GetChecksum, DoBrick
 };
 
 
 
 EXPORT int MM_mapdata(int action, Imodman *_mm, int arenas)
 {
+	int i;
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+
+		for (i = 0; i < MAXARENA; i++)
+			pthread_mutex_init(&mapdata[i].mtx, NULL);
 
 		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
@@ -106,6 +113,10 @@ EXPORT int MM_mapdata(int action, Imodman *_mm, int arenas)
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);
+
+		for (i = 0; i < MAXARENA; i++)
+			pthread_mutex_destroy(&mapdata[i].mtx);
+
 		return MM_OK;
 	}
 	return MM_FAIL;
@@ -222,6 +233,7 @@ void ArenaAction(int arena, int action)
 	if (action == AA_CREATE)
 	{
 		char mapname[256];
+		pthread_mutex_lock(&mapdata[arena].mtx);
 		if (real_get_filename(
 					arena,
 					cfg->GetStr(aman->arenas[arena].cfg, "General", "Map"),
@@ -245,16 +257,18 @@ void ArenaAction(int arena, int action)
 				mapdata[arena].regions = LoadRegions(mapname);
 			}
 		}
+		pthread_mutex_unlock(&mapdata[arena].mtx);
 	}
 }
 
 
 int GetTile(int arena, int x, int y)
 {
-	if (mapdata[arena].arr)
-		return (int)lookup_sparse(mapdata[arena].arr, x, y);
-	else
-		return -1;
+	int ret;
+	pthread_mutex_lock(&mapdata[arena].mtx);
+	ret = mapdata[arena].arr ? lookup_sparse(mapdata[arena].arr, x, y) : -1;
+	pthread_mutex_unlock(&mapdata[arena].mtx);
+	return ret;
 }
 
 int GetFlagCount(int arena)
@@ -277,6 +291,8 @@ void FindFlagTile(int arena, int *x, int *y)
 	sparse_arr arr = mapdata[arena].arr;
 
 	if (!arr) return;
+
+	pthread_mutex_lock(&mapdata[arena].mtx);
 
 	/* do it */
 	do
@@ -320,6 +336,8 @@ void FindFlagTile(int arena, int *x, int *y)
 		/* return values */
 		*x = ctx.x; *y = ctx.y;
 	}
+
+	pthread_mutex_unlock(&mapdata[arena].mtx);
 }
 
 
@@ -329,11 +347,14 @@ void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, in
 	enum { down, right, up, left } dir;
 	int bestcount, bestdir, x, y, destx = dropx, desty = dropy;
 
+	pthread_mutex_lock(&mapdata[arena].mtx);
+
 	if (lookup_sparse(arr, dropx, dropy))
 	{
 		/* we can't drop it on a wall! */
 		*x1 = *x2 = dropx;
 		*y1 = *y2 = dropy;
+		pthread_mutex_unlock(&mapdata[arena].mtx);
 		return;
 	}
 
@@ -373,6 +394,7 @@ void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, in
 		/* shouldn't happen */
 		*x1 = *x2 = dropx;
 		*y1 = *y2 = dropy;
+		pthread_mutex_unlock(&mapdata[arena].mtx);
 		return;
 	}
 
@@ -430,6 +452,50 @@ void FindBrickEndpoints(int arena, int dropx, int dropy, int length, int *x1, in
 
 	/* enter second coordinate */
 	*x2 = destx; *y2 = desty;
+
+	/* swap if necessary */
+	if (*x1 > *x2)
+	{
+		x = *x1;
+		*x1 = *x2;
+		*x2 = x;
+	}
+	if (*y1 > *y2)
+	{
+		y = *y1;
+		*y1 = *y2;
+		*y2 = y;
+	}
+
+	pthread_mutex_unlock(&mapdata[arena].mtx);
+}
+
+
+void DoBrick(int arena, int drop, int x1, int y1, int x2, int y2)
+{
+	unsigned char tile = drop ? TILE_BRICK : 0;
+	sparse_arr arr = mapdata[arena].arr;
+
+	pthread_mutex_lock(&mapdata[arena].mtx);
+
+	if (x1 == x2)
+	{
+		int y;
+		for (y = y1; y <= y2; y++)
+			insert_sparse(arr, x1, y, tile);
+	}
+	else if (y1 == y2)
+	{
+		int x;
+		for (x = x1; x <= x2; x++)
+			insert_sparse(arr, x, y1, tile);
+	}
+
+	/* try to keep memory down */
+	if (tile == 0)
+		cleanup_sparse(arr);
+
+	pthread_mutex_unlock(&mapdata[arena].mtx);
 }
 
 
@@ -440,6 +506,7 @@ u32 GetChecksum(int arena, u32 key)
 
 	if (!arr) return 0;
 
+	pthread_mutex_lock(&mapdata[arena].mtx);
 	for (y = savekey % 32; y < 1024; y += 32)
 		for (x = savekey % 31; x < 1024; x += 31)
 		{
@@ -447,6 +514,7 @@ u32 GetChecksum(int arena, u32 key)
 			if ((tile > 0x00 && tile < 0xa1) || tile == 0xab)
 				key += savekey ^ tile;
 		}
+	pthread_mutex_unlock(&mapdata[arena].mtx);
 
 	return key;
 }

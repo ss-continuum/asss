@@ -725,7 +725,7 @@ local void Csetcm(const char *params, int pid, const Target *target)
 			newmask |= (1 << MSG_PRIV) | (1 << MSG_INTERARENAPRIV);
 		if (all || !strncasecmp(c, "chat", 4))
 			newmask |= 1 << MSG_CHAT;
-		if (all || !strncasecmp(c, "modchat", 7))
+		if (all || !strncasecmp(c, "mod", 7))
 			newmask |= 1 << MSG_MODCHAT;
 
 		if (!strncasecmp(c, "time", 4))
@@ -789,6 +789,23 @@ local void Ca(const char *params, int pid, const Target *target)
 	int set[MAXPLAYERS+1];
 	pd->TargetToSet(target, set);
 	chat->SendSetMessage(set, "%s  -%s", params, players[pid].name);
+}
+
+
+local helptext_t cheater_help =
+"Targets: none\n"
+"Args: <message>\n"
+"Sends the message to all online staff members.\n";
+
+local void Ccheater(const char *params, int pid, const Target *target)
+{
+	int arena = pd->players[pid].arena;
+	if (IS_ALLOWED(chat->GetPlayerChatMask(pid), MSG_MODCHAT))
+	{
+		chat->SendModMessage("cheater {%s} %s> %s",
+				aman->arenas[arena].name, pd->players[pid].name, params);
+		chat->SendMessage(pid, "Message has been sent to online staff");
+	}
 }
 
 
@@ -1500,6 +1517,7 @@ local const struct cmd_info core_commands[] =
 	CMD(rmmod)
 	CMD(info)
 	CMD(a)
+	CMD(cheater)
 	CMD(netstats)
 	END()
 };

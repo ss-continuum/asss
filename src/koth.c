@@ -212,6 +212,13 @@ local void paction(int pid, int action, int arena)
 }
 
 
+local void shipchange(int pid, int ship, int freq)
+{
+	if (ship == SPEC)
+		paction(pid, 0, 0);
+}
+
+
 local void kill(int arena, int killer, int killed, int bounty, int flags)
 {
 	LOCK();
@@ -325,6 +332,7 @@ EXPORT int MM_koth(int action, Imodman *mm_, int arena)
 	{
 		load_settings(arena);
 		mm->RegCallback(CB_PLAYERACTION, paction, arena);
+		mm->RegCallback(CB_SHIPCHANGE, shipchange, arena);
 		mm->RegCallback(CB_KILL, kill, arena);
 		ml->SetTimer(timer, 500, 500, (void*)arena, arena);
 		return MM_OK;
@@ -333,6 +341,7 @@ EXPORT int MM_koth(int action, Imodman *mm_, int arena)
 	{
 		adata[arena].expiretime = 0;
 		mm->UnregCallback(CB_PLAYERACTION, paction, arena);
+		mm->UnregCallback(CB_SHIPCHANGE, shipchange, arena);
 		mm->UnregCallback(CB_KILL, kill, arena);
 		ml->ClearTimer(timer, arena);
 		return MM_OK;

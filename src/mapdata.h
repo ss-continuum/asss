@@ -15,7 +15,7 @@
  */
 
 
-#define I_MAPDATA "mapdata-1"
+#define I_MAPDATA "mapdata-2"
 
 typedef struct Imapdata
 {
@@ -51,6 +51,8 @@ typedef struct Imapdata
 	 * a certain position. */
 
 	u32 (*GetChecksum)(int arena, u32 key);
+
+	void (*DoBrick)(int arena, int drop, int x1, int y1, int x2, int y2);
 } Imapdata;
 
 #endif

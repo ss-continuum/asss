@@ -42,7 +42,7 @@ typedef unsigned short chat_mask_t;
 #define SET_ALLOWED(mask, type) (mask) &= ~(1<<(type))
 
 
-#define I_CHAT "chat-2"
+#define I_CHAT "chat-3"
 
 typedef struct Ichat
 {
@@ -55,8 +55,8 @@ typedef struct Ichat
 	void (*SendAnyMessage)(int *set, char type, char sound, const char *format, ...);
 	void (*SendArenaMessage)(int arena, const char *format, ...);
 	void (*SendArenaSoundMessage)(int arena, char sound, const char *format, ...);
-
 	/* in the above two, use arena == ALLARENAS for zone. */
+	void (*SendModMessage)(const char *format, ...);
 
 	chat_mask_t (*GetArenaChatMask)(int arena);
 	void (*SetArenaChatMask)(int arena, chat_mask_t mask);

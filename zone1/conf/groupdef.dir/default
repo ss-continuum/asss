@@ -9,6 +9,7 @@ cmd_chat
 cmd_time
 cmd_jackpot
 cmd_buy
+cmd_cheater
 
 cmd_version
 cmd_uptime
