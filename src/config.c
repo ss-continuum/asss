@@ -12,7 +12,6 @@
 #ifndef WIN32
 #include <unistd.h>
 #else
-#include <malloc.h>
 #include <io.h>
 #endif
 

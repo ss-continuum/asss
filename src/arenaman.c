@@ -6,10 +6,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifdef WIN32
-#include <malloc.h>
-#endif
-
 #include "asss.h"
 #include "clientset.h"
 #include "persist.h"

@@ -2618,7 +2618,7 @@ ClientConnection *MakeClientConnection(const char *addr, int port,
 	pkt.t2 = 0x07;
 	SendRaw(&cc->c, (byte*)&pkt, 2);
 #endif
-	pkt.key = random() | 0x80000000UL;
+	pkt.key = rand() | 0x80000000UL;
 	pkt.t2 = 0x01;
 	pkt.type = 0x0001;
 	SendRaw(&cc->c, (byte*)&pkt, sizeof(pkt));

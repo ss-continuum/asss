@@ -22,13 +22,7 @@
 
 
 /* do it upfront so we don't have to worry */
-#ifdef WIN32
-#pragma warning ( disable : 4103 )
-#endif
 #pragma pack(1)
-#ifdef WIN32
-#pragma warning ( default : 4013 )
-#endif
 
 #include "util.h"
 

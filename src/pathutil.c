@@ -9,7 +9,6 @@
 #include <unistd.h>
 #include <limits.h>
 #else
-#include <malloc.h>
 #include <io.h>
 #include "win32compat.h"
 #endif

@@ -15,12 +15,10 @@
 
 #include "md5.h"
 
-local pthread_mutex_t prng_mtx;
+local pthread_mutex_t prng_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-#define MUTEX_CREATE() pthread_mutex_init(&prng_mtx, NULL)
 #define MUTEX_LOCK() pthread_mutex_lock(&prng_mtx)
 #define MUTEX_UNLOCK() pthread_mutex_unlock(&prng_mtx)
-#define MUTEX_DESTROY() pthread_mutex_destroy(&prng_mtx)
 
 local int iteration_counter;
 
@@ -42,9 +40,7 @@ local int iteration_counter;
 		#include <Wincrypt.h>
 	#endif
 
-	#pragma comment(lib, "advapi32")
-
-double microseconds()
+local double microseconds()
 {
 	LARGE_INTEGER tim, freq; /* 64-bit! ieee */
 
@@ -55,7 +51,7 @@ double microseconds()
 
 #endif
 
-int RNG_FillBuffer(void *buffer, int size)
+local int RNG_FillBuffer(void *buffer, int size)
 {
 #ifdef WIN32
 	/* added some extra variables just in case */
@@ -98,9 +94,9 @@ int RNG_FillBuffer(void *buffer, int size)
 
 #define VECTOR_SPACE 624     /* Length of state vector, do not change */
 
-u32 mt_state[VECTOR_SPACE];  /* Internal state vector */
-u32 mt_output[VECTOR_SPACE]; /* Destination for the hashed version */
-u32 mt_offset;               /* Offset to the next unused 32-bit block */
+local u32 mt_state[VECTOR_SPACE];  /* Internal state vector */
+local u32 mt_output[VECTOR_SPACE]; /* Destination for the hashed version */
+local u32 mt_offset;               /* Offset to the next unused 32-bit block */
 
 #define HIBIT(u)        ((u) & 0x80000000)      /* Mask all but highest-bit of u */
 #define LOBIT(u)        ((u) & 0x00000001)      /* Mask all but lowest-bit of u */
@@ -108,21 +104,21 @@ u32 mt_offset;               /* Offset to the next unused 32-bit block */
 #define MIXBITS(u, v)   (HIBIT(u) | LOBITS(v))  /* Mix bits of two registers */
 
 #define PERIOD_PARAM 397
-const u32 MAGIC_0[2] = {0, 0x9908b0df};
+local const u32 MAGIC_0[2] = {0, 0x9908b0df};
 
-void mt_initialize()
+local void mt_initialize()
 {
 	RNG_FillBuffer((u8*)mt_state, sizeof(mt_state));
 	mt_offset = VECTOR_SPACE;
 }
 
-void mt_cleanup()
+local void mt_cleanup()
 {
 	memset(mt_state, 0, sizeof(mt_state));
 	mt_offset = 0;
 }
 
-void mt_iterate()
+local void mt_iterate()
 {
 	u32 ii, jj;
 
@@ -187,7 +183,7 @@ void mt_iterate()
 	mt_offset = 0;
 }
 
-void mt_fill(u8 *buffer, int size)
+local void mt_fill(u8 *buffer, int size)
 {
 	/* we give out bits in blocks of 32 */
 	int needed = (size + 3) / 4;
@@ -237,7 +233,7 @@ void mt_fill(u8 *buffer, int size)
 	}
 }
 
-u32 mt_next()
+local u32 mt_next()
 {
 	if (mt_offset == VECTOR_SPACE)
 		mt_iterate();
@@ -298,14 +294,14 @@ local u32 MCRNG_Get32(void)
 local int MCRNG_rand(void)
 {
 	int n;
-	MUTEX_LOCK();
 #if INT_MAX == RAND_MAX
 	/* this is a really easy case, just use 31 bits of it */
+	MUTEX_LOCK();
 	n = (int)(mt_next() & 0x7fffffff);
+	MUTEX_UNLOCK();
 #else
 	n = MCRNG_Number(0, RAND_MAX);
 #endif
-	MUTEX_UNLOCK();
 	return n;
 }
 
@@ -339,8 +335,6 @@ EXPORT int MM_prng(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
-		MUTEX_CREATE();
-
 		iteration_counter = 0;
 
 		mt_initialize();
@@ -357,8 +351,6 @@ EXPORT int MM_prng(int action, Imodman *mm, Arena *arena)
 		iteration_counter = 0;
 
 		mt_cleanup();
-
-		MUTEX_DESTROY();
 
 		return MM_OK;
 	}

@@ -71,21 +71,36 @@ SYS_NAME := $(shell uname -s)
 ifeq ($(SYS_NAME),Linux)
 UTIL_LIB = -lutil
 DL_LIB = -ldl
+ZLIB_LIB = -lz
 PTHREAD_LIB = -lpthread
 DASH_F_PIC = -fPIC
 DASH_RDYNAMIC = -rdynamic
+SO = so
 SYS_NAME := ok
 endif
 ifeq ($(SYS_NAME),FreeBSD)
 UTIL_LIB = -lutil
+ZLIB_LIB = -lz
 DASH_F_PIC = -fPIC
 DASH_PTHREAD = -pthread
 DASH_RDYNAMIC = -rdynamic
+SO = so
 SYS_NAME := ok
 endif
 ifeq ($(findstring CYGWIN,$(SYS_NAME)),CYGWIN)
 PTHREAD_LIB = -lpthread
 EXE = .exe
+DL_UTIL_OBJS = $(UTIL_OBJS)
+SO = so
+SYS_NAME := ok
+endif
+ifeq ($(findstring MINGW,$(SYS_NAME)),MINGW)
+PTHREAD_LIB = -L$(ASSSHOME)/bin -lpthreadGC -lwsock32
+ZLIB_LIB = -L$(ASSSHOME)/bin -lzdll
+SO_LDFLAGS = $(PTHREAD_LIB)
+EXE = .exe
+SO = dll
+W32COMPAT = win32compat.o
 DL_UTIL_OBJS = $(UTIL_OBJS)
 SYS_NAME := ok
 endif
@@ -119,20 +134,20 @@ BINARIES += dbtool$(EXE)
 endif
 
 # dynamic libraries to build
-DLS := core.so loggers.so game.so command.so external.so admin.so funky.so
+DLS := core.$(SO) loggers.$(SO) game.$(SO) command.$(SO) external.$(SO) admin.$(SO) funky.$(SO)
 ifndef no_bdb
-DLS += scoring.so
+DLS += scoring.$(SO)
 endif
 ifndef no_mysql
-DLS += database.so
+DLS += database.$(SO)
 endif
 ifndef no_python
-DLS += pymod.so
+DLS += pymod.$(SO)
 endif
 
 ALL_STUFF = $(BINARIES) $(DLS)
 
-UTIL_OBJS = util.o pathutil.o protutil.o region.o rwlock.o app.o
+UTIL_OBJS = util.o pathutil.o protutil.o region.o rwlock.o app.o $(W32COMPAT)
 
 
 all: install
@@ -143,46 +158,44 @@ asss$(EXE): main.o module.o cmod.o $(UTIL_OBJS)
 dbtool$(EXE): dbtool.o statcodes.o util.c
 	$(CC) $(LDFLAGS) -DNOMPQUEUE -o $@ $^ $(DB_LDFLAGS)
 
-core.so: config.o prng.o md5.o player.o core.o logman.o mainloop.o net.o \
+core.$(SO): config.o prng.o md5.o player.o core.o logman.o mainloop.o net.o \
 	nullenc.o encrypt1.o arenaman.o mapdata.o mapnewsdl.o clientset.o \
-	capman.o lagdata.o lagaction.o $(DL_UTIL_OBJS)
-	$(CC) $(LDFLAGS) -shared -o $@ $^ -lz
+	capman.o lagdata.o lagaction.o
+core.$(SO): LIBS=$(ZLIB_LIB)
 
-loggers.so: log_file.o log_console.o log_sysop.o $(DL_UTIL_OBJS)
+loggers.$(SO): log_file.o log_console.o log_sysop.o
 
-game.so: game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
-	banners.o bricks.o objects.o messages.o koth.o fm_lockspec.o \
-	$(DL_UTIL_OBJS)
-	$(CC) $(LDFLAGS) -shared -o $@ $^ -lm
+game.$(SO): game.o game_timer.o chat.o flags.o balls.o fm_normal.o \
+	banners.o bricks.o objects.o messages.o koth.o fm_lockspec.o
+game.$(SO): LIBS=-lm
 
-command.so: cmdman.o playercmd.o admincmd.o watchdamage.o buy.o help.o \
-	cfghelp.o $(DL_UTIL_OBJS)
+command.$(SO): cmdman.o playercmd.o admincmd.o watchdamage.o buy.o help.o \
+	cfghelp.o
 
-external.so: directory.o billing.o billing_ssc.o $(DL_UTIL_OBJS)
+external.$(SO): directory.o billing.o billing_ssc.o
 
-scoring.so: persist.o stats.o statcodes.o points_kill.o points_flag.o \
-	points_goal.o jackpot.o periodic.o points_periodic.o basicstats.o \
-	$(DL_UTIL_OBJS)
+scoring.$(SO): persist.o stats.o statcodes.o points_kill.o points_flag.o \
+	points_goal.o jackpot.o periodic.o points_periodic.o basicstats.o
 ifneq ($(link_db_statically),yes)
-	$(CC) $(LDFLAGS) -shared -o $@ $^ $(DB_LDFLAGS)
+scoring.$(SO): LIBS=$(DB_LDFLAGS)
 else
-	$(CC) $(LDFLAGS) -shared -o $@ $^ $(DB_LIB)/libdb.a
+scoring.$(SO): LIBS=$(DB_LIB)/libdb.a
 endif
 
-admin.so: filetrans.o quickfix.o $(DL_UTIL_OBJS)
+admin.$(SO): filetrans.o quickfix.o
 
-database.so: mysql.o aliasdb.o $(DL_UTIL_OBJS)
-	$(CC) $(LDFLAGS) -shared -o $@ $^ $(MYSQL_LDFLAGS) -lz
+database.$(SO): mysql.o aliasdb.o
+database.$(SO): LIBS=$(MYSQL_LDFLAGS) $(ZLIB_LIB)
 
-pymod.so: pymod.o $(DL_UTIL_OBJS)
-	$(CC) $(LDFLAGS) -shared -o $@ $^ $(PYTHON_LDFLAGS)
+pymod.$(SO): pymod.o
+pymod.$(SO): LIBS=$(PYTHON_LDFLAGS)
 
 include */*.mk
 
-funky.so: autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
+funky.$(SO): autowarp.o bricklayer.o freqowners.o arenaperm.o auth_prefix.o \
 	fake.o autoturret.o chatnet.o md5.o auth_file.o ap_multipub.o sendfile.o \
-	record.o auth_ban.o $(EXTRA_FUNKY_OBJS) $(DL_UTIL_OBJS)
-	$(CC) $(LDFLAGS) -shared -o $@ $^ -lz -lm
+	record.o auth_ban.o $(EXTRA_FUNKY_OBJS)
+funky.$(SO): LIBS=$(ZLIB_LIB) -lm
 
 
 sparse.inc: $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py
@@ -208,8 +221,8 @@ mysql.o: CFLAGS += $(MYSQL_CFLAGS)
 pymod.o: CFLAGS += $(PYTHON_CFLAGS)
 
 
-%.so:
-	$(CC) $(LDFLAGS) -shared -o $@ $^
+%.$(SO):
+	$(CC) $(LDFLAGS) -shared -o $@ $^ $(DL_UTIL_OBJS) $(SO_LDFLAGS) $(LIBS)
 
 install: $(ALL_STUFF)
 	install -d $(ASSSHOME)/bin

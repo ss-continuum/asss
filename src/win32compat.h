@@ -3,6 +3,11 @@
 
 #ifdef WIN32
 
+#include <windows.h>
+#include <winsock.h>
+#include <limits.h>
+#include <malloc.h>
+
 #define EXPORT __declspec(dllexport)
 
 #ifndef NDEBUG
@@ -13,13 +18,22 @@
 
 #define strcasecmp(a,b) stricmp((a),(b))
 #define strncasecmp(a,b,c) strnicmp((a),(b),(c))
+#ifndef M_PI
 #define M_PI 3.14159265358979323846
-#define PATH_MAX 256
+#endif
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+#ifndef NAME_MAX
 #define NAME_MAX 256
+#endif
+#if 0
 #define snprintf _snprintf
 #define vsnprintf _vsnprintf
+#endif
 #define usleep(x) Sleep((x)/1000)
 #define sleep(x) Sleep((x)*1000)
+#if 0
 #define alloca _alloca
 #define access _access
 #define R_OK 4
@@ -27,7 +41,7 @@
 #define mkdir(a,b) _mkdir(a)
 #define mktemp(a) _mktemp(a)
 #define chdir(a) _chdir(a)
-#define random rand
+#endif
 
 typedef int socklen_t;
 
@@ -53,3 +67,4 @@ void closedir(DIR *dir);
 int inet_aton(char *cp, struct in_addr *pin);
 
 #endif
+

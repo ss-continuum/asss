@@ -12,7 +12,7 @@
 #include <unistd.h>
 #else
 #include <direct.h>
-#define dlopen(a,b) LoadLibrary(a)
+#define dlopen(a,b) ((a) ? LoadLibrary(a) : GetModuleHandle(NULL))
 #define dlsym(a,b) ((void*)GetProcAddress(a,b))
 #define dlclose(a) FreeLibrary(a)
 #endif
@@ -75,18 +75,7 @@ local int load_c_module(const char *spec_, mod_args_t *args)
 
 	if (!strcasecmp(filename, "internal"))
 	{
-#ifndef WIN32
 		path = NULL;
-#else
-		/* Windows LoadLibrary function will not return itself if null,
-		 * so need to set it to myself */
-		char *quote;
-		astrncpy(buf, &GetCommandLine()[1], sizeof(buf));
-		quote = strchr(buf, '"');
-		if (quote)
-			*quote = 0;
-		path = buf;
-#endif
 		cmd->ismyself = 1;
 	}
 #ifdef CFG_RESTRICT_MODULE_PATH

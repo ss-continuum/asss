@@ -725,11 +725,13 @@ local void remote_connect(const char *ipaddr, int port)
 		lm->Log(L_INFO, "<billing> connected to billing server");
 		state = s_connected;
 	}
+#ifndef WIN32
 	else if (errno == EINPROGRESS)
 	{
 		/* this is the most likely result */
 		state = s_connecting;
 	}
+#endif
 	else
 	{
 		lm->Log(L_WARN, "<billing> unexpected error from connect: %s",

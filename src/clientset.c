@@ -272,7 +272,7 @@ int GetRandomPrize(Arena *arena)
 	if (max == 0)
 		return 0;
 
-	r = random() % max;
+	r = rand() % max;
 
 	/* binary search */
 	while (r >= ad->pwps[i])

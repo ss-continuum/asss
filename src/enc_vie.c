@@ -138,7 +138,7 @@ local void do_init(EncData *ed, int k)
 
 	for (loop = 0; loop < 0x104; loop++)
 	{
-#ifndef WIN32
+#ifdef __GNUC__
 		asm ( "imul %%ecx" : "=d" (t) : "a" (k), "c" (0x834E0B5F) );
 #else
 		_asm
