@@ -93,9 +93,15 @@ void * LoggingThread(void *dummy)
 
 void Log(char level, const char *format, ...)
 {
-	int len;
+	int len, async = 1;
 	va_list argptr;
 	char buf[1024];
+
+	if (level & L_SYNC)
+	{
+		level &= 0x7f;
+		async = 0;
+	}
 
 	buf[0] = level;
 	buf[1] = ' ';
@@ -105,15 +111,26 @@ void Log(char level, const char *format, ...)
 	va_end(argptr);
 
 	if (len > 0)
-		MPAdd(&queue, astrdup(buf));
+	{
+		if (async)
+			MPAdd(&queue, astrdup(buf));
+		else
+			DO_CBS(CB_LOGFUNC, ALLARENAS, LogFunc, (buf));
+	}
 }
 
 
 void LogA(char level, const char *mod, Arena *a, const char *format, ...)
 {
-	int len;
+	int len, async = 1;
 	va_list argptr;
 	char buf[1024];
+
+	if (level & L_SYNC)
+	{
+		level &= 0x7f;
+		async = 0;
+	}
 
 	len = snprintf(buf, 1024, "%c <%s> {%s} ",
 			level,
@@ -126,15 +143,26 @@ void LogA(char level, const char *mod, Arena *a, const char *format, ...)
 	va_end(argptr);
 
 	if (len > 0)
-		MPAdd(&queue, astrdup(buf));
+	{
+		if (async)
+			MPAdd(&queue, astrdup(buf));
+		else
+			DO_CBS(CB_LOGFUNC, ALLARENAS, LogFunc, (buf));
+	}
 }
 
 void LogP(char level, const char *mod, Player *p, const char *format, ...)
 {
-	int len;
+	int len, async = 1;
 	Arena *arena;
 	va_list argptr;
 	char buf[1024], buf2[16];
+
+	if (level & L_SYNC)
+	{
+		level &= 0x7f;
+		async = 0;
+	}
 
 	if (!pd || !aman || !p)
 		len = snprintf(buf, 1024, "%c <%s> [(bad player)] ",
@@ -171,7 +199,12 @@ void LogP(char level, const char *mod, Player *p, const char *format, ...)
 	va_end(argptr);
 
 	if (len > 0)
-		MPAdd(&queue, astrdup(buf));
+	{
+		if (async)
+			MPAdd(&queue, astrdup(buf));
+		else
+			DO_CBS(CB_LOGFUNC, ALLARENAS, LogFunc, (buf));
+	}
 }
 
 

@@ -28,6 +28,8 @@
 #define L_WARN       'W'  /* something bad, but not too bad */
 #define L_ERROR      'E'  /* something really really bad */
 
+#define L_SYNC       0x80
+
 
 /* called for each log line */
 #define CB_LOGFUNC "log"

@@ -279,7 +279,7 @@ int main(int argc, char *argv[])
 
 	code = ml->RunLoop();
 
-	if (lm) lm->Log(L_DRIVEL, "<main> exiting main loop");
+	if (lm) lm->Log(L_DRIVEL|L_SYNC, "<main> exiting main loop");
 
 	{
 		/* send a nice message */
@@ -297,6 +297,7 @@ int main(int argc, char *argv[])
 		Ipersist *persist = mm->GetInterface(I_PERSIST, ALLARENAS);
 		if (persist)
 		{
+			if (lm) lm->Log(L_DRIVEL|L_SYNC, "<main> saving scores");
 			pthread_mutex_lock(&wait.mtx);
 			persist->StabilizeScores(0, 1, syncdone);
 			while (!wait.done)
@@ -309,6 +310,7 @@ int main(int argc, char *argv[])
 	mm->ReleaseInterface(lm);
 	mm->ReleaseInterface(ml);
 
+	if (lm) lm->Log(L_DRIVEL|L_SYNC, "<main> unloading modules");
 	mm->frommain.DoStage(MM_PREUNLOAD);
 	mm->frommain.UnloadAllModules();
 
