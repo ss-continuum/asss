@@ -228,3 +228,5 @@ Makefile.deps: sparse.inc letters.inc cfghelp.inc py_constants.inc \
 
 include Makefile.deps
 
+# dist: public
+
