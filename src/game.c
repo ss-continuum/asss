@@ -46,6 +46,7 @@ typedef struct
 	byte lockship, rgnnoanti, rgnnoweapons, pad2;
 	time_t expires; /* when the lock expires, or 0 for session-long lock */
 	ticks_t lastrgncheck; /* when we last updated the region-based flags */
+	LinkedList lastrgnset;
 } pdata;
 
 typedef struct
@@ -64,6 +65,7 @@ local Iplayerdata *pd;
 local Iconfig *cfg;
 local Inet *net;
 local Ichatnet *chatnet;
+local Imainloop *ml;
 local Ilogman *lm;
 local Imodman *mm;
 local Iarenaman *aman;
@@ -120,13 +122,80 @@ local inline long lhypot (register long dx, register long dy)
 }
 
 
+struct region_cb_params
+{
+	pdata *data;
+	LinkedList newrgnset;
+};
+
 local void ppk_region_cb(void *clos, Region *rgn)
 {
-	pdata *data = clos;
+	struct region_cb_params *params = clos;
+	LLAdd(&params->newrgnset, rgn);
 	if (mapdata->RegionChunk(rgn, RCT_NOANTIWARP, NULL, NULL))
-		data->rgnnoanti = 1;
+		params->data->rgnnoanti = 1;
 	if (mapdata->RegionChunk(rgn, RCT_NOWEAPONS, NULL, NULL))
-		data->rgnnoweapons = 1;
+		params->data->rgnnoweapons = 1;
+}
+
+local void do_region_callback(Player *p, Region *rgn, int x, int y, int entering)
+{
+	/* FIXME: make this asynchronous? */
+	DO_CBS(CB_REGION, p->arena, RegionFunc, (p, rgn, x, y, entering));
+}
+
+local void update_regions(Player *p, int x, int y)
+{
+	Link *ol, *nl;
+	struct region_cb_params params = { PPDATA(p, pdkey), LL_INITIALIZER };
+
+	params.data->rgnnoanti = params.data->rgnnoweapons = 0;
+
+	mapdata->EnumContaining(p->arena, x, y, ppk_region_cb, &params);
+
+	/* sort new list so we can do a linear diff */
+	LLSort(&params.newrgnset, NULL);
+
+	/* now walk through both in parallel and call appropriate callbacks */
+	ol = LLGetHead(&params.data->lastrgnset);
+	nl = LLGetHead(&params.newrgnset);
+	while (ol || nl)
+	{
+		if (ol->data == nl->data)
+		{
+			/* same state for this region */
+			ol = ol->next;
+			nl = nl->next;
+		}
+		else if (ol->data < nl->data)
+		{
+			/* the new set is missing an old one. this is a region exit. */
+			do_region_callback(p, ol->data, x, y, FALSE);
+			ol = ol->next;
+		}
+		else /* ol->data > nl->data */
+		{
+			/* this is a region enter. */
+			do_region_callback(p, nl->data, x, y, TRUE);
+			nl = nl->next;
+		}
+	}
+
+	/* and swap lists */
+	LLEmpty(&params.data->lastrgnset);
+	params.data->lastrgnset = params.newrgnset;
+}
+
+
+local int run_enter_game_cb(void *clos)
+{
+	Player *p = clos;
+	if (p->status == S_PLAYING)
+		DO_CBS(CB_PLAYERACTION,
+				p->arena,
+				PlayerActionFunc,
+				(p, PA_ENTERGAME, p->arena));
+	return FALSE;
 }
 
 
@@ -190,11 +259,10 @@ local void Pppk(Player *p, byte *pkt, int len)
 		y1 = pos->y;
 
 		/* update region-based stuff once in a while */
-		if (TICK_DIFF(gtc, data->lastrgncheck) >= REGION_CHECK_INTERVAL)
+		if (isnewer && TICK_DIFF(gtc, data->lastrgncheck) >= REGION_CHECK_INTERVAL)
 		{
+			update_regions(p, x1 >> 4, y1 >> 4);
 			data->lastrgncheck = gtc;
-			data->rgnnoanti = data->rgnnoweapons = 0;
-			mapdata->EnumContaining(p->arena, x1>>4, y1>>4, ppk_region_cb, data);
 		}
 
 		/* this check should be before the weapon ignore hook */
@@ -416,6 +484,7 @@ local void Pppk(Player *p, byte *pkt, int len)
 	/* only copy if the new one is later */
 	if (isnewer)
 	{
+		/* FIXME: make this asynchronous? */
 		if ((pos->status ^ data->pos.status) & STATUS_SAFEZONE)
 			DO_CBS(CB_SAFEZONE, arena, SafeZoneFunc, (p, pos->x, pos->y, pos->status & STATUS_SAFEZONE));
 
@@ -437,10 +506,7 @@ local void Pppk(Player *p, byte *pkt, int len)
 	if (p->flags.sent_ppk == 0)
 	{
 		p->flags.sent_ppk = 1;
-		DO_CBS(CB_PLAYERACTION,
-				p->arena,
-				PlayerActionFunc,
-				(p, PA_ENTERGAME, p->arena));
+		ml->SetTimer(run_enter_game_cb, 0, 0, p, NULL);
 	}
 }
 
@@ -1010,6 +1076,8 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 			data->changes.lastcheck =
 			current_ticks();
 
+		LLInit(&data->lastrgnset);
+
 		data->lockship = ad->initlockship;
 		if (ad->initspec)
 		{
@@ -1058,6 +1126,8 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 		clear_speccing(data);
 
 		pthread_mutex_unlock(&specmtx);
+
+		LLEmpty(&data->lastrgnset);
 	}
 }
 
@@ -1269,6 +1339,7 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		mm = mm_;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		chatnet = mm->GetInterface(I_CHATNET, ALLARENAS);
@@ -1282,7 +1353,7 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		persist = mm->GetInterface(I_PERSIST, ALLARENAS);
 
-		if (!net || !cfg || !lm || !aman || !prng) return MM_FAIL;
+		if (!ml || !net || !cfg || !lm || !aman || !prng) return MM_FAIL;
 
 		adkey = aman->AllocateArenaData(sizeof(adata));
 		pdkey = pd->AllocatePlayerData(sizeof(pdata));
@@ -1364,6 +1435,7 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		pd->FreePlayerData(pdkey);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(ml);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(chatnet);

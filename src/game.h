@@ -4,6 +4,8 @@
 #ifndef __GAME_H
 #define __GAME_H
 
+#include "mapdata.h"
+
 /** @file
  * various functions and interfaces related to the game. important stuff
  * managed by this module includes ships and freqs, kills, position
@@ -59,7 +61,9 @@ typedef void (*GameTimerFunc)(Arena *arena);
 /* pycb: arena */
 
 
-/** this callback is called when someone enters or leaves a safe zone. */
+/** this callback is called when someone enters or leaves a safe zone.
+ * be careful about what you do in here; this runs in the unreliable
+ * packet handler thread (for now). */
 #define CB_SAFEZONE "safezone"
 /** the type of CB_SAFEZONE
  * @param p the player entering/leaving the safe zone
@@ -69,6 +73,19 @@ typedef void (*GameTimerFunc)(Arena *arena);
  */
 typedef void (*SafeZoneFunc)(Player *p, int x, int y, int entering);
 /* pycb: player, int, int, int */
+
+
+/** this callback is called when someone enters or leaves a region. */
+#define CB_REGION "region-1"
+/** the type of CB_REGION
+ * @param p the player entering/leaving the region
+ * @param rgn the region being entered or left
+ * @param x the player's location in pixels, x coordinate
+ * @param y the player's location in pixels, y coordinate
+ * @param entering true if entering, false if exiting
+ */
+typedef void (*RegionFunc)(Player *p, Region *rgn, int x, int y, int entering);
+/* NOTYETpycb: player, void, int, int, int */
 
 
 /** this callback is called whenever someone picks up a green. */

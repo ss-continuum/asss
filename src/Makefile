@@ -194,8 +194,7 @@ pymod.$(SO): LIBS=$(PYTHON_LDFLAGS)
 
 include */*.mk
 
-# autowarp.o temporarily removed due to region code reworking
-funky.$(SO): bricklayer.o autoturret.o record.o $(EXTRA_FUNKY_OBJS)
+funky.$(SO): bricklayer.o autowarp.o autoturret.o record.o $(EXTRA_FUNKY_OBJS)
 funky.$(SO): LIBS=$(ZLIB_LIB) -lm
 
 
