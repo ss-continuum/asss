@@ -41,8 +41,6 @@ local Iconfig _int =
 local ConfigHandle global;
 local int files = 0;
 
-local Ilogman *log;
-
 
 /* functions */
 
@@ -50,8 +48,6 @@ int MM_config(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
-		mm->RegInterest(I_LOGMAN, &log);
-
 		files = 0;
 		global = LoadConfigFile(NULL, NULL);
 		if (!global) return MM_FAIL;
@@ -62,9 +58,6 @@ int MM_config(int action, Imodman *mm, int arena)
 	{
 		mm->UnregInterface(I_CONFIG, &_int);
 		FreeConfigFile(global);
-		/* if (files && (log = mm->GetInterface(I_LOGMAN)))
-			printf("Some config files were not freed!"); */
-		mm->UnregInterest(I_LOGMAN, &log);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -167,10 +160,6 @@ local int ProcessConfigFile(
 				/* do nothing */
 			}
 #endif
-			else
-			{
-				if (log) log->Log(L_WARN, "<config> Unexpected configuration directive '%s'", buf);
-			}
 		}
 		else if (thespot && !(*buf == '/' || *buf == ';' || *buf == '}' || *buf == 0))
 		{

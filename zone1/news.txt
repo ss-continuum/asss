@@ -7,49 +7,26 @@ have any suggestions of any kind, please let me know.
 
 
 Recent updates:
+    * energy/inventory info (including energy-viewing for team only)
+
+    * capability manager that uses user-definable groups to allow access
+        to commands and other things.
+
+    * balls! (no goals, though)
+
     * flags! (with correct flag-kill handling, and victories)
 
     * mapdata module mostly written
         it uses a cool sparse array structure to save memory but retain
         really fast access speed. an average .lvl file takes just 200k.
 
-    * updates to logging system: better priorities, consistent format
-
 
 High-level to-do list:
-    * balls
-
-    * better authority model (groups, capabilities)
-
     * come up with better interface to other languages (python, and others)
 
     * latency/ploss handling and security
 
     * more commands
-
-
-Stuff it does now:
-    * logging on and entering arenas
-    * map/news downloads
-    * chat: pub, priv (same arena only), team, nme team,
-        mod (start messages with a backslash)
-    * changing ship and freq
-    * changing arena (test this a lot)
-    * green relaying
-    * deaths
-    * positions/weapons
-    * speccing people (test this)
-    * player counts on port+1
-    * encryption (disabled most of the time, though)
-    * some commands (?arena, ?login, ?setop, ?shutdown)
-        note that my command structure is very different from subgame
-        the most important difference is that there is no longer a difference
-        between ? and *. both work for all commands, and all commands are
-        logged
-    * some mod structure: you can assign people oplevels, or use passwords
-        staff log on by default with no powers, you need to type ?login to
-        enable them. you can also get rid of them by typing ?login 0 or any
-        text that isn't a password.
 
 
 

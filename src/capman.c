@@ -74,6 +74,7 @@ void ArenaAction(int arena, int action)
 	if (action == AA_CREATE || action == AA_DESTROY)
 	{
 		cfg->CloseConfigFile(astaff[arena]);
+		astaff[arena] = NULL;
 	}
 	if  (action == AA_CREATE)
 	{
@@ -82,9 +83,30 @@ void ArenaAction(int arena, int action)
 }
 
 
-void PlayerAction(int pid, int action, int arena)
+local void UpdateGroup(int pid, int arena)
 {
-	if (action == PA_ENTERARENA)
+#define LOGIT(from) \
+	log->Log(L_DRIVEL, "<capman> {%s} [%s] Player assigned to group '%s' from %s", \
+			aname, \
+			pd->players[pid].name, \
+			groups[pid], \
+			from)
+
+	if (arena < 0 || arena >= MAXARENA)
+	{
+		/* only global groups available for now */
+		char *gg = cfg->GetStr(gstaff, "Staff", pd->players[pid].name);
+		if (gg)
+		{
+			astrncpy(groups[pid], gg, MAXGROUPLEN);
+			log->Log(L_DRIVEL, "<capman> [%s] Player assigned to group '%s' from global staff list",
+					pd->players[pid].name,
+					groups[pid]);
+		}
+		else
+			astrncpy(groups[pid], "default", MAXGROUPLEN);
+	}
+	else
 	{
 		char *gg = cfg->GetStr(gstaff, "Staff", pd->players[pid].name);
 		char *ag = cfg->GetStr(astaff[arena], "Staff", pd->players[pid].name);
@@ -104,12 +126,14 @@ void PlayerAction(int pid, int action, int arena)
 					t++; /* skip ':' */
 					while (pos < MAXGROUPLEN && *t && *t != ' ')
 						groups[pid][pos] = *t++;
+					LOGIT("global staff list (arena)");
 				}
 				else
 				{
 					/* it must not be 'arena:group', so use the whole
 					 * thing */
 					astrncpy(groups[pid], gg, MAXGROUPLEN);
+					LOGIT("global staff list (global)");
 				}
 			}
 			else
@@ -117,24 +141,30 @@ void PlayerAction(int pid, int action, int arena)
 				/* this must be a group valid everywhere, so it takes
 				 * precedence */
 				astrncpy(groups[pid], gg, MAXGROUPLEN);
+				LOGIT("global staff list (global)");
 			}
 		}
 		else if (ag)
 		{
 			/* use arena-assigned group */
 			astrncpy(groups[pid], ag, MAXGROUPLEN);
+			LOGIT("arena staff list");
 		}
 		else /* just give him the default */
 			astrncpy(groups[pid], "default", MAXGROUPLEN);
-		log->Log(L_DRIVEL, "<capman> {%s} [%s] Player assigned to group '%s'",
-				aname,
-				pd->players[pid].name,
-				groups[pid]);
 	}
-	else /* on LEAVEARENA, CONNECT, DISCONNECT, reset group */
-	{
-		astrncpy(groups[pid], "default", MAXGROUPLEN);
-	}
+#undef LOGIT
+}
+
+
+void PlayerAction(int pid, int action, int arena)
+{
+	if (action == PA_PREENTERARENA)
+		UpdateGroup(pid, arena);
+	else if (action == PA_LEAVEARENA || action == PA_CONNECT)
+		UpdateGroup(pid, -1);
+	else if (action == PA_DISCONNECT)
+		astrncpy(groups[pid], "none", MAXGROUPLEN);
 }
 
 

@@ -167,8 +167,9 @@ void ProcessLoginQueue(void)
 				/* check if the player's arena is ready.
 				 * LOCK: we don't grab the arena status lock because it
 				 * doesn't matter if we miss it this time around */
-				if (aman->arenas[player->arena].status == ARENA_RUNNING)
-					player->status = S_DO_FREQ_AND_ARENA_SYNC;
+				if (player->arena >= 0 && player->arena < MAXARENA)
+					if (aman->arenas[player->arena].status == ARENA_RUNNING)
+						player->status = S_DO_FREQ_AND_ARENA_SYNC;
 
 				/* check whenloggedin. this is used to move players to
 				 * the leaving_zone status once various things are
@@ -214,7 +215,12 @@ void ProcessLoginQueue(void)
 				break;
 
 			case S_DO_FREQ_AND_ARENA_SYNC:
-				/* first get a freq */
+				/* first, do pre-callbacks */
+				DO_CBS(CALLBACK_PLAYERACTION,
+				       player->arena,
+				       PlayerActionFunc,
+				       (pid, PA_PREENTERARENA, player->arena));
+				/* then, get a freq */
 				/* yes, player->shiptype will be set here because it's
 				 * done in PArena */
 				player->freq = afreq->AssignFreq(pid, BADFREQ,

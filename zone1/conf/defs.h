@@ -3,4 +3,5 @@
 #define NO 0
 
 #include conf/flaggames.h
+#include conf/game.h
 

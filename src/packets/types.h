@@ -76,7 +76,7 @@
 #define C2S_SETSHIP 0x18
 /* missing 19 */
 #define C2S_SECURITYRESPONSE 0x1A
-/* missing 1B */
+#define C2S_CHECKSUMMISMATCH 0x1B
 #define C2S_BRICK 0x1C
 /* missing 1D */
 #define C2S_KOTHEXPIRED 0x1E

@@ -13,8 +13,12 @@
 #include "packets/shipchange.h"
 #include "packets/green.h"
 
+#include "settings/game.h"
 
 /* prototypes */
+
+local void PlayerAction(int pid, int action, int arena);
+local void ArenaAction(int arena, int action);
 
 /* packet funcs */
 local void Pppk(int, byte *, int);
@@ -48,6 +52,7 @@ local Iarenaman *aman;
 local Icmdman *cmd;
 local Ichat *chat;
 local Iflags *flags;
+local Icapman *capman;
 
 local PlayerData *players;
 local ArenaData *arenas;
@@ -57,6 +62,9 @@ local Iassignfreq _myaf = { MyAssignFreq };
 /* big arrays */
 local struct C2SPosition pos[MAXPLAYERS];
 local int speccing[MAXPLAYERS];
+/* epd/energy stuff */
+local struct { char see, cap, capnrg, pad__; } pl_epd[MAXPLAYERS];
+local struct { char spec, nrg; } ar_epd[MAXARENA];
 
 local int cfg_bulletpix, cfg_wpnpix, cfg_wpnbufsize, cfg_pospix;
 local int wpnrange[WEAPONCOUNT]; /* there are 5 bits in the weapon type */
@@ -78,8 +86,12 @@ int MM_game(int action, Imodman *mm_, int arena)
 		mm->RegInterest(I_CMDMAN, &cmd);
 		mm->RegInterest(I_CHAT, &chat);
 		mm->RegInterest(I_FLAGS, &flags);
+		mm->RegInterest(I_CAPMAN, &capman);
 
 		if (!net || !cfg || !log || !aman) return MM_FAIL;
+
+		mm->RegCallback(CALLBACK_PLAYERACTION, PlayerAction, ALLARENAS);
+		mm->RegCallback(CALLBACK_ARENAACTION, ArenaAction, ALLARENAS);
 
 		players = pd->players;
 		arenas = aman->arenas;
@@ -121,6 +133,8 @@ int MM_game(int action, Imodman *mm_, int arena)
 		net->RemovePacket(C2S_GREEN, PGreen);
 		net->RemovePacket(C2S_ATTACHTO, PAttach);
 		net->RemovePacket(C2S_TURRETKICKOFF, PKickoff);
+		mm->UnregCallback(CALLBACK_PLAYERACTION, PlayerAction, ALLARENAS);
+		mm->UnregCallback(CALLBACK_ARENAACTION, ArenaAction, ALLARENAS);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_CONFIG, &cfg);
 		mm->UnregInterest(I_LOGMAN, &log);
@@ -130,6 +144,7 @@ int MM_game(int action, Imodman *mm_, int arena)
 		mm->UnregInterest(I_CMDMAN, &cmd);
 		mm->UnregInterest(I_CHAT, &chat);
 		mm->UnregInterest(I_FLAGS, &flags);
+		mm->UnregInterest(I_CAPMAN, &capman);
 		/* do this last so we don't get prevented from unloading because
 		 * of ourself */
 		mm->UnregInterface(I_ASSIGNFREQ, &_myaf);
@@ -148,9 +163,9 @@ void Pppk(int pid, byte *p2, int n)
 	 * afford it. */
 	struct PlayerPosition position;
 	struct C2SPosition *p = (struct C2SPosition *)p2;
-	int arena = players[pid].arena, sp = 0, i, sendwpn;
+	int arena = players[pid].arena, i, sendwpn;
 	int x1, y1;
-	static int set[MAXPLAYERS];
+	int regset[MAXPLAYERS+1], epdset[MAXPLAYERS+1];
 
 	/* handle common errors */
 	if (arena < 0) return;
@@ -158,9 +173,10 @@ void Pppk(int pid, byte *p2, int n)
 	/* speccers don't get their position sent to anyone */
 	if (players[pid].shiptype == SPEC)
 	{
-		if (speccing[pid] > -1)
-			/* if he's speccing someone, set his position to be that
-			 * player */
+		int see = SEE_NONE;
+
+		if (speccing[pid] >= 0)
+			/* if he's speccing someone, set his position to be that player */
 			memcpy(pos + pid, pos + speccing[pid], sizeof(pos[0]));
 		else
 			/* if not, he has his own position, so set it */
@@ -169,11 +185,31 @@ void Pppk(int pid, byte *p2, int n)
 		position.x = pos[pid].x;
 		position.y = pos[pid].y;
 		players[pid].position = position;
+
+		/* handle epd thing */
+		if (ar_epd[arena].spec) see = ar_epd[arena].spec;
+		if (pl_epd[pid].cap) see = SEE_SPEC;
+		if (pl_epd[pid].capnrg) see = SEE_ALL;
+		pl_epd[pid].see = see;
+
+		/* and don't send out packets */
 		return;
+	}
+	else
+	{
+		/* epd thing */
+		int see = SEE_NONE;
+		/* because this might be SEE_TEAM */
+		if (ar_epd[arena].nrg) see = ar_epd[arena].nrg;
+		if (pl_epd[pid].capnrg) see = SEE_ALL;
+		pl_epd[pid].see = see;
 	}
 
 	x1 = p->x;
 	y1 = p->y;
+
+	regset[0] = 1;
+	epdset[0] = 1;
 
 	/* there are several reasons to send a weapon packet (05) instead of
 	 * just a position one (28) */
@@ -188,18 +224,32 @@ void Pppk(int pid, byte *p2, int n)
 	if (sendwpn)
 	{
 		int range = wpnrange[p->weapon.type];
+		int nflags = NET_UNRELIABLE;
 		struct S2CWeapons wpn = {
 			S2C_WEAPON, p->rotation, p->time & 0xFFFF, p->x, p->yspeed,
 			pid, p->xspeed, 0, p->status, 0, p->y, p->bounty
 		};
 		wpn.weapon = p->weapon;
+		wpn.extra = p->extra;
+
+		if (p->weapon.type) nflags |= NET_IMMEDIATE;
 
 		for (i = 0; i < MAXPLAYERS; i++)
 			if (	players[i].status == S_PLAYING
 			     && players[i].arena == arena
 			     && i != pid)
 			{
+				int *set = regset;
 				long dist = lhypot(x1 - pos[i].x, y1 - pos[i].y);
+
+				if (pl_epd[i].see == SEE_ALL ||
+				    ( pl_epd[i].see == SEE_TEAM &&
+				      players[pid].freq == players[i].freq) ||
+				    ( pl_epd[i].see == SEE_SPEC &&
+				      speccing[i] == pid ))
+					set = epdset;
+
+				/* figure out epd thing */
 				if ( dist <= range ||
 				     /* send mines to everyone too */
 				     ( ( p->weapon.type == W_BOMB ||
@@ -209,12 +259,21 @@ void Pppk(int pid, byte *p2, int n)
 				     ( ( p->weapon.type == W_NULL &&
 				         dist <= cfg_pospix &&
 				         rand() > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0)))))
-					set[sp++] = i;
+					set[set[0]++] = i;
 			}
-		set[sp] = -1;
-		DoChecksum(&wpn, sizeof(struct S2CWeapons));
-		net->SendToSet(set, (byte*)&wpn, sizeof(struct S2CWeapons),
-				NET_UNRELIABLE | NET_IMMEDIATE);
+		/* send regular */
+		DoChecksum(&wpn, sizeof(struct S2CWeapons) - sizeof(struct ExtraPosData));
+		regset[regset[0]] = -1;
+		net->SendToSet(regset + 1,
+		               (byte*)&wpn,
+		               sizeof(struct S2CWeapons) - sizeof(struct ExtraPosData),
+		               nflags);
+		/* send epd */
+		epdset[epdset[0]] = -1;
+		net->SendToSet(epdset + 1,
+		               (byte*)&wpn,
+		               sizeof(struct S2CWeapons),
+		               nflags);
 	}
 	else
 	{
@@ -228,21 +287,39 @@ void Pppk(int pid, byte *p2, int n)
 			    players[i].arena == arena &&
 			    i != pid)
 			{
+				int *set = regset;
 				long dist = lhypot(x1 - pos[i].x, y1 - pos[i].y);
 				int res = players[i].xres + players[i].yres;
 
+				if (pl_epd[i].see == SEE_ALL ||
+				    ( pl_epd[i].see == SEE_TEAM &&
+				      players[pid].freq == players[i].freq) ||
+				    ( pl_epd[i].see == SEE_SPEC &&
+				      speccing[i] == pid ))
+					set = epdset;
+
 				if (dist < res)
-					set[sp++] = i;
+					set[set[0]++] = i;
 				else if (
 				    dist <= cfg_pospix
 				 && (rand() > ((float)dist / (float)cfg_pospix * (RAND_MAX+1.0))))
-						set[sp++] = i;
+						set[set[0]++] = i;
 			}
-		set[sp] = -1;
-		net->SendToSet(set, (byte*)&sendpos, sizeof(struct S2CPosition),
-				NET_UNRELIABLE | NET_IMMEDIATE);
+		regset[regset[0]] = -1;
+		epdset[epdset[0]] = -1;
+		net->SendToSet(regset + 1,
+		               (byte*)&sendpos,
+		               sizeof(struct S2CPosition) - sizeof(struct ExtraPosData),
+		               NET_UNRELIABLE);
+		net->SendToSet(epdset + 1,
+		               (byte*)&sendpos,
+		               sizeof(struct S2CPosition),
+		               NET_UNRELIABLE);
 	}
 
+	/* copy the whole thing. this will copy the epd, or, if the client
+	 * didn't send any epd, it will copy zeros because the buffer was
+	 * zeroed before data was recvd into it. */
 	memcpy(pos + pid, p2, sizeof(pos[0]));
 
 	position.x = p->x;
@@ -446,6 +523,28 @@ void PKickoff(int pid, byte *p, int len)
 }
 
 
+void PlayerAction(int pid, int action, int arena)
+{
+	if (action == PA_ENTERARENA)
+	{
+		pl_epd[pid].see = 0;
+		pl_epd[pid].cap = capman ? capman->HasCapability(pid, "seeepd") : 0;
+		pl_epd[pid].capnrg = capman ? capman->HasCapability(pid, "seenrg") : 0; 
+	}
+}
+
+void ArenaAction(int arena, int action)
+{
+	if (action == AA_CREATE)
+	{
+		ar_epd[arena].spec =
+			cfg->GetInt(arenas[arena].cfg, "Misc", "SpecSeeEnergy", 0);
+		ar_epd[arena].nrg =
+			cfg->GetInt(arenas[arena].cfg, "Misc", "SeeEnergy", 0);
+	}
+}
+
+
 void Creport(const char *params, int pid, int target)
 {
 	if (target < 0 || target >= MAXPLAYERS) return;
@@ -466,6 +565,7 @@ void DoChecksum(struct S2CWeapons *pkt, int n)
 {
 	int i;
 	u8 ck = 0, *p = (u8*)pkt;
+	pkt->checksum = 0;
 	for (i = 0; i < n; i++, p++)
 		ck ^= *p;
 	pkt->checksum = ck;

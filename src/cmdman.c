@@ -173,6 +173,7 @@ void Command(const char *line, int pid, int target)
 		}
 		LLFree(lst);
 	}
+	/* else printf("DEBUG: cap denied by capman: '%s'\n", cmd); */
 
 	if (!found && defaultfunc)
 		defaultfunc(saveline, pid, target); /* give whole thing, not just params */

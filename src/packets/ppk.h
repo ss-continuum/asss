@@ -7,13 +7,30 @@
 #pragma pack(1)
 
 struct Weapons
-{   // this is a bit field. the whole thing should fit into 16 bits
+{   /* this is a bit field. the whole thing should fit into 16 bits */
 	unsigned int type : 5;
 	unsigned int level : 2;
 	unsigned int unknown : 1;
 	unsigned int shraplevel : 2;
 	unsigned int shrap : 5;
 	unsigned int multimine : 1;
+};
+
+struct ExtraPosData
+{
+	unsigned energy : 16;
+	unsigned kothtimer : 16; /* unverified */
+	unsigned flagtimer : 16;
+	unsigned super : 1;
+	unsigned shields : 1;
+	unsigned bursts : 4;
+	unsigned repels : 4;
+	unsigned thors : 4;
+	unsigned bricks : 4;
+	unsigned decoys : 4;
+	unsigned rockets : 4;
+	unsigned portals : 4;
+	unsigned padding : 2;
 };
 
 struct S2CWeapons
@@ -31,7 +48,7 @@ struct S2CWeapons
 	i16 y;
 	u16 bounty;
 	struct Weapons weapon;
-	byte extradata[0];
+	struct ExtraPosData extra;
 };
 
 struct S2CPosition
@@ -47,7 +64,7 @@ struct S2CPosition
 	i16 yspeed;
 	i16 y;
 	i16 xspeed;
-	byte extradata[0];
+	struct ExtraPosData extra;
 };
 
 struct C2SPosition
@@ -64,7 +81,7 @@ struct C2SPosition
 	u16 bounty;
 	i16 energy;
 	struct Weapons weapon;
-	byte extradata[0];
+	struct ExtraPosData extra;
 };
 
 

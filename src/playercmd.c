@@ -6,13 +6,14 @@
 #include "asss.h"
 
 
+#define CAP_SEEPRIVARENA "seeprivarena"
 
 /* prototypes */
 
 local void Carena(const char *, int, int);
 local void Cshutdown(const char *, int, int);
 local void Cflagreset(const char *, int, int);
-local void Clogfile(const char *, int, int);
+local void Cadmlogfile(const char *, int, int);
 local void Cballcount(const char *, int, int);
 
 
@@ -24,6 +25,7 @@ local Ilogman *log;
 local Icmdman *cmd;
 local Inet *net;
 local Iconfig *cfg;
+local Icapman *capman;
 local Imainloop *ml;
 local Iarenaman *aman;
 local Ilog_file *logfile;
@@ -32,8 +34,6 @@ local Iballs *balls;
 
 local PlayerData *players;
 local ArenaData *arenas;
-
-local ConfigHandle configops;
 
 
 
@@ -47,6 +47,7 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 		mm->RegInterest(I_CMDMAN, &cmd);
 		mm->RegInterest(I_NET, &net);
 		mm->RegInterest(I_CONFIG, &cfg);
+		mm->RegInterest(I_CAPMAN, &capman);
 		mm->RegInterest(I_ARENAMAN, &aman);
 		mm->RegInterest(I_MAINLOOP, &ml);
 		mm->RegInterest(I_LOG_FILE, &logfile);
@@ -60,7 +61,7 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 
 		cmd->AddCommand("arena", Carena);
 		cmd->AddCommand("shutdown", Cshutdown);
-		cmd->AddCommand("logfile", Clogfile);
+		cmd->AddCommand("admlogfile", Cadmlogfile);
 		cmd->AddCommand("flagreset", Cflagreset);
 		cmd->AddCommand("ballcount", Cballcount);
 		return MM_OK;
@@ -69,17 +70,17 @@ int MM_playercmd(int action, Imodman *mm, int arena)
 	{
 		cmd->RemoveCommand("arena", Carena);
 		cmd->RemoveCommand("shutdown", Cshutdown);
-		cmd->RemoveCommand("logfile", Clogfile);
+		cmd->RemoveCommand("admlogfile", Cadmlogfile);
 		cmd->RemoveCommand("flagreset", Cflagreset);
 		cmd->RemoveCommand("ballcount", Cballcount);
 
-		cfg->CloseConfigFile(configops);
 		mm->UnregInterest(I_PLAYERDATA, &pd);
 		mm->UnregInterest(I_CHAT, &chat);
 		mm->UnregInterest(I_LOGMAN, &log);
 		mm->UnregInterest(I_CMDMAN, &cmd);
 		mm->UnregInterest(I_NET, &net);
 		mm->UnregInterest(I_CONFIG, &cfg);
+		mm->UnregInterest(I_CAPMAN, &capman);
 		mm->UnregInterest(I_ARENAMAN, &aman);
 		mm->UnregInterest(I_MAINLOOP, &ml);
 		mm->UnregInterest(I_LOG_FILE, &logfile);
@@ -98,13 +99,14 @@ void Carena(const char *params, int pid, int target)
 {
 	byte buf[MAXPACKET];
 	byte *pos = buf;
-	int i = 0, l, pcount[MAXARENA];
+	int i = 0, arena, l, pcount[MAXARENA], seehid;
 
 	*pos++ = S2C_ARENA;
-
 	memset(pcount, 0, MAXARENA * sizeof(int));
 
 	pd->LockStatus();
+
+	arena = players[pid].arena;
 
 	/* count up players */
 	for (i = 0; i < MAXPLAYERS; i++)
@@ -113,15 +115,17 @@ void Carena(const char *params, int pid, int target)
 			pcount[players[i].arena]++;
 
 	/* signify current arena */
-	if (players[pid].arena >= 0)
-		pcount[players[pid].arena] *= -1;
+	if (players[pid].arena >= 0 && players[pid].arena < MAXARENA)
+		pcount[arena] *= -1;
 
 	pd->UnlockStatus();
 
 	/* build arena info packet */
+	seehid = capman->HasCapability(pid, CAP_SEEPRIVARENA);
 	aman->LockStatus();
 	for (i = 0; (pos-buf) < 480 && i < MAXARENA; i++)
-		if (arenas[i].status == ARENA_RUNNING)
+		if (arenas[i].status == ARENA_RUNNING &&
+		    ( arenas[i].name[0] != '#' || seehid || i == arena ))
 		{
 			l = strlen(arenas[i].name) + 1;
 			strncpy(pos, arenas[i].name, l);
@@ -142,7 +146,7 @@ void Cshutdown(const char *params, int pid, int target)
 }
 
 
-void Clogfile(const char *params, int pid, int target)
+void Cadmlogfile(const char *params, int pid, int target)
 {
 	if (!strcasecmp(params, "flush"))
 		logfile->FlushLog();
