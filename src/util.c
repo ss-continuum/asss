@@ -7,9 +7,10 @@
 #include <stdio.h>
 #include <ctype.h>
 
-#ifndef NOMPQUEUE
+#ifndef NOTHREAD
 #include <pthread.h>
 #endif
+
 
 #include "util.h"
 #include "defs.h"
@@ -34,16 +35,7 @@ struct HashTable
 	HashEntry *lists[0];
 };
 
-#ifndef NOMPQUEUE
 
-struct MPQueue
-{
-	LinkedList list;
-	pthread_mutex_t mtx;
-	pthread_cond_t cond;
-};
-
-#endif
 
 
 static Link *freelinks = NULL;
@@ -84,6 +76,11 @@ char *astrdup(const char *s)
 	if (!r)
 		Error(ERROR_MEMORY,"strdup error\n");
 	return r;
+}
+
+void afree(void *ptr)
+{
+	free(ptr);
 }
 
 
@@ -256,7 +253,7 @@ void HashFree(HashTable *h)
 			e->next = old;
 		}
 	}
-	free(h);
+	afree(h);
 }
 
 void HashEnum(HashTable *h, void (*func)(void *))
@@ -357,39 +354,26 @@ LinkedList * HashGet(HashTable *h, const char *s)
 
 #ifndef NOMPQUEUE
 
-local void MPInit(MPQueue *q)
+void MPInit(MPQueue *q)
 {
 	LLInit(&q->list);
-	pthread_mutex_init(&q->mtx, NULL);
-	pthread_cond_init(&q->cond, NULL);
+	InitMutex(&q->mtx);
+	InitCondition(&q->cond);
 }
 
-MPQueue * MPAlloc()
-{
-	MPQueue *ret = amalloc(sizeof(MPQueue));
-	MPInit(ret);
-	return ret;
-}
-
-local void MPDestroy(MPQueue *q)
+void MPDestroy(MPQueue *q)
 {
 	LLEmpty(&q->list);
-	pthread_mutex_destroy(&q->mtx);
-	pthread_cond_destroy(&q->cond);
+/*	DestroyMutex(&q->mtx);
+	DestroyCondition(&q->cond); */
 }
 
-void MPFree(MPQueue *q)
-{
-	MPDestroy(q);
-	free(q);
-}
-
-	
 void MPAdd(MPQueue *q, void *data)
 {
-	pthread_mutex_lock(&q->mtx);
+	LockMutex(&q->mtx);
 	LLAdd(&q->list, data);
-	pthread_mutex_unlock(&q->mtx);
+	UnlockMutex(&q->mtx);
+	SignalCondition(&q->cond, 0);
 }
 
 	
@@ -398,15 +382,69 @@ void * MPRemove(MPQueue *q)
 	void *data;
 	Link *l;
 
-	pthread_mutex_lock(&q->mtx);
+	LockMutex(&q->mtx);
 	while ( !(l = LLGetHead(&q->list)) )
-		pthread_cond_wait(&q->cond, &q->mtx);
+		WaitCondition(&q->cond, &q->mtx);
 	data = l->data;
 	LLRemove(&q->list, data);
-	pthread_mutex_unlock(&q->mtx);
+	UnlockMutex(&q->mtx);
 	return data;
 }
 
 #endif /* MPQUEUE */
+
+
+#ifndef NOTHREAD
+
+Thread StartThread(ThreadFunc func, void *data)
+{
+	Thread ret;
+	if (pthread_create(&ret, NULL, func, data) == 0)
+		return ret;
+	else
+		return 0;
+}
+
+void JoinThread(Thread thd)
+{
+	void *dummy;
+	pthread_join(thd, &dummy);
+}
+
+void InitMutex(Mutex *mtx)
+{
+	pthread_mutex_init(mtx, NULL);
+}
+	
+void LockMutex(Mutex *mtx)
+{
+	pthread_mutex_lock(mtx);
+}
+
+void UnlockMutex(Mutex *mtx)
+{
+	pthread_mutex_unlock(mtx);
+}
+
+void InitCondition(Condition *cond)
+{
+	pthread_cond_init(cond, NULL);
+}
+
+void SignalCondition(Condition *cond, int all)
+{
+	if (all)
+		pthread_cond_broadcast(cond);
+	else
+		pthread_cond_signal(cond);
+}
+
+void WaitCondition(Condition *cond, Mutex *mtx)
+{
+	pthread_cond_wait(cond, mtx);
+}
+
+
+#endif /* THREAD */
 
 

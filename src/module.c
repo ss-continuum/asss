@@ -121,7 +121,7 @@ int LoadModule(char *filename)
 	if (!mod->hand)
 	{
 		if (log) log->Log(LOG_ERROR,"LoadModule: error in dlopen");
-		free(mod);
+		afree(mod);
 		return MM_FAIL;
 	}
 
@@ -132,7 +132,7 @@ int LoadModule(char *filename)
 	{
 		if (log) log->Log(LOG_ERROR,"LoadModule: error in dlsym");
 		if (!mod->myself) dlclose(mod->hand);
-		free(mod);
+		afree(mod);
 		return MM_FAIL;
 	}
 
@@ -146,7 +146,7 @@ int LoadModule(char *filename)
 		if (log) log->Log(LOG_ERROR,
 				"Error loading module string %s from %s", modname, filename);
 		if (!mod->myself) dlclose(mod->hand);
-		free(mod);
+		afree(mod);
 		return ret;
 	}
 	
@@ -162,7 +162,7 @@ local void UnloadModuleByPtr(ModuleData *mod)
 /*		((Ilogman*)ints[I_LOGMAN])->Log(LOG_DEBUG, "Unloading module %s", mod->name); */
 	if (mod->mm) (mod->mm)(MM_UNLOAD, &mmint);
 	if (mod->hand && !mod->myself) dlclose(mod->hand);
-	free(mod);
+	afree(mod);
 }
 
 

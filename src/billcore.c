@@ -184,12 +184,11 @@ void DefaultCmd(const char *cmd, int pid, int target)
 
 	if (target == TARGET_ARENA)
 	{
-		to = amalloc(strlen(cmd)+6);
+		to = alloca(strlen(cmd)+6);
 		to->type = S2B_COMMAND;
 		to->pid = pid;
 		strcpy(to->text, cmd);
 		SendToBiller((byte*)to, strlen(cmd)+6, NET_RELIABLE);
-		free(to);
 	}
 }
 
@@ -266,7 +265,7 @@ void BChatMsg(int pid, byte *p, int len)
 void BMessage(int pid, byte *p, int len)
 {
 	struct B2SRemotePriv *from = (struct B2SRemotePriv*)p;
-	struct ChatPacket *to = amalloc(len);
+	struct ChatPacket *to = alloca(len);
 	char *msg = from->text, *t;
 	int targ;
 
@@ -310,7 +309,6 @@ void BMessage(int pid, byte *p, int len)
 		net->SendToAll((byte*)to, strlen(msg)+6, NET_RELIABLE);
 		log->Log(LOG_IMPORTANT, "Broadcast message from biller: %s", msg);
 	}
-	free(to);
 }
 
 
@@ -334,7 +332,7 @@ void PChat(int pid, byte *p, int len)
 
 	if (from->type == MSG_CHAT)
 	{
-		struct S2BChat *to = amalloc(len+32); /* +32 = diff in packet sizes */
+		struct S2BChat *to = alloca(len+32); /* +32 = diff in packet sizes */
 
 		to->type = S2B_CHATMSG;
 		to->pid = pid;
@@ -353,11 +351,10 @@ void PChat(int pid, byte *p, int len)
 		}
 
 		SendToBiller((byte*)to, len+32, NET_RELIABLE);
-		free(to);
 	}
 	else if (from->type == MSG_INTERARENAPRIV)
 	{
-		struct S2BRemotePriv *to = amalloc(len + 40); /* long enough for anything */
+		struct S2BRemotePriv *to = alloca(len + 40); /* long enough for anything */
 
 		t = strchr(from->text+1, ':');
 		if (from->text[0] != ':' || !t)
@@ -378,7 +375,6 @@ void PChat(int pid, byte *p, int len)
 			SendToBiller((byte*)to, l+12, NET_RELIABLE);
 			*t = ':';
 		}
-		free(to);
 	}
 }
 

@@ -80,7 +80,10 @@ void RunLoop()
 				if ( td->func(td->param) )
 					td->when = gtc + td->interval;
 				else
+				{
 					LLRemove(timers, td);
+					afree(td);
+				}
 			}
 		}
 	}
@@ -110,7 +113,10 @@ void ClearTimer(TimerFunc f)
 
 	for (l = LLGetHead(timers); l; l = l->next)
 		if (((TimerData*)l->data)->func == f)
+		{
 			LLRemove(timers, l->data);
+			afree(l->data);
+		}
 }
 
 

@@ -89,7 +89,7 @@ void RemoveCommand(const char *cmd, CommandFunc f)
 			{
 				HashRemove(cmds, cmd, data);
 				LLFree(lst);
-				free(data);
+				afree(data);
 				return;
 			}
 		}
@@ -119,7 +119,7 @@ void Command(const char *line, int pid, int target)
 	{
 		data = (CommandData*) l->data;
 		if (pid < 0 || (pid < MAXPLAYERS && players[pid].oplevel >= data->oplevel))
-			data->func(cmd, pid, target);
+			data->func(line, pid, target);
 		found = 1;
 	}
 	LLFree(lst);

@@ -8,7 +8,7 @@ DEBUG_CFLAGS = -fPIC -g -Wall -fpedantic
 
 CFLAGS = $(DEBUG_CFLAGS)
 
-ASSSLIBS = -ldl -lz # -lpthread
+ASSSLIBS = -ldl -lz -lpthread
 
 
 

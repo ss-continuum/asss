@@ -208,7 +208,7 @@ int MM_net(int action, Imodman *mm)
 
 		/* free memory */
 		for (i = 0; i < MAXTYPES; i++) LLFree(handlers[i]);
-		free(inbuf); free(outbuf);
+		afree(inbuf); afree(outbuf);
 
 		close(mysock);
 		close(myothersock);
@@ -636,7 +636,7 @@ void ProcessBigData(int pid, byte *p, int n)
 	ProcessPacket(pid, newbuf, newsize);
 
 freebigbuf:
-	free(clients[pid].bigpktbuf);
+	afree(clients[pid].bigpktbuf);
 	clients[pid].bigpktbuf = NULL;
 	clients[pid].bigpktsize = 0;
 	clients[pid].bigpktroom = 0;
@@ -688,7 +688,7 @@ void ProcessPresize(int pid, byte *p, int len)
 	ProcessPacket(pid, clients[pid].bigpktbuf, size);
 
 freepacket:
-	free(clients[pid].bigpktbuf);
+	afree(clients[pid].bigpktbuf);
 	clients[pid].bigpktbuf = NULL;
 	clients[pid].bigpktsize = 0;
 	clients[pid].bigpktroom = 0;
@@ -926,7 +926,7 @@ void SendToSet(int *set, byte *data, int len, int rel)
 	}
 	else if (rel & NET_RELIABLE)
 	{
-		struct ReliablePacket *pk = amalloc(len+6);
+		struct ReliablePacket *pk = alloca(len+6);
 
 		memcpy(pk->data, data, len);
 		pk->t1 = 0x00; pk->t2 = 0x03;
@@ -937,8 +937,6 @@ void SendToSet(int *set, byte *data, int len, int rel)
 			BufferPacket(set[i], (byte*)pk, len+6, rel);
 			i++;
 		}
-
-		free(pk);
 	}
 	else
 	{

@@ -104,7 +104,7 @@ int MM_mapnewsdl(int action, Imodman *mm_)
 		net->RemovePacket(C2S_NEWSREQUEST, PMapRequest);
 		mm->UnregCallback(CALLBACK_ARENAACTION, ArenaAction);
 
-		free(cmpnews);
+		afree(cmpnews);
 		ml->ClearTimer(RefreshNewsTxt);
 
 		mm->UnregInterest(I_NET, &net);
@@ -145,12 +145,12 @@ int ArenaAction(int action, int arena)
 	if (action == AA_LOAD)
 	{
 		if (mapdata[arena].cmpmap)
-			free(mapdata[arena].cmpmap);
+			afree(mapdata[arena].cmpmap);
 		CompressMap(arena);
 	}
 	else if (action == AA_UNLOAD)
 	{
-		free(mapdata[arena].cmpmap);
+		afree(mapdata[arena].cmpmap);
 		mapdata[arena].cmpmaplen = 0;
 	}
 	return AA_OK;
@@ -300,7 +300,7 @@ int RefreshNewsTxt(void *dummy)
 
 		munmap(news, fsize);
 
-		if (cmpnews) free(cmpnews);
+		if (cmpnews) afree(cmpnews);
 		cmpnews = cnews;
 		log->Log(LOG_USELESSINFO,"News file %s reread", cfg_newsfile);
 	}

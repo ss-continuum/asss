@@ -459,7 +459,7 @@ int CreateArena(char *name)
 	if (!config)
 	{	/* if not, fail */
 		log->Log(LOG_ERROR,"Default config file not found");
-		free(me); return -1;
+		afree(me); return -1;
 	}
 	me->config = config;
 

@@ -55,6 +55,7 @@ char *RemoveCRLF(char *str);
 
 void *amalloc(size_t bytes);
 char *astrdup(const char *str);
+void afree(void *ptr);
 
 char *astrncpy(char *dest, const char *source, size_t destlength);
 
@@ -77,11 +78,11 @@ struct LinkedList
 typedef struct LinkedList LinkedList;
 
 LinkedList * LLAlloc();
-void LLInit(LinkedList *);
-void LLFree(LinkedList *);
-void LLAdd(LinkedList *, void *);
-int LLRemove(LinkedList *, void *);
-Link *LLGetHead(LinkedList *);
+void LLInit(LinkedList *lst);
+void LLFree(LinkedList *lst);
+void LLAdd(LinkedList *lst, void *data);
+int LLRemove(LinkedList *lst, void *data);
+Link *LLGetHead(LinkedList *lst);
 
 
 /* hashing stuff */
@@ -89,25 +90,55 @@ Link *LLGetHead(LinkedList *);
 typedef struct HashTable HashTable;
 
 HashTable * HashAlloc();
-void HashFree(HashTable *);
-void HashEnum(HashTable *, void (*)(void *));
-void HashAdd(HashTable *, const char *, void *);
-void HashRemove(HashTable *, const char *, void *);
-LinkedList *HashGet(HashTable *, const char *);
+void HashFree(HashTable *ht);
+void HashEnum(HashTable *ht, void (*func)(void *));
+void HashAdd(HashTable *ht, const char *key, void *data);
+void HashRemove(HashTable *ht, const char *key, void *data);
+LinkedList *HashGet(HashTable *ht, const char *key);
+
+
+
+#ifndef NOTHREAD
+
+/* threading stuff */
+
+#include <pthread.h>
+
+typedef void * (*ThreadFunc)(void *);
+typedef pthread_t Thread;
+typedef pthread_mutex_t Mutex;
+typedef pthread_cond_t Condition;
+
+Thread StartThread(ThreadFunc func, void *data);
+void JoinThread(Thread th);
+void InitMutex(Mutex *mtx);
+void LockMutex(Mutex *mtx);
+void UnlockMutex(Mutex *mtx);
+void InitCondition(Condition *cond);
+void SignalCondition(Condition *cond, int all);
+void WaitCondition(Condition *cond, Mutex *mtx);
+
+#endif
 
 
 #ifndef NOMPQUEUE
 
 /* mpqueue stuff */
 
-typedef struct MPQueue MPQueue;
+typedef struct MPQueue
+{
+	LinkedList list;
+	Mutex mtx;
+	Condition cond;
+} MPQueue;
 
-MPQueue * MPAlloc();
-void MPFree(MPQueue *);
-void MPAdd(MPQueue *, void *); /* will not block  */
-void * MPRemove(MPQueue *); /* WILL BLOCK */
+void MPInit(MPQueue *mpq);
+void MPDestroy(MPQueue *mpq);
+void MPAdd(MPQueue *mpq, void *data); /* will not block  */
+void * MPRemove(MPQueue *mpq); /* WILL BLOCK */
 
 #endif
+
 
 #endif
 

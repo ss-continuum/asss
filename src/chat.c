@@ -80,7 +80,7 @@ void PChat(int pid, byte *p, int len)
 	int setc = 0, i, arena, freq;
 	static int set[MAXPLAYERS];
 
-	to = amalloc(len + 30);
+	to = alloca(len + 30);
 	to->pktype = S2C_CHAT;
 	to->type = from->type;
 	to->pid = pid;
@@ -185,15 +185,13 @@ void PChat(int pid, byte *p, int len)
 			/* FIXME */
 			break;
 	}
-
-	free(to);
 }
 
 
 void SendMessage(int pid, char *str, ...)
 {
 	int size;
-	struct ChatPacket *cp = amalloc(256);
+	struct ChatPacket *cp = alloca(256);
 	va_list args;
 	
 	va_start(args, str);
@@ -203,7 +201,6 @@ void SendMessage(int pid, char *str, ...)
 	cp->pktype = S2C_CHAT;
 	cp->type = MSG_ARENA;
 	net->SendToOne(pid, (byte*)cp, size, NET_RELIABLE);
-	free(cp);
 }
 
 
