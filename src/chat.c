@@ -481,6 +481,20 @@ local void handle_remote_priv(Player *p, const char *msg, int sound)
 	t = delimcpy(dest, msg+1, 21, ':');
 	if (msg[0] != ':' || !t)
 		lm->LogP(L_MALICIOUS, "chat", p, "malformed remote private message");
+	else if ((t[0] == CMD_CHAR_1 || t[0] == CMD_CHAR_2) && t[1] != '\0')
+	{
+		if (OK(MSG_COMMAND))
+		{
+			Player *d = pd->FindPlayer(dest);
+			if (d)
+			{
+				Target target;
+				target.type = T_PLAYER;
+				target.u.p = d;
+				run_commands(t, p, &target);
+			}
+		}
+	}
 	else if (OK(MSG_REMOTEPRIV))
 	{
 		Player *d = pd->FindPlayer(dest);
@@ -497,8 +511,7 @@ local void handle_remote_priv(Player *p, const char *msg, int sound)
 				net->SendToOne(d, (byte*)to, strlen(to->text)+6, NET_RELIABLE);
 			}
 			else if (IS_CHAT(d))
-				chatnet->SendToOne(d, "MSG:PRIV:%s:%s",
-						p->name, t);
+				chatnet->SendToOne(d, "MSG:PRIV:%s:%s", p->name, t);
 		}
 
 		/* the billing module will catch these if dest is null. also: we
