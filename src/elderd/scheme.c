@@ -125,8 +125,7 @@ void * SchemeThread(void *dummy)
 		{
 			/* log->Log(LOG_DEBUG, "Sending string to eval: %s", eval->string); */
 			size = sizeof(struct data_a2e_evalstring) + strlen(eval->string);
-			write_full(schemesock, &size, sizeof(int));
-			write_full(schemesock, eval, size);
+			write_message(schemesock, eval, size);
 			afree(eval);
 		}
 
@@ -201,7 +200,7 @@ void SendPlayerData(int pid)
 
 	pd.type = A2E_PLAYERDATA;
 	pd.pid = pid;
-	if (pid >= 0 && pid <= MAXPLAYERS)
+	if (pid >= 0 && pid < MAXPLAYERS)
 		memcpy(&pd.data, players + pid, sizeof(PlayerData));
 	else
 		memset(&pd.data, 0, sizeof(PlayerData));
