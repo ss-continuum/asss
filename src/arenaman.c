@@ -292,8 +292,6 @@ local void SendArenaResponse(Player *p)
 	if (IS_STANDARD(p))
 	{
 		spawnloc *sp = PPDATA(p, spawnkey);
-
-		/* send mapfilename */
 		Imapnewsdl *map = mm->GetInterface(I_MAPNEWSDL, a);
 
 		/* send to himself */
@@ -315,7 +313,7 @@ local void SendArenaResponse(Player *p)
 		if (sp->x > 0 && sp->y > 0 && sp->x < 1024 && sp->y < 1024)
 		{
 			struct SimplePacket wto = { S2C_WARPTO, sp->x, sp->y };
-			net->SendToOne(p, (byte *)&wto, 5, NET_RELIABLE | NET_PRI_P3);
+			net->SendToOne(p, (byte *)&wto, 5, NET_RELIABLE);
 		}
 	}
 }

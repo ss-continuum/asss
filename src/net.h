@@ -29,37 +29,19 @@
 #define MAXBIGPACKET CFG_MAX_BIG_PACKET
 
 /* bits in the flags parameter to the SendX functions */
-#define NET_UNRELIABLE 0x00
-#define NET_RELIABLE 0x01
-#define NET_DROPPABLE 0x02
+#define NET_UNRELIABLE  0x00
+#define NET_RELIABLE    0x01
+#define NET_DROPPABLE   0x02
+#define NET_URGENT      0x04
 
-/* priority levels are encoded using bits 3-5 of the flags parameter
- * (0x04, 0x08, 0x10). priority is unrelated to reliable-ness.
- * priorities 4 and higher mean the packet is "urgent." urgent packets
- * are sent synchronously, if possible.
- * suggested use of priorities:
- * -1 - stuff that really doesn't matter (e.g. public macros)
- *  0 - most stuff (e.g. chat)
- * +1 - important stuff (e.g. ship/freq changes)
- * +2 - far position packets
- * +3 - far weapons packets
- * +4 - close position packets, bricks
- * +5 - close weapons packets
- */
-#define NET_PRI_N1      0x04
-#define NET_PRI_ZERO    0x08
-#define NET_PRI_P1      0x0C
-#define NET_PRI_P2      0x10
-#define NET_PRI_P3      0x14
-#define NET_PRI_P4      0x18
-#define NET_PRI_P5      0x1C
-
-#define NET_PRI_DEFAULT NET_PRI_ZERO
-#define NET_PRI_URGENT NET_PRI_P4
-
-/* turns a flags value into a priority value from 0 to 7 */
-#define GET_PRI(flags) (((flags) & 0x1C) >> 2)
-
+/* priority levels. 4 and 5 include urgent. */
+#define NET_PRI_N1      0x10
+#define NET_PRI_DEF     0x20
+#define NET_PRI_P1      0x30
+#define NET_PRI_P2      0x40
+#define NET_PRI_P3      0x50
+#define NET_PRI_P4      0x64
+#define NET_PRI_P5      0x74
 
 
 typedef void (*PacketFunc)(Player *p, byte *data, int length);

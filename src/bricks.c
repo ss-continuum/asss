@@ -201,7 +201,7 @@ local void drop_brick(Arena *arena, int freq, int x1, int y1, int x2, int y2)
 		bd->lasttime = pkt->starttime;
 	LLAdd(&bd->list, pkt);
 
-	net->SendToArena(arena, NULL, (byte*)pkt, sizeof(*pkt), NET_RELIABLE | NET_PRI_P4);
+	net->SendToArena(arena, NULL, (byte*)pkt, sizeof(*pkt), NET_RELIABLE | NET_URGENT);
 	lm->Log(L_DRIVEL, "<game> {%s} brick dropped (%d,%d)-(%d,%d) (freq=%d) (id=%d)",
 	        arena->name,
 	        x1, y1, x2, y2, freq,

@@ -921,7 +921,7 @@ local void PKickoff(Player *p, byte *pkt2, int len)
 local void WarpTo(const Target *target, int x, int y)
 {
 	struct SimplePacket wto = { S2C_WARPTO, x, y };
-	net->SendToTarget(target, (byte *)&wto, 5, NET_RELIABLE | NET_PRI_P1);
+	net->SendToTarget(target, (byte *)&wto, 5, NET_RELIABLE | NET_URGENT);
 }
 
 
