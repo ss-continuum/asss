@@ -30,10 +30,11 @@ cmd_timer
 cmd_timereset
 cmd_pausetimer
 cmd_recyclearena
-cmd_kick
+privcmd_kick
 cmd_listmidbans
 cmd_delmidban
 cmd_setjackpot
+privcmd_where
 
 privcmd_scorereset
 cmd_endinterval

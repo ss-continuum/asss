@@ -14,6 +14,8 @@ cmd_time
 cmd_jackpot
 cmd_buy
 cmd_cheater
+cmd_where
+cmd_zone
 
 cmd_version
 cmd_uptime
@@ -40,6 +42,9 @@ privcmd_rmgroup
 
 privcmd_freqkick
 privcmd_giveowner
+
+cmd_joinpwd
+cmd_freqpwd
 
 cmd_usage
 privcmd_usage

@@ -13,6 +13,7 @@ prefix_@
 cmd_shutdown
 cmd_netstats
 cmd_lastlog
+privcmd_lastlog
 
 cmd_lsmod
 cmd_modinfo
@@ -22,6 +23,7 @@ cmd_attmod
 
 cmd_setscore
 cmd_resetgame
+privcmd_points
 
 cmd_setg
 cmd_getg
@@ -45,4 +47,7 @@ cmd_addallowed
 
 ; temporary
 cmd_dropturret
+
+cmd_py
+privcmd_py
 
