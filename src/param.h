@@ -117,3 +117,7 @@
  * to consider enabling this on a multiprocessor box. */
 /* #define CFG_PEDANTIC_LOCKING */
 
+
+/* how many pending requests to allow to the billing server at once */
+#define CFG_MAX_PENDING_REQUESTS 10
+

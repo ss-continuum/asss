@@ -17,6 +17,9 @@
 #define KEY_CHAT 47
 
 
+local void SendMessage_(int pid, const char *str, ...);
+
+
 /* global data */
 
 local Iplayerdata *pd;
@@ -36,25 +39,56 @@ local PlayerData *players;
 local ArenaData *arenas;
 
 local chat_mask_t arena_mask[MAXARENA];
-local struct
+local struct player_mask_t
 {
 	chat_mask_t mask;
 	/* this is zero for a session-long mask, otherwise a time() value */
 	time_t expires;
+	/* a count of messages. this decays exponentially 50% per second */
+	int msgs;
+	unsigned lastcheck;
 } player_mask[MAXPLAYERS];
 
-local int cfg_msgrel;
-
+local int cfg_msgrel, cfg_floodlimit, cfg_floodshutup;
 
 
 local void expire_mask(int pid)
 {
-	if (PID_OK(pid) && player_mask[pid].expires > 0)
-		if (time(NULL) > player_mask[pid].expires)
+	struct player_mask_t *pm = player_mask + pid;
+	int d;
+
+	/* handle expiring masks */
+	if (PID_OK(pid) && pm->expires > 0)
+		if (time(NULL) > pm->expires)
 		{
-			player_mask[pid].mask = 0;
-			player_mask[pid].expires = 0;
+			pm->mask = 0;
+			pm->expires = 0;
 		}
+
+	/* handle exponential decay of msg count */
+	d = (GTC() - pm->lastcheck) / 100;
+	pm->msgs >>= d;
+	pm->lastcheck += d * 100;
+}
+
+local void check_flood(int pid)
+{
+	struct player_mask_t *pm = player_mask + pid;
+
+	pm->msgs++;
+
+	if (pm->msgs >= cfg_floodlimit)
+	{
+		pm->msgs >>= 1;
+		pm->mask |= MSG_PUBMACRO | MSG_PUB | MSG_FREQ | MSG_NMEFREQ | MSG_PRIV | MSG_INTERARENAPRIV | MSG_CHAT | MSG_MODCHAT | MSG_BCOMMAND;
+		if (pm->expires)
+			/* already has a mask, add time */
+			pm->expires += cfg_floodshutup * 60;
+		else
+			pm->expires = time(NULL) + cfg_floodshutup * 60;
+		SendMessage_(pid, "You have been shut up for %d minutes for flooding.", cfg_floodshutup);
+		lm->LogP(L_INFO, "chat", pid, "flooded chat, shut up for %d minutes", cfg_floodshutup);
+	}
 }
 
 
@@ -209,10 +243,13 @@ local void handle_pub(int pid, const char *msg, int ismacro)
 
 	if (msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2 || msg[0] == CMD_CHAR_3)
 	{
-		Target target;
-		target.type = T_ARENA;
-		target.u.arena = players[pid].arena;
-		run_commands(msg, pid, &target);
+		if (OK(MSG_COMMAND))
+		{
+			Target target;
+			target.type = T_ARENA;
+			target.u.arena = players[pid].arena;
+			run_commands(msg, pid, &target);
+		}
 	}
 	else if (OK(ismacro ? MSG_PUBMACRO : MSG_PUB))
 	{
@@ -231,6 +268,8 @@ local void handle_pub(int pid, const char *msg, int ismacro)
 			chatnet->SendToArena(arena, pid, "MSG:PUB:%s:%s",
 				players[pid].name,
 				msg);
+
+		check_flood(pid);
 	}
 }
 
@@ -263,6 +302,8 @@ local void handle_modchat(int pid, const char *msg)
 			if (chatnet) chatnet->SendToSet(set, "MSG:MOD:%s:%s",
 					players[pid].name, msg);
 			lm->LogP(L_DRIVEL, "chat", pid, "Mod chat: %s", msg);
+
+			check_flood(pid);
 		}
 		else
 		{
@@ -283,11 +324,14 @@ local void handle_freq(int pid, int freq, const char *msg)
 
 	if (msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2 || msg[0] == CMD_CHAR_3)
 	{
-		Target target;
-		target.type = T_FREQ;
-		target.u.freq.arena = players[pid].arena;
-		target.u.freq.freq = freq;
-		run_commands(msg, pid, &target);
+		if (OK(MSG_COMMAND))
+		{
+			Target target;
+			target.type = T_FREQ;
+			target.u.freq.arena = players[pid].arena;
+			target.u.freq.freq = freq;
+			run_commands(msg, pid, &target);
+		}
 	}
 	else if (OK(players[pid].freq == freq ? MSG_FREQ : MSG_NMEFREQ))
 	{
@@ -312,6 +356,8 @@ local void handle_freq(int pid, int freq, const char *msg)
 				msg);
 
 		lm->LogP(L_DRIVEL, "chat", pid, "Freq msg (%d): %s", freq, msg);
+
+		check_flood(pid);
 	}
 }
 
@@ -323,10 +369,13 @@ local void handle_priv(int pid, int dst, const char *msg)
 
 	if (msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2)
 	{
-		Target target;
-		target.type = T_PID;
-		target.u.pid = dst;
-		run_commands(msg, pid, &target);
+		if (OK(MSG_COMMAND))
+		{
+			Target target;
+			target.type = T_PID;
+			target.u.pid = dst;
+			run_commands(msg, pid, &target);
+		}
 	}
 	else if (OK(MSG_PRIV))
 	{
@@ -344,6 +393,8 @@ local void handle_priv(int pid, int dst, const char *msg)
 		else if (IS_CHAT(dst))
 			chatnet->SendToOne(dst, "MSG:PRIV:%s:%s",
 					players[pid].name, msg);
+
+		check_flood(pid);
 	}
 }
 
@@ -353,6 +404,7 @@ local void handle_chat(int pid, const char *msg)
 #ifdef CFG_LOG_PRIVATE
 	lm->LogP(L_DRIVEL, "chat", pid, "Chat msg: %s", msg);
 #endif
+	check_flood(pid);
 }
 
 
@@ -479,7 +531,7 @@ local void SetPlayerChatMask(int pid, chat_mask_t mask, int timeout)
 	if (PID_OK(pid))
 	{
 		player_mask[pid].mask = mask;
-		player_mask[pid].expires = time(NULL) + timeout;
+		player_mask[pid].expires = (timeout == 0) ? 0 : time(NULL) + timeout;
 	}
 }
 
@@ -530,7 +582,8 @@ local PersistentData pdata =
 
 local void paction(int pid, int action, int arena)
 {
-	player_mask[pid].mask = player_mask[pid].expires = 0
+	struct player_mask_t *pm = player_mask + pid;
+	pm->mask = pm->expires = pm->msgs = pm->lastcheck = 0;
 }
 
 #endif
@@ -580,6 +633,8 @@ EXPORT int MM_chat(int action, Imodman *mm_, int arena)
 		mm->RegCallback(CB_ARENAACTION, aaction, ALLARENAS);
 
 		cfg_msgrel = cfg->GetInt(GLOBAL, "Chat", "MessageReliable", 1);
+		cfg_floodlimit = cfg->GetInt(GLOBAL, "Chat", "FloodLimit", 10);
+		cfg_floodshutup = cfg->GetInt(GLOBAL, "Chat", "FloodShutup", 1);
 
 		if (net)
 			net->AddPacket(C2S_CHAT, PChat);

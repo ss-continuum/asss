@@ -58,9 +58,15 @@ local Ichat *chat;
 local Imodman *mm;
 
 local void (*CachedAuthDone)(int, AuthData*);
+local int pendingrequests;
 local PlayerData *players;
 
 local int cfg_pingtime, cfg_serverid, cfg_groupid, cfg_scoreid;
+
+/* protects pendingrequests, CachedAuthDone */
+local pthread_mutex_t bigmtx;
+#define LOCK() pthread_mutex_lock(&bigmtx)
+#define UNLOCK() pthread_mutex_unlock(&bigmtx)
 
 struct
 {
@@ -98,6 +104,10 @@ EXPORT int MM_billcore(int action, Imodman *_mm, int arena)
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 
 		if (!net || !ml || !cfg || !cmd || !chat) return MM_FAIL;
+
+		pendingrequests = 0;
+		CachedAuthDone = NULL;
+		pthread_mutex_init(&bigmtx, NULL);
 
 		players = pd->players;
 
@@ -235,6 +245,13 @@ void DefaultCmd(const char *cmd, int pid, const Target *target)
 
 	if (target->type == T_ARENA)
 	{
+		if (chat)
+		{
+			chat_mask_t mask = chat->GetPlayerChatMask(pid);
+			if (IS_RESTRICTED(mask, MSG_BCOMMAND))
+				return;
+		}
+
 		to = alloca(strlen(cmd)+7);
 		to->type = S2B_COMMAND;
 		to->pid = pid;
@@ -267,28 +284,41 @@ unsigned int get_ip(int pid)
 void BillingAuth(int pid, struct LoginPacket *lp, int lplen,
 		void (*Done)(int, AuthData*))
 {
-	struct S2BPlayerEntering to =
-	{
-		S2B_PLAYERLOGIN,
-		lp->flags,
-		0,
-		"", "",
-		pid,
-		lp->macid,
-		lp->timezonebias, 0
-	};
-	int len;
+	LOCK();
 
-	to.ipaddy = get_ip(pid);
-
-	if (GetStatus() == BNET_CONNECTED)
+	if (pendingrequests >= CFG_MAX_PENDING_REQUESTS)
 	{
+		/* tell the client we're too busy */
+		AuthData auth;
+		memset(&auth, 0, sizeof(auth));
+		auth.code = AUTH_SERVERBUSY;
+		Done(pid, &auth);
+	}
+	else if (GetStatus() == BNET_CONNECTED)
+	{
+		struct S2BPlayerEntering to =
+		{
+			S2B_PLAYERLOGIN,
+			lp->flags,
+			0,
+			"", "",
+			pid,
+			lp->macid,
+			lp->timezonebias, 0
+		};
+		int len;
+
+		to.ipaddy = get_ip(pid);
 		astrncpy(to.name, lp->name, 32);
 		astrncpy(to.pw, lp->password, 32);
+
 		/* only send extra 64 bytes if they were supplied by the client */
 		len = (lplen == LEN_LOGINPACKET_CONT) ? sizeof(to) : sizeof(to) - 64;
 		SendToBiller((byte*)&to, len, NET_RELIABLE | NET_PRI_P3);
+
 		CachedAuthDone = Done;
+
+		pendingrequests++;
 	}
 	else
 	{
@@ -303,6 +333,8 @@ void BillingAuth(int pid, struct LoginPacket *lp, int lplen,
 		Done(pid, &auth);
 		memset(billing_data + pid, 0, sizeof(billing_data[pid]));
 	}
+
+	UNLOCK();
 }
 
 
@@ -329,7 +361,15 @@ void BAuthResponse(int bpid, byte *p, int n)
 	}
 	*/
 
-	CachedAuthDone(pid, &ad);
+	LOCK();
+	if (CachedAuthDone && pendingrequests > 0)
+	{
+		CachedAuthDone(pid, &ad);
+		pendingrequests--;
+	}
+	else
+		lm->Log(L_ERROR, "<billcore> Got billing response before request sent");
+	UNLOCK();
 
 #define DO(field) \
 	billing_data[pid].field = r->field

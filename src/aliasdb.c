@@ -39,6 +39,9 @@ local Ireldb *db;
 ")"
 
 
+#define suffix(n) (((n) == 1) ? "" : "s")
+
+
 local void init_db(void)
 {
 	/* make sure the logins table exists */
@@ -286,15 +289,15 @@ local void dbcb_last(int status, db_res *res, void *clos)
 			if (hours == 0)
 			{
 				if (mins == 0)
-					chat->SendMessage(pid, "%-20.20s  %d seconds ago", name, secs);
+					chat->SendMessage(pid, "%-20.20s  %d second%s ago", name, secs, suffix(secs));
 				else
-					chat->SendMessage(pid, "%-20.20s  %d minutess ago", name, mins);
+					chat->SendMessage(pid, "%-20.20s  %d minute%s ago", name, mins, suffix(mins));
 			}
 			else
-				chat->SendMessage(pid, "%-20.20s  %d hours ago", name, hours);
+				chat->SendMessage(pid, "%-20.20s  %d hour%s ago", name, hours, suffix(hours));
 		}
 		else
-			chat->SendMessage(pid, "%-20.20s  %d days ago", name, days);
+			chat->SendMessage(pid, "%-20.20s  %d day%s ago", name, days, suffix(days));
 	}
 }
 

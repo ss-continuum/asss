@@ -278,7 +278,7 @@ EXPORT int MM_watchdamage(int action, Imodman *_mm, int arena)
 		net->AddPacket(C2S_DAMAGE, PDamage);
 
 		cmd->AddCommand("watchdamage", Cwatchdamage, watchdamage_help);
-		cmd->AddCommand("watchwatchdamage", Cwatchwatchdamage, watchdamage_help);
+		cmd->AddCommand("watchwatchdamage", Cwatchwatchdamage, watchwatchdamage_help);
 
 		mm->RegInterface(&_int, ALLARENAS);
 

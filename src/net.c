@@ -963,7 +963,7 @@ local void send_outgoing(int pid)
 						 * reliable packets waiting in rbuf. if there
 						 * are, we can wait until the next time around.
 						 */
-						if (rcount == 0)
+						if (1) /* (rcount == 0) */
 						{
 							/* now rebuffer it */
 							rebuf = BufferPacket(pid, buf->d.raw, buf->len,
@@ -1820,8 +1820,10 @@ Buffer * BufferPacket(int pid, byte *data, int len, int flags,
 	global_stats.pri_stats[buf->pri]++;
 
 	/* get data into packet */
-	if (flags & NET_REALRELIABLE ||
-			(flags & NET_RELIABLE && GET_PRI(flags) > 5))
+	if ((flags & NET_REALRELIABLE) ||
+	    ((flags & NET_RELIABLE) &&
+	     ((GET_PRI(flags) > 5) || players[pid].type == T_VIE)))
+	      /* 1.34 doesn't like grouped rel packets */
 	{
 		buf->d.rel.t1 = 0x00;
 		buf->d.rel.t2 = 0x03;

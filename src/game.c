@@ -41,7 +41,7 @@ local inline long lhypot (register long dx, register long dy);
 local void SetFreq(int pid, int freq);
 local void SetShip(int pid, int ship);
 local void SetFreqAndShip(int pid, int ship, int freq);
-local void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2);
+local void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2, unsigned tm);
 local void WarpTo(const Target *target, int x, int y);
 local void GivePrize(const Target *target, int type, int count);
 
@@ -737,6 +737,7 @@ long lhypot (register long dx, register long dy)
 static struct
 {
 	i16 cbrickid;
+	u32 lasttime;
 	LinkedList list;
 	pthread_mutex_t mtx;
 } brickdata[MAXARENA];
@@ -754,7 +755,7 @@ void InitBrickSystem()
 }
 
 
-void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2)
+void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2, unsigned tm)
 {
 	struct S2CBrickPacket *pkt = amalloc(sizeof(struct S2CBrickPacket));
 
@@ -785,14 +786,20 @@ void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2)
 
 	pthread_mutex_lock(&brickdata[arena].mtx);
 	pkt->brickid = brickdata[arena].cbrickid++;
-	pkt->starttime = GTC();
+	pkt->starttime = (tm == 0) ? GTC(): tm;
+	/* stupid priitk */
+	if (pkt->starttime <= brickdata[arena].lasttime)
+		pkt->starttime = ++brickdata[arena].lasttime;
+	else
+		brickdata[arena].lasttime = pkt->starttime;
 	LLAdd(&brickdata[arena].list, pkt);
 	pthread_mutex_unlock(&brickdata[arena].mtx);
 
 	net->SendToArena(arena, -1, (byte*)pkt, sizeof(*pkt), NET_RELIABLE | NET_PRI_P4);
-	lm->Log(L_DRIVEL, "<game> {%s} Brick dropped (%d,%d)-(%d,%d) (freq=%d)",
+	lm->Log(L_DRIVEL, "<game> {%s} Brick dropped (%d,%d)-(%d,%d) (freq=%d) (id=%d) (time=%u)",
 			arenas[arena].name,
-			x1, y1, x2, y2, freq);
+			x1, y1, x2, y2, freq,
+			pkt->brickid, pkt->starttime);
 }
 
 
@@ -832,6 +839,28 @@ void SendOldBricks(int pid)
 }
 
 
+#if 0
+void ClearAllBricks(int arena)
+{
+	byte pkt = S2C_BRICK;
+	LinkedList *list = &brickdata[arena].list;
+	Link *l;
+
+	pthread_mutex_lock(&brickdata[arena].mtx);
+
+	/* clear the list */
+	for (l = LLGetHead(list); l; l = l->next)
+		afree(l->data);
+	LLEmpty(list);
+
+	/* notify clients of all bricks gone */
+	net->SendToArena(arena, -1, &pkt, 1, NET_RELIABLE);
+
+	pthread_mutex_unlock(&brickdata[arena].mtx);
+}
+#endif
+
+
 void PBrick(int pid, byte *p, int len)
 {
 	int dx, dy, x1, y1, x2, y2;
@@ -846,7 +875,7 @@ void PBrick(int pid, byte *p, int len)
 	dy = ((struct C2SBrickPacket*)p)->y;
 
 	mapdata->FindBrickEndpoints(arena, dx, dy, l, &x1, &y1, &x2, &y2);
-	DropBrick(arena, players[pid].freq, x1, y1, x2, y2);
+	DropBrick(arena, players[pid].freq, x1, y1, x2, y2, 0);
 }
 
 

@@ -18,7 +18,7 @@ static char *ship_names[] =
 
 static char *long_names[] =
 {
-	"Bullet:BulletDamageLevel",
+	"Bullet:BulletDamageLevel", /* * 1000 */
 	"Bomb:BombDamageLevel", /* * 1000 */
 	"Bullet:BulletAliveTime",
 	"Bomb:BombAliveTime",
@@ -28,7 +28,7 @@ static char *long_names[] =
 	"Team:MaxFrequency",
 	"Repel:RepelSpeed",
 	"Mine:MineAliveTime",
-	"Burst:BurstDamageLevel",
+	"Burst:BurstDamageLevel", /* * 1000 */
 	"Bullet:BulletDamageUpgrade", /* * 1000 */
 	"Flag:FlagDropDelay",
 	"Flag:EnterGameFlaggingDelay",
@@ -36,7 +36,7 @@ static char *long_names[] =
 	"Rocket:RocketSpeed",
 	"Shrapnel:InactiveShrapDamage", /* * 1000 */
 	"Wormhole:SwitchTime",
-	"Misc:ActiveAppShutdownTime",
+	"Misc:ActivateAppShutdownTime",
 	"Shrapnel:ShrapnelSpeed",
 	"Unused:Unused1",
 	"Unused:Unused2",

@@ -35,7 +35,7 @@ typedef struct Igame
 	/* arpc: void(int, int) */
 	void (*SetFreqAndShip)(int pid, int ship, int freq);
 	/* arpc: void(int, int, int) */
-	void (*DropBrick)(int arena, int freq, int x1, int y1, int x2, int y2);
+	void (*DropBrick)(int arena, int freq, int x1, int y1, int x2, int y2, unsigned time);
 	/* arpc: void(int, int, int, int, int, int) */
 	void (*WarpTo)(const Target *target, int x, int y);
 	/* arpc: void(int, int, int) */

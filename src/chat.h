@@ -16,7 +16,12 @@
 #define MSG_INTERARENAPRIV 7
 #define MSG_SYSOPWARNING 8
 #define MSG_CHAT 9
-#define MSG_MODCHAT 10 /* internal use only. doesn't go over network. */
+
+/* the following are for internal use only. they never appear in packets
+ * sent over the network. */
+#define MSG_MODCHAT 10
+#define MSG_COMMAND 11
+#define MSG_BCOMMAND 12
 
 
 /* the bits of one of these represent those types above. only use the
@@ -59,7 +64,7 @@ typedef struct Ichat
 	/* arpc: ushort(int) */
 	void (*SetPlayerChatMask)(int pid, chat_mask_t mask, int timeout);
 	/* arpc: void(int, ushort, int) */
-	/* (timeout is 0 to mean 'for a session mask, or a number of seconds) */
+	/* (timeout is 0 to mean 'for a session' mask, or a number of seconds) */
 } Ichat;
 
 
