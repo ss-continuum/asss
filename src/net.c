@@ -28,7 +28,7 @@
 
 typedef struct ClientData
 {
-	int status, s2cn, c2sn, flags;
+	int s2cn, c2sn, flags;
 	struct sockaddr_in sin;
 	unsigned int lastpkt, key;
 	short enctype;
@@ -68,7 +68,6 @@ local void ProcessPacket(int, byte *, int);
 local void AddPacket(byte, PacketFunc);
 local void RemovePacket(byte, PacketFunc);
 local int NewConnection(struct sockaddr_in *);
-local int GetStatus(int);
 local i32 GetIP(int);
 
 /* internal: */
@@ -116,7 +115,7 @@ local Inet _int =
 {
 	SendToOne, SendToArena, SendToSet, SendToAll,
 	DropClient, ProcessPacket, AddPacket, RemovePacket,
-	NewConnection, GetStatus, GetIP
+	NewConnection, GetIP
 };
 
 
@@ -151,7 +150,6 @@ int MM_net(int action, Imodman *mm)
 	int i;
 	if (action == MM_LOAD)
 	{
-		/* require a config module */
 		players = mm->players;
 		cfg = mm->GetInterface(I_CONFIG);
 		log = mm->GetInterface(I_LOGMAN);
@@ -159,7 +157,8 @@ int MM_net(int action, Imodman *mm)
 		mm_ = mm;
 		if (!cfg || !log) return MM_FAIL;
 
-		for (i = 0; i < MAXTYPES; i++) handlers[i] = LLAlloc();
+		for (i = 0; i < MAXTYPES; i++)
+			handlers[i] = LLAlloc();
 		for (i = 0; i < MAXENCRYPT; i++)
 			encrypt[i] = mm->GetInterface(I_ENCRYPTBASE + i);
 
@@ -230,11 +229,6 @@ void RemovePacket(byte t, PacketFunc f)
 }
 
 
-int GetStatus(int pid)
-{
-	return clients[pid].status;
-}
-
 i32 GetIP(int pid)
 {
 	return clients[pid].sin.sin_addr.s_addr;
@@ -269,8 +263,11 @@ void InitSockets()
 			Error(ERROR_NORMAL, "could not allocate billing socket");
 
 		/* set up billing client struct */
+		memset(players + PID_BILLER, 0, sizeof(PlayerData));
+		memset(clients + PID_BILLER, 0, sizeof(ClientData));
+		players[PID_BILLER].status = BNET_NOBILLING;
+		strcpy(players[PID_BILLER].name, "<<Billing Server>>");
 		clients[PID_BILLER].c2sn = -1;
-		clients[PID_BILLER].status = BNET_NOBILLING;
 		clients[PID_BILLER].sin.sin_family = AF_INET;
 		clients[PID_BILLER].sin.sin_addr.s_addr =
 			inet_addr(cfg->GetStr(GLOBAL, "Billing", "IP"));
@@ -306,7 +303,8 @@ void RecvOtherPackets()
 		data[1] = data[0];
 		if (n != 4) return;
 		for (data[0] = 0, n = 0; n < MAXPLAYERS; n++)
-			if (clients[n].status == S_CONNECTED) data[0]++;
+			if (players[n].status == S_CONNECTED)
+				data[0]++;
 		sendto(myothersock, (char*)data, 8, 0, &sin, sinsize);
 		pcountpings++;
 	}
@@ -348,7 +346,7 @@ void RecvPacket()
 	{
 		i = 0;
 		/* search for an existing connection */
-		while (	(clients[i].status == S_FREE ||
+		while (	(players[i].status == S_FREE ||
 				( clients[i].sin.sin_addr.s_addr != sin.sin_addr.s_addr ||
 				  clients[i].sin.sin_port != sin.sin_port) ) &&
 				i < MAXPLAYERS) i++;  /* what a big ugly mess :)  should use hash table */
@@ -416,21 +414,17 @@ int NewConnection(struct sockaddr_in *sin)
 {
 	int i = 0;
 
-	while (clients[i].status != S_FREE && i < MAXPLAYERS) i++;
+	while (players[i].status != S_FREE && i < MAXPLAYERS) i++;
 	if (i == MAXPLAYERS) return -1;
 	memset(clients + i, 0, sizeof(ClientData));
-	/*clients[i].s2cn = 0; */
 	clients[i].c2sn = -1;
-	/*clients[i].flags = 0; */
-	/*clients[i].bigpktsize = 0; */
-	/*clients[i].bigpktbuf = NULL; */
 	clients[i].enctype = -1;
-	clients[i].status = S_CONNECTED;
 	if (sin)
 		memcpy(&clients[i].sin, sin, sizeof(struct sockaddr_in));
 	else
 		clients[i].flags = NET_FAKE;
 	memset(players + i, 0, sizeof(PlayerData));
+	players[i].status = S_CONNECTED;
 	players[i].arena = -1;
 	return i;
 }
@@ -468,7 +462,7 @@ void ProcessKeyResponse(int pid, byte *buf, int len)
 	{
 		Link *l;
 
-		clients[pid].status = BNET_CONNECTED;
+		players[pid].status = BNET_CONNECTED;
 		clients[pid].lastpkt = GTC();
 
 		for (l = LLGetHead(handlers[PKT_BILLBASE + 0]);
@@ -566,14 +560,14 @@ void ProcessDrop(int pid, byte *p, int n)
 	if (pid == PID_BILLER)
 	{
 		log->Log(LOG_IMPORTANT, "Connection to billing server lost");
-		clients[pid].status = BNET_NOBILLING;
+		players[pid].status = BNET_NOBILLING;
 	}
 	else
 	{
 		/* leave arena again, just in case */
 		ProcessPacket(pid, &leaving, 1);
 
-		clients[pid].status = S_FREE; /* set free status */
+		players[pid].status = S_FREE; /* set free status */
 
 		for (i = 0; i < cfg_outbuflen; i++) /* kill pending data */
 			if (outbuf[i].pid == pid)
@@ -695,7 +689,7 @@ void CheckBuffers()
 		}
 
 	/* send them */
-	for (i = 0; i < (MAXPLAYERS+1); i++)
+	for (i = 0; i < (MAXPLAYERS + EXTRA_PID_COUNT); i++)
 	{
 		if (pcount[i] == 1)
 		{	/* only one packet for this person, send it */
@@ -725,20 +719,23 @@ void CheckBuffers()
 			SendRaw(i, buf, current - buf);
 		}
 
-		if (clients[i].status == S_CONNECTED && (gtc - clients[i].lastpkt) > cfg_droptimeout)
+		if (players[i].status == S_CONNECTED && (gtc - clients[i].lastpkt) > cfg_droptimeout)
 		{
 			byte two = C2S_LEAVING;
-			ProcessPacket(i, &two, 1); /* alert the rest of the arena */
+			if (i < MAXPLAYERS)
+				ProcessPacket(i, &two, 1); /* alert the rest of the arena */
 			log->Log(LOG_INFO,"Player timed out (%s)", players[i].name);
 			DropClient(i);
 		}
 	}
-	if (	clients[PID_BILLER].status == BNET_CONNECTED &&
+	/*
+	if (	players[PID_BILLER].status == BNET_CONNECTED &&
 			(gtc - clients[PID_BILLER].lastpkt) > (cfg_billping * 2))
 	{
-		log->Log(LOG_IMPORTANT, "Lost connection to billing server");
-		clients[PID_BILLER].status = BNET_NOBILLING;
+		log->Log(LOG_IMPORTANT, "Billing server connection timed out, dropping");
+		DropClient(PID_BILLER);
 	}
+	*/
 }
 
 
@@ -747,7 +744,7 @@ void DropClient(int pid)
 	byte pkt1[2] = {0x00, 0x07};
 
 	/* hack: should use a different constant for PID_BILLER */
-	if (clients[pid].status != S_FREE)
+	if (players[pid].status != S_FREE)
 	{
 		SendRaw(pid, pkt1, 2);
 		/* pretend the client initiated the disconnection: */
@@ -829,7 +826,7 @@ void SendToArena(int arena, int except, byte *data, int len, int reliable)
 	int set[MAXPLAYERS+1], i, p = 0;
 	if (arena < 0) return;
 	for (i = 0; i < MAXPLAYERS; i++)
-		if (clients[i].status == S_CONNECTED && players[i].arena == arena && i != except)
+		if (players[i].status == S_CONNECTED && players[i].arena == arena && i != except)
 			set[p++] = i;
 	set[p] = -1;
 	SendToSet(set, data, len, reliable);
@@ -840,7 +837,7 @@ void SendToAll(byte *data, int len, int reliable)
 {
 	int set[MAXPLAYERS+1], i, p = 0;
 	for (i = 0; i < MAXPLAYERS; i++)
-		if (clients[i].status == S_CONNECTED)
+		if (players[i].status == S_CONNECTED)
 			set[p++] = i;
 	set[p] = -1;
 	SendToSet(set, data, len, reliable);

@@ -180,63 +180,6 @@ int DefaultAssignFreq(int pid, int freq, byte ship)
 }
 
 
-void PArena(int pid, byte *p, int l)
-{
-	if (l != sizeof(struct GoArenaPacket))
-		log->Log(LOG_BADDATA,"Bad packet length (%s)",players[pid].name);
-	else
-	{
-		struct GoArenaPacket *pk = (struct GoArenaPacket*)p;
-		struct SimplePacket whoami = {S2C_WHOAMI, pid, 0, 0, 0, 0};
-		int i, arena;
-		byte misc;
-
-		/* check shiptype */
-		if (pk->shiptype > SPEC || pk->shiptype < 0)
-		{
-			log->Log(LOG_BADDATA,"Bad ship number: %i (%s)",
-					pk->shiptype, players[pid].name);
-			return;
-		}
-
-		/* send whoami packet */
-		net->SendToOne(pid, (byte*)&whoami, 3, NET_RELIABLE);
-
-		/* set up info */
-		players[pid].shiptype = pk->shiptype;
-		players[pid].xres = pk->xres;
-		players[pid].yres = pk->yres;
-		players[pid].arena = arena = AssignArena(pk);
-		players[pid].freq = ((Iassignfreq*)mm->GetInterface(I_ASSIGNFREQ))->
-			AssignFreq(pid, BADFREQ, pk->shiptype);
-
-		/* send settings */
-		net->SendToOne(pid, arenas[arena]->settings, SETTINGSIZE, NET_RELIABLE);
-
-		/* send player list */
-		for (i = 0; i < MAXPLAYERS; i++)
-			if (	net->GetStatus(i) == S_CONNECTED &&
-					players[i].arena == arena)
-				net->SendToOne(pid, (byte*)(players+i), 64, NET_RELIABLE);
-
-		/* send brick clear and finisher */
-		net->SendToOne(pid, (byte*)&arenas[arena]->map,
-				sizeof(struct MapFilename), NET_RELIABLE);
-		misc = S2C_BRICK;
-		net->SendToOne(pid, &misc, 1, NET_RELIABLE);
-		misc = 0x02;
-		net->SendToOne(pid, &misc, 1, NET_RELIABLE);
-
-		/* alert others */
-		net->SendToArena(players[pid].arena, pid,
-				(byte*)(players+pid), 64, NET_RELIABLE);
-
-		log->Log(LOG_INFO, "Player entering arena '%s' (%s)",
-				arenas[arena]->name, players[pid].name);
-	}
-}
-
-
 int AssignArena(struct GoArenaPacket *p)
 {
 	char _buf[2] = {'0', 0}, *name = _buf;

@@ -21,6 +21,7 @@ typedef struct PlayerData
 	i16 attachedto;
 	i8 unknown1[3];
 	// stuff below this point is not part of the recieved data
+	int status;
 	char name[21], squad[21];
 	int arena;
 	i16 xres, yres;
