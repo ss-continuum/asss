@@ -414,7 +414,7 @@ local int load_from_file(ELVL *lvl, const char *lvlname)
 			}
 		}
 		/* get in position for tile data */
-		d += bmfh->offbits;
+		d += bmfh->fsize;
 	}
 
 	/* now d points to the tile data. read until eof. */
