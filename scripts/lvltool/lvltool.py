@@ -229,7 +229,7 @@ def process_script(s):
 	return out
 
 
-def main():
+def make_op():
 	usage = """usage: lvltool <command> <options>
 
 commands:
@@ -281,9 +281,13 @@ commands:
 	# misc
 	op.add_option('--allowmissing', action = 'store_true', default = False)
 
+	return op
+
+
+def main():
 
 	argv = sys.argv[1:]
-	(opts, args) = op.parse_args(argv)
+	(opts, args) = make_op().parse_args(argv)
 
 	for s in opts.scripts:
 		try:
@@ -295,7 +299,7 @@ commands:
 			sys.exit(1)
 
 	# reprocess args to pick up new ones from any scripts
-	(opts, args) = op.parse_args(argv)
+	(opts, args) = make_op().parse_args(argv)
 
 	if not args:
 		if not opts.infile:
