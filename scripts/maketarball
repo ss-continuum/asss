@@ -1,0 +1,14 @@
+#!/bin/sh
+
+cd /tmp
+
+cvs export -Dnow asss
+
+day=`date +%Y%m%d`
+file="asss-$day.tar.gz"
+
+tar czvf $file asss
+
+scp $file ellie:web
+
+rm -rf asss $file

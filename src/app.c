@@ -238,7 +238,11 @@ static void push_if(APPContext *ctx, int cond)
 static void pop_if(APPContext *ctx)
 {
 	if (ctx->ifs)
+	{
+		IfBlock *oif = ctx->ifs;
 		ctx->ifs = ctx->ifs->prev;
+		afree(oif);
+	}
 	else
 		do_error(ctx, "No #if blocks to end (%s:%d)",
 				ctx->file->fname, ctx->file->lineno);

@@ -49,7 +49,10 @@ struct ArenaScores
 /* prototypes */
 local void MyGoal(int, int, int, int, int);
 local void MyAA(int, int);
-//local int  IdGoalScored(int, int, int);
+#if 0
+local int  IdGoalScored(int, int, int);
+#endif
+local void RewardPoints(int, int);
 local void CheckGameOver(int, int);
 local void ScoreMsg(int, int);
 local void Csetscore(const char *,int, const Target *);
@@ -67,6 +70,7 @@ local Iarenaman *aman;
 local Iconfig *cfg;
 local Ichat *chat;
 local Icmdman *cmd;
+local Istats *stats;
 
 
 EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
@@ -80,6 +84,7 @@ EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
+		stats = mm->GetInterface(I_STATS, ALLARENAS);
 
 		cmd->AddCommand("setscore",Csetscore, setscore_help);
 		cmd->AddCommand("score",Cscore, score_help);
@@ -94,6 +99,7 @@ EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(balls);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(cmd);
+		mm->ReleaseInterface(stats);
 		cmd->RemoveCommand("setscore",Csetscore);
 		cmd->RemoveCommand("score",Cscore);
 		cmd->RemoveCommand("resetgame",Cresetgame);
@@ -302,11 +308,43 @@ int IdGoalScored (int arena, int x, int y)
 #endif
 
 
+void RewardPoints(int arena, int winfreq)
+{
+	int awardto[MAXPLAYERS];
+	int i, players = 0, points, ponfreq = 0;
+	int reward = cfg->GetInt(aman->arenas[arena].cfg, "Soccer", "Reward", 0);
+
+	if (!reward)
+		return;
+
+	pd->LockStatus();
+	for(i = 0; i < MAXPLAYERS; i++)
+		if (pd->players[i].status == S_PLAYING &&
+		    pd->players[i].arena == arena &&
+		    pd->players[i].shiptype != SPEC)
+		{
+			players++;
+			if (pd->players[i].freq == winfreq)
+				awardto[ponfreq++] = i;
+		}
+	pd->UnlockStatus();
+
+	if (reward < 0)
+		points = reward * -1;
+	else
+		points = players * players * reward / 1000;
+	
+	for(i = 0; i < ponfreq; i++)
+		stats->IncrementStat(awardto[i], STAT_FLAG_POINTS, points);
+	
+	stats->SendUpdates();
+}
+
 void CheckGameOver(int arena, int bid)
 {
-	int i, j = 0, freq = 0;/* points = cfg->GetInt(aman->arenas[arena].cfg, "Soccer","Reward",0);*/
+	int i, j = 0, freq = 0;
 
-	if (cfg->GetInt(aman->arenas[arena].cfg, "Misc", "TimedGame",0))
+	if (cfg->GetInt(aman->arenas[arena].cfg, "Misc", "TimedGame", 0))
 		return;
 
 	for(i = 0; i < MAXFREQ; i++)
@@ -318,6 +356,7 @@ void CheckGameOver(int arena, int bid)
 		if (!scores[arena].score[(~freq)+2]) // check opposite freq (either 0 or 1)
 		{
 			chat->SendArenaSoundMessage(arena, SOUND_DING, "Soccer game over.");
+			RewardPoints(arena, freq);
 			balls->EndGame(arena);
 			for(i=0;i < MAXFREQ;i++)
 				scores[arena].score[i] = scores[arena].stealpts;
@@ -331,6 +370,7 @@ void CheckGameOver(int arena, int bid)
 		if (j == 3)
 		{
 			chat->SendArenaSoundMessage(arena, SOUND_DING, "Soccer game over.");
+			RewardPoints(arena, freq);
 			balls->EndGame(arena);
 			for(i=0;i < MAXFREQ;i++)
 				scores[arena].score[i] = scores[arena].stealpts;
@@ -348,6 +388,7 @@ void CheckGameOver(int arena, int bid)
 		if (j == MAXFREQ-1)
 		{
 			chat->SendArenaSoundMessage(arena, SOUND_DING, "Soccer game over.");
+			RewardPoints(arena, freq);
 			balls->EndGame(arena);
 			for(i=0;i < MAXFREQ;i++)
 				scores[arena].score[i] = 0;

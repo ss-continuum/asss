@@ -56,10 +56,9 @@ local void CheckBin(const char *argv0)
 			goto no_bin;
 		/* link it */
 		if (symlink(binpath, "bin") == -1)
-		{
 			printf("symlink failed. Module loading won't work\n");
-		}
-		printf("Made link from 'bin' to '%s'.\n", binpath);
+		else
+			printf("Made link from 'bin' to '%s'.\n", binpath);
 		return;
 no_bin:
 		printf("Can't find suitable bin directory.\n");

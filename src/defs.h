@@ -53,11 +53,15 @@ enum
 
 	T_CHAT,
 	/* simple chat client */
+
+	T_OUTGOING,
+	/* an outgoing connection from the server (e.g. to the biller) */
 };
 
 /* macros for testing types */
 #define IS_STANDARD(pid) (pd->players[(pid)].type == T_VIE || pd->players[(pid)].type == T_CONT)
 #define IS_CHAT(pid) (pd->players[(pid)].type == T_CHAT)
+#define IS_HUMAN(pid) (IS_STANDARD(pid) || IS_CHAT(pid))
 
 
 /* player status codes */

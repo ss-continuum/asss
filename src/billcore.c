@@ -184,7 +184,11 @@ void RemovePacket(byte pktype, PacketFunc func)
 
 int GetStatus(void)
 {
-	return players[PID_BILLER].status;
+	int st;
+	pd->LockStatus();
+	st = players[PID_BILLER].status;
+	pd->UnlockStatus();
+	return st;
 }
 
 

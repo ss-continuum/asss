@@ -59,7 +59,8 @@ void MyFlagWin(int arena, int freq)
 	pd->LockStatus();
 	for (i = 0; i < MAXPLAYERS; i++)
 		if (pd->players[i].status == S_PLAYING &&
-		    pd->players[i].arena == arena)
+		    pd->players[i].arena == arena &&
+		    pd->players[i].shiptype != SPEC)
 		{
 			players++;
 			if (pd->players[i].freq == freq)

@@ -65,9 +65,10 @@ local int TimerMaster(void *nothing)
 
 local void ArenaAction(int arena, int action)
 {
-	int i;
+	int i, savedlen;
 	const char *warnvals, *tmp = NULL;
 	char num[16];
+
 
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
 	{
@@ -78,9 +79,16 @@ local void ArenaAction(int arena, int action)
 			for (i = 0; i < MAXWARNMSGS && strsplit(warnvals, " ,", num, sizeof(num), &tmp); i++)
 				ar_tmr[arena].warnmsgs[i] = strtol(num, NULL, 0);
 
+		savedlen = ar_tmr[arena].gamelen;
 		ar_tmr[arena].gamelen = cfg->GetInt(aman->arenas[arena].cfg, "Misc", "TimedGame", 0);
 		if (action == AA_CREATE && ar_tmr[arena].gamelen)
 		{
+			ar_tmr[arena].enabled = 1;
+			ar_tmr[arena].timeout = GTC()+ar_tmr[arena].gamelen;
+		}
+		else if (action == AA_CONFCHANGED && !savedlen && ar_tmr[arena].gamelen)
+		{
+			/* switch to timedgame immediately */
 			ar_tmr[arena].enabled = 1;
 			ar_tmr[arena].timeout = GTC()+ar_tmr[arena].gamelen;
 		}

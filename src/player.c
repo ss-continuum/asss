@@ -12,7 +12,7 @@ local pthread_mutex_t playermtx[MAXPLAYERS];
 local pthread_mutex_t statusmtx;
 
 /* the big player array! */
-local PlayerData players[MAXPLAYERS+EXTRA_PID_COUNT];
+local PlayerData players[MAXPLAYERS];
 
 
 local void LockPlayer(int pid)

@@ -667,6 +667,13 @@ void PGoal(int pid, byte *p, int len)
 		return;
 	}
 
+	if (pid != bd->carrier)
+	{
+		logm->LogP(L_MALICIOUS, "balls", pid, "Sent goal for ball he didn't fire");
+		UNLOCK_STATUS(arena);
+		return;
+	}
+
 	/* do callbacks before spawning */
 	DO_CBS(CB_GOAL, arena, GoalFunc, (arena, bd->carrier, g->ballid, g->x, g->y));
 

@@ -53,7 +53,7 @@
 #define S2C_POSITION 0x28
 #define S2C_MAPFILENAME 0x29
 #define S2C_MAPDATA 0x2A
-/* missing 2B */ /* Set KotH Timer? Saw it as u8 ui32, could be Type, NewTimerValue */
+#define S2C_SETKOTHTIMER 0x2B /* u8 type; u32 newtimer */
 #define S2C_KOTH 0x2C
 /* missing 2D */
 #define S2C_BALL 0x2E
