@@ -441,7 +441,7 @@ local int start_recording(Arena *a, const char *file, const char *recorder, cons
 	LOCK(a);
 	if (ra->state == s_none)
 	{
-		fd = open(file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+		fd = open(file, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
 		if (fd != -1)
 		{
 			/* leave the header wrong until we finish it properly in
@@ -549,7 +549,7 @@ local int stop_recording(Arena *a, int suicide)
 		chat->SendArenaMessage(a, "Game recording stopped");
 
 		/* fill in header fields we couldn't get before */
-		fd = open(ra->fname, O_WRONLY);
+		fd = open(ra->fname, O_WRONLY | O_BINARY);
 		if (fd != -1)
 		{
 			struct stat st;
@@ -1032,7 +1032,7 @@ local int start_playback(Arena *a, const char *file)
 	LOCK(a);
 	if (ra->state == s_none)
 	{
-		fd = open(file, O_RDONLY);
+		fd = open(file, O_RDONLY | O_BINARY);
 		if (fd != -1)
 		{
 			struct file_header header;
