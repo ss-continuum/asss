@@ -23,9 +23,8 @@
 
 #include "app.h"
 
-
 #ifdef WIN32
-#define BROKEN_VSNPRINTF
+#include "win32compat.h"
 #endif
 
 

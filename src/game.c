@@ -293,7 +293,7 @@ void Pppk(int pid, byte *p2, int n)
 				     /* send mines to everyone too */
 				     ( ( p->weapon.type == W_BOMB ||
 				         p->weapon.type == W_PROXBOMB) &&
-				       p->weapon.multimine) ||
+				       p->weapon.alternate) ||
 				     /* and send some radar packets */
 				     ( ( p->weapon.type == W_NULL &&
 				         dist <= cfg_pospix &&
@@ -538,7 +538,7 @@ void PDie(int pid, byte *p, int n)
 	if (PID_BAD(killer)) return;
 	if (players[killer].status != S_PLAYING) return;
 
-	kp.unknown = 0;
+	kp.green = 0;
 	kp.killer = killer;
 	kp.killed = pid;
 	kp.bounty = bty;

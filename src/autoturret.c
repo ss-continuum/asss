@@ -44,7 +44,7 @@ local struct TurretData * new_turret(int pid, int timeout, int interval, int pid
 	pos->weapon.level = 0;
 	pos->weapon.shraplevel = 0;
 	pos->weapon.shrap = 0;
-	pos->weapon.multimine = 0;
+	pos->weapon.alternate = 0;
 
 	pthread_mutex_lock(&turret_mtx);
 	LLAdd(&turrets, td);
