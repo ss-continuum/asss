@@ -329,13 +329,13 @@ void InitSockets()
 	localsin.sin_port = htons(config.port);
 
 	if ((mysock = socket(PF_INET,SOCK_DGRAM,0)) == -1)
-		Error(ERROR_NORMAL,"net: socket");
+		Error(ERROR_GENERAL,"net: socket");
 	if (bind(mysock, (struct sockaddr *) &localsin, sizeof(localsin)) == -1)
 		Error(ERROR_BIND,"net: bind");
 
 	localsin.sin_port = htons(config.port+1);
 	if ((myothersock = socket(PF_INET,SOCK_DGRAM,0)) == -1)
-		Error(ERROR_NORMAL,"net: socket");
+		Error(ERROR_GENERAL,"net: socket");
 	if (bind(myothersock, (struct sockaddr *) &localsin, sizeof(localsin)) == -1)
 		Error(ERROR_BIND,"net: bind");
 
@@ -343,7 +343,7 @@ void InitSockets()
 	{
 		/* get socket */
 		if ((mybillingsock = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
-			Error(ERROR_NORMAL, "could not allocate billing socket");
+			Error(ERROR_GENERAL, "could not allocate billing socket");
 
 		/* set up billing client struct */
 		memset(players + PID_BILLER, 0, sizeof(PlayerData));
