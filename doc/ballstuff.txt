@@ -34,3 +34,20 @@ CatchPoints - ?
 WinBy - ?
 
 
+new settings:
+
+GoalDelay - how long after a goal until the ball respawns
+GameDelay - how long after a game is won until the balls respawn
+
+settings that control points:
+
+GameType:
+  SOCCER_FIXED - winning freq gets Reward points
+  SOCCER_REWARD - winning freq gets (players^2 * Reward / 1000)
+  SOCCER_UPTO - play up to Points points
+  SOCCER_CAPTURE - each team starts with Points, capture points if you get a goal
+
+Points - how many points needed to win
+WinBy - in SOCCER_UPTO, you have to win by this many points
+
+

@@ -302,4 +302,169 @@ to program a bot from within the client.
 
 
 
+------------------------------------------------------------------------
+
+ok, we have a working elderd/scheme module. now we need to update it to
+handle all kinds of new events, plus another language.
+
+more thinking first:
+
+do we want one process per zone or one per arena?
+	one/arena means arenas have less chance to corrupt each other's
+	code/data. but it means more memory. (really?)
+
+how to handle custom code per-arena?
+	send the extension an arena-creation event, which will then load
+	code from a file based on the arena name.
+	all code will be loaded dynamically, nothing compiled (at least not
+	yet).
+
+what has to get sent from asss to ext?
+	it's good to handle registration of events within the extension.
+	that way, asss can send the extension a single event, and it'll be
+	multiplexed to various handlers.
+
+how to handle multiple langages:
+	obviously, we don't want asss generating lines of code to interpret,
+	because we want it to all go through the same module. thus, asss
+	must send only structs, or maybe ascii?! the extension module will
+	then printf the code into a string and then run it.
+
+
+...
+
+which of these do we want sent to our external module?
+
+CB_ARENAACTION		*		(int arena, int action)
+CB_BALLPICKUP		yes		(int arena, int pid, int bid)
+CB_BALLFIRE			yes		(int arena, int pid, int bid)
+CB_GOAL				yes!	(int arena, int pid, int bid, int x, int y)
+CB_PLAYERACTION		yes		(int pid, int action, int arena)
+CB_FLAGPICKUP		yes		(int arena, int pid, int fid, int oldfreq)
+CB_FLAGDROP			yes		(int arena, int pid)
+CB_FLAGPOS			yes		(int arena, int pid, int fid, int oldfreq)
+CB_FLAGWIN			yes		(int arena, int freq)
+CB_KILL				yes		(int arena, int killer, int killed, int bounty, int flags)
+CB_FREQCHANGE		yes		(int pid, int newfreq)
+CB_SHIPCHANGE		yes		(int pid, int newship, int newfreq)
+CB_LOGFUNC			no?
+CB_MAINLOOP			no?
+
+* if we're going to do one process/arena, then this can be handled
+  separately. 
+
+notice that all the parameters are ints, and the maximum number is 5.
+
+how about we say this?
+struct a2e_event
+{
+	char evname[32];
+	int params[10];
+};
+
+that'll make 72 bytes. can we do better?
+
+yes: ascii
+"%s[:%d]*\n"
+
+advantages:
+eol delimiter elimintates the need for passing message sizes.
+can write the whole python extension in python!
+and scheme too!
+
+how do we do the rest in ascii?
+
+A2E_NULL			"null"
+A2E_SHUTDOWN		"shutdown"
+A2E_EVALSTRING		"eval:%s" (the string)
+A2E_PLAYERDATA		"pd:<lotsafields>"
+A2E_PLAYERLIST		"plist[:%d]*" (pids)
+A2E_SETTING			"set:%s" (the setting)
+
+A2E_EVENT			"event:%s[:%d]*" (type, params*)
+
+E2A_NULL			"null"
+E2A_SHUTTINGDOWN	"shuttingdown"
+E2A_SENDMESSAGE		"sendmsg:%d:%s"
+E2A_GETPLAYERDATA	"getpd:%d"
+E2A_GETPLAYERLIST	"getplist:%d:%d:%d" (arena/-1, freq, ship)
+E2A_FINDPLAYER		"findplayer:%s"
+E2A_GETSETTING		"getcfg:%d:%s:%s" (arena/-1, sec, key)
+E2A_SETSETTING		"setcfg:%d:%s:%s:%s" (arena/-1, sec, key, val)
+E2A_RUNCOMMAND		"cmd:%d:%s" (target, cmd)
+
+what more x2x messages do we need?
+
+a2e: event should take care of everything except requests for info
+e2a: need funcs for just about every interface function!
+
+is there a way to make that easier?
+we could use a standard, like:
+"%s:%s[:%x]*" (module name, C function name, parameters)
+
+that would work for most, but not for things where you pass in C
+function pointers, e.g. commands. have to deal with those specially:
+
+how to allow extension to define commands?
+
+e2a: "regcmd:%s" / "unregcmd:%s"  (cmd name)
+a2e: "cmd:%s:%s" (cmd, params)
+
+this requires allowing C command funcs to see their own command
+(probably a good idea anyway).
+
+any more things that aren't handled by the callback mechanism?
+packets. but we don't want extensions to deal with those.
+
+summary:
+
+callbacks in c turn into a2e "event:..."
+interfaces in c turn into e2a "module:CFunction:..."
+(with special handling for pointers to things (e.g. ConfigHandle))
+data (players, arenas, flags, balls) turns into call/return:
+
+e2a: "getcdata:%s:%d" (name of array, index)
+a2e: "cdata:%s:%d[:%x]*" (name of array, index, data*)
+
+also make special cases for things like getting lists of players,
+getting one player's name, etc. possibly cache some data on the
+extension-side.
+
+so, for what of this does ordering of messages matter?
+
+only getcdata/cdata, it seems.
+
+so, extension must maintain queue of stuff to process. when it sends a
+getcdata, it waits for the cdata, queueing anything else it gets.
+
+or: use 2nd (oob) channel?
+
+advantages: os handles holding our incoming events while we wait on
+returned data.
+disadvantages: makes writing stuff harder. how do we manage it with
+sockets? the extension server will fork on incoming connection, and then
+we need a 2nd connection to be established. extension will need to bind
+to random port, send the port number to asss, and wait for another
+connection.
+
+conclusion: let's just buffer the damned stuff ourselves.
+
+--------------------
+
+back to configuration for a bit:
+arenas should be able to use more than one oop extension at once.
+we also want to auto-configure between unix sockets and tcp sockets.
+so: each oop module (there should be one for each language) gets a
+number.
+
+8313 (scm)
+
+the config file will have:
+[General]
+ExternalModules = scheme python
+
+the oop module will have a table between those strings and designated
+port numbers (perhaps start them from 8313 and increase by one?).
+it will first try to connect to /tmp/asss/extension-%s, and if it fails,
+just try connecting to the tcp socket.
 
