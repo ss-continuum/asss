@@ -119,7 +119,7 @@ local void ProcessDrop(Buffer *);
 
 local Imodman *mm;
 local Iplayerdata *pd;
-local Ilogman *log;
+local Ilogman *lm;
 local Iconfig *cfg;
 local Iencrypt *crypters[MAXENCRYPT];
 
@@ -189,8 +189,8 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		mm = mm_;
 		pd = mm->GetInterface("playerdata", ALLARENAS);
 		cfg = mm->GetInterface("config", ALLARENAS);
-		log = mm->GetInterface("logman", ALLARENAS);
-		if (!cfg || !log) return MM_FAIL;
+		lm = mm->GetInterface("logman", ALLARENAS);
+		if (!cfg || !lm) return MM_FAIL;
 
 		players = pd->players;
 
@@ -251,7 +251,7 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		/* release these */
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(cfg);
-		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(lm);
 		for (i = 1; i < MAXENCRYPT; i++)
 			if (crypters[i])
 				mm->ReleaseInterface(crypters[i]);
@@ -331,12 +331,18 @@ local void ClearOutlist(int pid)
 	outlist = &clients[pid].outlist;
 	for (buf = (Buffer*)outlist->next; (DQNode*)buf != outlist; buf = nbuf)
 	{
+		if (buf->callback)
+		{
+			/* this is ugly, but we have to release the outlist mutex
+			 * during these callbacks, because the callback might need
+			 * to acquire some mutexes of its own, and we want to avoid
+			 * deadlock. */
+			UnlockMutex(outlistmtx + pid);
+			buf->callback(pid, 0, buf->clos);
+			LockMutex(outlistmtx + pid);
+		}
 		nbuf = (Buffer*)buf->node.next;
 		DQRemove((DQNode*)buf);
-		/* I don't like calling these callbacks while holding the
-		 * outlistmtx, but it's probably not a big deal. */
-		if (buf->callback)
-			buf->callback(pid, 0, buf->clos);
 		FreeBuffer(buf);
 	}
 
@@ -533,12 +539,12 @@ void * RecvThread(void *dummy)
 				{
 					byte pk7[] = { 0x00, 0x07 };
 					sendto(mysock, pk7, 2, 0, (struct sockaddr*)&sin, sinsize);
-					log->Log(L_WARN,"<net> Too many players! Dropping extra connections!");
+					lm->Log(L_WARN,"<net> Too many players! Dropping extra connections!");
 					goto freeit;
 				}
 				else
 				{
-					log->Log(L_DRIVEL,"<net> [pid=%d] New connection from %s:%i",
+					lm->Log(L_DRIVEL,"<net> [pid=%d] New connection from %s:%i",
 							pid, inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
 				}
 			}
@@ -569,7 +575,7 @@ void * RecvThread(void *dummy)
 					memcpy(&clients[pid].sin, &sin, sizeof(struct sockaddr_in));
 					InitPlayer(pid, T_VIE);
 					pd->LockStatus();
-					log->Log(L_DRIVEL,"<net> [pid=%d] Reconnected from timewait2", pid);
+					lm->Log(L_DRIVEL,"<net> [pid=%d] Reconnected from timewait2", pid);
 				}
 				else
 					/* oh well, let's just ignore it. don't set lastpkt
@@ -586,7 +592,7 @@ void * RecvThread(void *dummy)
 
 			if (status <= S_FREE || status > S_TIMEWAIT2)
 			{
-				log->Log(L_WARN, "<net> [pid=%d] Packet recieved from bad state %d", pid, status);
+				lm->Log(L_WARN, "<net> [pid=%d] Packet recieved from bad state %d", pid, status);
 				goto freeit;
 				/* don't set lastpkt time here */
 			}
@@ -655,7 +661,7 @@ donehere:
 			n = recvfrom(mybillingsock, buf->d.raw, MAXPACKET, 0,
 					(struct sockaddr*)&sin, &sinsize);
 			if (memcmp(&sin, &clients[PID_BILLER].sin, sinsize))
-				log->Log(L_MALICIOUS,
+				lm->Log(L_MALICIOUS,
 						"<net> Data recieved on billing server socket from incorrect origin: %s:%i",
 						inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
 			else if (n > 0)
@@ -764,6 +770,7 @@ void * SendThread(void *dummy)
 
 			UnlockMutex(outlistmtx + i);
 skip_this_one:
+			;
 		}
 
 		/* process lagouts and timewait
@@ -783,7 +790,7 @@ skip_this_one:
 				&& clients[i].lastpkt != 0 /* prevent race */
 				&& diff > config.droptimeout)
 			{
-				log->Log(L_DRIVEL,
+				lm->Log(L_DRIVEL,
 						"<net> [%s] Player kicked for no data (lagged off)",
 						players[i].name);
 				/* FIXME: send "you have been disconnected..." msg */
@@ -823,7 +830,7 @@ skip_this_one:
 						 * status before releasing it, also to be safe. */
 						players[i].status = S_FREE;
 						UnlockMutex(&hashmtx);
-						log->Log(L_ERROR, "<net> Internal error: "
+						lm->Log(L_ERROR, "<net> Internal error: "
 								"established connection not in hash table");
 						LockMutex(&hashmtx);
 					}
@@ -906,7 +913,7 @@ void ProcessBuffer(Buffer *buf)
 			(oohandlers[(int)buf->d.rel.t2])(buf);
 		else
 		{
-			log->Log(L_MALICIOUS, "<net> [%s] [pid=%d] Unknown network subtype %d",
+			lm->Log(L_MALICIOUS, "<net> [%s] [pid=%d] Unknown network subtype %d",
 					players[buf->pid].name,
 					buf->pid,
 					buf->d.rel.t2);
@@ -1021,7 +1028,7 @@ void KillConnection(int pid)
 	/* set status */
 	if (pid == PID_BILLER)
 	{
-		log->Log(L_WARN, "<net> Connection to billing server lost");
+		lm->Log(L_WARN, "<net> Connection to billing server lost");
 		/* for normal players, ProcessLoginQueue runs and changes
 		 * S_LEAVING_ZONE's to S_TIMEWAIT's after calling callback
 		 * functions. but it doesn't do that for biller, so we set
@@ -1052,7 +1059,7 @@ void KillConnection(int pid)
 		crypters[type]->Void(pid);
 
 	/* log message */
-	log->Log(L_INFO, "<net> [%s] [pid=%d] Disconnected",
+	lm->Log(L_INFO, "<net> [%s] [pid=%d] Disconnected",
 			players[pid].name, pid);
 }
 
@@ -1067,7 +1074,7 @@ void ProcessKey(Buffer *buf)
 	if (player->status != S_NEED_KEY)
 	{
 		pd->UnlockStatus();
-		log->Log(L_MALICIOUS, "<net> [pid=%d] initiated key exchange from incorrect stage: %d, dropping", buf->pid, player->status);
+		lm->Log(L_MALICIOUS, "<net> [pid=%d] initiated key exchange from incorrect stage: %d, dropping", buf->pid, player->status);
 		KillConnection(buf->pid);
 		FreeBuffer(buf);
 		return;
@@ -1091,7 +1098,7 @@ void ProcessKey(Buffer *buf)
 		clients[buf->pid].enctype = type;
 	}
 	else
-		log->Log(L_MALICIOUS, "<net> [pid=%d] Unknown encryption type attempted to connect: %d", buf->pid, type);
+		lm->Log(L_MALICIOUS, "<net> [pid=%d] Unknown encryption type attempted to connect: %d", buf->pid, type);
 
 	FreeBuffer(buf);
 }
@@ -1100,7 +1107,7 @@ void ProcessKey(Buffer *buf)
 void ProcessKeyResponse(Buffer *buf)
 {
 	if (buf->pid < MAXPLAYERS)
-		log->Log(L_MALICIOUS, "<net> [pid=%d] Key response from client", buf->pid);
+		lm->Log(L_MALICIOUS, "<net> [pid=%d] Key response from client", buf->pid);
 	else
 	{
 		Link *l;
@@ -1138,7 +1145,7 @@ void ProcessReliable(Buffer *buf)
 	{
 		UnlockMutex(&relmtx);
 		FreeBuffer(buf);
-		log->Log(L_DRIVEL, "<net> [%s] [pid=%d] Reliable packet with too big delta (%d - %d)",
+		lm->Log(L_DRIVEL, "<net> [%s] [pid=%d] Reliable packet with too big delta (%d - %d)",
 				players[buf->pid].name, buf->pid,
 				sn, clients[buf->pid].c2sn);
 	}
@@ -1218,7 +1225,7 @@ void ProcessBigData(Buffer *buf)
 
 	if (clients[pid].flags & NET_INPRESIZE)
 	{
-		log->Log(L_MALICIOUS, "<net> [%s] Recieved bigpacket while handling presized data",
+		lm->Log(L_MALICIOUS, "<net> [%s] Recieved bigpacket while handling presized data",
 				players[pid].name);
 		goto reallyexit;
 	}
@@ -1227,7 +1234,7 @@ void ProcessBigData(Buffer *buf)
 
 	if (newsize > MAXBIGPACKET)
 	{
-		log->Log(L_MALICIOUS,
+		lm->Log(L_MALICIOUS,
 			"<net> [%s] Big packet: refusing to allocate more than %d bytes",
 			players[pid].name,
 			MAXBIGPACKET);
@@ -1241,7 +1248,7 @@ void ProcessBigData(Buffer *buf)
 		newbuf = realloc(clients[pid].bigpktbuf, clients[pid].bigpktroom); 
 		if (!newbuf)
 		{
-			log->Log(L_ERROR,"<net> [%s] Cannot allocate %d bytes for bigpacket",
+			lm->Log(L_ERROR,"<net> [%s] Cannot allocate %d bytes for bigpacket",
 				newsize, players[pid].name);
 			goto freebigbuf;
 		}
@@ -1276,7 +1283,7 @@ void ProcessPresize(Buffer *buf)
 
 	if (clients[pid].flags & NET_INBIGPKT)
 	{
-		log->Log(L_MALICIOUS,"<net> [%s] Recieved presized data while handling bigpacket", players[pid].name);
+		lm->Log(L_MALICIOUS,"<net> [%s] Recieved presized data while handling bigpacket", players[pid].name);
 		goto reallyexit;
 	}
 
@@ -1284,7 +1291,7 @@ void ProcessPresize(Buffer *buf)
 	{	/* copy data */
 		if (size != clients[pid].bigpktroom)
 		{
-			log->Log(L_MALICIOUS, "<net> [%s] Presized data length mismatch", players[pid].name);
+			lm->Log(L_MALICIOUS, "<net> [%s] Presized data length mismatch", players[pid].name);
 			goto freepacket;
 		}
 		memcpy(clients[pid].bigpktbuf+clients[pid].bigpktsize, buf->d.rel.data, buf->len - 6);
@@ -1294,7 +1301,7 @@ void ProcessPresize(Buffer *buf)
 	{	/* allocate it */
 		if (size > MAXBIGPACKET)
 		{
-			log->Log(L_MALICIOUS,
+			lm->Log(L_MALICIOUS,
 				"<net> [%s] Big packet: refusing to allocate more than %d bytes",
 				players[pid].name,
 				MAXBIGPACKET);

@@ -58,7 +58,7 @@ local void CloseDB(DB *db);
 /* private data */
 
 local Imodman *mm;
-local Ilogman *log;
+local Ilogman *lm;
 local Iconfig *cfg;
 local Iarenaman *aman;
 local Iplayerdata *pd;
@@ -97,7 +97,7 @@ EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 	{
 		mm = _mm;
 		pd = mm->GetInterface("playerdata", ALLARENAS);
-		log = mm->GetInterface("logman", ALLARENAS);
+		lm = mm->GetInterface("logman", ALLARENAS);
 		cfg = mm->GetInterface("config", ALLARENAS);
 		aman = mm->GetInterface("arenaman", ALLARENAS);
 		ml = mm->GetInterface("mainloop", ALLARENAS);
@@ -129,7 +129,7 @@ EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 			return MM_FAIL;
 		mm->UnregCallback(CB_ARENAACTION, PersistAA, ALLARENAS);
 		mm->ReleaseInterface(pd);
-		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(aman);
 
@@ -205,11 +205,11 @@ local void DoPut(int pid, int arena)
 	val.size = size;
 
 	if (!db)
-		log->Log(L_ERROR, "<persist> {%s} Database not open when we need it",
+		lm->Log(L_ERROR, "<persist> {%s} Database not open when we need it",
 				(arena == PERSIST_GLOBAL) ? "<global>" : arenas[arena].name);
 	else /* do it! */ 
 		if (db->put(db, &key, &val, 0) == -1)
-			log->Log(L_ERROR, "<persist> {%s} Error entering key in database",
+			lm->Log(L_ERROR, "<persist> {%s} Error entering key in database",
 				(arena == PERSIST_GLOBAL) ? "<global>" : arenas[arena].name);
 }
 
@@ -376,7 +376,7 @@ void PersistAA(int arena, int action)
 
 		if (databases[arena])
 		{
-			log->Log(L_ERROR, "<persist> {%s} Score database already exists for new arena", arenas[arena].name);
+			lm->Log(L_ERROR, "<persist> {%s} Score database already exists for new arena", arenas[arena].name);
 			CloseDB(databases[arena]);
 		}
 
@@ -403,7 +403,7 @@ void PersistAA(int arena, int action)
 		if (db)
 			CloseDB(db);
 		else
-			log->Log(L_ERROR, "<persist> {%s} Score database doesn't exist for closing arena", arenas[arena].name);
+			lm->Log(L_ERROR, "<persist> {%s} Score database doesn't exist for closing arena", arenas[arena].name);
 
 		databases[arena] = NULL;
 
@@ -480,7 +480,7 @@ int SyncTimer(void *dummy)
 	msg->callback = NULL;
 	MPAdd(&dbq, msg);
 
-	log->Log(L_INFO, "<persist> Collecting all persistant data and syncing to disk");
+	lm->Log(L_INFO, "<persist> Collecting all persistant data and syncing to disk");
 
 	return 1;
 }

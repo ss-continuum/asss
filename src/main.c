@@ -135,7 +135,7 @@ local int daemonize(int noclose)
 
 int main(int argc, char *argv[])
 {
-	Ilogman *log;
+	Ilogman *lm;
 	Imainloop *ml;
 
 	ProcessArgs(argc,argv);
@@ -153,19 +153,19 @@ int main(int argc, char *argv[])
 
 	LoadModuleFile("conf/modules.conf");
 
-	log = mm->GetInterface("logman", ALLARENAS);
+	lm = mm->GetInterface("logman", ALLARENAS);
 	ml = mm->GetInterface("mainloop", ALLARENAS);
 
 	if (!ml)
 		Error(ERROR_MODLOAD, "mainloop module missing");
 
-	if (log) log->Log(L_DRIVEL,"<main> Entering main loop");
+	if (lm) lm->Log(L_DRIVEL,"<main> Entering main loop");
 
 	ml->RunLoop();
 
-	if (log) log->Log(L_DRIVEL,"<main> Exiting main loop");
+	if (lm) lm->Log(L_DRIVEL,"<main> Exiting main loop");
 
-	mm->ReleaseInterface(log);
+	mm->ReleaseInterface(lm);
 	mm->ReleaseInterface(ml);
 
 	mm->UnloadAllModules();

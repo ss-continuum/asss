@@ -111,7 +111,7 @@ int LoadMod(const char *filename)
 	ModuleData *mod;
 	char *name = _buf, *modname;
 	int ret;
-	Ilogman *log = GetInterface("logman", ALLARENAS);
+	Ilogman *lm = GetInterface("logman", ALLARENAS);
 
 	if ((modname = strchr(filename,DELIM)))
 	{
@@ -120,11 +120,11 @@ int LoadMod(const char *filename)
 	}
 	else
 	{
-		if (log) log->Log(L_ERROR,"<module> Bad module locator string");
+		if (lm) lm->Log(L_ERROR,"<module> Bad module locator string");
 		return MM_FAIL;
 	}
 
-	if (log) log->Log(L_DRIVEL,"<module> Loading module '%s' from '%s'", modname, filename);
+	if (lm) lm->Log(L_DRIVEL,"<module> Loading module '%s' from '%s'", modname, filename);
 
 
 	mod = amalloc(sizeof(ModuleData));
@@ -161,7 +161,7 @@ int LoadMod(const char *filename)
 	mod->hand = dlopen(name, RTLD_NOW);
 	if (!mod->hand)
 	{
-		if (log) log->Log(L_ERROR,"<module> LoadMod: error in dlopen: %s", dlerror());
+		if (lm) lm->Log(L_ERROR,"<module> LoadMod: error in dlopen: %s", dlerror());
 		goto die;
 	}
 
@@ -170,7 +170,7 @@ int LoadMod(const char *filename)
 	mod->mm = dlsym(mod->hand, name);
 	if (!mod->mm)
 	{
-		if (log) log->Log(L_ERROR,"<module> LoadMod: error in dlsym: %s", dlerror());
+		if (lm) lm->Log(L_ERROR,"<module> LoadMod: error in dlsym: %s", dlerror());
 		if (!mod->myself) dlclose(mod->hand);
 		goto die;
 	}
@@ -181,7 +181,7 @@ int LoadMod(const char *filename)
 	ret = mod->mm(MM_CHECKBUILD, &mmint, ALLARENAS);
 	if (ret != BUILDNUMBER)
 	{
-		if (log) log->Log(L_ERROR,
+		if (lm) lm->Log(L_ERROR,
 				"<module> Build number mismatch: module '%s' was built with %d, we were built with %d",
 				modname,
 				ret,
@@ -194,7 +194,7 @@ int LoadMod(const char *filename)
 
 	if (ret != MM_OK)
 	{
-		if (log) log->Log(L_ERROR,
+		if (lm) lm->Log(L_ERROR,
 				"<module> Error loading module '%s'", modname);
 		if (!mod->myself) dlclose(mod->hand);
 		goto die2;

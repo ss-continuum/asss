@@ -48,7 +48,7 @@ local Iplayerdata *pd;
 local Iconfig *cfg;
 local Inet *net;
 local Imodman *mm;
-local Ilogman *log;
+local Ilogman *lm;
 
 local PlayerData *players;
 
@@ -75,10 +75,10 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, int arena)
 		mm = mm_;
 		pd = mm->GetInterface("playerdata", ALLARENAS);
 		net = mm->GetInterface("net", ALLARENAS);
-		log = mm->GetInterface("logman", ALLARENAS);
+		lm = mm->GetInterface("logman", ALLARENAS);
 		cfg = mm->GetInterface("config", ALLARENAS);
 		ml = mm->GetInterface("mainloop", ALLARENAS);
-		if (!pd || !net || !log || !cfg || !ml) return MM_FAIL;
+		if (!pd || !net || !lm || !cfg || !ml) return MM_FAIL;
 
 		players = pd->players;
 
@@ -109,7 +109,7 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, int arena)
 		ml->ClearTimer(ReapArenas);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
-		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(ml);
 		return MM_OK;
@@ -232,7 +232,7 @@ int CreateArena(char *name)
 
 	if (i == MAXARENA)
 	{
-		log->Log(L_WARN, "<arenaman> Cannot create a new arena: too many arenas");
+		lm->Log(L_WARN, "<arenaman> Cannot create a new arena: too many arenas");
 		UNLOCK_STATUS();
 		return -1;
 	}
@@ -257,12 +257,12 @@ void SendArenaResponse(int pid)
 	arena = p->arena;
 	if (ARENA_BAD(arena))
 	{
-		log->Log(L_WARN, "<arenaman> [%s] bad arena id in SendArenaResponse",
+		lm->Log(L_WARN, "<arenaman> [%s] bad arena id in SendArenaResponse",
 				p->name);
 		return;
 	}
 
-	log->Log(L_INFO, "<arenaman> {%s} [%s] entering arena",
+	lm->Log(L_INFO, "<arenaman> {%s} [%s] entering arena",
 				arenas[arena].name, p->name);
 
 	/* send whoami packet */
@@ -337,13 +337,13 @@ void PArena(int pid, byte *p, int l)
 	/* check for bad packets */
 	if (l != sizeof(struct GoArenaPacket))
 	{
-		log->Log(L_MALICIOUS, "<arenaman> [%s] Wrong size arena packet recvd", players[pid].name);
+		lm->Log(L_MALICIOUS, "<arenaman> [%s] Wrong size arena packet recvd", players[pid].name);
 		return;
 	}
 
 	if (players[pid].arena != -1)
 	{
-		log->Log(L_MALICIOUS, "<arenaman> [%s] Recvd arena request from player already in an arena", players[pid].name);
+		lm->Log(L_MALICIOUS, "<arenaman> [%s] Recvd arena request from player already in an arena", players[pid].name);
 		return;
 	}
 
@@ -351,7 +351,7 @@ void PArena(int pid, byte *p, int l)
 
 	if (go->shiptype < 0 || go->shiptype > SPEC)
 	{
-		log->Log(L_MALICIOUS, "<arenaman> [%s] Bad shiptype in arena request", players[pid].name);
+		lm->Log(L_MALICIOUS, "<arenaman> [%s] Bad shiptype in arena request", players[pid].name);
 		return;
 	}
 
@@ -372,7 +372,7 @@ void PArena(int pid, byte *p, int l)
 	}
 	else
 	{
-		log->Log(L_MALICIOUS, "<arenaman> [%s] Bad arenatype in arena request", players[pid].name);
+		lm->Log(L_MALICIOUS, "<arenaman> [%s] Bad arenatype in arena request", players[pid].name);
 		return;
 	}
 
@@ -383,7 +383,7 @@ void PArena(int pid, byte *p, int l)
 
 	if (arena == -1)
 	{
-		log->Log(L_INFO, "<arenaman> {%s} Creating arena", name);
+		lm->Log(L_INFO, "<arenaman> {%s} Creating arena", name);
 		arena = CreateArena(name);
 		if (arena == -1)
 		{
@@ -392,7 +392,7 @@ void PArena(int pid, byte *p, int l)
 			while (arenas[arena].status != ARENA_RUNNING && arena < MAXARENA) arena++;
 			if (arena == MAXARENA)
 			{
-				log->Log(L_ERROR, "<arenaman> Internal error: no running arenas but cannot create new one");
+				lm->Log(L_ERROR, "<arenaman> Internal error: no running arenas but cannot create new one");
 				UNLOCK_STATUS();
 				return;
 			}
@@ -437,7 +437,7 @@ void PLeaving(int pid, byte *p, int q)
 	pd->UnlockStatus();
 
 	net->SendToArena(arena, pid, (byte*)&pk, 3, NET_RELIABLE);
-	log->Log(L_INFO, "<arenaman> {%s} [%s] Player leaving arena",
+	lm->Log(L_INFO, "<arenaman> {%s} [%s] Player leaving arena",
 			arenas[arena].name, players[pid].name);
 }
 
@@ -458,7 +458,7 @@ int ReapArenas(void *q)
 						players[j].arena == i)
 					goto skip;
 
-			log->Log(L_DRIVEL, "<arenaman> {%s} Arena being destroyed (id=%d)",
+			lm->Log(L_DRIVEL, "<arenaman> {%s} Arena being destroyed (id=%d)",
 					arenas[i].name, i);
 			/* set its status so that the arena processor will do
 			 * appropriate things */

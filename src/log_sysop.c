@@ -30,7 +30,7 @@ local pthread_mutex_t ll_mtx = PTHREAD_MUTEX_INITIALIZER;
 local Iplayerdata *pd;
 local Iarenaman *aman;
 local Iconfig *cfg;
-local Ilogman *log;
+local Ilogman *lm;
 local Ichat *chat;
 local Icapman *capman;
 local Icmdman *cmd;
@@ -43,12 +43,12 @@ EXPORT int MM_log_sysop(int action, Imodman *mm, int arenas)
 		pd = mm->GetInterface("playerdata", ALLARENAS);
 		aman = mm->GetInterface("arenaman", ALLARENAS);
 		cfg = mm->GetInterface("config", ALLARENAS);
-		log = mm->GetInterface("logman", ALLARENAS);
+		lm = mm->GetInterface("logman", ALLARENAS);
 		chat = mm->GetInterface("chat", ALLARENAS);
 		capman = mm->GetInterface("capman", ALLARENAS);
 		cmd = mm->GetInterface("cmdman", ALLARENAS);
 
-		if (!cfg || !log || !chat) return MM_FAIL;
+		if (!cfg || !lm || !chat) return MM_FAIL;
 
 		memset(ll_data, 0, sizeof(ll_data));
 		ll_pos = 0;
@@ -81,7 +81,7 @@ EXPORT int MM_log_sysop(int action, Imodman *mm, int arenas)
 
 void LogSysop(char lev, char *s)
 {
-	if (log->FilterLog(lev, s, "log_sysop"))
+	if (lm->FilterLog(lev, s, "log_sysop"))
 	{
 		int set[MAXPLAYERS], setc = 0, pid;
 

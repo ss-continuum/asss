@@ -53,7 +53,7 @@ local Imainloop *ml;
 local Iconfig *cfg;
 local Inet *net;
 local Imodman *mm;
-local Ilogman *log;
+local Ilogman *lm;
 local Imapnewsdl *map;
 local Iarenaman *aman;
 local Ipersist *persist;
@@ -78,7 +78,7 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 		mm = mm_;
 		pd = mm->GetInterface("playerdata", ALLARENAS);
 		net = mm->GetInterface("net", ALLARENAS);
-		log = mm->GetInterface("logman", ALLARENAS);
+		lm = mm->GetInterface("logman", ALLARENAS);
 		cfg = mm->GetInterface("config", ALLARENAS);
 		ml = mm->GetInterface("mainloop", ALLARENAS);
 		map = mm->GetInterface("mapnewsdl", ALLARENAS);
@@ -88,7 +88,7 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 
 		players = pd->players;
 
-		if (!pd || !log || !cfg || !map || !aman || !net || !ml) return MM_FAIL;
+		if (!pd || !lm || !cfg || !map || !aman || !net || !ml) return MM_FAIL;
 
 		/* set up callbacks */
 		net->AddPacket(C2S_LOGIN, PLogin);
@@ -110,7 +110,7 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 		net->RemovePacket(C2S_LOGIN, PLogin);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
-		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(ml);
 		mm->ReleaseInterface(map);
@@ -183,7 +183,7 @@ void ProcessLoginQueue(void)
 				continue;
 
 			default:
-				log->Log(L_ERROR,"<core> [pid=%d] Internal error: unknown player status %d", pid, oldstatus);
+				lm->Log(L_ERROR,"<core> [pid=%d] Internal error: unknown player status %d", pid, oldstatus);
 				break;
 		}
 
@@ -210,7 +210,7 @@ void ProcessLoginQueue(void)
 						mm->ReleaseInterface(auth);
 					}
 					else
-						log->Log(L_ERROR, "<core> Missing auth module!");
+						lm->Log(L_ERROR, "<core> Missing auth module!");
 				}
 				break;
 
@@ -228,7 +228,7 @@ void ProcessLoginQueue(void)
 
 			case S_SEND_LOGIN_RESPONSE:
 				SendLoginResponse(pid);
-				log->Log(L_INFO, "<core> [%s] [pid=%d] Player logged in",
+				lm->Log(L_INFO, "<core> [%s] [pid=%d] Player logged in",
 						player->name, pid);
 				break;
 
@@ -300,9 +300,9 @@ void ProcessLoginQueue(void)
 void PLogin(int pid, byte *p, int l)
 {
 	if (l != sizeof(struct LoginPacket) && l != sizeof(struct LoginPacket) + 63)
-		log->Log(L_MALICIOUS,"<core> [pid=%d] Bad login packet length (%d)", pid, l);
+		lm->Log(L_MALICIOUS,"<core> [pid=%d] Bad login packet length (%d)", pid, l);
 	else if (players[pid].status != S_CONNECTED)
-		log->Log(L_MALICIOUS,"<core> [pid=%d] Login request from wrong stage: %d", pid, players[pid].status);
+		lm->Log(L_MALICIOUS,"<core> [pid=%d] Login request from wrong stage: %d", pid, players[pid].status);
 	else
 	{
 		struct LoginPacket *pkt = (struct LoginPacket*)p;
@@ -310,7 +310,7 @@ void PLogin(int pid, byte *p, int l)
 
 		if (oldpid != -1 && oldpid != pid)
 		{
-			log->Log(L_DRIVEL,"<core> [%s] Player already on, kicking him off "
+			lm->Log(L_DRIVEL,"<core> [%s] Player already on, kicking him off "
 					"(pid %d replacing %d)",
 					pkt->name, pid, oldpid);
 			net->DropClient(oldpid);
@@ -318,7 +318,7 @@ void PLogin(int pid, byte *p, int l)
 
 		memcpy(bigloginpkt + pid, p, sizeof(struct LoginPacket));
 		players[pid].status = S_NEED_AUTH;
-		log->Log(L_DRIVEL,"<core> Login request: \"%s\"", pkt->name);
+		lm->Log(L_DRIVEL,"<core> Login request: \"%s\"", pkt->name);
 	}
 }
 
@@ -329,7 +329,7 @@ void AuthDone(int pid, AuthData *auth)
 
 	if (player->status != S_WAIT_AUTH)
 	{
-		log->Log(L_WARN, "<core> [pid=%d] AuthDone called from wrong stage: %d", pid, player->status);
+		lm->Log(L_WARN, "<core> [pid=%d] AuthDone called from wrong stage: %d", pid, player->status);
 		return;
 	}
 
@@ -353,7 +353,7 @@ void GSyncDone(int pid)
 {
 	pd->LockStatus();
 	if (players[pid].status != S_WAIT_GLOBAL_SYNC)
-		log->Log(L_WARN, "<core> [pid=%s] GSyncDone called from wrong stage", pid, players[pid].status);
+		lm->Log(L_WARN, "<core> [pid=%s] GSyncDone called from wrong stage", pid, players[pid].status);
 	else
 		players[pid].status = S_DO_GLOBAL_CALLBACKS;
 	pd->UnlockStatus();
@@ -364,7 +364,7 @@ void ASyncDone(int pid)
 {
 	pd->LockStatus();
 	if (players[pid].status != S_WAIT_ARENA_SYNC)
-		log->Log(L_WARN, "<core> [pid=%s] ASyncDone called from wrong stage", pid, players[pid].status);
+		lm->Log(L_WARN, "<core> [pid=%s] ASyncDone called from wrong stage", pid, players[pid].status);
 	else
 		players[pid].status = S_SEND_ARENA_RESPONSE;
 	pd->UnlockStatus();

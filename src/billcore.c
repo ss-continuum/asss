@@ -41,7 +41,7 @@ local void DefaultCmd(const char *, int, int);
 
 local Inet *net;
 local Imainloop *ml;
-local Ilogman *log;
+local Ilogman *lm;
 local Iconfig *cfg;
 local Icmdman *cmd;
 local Iplayerdata *pd;
@@ -74,7 +74,7 @@ int MM_billcore(int action, Imodman *_mm, int arena)
 		pd = mm->GetInterface("playerdata", ALLARENAS);
 		net = mm->GetInterface("net", ALLARENAS);
 		ml = mm->GetInterface("mainloop", ALLARENAS);
-		log = mm->GetInterface("logman", ALLARENAS);
+		lm = mm->GetInterface("logman", ALLARENAS);
 		cfg = mm->GetInterface("config", ALLARENAS);
 		cmd = mm->GetInterface("cmdman", ALLARENAS);
 		chat = mm->GetInterface("chat", ALLARENAS);
@@ -129,7 +129,7 @@ int MM_billcore(int action, Imodman *_mm, int arena)
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(ml);
-		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(chat);
@@ -170,7 +170,7 @@ int SendPing(void *dummy)
 	{	/* no communication yet, send initiation packet */
 		byte initiate[8] = { 0x00, 0x01, 0xDA, 0x8F, 0xFD, 0xFF, 0x01, 0x00 };
 		SendToBiller(initiate, 8, NET_UNRELIABLE);
-		log->Log(L_INFO, "<billcore> Attempting to connect to billing server");
+		lm->Log(L_INFO, "<billcore> Attempting to connect to billing server");
 	}
 	else if (status == BNET_CONNECTED)
 	{	/* connection established, send ping */
@@ -190,7 +190,7 @@ void SendLogin(int pid, byte *p, int n)
 	};
 	const char *t;
 
-	log->Log(L_INFO, "<billcore> Billing server contacted, sending zone information");
+	lm->Log(L_INFO, "<billcore> Billing server contacted, sending zone information");
 	t = cfg->GetStr(GLOBAL, "Billing", "ServerName");
 	if (t) astrncpy(to.name, t, 0x80);
 	t = cfg->GetStr(GLOBAL, "Billing", "Password");
@@ -296,7 +296,7 @@ void BMessage(int pid, byte *p, int len)
 		t = strchr(msg+1, ':');
 		if (!t)
 		{	/* no matching : */
-			log->Log(L_MALICIOUS, "<billcore> Malformed remote private message from biller");
+			lm->Log(L_MALICIOUS, "<billcore> Malformed remote private message from biller");
 		}
 		else
 		{
@@ -332,7 +332,7 @@ void BMessage(int pid, byte *p, int len)
 		to->sound = 0;
 		strcpy(to->text, msg);
 		net->SendToAll((byte*)to, strlen(msg)+6, NET_RELIABLE);
-		log->Log(L_WARN, "<billcore> Broadcast message from biller: '%s'", msg);
+		lm->Log(L_WARN, "<billcore> Broadcast message from biller: '%s'", msg);
 	}
 }
 
@@ -393,7 +393,7 @@ void PChat(int pid, byte *p, int len)
 		t = strchr(from->text+1, ':');
 		if (from->text[0] != ':' || !t)
 		{
-			log->Log(L_MALICIOUS,"<billcore> [%s] Malformed remote private message '%s'", players[pid].name, from->text);
+			lm->Log(L_MALICIOUS,"<billcore> [%s] Malformed remote private message '%s'", players[pid].name, from->text);
 		}
 		else
 		{

@@ -21,7 +21,7 @@ local char groups[MAXPLAYERS][MAXGROUPLEN];
 local Imodman *mm;
 local Iplayerdata *pd;
 local Iarenaman *aman;
-local Ilogman *log;
+local Ilogman *lm;
 local Iconfig *cfg;
 
 local Icapman _myint =
@@ -38,7 +38,7 @@ EXPORT int MM_capman(int action, Imodman *_mm, int arena)
 		mm = _mm;
 		pd = mm->GetInterface("playerdata", ALLARENAS);
 		aman = mm->GetInterface("arenaman", ALLARENAS);
-		log = mm->GetInterface("logman", ALLARENAS);
+		lm = mm->GetInterface("logman", ALLARENAS);
 		cfg = mm->GetInterface("config", ALLARENAS);
 
 		if (!cfg) return MM_FAIL;
@@ -61,7 +61,7 @@ EXPORT int MM_capman(int action, Imodman *_mm, int arena)
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
 		mm->ReleaseInterface(cfg);
-		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(pd);
 		return MM_OK;
@@ -90,7 +90,7 @@ void ArenaAction(int arena, int action)
 local void UpdateGroup(int pid, int arena)
 {
 #define LOGIT(from) \
-	log->Log(L_DRIVEL, "<capman> {%s} [%s] Player assigned to group '%s' from %s", \
+	lm->Log(L_DRIVEL, "<capman> {%s} [%s] Player assigned to group '%s' from %s", \
 			aname, \
 			pd->players[pid].name, \
 			groups[pid], \
@@ -103,7 +103,7 @@ local void UpdateGroup(int pid, int arena)
 		if (gg)
 		{
 			astrncpy(groups[pid], gg, MAXGROUPLEN);
-			log->Log(L_DRIVEL, "<capman> [%s] Player assigned to group '%s' from global staff list",
+			lm->Log(L_DRIVEL, "<capman> [%s] Player assigned to group '%s' from global staff list",
 					pd->players[pid].name,
 					groups[pid]);
 		}

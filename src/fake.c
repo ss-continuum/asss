@@ -7,7 +7,7 @@ local Iplayerdata *pd;
 local Iarenaman *aman;
 local Inet *net;
 local Icmdman *cmd;
-local Ilogman *logm;
+local Ilogman *lm;
 
 
 local int CreateFakePlayer(const char *name, int arena, int ship, int freq)
@@ -34,8 +34,8 @@ local int CreateFakePlayer(const char *name, int arena, int ship, int freq)
 	net->SendToArena(arena, pid, (byte*)player, 64, NET_RELIABLE);
 	player->status = S_PLAYING;
 
-	if (logm)
-		logm->Log(L_INFO, "<fake> {%s} [%s] Fake player created",
+	if (lm)
+		lm->Log(L_INFO, "<fake> {%s} [%s] Fake player created",
 				aman->arenas[arena].name,
 				name);
 
@@ -43,15 +43,15 @@ local int CreateFakePlayer(const char *name, int arena, int ship, int freq)
 }
 
 
-local void EndFaked(int pid)
+local int EndFaked(int pid)
 {
 	int arena;
 	struct SimplePacket pk = { S2C_PLAYERLEAVING };
 
 	if (PID_BAD(pid))
-		return;
+		return 0;
 	if (pd->players[pid].type != T_FAKE || pd->players[pid].status != S_PLAYING)
-		return;
+		return 0;
 
 	arena = pd->players[pid].arena;
 	pd->players[pid].arena = -1;
@@ -61,14 +61,15 @@ local void EndFaked(int pid)
 	net->SendToArena(arena, pid, (byte*)&pk, 3, NET_RELIABLE);
 
 	/* log before freeing pid to avoid races */
-	if (logm)
-		logm->Log(L_INFO, "<fake> {%s} [%s] Fake player destroyed",
+	if (lm)
+		lm->Log(L_INFO, "<fake> {%s} [%s] Fake player destroyed",
 				aman->arenas[arena].name,
 				pd->players[pid].name);
 
 	/* leave game */
 	pd->players[pid].status = S_FREE;
 
+	return 1;
 }
 
 
@@ -91,7 +92,7 @@ local Ifake _int =
 };
 
 
-int MM_fake(int action, Imodman *mm_, int arena)
+EXPORT int MM_fake(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -100,8 +101,10 @@ int MM_fake(int action, Imodman *mm_, int arena)
 		aman = mm->GetInterface("arenaman", ALLARENAS);
 		cmd = mm->GetInterface("cmdman", ALLARENAS);
 		net = mm->GetInterface("net", ALLARENAS);
-		logm = mm->GetInterface("logman", ALLARENAS);
+		lm = mm->GetInterface("logman", ALLARENAS);
+
 		if (!pd || !aman || !cmd || !net) return MM_FAIL;
+
 		cmd->AddCommand("makefake", Cmakefake);
 		cmd->AddCommand("killfake", Ckillfake);
 		_int.ProcessPacket = net->ProcessPacket;
@@ -117,7 +120,7 @@ int MM_fake(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(net);
-		mm->ReleaseInterface(logm);
+		mm->ReleaseInterface(lm);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)

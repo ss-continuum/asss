@@ -26,7 +26,7 @@ local struct ClientSettings settings[MAXARENA];
 local Iplayerdata *pd;
 local Iconfig *cfg;
 local Inet *net;
-local Ilogman *log;
+local Ilogman *lm;
 local Imodman *mm;
 local Iarenaman *aman;
 
@@ -52,10 +52,10 @@ EXPORT int MM_clientset(int action, Imodman *mm_, int arena)
 		pd = mm->GetInterface("playerdata", ALLARENAS);
 		net = mm->GetInterface("net", ALLARENAS);
 		cfg = mm->GetInterface("config", ALLARENAS);
-		log = mm->GetInterface("logman", ALLARENAS);
+		lm = mm->GetInterface("logman", ALLARENAS);
 		aman = mm->GetInterface("arenaman", ALLARENAS);
 
-		if (!net || !cfg || !log || !aman) return MM_FAIL;
+		if (!net || !cfg || !lm || !aman) return MM_FAIL;
 
 		arenas = aman->arenas;
 
@@ -87,7 +87,7 @@ EXPORT int MM_clientset(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(cfg);
-		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(aman);
 		return MM_OK;
 	}

@@ -17,7 +17,7 @@ local FILE *logfile;
 local pthread_mutex_t logmtx = PTHREAD_MUTEX_INITIALIZER;
 
 local Iconfig *cfg;
-local Ilogman *log;
+local Ilogman *lm;
 
 local Ilog_file _lfint =
 {
@@ -31,9 +31,9 @@ EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
 	if (action == MM_LOAD)
 	{
 		cfg = mm->GetInterface("config", ALLARENAS);
-		log = mm->GetInterface("logman", ALLARENAS);
+		lm = mm->GetInterface("logman", ALLARENAS);
 
-		if (!cfg || !log) return MM_FAIL;
+		if (!cfg || !lm) return MM_FAIL;
 
 		logfile = NULL;
 		ReopenLog();
@@ -51,7 +51,7 @@ EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
 			return MM_FAIL;
 		mm->UnregCallback(CB_LOGFUNC, LogFile, ALLARENAS);
 		mm->ReleaseInterface(cfg);
-		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(lm);
 		return MM_OK;
 	}
 	else if (action == MM_CHECKBUILD)
@@ -62,7 +62,7 @@ EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
 
 void LogFile(char lev, char *s)
 {
-	if (log->FilterLog(lev, s, "log_file"))
+	if (lm->FilterLog(lev, s, "log_file"))
 	{
 		pthread_mutex_lock(&logmtx);
 		if (logfile)

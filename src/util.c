@@ -818,25 +818,25 @@ void WaitCondition(Condition *cond, Mutex *mtx)
 
 void WaitConditionTimed(Condition *cond, Mutex *mtx, int millis)
 {
+#ifndef WIN32
 	struct timeval tv;
 	struct timespec ts;
 
-#ifndef WIN32
 	gettimeofday(&tv, NULL);
 	ts.tv_sec = tv.tv_sec;
 	ts.tv_nsec = (tv.tv_usec + millis * 1000) * 1000;
-#else
-	/* GetTickCount() isn't enough here: pthread_cond_timedwait requires
-	 * an absolute time relative to the epoch. either way, this function
-	 * isn't currently used (and probably shouldn't ever be). */
-	Error(ERROR_GENERAL, "WaitConditionTimed isn't implemented on windows");
-#endif
 	while (ts.tv_nsec >= 1000000000)
 	{
 		ts.tv_nsec -= 1000000000;
 		ts.tv_sec++;
 	}
 	pthread_cond_timedwait(cond, mtx, &ts);
+#else
+	/* GetTickCount() isn't enough here: pthread_cond_timedwait requires
+	 * an absolute time relative to the epoch. either way, this function
+	 * isn't currently used (and probably shouldn't ever be). */
+	Error(ERROR_GENERAL, "WaitConditionTimed isn't implemented on windows");
+#endif
 }
 
 #endif /* THREAD */

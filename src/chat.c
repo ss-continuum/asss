@@ -37,7 +37,7 @@ local void AAction(int arena, int action);
 local Iplayerdata *pd;
 local Inet *net;
 local Iconfig *cfg;
-local Ilogman *log;
+local Ilogman *lm;
 local Icmdman *cmd;
 local Imodman *mm;
 local Iarenaman *aman;
@@ -63,7 +63,7 @@ local Ichat _int =
 };
 
 
-int MM_chat(int action, Imodman *mm_, int arena)
+EXPORT int MM_chat(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{
@@ -72,7 +72,7 @@ int MM_chat(int action, Imodman *mm_, int arena)
 		pd = mm->GetInterface("playerdata", ALLARENAS);
 		net = mm->GetInterface("net", ALLARENAS);
 		cfg = mm->GetInterface("config", ALLARENAS);
-		log = mm->GetInterface("logman", ALLARENAS);
+		lm = mm->GetInterface("logman", ALLARENAS);
 		aman = mm->GetInterface("arenaman", ALLARENAS);
 		cmd = mm->GetInterface("cmdman", ALLARENAS);
 		capman = mm->GetInterface("capman", ALLARENAS);
@@ -100,7 +100,7 @@ int MM_chat(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(cfg);
-		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(capman);
@@ -153,7 +153,7 @@ void PChat(int pid, byte *p, int len)
 
 	if (len < 6 || from->text[len - 6] != '\0')
 	{
-		log->Log(L_MALICIOUS, "<chat> {%s} [%s] Non-null terminated chat message",
+		lm->Log(L_MALICIOUS, "<chat> {%s} [%s] Non-null terminated chat message",
 			arenas[arena].name, players[pid].name);
 		return;
 	}
@@ -168,7 +168,7 @@ void PChat(int pid, byte *p, int len)
 	switch (from->type)
 	{
 		case MSG_ARENA:
-			log->Log(L_MALICIOUS, "<chat> {%s} [%s] Recieved arena message",
+			lm->Log(L_MALICIOUS, "<chat> {%s} [%s] Recieved arena message",
 				arenas[arena].name, players[pid].name);
 			break;
 
@@ -198,12 +198,12 @@ void PChat(int pid, byte *p, int len)
 						pd->UnlockStatus();
 						set[setc] = -1;
 						net->SendToSet(set, (byte*)to, strlen(to->text)+6, NET_RELIABLE);
-						log->Log(L_DRIVEL, "<chat> {%s} [%s] Mod chat: %s",
+						lm->Log(L_DRIVEL, "<chat> {%s} [%s] Mod chat: %s",
 								arenas[arena].name, players[pid].name, from->text+1);
 					}
 					else
 					{
-						log->Log(L_DRIVEL, "<chat> {%s} [%s] Attempted mod chat "
+						lm->Log(L_DRIVEL, "<chat> {%s} [%s] Attempted mod chat "
 								"(missing cap or shutup): %s",
 								arenas[arena].name, players[pid].name, from->text+1);
 					}
@@ -214,7 +214,7 @@ void PChat(int pid, byte *p, int len)
 			else if (OK(from->type)) /* normal pub message */
 			{
 				
-				log->Log(L_DRIVEL,"<chat> {%s} [%s] Pub msg: %s",
+				lm->Log(L_DRIVEL,"<chat> {%s} [%s] Pub msg: %s",
 					arenas[arena].name, players[pid].name, from->text);
 				net->SendToArena(arena, pid, (byte*)to, len, cfg_msgrel);
 			}
@@ -231,7 +231,7 @@ void PChat(int pid, byte *p, int len)
 			}
 			else if (OK(from->type))
 			{
-				log->Log(L_DRIVEL,"<chat> {%s} [%s] (freq=%i) Freq msg: %s",
+				lm->Log(L_DRIVEL,"<chat> {%s} [%s] (freq=%i) Freq msg: %s",
 					arenas[arena].name, players[pid].name, freq, from->text);
 				pd->LockStatus();
 				for (i = 0; i < MAXPLAYERS; i++)
@@ -252,7 +252,7 @@ void PChat(int pid, byte *p, int len)
 			}
 			else if (PID_OK(from->pid) && OK(MSG_PRIV))
 			{
-				log->Log(L_DRIVEL,"<chat> {%s} [%s] to [%s] Priv msg: %s",
+				lm->Log(L_DRIVEL,"<chat> {%s} [%s] to [%s] Priv msg: %s",
 					arenas[arena].name, players[pid].name,
 					players[from->pid].name, from->text);
 				net->SendToOne(from->pid, (byte*)to, len, cfg_msgrel);
@@ -266,12 +266,12 @@ void PChat(int pid, byte *p, int len)
 			break;
 
 		case MSG_SYSOPWARNING:
-			log->Log(L_MALICIOUS,"<chat> {%s} [%s] Recieved sysop message",
+			lm->Log(L_MALICIOUS,"<chat> {%s} [%s] Recieved sysop message",
 					arenas[arena].name, players[pid].name);
 			break;
 
 		case MSG_CHAT:
-			log->Log(L_DRIVEL,"<chat> {%s} [%s] Chat msg: %s",
+			lm->Log(L_DRIVEL,"<chat> {%s} [%s] Chat msg: %s",
 				arenas[arena].name, players[pid].name, from->text);
 			/* the billcore module picks these up, so nothing more here */
 			break;

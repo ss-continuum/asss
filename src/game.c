@@ -55,7 +55,7 @@ local Igame _myint =
 local Iplayerdata *pd;
 local Iconfig *cfg;
 local Inet *net;
-local Ilogman *log;
+local Ilogman *lm;
 local Imodman *mm;
 local Iarenaman *aman;
 local Icmdman *cmd;
@@ -87,7 +87,7 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		mm = mm_;
 		pd = mm->GetInterface("playerdata", ALLARENAS);
 		cfg = mm->GetInterface("config", ALLARENAS);
-		log = mm->GetInterface("logman", ALLARENAS);
+		lm = mm->GetInterface("logman", ALLARENAS);
 		net = mm->GetInterface("net", ALLARENAS);
 		aman = mm->GetInterface("arenaman", ALLARENAS);
 		cmd = mm->GetInterface("cmdman", ALLARENAS);
@@ -96,7 +96,7 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		capman = mm->GetInterface("capman", ALLARENAS);
 		mapdata = mm->GetInterface("mapdata", ALLARENAS);
 
-		if (!net || !cfg || !log || !aman) return MM_FAIL;
+		if (!net || !cfg || !lm || !aman) return MM_FAIL;
 
 		players = pd->players;
 		arenas = aman->arenas;
@@ -151,7 +151,7 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(cfg);
-		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cmd);
@@ -189,7 +189,7 @@ void Pppk(int pid, byte *p2, int n)
 			checksum ^= p2[left];
 		if (checksum != 0)
 		{
-			log->Log(L_MALICIOUS, "<game> {%s} [%s] Bad position packet checksum",
+			lm->Log(L_MALICIOUS, "<game> {%s} [%s] Bad position packet checksum",
 					aman->arenas[arena].name,
 					pd->players[pid].name);
 			return;
@@ -368,7 +368,9 @@ void PSpecRequest(int pid, byte *p, int n)
 
 local void reset_during_change(int pid, int success, void *dummy)
 {
+	pd->LockPlayer(pid);
 	RESET_DURING_CHANGE(pid);
+	pd->UnlockPlayer(pid);
 }
 
 
@@ -395,7 +397,7 @@ void SetFreqAndShip(int pid, int ship, int freq)
 	DO_CBS(CB_SHIPCHANGE, arena, ShipChangeFunc,
 			(pid, ship, freq));
 
-	log->Log(L_DRIVEL, "<game> {%s} [%s] Changed ship to %d",
+	lm->Log(L_DRIVEL, "<game> {%s} [%s] Changed ship to %d",
 			arenas[arena].name,
 			players[pid].name,
 			ship);
@@ -413,18 +415,26 @@ void PSetShip(int pid, byte *p, int n)
 	int ship = p[1], freq = players[pid].freq;
 	Ifreqman *fm;
 
+	if (ARENA_BAD(arena))
+	{
+		lm->Log(L_MALICIOUS, "<game> [%s] Ship request from bad arena",
+				players[pid].name);
+		return;
+	}
+
 	if (ship < WARBIRD || ship > SPEC)
 	{
-		log->Log(L_MALICIOUS, "<game> {%s} [%s] Bad ship number: %d",
+		lm->Log(L_MALICIOUS, "<game> {%s} [%s] Bad ship number: %d",
 				arenas[arena].name,
 				players[pid].name,
 				ship);
 		return;
 	}
 
-	if (ARENA_BAD(arena))
+	if (IS_DURING_CHANGE(pid))
 	{
-		log->Log(L_MALICIOUS, "<game> [%s] Ship request from bad arena",
+		lm->Log(L_MALICIOUS, "<game> {%s} [%s] Ship request before ack from previous change",
+				arenas[arena].name,
 				players[pid].name);
 		return;
 	}
@@ -455,7 +465,7 @@ void SetFreq(int pid, int freq)
 
 	DO_CBS(CB_FREQCHANGE, arena, FreqChangeFunc, (pid, freq));
 
-	log->Log(L_DRIVEL, "<game> {%s} [%s] Changed freq to %d",
+	lm->Log(L_DRIVEL, "<game> {%s} [%s] Changed freq to %d",
 			arenas[arena].name,
 			players[pid].name,
 			freq);
@@ -470,7 +480,20 @@ void PSetFreq(int pid, byte *p, int n)
 	freq = ((struct SimplePacket*)p)->d1;
 	ship = players[pid].shiptype;
 
-	if (ARENA_BAD(arena)) return;
+	if (ARENA_BAD(arena))
+	{
+		lm->Log(L_MALICIOUS, "<game> [%s] Freq change from bad arena",
+				players[pid].name);
+		return;
+	}
+
+	if (IS_DURING_CHANGE(pid))
+	{
+		lm->Log(L_MALICIOUS, "<game> {%s} [%s] Freq change before ack from previous change",
+				arenas[arena].name,
+				players[pid].name);
+		return;
+	}
 
 	fm = mm->GetInterface("freqman", arena);
 	if (fm)
@@ -515,7 +538,7 @@ void PDie(int pid, byte *p, int n)
 
 	net->SendToArena(arena, -1, (byte*)&kp, sizeof(kp), NET_RELIABLE * reldeaths);
 
-	log->Log(L_DRIVEL, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d)",
+	lm->Log(L_DRIVEL, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d)",
 			arenas[arena].name,
 			players[pid].name,
 			players[killer].name,
@@ -705,7 +728,7 @@ void DropBrick(int arena, int freq, int x1, int y1, int x2, int y2)
 	pthread_mutex_unlock(&brickdata[arena].mtx);
 
 	net->SendToArena(arena, -1, (byte*)pkt, sizeof(*pkt), NET_RELIABLE | NET_IMMEDIATE);
-	log->Log(L_DRIVEL, "<game> {%s} Brick dropped (%d,%d)-(%d,%d) (freq=%d)",
+	lm->Log(L_DRIVEL, "<game> {%s} Brick dropped (%d,%d)-(%d,%d) (freq=%d)",
 			arenas[arena].name,
 			x1, y1, x2, y2, freq);
 }

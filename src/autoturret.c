@@ -108,8 +108,7 @@ local void mlfunc()
 }
 
 
-
-int MM_autoturret(int action, Imodman *mm_, int arena)
+EXPORT int MM_autoturret(int action, Imodman *mm_, int arena)
 {
 	if (action == MM_LOAD)
 	{

@@ -5,9 +5,8 @@
 
 #ifndef WIN32
 #define DOUNAME
-#endif
-
 #define EXTRAARENAS
+#endif
 
 #ifdef DOUNAME
 #include <sys/utsname.h>
@@ -28,7 +27,7 @@
 
 local Iplayerdata *pd;
 local Ichat *chat;
-local Ilogman *log;
+local Ilogman *lm;
 local Icmdman *cmd;
 local Inet *net;
 local Iconfig *cfg;
@@ -254,7 +253,7 @@ local void Csetgroup(const char *params, int pid, int target)
 	snprintf(cap, MAXGROUPLEN+10, "setgroup_%s", params);
 	if (!capman->HasCapability(pid, cap))
 	{
-		log->Log(L_WARN, "<playercmd> [%s] doesn't have permission to set to group '%s'",
+		lm->Log(L_WARN, "<playercmd> [%s] doesn't have permission to set to group '%s'",
 				players[pid].name, params);
 		return;
 	}
@@ -262,7 +261,7 @@ local void Csetgroup(const char *params, int pid, int target)
 	/* make sure the target isn't in a group already */
 	if (strcasecmp(capman->GetGroup(target), "default"))
 	{
-		log->Log(L_WARN, "<playercmd> [%s] tried to set the group of [%s],"
+		lm->Log(L_WARN, "<playercmd> [%s] tried to set the group of [%s],"
 				"who is in '%s' already, to '%s'",
 				players[pid].name, players[target].name,
 				capman->GetGroup(target), params);
@@ -435,7 +434,7 @@ EXPORT int MM_playercmd(int action, Imodman *_mm, int arena)
 		mm = _mm;
 		pd = mm->GetInterface("playerdata", ALLARENAS);
 		chat = mm->GetInterface("chat", ALLARENAS);
-		log = mm->GetInterface("logman", ALLARENAS);
+		lm = mm->GetInterface("logman", ALLARENAS);
 		cmd = mm->GetInterface("cmdman", ALLARENAS);
 		net = mm->GetInterface("net", ALLARENAS);
 		cfg = mm->GetInterface("config", ALLARENAS);
@@ -464,7 +463,7 @@ EXPORT int MM_playercmd(int action, Imodman *_mm, int arena)
 
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(chat);
-		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(cfg);

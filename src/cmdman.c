@@ -25,7 +25,7 @@ local void Command(const char *, int, int);
 
 /* static data */
 local Iplayerdata *pd;
-local Ilogman *log;
+local Ilogman *lm;
 local Iarenaman *aman;
 local Icapman *capman;
 
@@ -44,7 +44,7 @@ EXPORT int MM_cmdman(int action, Imodman *mm, int arena)
 	if (action == MM_LOAD)
 	{
 		pd = mm->GetInterface("playerdata", ALLARENAS);
-		log = mm->GetInterface("logman", ALLARENAS);
+		lm = mm->GetInterface("logman", ALLARENAS);
 		aman = mm->GetInterface("arenaman", ALLARENAS);
 		capman = mm->GetInterface("capman", ALLARENAS);
 
@@ -58,7 +58,7 @@ EXPORT int MM_cmdman(int action, Imodman *mm, int arena)
 		if (mm->UnregInterface("cmdman", &_int, ALLARENAS))
 			return MM_FAIL;
 		mm->ReleaseInterface(pd);
-		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(capman);
 		HashFree(cmds);
@@ -122,32 +122,32 @@ void Command(const char *line, int pid, int target)
 	char *saveline = (char*)line, cmd[40], *t, found = 0;
 
 	/* first log it. this shouldn't be so complicated... */
-	if (log)
+	if (lm)
 	{
 		if (PID_OK(pid >= 0))
 		{
 			int arena = pd->players[pid].arena;
 			if (ARENA_OK(arena))
-				log->Log(L_INFO, "<cmdman> {%s} [%s] Command '%s'",
+				lm->Log(L_INFO, "<cmdman> {%s} [%s] Command '%s'",
 						aman->arenas[arena].name,
 						pd->players[pid].name,
 						line);
 			else
-				log->Log(L_INFO, "<cmdman> {(none)} [%s] Command '%s'",
+				lm->Log(L_INFO, "<cmdman> {(none)} [%s] Command '%s'",
 						pd->players[pid].name,
 						line);
 		}
 		else
-			log->Log(L_INFO, "<cmdman> Internal command '%s'",
+			lm->Log(L_INFO, "<cmdman> Internal command '%s'",
 					line);
 	}
 
 	if (!capman)
 	{
 #ifdef ALLOW_ALL_IF_CAPMAN_IS_MISSING
-		log->Log(L_WARN, "<cmdman> The capability manager isn't loaded, allowing all commands");
+		lm->Log(L_WARN, "<cmdman> The capability manager isn't loaded, allowing all commands");
 #else
-		log->Log(L_ERROR, "<cmdman> The capability manager isn't loaded, disallowing all commands");
+		lm->Log(L_ERROR, "<cmdman> The capability manager isn't loaded, disallowing all commands");
 		return;
 #endif
 	}
@@ -179,7 +179,7 @@ void Command(const char *line, int pid, int target)
 		LLFree(lst);
 	}
 	else
-		log->Log(L_DRIVEL, "<cmdman> [%s] Capability denied by capman: %s",
+		lm->Log(L_DRIVEL, "<cmdman> [%s] Capability denied by capman: %s",
 				pd->players[pid].name, cmd);
 
 	if (!found && defaultfunc)

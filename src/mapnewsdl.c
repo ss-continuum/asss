@@ -45,7 +45,7 @@ local Imodman *mm;
 local Iplayerdata *pd;
 local Iconfig *cfg;
 local Inet *net;
-local Ilogman *log;
+local Ilogman *lm;
 local Iarenaman *aman;
 local Imainloop *ml;
 local Imapdata *mapdata;
@@ -78,7 +78,7 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		mm = mm_;
 		pd = mm->GetInterface("playerdata", ALLARENAS);
 		net = mm->GetInterface("net", ALLARENAS);
-		log = mm->GetInterface("logman", ALLARENAS);
+		lm = mm->GetInterface("logman", ALLARENAS);
 		cfg = mm->GetInterface("config", ALLARENAS);
 		ml = mm->GetInterface("mainloop", ALLARENAS);
 		aman = mm->GetInterface("arenaman", ALLARENAS);
@@ -86,7 +86,7 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 
 		players = pd->players;
 
-		if (!net || !cfg || !log || !ml || !aman) return MM_FAIL;
+		if (!net || !cfg || !lm || !ml || !aman) return MM_FAIL;
 
 		arenas = aman->arenas;
 
@@ -121,7 +121,7 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
-		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(ml);
 		mm->ReleaseInterface(aman);
@@ -210,7 +210,7 @@ int CompressMap(int arena)
 	map = mmap(NULL, fsize, PROT_READ, MAP_SHARED, mapfd, 0);
 	if (map == (void*)-1)
 	{
-		log->Log(L_ERROR,"<mapnewsdl> mmap failed for map '%s'", fname);
+		lm->Log(L_ERROR,"<mapnewsdl> mmap failed for map '%s'", fname);
 		return MM_FAIL;
 	}
 #else
@@ -223,7 +223,7 @@ int CompressMap(int arena)
 			0);
 	if (hfile == INVALID_HANDLE_VALUE)
 	{
-		log->Log(L_ERROR,"<mapnewsdl> CreateFile failed for map '%s', error %d",
+		lm->Log(L_ERROR,"<mapnewsdl> CreateFile failed for map '%s', error %d",
 				fname, GetLastError());
 		return MM_FAIL;
 	}
@@ -231,7 +231,7 @@ int CompressMap(int arena)
 	if (!hmap)
 	{
 		fclose(hfile);
-		log->Log(L_ERROR,"<mapnewsdl> CreateFileMapping failed for map '%s', error %d",
+		lm->Log(L_ERROR,"<mapnewsdl> CreateFileMapping failed for map '%s', error %d",
 				fname, GetLastError());
 		return MM_FAIL;
 	}
@@ -240,7 +240,7 @@ int CompressMap(int arena)
 	{
 		CloseHandle(hmap);
 		fclose(hfile);
-		log->Log(L_ERROR,"<mapnewsdl> mmap failed for map '%s'", fname);
+		lm->Log(L_ERROR,"<mapnewsdl> mmap failed for map '%s'", fname);
 		return MM_FAIL;
 	}
 #endif
@@ -262,7 +262,7 @@ int CompressMap(int arena)
 	mapdldata[arena].cmpmap = realloc(cmap, csize);
 	if (mapdldata[arena].cmpmap == NULL)
 	{
-		log->Log(L_ERROR,"<mapnewsdl> realloc failed in CompressMap");
+		lm->Log(L_ERROR,"<mapnewsdl> realloc failed in CompressMap");
 		free(cmap);
 		return MM_FAIL;
 	}
@@ -287,15 +287,15 @@ void PMapRequest(int pid, byte *p, int q)
 	if (p[0] == C2S_MAPREQUEST)
 	{
 		if (ARENA_BAD(arena))
-			log->Log(L_MALICIOUS, "<mapnewsdl> [%s] Map request before entering arena",
+			lm->Log(L_MALICIOUS, "<mapnewsdl> [%s] Map request before entering arena",
 					players[pid].name);
 		else if (!mapdldata[arena].cmpmap)
-			log->Log(L_WARN, "<mapnewsdl> {%s} Map request, but compressed map doesn't exist", arenas[arena].name);
+			lm->Log(L_WARN, "<mapnewsdl> {%s} Map request, but compressed map doesn't exist", arenas[arena].name);
 		else
 		{
 			net->SendToOne(pid, mapdldata[arena].cmpmap,
 					mapdldata[arena].cmpmaplen, NET_RELIABLE | NET_PRESIZE);
-			log->Log(L_DRIVEL,"<mapnewsdl> {%s} [%s] Sending compressed map",
+			lm->Log(L_DRIVEL,"<mapnewsdl> {%s} [%s] Sending compressed map",
 					arenas[arena].name,
 					players[pid].name);
 		}
@@ -305,10 +305,10 @@ void PMapRequest(int pid, byte *p, int q)
 		if (cmpnews)
 		{
 			net->SendToOne(pid, cmpnews, cmpnewssize, NET_RELIABLE | NET_PRESIZE);
-			log->Log(L_DRIVEL,"<mapnewsdl> [%s] Sending news.txt", players[pid].name);
+			lm->Log(L_DRIVEL,"<mapnewsdl> [%s] Sending news.txt", players[pid].name);
 		}
 		else
-			log->Log(L_WARN, "<mapnewsdl> News request, but compressed news doesn't exist");
+			lm->Log(L_WARN, "<mapnewsdl> News request, but compressed news doesn't exist");
 	}
 }
 
@@ -324,7 +324,7 @@ int RefreshNewsTxt(void *dummy)
 	fd = open(cfg_newsfile, O_RDONLY);
     if (fd == -1)
     {
-        log->Log(L_WARN,"<mapnewsdl> News file '%s' not found in current directory", cfg_newsfile);
+        lm->Log(L_WARN,"<mapnewsdl> News file '%s' not found in current directory", cfg_newsfile);
 		return 1; /* let's get called again in case the file's been replaced */
     }
 
@@ -345,7 +345,7 @@ int RefreshNewsTxt(void *dummy)
 		news = mmap(NULL, fsize, PROT_READ, MAP_SHARED, fd, 0);
 		if (news == (void*)-1)
 		{
-			log->Log(L_ERROR,"<mapnewsdl> mmap failed in RefreshNewsTxt");
+			lm->Log(L_ERROR,"<mapnewsdl> mmap failed in RefreshNewsTxt");
 			close(fd);
 			return 1;
 		}
@@ -359,7 +359,7 @@ int RefreshNewsTxt(void *dummy)
 				0);
 		if (hfile == INVALID_HANDLE_VALUE)
 		{
-			log->Log(L_ERROR,"<mapnewsdl> CreateFile failed in RefreshNewsTxt, error %d",
+			lm->Log(L_ERROR,"<mapnewsdl> CreateFile failed in RefreshNewsTxt, error %d",
 					GetLastError());
 			return 1;
 		}
@@ -367,7 +367,7 @@ int RefreshNewsTxt(void *dummy)
 		if (!hnews)
 		{
 			CloseHandle(hfile);
-			log->Log(L_ERROR,"<mapnewsdl> CreateFileMapping failed in RefreshNewsTxt, error %d",
+			lm->Log(L_ERROR,"<mapnewsdl> CreateFileMapping failed in RefreshNewsTxt, error %d",
 					GetLastError());
 			return 1;
 		}
@@ -376,7 +376,7 @@ int RefreshNewsTxt(void *dummy)
 		{
 			CloseHandle(hnews);
 			CloseHandle(hfile);
-			log->Log(L_ERROR,"<mapnewsdl> mapviewoffile failed in RefreshNewsTxt, error %d", GetLastError());
+			lm->Log(L_ERROR,"<mapnewsdl> mapviewoffile failed in RefreshNewsTxt, error %d", GetLastError());
 			return 1;
 		}
 #endif
@@ -398,7 +398,7 @@ int RefreshNewsTxt(void *dummy)
 		cnews = realloc(cnews, csize+17);
 		if (!cnews)
 		{
-			log->Log(L_ERROR,"<mapnewsdl> realloc failed in RefreshNewsTxt");
+			lm->Log(L_ERROR,"<mapnewsdl> realloc failed in RefreshNewsTxt");
 			close(fd);
 			return 1;
 		}
@@ -414,7 +414,7 @@ int RefreshNewsTxt(void *dummy)
 
 		if (cmpnews) afree(cmpnews);
 		cmpnews = cnews;
-		log->Log(L_DRIVEL,"<mapnewsdl> News file '%s' reread", cfg_newsfile);
+		lm->Log(L_DRIVEL,"<mapnewsdl> News file '%s' reread", cfg_newsfile);
 	}
 	close(fd);
 	return 1;

@@ -65,7 +65,7 @@ local struct MapData mapdata[MAXARENA];
 local Imodman *mm;
 local Iconfig *cfg;
 local Iarenaman *aman;
-local Ilogman *log;
+local Ilogman *lm;
 
 
 /* this module's interface */
@@ -86,7 +86,7 @@ EXPORT int MM_mapdata(int action, Imodman *_mm, int arenas)
 		mm = _mm;
 		cfg = mm->GetInterface("config", ALLARENAS);
 		aman = mm->GetInterface("arenaman", ALLARENAS);
-		log = mm->GetInterface("logman", ALLARENAS);
+		lm = mm->GetInterface("logman", ALLARENAS);
 
 		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
@@ -100,7 +100,7 @@ EXPORT int MM_mapdata(int action, Imodman *_mm, int arenas)
 
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
-		mm->ReleaseInterface(log);
+		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);
 		return MM_OK;
@@ -202,14 +202,14 @@ void ArenaAction(int arena, int action)
 	{
 		char mapname[256];
 		if (GetMapFilename(arena, mapname, 256))
-			log->Log(L_ERROR, "<mapdata> {%s} Can't find map file for arena",
+			lm->Log(L_ERROR, "<mapdata> {%s} Can't find map file for arena",
 					aman->arenas[arena].name);
 		else
 		{
 			char *t;
 
 			if (read_lvl(mapname, mapdata + arena))
-				log->Log(L_ERROR, "<mapdata> {%s} Error parsing map file '%s'",
+				lm->Log(L_ERROR, "<mapdata> {%s} Error parsing map file '%s'",
 						aman->arenas[arena].name, mapname);
 			/* if extension == .lvl */
 			t = strrchr(mapname, '.');
