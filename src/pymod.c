@@ -913,14 +913,17 @@ local PyObject *mthd_reg_interface(PyObject *self, PyObject *args)
 	newint->head.magic = MODMAN_MAGIC;
 	newint->head.iid = astrdup(iid);
 	newint->head.name = "__unused__";
-	newint->head.priority = -1;
+	newint->head.reserved1 = 0;
 	newint->head.refcount = 0;
 	newint->py_int_magic = PY_INT_MAGIC;
 	newint->real_interface = realint;
 	newint->arena = arena;
 	newint->funcs = funcs;
 
+	/* this is the "real" one that other modules will make calls on */
 	mm->RegInterface(realint, arena);
+	/* this is the dummy one registered with an iid that's only known
+	 * internally to pymod. */
 	mm->RegInterface(newint, arena);
 
 	return PyCObject_FromVoidPtr(newint, destroy_interface);

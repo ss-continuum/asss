@@ -63,7 +63,7 @@ local void Authenticate(Player *p, struct LoginPacket *lp, int lplen,
 
 local Iauth myauth =
 {
-	INTERFACE_HEAD_INIT_PRI(I_AUTH, "auth-prefix", 10)
+	INTERFACE_HEAD_INIT(I_AUTH, "auth-prefix")
 	Authenticate
 };
 

@@ -79,7 +79,7 @@ local u32 contchecksum, codechecksum;
 
 local Iauth _iauth =
 {
-	INTERFACE_HEAD_INIT_PRI(I_AUTH, "auth-default", 1)
+	INTERFACE_HEAD_INIT(I_AUTH, "auth-default")
 	DefaultAuth
 };
 

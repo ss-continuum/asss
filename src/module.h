@@ -61,12 +61,7 @@ enum
 /** and all interface initializers must start with this or the next macro.
  * @param iid the interface id of this interface
  * @param name a unique name for the implementation of the interface */
-#define INTERFACE_HEAD_INIT(iid, name) { MODMAN_MAGIC, iid, name, -1, 0 },
-/** this is a fancier version of INTERFACE_HEAD_INIT that lets you set a
- ** priority for the implementation.
- * when multiple implementations are registered for one interface, the
- * one with the highest priority is returned. */
-#define INTERFACE_HEAD_INIT_PRI(iid, name, pri) { MODMAN_MAGIC, iid, name, pri, 0 },
+#define INTERFACE_HEAD_INIT(iid, name) { MODMAN_MAGIC, iid, name, 0, 0 },
 
 
 /** this struct appears at the head of each interface implementation declaration.
@@ -76,7 +71,7 @@ typedef struct InterfaceHead
 {
 	unsigned long magic;
 	const char *iid, *name;
-	int priority, refcount;
+	int reserved1, refcount;
 } InterfaceHead;
 
 /** a magic value to distinguish interface pointers */

@@ -378,47 +378,21 @@ int UnregInterface(void *iface, Arena *arena)
 }
 
 
-/* must call holding intmtx */
-local InterfaceHead *get_int(HashTable *hash, const char *id)
-{
-	InterfaceHead *head;
-	head = HashGetOne(hash, id);
-	if (head && head->priority != -1)
-	{
-		/* ok, we can't use the fast path. we have to try to find
-		 * the best one now. */
-		int bestpri = -1;
-		LinkedList lst = LL_INITIALIZER;
-		Link *l;
-
-		HashGetAppend(hash, id, &lst);
-		for (l = LLGetHead(&lst); l; l = l->next)
-			if (((InterfaceHead*)l->data)->priority > bestpri)
-			{
-				head = l->data;
-				bestpri = head->priority;
-			}
-		LLEmpty(&lst);
-	}
-	return head;
-}
-
-
 void * GetInterface(const char *id, Arena *arena)
 {
 	InterfaceHead *head;
 
 	pthread_mutex_lock(&intmtx);
 	if (arena == ALLARENAS)
-		head = get_int(globalints, id);
+		head = HashGetOne(globalints, id);
 	else
 	{
 		char key[64];
 		snprintf(key, 64, "%p-%s", (void*)arena, id);
-		head = get_int(arenaints, key);
+		head = HashGetOne(arenaints, key);
 		/* if the arena doesn't have it, fall back to a global one */
 		if (!head)
-			head = get_int(globalints, id);
+			head = HashGetOne(globalints, id);
 	}
 	pthread_mutex_unlock(&intmtx);
 	if (head)

@@ -209,7 +209,7 @@ local void Caddallowed(const char *params, Player *p, const Target *target)
 
 local Iauth myauth =
 {
-	INTERFACE_HEAD_INIT_PRI(I_AUTH, "auth-file", 5)
+	INTERFACE_HEAD_INIT(I_AUTH, "auth-file")
 	authenticate
 };
 

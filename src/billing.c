@@ -178,7 +178,7 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 
 local struct Iauth myauth =
 {
-	INTERFACE_HEAD_INIT_PRI(I_AUTH, "billing-auth", 8)
+	INTERFACE_HEAD_INIT(I_AUTH, "billing-auth")
 	authenticate
 };
 

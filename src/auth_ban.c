@@ -164,7 +164,7 @@ local void Cdelmidban(const char *params, Player *p, const Target *target)
 
 local Iauth myauth =
 {
-	INTERFACE_HEAD_INIT_PRI(I_AUTH, "auth-ban", 15)
+	INTERFACE_HEAD_INIT(I_AUTH, "auth-ban")
 	Authenticate
 };
 
