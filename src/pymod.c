@@ -1071,6 +1071,11 @@ local int get_player_data(Player *p, void *data, int len, void *v)
 		log_py_exception(L_ERROR, "error in persistent data getter");
 		return 0;
 	}
+	else if (val == Py_None)
+	{
+		Py_DECREF(val);
+		return 0;
+	}
 
 	pkl = PyObject_CallMethod(cPickle, "dumps", "(Oi)", val, 1);
 	Py_DECREF(val);
@@ -1227,6 +1232,11 @@ local int get_arena_data(Arena *a, void *data, int len, void *v)
 	if (!val)
 	{
 		log_py_exception(L_ERROR, "error in persistent data getter");
+		return 0;
+	}
+	else if (val == Py_None)
+	{
+		Py_DECREF(val);
 		return 0;
 	}
 
