@@ -64,11 +64,11 @@ local int cfg_bulletpix, cfg_wpnpix, cfg_wpnbufsize, cfg_pospix;
 
 
 
-int MM_game(int action, Imodman *mm2)
+int MM_game(int action, Imodman *mm_)
 {
 	if (action == MM_LOAD)
 	{
-		mm = mm2;
+		mm = mm_;
 		cfg = mm->GetInterface(I_CONFIG);
 		log = mm->GetInterface(I_LOGMAN);
 		net = mm->GetInterface(I_NET);

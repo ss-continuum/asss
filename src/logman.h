@@ -49,10 +49,11 @@ typedef void (*LogFunc)(int level, char *message);
 
 typedef struct Ilogman
 {
-	void (*AddLog)(LogFunc func);
-	void (*RemoveLog)(LogFunc func);
 	void (*Log)(int level, char *format, ...);
 } Ilogman;
+
+
+#define CALLBACK_LOGFUNC ("imalogger")
 
 
 #endif

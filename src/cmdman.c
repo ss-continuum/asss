@@ -78,24 +78,28 @@ void RemoveCommand(const char *cmd, CommandFunc f)
 	else
 	{
 		CommandData *data;
-		LinkedList *l;
-		l = HashGet(cmds, cmd);
-		while ( (data = LLNext(l)) )
+		LinkedList *lst;
+		lst = HashGet(cmds, cmd);
+		for (l = LLGetHead(lst); l; l = l->next)
 		{
+			data = (CommandData*) l->data;
 			if (data->func == f)
 			{
 				HashRemove(cmds, cmd, data);
+				LLFree(lst);
 				free(data);
 				return;
 			}
 		}
+		LLFree(lst);
 	}
 }
 
 
 void Command(const char *line, int pid, int target)
 {
-	LinkedList *l;
+	LinkedList *lst;
+	Link *l;
 	CommandData *data;
 	char *saveline = (char*)line, cmd[32], *t = cmd, found = 0;
 
@@ -108,14 +112,15 @@ void Command(const char *line, int pid, int target)
 	while (*line && (*line == ' ' || *line == '='))
 		line++;
 
-	l = HashGet(cmds, cmd);
-
-	while ( (data = LLNext(l)) )
+	lst = HashGet(cmds, cmd);
+	for (l = LLGetHead(lst); l; l = l->next)
 	{
+		data = (CommandData*) l->data;
 		if (pid < 0 || (pid < MAXPLAYERS && players[pid].oplevel >= data->oplevel))
 			data->func(cmd, pid, target);
 		found = 1;
 	}
+	LLFree(lst);
 
 	if (!found && defaultfunc)
 		defaultfunc(saveline, pid, target); /* give whole thing, not just params */

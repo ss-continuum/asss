@@ -8,6 +8,8 @@
 #include "asss.h"
 
 
+#define MAXNAME 32
+
 
 typedef void * ModuleHandle;
 
@@ -29,6 +31,11 @@ local void UnloadModule(char *);
 local void * GetInterface(int);
 local void RegisterInterface(int, void *);
 local void UnregisterInterface(void *);
+local void AddGenCallback(char *, void *);
+local void RemoveGenCallback(char *, void *);
+local LinkedList * LookupGenCallback(char *);
+local void FreeLookupResult(LinkedList *);
+
 
 local int FindPlayer(char *);
 
@@ -36,11 +43,14 @@ local int FindPlayer(char *);
 /* THIS IS THE GLOBAL PLAYER ARRAY!!! */
 local PlayerData players[MAXPLAYERS];
 
+local HashTable *callbacks;
+
 
 local Imodman mmint =
 {
 	LoadModule, UnloadModule, UnloadAllModules,
 	GetInterface, RegisterInterface, UnregisterInterface,
+	AddGenCallback, RemoveGenCallback, LookupGenCallback, FreeLookupResult,
 	FindPlayer, players, NULL
 };
 
@@ -55,6 +65,7 @@ Imodman * InitModuleManager()
 {
 	int i;
 	mods = LLAlloc();
+	callbacks = HashAlloc(233);
 	for (i = 0; i < MAXINTERFACE; i++)
 		ints[i] = NULL;
 	return &mmint;
@@ -151,32 +162,33 @@ local void UnloadModuleByPtr(ModuleData *mod)
 void UnloadModule(char *name)
 {
 	ModuleData *mod;
+	Link *l;
 
-	LLRewind(mods);
-	while ((mod = LLNext(mods)))
+	for (l = LLGetHead(mods); l; l = l->next)
+	{
+		mod = (ModuleData*) l->data;
 		if (!strcasecmp(mod->name,name))
 		{
 			UnloadModuleByPtr(mod);
 			LLRemove(mods, mod);
 			return;
 		}
+	}
 }
 
 
-local void RecursiveUnload()
+local void RecursiveUnload(Link *l)
 {
-	ModuleData *mod;
-
-	if ((mod = LLNext(mods)))
+	if (l)
 	{
-		RecursiveUnload();
-		UnloadModuleByPtr(mod);
+		RecursiveUnload(l->next);
+		UnloadModuleByPtr((ModuleData*) l->data);
 	}
 }
 
 void UnloadAllModules()
 {
-	RecursiveUnload();
+	RecursiveUnload(LLGetHead(mods));
 	LLFree(mods);
 }
 
@@ -206,6 +218,26 @@ void UnregisterInterface(void *face)
 	for (i = 0; i < MAXINTERFACE; i++)
 		if (ints[i] == face)
 			ints[i] = NULL;
+}
+
+void AddGenCallback(char *id, void *f)
+{
+	HashAdd(callbacks, id, f);
+}
+
+void RemoveGenCallback(char *id, void *f)
+{
+	HashRemove(callbacks, id, f);
+}
+
+LinkedList * LookupGenCallback(char *id)
+{
+	return HashGet(callbacks, id);
+}
+
+void FreeLookupResult(LinkedList *lst)
+{
+	LLFree(lst);
 }
 
 

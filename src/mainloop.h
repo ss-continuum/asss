@@ -32,12 +32,11 @@ typedef int (*TimerFunc)(void *param);
 
 typedef void (*MainLoopFunc)(void);
 
+#define CALLBACK_MAINLOOP ("mainloop")
+
 
 typedef struct Imainloop
 {
-	void (*AddMainLoop)(MainLoopFunc func);
-	void (*RemoveMainLoop)(MainLoopFunc func);
-
 	void (*SetTimer)(TimerFunc func, int initialdelay, int interval, void *param);
 	void (*ClearTimer)(TimerFunc func);
 

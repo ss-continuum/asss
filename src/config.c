@@ -160,6 +160,7 @@ char *GetStr(ConfigHandle ch, const char *sec, const char *key)
 {
 	char keystring[MAXNAMELEN+MAXKEYLEN+3];
 	LinkedList *res;
+	Link *l;
 	HashTable *thetable = (HashTable*)ch;
 
 	if (!thetable) thetable = (HashTable*)global;
@@ -168,7 +169,10 @@ char *GetStr(ConfigHandle ch, const char *sec, const char *key)
 
 	res = HashGet(thetable, keystring);
 
-	return (char*)LLNext(res);
+	if ((l = LLGetHead(res)))
+		return (char*) l->data;
+	else
+		return NULL;
 }
 
 

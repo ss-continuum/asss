@@ -32,7 +32,7 @@
  */
 
 
-#define MAXNAME 32
+#include "util.h"
 
 
 
@@ -45,6 +45,11 @@ typedef struct Imodman
 	void * (*GetInterface)(int id);
 	void (*RegisterInterface)(int id, void *iface);
 	void (*UnregisterInterface)(void *iface);
+
+	void (*AddGenCallback)(char *id, void *func);
+	void (*RemoveGenCallback)(char *id, void *func);
+	LinkedList * (*LookupGenCallback)(char *id);
+	void (*FreeLookupResult)(LinkedList *lst);
 
 	int (*FindPlayer)(char *name);
 

@@ -20,8 +20,9 @@
 
 typedef struct Ichat
 {
-	void (*SendMessage) (int pid, char *format, ...);
+	void (*SendMessageFunc)(int pid, char *format, ...);
 } Ichat;
+
 
 #endif
 

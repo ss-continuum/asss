@@ -31,8 +31,8 @@
 #define I_CMDMAN		5
 #define I_CHAT			6
 #define I_CORE			7
-#define I_AUTH			8
-#define I_ASSIGNFREQ	9
+#define I_ASSIGNFREQ	8
+#define I_AUTHENTICATE	9
 #define I_BILLCORE		10
 #define I_ENCRYPTBASE	90
 /*#define I_FLAG */

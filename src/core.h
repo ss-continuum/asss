@@ -48,8 +48,6 @@ typedef struct Icore
 } Icore;
 
 /*
- * Iassignfreq - freq assignment
- *
  * this is used by modules who want to replace the freq assignment
  * method. for example, if you want to run a clockwork chaos-type game
  * (each ship type on its own freq) or some strange star warzone
@@ -57,15 +55,15 @@ typedef struct Icore
  * don't really like it this way.
  *
  */
+
 typedef struct Iassignfreq
 {
 	int (*AssignFreq)(int pid, int requested, byte shiptype);
 } Iassignfreq;
 
 
+
 /*
- * Iauth - authentication
- *
  * the core module will call the authenticating module with the logon
  * packet that was sent. the authenticator can do whatever it wants with
  * it, but it should probably call core->SendLogonResponse to send a
@@ -75,7 +73,7 @@ typedef struct Iassignfreq
 
 typedef struct Iauth
 {
-	void (*Authenticate)(int pid, struct LogonPacket *lp);
+	int (*AuthFunc)(int pid, struct LogonPacket *lp);
 } Iauth;
 
 

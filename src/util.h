@@ -63,14 +63,19 @@ void Error(int errorcode, char *message, ...);
 
 /* list manipulation functions */
 
+typedef struct Link
+{
+	struct Link *next;
+	void *data;
+} Link;
+
 typedef struct LinkedList LinkedList;
 
 LinkedList * LLAlloc();
 void LLFree(LinkedList *);
 void LLAdd(LinkedList *, void *);
 int LLRemove(LinkedList *, void *);
-void LLRewind(LinkedList *);
-void * LLNext(LinkedList *);
+Link *LLGetHead(LinkedList *);
 
 
 /* hashing stuff */
@@ -82,7 +87,8 @@ void HashFree(HashTable *);
 void HashEnum(HashTable *, void (*)(void *));
 void HashAdd(HashTable *, const char *, void *);
 void HashRemove(HashTable *, const char *, void *);
-LinkedList * HashGet(HashTable *, const char *);
+LinkedList *HashGet(HashTable *, const char *);
+
 
 
 #endif

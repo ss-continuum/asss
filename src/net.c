@@ -386,10 +386,9 @@ void RecvPacket()
 		else if (recvbuf[0] < PKT_BILLBASE)
 		{
 			LinkedList *lst = handlers[recvbuf[0]];
-			PacketFunc f;
-			LLRewind(lst);
-			while ((f = LLNext(lst)))
-				f(i, recvbuf, l);
+			Link *lnk;
+			for (lnk = LLGetHead(lst); lnk; lnk = lnk->next)
+				((PacketFunc)lnk->data)(i, recvbuf, l);
 		}
 	}
 }
@@ -402,14 +401,13 @@ void ProcessPacket(int pid, byte *buf, int len)
 	else if (buf[0] < PKT_BILLBASE)
 	{
 		LinkedList *lst = handlers[buf[0]];
-		PacketFunc f;
+		Link *l;
 
 		if (pid == PID_BILLER)
 			lst = handlers[buf[0] + PKT_BILLBASE];
 
-		LLRewind(lst);
-		while ((f = LLNext(lst)))
-			f(pid, buf, len);
+		for (l = LLGetHead(lst); l; l = l->next)
+			((PacketFunc)l->data)(pid, buf, len);
 	}
 }
 
@@ -468,15 +466,14 @@ void ProcessKeyResponse(int pid, byte *buf, int len)
 		log->Log(LOG_BADDATA, "Key response from non-billing server!");
 	else
 	{
-		PacketFunc f;
-		LinkedList *l = handlers[PKT_BILLBASE + 0x00];
+		Link *l;
 
 		clients[pid].status = BNET_CONNECTED;
 		clients[pid].lastpkt = GTC();
 
-		LLRewind(l);
-		while ((f = LLNext(l)))
-			f(pid, buf, len);
+		for (l = LLGetHead(handlers[PKT_BILLBASE + 0]);
+				l; l = l->next)
+			((PacketFunc)l->data)(pid, buf, len);
 	}
 }
 

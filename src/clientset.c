@@ -31,13 +31,13 @@ local Ixxx _int =
 
 
 
-int MM_clientset(int action, Imodman *mm2)
+int MM_clientset(int action, Imodman *mm_)
 {
 	if (action == MM_LOAD)
 	{
 		Icore *core;
 
-		mm = mm2;
+		mm = mm_;
 		net = mm->GetInterface(I_NET);
 		cfg = mm->GetInterface(I_CONFIG);
 		log = mm->GetInterface(I_LOGMAN);

@@ -24,23 +24,19 @@ local Imodman *mm;
 local PlayerData *players;
 local ArenaData **arenas;
 
-local Ichat _int =
-{
-	SendMessage
-};
-
 local int cfg_msgrel;
 
 
+local Ichat _int = { SendMessage };
 
 
-int MM_chat(int action, Imodman *mm2)
+int MM_chat(int action, Imodman *mm_)
 {
 	if (action == MM_LOAD)
 	{
 		Icore *core;
 
-		mm = mm2;
+		mm = mm_;
 		net = mm->GetInterface(I_NET);
 		cfg = mm->GetInterface(I_CONFIG);
 		log = mm->GetInterface(I_LOGMAN);

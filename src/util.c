@@ -8,22 +8,20 @@
 #include <ctype.h>
 
 
-#include "asss.h"
+#include "util.h"
+
+#include "defs.h"
 
 
 #define DEFTABLESIZE 229
 #define MAXHASHLEN 63
 
 
-typedef struct Link
-{
-	struct Link *next;
-	void *p;
-} Link;
+
 
 struct LinkedList
 {
-	Link *start, *end, *current;
+	Link *start, *end;
 };
 
 typedef struct HashEntry
@@ -35,11 +33,15 @@ typedef struct HashEntry
 
 struct HashTable
 {
-	LinkedList *result;
 	int size;
 	HashEntry *lists[0];
 };
 
+
+
+
+static Link *freelinks = NULL;
+static HashEntry *freehashentries = NULL;
 
 
 
@@ -102,32 +104,61 @@ char *astrncpy(char *dest, const char *source, size_t n)
 
 LinkedList * LLAlloc()
 {
-	return amalloc(sizeof(LinkedList));
+	/* HUGE HACK!!!
+	 * depends on LinkedList and Link being the same size!
+	 */
+	if (freelinks)
+	{
+		LinkedList *ret = (LinkedList*) freelinks;
+		freelinks = freelinks->next;
+		ret->start = ret->end = NULL;
+		return ret;
+	}
+	else
+		return amalloc(sizeof(LinkedList));
 }
 
 local void LLEmpty(LinkedList *l)
 {
 	Link *n = l->start, *t;
-	while (n)
+
+	if (n)
 	{
-		t = n;
-		n = n->next;
-		free(t);
+		t = freelinks;
+		freelinks = n;
+		while (n->next)
+			n = n->next;
+		n->next = t;
 	}
-	l->start = l->current = l->end = NULL;
+	l->start = l->end = NULL;
 }
 
-void LLFree(LinkedList *l)
+void LLFree(LinkedList *lst)
 {
-	LLEmpty(l);
-	free(l);
+	/* HUGE HACK!!!
+	 * see above
+	 */
+	Link *l;
+	LLEmpty(lst);
+	l = (Link*) lst;
+	l->next = freelinks;
+	freelinks = l;
 }
 
 void LLAdd(LinkedList *l, void *p)
 {
-	Link *n = amalloc(sizeof(Link));
+	Link *n;
+
+	if (freelinks)
+	{
+		n = freelinks;
+		freelinks = freelinks->next;
+	}
+	else
+		n = amalloc(sizeof(Link));
+
 	n->next = NULL;
-	n->p = p;
+	n->data = p;
 
 	if (l->end)
 	{
@@ -136,7 +167,7 @@ void LLAdd(LinkedList *l, void *p)
 	}
 	else
 	{
-		l->start = l->end = l->current = n;
+		l->start = l->end = n;
 	}
 }
 
@@ -145,10 +176,8 @@ int LLRemove(LinkedList *l, void *p)
 	Link *n = l->start, *prev = NULL;
 	while (n)
 	{
-		if (n->p == p)
+		if (n->data == p)
 		{
-			if (l->current == n)
-				l->current = n->next;
 			if (l->start == n)
 			{
 				l->start = n->next;
@@ -159,7 +188,8 @@ int LLRemove(LinkedList *l, void *p)
 				prev->next = n->next;
 				if (n == l->end) l->end = prev;
 			}
-			free(n);
+			n->next = freelinks;
+			freelinks = n;
 			return 1;
 		}
 		prev = n;
@@ -168,18 +198,9 @@ int LLRemove(LinkedList *l, void *p)
 	return 0;
 }
 
-void LLRewind(LinkedList *l)
+Link * LLGetHead(LinkedList *l)
 {
-	l->current = l->start;
-}
-
-void * LLNext(LinkedList *l)
-{
-	void *t;
-	if (!l->current) return NULL;
-	t = l->current->p;
-	l->current = l->current->next;
-	return t;
+	return l->start;
 }
 
 
@@ -197,7 +218,6 @@ HashTable * HashAlloc(int req)
 {
 	int size = req ? req : DEFTABLESIZE;
 	HashTable *h = amalloc(sizeof(HashTable) + size * sizeof(HashEntry));
-	h->result = LLAlloc();
 	h->size = size;
 	return h;
 }
@@ -209,14 +229,15 @@ void HashFree(HashTable *h)
 	for (i = 0; i < h->size; i++)
 	{
 		e = h->lists[i];
-		while (e)
+		if (e)
 		{
-			old = e;
-			e = e->next;
-			free(old);
+			old = freehashentries;
+			freehashentries = e;
+			while (e->next)
+				e = e->next;
+			e->next = old;
 		}
 	}
-	LLFree(h->result);
 	free(h);
 }
 
@@ -238,7 +259,15 @@ void HashEnum(HashTable *h, void (*func)(void *))
 void HashAdd(HashTable *h, const char *s, void *p)
 {
 	int slot;
-	HashEntry *e = amalloc(sizeof(HashEntry)), *l;
+	HashEntry *e, *l;
+
+	if (freehashentries)
+	{
+		e = freehashentries;
+		freehashentries = e->next;
+	}
+	else
+		e = amalloc(sizeof(HashEntry));
 
 	slot = Hash(s, MAXHASHLEN, h->size);
 	l = h->lists[slot];
@@ -274,7 +303,8 @@ void HashRemove(HashTable *h, const char *s, void *p)
 				prev->next = l->next;
 			else /* removing first item */
 				h->lists[slot] = l->next;
-			free(l);
+			l->next = freehashentries;
+			freehashentries = l;
 		}
 		prev = l;
 		l = l->next;
@@ -285,12 +315,13 @@ LinkedList * HashGet(HashTable *h, const char *s)
 {
 	int slot;
 	HashEntry *l;
-	LinkedList *res = h->result;
+	LinkedList *res;
+
+	res = LLAlloc();
 
 	slot = Hash(s, MAXHASHLEN, h->size);
 	l = h->lists[slot];
 
-	LLEmpty(res);
 	while (l)
 	{
 		if (!strcasecmp(s, l->key))

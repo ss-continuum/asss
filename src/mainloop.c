@@ -16,8 +16,6 @@ typedef struct TimerData
 local void SetTimer(TimerFunc, int, int, void *);
 local void ClearTimer(TimerFunc);
 
-local void AddMainLoop(MainLoopFunc);
-local void RemoveMainLoop(MainLoopFunc);
 local void RunLoop();
 local void KillML();
 
@@ -25,25 +23,25 @@ local void KillML();
 
 local Imainloop _int =
 {
-	AddMainLoop, RemoveMainLoop, SetTimer, ClearTimer, RunLoop, KillML
+	SetTimer, ClearTimer, RunLoop, KillML
 };
 
 local int privatequit;
-local LinkedList *funcs, *timers;
+local LinkedList *timers;
+local Imodman *mm;
 
 
-int MM_mainloop(int action, Imodman *mm)
+int MM_mainloop(int action, Imodman *mm_)
 {
 	if (action == MM_LOAD)
 	{
+		mm = mm_;
 		privatequit = 0;
-		funcs = LLAlloc();
 		timers = LLAlloc();
 		mm->RegisterInterface(I_MAINLOOP, &_int);
 	}
 	else if (action == MM_UNLOAD)
 	{
-		LLFree(funcs);
 		LLFree(timers);
 		mm->UnregisterInterface(&_int);
 	}
@@ -56,34 +54,27 @@ int MM_mainloop(int action, Imodman *mm)
 }
 
 
-void AddMainLoop(MainLoopFunc f)
-{
-	LLAdd(funcs, f);
-}
-
-void RemoveMainLoop(MainLoopFunc f)
-{
-	LLRemove(funcs, f);
-}
-
 void RunLoop()
 {
-	MainLoopFunc f;
 	TimerData *td;
+	LinkedList *lst;
+	Link *l;
 	unsigned int gtc;
 
 	while (!privatequit)
 	{
 		/* call all funcs */
-		LLRewind(funcs);
-		while ((f = LLNext(funcs)))
-			f();
+		lst = mm->LookupGenCallback(CALLBACK_MAINLOOP);
+		for (l = LLGetHead(lst); l; l = l->next)
+			((MainLoopFunc)l->data)();
+		mm->FreeLookupResult(lst);
 
 		gtc = GTC();
 
 		/* do timers */
-		LLRewind(timers);
-		while ((td = LLNext(timers)))
+		for (l = LLGetHead(timers); l; l = l->next)
+		{
+			td = (TimerData*) l->data;
 			if (td->func && td->when <= gtc)
 			{
 				if ( td->func(td->param) )
@@ -91,6 +82,7 @@ void RunLoop()
 				else
 					LLRemove(timers, td);
 			}
+		}
 	}
 }
 
@@ -114,12 +106,11 @@ void SetTimer(TimerFunc f, int startint, int interval, void *param)
 
 void ClearTimer(TimerFunc f)
 {
-	TimerData *td;
-	
-	LLRewind(timers);
-	while ((td = LLNext(timers)))
-		if (td->func == f)
-			LLRemove(timers, td);
+	Link *l;
+
+	for (l = LLGetHead(timers); l; l = l->next)
+		if (((TimerData*)l->data)->func == f)
+			LLRemove(timers, l->data);
 }
 
 

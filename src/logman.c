@@ -6,52 +6,38 @@
 
 
 
-local void AddLog(LogFunc);
-local void RemoveLog(LogFunc);
 local void Log(int, char *, ...);
 
 
 
-
-local Ilogman _int = { AddLog, RemoveLog, Log };
-
-local LinkedList *funcs;
+local Imodman *mm;
+local Ilogman _int = { Log };
 
 
-int MM_logman(int action, Imodman *mm)
+int MM_logman(int action, Imodman *mm_)
 {
 	if (action == MM_LOAD)
 	{
-		funcs = LLAlloc();
+		mm = mm_;
 		mm->RegisterInterface(I_LOGMAN, &_int);
 	}
 	else if (action == MM_UNLOAD)
 	{
 		mm->UnregisterInterface(&_int);
-		LLFree(funcs);
 	}
 	else if (action == MM_DESCRIBE)
 	{
-		mm->desc = "log_logman - formats log entries and passes them to a managed "
+		mm->desc = "logman - formats log entries and passes them to a managed "
 					"set of logging modules";
 	}
 	return MM_OK;
 }
 
 
-void AddLog(LogFunc f)
-{
-	LLAdd(funcs, f);
-}
-
-void RemoveLog(LogFunc f)
-{
-	LLRemove(funcs, f);
-}
-
 void Log(int level, char *format, ...)
 {
-	LogFunc f;
+	LinkedList *lst;
+	Link *l;
 	va_list argptr;
 	static char buf[1024];
 	
@@ -59,9 +45,10 @@ void Log(int level, char *format, ...)
 	vsprintf(buf, format, argptr);
 	va_end(argptr);
 
-	LLRewind(funcs);
-	while ((f = LLNext(funcs)))
-		f(level, buf);
+	lst = mm->LookupGenCallback(CALLBACK_LOGFUNC);
+	for (l = LLGetHead(lst); l; l = l->next)
+		((LogFunc)(l->data))(level, buf);
+	mm->FreeLookupResult(lst);
 }
 
 

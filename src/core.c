@@ -80,12 +80,12 @@ local Iauth _iauth = { DefaultAuth };
 
 /* FUNCTIONS */
 
-int MM_core(int action, Imodman *mm2)
+int MM_core(int action, Imodman *mm_)
 {
 	if (action == MM_LOAD)
 	{
 		/* get interface pointers */
-		mm = mm2;
+		mm = mm_;
 		net = mm->GetInterface(I_NET);
 		log = mm->GetInterface(I_LOGMAN);
 		cfg = mm->GetInterface(I_CONFIG);
@@ -381,64 +381,6 @@ int CreateArena(char *name)
 	}
 	me->config = config;
 
-	/* read in settings packet */
-	sprintf(fname,"set/%s",cfg->GetStr(config, "General", "Settings"));
-	f = fopen(fname,"r");
-	if (!f)
-	{
-		log->Log(LOG_ERROR,"Settings file '%s' not found in current directory", fname);
-		free(me); return -1;
-    }
-	fread(me->settings, 1, SETTINGSIZE, f);
-	fclose(f);
-
-	/* get map filename and open it */
-	me->map.type = S2C_MAPFILENAME;
-	sprintf(fname,"map/%s",cfg->GetStr(config, "General", "Map"));
-	astrncpy(me->map.filename, cfg->GetStr(config, "General", "Map"), 16);
-    mapfd = open(fname,O_RDONLY);
-    if (mapfd == -1)
-    {
-        log->Log(LOG_ERROR,"Map file '%s' not found in current directory", fname);
-		free(me); return -1;
-    }
-
-	/* find it's size */
-    fstat(mapfd, &st);
-    fsize = st.st_size;
-	csize = 1.0011 * fsize + 35;
-
-	/* mmap it */
-	map = mmap(NULL, fsize, PROT_READ, MAP_SHARED, mapfd, 0);
-	if (map == (void*)-1)
-	{
-		log->Log(LOG_ERROR,"mmap failed in CreateArena");
-		free(me); return -1;
-	}
-
-	/* calculate crc on mmap'd map */
-	me->map.checksum = crc32(crc32(0, Z_NULL, 0), map, fsize);
-
-	/* allocate space for compressed version */
-	cmap = amalloc(csize);
-
-	/* set up packet header */
-	cmap[0] = S2C_MAPDATA;
-	strncpy(cmap+1, cfg->GetStr(config, "General", "Map"), 16);
-	/* compress the stuff! */
-	compress(cmap+17, &csize, map, fsize);
-
-	/* shrink the allocated memory */
-	me->mapdata = realloc(cmap, csize+17);
-	if (!me->mapdata)
-	{
-		log->Log(LOG_ERROR,"realloc failed in CreateArena");
-		return -1;
-	}
-	me->mapdatalen = csize+17;
-
-	munmap(map, fsize);
-	close(mapfd);
 	arenas[i] = me;
 	log->Log(LOG_USELESSINFO,"Arena %s (%i) created sucessfully", name, i);
 	return i;
