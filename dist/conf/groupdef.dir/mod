@@ -5,11 +5,12 @@ sendmodchat
 sendsoundmessages
 seeprivfreq
 seeprivarena
+seeallstaff
 seeepd
 findinprivs
 bypasslock
 
-; mod and anything higher shows up in ?listmod
+; mod and anything higher shows up in ?listmod for regular players
 isstaff
 
 ; what groups can this group control
@@ -30,6 +31,8 @@ cmd_timereset
 cmd_pausetimer
 cmd_recyclearena
 cmd_kick
+cmd_listmidbans
+cmd_delmidban
 cmd_setjackpot
 
 privcmd_scorereset
