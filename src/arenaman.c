@@ -165,7 +165,7 @@ void ProcessArenaQueue()
 
 		UNLOCK_STATUS();
 
-		log->Log(LOG_DEBUG,"Processing stage %i for arena %i", nextstatus, i);
+		/*log->Log(LOG_DEBUG,"Processing stage %i for arena %i", nextstatus, i);*/
 
 		switch (nextstatus)
 		{
@@ -416,7 +416,6 @@ void PArena(int pid, byte *p, int l)
 		return;
 	}
 
-	log->Log(LOG_DEBUG, "locking arena st and finding arena");
 	LOCK_STATUS();
 
 	/* try to locate an existing arena */

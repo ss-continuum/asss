@@ -174,7 +174,7 @@ void ProcessLoginQueue()
 		pd->UnlockStatus();
 		pd->LockPlayer(pid);
 
-		log->Log(LOG_DEBUG,"Processing status %i for pid %i",oldstatus,pid);
+		/*log->Log(LOG_DEBUG,"Processing status %i for pid %i",oldstatus,pid);*/
 
 		switch (oldstatus)
 		{

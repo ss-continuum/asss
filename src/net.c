@@ -398,8 +398,7 @@ void * RecvThread(void *dummy)
 				goto donehere;
 			}
 
-			log->Log(LOG_DEBUG,"Got %i bytes from %s:%i", len, inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
-			/*
+			/*log->Log(LOG_DEBUG,"Got %i bytes from %s:%i", len, inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
 			log->Log(LOG_DEBUG,"recv: %2x %2x -- -- -- -- %2x",
 					buf->d.raw[0],
 					buf->d.raw[1],
