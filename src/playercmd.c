@@ -824,7 +824,7 @@ local void Csetcm(const char *tc, const char *params, Player *p, const Target *t
 			newmask |= (1 << MSG_PRIV) | (1 << MSG_REMOTEPRIV);
 		if (all || !strncasecmp(c, "chat", 4))
 			newmask |= 1 << MSG_CHAT;
-		if (all || !strncasecmp(c, "mod", 7))
+		if (all || !strncasecmp(c, "modchat", 7))
 			newmask |= 1 << MSG_MODCHAT;
 
 		if (!strncasecmp(c, "time", 4))
