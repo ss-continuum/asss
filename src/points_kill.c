@@ -96,7 +96,7 @@ void MyKillFunc(Arena *arena, Player *killer, Player *killed,
 	/* cfghelp: Misc:TeamKillPoints, arena, bool, def: 0
 	 * Whether points are awarded for a team-kill. */
 	if (tk &&
-	    cfg->GetInt(arena->cfg, "Misc", "TeamKillPoints", 0))
+	    !cfg->GetInt(arena->cfg, "Misc", "TeamKillPoints", 0))
 		pts = 0;
 
 	*totalpts += pts;
