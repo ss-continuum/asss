@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "asss.h"
 
@@ -58,6 +59,7 @@ local void Authenticate(Player *p, struct LoginPacket *lp, int lplen,
 
 
 local helptext_t kick_help =
+"Module: auth_ban\n"
 "Targets: player\n"
 "Args: [<timeout>]\n"
 "Kicks the player off of the server, with an optional timeout (in minutes).\n";
@@ -102,6 +104,64 @@ local void Ckick(const char *params, Player *p, const Target *target)
 }
 
 
+#define MAXDATA 4090
+
+local void add_mid_ban(TreapHead *node, void *clos)
+{
+	ban_node_t *ban = (ban_node_t*)node;
+	char *start = clos, *p;
+	int l = strlen(start);
+	p = start + l;
+	if (ban->expire)
+		snprintf(p, MAXDATA - l, ", %u (%ld min. left)",
+				(unsigned)ban->head.key, (ban->expire - time(NULL) + 30) / 60);
+	else
+		snprintf(p, MAXDATA - l, ", %u",
+				(unsigned)ban->head.key);
+}
+
+local void send_msg_cb(const char *line, void *clos)
+{
+	chat->SendMessage((Player*)clos, "  %s", line);
+}
+
+local helptext_t listmidbans_help =
+"Module: auth_ban\n"
+"Targets: none\n"
+"Args: none\n"
+"Lists the current machine id bans in effect.\n";
+
+local void Clistmidbans(const char *params, Player *p, const Target *target)
+{
+	char data[MAXDATA+6];
+	pthread_mutex_lock(&banmtx);
+	TrEnum(banroot, add_mid_ban, data);
+	pthread_mutex_unlock(&banmtx);
+	chat->SendMessage(p, "Active machine id bans:");
+	wrap_text(data+2, 80, ' ', send_msg_cb, p);
+}
+
+
+local helptext_t delmidban_help =
+"Module: auth_ban\n"
+"Targets: none\n"
+"Args: <machine id>\n"
+"Removes a machine id ban.\n";
+
+local void Cdelmidban(const char *params, Player *p, const Target *target)
+{
+	int mid = (int)strtoul(params, NULL, 0);
+	if (mid == 0)
+		chat->SendMessage(p, "Invalid machine id.");
+	else
+	{
+		pthread_mutex_lock(&banmtx);
+		TrRemove(&banroot, mid);
+		pthread_mutex_unlock(&banmtx);
+	}
+}
+
+
 local Iauth myauth =
 {
 	INTERFACE_HEAD_INIT_PRI(I_AUTH, "auth-ban", 15)
@@ -125,6 +185,8 @@ EXPORT int MM_auth_ban(int action, Imodman *mm_, Arena *arena)
 			return MM_FAIL;
 
 		cmd->AddCommand("kick", Ckick, kick_help);
+		cmd->AddCommand("listmidbans", Clistmidbans, listmidbans_help);
+		cmd->AddCommand("delmidban", Cdelmidban, delmidban_help);
 
 		mm->RegInterface(&myauth, ALLARENAS);
 		return MM_OK;
@@ -134,6 +196,8 @@ EXPORT int MM_auth_ban(int action, Imodman *mm_, Arena *arena)
 		if (mm->UnregInterface(&myauth, ALLARENAS))
 			return MM_FAIL;
 		cmd->RemoveCommand("kick", Ckick);
+		cmd->RemoveCommand("listmidbans", Clistmidbans);
+		cmd->RemoveCommand("delmidban", Cdelmidban);
 		TrEnum(banroot, tr_enum_afree, NULL);
 		mm->ReleaseInterface(oldauth);
 		mm->ReleaseInterface(capman);
