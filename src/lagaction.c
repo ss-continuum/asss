@@ -263,7 +263,7 @@ local void arenaaction(Arena *arena, int action)
 		DOINT(spiketospec, "SpikeToSpec", 3000);
 
 		/* cache this for later */
-		ll->specfreq = cfg->GetInt(ch, "Team", "SpectatorFrequency", 8025);
+		ll->specfreq = arena->specfreq;
 	}
 }
 

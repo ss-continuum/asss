@@ -3,11 +3,9 @@
 
 #include "asss.h"
 
-#define FREQ 8025
-
 local void fm(Player *p, int *ship, int *freq)
 {
-	*ship = SPEC; *freq = FREQ;
+	*ship = SPEC; *freq = CFG_DEF_SPEC_FREQ;
 }
 
 local Ifreqman fm_int =

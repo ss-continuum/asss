@@ -4,6 +4,8 @@
 #include "asss.h"
 #include "fake.h"
 
+#define MAXTURRETS 15
+
 
 struct TurretData
 {
@@ -72,26 +74,48 @@ local helptext_t dropturret_help =
 local void Cdropturret(const char *params, Player *p, const Target *target)
 {
 	Player *turret;
+	int count;
 
-	turret = fake->CreateFakePlayer(
-			"<autoturret>",
-			p->arena,
-			WARBIRD,
-			p->p_freq);
-	new_turret(turret, 1500, 150, p);
+	pthread_mutex_lock(&turret_mtx);
+	count = LLCount(&turrets);
+	pthread_mutex_unlock(&turret_mtx);
+
+	if (count < MAXTURRETS)
+	{
+		turret = fake->CreateFakePlayer(
+				"<autoturret>",
+				p->arena,
+				WARBIRD,
+				p->p_freq);
+		new_turret(turret, 1500, 150, p);
+	}
+}
+
+
+local void Cresetturrets(const char *params, Player *p, const Target *target)
+{
+	ticks_t now = current_ticks();
+	Link *l;
+
+	pthread_mutex_lock(&turret_mtx);
+	for (l = LLGetHead(&turrets); l; l = l->next)
+	{
+		struct TurretData *td = l->data;
+		td->endtime = now - 10;
+	}
+	pthread_mutex_unlock(&turret_mtx);
 }
 
 
 local void mlfunc()
 {
 	ticks_t now;
-	struct TurretData *td;
 	Link *l, *next;
 
 	pthread_mutex_lock(&turret_mtx);
 	for (l = LLGetHead(&turrets); l; l = next)
 	{
-		td = l->data;
+		struct TurretData *td = l->data;
 		next = l->next; /* so we can remove during the loop */
 		now = current_ticks();
 		if (TICK_GT(now, td->endtime))
@@ -139,11 +163,13 @@ EXPORT int MM_autoturret(int action, Imodman *mm_, Arena *arena)
 		LLInit(&turrets);
 		mm->RegCallback(CB_MAINLOOP, mlfunc, ALLARENAS);
 		cmd->AddCommand("dropturret", Cdropturret, dropturret_help);
+		cmd->AddCommand("resetturrets", Cresetturrets, NULL);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		cmd->RemoveCommand("dropturret", Cdropturret);
+		cmd->RemoveCommand("resetturrets", Cresetturrets);
 		mm->UnregCallback(CB_MAINLOOP, mlfunc, ALLARENAS);
 		LLEmpty(&turrets);
 		mm->ReleaseInterface(pd);

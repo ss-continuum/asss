@@ -6,8 +6,12 @@ bypasssecurity
 
 privcmd_info
 
+cmd_aa
+cmd_za
+
+cmd_attmod
+
 ; not implemented
-cmd_zone
 cmd_recycle
 cmd_restart
 

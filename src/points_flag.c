@@ -69,8 +69,10 @@ void MyFlagWin(Arena *arena, int freq)
 			players++;
 			if (i->p_freq == freq)
 			{
-				LLAdd(&set, i);
 				stats->IncrementStat(i, STAT_FLAG_GAMES_WON, 1);
+				/* only do flag reward points if not in safe zone */
+				if (!(i->position.status & STATUS_SAFEZONE))
+					LLAdd(&set, i);
 			}
 			else
 				stats->IncrementStat(i, STAT_FLAG_GAMES_LOST, 1);

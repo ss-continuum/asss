@@ -7,14 +7,21 @@ seeprivfreq
 seeprivarena
 seeepd
 findinprivs
+bypasslock
 
 cmd_ballcount
 cmd_flagreset
 cmd_listmods
 cmd_a
+privcmd_a
+cmd_z
+privcmd_warn
 cmd_timer
 cmd_timereset
 cmd_pausetimer
+
+privcmd_scorereset
+cmd_endinterval
 
 cmd_flaginfo
 cmd_neutflag
@@ -34,6 +41,14 @@ privcmd_laginfo
 privcmd_usage
 privcmd_billingid
 
+; locking cmds
+cmd_lock
+privcmd_lock
+cmd_unlock
+privcmd_unlock
+cmd_lockarena
+cmd_unlockarena
+
 ; turf commands
 cmd_turfresetflags
 cmd_turfresettimer
@@ -46,6 +61,11 @@ cmd_resetkoth
 ; fun stuff
 cmd_brickwrite
 privcmd_warpto
+
+cmd_resetturrets
+
+cmd_gamerecord
+cmd_rec
 
 ; shutup, etc.
 cmd_getcm

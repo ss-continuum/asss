@@ -314,6 +314,7 @@ int process_player_states(void *v)
 
 			case S_DO_FREQ_AND_ARENA_SYNC:
 				/* the arena will be fully loaded here */
+				player->p_ship = player->p_freq = -1;
 				/* first, do pre-callbacks */
 				DO_CBS(CB_PLAYERACTION,
 				       player->arena,
@@ -321,6 +322,7 @@ int process_player_states(void *v)
 				       (player, PA_PREENTERARENA, player->arena));
 				/* then, get a freq (player->shiptype will be set here
 				 * because it's done in PArena) */
+				if (player->p_ship == -1 || player->p_freq == -1)
 				{
 					Ifreqman *fm = mm->GetInterface(I_FREQMAN, player->arena);
 					int freq = 0, ship = player->p_ship;
@@ -371,6 +373,8 @@ int process_player_states(void *v)
 				       (player, PA_LEAVEARENA, player->oldarena));
 				if (persist && d->hasdoneasync)
 					persist->PutPlayer(player, player->oldarena, player_sync_done);
+				else
+					player_sync_done(player);
 				d->hasdoneasync = FALSE;
 				break;
 
@@ -381,6 +385,8 @@ int process_player_states(void *v)
 					   (player, PA_DISCONNECT, NULL));
 				if (persist && d->hasdonegsync)
 					persist->PutPlayer(player, NULL, player_sync_done);
+				else
+					player_sync_done(player);
 				d->hasdonegsync = FALSE;
 				break;
 		}

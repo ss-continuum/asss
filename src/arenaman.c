@@ -123,6 +123,9 @@ local int ProcessArenaStates(void *dummy)
 			case ARENA_DO_INIT:
 				/* config file */
 				a->cfg = cfg->OpenConfigFile(a->name, NULL, arena_conf_changed, a);
+				/* cfghelp: Team:SpectatorFrequency, arena, int, range: 0-9999, def: 8025
+				 * The frequency that spectators are assigned to, by default. */
+				a->specfreq = cfg->GetInt(a->cfg, "Team", "SpectatorFrequency", CFG_DEF_SPEC_FREQ);
 				/* attach modules */
 				do_attach(a, MM_ATTACH);
 				/* now callbacks */
@@ -446,9 +449,8 @@ local void PArena(Player *p, byte *pkt, int l)
 #ifdef CFG_RELAX_LENGTH_CHECKS
 	if (l != LEN_GOARENAPACKET_VIE && l != LEN_GOARENAPACKET_CONT)
 #else
-	int type = p->type;
-	if ( (type == T_VIE && l != LEN_GOARENAPACKET_VIE) ||
-	          (type == T_CONT && l != LEN_GOARENAPACKET_CONT) )
+	if ( (p->type == T_VIE && l != LEN_GOARENAPACKET_VIE) ||
+	     (p->type == T_CONT && l != LEN_GOARENAPACKET_CONT) )
 #endif
 	{
 		lm->Log(L_MALICIOUS,"<arenaman> [%s] bad arena packet length (%d)",

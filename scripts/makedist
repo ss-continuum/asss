@@ -27,9 +27,11 @@ make -C ~/src/extra-asss/contenc "ASSSDIR=$ASSSDIR" clean
 cp bin/security.so $d/bin
 ln -s '../scripts/bproxy/bproxy' $d/bin/bproxy
 
-make -C doc/userguide "ASSSDIR=$ASSSDIR" all
-cp doc/userguide/userguide.{pdf,html,txt} $d/doc
-make -C doc/userguide "ASSSDIR=$ASSSDIR" clean
+for subject in user dev; do
+	make -C doc/${subject}guide "ASSSDIR=$ASSSDIR" all
+	cp doc/${subject}guide/${subject}guide.{pdf,html,txt} $d/doc
+	make -C doc/${subject}guide "ASSSDIR=$ASSSDIR" clean
+done
 
 test -d freebsd && cp -a freebsd $d
 test -d freebsd || rm -f $d/*freebsd*

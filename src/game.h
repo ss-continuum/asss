@@ -37,7 +37,7 @@ typedef void (*SafeZoneFunc)(Player *p, int x, int y, int entering);
 
 /* these should be mostly self-explanatory. */
 
-#define I_GAME "game-4"
+#define I_GAME "game-5"
 
 typedef struct Igame
 {
@@ -56,6 +56,16 @@ typedef struct Igame
 	/* pyint: target, int, int -> void */
 	void (*GivePrize)(const Target *target, int type, int count);
 	/* pyint: target, int, int -> void */
+
+	void (*Lock)(const Target *t, int notify, int spec);
+	/* pyint: target, int, int -> void */
+	void (*Unlock)(const Target *t, int notify);
+	/* pyint: target, int -> void */
+	void (*LockArena)(Arena *a, int notify, int onlyarenastate, int initial, int spec);
+	/* pyint: arena, int, int, int, int -> void */
+	void (*UnlockArena)(Arena *a, int notify, int onlyarenastate);
+	/* pyint: arena, int, int -> void */
+
 	void (*FakePosition)(Player *p, struct C2SPosition *pos, int len);
 	void (*FakeKill)(Player *killer, Player *killed, int bounty, int flags);
 } Igame;

@@ -150,7 +150,7 @@ void MyFreqCh(Player *p, int newfreq)
 	if (CountFreq(arena, newfreq, p) == 0 &&
 	    cfg->GetInt(ch, "Team", "AllowFreqOwners", 1) &&
 	    newfreq >= cfg->GetInt(ch, "Team", "PrivFreqStart", 100) &&
-	    newfreq != cfg->GetInt(ch, "Team", "SpectatorFrequency", 8025))
+	    newfreq != arena->specfreq)
 	{
 		OWNSFREQ(p) = 1;
 		chat->SendMessage(p, "You are the now the owner of freq %d. "

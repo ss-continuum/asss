@@ -12,6 +12,8 @@ struct Arena
 	int status, ispublic;
 	char name[20], basename[20];
 	ConfigHandle cfg;
+	/* this setting is so commonly used, it deserves to be here. */
+	int specfreq;
 	byte arenaextradata[0];
 };
 

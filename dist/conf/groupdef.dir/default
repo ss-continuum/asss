@@ -1,11 +1,12 @@
 ; conf/groups/default
 
 cmd_help
+cmd_go
 cmd_arena
 cmd_stats
+privcmd_stats
 cmd_score
 cmd_myscore
-cmd_chat
 cmd_time
 cmd_jackpot
 cmd_buy
@@ -16,8 +17,8 @@ cmd_uptime
 
 cmd_listmods
 cmd_getgroup
-cmd_grplogin
 privcmd_getgroup
+cmd_grplogin
 
 cmd_lag
 privcmd_lag
@@ -33,8 +34,8 @@ privcmd_freqkick
 privcmd_giveowner
 
 cmd_usage
-cmd_billingid
 privcmd_usage
+cmd_userid
 privcmd_userid
 
 cmd_passwd

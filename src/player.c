@@ -123,7 +123,7 @@ local void FreePlayer(Player *p)
 	LLRemove(&myint.playerlist, p);
 	pidmap[p->pid] = NULL;
 	WULOCK();
-	
+
 	pthread_mutex_destroy((pthread_mutex_t*)PPDATA(p, mtxkey));
 
 	afree(p);

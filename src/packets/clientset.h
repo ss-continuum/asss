@@ -28,8 +28,8 @@ struct MiscBitfield
 {
 	unsigned short SeeBombLevel   : 2;
 	unsigned short DisableFastShooting : 1;
-	unsigned short _padding1      : 5;
 	unsigned short Radius         : 8;
+	unsigned short _padding       : 5;
 };
 
 struct ShipSettings /* 144 bytes */

@@ -1417,7 +1417,10 @@ local void process_lagouts(Player *p, unsigned int gtc, LinkedList *tokill, Link
 			ConnData *jcli = PPDATA(j, connkey);
 
 			while (j && jcli->nextinbucket != p)
+			{
 				j = jcli->nextinbucket;
+				jcli = PPDATA(j, connkey);
+			}
 			if (j)
 				jcli->nextinbucket = conn->nextinbucket;
 			else

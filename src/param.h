@@ -107,5 +107,9 @@
 /* #define CFG_PEDANTIC_LOCKING */
 
 
+/* the default spec freq, if no settings exist. don't change this. */
+#define CFG_DEF_SPEC_FREQ 8025
+
+
 /* dist: public */
 

@@ -17,7 +17,7 @@ maxlogins = 10
 sock = None
 
 serverid = 5000
-groupid = 0
+groupid = 1
 scoreid = 5000
 
 # maps pids to Players

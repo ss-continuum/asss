@@ -13,9 +13,15 @@ cmd_ballcount
 cmd_flagreset
 cmd_listmods
 cmd_a
+privcmd_a
+cmd_z
+privcmd_warn
 cmd_timer
 cmd_timereset
 cmd_pausetimer
+
+privcmd_scorereset
+cmd_endinterval
 
 cmd_flaginfo
 cmd_neutflag
@@ -55,6 +61,8 @@ cmd_resetkoth
 ; fun stuff
 cmd_brickwrite
 privcmd_warpto
+
+cmd_resetturrets
 
 cmd_gamerecord
 cmd_rec

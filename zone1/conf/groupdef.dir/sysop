@@ -9,6 +9,8 @@ cmd_lastlog
 cmd_lsmod
 cmd_insmod
 cmd_rmmod
+cmd_attmod
+
 cmd_setscore
 cmd_resetgame
 
@@ -38,4 +40,6 @@ prefix_@
 ; setgroup:
 setgroup_smod
 setgroup_sysop
+
+cmd_pidinfo
 

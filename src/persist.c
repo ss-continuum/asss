@@ -671,12 +671,25 @@ local void GetArena(Arena *arena, void (*callback)(Arena *a))
 	MPAdd(&dbq, msg);
 }
 
-local void EndInterval(const char *agorname, int interval)
+local void EndInterval(const char *agorname, Arena *arena, int interval)
 {
 	DBMessage *msg = amalloc(sizeof(*msg));
 
 	msg->command = DBCMD_ENDINTERVAL;
-	astrncpy(msg->agorname, agorname, sizeof(msg->agorname));
+	if (agorname)
+		astrncpy(msg->agorname, agorname, sizeof(msg->agorname));
+	else if (arena)
+	{
+		/* help out callers who aren't smart enough to figure out an
+		 * arena group name by taking it from our internal data. */
+		struct adata *adata = P_ARENA_DATA(arena, adkey);
+		if (INTERVAL_IS_SHARED(interval))
+			astrncpy(msg->agorname, adata->arenagrp, sizeof(msg->agorname));
+		else
+			astrncpy(msg->agorname, adata->name, sizeof(msg->agorname));
+	}
+	else
+		astrncpy(msg->agorname, AG_GLOBAL, sizeof(msg->agorname));
 	msg->data = interval;
 
 	MPAdd(&dbq, msg);
@@ -734,8 +747,18 @@ local void aaction(Arena *arena, int action)
 
 	if (action == AA_CREATE)
 	{
+		/* cfghelp: General:ScoreGroup, arena, string
+		 * If this is set, it will be used as the score identifier for
+		 * shared scores for this arena (unshared scores, e.g. per-game
+		 * scores, always use the arena name as the identifier). Setting
+		 * this to the same value in several different arenas will cause
+		 * them to share scores. */
+		const char *setting = cfg->GetStr(arena->cfg, "General", "ScoreGroup");
+
 		/* arenagrp is used for shared intervals */
-		if (arena->ispublic)
+		if (setting)
+			astrncpy(adata->arenagrp, setting, MAXAGLEN);
+		else if (arena->ispublic)
 			astrncpy(adata->arenagrp, AG_PUBLIC, MAXAGLEN);
 		else
 			astrncpy(adata->arenagrp, arena->basename, MAXAGLEN);

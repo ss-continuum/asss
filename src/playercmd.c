@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 
 #ifndef WIN32
 #include <arpa/inet.h>
@@ -13,6 +14,7 @@
 
 #include "asss.h"
 #include "jackpot.h"
+#include "persist.h"
 
 #ifdef CFG_EXTRA_VERSION_INFO
 #ifndef WIN32
@@ -51,6 +53,7 @@ local Ijackpot *jackpot;
 local Iflags *flags;
 local Iballs *balls;
 local Ilagquery *lagq;
+local Ipersist *persist;
 local Imodman *mm;
 
 
@@ -283,6 +286,9 @@ local void Csetship(const char *params, Player *p, const Target *target)
 		LinkedList set = LL_INITIALIZER;
 		Link *l;
 
+		if (ship < WARBIRD || ship > SPEC)
+			return;
+
 		pd->TargetToSet(target, &set);
 		for (l = LLGetHead(&set); l; l = l->next)
 			game->SetShip(l->data, ship);
@@ -299,7 +305,7 @@ local helptext_t version_help =
 
 local void Cversion(const char *params, Player *p, const Target *target)
 {
-	chat->SendMessage(p, "asss %s built at %s", ASSSVERSION, BUILDDATE);
+	chat->SendMessage(p, "asss %s built on %s", ASSSVERSION, BUILDDATE);
 #ifdef CFG_EXTRA_VERSION_INFO
 #ifndef WIN32
 	{
@@ -389,6 +395,7 @@ local void Cinsmod(const char *params, Player *p, const Target *target)
 }
 #endif
 
+
 local helptext_t rmmod_help =
 "Targets: none\n"
 "Args: <module name>\n"
@@ -402,6 +409,25 @@ local void Crmmod(const char *params, Player *p, const Target *target)
 		chat->SendMessage(p, "Module %s unloaded successfully", params);
 	else
 		chat->SendMessage(p, "Unloading module %s failed", params);
+}
+
+
+local helptext_t attmod_help =
+"Targets: none\n"
+"Args: [{-d}] <module name>\n"
+"Attaches the specified module to this arena. Or with {-d},\n"
+"detaches the module from the arena.\n";
+
+local void Cattmod(const char *params, Player *p, const Target *target)
+{
+	if (strncmp(params, "-d", 2) == 0)
+	{
+		const char *t = params + 2;
+		while (isspace(*t)) t++;
+		mm->DetachModule(t, p->arena);
+	}
+	else
+		mm->AttachModule(params, p->arena);
 }
 
 
@@ -428,23 +454,22 @@ local void Cgetgroup(const char *params, Player *p, const Target *target)
 
 local helptext_t setgroup_help =
 "Targets: player\n"
-"Args: [{-a}] [{-t}] <group name>\n"
+"Args: [{-a}] [{-p}] <group name>\n"
 "Assigns the group given as an argument to the target player. The player\n"
 "must be in group {default}, or the server will refuse to change his\n"
 "group. Additionally, the player giving the command must have an\n"
 "appropriate capability: {setgroup_foo}, where {foo} is the\n"
 "group that he's trying to set the target to.\n"
 "\n"
-"The optional {-t} means to assign the group only for the current\n"
-"session. When the target player logs out or changes arenas, the group\n"
-"will be lost.\n"
+"The optional {-p} means to assign the group permanently. Otherwise, when\n"
+"the target player logs out or changes arenas, the group will be lost.\n"
 "\n"
 "The optional {-a} means to make the assignment local to the current\n"
 "arena, rather than being valid in the entire zone.\n";
 
 local void Csetgroup(const char *params, Player *p, const Target *target)
 {
-	int perm = 1, global = 1;
+	int perm = 0, global = 1;
 	Player *t = target->u.p;
 	char cap[MAXGROUPLEN+10];
 
@@ -456,8 +481,8 @@ local void Csetgroup(const char *params, Player *p, const Target *target)
 
 	while (*params && strchr(params, ' '))
 	{
-		if (!strncmp(params, "temp", 4) || !strncmp(params, "-t", 2))
-			perm = 0;
+		if (!strncmp(params, "perm", 4) || !strncmp(params, "-p", 2))
+			perm = 1;
 		if (!strncmp(params, "arena", 5) || !strncmp(params, "-a", 2))
 			global = 0;
 		params = strchr(params, ' ') + 1;
@@ -621,8 +646,8 @@ local void Cinfo(const char *params, Player *p, const Target *target)
 			int ignoring;
 			net->GetClientStats(t, &s);
 			chat->SendMessage(p,
-					"%s: ip=%s  port=%d  encname=%s",
-					prefix, s.ipaddr, s.port, s.encname);
+					"%s: ip=%s  port=%d  encname=%s  macid=%u  permid=%u",
+					prefix, s.ipaddr, s.port, s.encname, t->macid, t->permid);
 			ignoring = (int)(100.0 * (double)p->ignoreweapons / (double)RAND_MAX);
 			chat->SendMessage(p,
 					"%s: limit=%d  avg bandwidth in/out=%d/%d  ignoringwpns=%d%%",
@@ -642,6 +667,12 @@ local void Cinfo(const char *params, Player *p, const Target *target)
 				mm->ReleaseInterface(chatnet);
 			}
 		}
+		if (t->flags.no_ship)
+			chat->SendMessage(p, "%s: lag too high to play", prefix);
+		if (t->flags.no_flags_balls)
+			chat->SendMessage(p, "%s: lag too high to carry flags or balls", prefix);
+		if (t->flags.see_all_posn)
+			chat->SendMessage(p, "%s: requested all position packets", prefix);
 		if (t->status != S_PLAYING)
 			chat->SendMessage(p, "%s: status=%d", prefix, t->status);
 	}
@@ -796,6 +827,28 @@ local void Caa(const char *params, Player *p, const Target *target)
 }
 
 
+local helptext_t z_help =
+"Targets: none\n"
+"Args: <text>\n"
+"Displays the text as an arena (green) message to the whole zone.\n";
+
+local void Cz(const char *params, Player *p, const Target *target)
+{
+	chat->SendArenaMessage(NULL, "%s  -%s", params, p->name);
+}
+
+
+local helptext_t az_help =
+"Targets: none\n"
+"Args: <text>\n"
+"Displays the text as an anonymous arena message to the whole zone.\n";
+
+local void Caz(const char *params, Player *p, const Target *target)
+{
+	chat->SendArenaMessage(NULL, "%s", params);
+}
+
+
 local helptext_t cheater_help =
 "Targets: none\n"
 "Args: <message>\n"
@@ -813,6 +866,26 @@ local void Ccheater(const char *params, Player *p, const Target *target)
 }
 
 
+local helptext_t warn_help =
+"Targets: none\n"
+"Args: <message>\n"
+"Send a warning message to a player.\n";
+
+local void Cwarn(const char *params, Player *p, const Target *target)
+{
+	if (target->type != T_PLAYER)
+		chat->SendMessage(p, "You must target a player.");
+	else
+	{
+		Link link = { NULL, target->u.p };
+		LinkedList lst = { &link, &link };
+		chat->SendAnyMessage(&lst, MSG_SYSOPWARNING, SOUND_BEEP1, NULL,
+				"WARNING: %s  -%s", params, p->name);
+		chat->SendMessage(p, "Player warned");
+	}
+}
+
+
 local helptext_t warpto_help =
 "Targets: player, freq, or arena\n"
 "Args: <x coord> <y coord>\n"
@@ -822,7 +895,7 @@ local void Cwarpto(const char *params, Player *p, const Target *target)
 {
 	char *next;
 	int x, y;
-	
+
 	x = strtol(params, &next, 0);
 	if (next == params) return;
 	while (*next == ',' || *next == ' ') next++;
@@ -890,17 +963,15 @@ local helptext_t specall_help =
 
 local void Cspecall(const char *params, Player *p, const Target *target)
 {
-	int freq;
 	Arena *arena = p->arena;
 	LinkedList set = LL_INITIALIZER;
 	Link *l;
 
 	if (!arena) return;
 
-	freq = cfg->GetInt(arena->cfg, "Team", "SpectatorFrequency", 8025);
 	pd->TargetToSet(target, &set);
 	for (l = LLGetHead(&set); l; l = l->next)
-		game->SetFreqAndShip(l->data, SPEC, freq);
+		game->SetFreqAndShip(l->data, SPEC, arena->specfreq);
 	LLEmpty(&set);
 }
 
@@ -1101,6 +1172,72 @@ local void Cprize(const char *params, Player *p, const Target *target)
 }
 
 
+/* locking commands */
+
+local helptext_t lock_help =
+"Targets: player, freq, or arena\n"
+"Args: [-n] [-s]\n"
+"Locks the specified targets so that they can't change ships. Use ?unlock\n"
+"to unlock them. By default, ?lock won't change anyone's ship. If {-s} is\n"
+"present, it will spec the targets before locking them. If {-n} is present,\n"
+"it will players of their change in status.\n";
+
+local void Clock(const char *params, Player *p, const Target *target)
+{
+	game->Lock(target, strstr(params, "-n") != NULL, strstr(params, "-s") != NULL);
+}
+
+
+local helptext_t unlock_help =
+"Targets: player, freq, or arena\n"
+"Args: [-n]\n"
+"Unlocks the specified targets so that they can now change ships. An optional\n"
+"{-n} notifies players of their change in status.\n";
+
+local void Cunlock(const char *params, Player *p, const Target *target)
+{
+	game->Unlock(target, strstr(params, "-n") != NULL);
+}
+
+
+local helptext_t lockarena_help =
+"Targets: arena\n"
+"Args: [-n] [-a] [-i] [-s]\n"
+"Changes the default locked state for the arena so entering players will be locked\n"
+"to spectator mode. Also locks everyone currently in the arena to their ships. The {-n}\n"
+"option means to notify players of their change in status. The {-a} options means to\n"
+"only change the arena's state, and not lock current players. The {-i} option means to\n"
+"only lock entering players to their initial ships, instead of spectator mode. The {-s}\n"
+"means to spec all players before locking the arena.\n";
+
+local void Clockarena(const char *params, Player *p, const Target *target)
+{
+	if (target->type != T_ARENA) return;
+	game->LockArena(target->u.arena,
+			strstr(params, "-n") != NULL,
+			strstr(params, "-a") != NULL,
+			strstr(params, "-i") != NULL,
+			strstr(params, "-s") != NULL);
+}
+
+
+local helptext_t unlockarena_help =
+"Targets: arena\n"
+"Args: [-n] [-a]\n"
+"Changes the default locked state for the arena so entering players will not be\n"
+"locked to spectator mode. Also unlocks everyone currently in the arena to their ships\n"
+"The {-n} options means to notify players of their change in status. The {-a} option\n"
+"means to only change the arena's state, and not unlock current players.\n";
+
+local void Cunlockarena(const char *params, Player *p, const Target *target)
+{
+	if (target->type != T_ARENA) return;
+	game->UnlockArena(target->u.arena,
+			strstr(params, "-n") != NULL,
+			strstr(params, "-a") != NULL);
+}
+
+
 local helptext_t flaginfo_help =
 "Targets: none\n"
 "Args: none\n"
@@ -1127,26 +1264,26 @@ local void Cflaginfo(const char *params, Player *p, const Target *target)
 		{
 			case FLAG_NONE:
 				chat->SendMessage(p,
-						"flaginfo: Flag %d doesn't exist",
+						"flag %d: doesn't exist",
 						i);
 				break;
 
 			case FLAG_ONMAP:
 				chat->SendMessage(p,
-						"flaginfo: Flag %d is on the map at (%d,%d), owned by freq %d",
+						"flag %d: on the map at (%d,%d), owned by freq %d",
 						i, fd->flags[i].x, fd->flags[i].y, fd->flags[i].freq);
 				break;
 
 			case FLAG_CARRIED:
 				if (fd->flags[i].carrier)
 					chat->SendMessage(p,
-							"flaginfo: Flag %d is carried by %s",
+							"flag %d: carried by %s",
 							i, fd->flags[i].carrier->name);
 				break;
 
 			case FLAG_NEUTED:
 				chat->SendMessage(p,
-						"flaginfo: Flag %d was neuted and has not reappeared yet",
+						"flag %d: neuted and has not reappeared yet",
 						i);
 				break;
 		}
@@ -1173,11 +1310,18 @@ local void Cneutflag(const char *params, Player *p, const Target *target)
 
 	flagid = strtol(params, &next, 0);
 	if (next == params || flagid < 0 || flagid >= fd->flagcount)
-		chat->SendMessage(p, "neutflag: Bad flag id");
-	else
+		chat->SendMessage(p, "neutflag: bad flag id");
+	else if (fd->flags[flagid].state == FLAG_ONMAP ||
+	         fd->flags[flagid].state == FLAG_NEUTED ||
+	         /* undocumented flag letting you force a flag away from a
+	          * player. this will leave the clients out of sync for a
+	          * while, so it's dangerous. */
+	         strcmp(next, "force") == 0)
 		/* set flag state to none, so that the flag timer will neut it
 		 * next time it runs. */
 		fd->flags[flagid].state = FLAG_NONE;
+	else
+		chat->SendMessage(p, "neutflag: that flag isn't currently on the map");
 
 	flags->ReleaseFlagData(arena);
 }
@@ -1365,7 +1509,7 @@ local void Claginfo(const char *params, Player *p, const Target *target)
 		t->name, rping.cur, rping.avg, rping.min, rping.max);
 	chat->SendMessage(p, "%s: ploss: s2c: %.2f c2s: %.2f s2cwpn: %.2f",
 		t->name, 100.0*ploss.s2c, 100.0*ploss.c2s, 100.0*ploss.s2cwpn);
-	chat->SendMessage(p, "%s: reliable dups: %.2f  reliable resends: %.2f",
+	chat->SendMessage(p, "%s: reliable dups: %.2f%%  reliable resends: %.2f%%",
 		t->name, 100.0*(double)rlag.reldups/(double)rlag.c2sn,
 		100.0*(double)rlag.retries/(double)rlag.s2cn);
 	chat->SendMessage(p, "%s: s2c slow: %d/%d  s2c fast: %d/%d",
@@ -1438,6 +1582,74 @@ local void Clistarena(const char *params, Player *p, const Target *target)
 	chat->SendMessage(p, "Arena '%s': %d total, %d playing", a->name, total, playing);
 	wrap_text(text+2, 80, ' ', send_msg_cb, p);
 }
+
+
+local helptext_t endinterval_help =
+"Targets: none\n"
+"Args: [-g] [-a <arena group name>] <interval name>\n"
+"Causes the specified interval to be reset. If {-g} is specified, reset the interval\n"
+"at the global scope. If {-a} is specified, use the named arena group. Otherwise, use\n"
+"the current arena's scope. Interval names can be \"game\", \"reset\", or \"maprotation\".\n";
+
+local void Cendinterval(const char *params, Player *p, const Target *target)
+{
+	char word[128];
+	const char *tmp = NULL;
+	int interval = -1, dasha = 0;
+	char ag[MAXAGLEN] = { '\0' };
+
+	while (strsplit(params, " \t", word, sizeof(word), &tmp))
+		if (dasha)
+		{
+			astrncpy(ag, word, sizeof(ag));
+			dasha = 0;
+		}
+		else if (!strcmp(word, "-g"))
+			strcpy(ag, AG_PUBLIC);
+		else if (!strcmp(word, "-a"))
+			dasha = 1;
+		else if (!strcmp(word, "game"))
+			interval = INTERVAL_GAME;
+		else if (!strcmp(word, "reset"))
+			interval = INTERVAL_RESET;
+		else if (!strcmp(word, "maprotation"))
+			interval = INTERVAL_MAPROTATION;
+		else
+		{
+			chat->SendMessage(p, "Bad argument: %s", word);
+			return;
+		}
+
+	if (dasha)
+	{
+		chat->SendMessage(p, "You must specify an arena group name after -a.");
+		return;
+	}
+
+	if (interval == -1)
+	{
+		chat->SendMessage(p, "You must specify an interval to reset.");
+		return;
+	}
+
+	if (ag[0])
+		persist->EndInterval(ag, NULL, interval);
+	else if (p->arena)
+		persist->EndInterval(NULL, p->arena, interval);
+}
+
+
+local helptext_t scorereset_help =
+"Targets: ...\n"
+"Args: ...\n"
+"\n";
+
+local void Cscorereset(const char *params, Player *p, const Target *target)
+{
+	/* FIXME */
+}
+
+
 
 
 
@@ -1589,10 +1801,14 @@ local const struct cmd_info core_commands[] =
 	CMD(insmod)
 #endif
 	CMD(rmmod)
+	CMD(attmod)
 	CMD(info)
 	CMD(a)
 	CMD(aa)
+	CMD(z)
+	CMD(az)
 	CMD(cheater)
+	CMD(warn)
 	CMD(netstats)
 	CMD(send)
 	END()
@@ -1615,6 +1831,12 @@ local const struct cmd_info game_commands[] =
 	CMD(warpto)
 	CMD(shipreset)
 	CMD(prize)
+
+	CMD(lock)
+	CMD(unlock)
+	CMD(lockarena)
+	CMD(unlockarena)
+
 	END()
 };
 
@@ -1690,6 +1912,20 @@ local const struct cmd_info lag_commands[] =
 };
 
 
+local const struct interface_info stats_requires[] =
+{
+	REQUIRE(persist, I_PERSIST)
+	END()
+};
+
+local const struct cmd_info stats_commands[] =
+{
+	CMD(scorereset)
+	CMD(endinterval)
+	END()
+};
+
+
 local const struct interface_info misc_requires[] =
 {
 	REQUIRE(capman, I_CAPMAN)
@@ -1723,6 +1959,7 @@ local struct cmd_group all_cmd_groups[] =
 	CMD_GROUP(flag)
 	CMD_GROUP(ball)
 	CMD_GROUP(lag)
+	CMD_GROUP(stats)
 	CMD_GROUP(misc)
 	END()
 };

@@ -111,6 +111,17 @@ class Bindings:
 		if scrollback < 0:
 			scrollback = 0
 
+	def player_select_up(me):
+		global players
+		players.move_select_up()
+
+	def player_select_down(me):
+		global players
+		players.move_select_down()
+
+	def sort_player_list(me):
+		global players
+		players.set_sort()
 
 
 class Line:
@@ -127,7 +138,8 @@ class Line:
 
 	def wordbreak(me, width, showtime = 0, indent = 2):
 
-		if me.lastopts is not (width, showtime, indent):
+		if me.lastopts != (width, showtime, indent):
+			me.lastopts = (width, showtime, indent)
 
 			def totlen(wds):
 				t = len(wds)
@@ -195,6 +207,7 @@ class Text:
 		# go that many lines up
 		if scrollback >= len(rlines):
 			scrollback = len(rlines) - 1
+		scrollmark = (len(rlines)-1-scrollback)*(h-2)/(len(rlines))+1
 		rlines = rlines[scrollback:]
 		# and cut to the top of the window
 		rlines = rlines[:h]
@@ -209,9 +222,22 @@ class Text:
 
 		if scrollback < newcrap:
 			newcrap = scrollback
+
+		# display the "%d more" message at the bottom of the window
 		if newcrap:
 			s = '%d more' % newcrap
 			scr.addstr(h-1, w-len(s)-1, s, curses.A_REVERSE)
+
+		if scrollback:
+			for i in range(1, h-1):
+				scr.addch(i, w-1, curses.ACS_CKBOARD)
+			scr.addch(scrollmark, w-1, curses.ACS_BULLET)
+			# note, don't seem to be able to
+			# scr.addstr(h-1,w-1,'A',curses.A_REVERSE)
+			# it causes curses error.
+
+		s = '%d lines' % len(me.lines)
+		scr.addstr(0, w-len(s), s,curses.A_REVERSE)
 
 		scr.noutrefresh()
 
@@ -240,8 +266,26 @@ class Edit:
 	def gettext(me):
 		return ''.join(map(chr, me.line))
 
+	def is_double_colons(me):
+		colon = ord(':')
+		if not me.line or me.line[0] != colon:
+			return 0
+		if me.line[-1] == colon:
+			return colon not in me.line[1:-1]
+		else:
+			return colon not in me.line[1:]
+
 	def cleartext(me):
 		me.__init__()
+
+	def set_text(me, txt):
+		me.line = map(ord, txt)
+		# clip to max length
+		me.line = me.line[0:me.lastmax]
+		me.i = len(me.line)
+
+	def get_text(me):
+		return ''.join(map(chr, me.line))
 
 	def backspace(me):
 		if me.i > 0:
@@ -285,9 +329,188 @@ class Player:
 		me.freq = freq
 
 
+class PlayerList:
+
+	SORT_NONE = 0
+	SORT_NAME = 1
+	SORT_TEAM = 2
+
+	def __init__(me):
+		me.data = {}
+		me.pos = 0
+		me.offset = 0
+		me.sorthow = PlayerList.SORT_NAME
+		me.sorted = []
+		me.sort()
+
+	def clear(me):
+		me.data = {}
+		me.pos = 0
+		me.offset = 0
+		me.sort()
+
+	def sort(me):
+		# remember last selected player so we can select it again
+		oldsel = me.get_selected()
+
+		# created a sorted list
+		if me.sorthow == PlayerList.SORT_NONE:
+			me.sorted = me.data.values()
+		elif me.sorthow == PlayerList.SORT_NAME:
+			def mycmp(a, b):
+				return cmp(a.name.lower(), b.name.lower())
+			me.sorted = me.data.values()
+			me.sorted.sort(mycmp)
+		elif me.sorthow == PlayerList.SORT_TEAM:
+			def mycmp(a, b):
+				return 2 * cmp(a.freq, b.freq) + cmp(a.name.lower(), b.name.lower())
+			tmp = me.data.values()
+			tmp.sort(mycmp)
+
+			# insert freq headers
+			me.sorted = []
+			lastfreq = -1
+			for p in tmp:
+				if p.freq != lastfreq:
+					me.sorted.append('--- freq %d' % p.freq)
+					lastfreq = p.freq
+				me.sorted.append(p)
+		else:
+			me.sorted = []
+
+		# try to select old selection, or if not, first real player in
+		# list
+		me.pos = -1
+		idx = 0
+		for p in me.sorted:
+			if p is oldsel:
+				me.pos = idx
+				break
+			if me.pos == -1 and type(p) != type(''):
+				me.pos = idx
+			idx = idx + 1
+
+	def move_select_up(me):
+		oldpos = me.pos
+		me.pos = me.pos - 1
+		while me.pos >= 0 and type(me.sorted[me.pos]) == type(''):
+			me.pos = me.pos - 1
+		if me.pos < 0:
+			me.pos = oldpos
+
+	def move_select_down(me):
+		oldpos = me.pos
+		me.pos = me.pos + 1
+		while me.pos < len(me.sorted) and type(me.sorted[me.pos]) == type(''):
+			me.pos = me.pos + 1
+		if me.pos >= len(me.sorted):
+			me.pos = oldpos
+
+	def get_selected(me):
+		if me.pos >= 0 and \
+		   me.pos < len(me.sorted) and \
+		   type(me.sorted[me.pos]) != type(''):
+			return me.sorted[me.pos]
+		else:
+			return None
+
+	def set_sort(me, sort = None):
+		if sort is not None:
+			me.sorthow = sort
+		elif me.sorthow == PlayerList.SORT_NAME:
+			me.sorthow = PlayerList.SORT_TEAM
+		else:
+			me.sorthow = PlayerList.SORT_NAME
+		me.sort()
+
+	def add(me, player):
+		me.data[player.name] = player
+		me.sort()
+
+	def remove(me, name):
+		del me.data[name]
+		me.sort()
+
+	def sfc(me, name, ship, freq):
+		try:
+			player = me.data[name]
+		except:
+			add_line("Unknown player name in ship change: '%s'" % name, colors.info)
+			return
+
+		player.ship = ship
+		player.freq = freq
+		me.sort()
+
+	def display(me, scr):
+		if not scr:
+			return
+
+		h, w = scr.getmaxyx()
+		scr.erase()
+
+		# update the scroll offset
+		if me.pos < me.offset:
+			me.offset = me.pos
+		elif me.pos > (me.offset + h - 1):
+			me.offset = me.pos - h + 1
+		if me.offset >= len(me.sorted):
+			me.offset = len(me.sorted) - 1
+		if me.offset < 0:
+			me.offset = 0
+
+		if len(me.data) == 1:
+			msg = '1 player'
+		else:
+			msg = '%d players' % len(me.data)
+		msg = (msg + ' ' * w)[:w]
+		scr.addstr(0, 0, msg, colors.pl_txt | curses.A_REVERSE)
+
+		y = 1
+		for thing in me.sorted[me.offset:]:
+			if y >= h:
+				break
+			if type(thing) == type(''):
+				scr.addstr(y, 0, thing[:w], colors.pl_txt)
+			else:
+				color = colors.pl_player
+				if (y - 1 + me.offset) == me.pos:
+					color = colors.pl_selected
+				scr.addstr(y, 0, thing.name[:w], color)
+			y = y + 1
+
+		scr.noutrefresh()
+
+
+class LastPrivList:
+	def __init__(me, max = 5):
+		me.list = []
+		me.index = 0
+		if not max:
+			me.max = 5
+		else:
+			me.max = max
+
+	def add(me, name):
+		if name in me.list:
+			return
+		me.list.append(name)
+		me.list = me.list[-me.max:]
+
+	def get(me, start = None):
+		if start is not None:
+			me.index = start
+		if me.list:
+			r = me.list[me.index]
+			me.index = (me.index + 1) % len(me.list)
+			return r
+		else:
+			return ''
+
+
 class Colors:
 	def __init__(me):
-		from curses import init_pair, color_pair, A_BOLD, COLORS, COLOR_PAIRS
+		from curses import init_pair, color_pair, A_BOLD, A_REVERSE, COLORS, COLOR_PAIRS
 
 		me.colors = COLORS
 		me.pairs = COLOR_PAIRS
@@ -301,10 +524,14 @@ class Colors:
 		me.pub = color_pair(15 % me.pairs)
 		me.priv = color_pair(2)
 		me.rempriv = color_pair(10 % me.pairs)
-		me.freq = color_pair(11 % me.pairs)
+		me.freq = color_pair(11 % me.pairs) | A_BOLD
 		me.chat = color_pair(9 % me.pairs)
 		me.mod = color_pair(12 % me.pairs)
 		me.sysop = color_pair(9 % me.pairs) | A_BOLD
+
+		me.pl_txt = color_pair(11 % me.pairs) | A_BOLD
+		me.pl_player = color_pair(7 % me.pairs)
+		me.pl_selected = color_pair(7 % me.pairs) | A_REVERSE
 
 		# add colors that we couldn't do before
 		global deferred_color_args
@@ -424,6 +651,12 @@ def process_typed(line):
 	if not line:
 		return
 
+	def send_priv(dest, msg):
+		send_line("SEND:PRIV:%s:%s" % (dest, msg))
+		txt = "%s to %s> %s" % (myname, dest, msg)
+		add_line(txt, colors.priv)
+		log(L_PRIV, txt)
+
 	if line.startswith(';'):
 		# chat message
 		ns = line.find(';', 1)
@@ -437,17 +670,19 @@ def process_typed(line):
 			txt = "%s:%s> %s" % (line[1:ns], myname, line[ns+1:])
 			add_line(txt, colors.chat)
 			log(L_CHAT, txt)
+	elif line.startswith("'") or line.startswith('//') or line.startswith('"'):
+		# team chat
+		pass
 	elif line.startswith(':'):
 		# priv msg
 		ns = line.find(':', 1)
 		if ns != -1:
-			send_line("SEND:PRIV:%s:%s" % (line[1:ns], line[ns+1:]))
-			txt = "%s to %s> %s" % (myname, line[1:ns], line[ns+1:])
-			add_line(txt, colors.priv)
-			log(L_PRIV, txt)
-	elif line.startswith("'") or line.startswith('//') or line.startswith('"'):
-		# team chat
-		pass
+			send_priv(line[1:ns], line[ns+1:])
+	elif line.startswith('/'):
+		# priv msg
+		dest = players.get_selected()
+		if dest:
+			send_priv(dest.name, line[1:])
 	elif line.startswith('\\'):
 		# mod chat
 		send_line("SEND:MOD:%s" % line[1:])
@@ -465,6 +700,16 @@ def process_typed(line):
 			showtime = 0
 		elif cmd.startswith('go '):
 			send_line("GO:%s" % cmd[3:])
+		elif cmd.startswith('namesort'):
+			order = cmd[8:].strip()
+			if order == 'name':
+				players.set_sort(PlayerList.SORT_NAME)
+			elif order == 'team':
+				players.set_sort(PlayerList.SORT_TEAM)
+			elif order == 'none':
+				players.set_sort(PlayerList.SORT_NONE)
+			else:
+				players.set_sort()
 		else:
 			send_line("SEND:PUB:%s" % line)
 		txt = "%s> %s" % (myname, line)
@@ -497,15 +742,16 @@ def process_loginbad(line):
 
 
 def process_inarena(line):
-	global players, myname
+	global players, myname, myfreq
 
 	arena, freq = line.split(':')
+	myfreq = int(freq)
 	txt = "Entered arena: %s" % arena
 	add_line(txt, 'info')
 	log(L_INFO, txt)
 
 	players.clear()
-	players[myname] = Player(myname, int(freq))
+	players.add(Player(myname, myfreq))
 
 
 def process_player(line):
@@ -515,7 +761,7 @@ def process_player(line):
 	txt = "Player here: %s" % name
 	add_line(txt, 'info')
 	log(L_INFO, txt)
-	players[name] = Player(name, int(freq))
+	players.add(Player(name, int(freq)))
 
 
 def process_entering(line):
@@ -525,7 +771,7 @@ def process_entering(line):
 	txt = "Player entering: %s" % name
 	add_line(txt, 'info')
 	log(L_INFO, txt)
-	players[name] = Player(name, int(freq))
+	players.add(Player(name, int(freq)))
 
 
 def process_leaving(line):
@@ -536,11 +782,11 @@ def process_leaving(line):
 	txt = "Player leaving: %s" % name
 	add_line(txt, 'info')
 	log(L_INFO, txt)
-	del players[name]
+	players.remove(name)
 
 
 def process_msg(line):
-	global colors
+	global colors, last_priv_list
 
 	type, rest = line.split(':', 1)
 	if type == 'ARENA':
@@ -556,12 +802,8 @@ def process_msg(line):
 		name, msg = rest.split(':', 1)
 		txt = '%s> %s' % (name, msg)
 		add_line(txt, colors.priv)
+		last_priv_list.add(name)
 		log(L_PRIV, txt)
-	elif type == 'REMOTEPRIV':
-		name, msg = rest.split(':', 1)
-		txt = '%s> %s' % (name, msg)
-		add_line(txt, colors.rempriv)
-		log(L_REMOTEPRIV, txt)
 	elif type == 'FREQ':
 		name, msg = rest.split(':', 1)
 		txt = '%s> %s' % (name, msg)
@@ -585,11 +827,13 @@ def process_msg(line):
 
 
 def process_sfc(line):
-	global colors
+	global colors, players
 
 	player, ship, freq = line.split(':')
 	ship = int(ship)
 	freq = int(freq)
+
+	players.sfc(player, ship, freq)
 
 	if ship == 8:
 		txt = '%s is now on freq %s as a spectator' % (player, freq)
@@ -654,32 +898,16 @@ def complete_deferred_lines():
 	del deferred_lines
 
 
-def display_players(scr):
-	global players, colors
-
-	if not scr:
-		return
-
-	h, w = scr.getmaxyx()
-	scr.erase()
-
-	names = players.keys()
-	names.sort()
-
-	y = 0
-	for n in names:
-		if y >= h:
-			break
-		scr.addstr(y, 0, n)
-		y = y + 1
-
-	scr.noutrefresh()
-
-
+colonstate = 0
 def process_key():
-	global wins, bindings
+	global wins, bindings, edit, colonstate
+	colon = ord(':')
 
 	ch = wins.stdscr.getch()
+
+	if ch != colon:
+		colonstate = 0
+
 	if ch == -1:
 		pass
 	elif ch == curses.KEY_RESIZE:
@@ -697,13 +925,21 @@ def process_key():
 		f = bindings.getbinding(seq)
 		if f:
 			f()
+	elif ch == colon:
+		if colonstate == 0:
+			if edit.get_text() == ':':
+				colonstate = 1
+				edit.set_text(':%s:' % last_priv_list.get(0))
+			else:
+				edit.insert(ch)
+		elif colonstate == 1:
+			edit.set_text(':%s:' % last_priv_list.get())
 	else:
 		# hand off to bindings
 		f = bindings.getbinding([ch])
 		if f:
 			f()
-		elif ch in range(32, 127):
-			global edit
+		elif ch >= 32 and ch < 127:
 			edit.insert(ch)
 
 
@@ -750,6 +986,7 @@ def check_logfile(tm):
 		reload_logfile()
 		last_days_value = days
 
+
 def main_loop():
 	global wins, text, edit, sock, breakloop
 
@@ -758,7 +995,7 @@ def main_loop():
 	while not breakloop:
 		# show stuff
 		text.display(wins.twin)
-		display_players(wins.pwin)
+		players.display(wins.pwin)
 		edit.display(wins.iwin)
 		curses.doupdate()
 
@@ -802,15 +1039,17 @@ def process_config(file):
 	bindings.bind(curses.KEY_DC, bindings.delete)
 	bindings.bind(curses.KEY_RIGHT, bindings.curs_right)
 	bindings.bind(curses.KEY_LEFT, bindings.curs_left)
-	bindings.bind(curses.KEY_UP, bindings.curs_up)
-	bindings.bind(curses.KEY_DOWN, bindings.curs_down)
 	bindings.bind('^A', bindings.curs_home)
 	bindings.bind(curses.KEY_HOME, bindings.curs_home)
 	bindings.bind(curses.KEY_END, bindings.curs_end)
 	bindings.bind('^E', bindings.curs_end)
-	bindings.bind(curses.KEY_PPAGE, bindings.scroll_up, 1)
-	bindings.bind(curses.KEY_NPAGE, bindings.scroll_down, 1)
+	bindings.bind(curses.KEY_UP, bindings.scroll_up, 1)
+	bindings.bind(curses.KEY_DOWN, bindings.scroll_down, 1)
 	bindings.bind('^U', bindings.kill_line)
+
+	bindings.bind(curses.KEY_PPAGE, bindings.player_select_up)
+	bindings.bind(curses.KEY_NPAGE, bindings.player_select_down)
+	bindings.bind(curses.KEY_F2, bindings.sort_player_list)
 
 	opts = {}
 
@@ -870,11 +1109,12 @@ def process_config(file):
 
 def main():
 	global wins, text, edit, sock, players, myname, colors, scrollback
-	global newcrap, logindone
+	global newcrap, logindone, players, last_priv_list
 
 	colors = 0
-	players = {}
 	myname = ''
+	myfreq = 0
+	players = PlayerList()
 
 	# get config file
 	if os.environ.get('CCC_CONFIG_FILE'):
@@ -893,6 +1133,8 @@ def main():
 	   not opts.has_key('server') or not opts.has_key('port'):
 		print "The config file must include a name, password, server, and port."
 		sys.exit(2)
+
+	last_priv_list = LastPrivList(opts.get('playerhistory'))
 
 	scrollback = 0
 	newcrap = 0
@@ -920,6 +1162,7 @@ def main():
 			select.select([sock], [], [], 1000)
 		except:
 			pass
+
 		read_data()
 
 	msg, ok = logindone

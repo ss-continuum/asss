@@ -9,16 +9,17 @@ The design works something like this: everything is a module. So you
 extend the server just by writing more modules. The current list of
 modules is:
 
-sed -n '/MM_[a-z]/s/.*MM_\([a-z_]\+\).*/\1/p' ../src/*.c | sort -u | fmt
+admincmd aliasdb ap_multipub arenaman arenaperm auth_file auth_prefix
+autoturret autowarp balls banners basicstats billing billing_ssc
+bricklayer buy capman cfghelp chat chatnet clientset cmdman config core
+directory encrypt fake filetrans flags fm_lockspec fm_normal freqowners
+game game_timer help jackpot koth lagaction lagdata log_console log_file
+log_sysop logman mainloop mapdata mapnewsdl messages mysql net nullenc
+objects periodic persist playercmd playerdata points_flag points_goal
+points_kill points_periodic points_turf_reward pymod quickfix record
+security sendfile stats turf_reward turf_stats watchdamage
 
-aliasdb ap_multipub arenaman arenaperm auth_file auth_prefix autoturret
-autowarp balls banners basicstats billcore bricklayer buy capman cfghelp
-chat chatnet clientset cmdman config core directory encrypt fake filetrans
-flags fm_normal freqowners game game_timer help jackpot koth lagaction
-lagdata log_console log_file log_sysop logman mainloop mapdata mapnewsdl
-messages mysql net nullenc objects periodic persist playercmd playerdata
-points_flag points_goal points_kill points_periodic points_turf_reward
-quickfix security sendfile stats turf_reward turf_stats watchdamage
+sed -n '/MM_[a-z]/s/.*MM_\([a-z_]\+\).*/\1/p' ../src/*.c | sort -u | fmt
 
 
 A module resides in a single .c file, and an optional .h file if it

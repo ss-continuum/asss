@@ -292,7 +292,7 @@ contain any number of modules.
 
 There are currently
 % grep 'EXPORT *int *MM_[a-z]' ~/src/asss/src/*.c | wc -l
-66
+69
 modules that are part of \asss{}, but each zone might have some
 custom-developed modules for their zone as well.
 
@@ -482,11 +482,11 @@ servers or bugs in the server itself.
 
 There are currently
 % cat ~/src/asss/src/*.c | grep ">Log[AP]\?(L_" -c
-283
+304
 % cat ~/src/asss/src/*.c | grep ">Log[AP]\?(L_" | sed 's/.*>Log[AP]\?(L_\([A-Z]*\).*/\1/' | sort | uniq -c
-distinct log messages in the server. By type, there are 28 ERROR
-messages, 74 WARN messages, 68 MALICIOUS messages, 47 INFO messages, and
-66 DRIVEL messages.
+distinct log messages in the server. By type, there are 33 ERROR
+messages, 84 WARN messages, 67 MALICIOUS messages, 51 INFO messages, and
+69 DRIVEL messages.
 
 \subsection{Filtering}
 

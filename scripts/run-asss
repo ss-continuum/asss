@@ -21,7 +21,7 @@ pdate () { date "$DATEFORM"; }
 ASSS=$ASSSHOME/bin/asss
 
 ZONE=$1
-ZONEDIR=$ASSSHOME/zone-$1
+ZONEDIR=$ASSSHOME/$1
 
 SCRIPTLOG=$ZONEDIR/log/wrapper.log
 

@@ -342,8 +342,10 @@ void RewardPoints(Arena *arena, int winfreq)
 			players++;
 			if (i->p_freq == winfreq)
 			{
-				LLAdd(&set, i);
 				stats->IncrementStat(i, STAT_BALL_GAMES_WON, 1);
+				/* only do reward points if not in safe zone */
+				if (!(i->position.status & STATUS_SAFEZONE))
+					LLAdd(&set, i);
 			}
 			else
 				stats->IncrementStat(i, STAT_BALL_GAMES_LOST, 1);

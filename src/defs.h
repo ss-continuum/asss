@@ -16,8 +16,8 @@
 #define ATTR_MALLOC()
 #endif
 
-#define ASSSVERSION "1.1.0"
-#define ASSSVERSION_NUM 0x00010100
+#define ASSSVERSION "1.1.2"
+#define ASSSVERSION_NUM 0x00010102
 #define BUILDDATE __DATE__ " " __TIME__
 
 

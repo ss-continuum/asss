@@ -625,9 +625,22 @@ local void process_rmt(const char *data,int len)
 	if (*pkt->Text==':')  /* private message */
 	{
 		Player *p;
-		char recipient[32];
+		char recipient[32], sender[32];
+		const char *t;
 		const char *text = delimcpy(recipient, pkt->Text+1, sizeof(recipient), ':');
-		if (!text) return;
+
+		if (!text || *text != '(')
+			return;
+
+		/* this is a horrible feature of the protocol: how do you parse
+		 * :recpient:(funny)>name)>message
+		 * ? we take the first ')>' as the delimiter. */
+		t = strstr(text + 1, ")>");
+		if (!t || (t - text) > 30)
+			return;
+		memset(sender, 0, sizeof(sender));
+		memcpy(sender, text + 1, t - text - 1);
+		text = t + 2;
 
 		if (recipient[0] == '#')
 		{
@@ -639,11 +652,11 @@ local void process_rmt(const char *data,int len)
 				if (strcasecmp(recipient+1, p->squad) == 0)
 					LLAdd(&set, p);
 			pd->Unlock();
-			chat->SendAnyMessage(&set, MSG_REMOTEPRIV, pkt->Sound, NULL,
-					"(%s)%s", recipient, text);
+			chat->SendRemotePrivMessage(&set, pkt->Sound, recipient+1,
+					sender, text);
 #ifdef CFG_LOG_PRIVATE
-			lm->Log(L_DRIVEL, "<chat> (%d rcpts) incoming remote squad msg: %s",
-					LLCount(&set), text);
+			lm->Log(L_DRIVEL, "<chat> (%d rcpts) incoming remote squad msg: %s:%s> %s",
+					LLCount(&set), recipient+1, sender, text);
 #endif
 			LLEmpty(&set);
 		}
@@ -651,12 +664,13 @@ local void process_rmt(const char *data,int len)
 		{
 			Link link = { NULL, p };
 			LinkedList list = { &link, &link };
-			chat->SendAnyMessage(&list, MSG_REMOTEPRIV, pkt->Sound, NULL, "%s", text);
+			/* format of text is "(sender)>msg" */
+			chat->SendRemotePrivMessage(&list, pkt->Sound, NULL, sender, text);
 #ifdef CFG_LOG_PRIVATE
 			/* this is sort of wrong, but i think it makes more sense to
 			 * use the module name chat here for ease of filtering. */
-			lm->Log(L_DRIVEL, "<chat> [%s] incoming remote priv: %s",
-					p->name, text);
+			lm->Log(L_DRIVEL, "<chat> [%s] incoming remote priv: %s> %s",
+					p->name, sender, text);
 #endif
 		}
 		else
@@ -723,7 +737,7 @@ local void process_mchanchat(const char *data, int len)
 	int i;
 
 	if (len < offsetof(struct B2S_UserMChannelChat, Recipient[1]) ||
-	    ((txt=(const char *)&pkt->Recipient[pkt->Count]) - data) < len ||
+	    ((txt=(const char *)&pkt->Recipient[pkt->Count]) - data) > len ||
 	    !memchr(txt,0,data+len-txt))
 	{
 		lm->Log(L_WARN, "<billing_ssc> invalid mchannel chat packet len %d", len);
@@ -819,7 +833,7 @@ local void process_scorereset(const char *data,int len)
 		/* reset scores in public arenas */
 		Ipersist *persist = mm->GetInterface(I_PERSIST, ALLARENAS);
 		if (persist)
-			persist->EndInterval(AG_PUBLIC, INTERVAL_RESET);
+			persist->EndInterval(AG_PUBLIC, NULL, INTERVAL_RESET);
 		mm->ReleaseInterface(persist);
 	}
 }

@@ -255,8 +255,6 @@ void SendUpdates(void)
 	Player *p;
 	Link *link;
 
-	/* printf("DEBUG: SendUpdates running...\n"); */
-
 	FOR_EACH_PLAYER_P(p, stats, pdkey)
 		if (p->status == S_PLAYING)
 		{
@@ -277,7 +275,6 @@ void SendUpdates(void)
 						(char*)&sp,
 						sizeof(sp),
 						NET_UNRELIABLE | NET_PRI_N1);
-				/* printf("DEBUG: SendUpdates sent scores of %s\n", p->name); */
 			}
 			else
 				UNLOCK_PLAYER(stats);

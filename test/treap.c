@@ -1,6 +1,6 @@
 
 /* 2>/dev/null
-gcc -I ../src -o treap treap.c ../src/util.c
+gcc -g -I ../src -o treap treap.c ../src/util.c -lpthread
 exit # */
 
 #include <stdlib.h>
@@ -50,7 +50,7 @@ void avgdepth(int n, int trials)
 		sumdepths(t, &avg, &max, &leaves, 1);
 		printf("average depth: %f  max depth: %d\n", (double)avg/(double)n, max);
 
-		TrEnum(t, NULL, tr_enum_afree);
+		TrEnum(t, tr_enum_afree, NULL);
 		t = NULL;
 	}
 }
@@ -75,7 +75,7 @@ void getdel(int n)
 		int key;
 
 		printf("nodes:\n");
-		TrEnum(t, NULL, print);
+		TrEnum(t, print, NULL);
 
 		printf("op key> ");
 		scanf("%c %d", &op, &key);
@@ -92,7 +92,7 @@ void getdel(int n)
 		else if (op == 'q')
 			break;
 	}
-	TrEnum(t, NULL, tr_enum_afree);
+	TrEnum(t, tr_enum_afree, NULL);
 }
 
 

@@ -107,6 +107,14 @@ struct PlayerPosition
 	unsigned bounty, status;
 };
 
+#define STATUS_STEALTH  0x01U
+#define STATUS_CLOAK    0x02U
+#define STATUS_XRADAR   0x04U
+#define STATUS_ANTIWARP 0x08U
+#define STATUS_FLASH    0x10U
+#define STATUS_SAFEZONE 0x20U
+#define STATUS_UFO      0x40U
+
 
 struct Player
 {

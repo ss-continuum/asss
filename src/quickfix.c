@@ -151,7 +151,6 @@ local void p_settingchange(Player *p, byte *pkt, int len)
 
 	while ((pos-(char*)pkt) < len)
 	{
-		printf("quickfix: setting: '%s'\n", pos);
 		pos = delimcpy(sec, pos, MAXSECTIONLEN, ':');
 		CHECK(pos)
 		pos = delimcpy(key, pos, MAXKEYLEN, ':');

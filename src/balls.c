@@ -339,7 +339,7 @@ void EndGame(Arena *arena)
 	{
 		Ipersist *persist = mm->GetInterface(I_PERSIST, ALLARENAS);
 		if (persist)
-			persist->EndInterval(arena->name, INTERVAL_GAME);
+			persist->EndInterval(NULL, arena, INTERVAL_GAME);
 		mm->ReleaseInterface(persist);
 	}
 }
@@ -592,11 +592,11 @@ void PPickupBall(Player *p, byte *pkt, int len)
 	bd->time = 0;
 	send_ball_packet(arena, bp->ballid, NET_UNRELIABLE | BALL_SEND_PRI);
 
-	UNLOCK_STATUS(arena);
-
 	/* now call callbacks */
 	DO_CBS(CB_BALLPICKUP, arena, BallPickupFunc,
 			(arena, p, bp->ballid));
+
+	UNLOCK_STATUS(arena);
 
 	logm->Log(L_DRIVEL, "<balls> {%s} [%s] player picked up ball %d",
 			arena->name,
@@ -659,10 +659,10 @@ void PFireBall(Player *p, byte *pkt, int len)
 	bd->time = fb->time;
 	send_ball_packet(arena, bid, NET_UNRELIABLE | BALL_SEND_PRI);
 
-	UNLOCK_STATUS(arena);
-
 	/* finally call callbacks */
 	DO_CBS(CB_BALLFIRE, arena, BallFireFunc, (arena, p, bid));
+
+	UNLOCK_STATUS(arena);
 
 	logm->LogP(L_DRIVEL, "balls", p, "player fired ball %d", bid);
 }

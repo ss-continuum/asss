@@ -2,7 +2,7 @@
 #define ___dummy \
 : /*
 set -e
-gcc -g -DNOTHREAD -I../src ../src/app.c ../src/util.c app.c -o app
+gcc -g -DNOTHREAD -I../src ../src/app.c ../src/util.c app.c -o app -lpthread
 ./app /dev/stdin
 exit
 */

@@ -63,7 +63,8 @@ enum interval_t
 	INTERVAL_RESET,
 	INTERVAL_MAPROTATION,
 	/* these are not shared between arenas */
-	INTERVAL_GAME = 5
+	INTERVAL_GAME = 5,
+	INTERVAL_FOREVER_NONSHARED
 };
 #define MAX_INTERVAL 10
 #define INTERVAL_IS_SHARED(iv) ((iv) < 5)

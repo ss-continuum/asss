@@ -110,7 +110,8 @@ void Pppk(Player *p, byte *p2, int n)
 		};
 
 		DoChecksum(&wpn);
-		net->SendToOne(p, (byte*)&wpn, sizeof(wpn), NET_PRI_P4);
+		net->SendToOne(p, (byte*)&wpn, sizeof(struct S2CWeapons) -
+				sizeof(struct ExtraPosData), NET_PRI_P4);
 	}
 }
 

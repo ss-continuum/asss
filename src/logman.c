@@ -46,7 +46,6 @@ EXPORT int MM_logman(int action, Imodman *mm_, Arena *arena)
 		pd = NULL;
 		aman = NULL;
 		MPInit(&queue);
-		pthread_create(&thd, NULL, LoggingThread, NULL);
 		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}
@@ -55,6 +54,7 @@ EXPORT int MM_logman(int action, Imodman *mm_, Arena *arena)
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		pthread_create(&thd, NULL, LoggingThread, NULL);
 	}
 	else if (action == MM_PREUNLOAD)
 	{

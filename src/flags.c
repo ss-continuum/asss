@@ -27,14 +27,19 @@ typedef struct MyArenaData
 	 * maxflags must be equal to the size of the "flags" array in the
 	 * public data. */
 	int resetdelay, spawnx, spawny;
-	int spawnr, dropr, neutr;
-	int friendlytransfer, dropowned, neutowned;
+	int spawnr, dropr;
+	int friendlytransfer, carryflags;
 	int persistturf;
+	/* the four ways to drop a flag */
+	int dropowned, dropcenter;
+	int neutowned, neutcenter;
+	int tkowned, tkcenter;
+	int safeowned, safecenter;
 } MyArenaData;
 
 
 /* prototypes */
-local void SpawnFlag(Arena *arena, int fid);
+local void SpawnFlag(Arena *arena, int fid, int owned, int center);
 local void AAFlag(Arena *arena, int action);
 local void PAFlag(Player *p, int action, Arena *arena);
 local void ShipChange(Player *, int, int);
@@ -155,53 +160,52 @@ EXPORT int MM_flags(int action, Imodman *_mm, Arena *arena)
 
 
 
-void SpawnFlag(Arena *arena, int fid)
+void SpawnFlag(Arena *arena, int fid, int owned, int center)
 {
 	/* note that this function should be called only for arenas with
 	 * FLAGGAME_BASIC */
+	/* owned and center work like: 0 = don't care, 1 = no, 2 = yes */
 	int cx, cy, rad, x, y, freq, good;
 	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
 	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
 	struct FlagData *f = &afd->flags[fid];
 
 	LOCK_STATUS(arena);
-	if (f->state == FLAG_NONE)
-	{
-		/* spawning neutral flag in center */
-		cx = pfd->spawnx;
-		cy = pfd->spawny;
-		rad = pfd->spawnr;
-		freq = -1;
-	}
-	else if (f->state == FLAG_CARRIED)
-	{
-		/* player dropped a flag */
-		Player *p = f->carrier;
-		cx = p->position.x>>4;
-		cy = p->position.y>>4;
-		rad = pfd->dropr;
-		if (pfd->dropowned)
-			freq = f->freq;
-		else
-			freq = -1;
-	}
-	else if (f->state == FLAG_NEUTED)
-	{
-		/* player specced or left, flag is neuted */
-		/* these fields were set when the flag was neuted */
-		cx = f->x;
-		cy = f->y;
-		rad = pfd->neutr;
-		if (pfd->neutowned)
-			freq = f->freq;
-		else
-			freq = -1;
-	}
-	else
+	if (f->state == FLAG_ONMAP)
 	{
 		logm->Log(L_WARN, "<flags> spawnFlag called for a flag on the map");
 		UNLOCK_STATUS(arena);
 		return;
+	}
+	else /* all others work mostly the same */
+	{
+		/* figure out location */
+		if (center || f->state == FLAG_NONE)
+		{
+			cx = pfd->spawnx;
+			cy = pfd->spawny;
+			rad = pfd->spawnr;
+		}
+		/* center is false */
+		else if (f->state == FLAG_CARRIED)
+		{
+			Player *p = f->carrier;
+			cx = p->position.x>>4;
+			cy = p->position.y>>4;
+			rad = pfd->dropr;
+		}
+		else if (f->state == FLAG_NEUTED)
+		{
+			cx = f->x;
+			cy = f->y;
+			rad = pfd->dropr;
+		}
+
+		/* figure out ownership */
+		if (owned)
+			freq = f->freq;
+		else
+			freq = -1;
 	}
 
 	do {
@@ -287,22 +291,46 @@ void MoveFlag(Arena *arena, int fid, int x, int y, int freq)
 
 void FlagVictory(Arena *arena, int freq, int points)
 {
-	int i, fc;
+	int i;
 	ArenaFlagData *afd = P_ARENA_DATA(arena, afdkey);
 	MyArenaData *pfd = P_ARENA_DATA(arena, pfdkey);
-	struct S2CFlagVictory fv = { S2C_FLAGRESET, freq, points };
 
 	LOCK_STATUS(arena);
-	afd->flagcount = 0;
-	fc = pfd->maxflags;
-	for (i = 0; i < fc; i++)
-		afd->flags[i].state = FLAG_NONE;
-	UNLOCK_STATUS(arena);
 
-	net->SendToArena(arena, NULL, (byte*)&fv, sizeof(fv), NET_RELIABLE);
+	if (pfd->gametype == FLAGGAME_BASIC)
+	{
+		struct S2CFlagVictory fv = { S2C_FLAGRESET, freq, points };
 
-	if (persist)
-		persist->EndInterval(arena->name, INTERVAL_GAME);
+		afd->flagcount = 0;
+
+		for (i = 0; i < pfd->maxflags; i++)
+			afd->flags[i].state = FLAG_NONE;
+
+		UNLOCK_STATUS(arena);
+
+		net->SendToArena(arena, NULL, (byte*)&fv, sizeof(fv), NET_RELIABLE);
+
+		if (persist && points != -1)
+			persist->EndInterval(NULL, arena, INTERVAL_GAME);
+	}
+	else if (pfd->gametype == FLAGGAME_TURF)
+	{
+		int fc = afd->flagcount;
+		struct SimplePacketA *pkt;
+
+		for (i = 0; i < fc; i++)
+			afd->flags[i].freq = -1;
+
+		UNLOCK_STATUS(arena);
+
+		pkt = alloca(1 + fc * 2);
+		pkt->type = S2C_TURFFLAGS;
+		for (i = 0; i < fc; i++)
+			pkt->d[i] = -1;
+		net->SendToArena(arena, NULL, (byte*)pkt, 1 + fc * 2, NET_RELIABLE);
+	}
+	else
+		UNLOCK_STATUS(arena);
 }
 
 
@@ -334,6 +362,7 @@ int GetCarriedFlags(Player *p)
 		    f->carrier == p)
 			tot++;
 	UNLOCK_STATUS(arena);
+
 	return tot;
 }
 
@@ -395,19 +424,45 @@ local void LoadFlagSettings(Arena *arena, int init)
 		/* cfghelp: Flag:DropRadius, arena, int, def: 2
 		 * How far from a player do dropped flags appear (in tiles). */
 		pfd->dropr = cfg->GetInt(c, "Flag", "DropRadius", 2);
-		/* cfghelp: Flag:NeutRadius, arena, int, def: 2
-		 * How far from a player do neut-dropped flags appear (in
-		 * tiles). */
-		pfd->neutr = cfg->GetInt(c, "Flag", "NeutRadius", 2);
 		/* cfghelp: Flag:FriendlyTransfer , arena, bool, def: 1
 		 * Whether you get a teammates flags when you kill him. */
 		pfd->friendlytransfer = cfg->GetInt(c, "Flag", "FriendlyTransfer", 1);
+		/* cfghelp for this one is in clientset.def */
+		pfd->carryflags = cfg->GetInt(c, "Flag", "CarryFlags", 0);
+
 		/* cfghelp: Flag:DropOwned, arena, bool, def: 1
 		 * Whether flags you drop are owned by your team. */
 		pfd->dropowned = cfg->GetInt(c, "Flag", "DropOwned", 1);
+		/* cfghelp: Flag:DropCenter, arena, bool, def: 0
+		 * Whether flags dropped normally go in the center of the map, as
+		 * opposed to near the player. */
+		pfd->dropcenter = cfg->GetInt(c, "Flag", "DropCenter", 0);
+
 		/* cfghelp: Flag:NeutOwned, arena, bool, def: 0
 		 * Whether flags you neut-drop are owned by your team. */
 		pfd->neutowned = cfg->GetInt(c, "Flag", "NeutOwned", 0);
+		/* cfghelp: Flag:NeutCenter, arena, bool, def: 0
+		 * Whether flags that are neut-droped go in the center, as
+		 * opposed to near the player who dropped them. */
+		pfd->neutcenter = cfg->GetInt(c, "Flag", "NeutCenter", 0);
+
+		/* cfghelp: Flag:TKOwned, arena, bool, def: 1
+		 * Whether flags dropped by a team-kill are owned by your team,
+		 * as opposed to neutral. */
+		pfd->tkowned = cfg->GetInt(c, "Flag", "TKOwned", 1);
+		/* cfghelp: Flag:TKCenter, arena, bool, def: 0
+		 * Whether flags dropped by a team-kill spawn in the center, as
+		 * opposed to near the killed player. */
+		pfd->tkcenter = cfg->GetInt(c, "Flag", "TKCenter", 0);
+
+		/* cfghelp: Flag:SafeOwned, arena, bool, def: 1
+		 * Whether flags dropped from a safe zone are owned by your
+		 * team, as opposed to neutral. */
+		pfd->safeowned = cfg->GetInt(c, "Flag", "SafeOwned", 1);
+		/* cfghelp: Flag:SafeCenter, arena, bool, def: 0
+		 * Whether flags dropped from a safe zone spawn in the center,
+		 * as opposed to near the safe zone player. */
+		pfd->safecenter = cfg->GetInt(c, "Flag", "SafeCenter", 0);
 
 		if (init)
 		{
@@ -436,7 +491,7 @@ local void LoadFlagSettings(Arena *arena, int init)
 			/* allocate array for public flag data */
 			afd->flags = amalloc(pfd->maxflags * sizeof(struct FlagData));
 
-			/* the timer event will notice that flagcount < maxflags and
+			/* the timer event will notice that flagcount < minflags and
 			 * init the flags. */
 			afd->flagcount = 0;
 		}
@@ -568,9 +623,9 @@ local void CleanupAfter(Arena *arena, Player *p)
 	int i, fc, dropped = 0;
 	struct FlagData *f = afd->flags;
 
+	LOCK_STATUS(arena);
 	p->pkt.flagscarried = 0;
 
-	LOCK_STATUS(arena);
 	fc = pfd->maxflags;
 	if (pfd->gametype != FLAGGAME_NONE)
 		for (i = 0; i < fc; i++, f++)
@@ -605,20 +660,13 @@ void PAFlag(Player *p, int action, Arena *arena)
 		fc = afd->flagcount;
 		if (pfd->gametype == FLAGGAME_BASIC)
 			for (i = 0; i < fc; i++, f++)
-			{
 				if (f->state == FLAG_ONMAP)
 				{
 					struct S2CFlagLocation fl = { S2C_FLAGLOC, i, f->x, f->y, f->freq };
 					net->SendToOne(p, (byte*)&fl, sizeof(fl), NET_RELIABLE);
 				}
-				else if (f->state == FLAG_CARRIED && f->carrier)
-				{
-					struct S2CFlagPickup fp = { S2C_FLAGPICKUP, i, f->carrier->pid};
-					net->SendToOne(p, (byte*)&fp, sizeof(fp), NET_RELIABLE);
-				}
-			}
-		UNLOCK_STATUS(arena);
 		p->pkt.flagscarried = 0;
+		UNLOCK_STATUS(arena);
 	}
 	else if (action == PA_LEAVEARENA)
 		CleanupAfter(arena, p);
@@ -648,13 +696,24 @@ void FlagKill(Arena *arena, Player *killer, Player *killed, int bounty, int flag
 	newfreq = killer->p_freq;
 	LOCK_STATUS(arena);
 	fc = pfd->maxflags;
-	if (killer->p_freq != killed->p_freq ||
-	    pfd->friendlytransfer)
+	if (
+	    /* non-team kills always transfer */
+	    killer->p_freq != killed->p_freq ||
+	    /* team kills transfer only if friendlytransfer is on and
+	     * the killer can hold the flag. the killer can hold the
+	     * flag if carryflags is 1, or if it's 2 and the killer has
+	     * no flags. */
+	    (pfd->friendlytransfer &&
+	     (pfd->carryflags == 1 ||
+	      (pfd->carryflags == 2 && killer->pkt.flagscarried == 0)))
+	   )
 	{
+		/* non-team kill, or friendlytransfer: transfer the flags to the
+		 * killer. */
 		for (i = 0; i < fc; i++, f++)
 		{
 			if (f->state == FLAG_CARRIED &&
-				f->carrier == killed)
+			    f->carrier == killed)
 			{
 				f->carrier = killer;
 				f->freq = newfreq;
@@ -665,19 +724,20 @@ void FlagKill(Arena *arena, Player *killer, Player *killed, int bounty, int flag
 	else
 	{
 		/* friendlytransfer is off. we have to drop the flags from the
-		 * killer and spawn them. */
+		 * killer and spawn them (because the client thinks they
+		 * transfer). */
 		struct S2CFlagDrop sfd = { S2C_FLAGDROP, killer->pid };
 		net->SendToArena(arena, NULL, (byte*)&sfd, sizeof(sfd), NET_RELIABLE);
 
 		for (i = 0; i < fc; i++, f++)
 		{
 			if (f->state == FLAG_CARRIED &&
-				f->carrier == killed)
-				SpawnFlag(arena, i);
+			    f->carrier == killed)
+				SpawnFlag(arena, i, pfd->tkowned, pfd->tkcenter);
 		}
 	}
-	UNLOCK_STATUS(arena);
 	killed->pkt.flagscarried = 0;
+	UNLOCK_STATUS(arena);
 	/* logm->Log(L_DRIVEL, "<flags> [%s] by [%s] flag kill: %d flags transferred",
 			killed->name,
 			killer->name,
@@ -822,7 +882,10 @@ void PDropFlag(Player *p, byte *pkt, int len)
 				if (fd->state == FLAG_CARRIED &&
 				    fd->carrier == p)
 				{
-					SpawnFlag(arena, fid);
+					if (p->position.status & STATUS_SAFEZONE)
+						SpawnFlag(arena, fid, pfd->safeowned, pfd->safecenter);
+					else
+						SpawnFlag(arena, fid, pfd->dropowned, pfd->dropcenter);
 					dropped++;
 				}
 			break;
@@ -884,8 +947,10 @@ int BasicFlagTimer(void *dummy)
 			flagcount = afd->flagcount;
 			flags = afd->flags;
 			for (f = 0; f < flagcount; f++)
-				if (flags[f].state == FLAG_NONE || flags[f].state == FLAG_NEUTED)
-					SpawnFlag(arena, f);
+				if (flags[f].state == FLAG_NONE)
+					SpawnFlag(arena, f, FALSE, TRUE);
+				else if (flags[f].state == FLAG_NEUTED)
+					SpawnFlag(arena, f, pfd->neutowned, pfd->neutcenter);
 
 			/* also check wins in case it wasn't due to a drop. it is
 			 * possible, if you have NeutOwned on. */

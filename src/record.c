@@ -4,14 +4,18 @@
 #include <assert.h>
 #include <string.h>
 #include <ctype.h>
-#include <stdio.h>
+#include <stdlib.h>
 
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include <zlib.h>
 
 #include "asss.h"
 #include "fake.h"
+#include "clientset.h"
 
 
 /* recorded game file format */
@@ -25,13 +29,7 @@ enum
 	EV_KILL,
 	EV_CHAT,
 	EV_POS,
-	/* TODO: not implemented yet: */
-	EV_BRICK,
-	EV_FLAGPICKUP,
-	EV_FLAGDROP,
-	EV_BALLPICKUP,
-	EV_BALLFIRE,
-	/* TODO: koth?, scores? */
+	EV_PACKET,
 };
 
 struct event_header
@@ -92,21 +90,29 @@ struct event_pos
 	struct C2SPosition pos;
 };
 
-#define FILE_VERSION 1
+struct event_packet
+{
+	struct event_header head;
+	i16 len;
+	byte data[0];
+};
+
+
+#define FILE_VERSION 2
 
 struct file_header
 {
 	char header[8];        /* always "asssgame" */
-	u32 version;           /* just one for now */
+	u32 version;           /* to tell if the file is compatible */
 	u32 offset;            /* offset of start of events from beginning of the file */
 	u32 events;            /* number of events in the file */
 	u32 endtime;           /* ending time of recorded game */
 	u32 maxpid;            /* the highest numbered pid in the file */
 	u32 specfreq;          /* the spec freq at the time the game was recorded */
 	time_t recorded;       /* the date and time this game was recorded */
+	u32 mapchecksum;       /* a checksum for the map this was recorded on */
 	char recorder[24];     /* the name of the player who recorded it */
 	char arenaname[24];    /* the name of the arena that was recorded */
-	char comments[256];    /* misc. comments */
 };
 
 
@@ -115,8 +121,7 @@ struct file_header
 typedef struct rec_adata
 {
 	enum { s_none, s_recording, s_playing } state;
-	gzFile gzf; /* reading */
-	FILE *f; /* writing */
+	gzFile gzf;
 	const char *fname;
 	u32 events, maxpid;
 	ticks_t started, total;
@@ -138,11 +143,16 @@ local Ilogman *lm;
 local Ichat *chat;
 local Inet *net;
 local Iconfig *cfg;
+local Iflags *flags;
+local Iballs *balls;
+local Imapdata *mapdata;
+local Iclientset *clientset;
 
 local int adkey;
 local pthread_mutex_t recmtx = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK(a) pthread_mutex_lock(&recmtx)
 #define UNLOCK(a) pthread_mutex_unlock(&recmtx)
+#define TRYLOCK(a) (pthread_mutex_trylock(&recmtx) == 0)
 
 
 /********** game recording **********/
@@ -156,15 +166,12 @@ local inline int get_size(struct event_header *ev)
 		case EV_SHIPCHANGE:     return sizeof(struct event_sc);
 		case EV_FREQCHANGE:     return sizeof(struct event_fc);
 		case EV_KILL:           return sizeof(struct event_kill);
-		case EV_CHAT:           return ((struct event_chat *)ev)->len + offsetof(struct event_chat, msg);
-		case EV_POS:            return ((struct event_pos *)ev)->pos.type + offsetof(struct event_pos, pos);
-#if 0
-		case EV_BRICK:          return sizeof(struct event_);
-		case EV_FLAGPICKUP:     return sizeof(struct event_);
-		case EV_FLAGDROP:       return sizeof(struct event_);
-		case EV_BALLPICKUP:     return sizeof(struct event_);
-		case EV_BALLFIRE:       return sizeof(struct event_);
-#endif
+		case EV_CHAT:           return ((struct event_chat *)ev)->len +
+		                            offsetof(struct event_chat, msg);
+		case EV_POS:            return ((struct event_pos *)ev)->pos.type +
+		                            offsetof(struct event_pos, pos);
+		case EV_PACKET:         return abs(((struct event_packet *)ev)->len) +
+		                            offsetof(struct event_packet, len);
 		default:                return 0;
 	}
 }
@@ -184,13 +191,7 @@ local inline int get_event_pid(struct event_header *ev)
 			pid1 = ((struct event_kill*)ev)->killer;
 			pid2 = ((struct event_kill*)ev)->killed;
 			return (pid1 > pid2) ? pid1 : pid2;
-#if 0
-		case EV_BRICK:          return ((struct event_)ev)->pid;
-		case EV_FLAGPICKUP:     return ((struct event_)ev)->pid;
-		case EV_FLAGDROP:       return ((struct event_)ev)->pid;
-		case EV_BALLPICKUP:     return ((struct event_)ev)->pid;
-		case EV_BALLFIRE:       return ((struct event_)ev)->pid;
-#endif
+		case EV_PACKET:         return 0;
 		default:                return 0;
 	}
 }
@@ -278,7 +279,7 @@ local void cb_chat(Player *p, int type, int sound, Player *target, int freq, con
 
 		ev->head.tm = current_ticks();
 		ev->head.type = EV_CHAT;
-		ev->pid = p->pid;
+		ev->pid = p ? p->pid : -1;
 		ev->type = type;
 		ev->sound = sound;
 		ev->len = len;
@@ -288,19 +289,23 @@ local void cb_chat(Player *p, int type, int sound, Player *target, int freq, con
 }
 
 
-local inline int check_arena(Arena *a)
+local inline int check_arena(Arena *a, rec_adata *ra)
 {
-	rec_adata *ra = P_ARENA_DATA(a, adkey);
 	if (!a)
-		return TRUE;
-	LOCK(a);
-	if (ra->state != s_recording)
+		return FALSE;
+	/* the idea here is to not hold up the ppk thread if we can't get
+	 * the mutex immediately. in that case, just say that we're not
+	 * recording. position packets are unreliable, so this is ok. in
+	 * general, this mutex isn't held often, but when it is it might be
+	 * held for a while. */
+	if (TRYLOCK(a))
 	{
+		int ok = ra->state == s_recording;
 		UNLOCK(a);
-		return TRUE;
+		return ok;
 	}
-	UNLOCK(a);
-	return FALSE;
+	else
+		return FALSE;
 }
 
 local void ppk(Player *p, byte *pkt, int n)
@@ -309,7 +314,7 @@ local void ppk(Player *p, byte *pkt, int n)
 	rec_adata *ra = P_ARENA_DATA(a, adkey);
 	struct event_pos *ev;
 
-	if (check_arena(a)) return;
+	if (!check_arena(a, ra)) return;
 
 	ev = amalloc(n + offsetof(struct event_pos, pos));
 	ev->head.tm = current_ticks();
@@ -321,7 +326,42 @@ local void ppk(Player *p, byte *pkt, int n)
 }
 
 
+local void arenapkt(Arena *a, byte *pkt, int n, int flags)
+{
+	rec_adata *ra = P_ARENA_DATA(a, adkey);
+	struct event_packet *ev;
+
+	switch (*pkt)
+	{
+		case S2C_TURRET:
+		case S2C_SETTINGS:
+		case S2C_FLAGLOC:
+		case S2C_FLAGPICKUP:
+		case S2C_FLAGRESET:
+		case S2C_FLAGDROP:
+		case S2C_TURFFLAGS:
+		case S2C_BRICK:
+		case S2C_BALL:
+			break;
+		default:
+			return;
+	}
+
+	if (n > 4000)
+		return;
+
+	ev = amalloc(sizeof(*ev) + n);
+	ev->head.tm = current_ticks();
+	ev->head.type = EV_PACKET;
+	ev->len = (flags & NET_RELIABLE) ? -n : n;
+	memcpy(ev->data, pkt, n);
+	MPAdd(&ra->mpq, ev);
+}
+
+
 /* writer thread */
+
+local int stop_recording(Arena *a, int suicide);
 
 local void *recorder_thread(void *v)
 {
@@ -330,19 +370,30 @@ local void *recorder_thread(void *v)
 	struct event_header *ev;
 	int pid;
 
-	assert(ra->f);
+	assert(ra->gzf);
 
 	while ((ev = MPRemove(&ra->mpq)))
 	{
 		int len = get_size(ev);
 		/* normalize events to start from 0 */
 		ev->tm = TICK_DIFF(ev->tm, ra->started);
-		fwrite(ev, len, 1, ra->f);
-		pid = get_event_pid(ev);
-		if (pid > ra->maxpid)
-			ra->maxpid = pid;
-		afree(ev);
-		ra->events++;
+		if (gzwrite(ra->gzf, ev, len) == len)
+		{
+			pid = get_event_pid(ev);
+			if (pid > ra->maxpid)
+				ra->maxpid = pid;
+			afree(ev);
+			ra->events++;
+			continue;
+		}
+		else
+		{
+			afree(ev);
+			lm->LogA(L_ERROR, "record", a, "write to game file failed. "
+					"stopping recorder. out of disk space?");
+			stop_recording(a, TRUE);
+			return NULL;
+		}
 	}
 
 	return NULL;
@@ -371,7 +422,7 @@ local void write_current_players(Arena *a)
 			astrncpy(ev.squad, p->squad, sizeof(ev.squad));
 			ev.ship = p->p_ship;
 			ev.freq = p->p_freq;
-			fwrite((byte*)&ev, sizeof(ev), 1, ra->f);
+			gzwrite(ra->gzf, (byte*)&ev, sizeof(ev));
 		}
 	pd->Unlock();
 }
@@ -380,13 +431,14 @@ local void write_current_players(Arena *a)
 local int start_recording(Arena *a, const char *file, const char *recorder, const char *comments)
 {
 	rec_adata *ra = P_ARENA_DATA(a, adkey);
-	int ok = FALSE;
+	int ok = FALSE, fd;
+	int cmtlen = comments ? strlen(comments) + 1 : 0;
 
 	LOCK(a);
 	if (ra->state == s_none)
 	{
-		ra->f = fopen(file, "wb");
-		if (ra->f)
+		fd = open(file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+		if (fd != -1)
 		{
 			/* leave the header wrong until we finish it properly in
 			 * stop_recording */
@@ -394,52 +446,74 @@ local int start_recording(Arena *a, const char *file, const char *recorder, cons
 
 			/* fill in file header */
 			header.version = 1;
-			header.offset = sizeof(struct file_header);
+			header.offset = sizeof(struct file_header) + cmtlen;
 			/* we don't know these next 3 yet */
 			header.events = 0;
 			header.endtime = 0;
 			header.maxpid = 0;
-			header.specfreq = cfg->GetInt(a->cfg, "Team", "SpectatorFrequency", 8025);
+			header.specfreq = a->specfreq;
+			header.mapchecksum = mapdata->GetChecksum(a, MODMAN_MAGIC);
 			time(&header.recorded);
 			astrncpy(header.recorder, recorder, sizeof(header.recorder));
 			astrncpy(header.arenaname, a->name, sizeof(header.arenaname));
-			astrncpy(header.comments, comments, sizeof(header.comments));
-			fwrite(&header, sizeof(header), 1, ra->f);
 
-			/* generate fake enter events for the current players in
-			 * this arena */
-			ra->maxpid = 0;
-			write_current_players(a);
+			/* write headers to the file uncompressed, then convert the
+			 * fd to a zlib file */
+			if (write(fd, &header, sizeof(header)) == sizeof(header) &&
+			    (!cmtlen || write(fd, comments, cmtlen) == cmtlen) &&
+			    (ra->gzf = gzdopen(fd, "wb9f")) != NULL)
+			{
+				/* generate fake enter events for the current players in
+				 * this arena */
+				ra->maxpid = 0;
+				write_current_players(a);
 
-			ra->specfreq = header.specfreq;
+				ra->specfreq = header.specfreq;
 
-			MPInit(&ra->mpq);
+				MPInit(&ra->mpq);
 
-			mm->RegCallback(CB_PLAYERACTION, cb_paction, a);
-			mm->RegCallback(CB_SHIPCHANGE, cb_shipchange, a);
-			mm->RegCallback(CB_FREQCHANGE, cb_freqchange, a);
-			mm->RegCallback(CB_KILL, cb_kill, a);
-			mm->RegCallback(CB_CHATMSG, cb_chat, a);
+				mm->RegCallback(CB_PLAYERACTION, cb_paction, a);
+				mm->RegCallback(CB_SHIPCHANGE, cb_shipchange, a);
+				mm->RegCallback(CB_FREQCHANGE, cb_freqchange, a);
+				mm->RegCallback(CB_KILL, cb_kill, a);
+				mm->RegCallback(CB_CHATMSG, cb_chat, a);
+				/* net->SetArenaPacketHook(a, arenapkt); */
 
-			ra->started = current_ticks();
-			ra->fname = astrdup(file);
+				/* force settings packet update */
+				clientset->Reconfigure(a);
 
-			pthread_create(&ra->thd, NULL, recorder_thread, a);
+				ra->started = current_ticks();
+				ra->fname = astrdup(file);
 
-			ra->state = s_recording;
+				chat->SendArenaMessage(a, "Starting game recording");
 
-			ok = TRUE;
+				ra->state = s_recording;
+
+				pthread_create(&ra->thd, NULL, recorder_thread, a);
+
+				ok = TRUE;
+			}
+			else
+				lm->LogA(L_WARN, "record", a, "gzdopen failed");
+
+			if (!ok)
+				close(fd);
 		}
+		else
+			lm->LogA(L_INFO, "record", a, "can't open '%s' for writing", file);
 	}
+	else
+		lm->LogA(L_INFO, "record", a, "tried to %s game, but state wasn't none",
+				"record");
 	UNLOCK(a);
 	return ok;
 }
 
 
-local int stop_recording(Arena *a)
+local int stop_recording(Arena *a, int suicide)
 {
 	rec_adata *ra = P_ARENA_DATA(a, adkey);
-	int ok = FALSE;
+	int ok = FALSE, fd;
 
 	LOCK(a);
 	if (ra->state == s_recording)
@@ -448,37 +522,51 @@ local int stop_recording(Arena *a)
 
 		ra->state = s_none;
 
-		MPAdd(&ra->mpq, NULL);
-		pthread_join(ra->thd, NULL);
+		if (!suicide)
+		{
+			MPAdd(&ra->mpq, NULL);
+			pthread_join(ra->thd, NULL);
+		}
+		else
+			pthread_detach(ra->thd);
 
 		mm->UnregCallback(CB_PLAYERACTION, cb_paction, a);
 		mm->UnregCallback(CB_SHIPCHANGE, cb_shipchange, a);
 		mm->UnregCallback(CB_FREQCHANGE, cb_freqchange, a);
 		mm->UnregCallback(CB_KILL, cb_kill, a);
 		mm->UnregCallback(CB_CHATMSG, cb_chat, a);
+		/* net->SetArenaPacketHook(a, NULL); */
 
 		MPDestroy(&ra->mpq);
 
-		/* fill in header fields we couldn't get before */
-		fields[0] = ra->events;
-		fields[1] = TICK_DIFF(current_ticks(), ra->started);
-		fields[2] = ra->maxpid;
-		fseek(ra->f, offsetof(struct file_header, events), SEEK_SET);
-		fwrite(fields, sizeof(fields), 1, ra->f);
-		fseek(ra->f, 0, SEEK_SET);
-		fwrite("asssgame", 8, 1, ra->f);
-		fclose(ra->f);
-		ra->f = NULL;
+		gzclose(ra->gzf);
+		ra->gzf = NULL;
 
-#ifndef WIN32
-		/* spawn a gzip to zip it up */
-		if (fork() == 0)
+		chat->SendArenaMessage(a, "Game recording stopped");
+
+		/* fill in header fields we couldn't get before */
+		fd = open(ra->fname, O_WRONLY);
+		if (fd != -1)
 		{
-			/* in child */
-			close(0); close(1); close(2);
-			execlp("gzip", "gzip", "-f", "-n", "-q", "-9", ra->fname, NULL);
+			struct stat st;
+
+			fields[0] = ra->events;
+			fields[1] = TICK_DIFF(current_ticks(), ra->started);
+			fields[2] = ra->maxpid;
+			lseek(fd, offsetof(struct file_header, events), SEEK_SET);
+			write(fd, fields, sizeof(fields));
+			lseek(fd, 0, SEEK_SET);
+			write(fd, "asssgame", 8);
+
+			/* ugly overloading of a field */
+			ra->events = fstat(fd, &st) ? 0 : st.st_size;
+
+			close(fd);
 		}
-#endif
+		else
+			lm->LogA(L_WARN, "record", a, "can't finalize recorded game file '%s'",
+					ra->fname);
+
 		afree(ra->fname);
 		ra->fname = NULL;
 
@@ -542,6 +630,71 @@ local void unlock_all_spec(Arena *a)
 
 /* helpers for playback thread */
 
+#include "packets/flags.h"
+#include "packets/balls.h"
+#include "packets/brick.h"
+
+local int process_packet_event(Arena *a, struct event_packet *ev, int rel, Player **pidmap, int pidmaplen)
+{
+	int flags = rel ? NET_RELIABLE : NET_UNRELIABLE;
+
+#define CVT_PID(f) do { \
+		if ((f) < 0 || (f) >= pidmaplen) return FALSE; \
+		if (pidmap[(f)] == NULL) return FALSE; \
+		(f) = pidmap[(f)]->pid; \
+	} while (0)
+
+	switch (ev->data[0])
+	{
+		case S2C_TURRET:
+		{
+			struct SimplePacket *pkt = (struct SimplePacket*)ev->data;
+			CVT_PID(pkt->d1);
+			CVT_PID(pkt->d2);
+			break;
+		}
+		case S2C_SETTINGS:
+			break;
+		case S2C_FLAGLOC:
+			break;
+		case S2C_FLAGPICKUP:
+		{
+			struct S2CFlagPickup *pkt = (struct S2CFlagPickup*)ev->data;
+			CVT_PID(pkt->pid);
+			break;
+		}
+		case S2C_FLAGRESET:
+			break;
+		case S2C_FLAGDROP:
+			break;
+		case S2C_TURFFLAGS:
+			break;
+		case S2C_BRICK:
+		{
+			struct S2CBrickPacket *pkt = (struct S2CBrickPacket*)ev->data;
+			pkt->starttime = current_ticks();
+			break;
+		}
+		case S2C_BALL:
+		{
+			struct BallPacket *pkt = (struct BallPacket*)ev->data;
+			CVT_PID(pkt->player);
+			pkt->time = current_ticks(); /* FIXME: be more accurate */
+			break;
+		}
+		default:
+			lm->LogA(L_WARN, "record", a, "unknown packet type in event %d",
+					ev->data[0]);
+			return FALSE;
+	}
+
+#undef CVT_PID
+
+	net->SendToArena(a, NULL, ev->data, ev->len, flags);
+	return TRUE;
+}
+
+
 local inline int check_chat_len(Arena *a, int len)
 {
 	if (len >= 1 && len < 512)
@@ -564,13 +717,24 @@ local inline int check_pos_len(Arena *a, int len)
 	}
 }
 
+local inline int check_pkt_len(Arena *a, int len)
+{
+	if (len >= 1 || len < 4000)
+		return TRUE;
+	else
+	{
+		lm->LogA(L_WARN, "record", a, "bad general packet length: %d", len);
+		return FALSE;
+	}
+}
+
+
 enum
 {
 	PC_NULL = 0,
 	PC_STOP,
 	PC_PAUSE,
 	PC_RESUME,
-	PC_RESTART,
 };
 
 /* playback thread */
@@ -588,12 +752,12 @@ local void *playback_thread(void *v)
 		struct event_kill kill;
 		struct event_chat chat;
 		struct event_pos pos;
+		struct event_packet pkt;
 	} ev;
 
 	Arena *a = v;
 	rec_adata *ra = P_ARENA_DATA(a, adkey);
-	int cmd, r;
-	long startingoffset;
+	int cmd, r, isrel;
 	ticks_t started, now, paused;
 
 	Player **pidmap;
@@ -603,7 +767,6 @@ local void *playback_thread(void *v)
 	 * playback */
 	lock_all_spec(a);
 
-	startingoffset = gztell(ra->gzf);
 	memset(ev.buf, 0, sizeof(ev));
 
 	pidmaplen = ra->maxpid + 1;
@@ -630,6 +793,7 @@ local void *playback_thread(void *v)
 				LOCK(a);
 				ra->ispaused = TRUE;
 				UNLOCK(a);
+				chat->SendArenaMessage(a, "Game playback paused");
 				break;
 
 			case PC_RESUME:
@@ -637,26 +801,7 @@ local void *playback_thread(void *v)
 				ra->ispaused = FALSE;
 				UNLOCK(a);
 				started = TICK_MAKE(started + TICK_DIFF(current_ticks(), paused));
-				break;
-
-			case PC_RESTART:
-				/* this is a mess of stuff that needs to be done */
-				/* clear out existing players */
-				for (r = 0; r < pidmaplen; r++)
-					if (pidmap[r])
-						fake->EndFaked(pidmap[r]);
-				memset(pidmap, 0, pidmaplen * sizeof(Player*));
-				/* reset the event so we read a new one */
-				memset(ev.buf, 0, sizeof(ev));
-				/* status stuff */
-				LOCK(a);
-				ra->curpos = 0.0;
-				ra->ispaused = FALSE;
-				UNLOCK(a);
-				/* reset file position */
-				gzseek(ra->gzf, startingoffset, SEEK_SET);
-				/* and mark where we're now starting  */
-				started = current_ticks();
+				chat->SendArenaMessage(a, "Game playback resumed");
 				break;
 		}
 
@@ -700,12 +845,15 @@ local void *playback_thread(void *v)
 						goto out;
 					r = gzread(ra->gzf, ((char*)&ev.pos.pos) + 1, ev.pos.pos.type - 1);
 					break;
-				/* not impl */
-				case EV_BRICK:
-				case EV_FLAGPICKUP:
-				case EV_FLAGDROP:
-				case EV_BALLPICKUP:
-				case EV_BALLFIRE:
+				case EV_PACKET:
+					r = gzread(ra->gzf, &ev.pkt.len, sizeof(ev.pkt.len));
+					if (ev.pkt.len < 0)
+						isrel = 1, ev.pkt.len = -ev.pkt.len;
+					else
+						isrel = 0;
+					if (!check_pkt_len(a, ev.pkt.len))
+						goto out;
+					r = gzread(ra->gzf, ev.pkt.data, ev.pkt.len);
 					break;
 				default:
 					lm->LogA(L_WARN, "record", a, "bad event type in game file: %d",
@@ -740,9 +888,9 @@ local void *playback_thread(void *v)
 					break;
 				case EV_ENTER:
 				{
-					char newname[20];
+					char newname[24] = "~";
 					CHECK(ev.enter.pid)
-					snprintf(newname, 20, "~%s", ev.enter.name);
+					strncat(newname, ev.enter.name, 19);
 					p1 = fake->CreateFakePlayer(newname, a, ev.enter.ship, ev.enter.freq);
 					if (p1)
 						pidmap[ev.enter.pid] = p1;
@@ -818,19 +966,15 @@ local void *playback_thread(void *v)
 					p1 = pidmap[ev.pos.pos.time];
 					if (p1)
 					{
-						ev.pos.pos.time = now;
+						ev.pos.pos.time = now; /* FIXME: be more accurate */
 						game->FakePosition(p1, &ev.pos.pos, ev.pos.pos.type);
 					}
 					else
 						lm->LogA(L_WARN, "record", a, "no mapping for pid %d",
 								ev.sc.pid);
 					break;
-				/* not impl */
-				case EV_BRICK:
-				case EV_FLAGPICKUP:
-				case EV_FLAGDROP:
-				case EV_BALLPICKUP:
-				case EV_BALLFIRE:
+				case EV_PACKET:
+					process_packet_event(a, &ev.pkt, isrel, pidmap, pidmaplen);
 					break;
 #undef CHECK
 			}
@@ -846,6 +990,11 @@ out:
 		if (pidmap[r])
 			fake->EndFaked(pidmap[r]);
 	afree(pidmap);
+
+	/* force settings update since playback may have messed with it */
+	clientset->Reconfigure(a);
+	/* FIXME: if (flags) flags->DisableFlags(a, FALSE); */
+	if (balls) balls->SetBallCount(a, 0);
 
 	chat->SendArenaMessage(a, "Game playback stopped");
 
@@ -873,17 +1022,25 @@ out:
 local int start_playback(Arena *a, const char *file)
 {
 	rec_adata *ra = P_ARENA_DATA(a, adkey);
-	int ok = FALSE;
+	int ok = FALSE, fd;
 
 	LOCK(a);
 	if (ra->state == s_none)
 	{
-		ra->gzf = gzopen(file, "rb");
-		if (ra->gzf)
+		fd = open(file, O_RDONLY);
+		if (fd != -1)
 		{
 			struct file_header header;
-			gzread(ra->gzf, &header, sizeof(header));
-			if (header.version == FILE_VERSION)
+
+			if (read(fd, &header, sizeof(header)) != sizeof(header))
+				lm->LogA(L_INFO, "record", a, "can't read header");
+			else if (strncmp(header.header, "asssgame", 8) != 0)
+				lm->LogA(L_INFO, "record", a, "bad header in game file");
+			else if (header.version != FILE_VERSION)
+				lm->LogA(L_INFO, "record", a, "bad version number in game file");
+			else if (header.mapchecksum != mapdata->GetChecksum(a, MODMAN_MAGIC))
+				lm->LogA(L_INFO, "record", a, "map checksum mismatch in game file");
+			else
 			{
 				char date[32];
 
@@ -893,31 +1050,45 @@ local int start_playback(Arena *a, const char *file)
 				ra->events = header.events;
 				ra->specfreq = header.specfreq;
 
-				/* tell people about the game and lock them in spec */
-				chat->SendArenaMessage(a, "Starting game playback: %s", file);
-				ctime_r(&header.recorded, date);
-				chat->SendArenaMessage(a, "Game recorded in arena %s by %s on %s",
-						header.arenaname, header.recorder, date);
-
 				/* move to where the data is */
-				gzseek(ra->gzf, header.offset, SEEK_SET);
+				lseek(fd, header.offset, SEEK_SET);
 
-				MPInit(&ra->mpq);
+				/* convert fd to zlib file */
+				ra->gzf = gzdopen(fd, "rb");
 
-				pthread_create(&ra->thd, NULL, playback_thread, a);
-				pthread_detach(ra->thd);
+				if (ra->gzf)
+				{
+					/* FIXME: if (flags) flags->DisableFlags(a, TRUE); */
+					if (balls) balls->SetBallCount(a, 0);
 
-				ra->state = s_playing;
+					/* tell people about the game */
+					chat->SendArenaMessage(a, "Starting game playback: %s", file);
+					ctime_r(&header.recorded, date);
+					chat->SendArenaMessage(a, "Game recorded in arena %s by %s on %s",
+							header.arenaname, header.recorder, date);
 
-				ok = TRUE;
+					MPInit(&ra->mpq);
+
+					ra->state = s_playing;
+
+					pthread_create(&ra->thd, NULL, playback_thread, a);
+					pthread_detach(ra->thd);
+
+					ok = TRUE;
+				}
+				else
+					lm->LogA(L_WARN, "record", a, "gzdopen failed");
 			}
-			else
-			{
-				gzclose(ra->gzf);
-				ra->gzf = NULL;
-			}
+
+			if (!ok)
+				close(fd);
 		}
+		else
+			lm->LogA(L_INFO, "record", a, "can't open game file '%s'", file);
 	}
+	else
+		lm->LogA(L_INFO, "record", a, "tried to %s game, but state wasn't none",
+				"play");
 	UNLOCK(a);
 
 	return ok;
@@ -961,13 +1132,14 @@ local void Cgamerecord(const char *params, Player *p, const Target *target)
 		while (*fn && isspace(*fn)) fn++;
 		if (*fn)
 		{
-			if (start_recording(a, fn, p->name, ""))
-				chat->SendMessage(p, "Recording started.");
-			else
-				chat->SendMessage(p, "There was an error recording.");
+			if (!start_recording(a, fn, p->name, NULL))
+				chat->SendMessage(p, "There was an error %s."
+						" Check the server log for details.",
+						"recording");
 		}
 		else
-			chat->SendMessage(p, "You must specify a filename to record to.");
+			chat->SendMessage(p, "You must specify a filename to %s.",
+					"record to");
 	}
 	else if (strncasecmp(params, "play", 4) == 0)
 	{
@@ -975,10 +1147,10 @@ local void Cgamerecord(const char *params, Player *p, const Target *target)
 		while (*fn && isspace(*fn)) fn++;
 		if (*fn)
 		{
-			if (start_playback(a, fn))
-				/* this will issue an arena message */;
-			else
-				chat->SendMessage(p, "There was an error playing the recorded game.");
+			if (!start_playback(a, fn))
+				chat->SendMessage(p, "There was an error %s."
+						" Check the server log for details.",
+						"playing the recorded game");
 		}
 		else
 		{
@@ -990,7 +1162,8 @@ local void Cgamerecord(const char *params, Player *p, const Target *target)
 			if (state == s_playing && isp)
 				MPAdd(&ra->mpq, (void*)PC_RESUME);
 			else
-				chat->SendMessage(p, "You must specify a filename to play.");
+				chat->SendMessage(p, "You must specify a filename to %s.",
+						"play from");
 		}
 	}
 	else if (strcasecmp(params, "stop") == 0)
@@ -1006,14 +1179,17 @@ local void Cgamerecord(const char *params, Player *p, const Target *target)
 			if (stop_playback(a))
 				chat->SendMessage(p, "Stopped playback.");
 			else
-				chat->SendMessage(p, "There was an error stopping playback.");
+				chat->SendMessage(p, "There was an error stopping %s.",
+						"playback");
 		}
 		else if (state == s_recording)
 		{
-			if (stop_recording(a))
-				chat->SendMessage(p, "Stopped recording.");
+			if (stop_recording(a, FALSE))
+				chat->SendMessage(p, "Stopped recording. The game file is %u bytes long.",
+						ra->events);
 			else
-				chat->SendMessage(p, "There was an error stopping recording.");
+				chat->SendMessage(p, "There was an error stopping %s.",
+						"recording");
 		}
 		else
 			chat->SendMessage(p, "The recorder module is in an invalid state.");
@@ -1028,18 +1204,7 @@ local void Cgamerecord(const char *params, Player *p, const Target *target)
 		if (state == s_playing)
 			MPAdd(&ra->mpq, isp ? (void*)PC_RESUME : (void*)PC_PAUSE);
 		else
-			chat->SendMessage(p, "There is no game being played back here.");
-	}
-	else if (strcasecmp(params, "restart") == 0)
-	{
-		int state;
-		LOCK(a);
-		state = ra->state;
-		UNLOCK(a);
-		if (state == s_playing)
-			MPAdd(&ra->mpq, (void*)PC_RESTART);
-		else
-			chat->SendMessage(p, "There is no game being played back here.");
+			chat->SendMessage(p, "There is no game being played here.");
 	}
 	else
 	{
@@ -1079,7 +1244,7 @@ local void cb_aaction(Arena *a, int action)
 	else if (action == AA_DESTROY)
 	{
 		if (ra->state == s_recording)
-			stop_recording(a);
+			stop_recording(a, FALSE);
 		else if (ra->state == s_playing)
 			stop_playback(a);
 	}
@@ -1100,7 +1265,12 @@ EXPORT int MM_record(int action, Imodman *mm_, Arena *arena)
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
-		if (!aman || !pd || !cmd || !game || !fake || !lm || !net || !chat || !cfg)
+		flags = mm->GetInterface(I_FLAGS, ALLARENAS);
+		balls = mm->GetInterface(I_BALLS, ALLARENAS);
+		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
+		clientset = mm->GetInterface(I_CLIENTSET, ALLARENAS);
+		if (!aman || !pd || !cmd || !game || !fake || !lm || !net ||
+				!chat || !cfg || !mapdata || !clientset)
 			return MM_FAIL;
 		adkey = aman->AllocateArenaData(sizeof(rec_adata));
 		if (adkey == -1) return MM_FAIL;
@@ -1141,6 +1311,10 @@ EXPORT int MM_record(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(flags);
+		mm->ReleaseInterface(balls);
+		mm->ReleaseInterface(mapdata);
+		mm->ReleaseInterface(clientset);
 		return MM_OK;
 	}
 	return MM_FAIL;

@@ -33,6 +33,7 @@ typedef struct
 	/* epd/energy stuff */
 	struct { int seenrg, seenrgspec, seeepd; } pl_epd;
 	/*           enum    enum        bool              */
+	int lockship;
 } pdata;
 
 typedef struct
@@ -40,6 +41,7 @@ typedef struct
 	int spec_epd, spec_nrg, all_nrg;
 	/*  bool      enum      enum     */
 	unsigned long personalgreen;
+	int initlockship, initspec;
 } adata;
 
 typedef struct
@@ -81,6 +83,10 @@ local void SetFreqAndShip(Player *p, int ship, int freq);
 local void DropBrick(Arena *arena, int freq, int x1, int y1, int x2, int y2);
 local void WarpTo(const Target *target, int x, int y);
 local void GivePrize(const Target *target, int type, int count);
+local void Lock(const Target *t, int notify, int spec);
+local void Unlock(const Target *t, int notify);
+local void LockArena(Arena *a, int notify, int onlyarenastate, int initial, int spec);
+local void UnlockArena(Arena *a, int notify, int onlystate);
 local void FakePosition(Player *p, struct C2SPosition *pos, int len);
 local void FakeKill(Player *killer, Player *killed, int bounty, int flags);
 
@@ -88,6 +94,7 @@ local Igame _myint =
 {
 	INTERFACE_HEAD_INIT(I_GAME, "game")
 	SetFreq, SetShip, SetFreqAndShip, DropBrick, WarpTo, GivePrize,
+	Lock, Unlock, LockArena, UnlockArena,
 	FakePosition, FakeKill
 };
 
@@ -105,6 +112,7 @@ local Iflags *flags;
 local Icapman *capman;
 local Imapdata *mapdata;
 local Ilagcollect *lagc;
+local Ichat *chat;
 
 /* big arrays */
 local int adkey, brickkey, pdkey;
@@ -131,6 +139,7 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
 		lagc = mm->GetInterface(I_LAGCOLLECT, ALLARENAS);
+		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 
 		if (!net || !cfg || !lm || !aman) return MM_FAIL;
 
@@ -215,6 +224,7 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(capman);
 		mm->ReleaseInterface(mapdata);
 		mm->ReleaseInterface(lagc);
+		mm->ReleaseInterface(chat);
 		return MM_OK;
 	}
 	return MM_FAIL;
@@ -284,12 +294,12 @@ void Pppk(Player *p, byte *p2, int n)
 			sendtoall = 1;
 		/* send some percent of antiwarp positions to everyone */
 		if ( pos->weapon.type == 0 &&
-		     (pos->status & 0x08) && /* FIXME: replace with symbolic constant or bitfield */
+		     (pos->status & STATUS_ANTIWARP) &&
 		     rand() < cfg_sendanti)
 			sendtoall = 1;
 		/* send safe zone enters to everyone, reliably */
-		if ((pos->status && 0x20) &&
-		    !(p->position.status & 0x20))
+		if ((pos->status && STATUS_SAFEZONE) &&
+		    !(p->position.status & STATUS_SAFEZONE))
 			sendtoall = 2;
 
 		if (sendwpn)
@@ -484,8 +494,8 @@ void Pppk(Player *p, byte *p2, int n)
 				n >= 26 ? pos->extra.s2cping * 10 : -1,
 				data->wpnsent);
 
-	if ((pos->status ^ data->pos.status) & 0x20U)
-		DO_CBS(CB_SAFEZONE, arena, SafeZoneFunc, (p, pos->x, pos->y, pos->status & 0x20));
+	if ((pos->status ^ data->pos.status) & STATUS_SAFEZONE)
+		DO_CBS(CB_SAFEZONE, arena, SafeZoneFunc, (p, pos->x, pos->y, pos->status & STATUS_SAFEZONE));
 
 	/* copy the whole thing. this will copy the epd, or, if the client
 	 * didn't send any epd, it will copy zeros because the buffer was
@@ -614,16 +624,23 @@ void PSetShip(Player *p, byte *pkt, int n)
 	data->changes.lastcheck += d * 1000;
 	if (data->changes.changes > cfg_changelimit && cfg_changelimit > 0)
 	{
-		Ichat *chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		lm->LogP(L_INFO, "game", p, "too many ship changes");
 		/* disable for at least 30 seconds */
 		data->changes.changes |= (cfg_changelimit<<3);
 		if (chat)
 			chat->SendMessage(p, "You're changing ships too often, disabling for 30 seconds.");
-		mm->ReleaseInterface(chat);
 		return;
 	}
 	data->changes.changes++;
+
+	/* checked lock state */
+	if (data->lockship && !(capman && capman->HasCapability(p, "bypasslock")))
+	{
+		if (chat)
+			chat->SendMessage(p, "You have been locked in %s.",
+					(p->p_ship == SPEC) ? "spectator mode" : "your ship");
+		return;
+	}
 
 	fm = mm->GetInterface(I_FREQMAN, arena);
 	if (fm)
@@ -882,7 +899,16 @@ void PlayerAction(Player *p, int action, Arena *arena)
 	pdata *data = PPDATA(p, pdkey), *idata;
 	adata *ad = P_ARENA_DATA(arena, adkey);
 
-	if (action == PA_ENTERARENA)
+	if (action == PA_PREENTERARENA)
+	{
+		data->lockship = ad->initlockship;
+		if (ad->initspec)
+		{
+			p->p_ship = SPEC;
+			p->p_freq = arena->specfreq;
+		}
+	}
+	else if (action == PA_ENTERARENA)
 	{
 		int seenrg = SEE_NONE, seenrgspec = SEE_NONE, seeepd = SEE_NONE;
 
@@ -967,6 +993,9 @@ void ArenaAction(Arena *arena, int action)
 		 * Whether bricks snap to the edges of other bricks (as opposed
 		 * to only snapping to walls). */
 		bd->countbricksaswalls = cfg->GetInt(arena->cfg, "Brick", "CountBricksAsWalls", 1);
+
+		if (action == AA_CREATE)
+			ad->initlockship = ad->initspec = FALSE;
 	}
 }
 
@@ -1002,6 +1031,78 @@ long lhypot (register long dx, register long dy)
 	r = (dd/r+r)>>1;
 
 	return (long)r;
+}
+
+
+/* locking/unlocking players/arena */
+
+local void lock_work(const Target *target, int nval, int notify, int spec)
+{
+	LinkedList set = LL_INITIALIZER;
+	Link *l;
+
+	pd->TargetToSet(target, &set);
+	for (l = LLGetHead(&set); l; l = l->next)
+	{
+		Player *p = l->data;
+		pdata *pdata = PPDATA(p, pdkey);
+
+		if (spec && p->arena && p->p_ship != SPEC)
+			SetFreqAndShip(p, SPEC, p->arena->specfreq);
+
+		if (notify && pdata->lockship != nval && chat)
+			chat->SendMessage(p, nval ?
+					(p->p_ship == SPEC ?
+					 "You have been locked to spectator mode." :
+					 "You have been locked to your ship.") :
+					"Your ship has been unlocked.");
+
+		pdata->lockship = nval;
+	}
+	LLEmpty(&set);
+}
+
+
+void Lock(const Target *t, int notify, int spec)
+{
+	lock_work(t, TRUE, notify, spec);
+}
+
+
+void Unlock(const Target *t, int notify)
+{
+	lock_work(t, FALSE, notify, FALSE);
+}
+
+
+void LockArena(Arena *a, int notify, int onlyarenastate, int initial, int spec)
+{
+	adata *ad = P_ARENA_DATA(a, adkey);
+
+	ad->initlockship = TRUE;
+	if (!initial)
+		ad->initspec = TRUE;
+	if (!onlyarenastate)
+	{
+		Target t = { T_ARENA };
+		t.u.arena = a;
+		lock_work(&t, TRUE, notify, spec);
+	}
+}
+
+
+void UnlockArena(Arena *a, int notify, int onlyarenastate)
+{
+	adata *ad = P_ARENA_DATA(a, adkey);
+
+	ad->initlockship = FALSE;
+	ad->initspec = FALSE;
+	if (!onlyarenastate)
+	{
+		Target t = { T_ARENA };
+		t.u.arena = a;
+		lock_work(&t, FALSE, notify, FALSE);
+	}
 }
 
 

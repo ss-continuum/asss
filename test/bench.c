@@ -1,6 +1,6 @@
 
 /* 2>/dev/null
-gcc -DNOTREAP -I ../src -o bench bench.c ../src/util.c
+gcc -DNOTREAP -I ../src -o bench bench.c ../src/util.c -lpthread
 exit # */
 
 #include "util.h"
@@ -324,7 +324,7 @@ void test1(int hsize, int trials)
 int main(int argc, char *argv[])
 {
 	srand(GTC());
-	test1(47, 5000);
+	test1(251, 5000);
 }
 
 

@@ -516,7 +516,7 @@ static char *ship_short_names[] =
 	/* cfghelp: All:DisableFastShooting, arena, bool
 	 * If firing bullets, bombs, or thors is disabled after using
 	 * afterburners (1=enabled) (Cont .36+) */
-	/* cfghelp: All:Radius, arena, int, range: 0-255, def: 7
+	/* cfghelp: All:Radius, arena, int, range: 0-255, def: 14
 	 * The ship's radius from center to outside, in pixels. (Cont .37+) */
 	"___MiscBitfield___",
 

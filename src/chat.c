@@ -78,7 +78,9 @@ local void check_flood(Player *p)
 	if (pm->msgs >= cfg_floodlimit && cfg_floodlimit > 0)
 	{
 		pm->msgs >>= 1;
-		pm->mask |= MSG_PUBMACRO | MSG_PUB | MSG_FREQ | MSG_NMEFREQ | MSG_PRIV | MSG_REMOTEPRIV | MSG_CHAT | MSG_MODCHAT | MSG_BCOMMAND;
+		pm->mask |= MSG_PUBMACRO | MSG_PUB | MSG_FREQ | MSG_NMEFREQ |
+			MSG_PRIV | MSG_REMOTEPRIV | MSG_CHAT | MSG_MODCHAT |
+			MSG_BCOMMAND;
 		if (pm->expires)
 			/* already has a mask, add time */
 			pm->expires += cfg_floodshutup;
@@ -97,10 +99,15 @@ local const char *get_chat_type(int type)
 	switch (type)
 	{
 		case MSG_ARENA: return "ARENA";
+		case MSG_PUB:
+		case MSG_PUBMACRO:
+						return "PUB";
+		case MSG_PRIV: return "PRIV";
+		case MSG_FREQ: return "FREQ";
 		case MSG_SYSOPWARNING: return "SYSOP";
 		case MSG_CHAT: return "CHAT";
 		case MSG_MODCHAT: return "MOD";
-		case MSG_REMOTEPRIV: return "REMOTEPRIV";
+		case MSG_REMOTEPRIV: return "PRIV";
 		default: return NULL;
 	}
 }
@@ -114,7 +121,8 @@ local void v_send_msg(LinkedList *set, char type, char sound, Player *from, cons
 
 	size = vsnprintf(cp->text, 250, str, ap) + 6;
 
-	if (type == MSG_MODCHAT) type = MSG_SYSOPWARNING;
+	if (type == MSG_MODCHAT)
+		type = MSG_SYSOPWARNING;
 
 	cp->pktype = S2C_CHAT;
 	cp->type = type;
@@ -122,7 +130,12 @@ local void v_send_msg(LinkedList *set, char type, char sound, Player *from, cons
 	cp->pid = from ? from->pid : -1;
 	if (net) net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
 	if (chatnet && ctype)
-		chatnet->SendToSet(set, "MSG:%s:%s", ctype, cp->text);
+	{
+		if (from)
+			chatnet->SendToSet(set, "MSG:%s:%s:%s", ctype, from->name, cp->text);
+		else
+			chatnet->SendToSet(set, "MSG:%s:%s", ctype, cp->text);
+	}
 }
 
 local void SendMessage_(Player *p, const char *str, ...)
@@ -173,14 +186,15 @@ local void get_arena_set(LinkedList *set, Arena *arena)
 	pd->Unlock();
 }
 
-local void get_cap_set(LinkedList *set, const char *cap)
+local void get_cap_set(LinkedList *set, const char *cap, Player *except)
 {
 	Link *link;
 	Player *p;
 	pd->Lock();
 	FOR_EACH_PLAYER(p)
 		if (p->status == S_PLAYING &&
-		    capman->HasCapability(p, cap))
+		    capman->HasCapability(p, cap) &&
+		    p != except)
 			LLAdd(set, p);
 	pd->Unlock();
 }
@@ -221,10 +235,38 @@ local void SendModMessage(const char *fmt, ...)
 {
 	LinkedList set = LL_INITIALIZER;
 	va_list args;
-	get_cap_set(&set, CAP_MODCHAT);
+	get_cap_set(&set, CAP_MODCHAT, NULL);
 	va_start(args, fmt);
 	v_send_msg(&set, MSG_MODCHAT, 0, NULL, fmt, args);
 	va_end(args);
+}
+
+local void SendRemotePrivMessage(LinkedList *set, int sound,
+		const char *squad, const char *sender, const char *msg)
+{
+	int size;
+	char _buf[256];
+	struct ChatPacket *cp = (struct ChatPacket*)_buf;
+
+	cp->pktype = S2C_CHAT;
+	cp->type = MSG_REMOTEPRIV;
+	cp->sound = sound;
+	cp->pid = -1;
+
+	if (squad)
+	{
+		size = snprintf(cp->text, 250, "(%s)(%s)>%s", squad, sender, msg) + 6;
+		if (net) net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
+		if (chatnet)
+			chatnet->SendToSet(set, "MSG:SQUAD:%s:%s:%s", squad, sender, msg);
+	}
+	else
+	{
+		size = snprintf(cp->text, 250, "(%s)>%s", sender, msg) + 6;
+		if (net) net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
+		if (chatnet)
+			chatnet->SendToSet(set, "MSG:PRIV:%s:%s", sender, msg);
+	}
 }
 
 
@@ -319,7 +361,7 @@ local void handle_modchat(Player *p, const char *msg, int sound)
 	{
 		if (capman->HasCapability(p, CAP_SENDMODCHAT) && OK(MSG_MODCHAT))
 		{
-			get_cap_set(&set, CAP_MODCHAT);
+			get_cap_set(&set, CAP_MODCHAT, p);
 			if (net) net->SendToSet(&set, (byte*)to, strlen(to->text)+6, NET_RELIABLE);
 			if (chatnet) chatnet->SendToSet(&set, "MSG:MOD:%s:%s",
 					p->name, msg);
@@ -390,7 +432,6 @@ local void handle_priv(Player *p, Player *dst, const char *msg, int sound)
 	Arena *arena = p->arena;
 	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
 	struct player_mask_t *pm = PPDATA(p, pmkey);
-	struct ChatPacket *to = alloca(strlen(msg) + 40);
 
 	if (msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2)
 	{
@@ -404,13 +445,16 @@ local void handle_priv(Player *p, Player *dst, const char *msg, int sound)
 	}
 	else if (OK(MSG_PRIV))
 	{
-		to->pktype = S2C_CHAT;
-		to->type = MSG_PRIV;
-		to->sound = sound;
-		to->pid = p->pid;
-		strcpy(to->text, msg);
 		if (IS_STANDARD(dst))
+		{
+			struct ChatPacket *to = alloca(strlen(msg) + 40);
+			to->pktype = S2C_CHAT;
+			to->type = MSG_PRIV;
+			to->sound = sound;
+			to->pid = p->pid;
+			strcpy(to->text, msg);
 			net->SendToOne(dst, (byte*)to, strlen(to->text)+6, NET_RELIABLE);
+		}
 		else if (IS_CHAT(dst))
 			chatnet->SendToOne(dst, "MSG:PRIV:%s:%s",
 					p->name, msg);
@@ -428,7 +472,6 @@ local void handle_remote_priv(Player *p, const char *msg, int sound)
 	Arena *arena = p->arena;
 	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
 	struct player_mask_t *pm = PPDATA(p, pmkey);
-	struct ChatPacket *to = alloca(strlen(msg) + 40);
 	const char *t;
 	char dest[24];
 
@@ -442,14 +485,16 @@ local void handle_remote_priv(Player *p, const char *msg, int sound)
 		{
 			if (IS_STANDARD(d))
 			{
+				struct ChatPacket *to = alloca(strlen(msg) + 40);
 				to->pktype = S2C_CHAT;
 				to->type = MSG_REMOTEPRIV;
 				to->sound = sound;
 				to->pid = -1;
 				snprintf(to->text, strlen(msg)+30, "(%s)>%s", p->name, t);
+				net->SendToOne(d, (byte*)to, strlen(to->text)+6, NET_RELIABLE);
 			}
 			else if (IS_CHAT(d))
-				chatnet->SendToOne(d, "MSG:REMOTEPRIV:%s:%s",
+				chatnet->SendToOne(d, "MSG:PRIV:%s:%s",
 						p->name, t);
 		}
 
@@ -564,15 +609,22 @@ local void MChat(Player *p, const char *line)
 	{
 		t = delimcpy(data, t, sizeof(data), ':');
 		if (!t) return;
+		pd->Lock();
 		i = pd->FindPlayer(data);
-		if (i && i->arena == p->arena)
+		if (i && i->arena == p->arena && i->status == S_PLAYING)
+		{
+			pd->Unlock();
 			handle_priv(p, i, t, 0);
+		}
 		else
+		{
 			/* this is a little hacky: we want to pass in the colon
 			 * right after PRIV because that's what handle_remote_priv
 			 * expects. we know it's at a fixed offset from line, so use
 			 * that. */
+			pd->Unlock();
 			handle_remote_priv(p, line + 4, 0);
+		}
 	}
 	else if (!strcasecmp(subtype, "FREQ"))
 	{
@@ -676,7 +728,7 @@ local void set_data(Player *p, void *data, int len, void *v)
 
 local PlayerPersistentData pdata =
 {
-	KEY_CHAT, INTERVAL_FOREVER, PERSIST_ALLARENAS,
+	KEY_CHAT, INTERVAL_FOREVER_NONSHARED, PERSIST_ALLARENAS,
 	get_data, set_data, clear_data
 };
 
@@ -696,10 +748,11 @@ local void paction(Player *p, int action, Arena *arena)
 local Ichat _int =
 {
 	INTERFACE_HEAD_INIT(I_CHAT, "chat")
-	SendMessage_, SendSetMessage,
+	SendMessage_, SendMessage_, SendSetMessage,
 	SendSoundMessage, SendSetSoundMessage,
 	SendAnyMessage, SendArenaMessage,
 	SendArenaSoundMessage, SendModMessage,
+	SendRemotePrivMessage,
 	GetArenaChatMask, SetArenaChatMask,
 	GetPlayerChatMask, SetPlayerChatMask
 };

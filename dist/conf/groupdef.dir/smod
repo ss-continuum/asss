@@ -1,10 +1,17 @@
 ; conf/groups/smod
 
 seesysoplogarena
+; bypass checksums
+bypasssecurity
+
 privcmd_info
 
+cmd_aa
+cmd_za
+
+cmd_attmod
+
 ; not implemented
-cmd_zone
 cmd_recycle
 cmd_restart
 
@@ -15,12 +22,9 @@ privcmd_watchdamage
 
 cmd_quickfix
 
-cmd_billingadm
+cmd_userdbadm
 
 privcmd_send
-
-; bypass checksums
-bypass_security
 
 ; prefix chars
 prefix_>

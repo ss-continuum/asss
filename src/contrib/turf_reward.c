@@ -1020,6 +1020,10 @@ local void awardPts(Arena *arena, struct TurfArena *tr)
 				/* player is in spec/not playing */
 				chat->SendSoundMessage(x, SOUND_DING, "Reward: 0 (not playing)");
 			}
+			else if ( x->position.status & STATUS_SAFEZONE )
+			{
+				chat->SendSoundMessage(x, SOUND_DING, "Reward: 0 (in safe zone)");
+			}
 			else if ( (points = (getFreqPtr(arena, x->p_freq))->numPoints) )
 			{
 				/* player is on a freq that recieved points */

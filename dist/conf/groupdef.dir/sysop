@@ -9,6 +9,8 @@ cmd_lastlog
 cmd_lsmod
 cmd_insmod
 cmd_rmmod
+cmd_attmod
+
 cmd_setscore
 cmd_resetgame
 
@@ -28,10 +30,7 @@ cmd_admlogfile
 cmd_reloadconf
 
 ; temporary
-cmd_makefake
-privcmd_killfake
 cmd_dropturret
-
 
 ; prefix chars
 prefix_#
@@ -40,4 +39,7 @@ prefix_@
 
 ; setgroup:
 setgroup_smod
+setgroup_sysop
+
+cmd_pidinfo
 

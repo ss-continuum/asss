@@ -4,6 +4,7 @@ cmd_help
 cmd_go
 cmd_arena
 cmd_stats
+privcmd_stats
 cmd_score
 cmd_myscore
 cmd_time

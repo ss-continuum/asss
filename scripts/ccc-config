@@ -33,3 +33,6 @@ default = testzone
 # color('info', 63)
 # color('priv', 118)
 
+
+# dist: public
+

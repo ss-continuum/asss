@@ -85,7 +85,7 @@ typedef struct ArenaPersistentData
  */
 
 
-#define I_PERSIST "persist-5"
+#define I_PERSIST "persist-6"
 
 typedef struct Ipersist
 {
@@ -104,7 +104,8 @@ typedef struct Ipersist
 	void (*PutArena)(Arena *a, void (*callback)(Arena *a));
 	void (*GetArena)(Arena *a, void (*callback)(Arena *a));
 
-	void (*EndInterval)(const char *arenagrp_or_arena_name, int interval);
+	void (*EndInterval)(const char *arenagrp_or_arena_name, Arena *or_arena, int interval);
+	/* only specify one of the first two params */
 
 	void (*StabilizeScores)(int seconds, int query, void (*callback)(Player *dummy));
 } Ipersist;
