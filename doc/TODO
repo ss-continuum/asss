@@ -17,8 +17,6 @@ tinyscheme/python/other-random-language interface
 
 currently broken
 ----------------
-turret kicking?
-
 ball sync?
 
 
@@ -28,7 +26,4 @@ balls:
 region-based goals. 3/6-team ball games.
 let ball speccer see info of person carrying ball.
 multiple-point goals based on distance
-
-bandwidth:
-prioritized position/weapons based on distance
 
