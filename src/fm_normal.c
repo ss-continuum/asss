@@ -23,9 +23,9 @@ EXPORT int MM_fm_normal(int action, Imodman *_mm, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
@@ -37,14 +37,12 @@ EXPORT int MM_fm_normal(int action, Imodman *_mm, int arena)
 	}
 	else if (action == MM_ATTACH)
 	{
-		mm->RegInterface("freqman", &_fm, arena);
+		mm->RegInterface(I_FREQMAN, &_fm, arena);
 	}
 	else if (action == MM_DETACH)
 	{
-		mm->UnregInterface("freqman", &_fm, arena);
+		mm->UnregInterface(I_FREQMAN, &_fm, arena);
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

@@ -35,11 +35,6 @@ typedef int (*ModMain)(int action, Imodman *mm, int arena);
 /* the reverse of the above. disable any special functionality for this
  * arena. */
 
-#define MM_CHECKBUILD 5
-/* this is used to check runtime compatability of interfaces. all
- * modules should respond to this by returning the value of the
- * preprocessor constant BUILDNUMBER. */
-
 
 /* return values for ModMain functions */
 #define MM_FAIL 1

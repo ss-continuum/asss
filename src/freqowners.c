@@ -28,12 +28,12 @@ EXPORT int MM_freqowners(int action, Imodman *_mm, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		game = mm->GetInterface("game", ALLARENAS);
-		cmd = mm->GetInterface("cmdman", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
-		chat = mm->GetInterface("chat", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		game = mm->GetInterface(I_GAME, ALLARENAS);
+		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 
 		mm->RegCallback(CB_PLAYERACTION, MyPA, ALLARENAS);
 		mm->RegCallback(CB_FREQCHANGE, MyFreqCh, ALLARENAS);
@@ -59,8 +59,6 @@ EXPORT int MM_freqowners(int action, Imodman *_mm, int arena)
 		mm->ReleaseInterface(chat);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

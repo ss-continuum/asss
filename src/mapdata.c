@@ -84,18 +84,18 @@ EXPORT int MM_mapdata(int action, Imodman *_mm, int arenas)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		cfg = mm->GetInterface("config", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		lm = mm->GetInterface("logman", ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 
 		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
-		mm->RegInterface("mapdata", &_int, ALLARENAS);
+		mm->RegInterface(I_MAPDATA, &_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface("mapdata", &_int, ALLARENAS))
+		if (mm->UnregInterface(I_MAPDATA, &_int, ALLARENAS))
 			return MM_FAIL;
 
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
@@ -105,8 +105,6 @@ EXPORT int MM_mapdata(int action, Imodman *_mm, int arenas)
 		mm->ReleaseInterface(cfg);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

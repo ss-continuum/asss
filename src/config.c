@@ -56,19 +56,17 @@ EXPORT int MM_config(int action, Imodman *mm, int arena)
 		opened = HashAlloc(23);
 		global = LoadConfigFile(NULL, NULL);
 		if (!global) return MM_FAIL;
-		mm->RegInterface("config", &_int, ALLARENAS);
+		mm->RegInterface(I_CONFIG, &_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface("config", &_int, ALLARENAS))
+		if (mm->UnregInterface(I_CONFIG, &_int, ALLARENAS))
 			return MM_FAIL;
 		FreeConfigFile(global);
 		HashFree(opened);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

@@ -7,6 +7,25 @@ fixing various non-null-terminated bugs (supposedly one in cmdman).
 
 unknown packet logging.
 
+mikethenose suggested: put a special character in front of the names of
+  mods, and prevent others from using that character.
+i thoguht that each group could have a special prefix string. defined in
+  the groupdef.conf, and only members of that group could use that
+  prefix string.
+mike also said that mods should be able to turn it on and off, perhaps
+  by actually logging in with the character that they want at the
+  beginning of their name.
+my idea would work well enough with that. the basic plan would be:
+  new auth module that checks for initial punctuation and strips it
+    off the name sent to the biller. when the response comes back, check
+    if this person actually has permission to use that char, and add it
+    back again if they do.
+  it's probably easiest to just hard code which punctuation is
+    stripped: "+->@#$" is probably a good set to start with.
+  we can handle figuring out who is allowed to have a character with
+    capabilities: give cap_prefix_+ to a few groups.
+  call it auth_prefix.
+
 
 moderate
 --------
@@ -43,6 +62,8 @@ recycle or crash.
 fix flag drops at edges
 
 fix brick drop algorithm (it should snap to edges of other bricks)
+
+implement emulation for ekted's bots.
 
 
 hard

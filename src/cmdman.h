@@ -46,6 +46,8 @@
 typedef void (*CommandFunc)(const char *params, int pid, int target);
 
 
+#define I_CMDMAN "cmdman-1"
+
 typedef struct Icmdman
 {
 	INTERFACE_HEAD_DECL

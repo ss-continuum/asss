@@ -2,8 +2,6 @@
 
 #include "asss.h"
 
-#define MYTYPE 1
-
 
 /* structs */
 
@@ -16,10 +14,11 @@ typedef struct EncData
 
 /* prototypes */
 
-local int Respond(int);
-local void Init(int, int);
-local void Encrypt(int, char *, int);
-local void Decrypt(int, char *, int);
+local void ConnInit(struct sockaddr_in *sin, byte *pkt, int len);
+
+local void Init(int pid, int k);
+local int Encrypt(int, byte *, int);
+local int Decrypt(int, byte *, int);
 local void Void(int);
 
 
@@ -28,10 +27,12 @@ local void Void(int);
 local EncData enc[MAXPLAYERS];
 local Mutex statmtx;
 
+local Inet *net;
+
 local Iencrypt _int =
 {
-	INTERFACE_HEAD_INIT("encrypt-1")
-	Respond, Init, Encrypt, Decrypt, Void
+	INTERFACE_HEAD_INIT("vieenc")
+	Encrypt, Decrypt, Void
 };
 
 
@@ -40,25 +41,56 @@ EXPORT int MM_encrypt1(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
+		net = mm->GetInterface(I_NET, ALLARENAS);
+		mm->RegCallback(CB_CONNINIT, ConnInit, ALLARENAS);
 		InitMutex(&statmtx);
-		mm->RegInterface("encrypt\x01", &_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface("encrypt\x01", &_int, ALLARENAS))
-			return MM_FAIL;
+		mm->UnregCallback(CB_CONNINIT, ConnInit, ALLARENAS);
+		mm->ReleaseInterface(net);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 
-
-int Respond(int key)
+void ConnInit(struct sockaddr_in *sin, byte *pkt, int len)
 {
-	return -key;
+	int key, pid;
+
+	/* make sure the packet fits */
+	if (len != 8 || pkt[0] != 0x00 || pkt[1] != 0x01 ||
+			pkt[6] != 0x01 || pkt[7] != 0x00)
+		return;
+
+	/* ok, it fits. get connection. */
+	pid = net->NewConnection(T_VIE, sin, &_int);
+
+	if (pid == -1)
+	{
+		/* no slots left? */
+		byte pkt[2] = { 0x00, 0x07 };
+		net->ReallyRawSend(sin, (byte*)&pkt, 2);
+		return;
+	}
+
+	key = *(int*)(pkt+2);
+	key = -key;
+
+	{
+		/* respond */
+		struct
+		{
+			u8 t1, t2;
+			int key;
+		}
+		pkt = { 0x00, 0x02, key };
+		net->ReallyRawSend(sin, (byte*)&pkt, sizeof(pkt));
+	}
+
+	/* init encryption tables */
+	Init(pid, key);
 }
 
 
@@ -96,35 +128,58 @@ void Init(int pid, int k)
 }
 
 
-void Encrypt(int pid, char *data, int len)
+int Encrypt(int pid, byte *data, int len)
 {
-	int *mytable = (int *) enc[pid].enctable, *mydata = (int *) data;
-	int work, loop, until = (len/4)+1;
+	int *mytable = (int *) enc[pid].enctable, *mydata;
+	int work, loop, until;
+
+	if (data[0] == 0)
+	{
+		mydata = (int*)(data + 2);
+		until = (len-2)/4 + 1;
+	}
+	else
+	{
+		mydata = (int*)(data + 1);
+		until = (len-1)/4 + 1;
+	}
 
 	LockMutex(&statmtx);
 	work = enc[pid].key;
 	UnlockMutex(&statmtx);
 
-	if (work == 0) return;
+	if (work == 0) return len;
 
 	for (loop = 0; loop < until; loop++)
 	{
 		work = mydata[loop] ^ (mytable[loop] ^ work);
 		mydata[loop] = work;
 	}
+	return len;
 }
 
 
-void Decrypt(int pid, char *data, int len)
+int Decrypt(int pid, byte *data, int len)
 {
-	int *mytable = (int *) enc[pid].enctable, *mydata = (int *) data;
-	int work, loop, until = (len/4)+1, esi, edx;
+	int *mytable = (int *) enc[pid].enctable, *mydata;
+	int work, loop, until, esi, edx;
+
+	if (data[0] == 0)
+	{
+		mydata = (int*)(data + 2);
+		until = (len-2)/4 + 1;
+	}
+	else
+	{
+		mydata = (int*)(data + 1);
+		until = (len-1)/4 + 1;
+	}
 
 	LockMutex(&statmtx);
 	work = enc[pid].key;
 	UnlockMutex(&statmtx);
 
-	if (work == 0) return;
+	if (work == 0) return len;
 
 	for (loop = 0; loop < until; loop++)
 	{
@@ -135,7 +190,7 @@ void Decrypt(int pid, char *data, int len)
 		mydata[loop] = esi;
 		work = edx;
 	}
-
+	return len;
 }
 
 

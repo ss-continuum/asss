@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
 
 	mm = InitModuleManager();
 
-	printf("asss %s (buildnumber %d)\n", ASSSVERSION, BUILDNUMBER);
+	printf("asss %s built at %s\n", ASSSVERSION, BUILDDATE);
 
 	if (dodaemonize)
 		daemonize(0);
@@ -153,8 +153,8 @@ int main(int argc, char *argv[])
 
 	LoadModuleFile("conf/modules.conf");
 
-	lm = mm->GetInterface("logman", ALLARENAS);
-	ml = mm->GetInterface("mainloop", ALLARENAS);
+	lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+	ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 
 	if (!ml)
 		Error(ERROR_MODLOAD, "mainloop module missing");

@@ -42,18 +42,16 @@ EXPORT int MM_mainloop(int action, Imodman *mm_, int arena)
 		mm = mm_;
 		privatequit = 0;
 		timers = LLAlloc();
-		mm->RegInterface("mainloop", &_int, ALLARENAS);
+		mm->RegInterface(I_MAINLOOP, &_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		LLFree(timers);
-		if (mm->UnregInterface("mainloop", &_int, ALLARENAS))
+		if (mm->UnregInterface(I_MAINLOOP, &_int, ALLARENAS))
 			return MM_FAIL;
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

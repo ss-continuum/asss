@@ -39,6 +39,8 @@ typedef struct ConfigFile *ConfigHandle;
 #define GLOBAL ((ConfigHandle)(-3))
 
 
+#define I_CONFIG "config-1"
+
 typedef struct Iconfig
 {
 	INTERFACE_HEAD_DECL

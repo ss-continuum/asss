@@ -43,19 +43,19 @@ EXPORT int MM_cmdman(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		lm = mm->GetInterface("logman", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		capman = mm->GetInterface("capman", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 
 		cmds = HashAlloc(47);
 		defaultfunc = NULL;
-		mm->RegInterface("cmdman", &_int, ALLARENAS);
+		mm->RegInterface(I_CMDMAN, &_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface("cmdman", &_int, ALLARENAS))
+		if (mm->UnregInterface(I_CMDMAN, &_int, ALLARENAS))
 			return MM_FAIL;
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(lm);
@@ -64,8 +64,6 @@ EXPORT int MM_cmdman(int action, Imodman *mm, int arena)
 		HashFree(cmds);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

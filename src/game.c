@@ -1,5 +1,6 @@
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "asss.h"
 
@@ -85,16 +86,16 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		int i;
 
 		mm = mm_;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
-		lm = mm->GetInterface("logman", ALLARENAS);
-		net = mm->GetInterface("net", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		cmd = mm->GetInterface("cmdman", ALLARENAS);
-		chat = mm->GetInterface("chat", ALLARENAS);
-		flags = mm->GetInterface("flags", ALLARENAS);
-		capman = mm->GetInterface("capman", ALLARENAS);
-		mapdata = mm->GetInterface("mapdata", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		net = mm->GetInterface(I_NET, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
+		chat = mm->GetInterface(I_CHAT, ALLARENAS);
+		flags = mm->GetInterface(I_FLAGS, ALLARENAS);
+		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
+		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
 
 		if (!net || !cfg || !lm || !aman) return MM_FAIL;
 
@@ -130,13 +131,13 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 
 		cmd->AddCommand("report", Creport);
 
-		mm->RegInterface("game", &_myint, ALLARENAS);
+		mm->RegInterface(I_GAME, &_myint, ALLARENAS);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface("game", &_myint, ALLARENAS))
+		if (mm->UnregInterface(I_GAME, &_myint, ALLARENAS))
 			return MM_FAIL;
 		cmd->RemoveCommand("report", Creport);
 		net->RemovePacket(C2S_POSITION, Pppk);
@@ -161,8 +162,6 @@ EXPORT int MM_game(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(mapdata);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 
@@ -439,7 +438,7 @@ void PSetShip(int pid, byte *p, int n)
 		return;
 	}
 
-	fm = mm->GetInterface("freqman", arena);
+	fm = mm->GetInterface(I_FREQMAN, arena);
 	if (fm)
 		fm->ShipChange(pid, &ship, &freq);
 	mm->ReleaseInterface(fm);
@@ -495,7 +494,7 @@ void PSetFreq(int pid, byte *p, int n)
 		return;
 	}
 
-	fm = mm->GetInterface("freqman", arena);
+	fm = mm->GetInterface(I_FREQMAN, arena);
 	if (fm)
 		fm->FreqChange(pid, &ship, &freq);
 	mm->ReleaseInterface(fm);

@@ -22,6 +22,9 @@
 #define MAXGROUPLEN 32
 
 
+
+#define I_CAPMAN "capman-1"
+
 typedef struct Icapman
 {
 	INTERFACE_HEAD_DECL

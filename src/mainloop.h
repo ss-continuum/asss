@@ -35,6 +35,8 @@ typedef void (*MainLoopFunc)(void);
 #define CB_MAINLOOP ("mainloop")
 
 
+#define I_MAINLOOP "mainloop-1"
+
 typedef struct Imainloop
 {
 	INTERFACE_HEAD_DECL

@@ -28,6 +28,8 @@ typedef unsigned short chat_mask_t;
 #define SET_ALLOWED(mask, type) (mask) &= ~(1<<(type))
 
 
+#define I_CHAT "chat-2"
+
 typedef struct Ichat
 {
 	INTERFACE_HEAD_DECL
@@ -42,6 +44,8 @@ typedef struct Ichat
 	/* arpc: void(intset, char, formatstr, etc) */
 	void (*SendAnyMessage)(int *set, char type, char sound, const char *format, ...);
 	/* arpc: void(intset, char, char, formatstr, etc) */
+	void (*SendArenaMessage)(int arena, const char *format, ...);
+	/* arpc: void(int, formatstr, etc) */
 
 	chat_mask_t (*GetArenaChatMask)(int arena);
 	/* arpc: ushort(int) */

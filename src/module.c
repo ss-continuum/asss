@@ -111,7 +111,7 @@ int LoadMod(const char *filename)
 	ModuleData *mod;
 	char *name = _buf, *modname;
 	int ret;
-	Ilogman *lm = GetInterface("logman", ALLARENAS);
+	Ilogman *lm = GetInterface(I_LOGMAN, ALLARENAS);
 
 	if ((modname = strchr(filename,DELIM)))
 	{
@@ -177,18 +177,6 @@ int LoadMod(const char *filename)
 
 	astrncpy(mod->name, modname, MAXNAME);
 	modname--; *modname = DELIM; modname++;
-
-	ret = mod->mm(MM_CHECKBUILD, &mmint, ALLARENAS);
-	if (ret != BUILDNUMBER)
-	{
-		if (lm) lm->Log(L_ERROR,
-				"<module> Build number mismatch: module '%s' was built with %d, we were built with %d",
-				modname,
-				ret,
-				BUILDNUMBER);
-		if (!mod->myself) dlclose(mod->hand);
-		goto die2;
-	}
 
 	ret = mod->mm(MM_LOAD, &mmint, ALLARENAS);
 

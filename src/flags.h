@@ -56,6 +56,8 @@ struct ArenaFlagData
 };
 
 
+#define I_FLAGS "flags-1"
+
 typedef struct Iflags
 {
 	INTERFACE_HEAD_DECL

@@ -5,7 +5,7 @@
 #include <stddef.h>
 
 
-#define ASSSVERSION "0.5.2"
+#define ASSSVERSION "0.6.0"
 
 
 /* do it upfront so we don't have to worry :) */
@@ -30,6 +30,7 @@
 
 
 /* client types */
+
 enum
 {
 	T_UNKNOWN,
@@ -51,66 +52,61 @@ enum
 enum
 {
 	S_FREE,
-/* this player entry is free to be reused */
-
-	S_NEED_KEY,
-/* the player exists, but has not completed key exchange */
+	/* this player entry is free to be reused */
 
 	S_CONNECTED,
-/* player is connected (key exchange completed)
- * but has not logged in yet */
+	/* player is connected (key exchange completed) but has not logged
+	 * in yet */
 
 	S_NEED_AUTH,
-/* player sent login, auth request will be sent */
+	/* player sent login, auth request will be sent */
 
 	S_WAIT_AUTH,
-/* waiting for auth response */
+	/* waiting for auth response */
 
 	S_NEED_GLOBAL_SYNC,
-/* auth done, will request global sync */
+	/* auth done, will request global sync */
 
 	S_WAIT_GLOBAL_SYNC,
-/* waiting for sync global persistant data to complete */
+	/* waiting for sync global persistant data to complete */
 
 	S_DO_GLOBAL_CALLBACKS,
-/* global sync done, will call global player connecting callbacks */
+	/* global sync done, will call global player connecting callbacks */
 
 	S_SEND_LOGIN_RESPONSE,
-/* callbacks done, will send arena response */
+	/* callbacks done, will send arena response */
 
 	S_LOGGEDIN,
-/* player is finished logging in but is not in an arena yet 
- * status returns here after leaving an arena, also */
+	/* player is finished logging in but is not in an arena yet status
+	 * returns here after leaving an arena, also */
 
 	S_DO_FREQ_AND_ARENA_SYNC,
-/* player has requested entering an arena, needs to be assigned a freq
- * and have arena data syched */
+	/* player has requested entering an arena, needs to be assigned a
+	 * freq and have arena data syched */
 
 	S_WAIT_ARENA_SYNC,
-/* waiting for scores sync */
+	/* waiting for scores sync */
 
 	S_SEND_ARENA_RESPONSE,
-/* done with scores, needs to send arena response */
+	/* done with scores, needs to send arena response */
 
 	S_DO_ARENA_CALLBACKS,
-/* area response sent, now call arena entering callbacks */
+	/* area response sent, now call arena entering callbacks */
 
 	S_PLAYING,
-/* player is playing in an arena. typically the longest stage */
+	/* player is playing in an arena. typically the longest stage */
 
 	S_LEAVING_ARENA,
-/* player has left arena, callbacks need to be called
- * will return to S_LOGGEDIN after this */
+	/* player has left arena, callbacks need to be called will return to
+	 * S_LOGGEDIN after this */
 
 	S_LEAVING_ZONE,
-/* player is leaving zone, call disconnecting callbacks, go to TIMEWAIT
- * after this */
+	/* player is leaving zone, call disconnecting callbacks, go to
+	 * TIMEWAIT after this */
 
-	S_TIMEWAIT,
-/* time-wait state for network to flush outgoing packets from the buffer */
-
-	S_TIMEWAIT2,
-/* second part of time-wait state. goes to S_FREE after this */
+	S_TIMEWAIT
+	/* the connection is all set to be ended. the network layer will
+	 * move the player to S_FREE after this. */
 };
 
 

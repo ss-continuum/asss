@@ -19,6 +19,9 @@ typedef enum stat_t
 	STAT_MAX     = 15
 } stat_t;
 
+
+#define I_STATS "stats-1"
+
 typedef struct Istats
 {
 	INTERFACE_HEAD_DECL

@@ -81,13 +81,13 @@ EXPORT int MM_balls(int action, Imodman *_mm, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		net = mm->GetInterface("net", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
-		logm = mm->GetInterface("logman", ALLARENAS);
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		ml = mm->GetInterface("mainloop", ALLARENAS);
-		mapdata = mm->GetInterface("mapdata", ALLARENAS);
+		net = mm->GetInterface(I_NET, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		logm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
+		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
 
 		mm->RegCallback(CB_ARENAACTION, AABall, ALLARENAS);
 		mm->RegCallback(CB_PLAYERACTION, PABall, ALLARENAS);
@@ -119,7 +119,7 @@ EXPORT int MM_balls(int action, Imodman *_mm, int arena)
 		/* timers */
 		ml->SetTimer(BasicBallTimer, 300, 100, NULL);
 
-		mm->RegInterface("balls", &_myint, ALLARENAS);
+		mm->RegInterface(I_BALLS, &_myint, ALLARENAS);
 
 		/* seed random number generator */
 		srand(GTC());
@@ -127,7 +127,7 @@ EXPORT int MM_balls(int action, Imodman *_mm, int arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface("balls", &_myint, ALLARENAS))
+		if (mm->UnregInterface(I_BALLS, &_myint, ALLARENAS))
 			return MM_FAIL;
 		ml->ClearTimer(BasicBallTimer);
 		net->RemovePacket(C2S_GOAL, PGoal);
@@ -147,8 +147,6 @@ EXPORT int MM_balls(int action, Imodman *_mm, int arena)
 		mm->ReleaseInterface(net);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 
@@ -239,7 +237,7 @@ void SetBallCount(int arena, int ballcount)
 	struct BallData *newbd;
 	int oldc, i;
 
-	if (ballcount < 0 || ballcount > 8)
+	if (ballcount < 0 || ballcount > 255)
 		return;
 
 	LOCK_STATUS(arena);
@@ -467,6 +465,7 @@ void PPickupBall(int pid, byte *p, int len)
 	bd->xspeed = 0;
 	bd->yspeed = 0;
 	bd->carrier = pid;
+	bd->freq = pd->players[pid].freq;
 	bd->time = 0;
 	SendBallPacket(arena, bp->ballid, NET_UNRELIABLE | NET_PRI_P3);
 
@@ -533,6 +532,7 @@ void PFireBall(int pid, byte *p, int len)
 	bd->y = fb->y;
 	bd->xspeed = fb->xspeed;
 	bd->yspeed = fb->yspeed;
+	bd->freq = pd->players[pid].freq;
 	bd->time = fb->time;
 	SendBallPacket(arena, bid, NET_UNRELIABLE | NET_PRI_P3);
 

@@ -13,8 +13,5 @@
 #define R_OK 4
 #define S_ISDIR(a) ((a) & _S_IFDIR)
 
-
-/* this shouldn't exist. but since it does, windows versions get
- * negative buildnumbers. */
-#define BUILDNUMBER (-45)
+#define BUILDDATE "(build date not available for windows builds)"
 

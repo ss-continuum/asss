@@ -4,11 +4,15 @@
 
 #include "packets/pdata.h"
 
+
 #define PID_OK(pid) \
 	((pid) >= 0 && (pid) < MAXPLAYERS)
 
 #define PID_BAD(pid) \
 	((pid) < 0 || (pid) >= MAXPLAYERS)
+
+
+#define I_PLAYERDATA "playerdata-1"
 
 typedef struct Iplayerdata
 {

@@ -26,8 +26,10 @@
 #define L_ERROR      'E'  /* something really really bad */
 
 
-typedef void (*LogFunc)(char level, char *message);
+typedef void (*LogFunc)(const char *line);
 
+
+#define I_LOGMAN "logman-1"
 
 typedef struct Ilogman
 {
@@ -36,12 +38,22 @@ typedef struct Ilogman
 	void (*Log)(char level, const char *format, ...);
 	/* arpc: void(char, string, etc) */
 
-	int (*FilterLog)(char level, const char *line, const char *modname);
-	/* arpc: int(char, string, string) */
+
+	/* utilty functions for the above */
+
+	void (*LogA)(char level, const char *mod, int arena, const char *format, ...);
+	/* arpc: void(char, string, int, string, etc) */
+
+	void (*LogP)(char level, const char *mod, int pid, const char *format, ...);
+	/* arpc: void(char, string, int, string, etc) */
+
+
 	/* log modules can optionally call this function for help filtering
-	 * their log messages. you should pass it the level and log line you
-	 * recieved, and then the name of your own module (filtering will be
-	 * performed based on this module name). */
+	 * their log messages. you should pass it the log line you recieved,
+	 * and then the name of your own module (filtering will be performed
+	 * based on this module name). */
+	int (*FilterLog)(const char *line, const char *modname);
+	/* arpc: int(string, string) */
 } Ilogman;
 
 

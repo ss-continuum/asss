@@ -3,6 +3,8 @@
 #define __LOG_FILE_H
 
 
+#define I_LOG_FILE "log_file-1"
+
 typedef struct Ilog_file
 {
 	INTERFACE_HEAD_DECL

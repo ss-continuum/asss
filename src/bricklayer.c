@@ -1,4 +1,6 @@
 
+#include <string.h>
+
 #include "asss.h"
 
 #include "letters.inc"
@@ -15,9 +17,9 @@ EXPORT int MM_bricklayer(int action, Imodman *mm, int arena)
 {
 	if (action == MM_LOAD)
 	{
-		cmd = mm->GetInterface("cmdman", ALLARENAS);
-		game = mm->GetInterface("game", ALLARENAS);
-		pd = mm->GetInterface("playerdata", ALLARENAS);
+		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
+		game = mm->GetInterface(I_GAME, ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		cmd->AddCommand("brickwrite", Cbrickwrite);
 		return MM_OK;
 	}
@@ -29,8 +31,6 @@ EXPORT int MM_bricklayer(int action, Imodman *mm, int arena)
 		mm->ReleaseInterface(pd);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

@@ -1,12 +1,11 @@
 ; conf/groups/smod
 
 seesysoplogarena
+privcmd_info
 
 ; not implemented
 cmd_zone
 cmd_recycle
 cmd_restart
 cmd_prize
-cmd_listmod
-privcmd_info
 

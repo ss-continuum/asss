@@ -3,6 +3,8 @@
 #define __FAKE_H
 
 
+#define I_FAKE "fake-1"
+
 typedef struct Ifake
 {
 	INTERFACE_HEAD_DECL

@@ -36,10 +36,10 @@ EXPORT int MM_capman(int action, Imodman *_mm, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		lm = mm->GetInterface("logman", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 
 		if (!cfg) return MM_FAIL;
 
@@ -49,12 +49,12 @@ EXPORT int MM_capman(int action, Imodman *_mm, int arena)
 		groupdef = cfg->OpenConfigFile(NULL, "groupdef.conf");
 		gstaff = cfg->OpenConfigFile(NULL, "staff.conf");
 
-		mm->RegInterface("capman", &_myint, ALLARENAS);
+		mm->RegInterface(I_CAPMAN, &_myint, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface("capman", &_myint, ALLARENAS))
+		if (mm->UnregInterface(I_CAPMAN, &_myint, ALLARENAS))
 			return MM_FAIL;
 		cfg->CloseConfigFile(groupdef);
 		cfg->CloseConfigFile(gstaff);
@@ -66,8 +66,6 @@ EXPORT int MM_capman(int action, Imodman *_mm, int arena)
 		mm->ReleaseInterface(pd);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

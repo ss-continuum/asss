@@ -15,6 +15,8 @@
 #define BNET_NOBILLING S_FREE
 #define BNET_CONNECTED S_CONNECTED
 
+#define I_BILLCORE "billcore-1"
+
 typedef struct Ibillcore
 {
 	INTERFACE_HEAD_DECL

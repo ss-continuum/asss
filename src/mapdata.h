@@ -13,6 +13,8 @@
  */
 
 
+#define I_MAPDATA "mapdata-1"
+
 typedef struct Imapdata
 {
 	INTERFACE_HEAD_DECL

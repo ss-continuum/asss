@@ -52,12 +52,12 @@ EXPORT int MM_playerdata(int action, Imodman *mm, int arena)
 		}
 
 		/* register interface */
-		mm->RegInterface("playerdata", &_myint, ALLARENAS);
+		mm->RegInterface(I_PLAYERDATA, &_myint, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface("playerdata", &_myint, ALLARENAS))
+		if (mm->UnregInterface(I_PLAYERDATA, &_myint, ALLARENAS))
 			return MM_FAIL;
 
 		/* destroy mutexes */
@@ -66,8 +66,6 @@ EXPORT int MM_playerdata(int action, Imodman *mm, int arena)
 		pthread_mutex_destroy(&statusmtx);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

@@ -16,7 +16,7 @@ local int CreateFakePlayer(const char *name, int arena, int ship, int freq)
 	PlayerData *player;
 
 	/* create pid */
-	pid = net->NewConnection(T_FAKE, NULL);
+	pid = net->NewConnection(T_FAKE, NULL, NULL);
 	if (PID_BAD(pid))
 		return pid;
 	player = pd->players + pid;
@@ -97,23 +97,23 @@ EXPORT int MM_fake(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		cmd = mm->GetInterface("cmdman", ALLARENAS);
-		net = mm->GetInterface("net", ALLARENAS);
-		lm = mm->GetInterface("logman", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
+		net = mm->GetInterface(I_NET, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 
 		if (!pd || !aman || !cmd || !net) return MM_FAIL;
 
 		cmd->AddCommand("makefake", Cmakefake);
 		cmd->AddCommand("killfake", Ckillfake);
 		_int.ProcessPacket = net->ProcessPacket;
-		mm->RegInterface("fake", &_int, ALLARENAS);
+		mm->RegInterface(I_FAKE, &_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		mm->UnregInterface("fake", &_int, ALLARENAS);
+		mm->UnregInterface(I_FAKE, &_int, ALLARENAS);
 		cmd->RemoveCommand("makefake", Cmakefake);
 		cmd->RemoveCommand("killfake", Ckillfake);
 		mm->ReleaseInterface(pd);
@@ -123,8 +123,6 @@ EXPORT int MM_fake(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(lm);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

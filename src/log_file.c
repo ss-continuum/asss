@@ -9,7 +9,7 @@
 #define TIMEFORMATLEN 20
 
 
-local void LogFile(char, char *);
+local void LogFile(const char *);
 local void FlushLog(void);
 local void ReopenLog(void);
 
@@ -21,7 +21,7 @@ local Ilogman *lm;
 
 local Ilog_file _lfint =
 {
-	INTERFACE_HEAD_INIT("log-file")
+	INTERFACE_HEAD_INIT("log_file")
 	FlushLog, ReopenLog
 };
 
@@ -30,8 +30,8 @@ EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
 {
 	if (action == MM_LOAD)
 	{
-		cfg = mm->GetInterface("config", ALLARENAS);
-		lm = mm->GetInterface("logman", ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 
 		if (!cfg || !lm) return MM_FAIL;
 
@@ -40,29 +40,27 @@ EXPORT int MM_log_file(int action, Imodman *mm, int arenas)
 
 		mm->RegCallback(CB_LOGFUNC, LogFile, ALLARENAS);
 
-		mm->RegInterface("log_file", &_lfint, ALLARENAS);
+		mm->RegInterface(I_LOG_FILE, &_lfint, ALLARENAS);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		if (logfile) fclose(logfile);
-		if (mm->UnregInterface("log_file", &_lfint, ALLARENAS))
+		if (mm->UnregInterface(I_LOG_FILE, &_lfint, ALLARENAS))
 			return MM_FAIL;
 		mm->UnregCallback(CB_LOGFUNC, LogFile, ALLARENAS);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(lm);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 
 
-void LogFile(char lev, char *s)
+void LogFile(const char *s)
 {
-	if (lm->FilterLog(lev, s, "log_file"))
+	if (lm->FilterLog(s, "log_file"))
 	{
 		pthread_mutex_lock(&logmtx);
 		if (logfile)
@@ -72,7 +70,10 @@ void LogFile(char lev, char *s)
 
 			time(&t1);
 			strftime(t3, TIMEFORMATLEN, TIMEFORMAT, localtime(&t1));
-			fprintf(logfile, "%s %c %s\n", t3, lev, s);
+			fputs(t3, logfile);
+			putc(' ', logfile);
+			fputs(s, logfile);
+			putc('\n', logfile);
 		}
 		pthread_mutex_unlock(&logmtx);
 	}

@@ -6,6 +6,7 @@ cmd_score
 cmd_chat
 
 cmd_version
+cmd_listmods
 
 privcmd_freqkick
 privcmd_giveowner

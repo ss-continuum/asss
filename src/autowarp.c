@@ -27,10 +27,10 @@ EXPORT int MM_autowarp(int action, Imodman *mm_, int arena)
 		int i;
 
 		mm = mm_;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
-		net = mm->GetInterface("net", ALLARENAS);
-		mapdata = mm->GetInterface("mapdata", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		net = mm->GetInterface(I_NET, ALLARENAS);
+		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
 
 		if (!net || !cfg || !pd || !mapdata) return MM_FAIL;
 
@@ -58,8 +58,6 @@ EXPORT int MM_autowarp(int action, Imodman *mm_, int arena)
 	{
 		onfor[arena] = 0;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

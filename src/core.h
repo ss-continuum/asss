@@ -44,6 +44,8 @@ typedef void (*PlayerActionFunc)(int pid, int action, int arena);
  * types of events. these functions don't have to bother locking the
  * player. */
 
+#define I_FREQMAN "freqman-1"
+
 typedef struct Ifreqman
 {
 	INTERFACE_HEAD_DECL
@@ -64,11 +66,13 @@ typedef struct Ifreqman
  *
  */
 
+#define I_AUTH "auth-1"
+
 typedef struct Iauth
 {
 	INTERFACE_HEAD_DECL
 
-	void (*Authenticate)(int pid, struct LoginPacket *lp,
+	void (*Authenticate)(int pid, struct LoginPacket *lp, int lplen,
 			void (*Done)(int pid, AuthData *data));
 	/* aprc: null */
 } Iauth;

@@ -25,7 +25,7 @@ local void RemovePacket(byte, PacketFunc);
 local int GetStatus(void);
 
 /* local: */
-local void BillingAuth(int, struct LoginPacket *, void (*)(int, AuthData*));
+local void BillingAuth(int, struct LoginPacket *, int, void (*)(int, AuthData*));
 
 local int SendPing(void *);
 local void SendLogin(int, byte *, int);
@@ -38,6 +38,9 @@ local void BSingleMessage(int, byte *, int);
 local void PChat(int, byte *, int);
 
 local void DefaultCmd(const char *, int, int);
+
+local void Cusage(const char *, int, int);
+local void Cuserid(const char *, int, int);
 
 
 /* global data */
@@ -54,6 +57,15 @@ local Imodman *mm;
 local void (*CachedAuthDone)(int, AuthData*);
 local PlayerData *players;
 
+local int cfg_pingtime, cfg_serverid, cfg_groupid, cfg_scoreid;
+
+struct
+{
+	int usage, userid;
+	short year, month, day, hour, minute, second;
+} billing_data[MAXPLAYERS];
+
+
 local Iauth _iauth =
 {
 	INTERFACE_HEAD_INIT("auth-billing")
@@ -66,7 +78,6 @@ local Ibillcore _ibillcore =
 	SendToBiller, AddPacket, RemovePacket, GetStatus
 };
 
-local int cfg_pingtime, cfg_serverid, cfg_groupid, cfg_scoreid;
 
 
 int MM_billcore(int action, Imodman *_mm, int arena)
@@ -74,13 +85,13 @@ int MM_billcore(int action, Imodman *_mm, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		net = mm->GetInterface("net", ALLARENAS);
-		ml = mm->GetInterface("mainloop", ALLARENAS);
-		lm = mm->GetInterface("logman", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
-		cmd = mm->GetInterface("cmdman", ALLARENAS);
-		chat = mm->GetInterface("chat", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		net = mm->GetInterface(I_NET, ALLARENAS);
+		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
+		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 
 		if (!net || !ml || !cfg || !cmd) return MM_FAIL;
 
@@ -104,18 +115,20 @@ int MM_billcore(int action, Imodman *_mm, int arena)
 		net->AddPacket(C2S_CHAT, PChat);
 
 		cmd->AddCommand(NULL, DefaultCmd);
+		cmd->AddCommand("userid", Cuserid);
+		cmd->AddCommand("usage", Cusage);
 
-		mm->RegInterface("auth", &_iauth, ALLARENAS);
-		mm->RegInterface("billcore", &_ibillcore, ALLARENAS);
+		mm->RegInterface(I_AUTH, &_iauth, ALLARENAS);
+		mm->RegInterface(I_BILLCORE, &_ibillcore, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		byte dis = S2B_LOGOFF;
 
-		if (mm->UnregInterface("auth", &_iauth, ALLARENAS))
+		if (mm->UnregInterface(I_AUTH, &_iauth, ALLARENAS))
 			return MM_FAIL;
-		if (mm->UnregInterface("billcore", &_ibillcore, ALLARENAS))
+		if (mm->UnregInterface(I_BILLCORE, &_ibillcore, ALLARENAS))
 			return MM_FAIL;
 
 		/* send logoff packet (immediate so it gets there before */
@@ -124,6 +137,8 @@ int MM_billcore(int action, Imodman *_mm, int arena)
 		net->DropClient(PID_BILLER);
 
 		cmd->RemoveCommand(NULL, DefaultCmd);
+		cmd->RemoveCommand("userid", Cuserid);
+		cmd->RemoveCommand("usage", Cusage);
 
 		RemovePacket(0, SendLogin);
 		RemovePacket(B2S_PLAYERDATA, BAuthResponse);
@@ -138,8 +153,6 @@ int MM_billcore(int action, Imodman *_mm, int arena)
 		mm->ReleaseInterface(chat);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 
@@ -217,7 +230,8 @@ void DefaultCmd(const char *cmd, int pid, int target)
 }
 
 
-void BillingAuth(int pid, struct LoginPacket *lp, void (*Done)(int, AuthData*))
+void BillingAuth(int pid, struct LoginPacket *lp, int lplen,
+		void (*Done)(int, AuthData*))
 {
 	struct S2BPlayerEntering to =
 	{
@@ -230,6 +244,7 @@ void BillingAuth(int pid, struct LoginPacket *lp, void (*Done)(int, AuthData*))
 		300, 0
 	};
 	struct client_stats stats;
+	int len;
 
 	net->GetClientStats(pid, &stats);
 	to.ipaddy = inet_addr(stats.ipaddr);
@@ -238,11 +253,14 @@ void BillingAuth(int pid, struct LoginPacket *lp, void (*Done)(int, AuthData*))
 	{
 		astrncpy(to.name, lp->name, 32);
 		astrncpy(to.pw, lp->password, 32);
-		SendToBiller((byte*)&to, sizeof(to), NET_RELIABLE);
+		/* only send extra 64 bytes if they were supplied by the client */
+		len = (lplen == LEN_LOGINPACKET_CONT) ? sizeof(to) : sizeof(to) - 64;
+		SendToBiller((byte*)&to, len, NET_RELIABLE);
 		CachedAuthDone = Done;
 	}
 	else
-	{	/* DEFAULT TO OLD AUTHENTICATION if billing server not available */
+	{
+		/* DEFAULT TO OLD AUTHENTICATION if billing server not available */
 		AuthData auth;
 		memset(&auth, 0, sizeof(auth));
 		auth.code = AUTH_NOSCORES; /* tell client no scores kept */
@@ -250,6 +268,7 @@ void BillingAuth(int pid, struct LoginPacket *lp, void (*Done)(int, AuthData*))
 		auth.name[0] = '^';
 		astrncpy(auth.name+1, lp->name, 23);
 		Done(pid, &auth);
+		memset(billing_data + pid, 0, sizeof(billing_data[pid]));
 	}
 }
 
@@ -265,6 +284,7 @@ void BAuthResponse(int bpid, byte *p, int n)
 	ad.code = r->loginflag;
 	astrncpy(ad.name, r->name, 24);
 	astrncpy(ad.squad, r->squad, 24);
+
 	/* all scores are local!
 	if (n >= sizeof(struct B2SPlayerResponse))
 	{
@@ -274,9 +294,17 @@ void BAuthResponse(int bpid, byte *p, int n)
 		players[pid].killpoints = ad.killpoints = r->killpoints;
 	}
 	*/
+
 	CachedAuthDone(pid, &ad);
-	/* FIXME: do something about userid and usage information */
-	/* FIXME: handle banner data in banner module */
+
+#define DO(field) \
+	billing_data[pid].field = r->field
+	DO(usage);
+	DO(year); DO(month); DO(day);
+	DO(hour); DO(minute); DO(second);
+#undef DO
+
+	/* banner data handled in banner module */
 }
 
 
@@ -418,6 +446,42 @@ void PChat(int pid, byte *p, int len)
 			*t = ':';
 		}
 	}
+}
+
+
+void Cusage(const char *params, int pid, int target)
+{
+	struct client_stats st;
+	int mins;
+
+	if (PID_BAD(target))
+		target = pid;
+
+	net->GetClientStats(target, &st);
+	mins = (GTC() - st.connecttime) / 6000;
+
+	chat->SendMessage(pid, "usage: %s:", players[target].name);
+	chat->SendMessage(pid, "usage: session: %5d:%02d",
+			mins / 60, mins % 60);
+	mins += billing_data[target].usage;
+	chat->SendMessage(pid, "usage:   total: %5d:%02d",
+			mins / 60, mins % 60);
+	chat->SendMessage(pid, "usage: first played: %d-%d-%d %d:%02d:%02d",
+			billing_data[target].month,
+			billing_data[target].day,
+			billing_data[target].year,
+			billing_data[target].hour,
+			billing_data[target].minute,
+			billing_data[target].second);
+}
+
+
+void Cuserid(const char *params, int pid, int target)
+{
+	if (PID_BAD(target))
+		target = pid;
+	chat->SendMessage(pid, "userid: %s has userid %d",
+			players[target].name, billing_data[target].userid);
 }
 
 

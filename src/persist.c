@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <assert.h>
+#include <stdlib.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -96,11 +97,11 @@ EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		lm = mm->GetInterface("logman", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		ml = mm->GetInterface("mainloop", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 
 		arenas = aman->arenas;
 
@@ -113,7 +114,7 @@ EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 		globaldb = OpenDB("global.db");
 		defarenadb = OpenDB("defaultarena/scores.db");
 
-		mm->RegInterface("persist", &_myint, ALLARENAS);
+		mm->RegInterface(I_PERSIST, &_myint, ALLARENAS);
 
 		cfg_syncseconds = cfg ?
 				cfg->GetInt(GLOBAL, "Persist", "SyncSeconds", 180) : 180;
@@ -125,7 +126,7 @@ EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 	else if (action == MM_UNLOAD)
 	{
 		ml->ClearTimer(SyncTimer);
-		if (mm->UnregInterface("persist", &_myint, ALLARENAS))
+		if (mm->UnregInterface(I_PERSIST, &_myint, ALLARENAS))
 			return MM_FAIL;
 		mm->UnregCallback(CB_ARENAACTION, PersistAA, ALLARENAS);
 		mm->ReleaseInterface(pd);
@@ -147,8 +148,6 @@ EXPORT int MM_persist(int action, Imodman *_mm, int arena)
 
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

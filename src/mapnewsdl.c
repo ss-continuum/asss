@@ -20,7 +20,7 @@
 
 struct MapDownloadData
 {
-	u32 mapchecksum;
+	u32 mapchecksum, uncmplen;
 	char mapfname[20];
 	byte *cmpmap;
 	int cmpmaplen;
@@ -76,13 +76,13 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 	{
 		/* get interface pointers */
 		mm = mm_;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		net = mm->GetInterface("net", ALLARENAS);
-		lm = mm->GetInterface("logman", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
-		ml = mm->GetInterface("mainloop", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		mapdata = mm->GetInterface("mapdata", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		net = mm->GetInterface(I_NET, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
 
 		players = pd->players;
 
@@ -105,12 +105,12 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		if (!cfg_newsfile) cfg_newsfile = "news.txt";
 		newstime = 0; cmpnews = NULL;
 
-		mm->RegInterface("mapnewsdl", &_int, ALLARENAS);
+		mm->RegInterface(I_MAPNEWSDL, &_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface("mapnewsdl", &_int, ALLARENAS))
+		if (mm->UnregInterface(I_MAPNEWSDL, &_int, ALLARENAS))
 			return MM_FAIL;
 		net->RemovePacket(C2S_MAPREQUEST, PMapRequest);
 		net->RemovePacket(C2S_NEWSREQUEST, PMapRequest);
@@ -128,8 +128,6 @@ EXPORT int MM_mapnewsdl(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(mapdata);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 
@@ -147,12 +145,16 @@ u32 GetNewsChecksum(void)
 void SendMapFilename(int pid)
 {
 	struct MapFilename mf = { S2C_MAPFILENAME };
-	int arena;
+	int arena, len;
 
 	arena = pd->players[pid].arena;
 	strncpy(mf.filename, mapdldata[arena].mapfname, 16);
 	mf.checksum = mapdldata[arena].mapchecksum;
-	net->SendToOne(pid, (byte*)&mf, sizeof(mf), NET_RELIABLE);
+	mf.size = mapdldata[arena].uncmplen;
+	len = sizeof(mf);
+	if (players[pid].type != T_CONT)
+		len -= sizeof(u32);
+	net->SendToOne(pid, (byte*)&mf, len, NET_RELIABLE);
 }
 
 
@@ -191,9 +193,11 @@ int CompressMap(int arena)
 		return MM_FAIL;
 
 	/* get basename */
-	mapname = strrchr(fname,'/');
+	mapname = strrchr(fname, '/');
 	if (!mapname)
 		mapname = fname;
+	else
+		mapname++;
 	astrncpy(mapdldata[arena].mapfname, mapname, 20);
 
 	mapfd = open(fname,O_RDONLY);
@@ -247,6 +251,7 @@ int CompressMap(int arena)
 
 	/* calculate crc on mmap'd map */
 	mapdldata[arena].mapchecksum = crc32(crc32(0, Z_NULL, 0), map, fsize);
+	mapdldata[arena].uncmplen = fsize;
 
 	/* allocate space for compressed version */
 	cmap = amalloc(csize);

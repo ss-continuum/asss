@@ -19,10 +19,10 @@ EXPORT int MM_points_kill(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
-		stats = mm->GetInterface("stats", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		stats = mm->GetInterface(I_STATS, ALLARENAS);
 
 		if (!stats) return MM_FAIL;
 		return MM_OK;
@@ -45,8 +45,6 @@ EXPORT int MM_points_kill(int action, Imodman *mm_, int arena)
 		mm->UnregCallback(CB_KILL, MyKillFunc, arena);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

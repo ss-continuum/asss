@@ -1,5 +1,6 @@
 
 #include <stdlib.h>
+#include <string.h>
 #include <assert.h>
 
 #include "asss.h"
@@ -49,11 +50,11 @@ EXPORT int MM_clientset(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		net = mm->GetInterface("net", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
-		lm = mm->GetInterface("logman", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		net = mm->GetInterface(I_NET, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 
 		if (!net || !cfg || !lm || !aman) return MM_FAIL;
 
@@ -61,7 +62,7 @@ EXPORT int MM_clientset(int action, Imodman *mm_, int arena)
 
 		mm->RegCallback(CB_ARENAACTION, ActionFunc, ALLARENAS);
 
-		mm->RegInterface("clientset", &_myint, ALLARENAS);
+		mm->RegInterface(I_CLIENTSET, &_myint, ALLARENAS);
 
 		/* do these at least once */
 		{
@@ -81,7 +82,7 @@ EXPORT int MM_clientset(int action, Imodman *mm_, int arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface("clientset", &_myint, ALLARENAS))
+		if (mm->UnregInterface(I_CLIENTSET, &_myint, ALLARENAS))
 			return MM_FAIL;
 		mm->UnregCallback(CB_ARENAACTION, ActionFunc, ALLARENAS);
 		mm->ReleaseInterface(pd);
@@ -91,8 +92,6 @@ EXPORT int MM_clientset(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(aman);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

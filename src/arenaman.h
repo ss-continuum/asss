@@ -51,6 +51,8 @@ typedef struct ArenaData
 } ArenaData;
 
 
+#define I_ARENAMAN "arenaman-1"
+
 typedef struct Iarenaman
 {
 	INTERFACE_HEAD_DECL

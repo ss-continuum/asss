@@ -3,19 +3,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 #include "asss.h"
 
 
-typedef struct LogLine
-{
-	int level;
-	char line[1];
-} LogLine;
-
-
 local void Log(char, const char *, ...);
-local int FilterLog(char, const char *, const char *);
+local void LogA(char level, const char *mod, int arena, const char *format, ...);
+local void LogP(char level, const char *mod, int pid, const char *format, ...);
+local int FilterLog(const char *, const char *);
+
 local void * LoggingThread(void *);
 
 
@@ -24,10 +21,15 @@ local Thread thd;
 
 local Imodman *mm;
 local Iconfig *cfg;
+
+/* don't load these during initialization, it would make a cycle */
+local Iplayerdata *pd;
+local Iarenaman *aman;
+
 local Ilogman _int =
 {
 	INTERFACE_HEAD_INIT("logman")
-	Log, FilterLog
+	Log, LogA, LogP, FilterLog
 };
 
 
@@ -36,31 +38,33 @@ EXPORT int MM_logman(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		cfg = mm->GetInterface("config", ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		pd = NULL;
+		aman = NULL;
 		MPInit(&queue);
 		thd = StartThread(LoggingThread, NULL);
-		mm->RegInterface("logman", &_int, ALLARENAS);
+		mm->RegInterface(I_LOGMAN, &_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface("logman", &_int, ALLARENAS))
+		if (mm->UnregInterface(I_LOGMAN, &_int, ALLARENAS))
 			return MM_FAIL;
 		MPAdd(&queue, NULL);
 		JoinThread(thd);
 		MPDestroy(&queue);
 		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(aman);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 
 
 void * LoggingThread(void *dummy)
 {
-	LogLine *ll;
+	char *ll;
 
 	for (;;)
 	{
@@ -69,7 +73,7 @@ void * LoggingThread(void *dummy)
 			return NULL;
 
 		DO_CBS(CB_LOGFUNC, ALLARENAS, LogFunc,
-				(ll->level, ll->line));
+				(ll));
 		afree(ll);
 	}
 }
@@ -77,35 +81,104 @@ void * LoggingThread(void *dummy)
 
 void Log(char level, const char *format, ...)
 {
-	LogLine *ll;
 	int len;
 	va_list argptr;
 	char buf[1024];
 
+	buf[0] = level;
+	buf[1] = ' ';
+
 	va_start(argptr, format);
-	len = vsnprintf(buf, 1024, format, argptr);
+	len = vsnprintf(buf+2, 1022, format, argptr);
 	va_end(argptr);
 
-	if (len > 1024) len = 1024;
-
 	if (len > 0)
-	{
-		ll = amalloc(len + sizeof(LogLine));
-		ll->level = level;
-		strcpy(ll->line, buf);
-		MPAdd(&queue, ll);
-	}
+		MPAdd(&queue, astrdup(buf));
 }
 
 
-int FilterLog(char level, const char *line, const char *modname)
+void LogA(char level, const char *mod, int arena, const char *format, ...)
+{
+	int len;
+	va_list argptr;
+	char buf[1024];
+
+	if (!aman) aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+
+	len = snprintf(buf, 1024, "%c <%s> {%s} ",
+			level,
+			mod,
+			aman && ARENA_OK(arena) ? aman->arenas[arena].name : "???");
+	assert(len < 1024);
+
+	va_start(argptr, format);
+	len = vsnprintf(buf + len, 1024 - len, format, argptr);
+	va_end(argptr);
+
+	if (len > 0)
+		MPAdd(&queue, astrdup(buf));
+}
+
+void LogP(char level, const char *mod, int pid, const char *format, ...)
+{
+	int len, arena;
+	va_list argptr;
+	char buf[1024], buf2[16];
+
+	if (!aman) aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+	if (!pd) pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+
+	if (!pd || !aman || PID_BAD(pid))
+		len = snprintf(buf, 1024, "%c <%s> {???} [???] ",
+				level,
+				mod);
+	else
+	{
+		char *name = pd->players[pid].name;
+
+		if (name[0] == '\0')
+		{
+			name = buf2;
+			snprintf(name, 16, "pid=%d", pid);
+		}
+
+		arena = pd->players[pid].arena;
+		if (ARENA_OK(arena))
+			len = snprintf(buf, 1024, "%c <%s> {%s} [%s] ",
+					level,
+					mod,
+					aman->arenas[arena].name,
+					name);
+		else
+			len = snprintf(buf, 1024, "%c <%s> [%s] ",
+					level,
+					mod,
+					name);
+	}
+
+	assert(len < 1024);
+
+	va_start(argptr, format);
+	len = vsnprintf(buf + len, 1024 - len, format, argptr);
+	va_end(argptr);
+
+	if (len > 0)
+		MPAdd(&queue, astrdup(buf));
+}
+
+
+
+int FilterLog(const char *line, const char *modname)
 {
 	const char *res;
-	char origin[32];
+	char origin[32], level;
 
 	/* if there's no config manager, disable filtering */
 	if (!cfg || !line || !modname)
 		return TRUE;
+
+	level = line[0];
+	line += 2;
 
 	if (line[0] == '<')
 	{

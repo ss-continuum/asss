@@ -55,6 +55,8 @@ typedef struct PersistantData
 } PersistantData;
 
 
+#define I_PERSIST "persist-1"
+
 typedef struct Ipersist
 {
 	INTERFACE_HEAD_DECL

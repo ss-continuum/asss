@@ -9,7 +9,7 @@
 #define CAP_SEESYSOPLOGARENA "seesysoplogarena"
 
 
-local void LogSysop(char, char *);
+local void LogSysop(const char *);
 local void PA(int pid, int action, int arena);
 local void Clastlog(const char *params, int pid, int target);
 
@@ -40,13 +40,13 @@ EXPORT int MM_log_sysop(int action, Imodman *mm, int arenas)
 {
 	if (action == MM_LOAD)
 	{
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
-		lm = mm->GetInterface("logman", ALLARENAS);
-		chat = mm->GetInterface("chat", ALLARENAS);
-		capman = mm->GetInterface("capman", ALLARENAS);
-		cmd = mm->GetInterface("cmdman", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		chat = mm->GetInterface(I_CHAT, ALLARENAS);
+		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
+		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 
 		if (!cfg || !lm || !chat) return MM_FAIL;
 
@@ -73,15 +73,13 @@ EXPORT int MM_log_sysop(int action, Imodman *mm, int arenas)
 		mm->ReleaseInterface(cmd);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 
 
-void LogSysop(char lev, char *s)
+void LogSysop(const char *s)
 {
-	if (lm->FilterLog(lev, s, "log_sysop"))
+	if (lm->FilterLog(s, "log_sysop"))
 	{
 		int set[MAXPLAYERS], setc = 0, pid;
 
@@ -116,10 +114,7 @@ void LogSysop(char lev, char *s)
 
 	/* always add to lastlog */
 	LOCK_LL();
-	ll_data[ll_pos][0] = lev;
-	ll_data[ll_pos][1] = ':';
-	ll_data[ll_pos][2] = ' ';
-	astrncpy(ll_data[ll_pos] + 3, s, MAXLINE - 3);
+	astrncpy(ll_data[ll_pos], s, MAXLINE);
 	ll_pos = (ll_pos+1) % MAXLAST;
 	UNLOCK_LL();
 }

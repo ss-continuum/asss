@@ -20,12 +20,12 @@ EXPORT int MM_arenaperm(int action, Imodman *_mm, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
-		chat = mm->GetInterface("chat", ALLARENAS);
-		capman = mm->GetInterface("capman", ALLARENAS);
-		lm = mm->GetInterface("logman", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		chat = mm->GetInterface(I_CHAT, ALLARENAS);
+		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 
 		mm->RegCallback(CB_PLAYERACTION, MyPA, ALLARENAS);
 
@@ -42,8 +42,6 @@ EXPORT int MM_arenaperm(int action, Imodman *_mm, int arena)
 		mm->ReleaseInterface(lm);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

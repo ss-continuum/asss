@@ -99,6 +99,7 @@ local void mlfunc()
 		else if (now > td->tosend)
 		{
 			td->tosend = now + td->interval;
+			td->pos.bounty = (td->endtime - now) / 100;
 			td->pos.time = now;
 			checksum(&td->pos, 22);
 			fake->ProcessPacket(td->pid, (byte*)&td->pos, 22);
@@ -113,9 +114,9 @@ EXPORT int MM_autoturret(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		cmd = mm->GetInterface("cmdman", ALLARENAS);
-		fake = mm->GetInterface("fake", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
+		fake = mm->GetInterface(I_FAKE, ALLARENAS);
 		if (!pd || !cmd || !fake) return MM_FAIL;
 		LLInit(&turrets);
 		mm->RegCallback(CB_MAINLOOP, mlfunc, ALLARENAS);
@@ -132,8 +133,6 @@ EXPORT int MM_autoturret(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(fake);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

@@ -18,14 +18,20 @@
 
 #include "asss.h"
 
-
 /* DEFINES */
 
+/* #define DUMP_RAW_PACKETS */
+
 #define MAXTYPES 128
-#define MAXENCRYPT 4
 
 /* size of ip/port hash table */
 #define HASHSIZE 256
+
+/* resolution for bandwidth limiting, in ticks. this might need tuning. */
+#define BANDWIDTH_RES 100
+
+/* ip/udp overhead, in bytes per physical packet */
+#define IP_UDP_OVERHEAD 28
 
 /* bits in ClientData.flags */
 #define NET_FAKE 0x01
@@ -34,12 +40,18 @@
 
 /* check if a buffer is reliable */
 #define IS_REL(buf) ((buf)->d.rel.t1 == 0x00 && (buf)->d.rel.t2 == 0x03)
+/* check if a buffer is a connection init packet */
 
-/* resolution for bandwidth limiting, in ticks. this might need tuning. */
-#define BANDWIDTH_RES 100
-
-/* ip/udp overhead, in bytes per physical packet */
-#define IP_UDP_OVERHEAD 28
+#define IS_CONNINIT(buf)                           \
+(                                                  \
+	(buf)->d.rel.t1 == 0x00 &&                     \
+	(                                              \
+	 (buf)->d.rel.t2 == 0x01 ||                    \
+	 (buf)->d.rel.t2 == 0x11                       \
+	 /* add more packet types that encryption      \
+	  * module need to know about here */          \
+	)                                              \
+)
 
 
 /* STRUCTS */
@@ -61,8 +73,8 @@ typedef struct ClientData
 	/* total amounts sent and recvd */
 	unsigned int pktsent, pktrecvd;
 	unsigned int bytesent, byterecvd;
-	/* encryption type and key used */
-	unsigned int enctype, key;
+	/* encryption type */
+	Iencrypt *enc;
 	/* big packet buffer pointer and size */
 	int bigpktsize, bigpktroom;
 	byte *bigpktbuf;
@@ -103,16 +115,18 @@ local void SendToSet(int *, byte *, int, int);
 local void SendToAll(byte *, int, int);
 local void SendWithCallback(int *pidset, byte *data, int length,
 		RelCallback callback, void *clos);
+local void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len);
 local void ProcessPacket(int, byte *, int);
 local void AddPacket(byte, PacketFunc);
 local void RemovePacket(byte, PacketFunc);
-local int NewConnection(int type, struct sockaddr_in *);
+local int NewConnection(int type, struct sockaddr_in *, Iencrypt *enc);
 local void SetLimit(int pid, int limit);
 local void GetStats(struct net_stats *stats);
 local void GetClientStats(int pid, struct client_stats *stats);
 
 /* internal: */
 local inline int HashIP(struct sockaddr_in);
+local inline int LookupIP(struct sockaddr_in);
 local inline void SendRaw(int, byte *, int);
 local void KillConnection(int pid);
 local void ProcessBuffer(Buffer *);
@@ -121,7 +135,6 @@ local Buffer * GetBuffer(void);
 local void BufferPacket(int pid, byte *data, int len, int flags,
 		RelCallback callback, void *clos);
 local void FreeBuffer(Buffer *);
-local void LoadCrypters(void);
 
 /* threads: */
 local void * RecvThread(void *);
@@ -129,7 +142,6 @@ local void * SendThread(void *);
 local void * RelThread(void *);
 
 /* network layer header handling: */
-local void ProcessKey(Buffer *);
 local void ProcessKeyResponse(Buffer *);
 local void ProcessReliable(Buffer *);
 local void ProcessGrouped(Buffer *);
@@ -138,6 +150,7 @@ local void ProcessSyncRequest(Buffer *);
 local void ProcessBigData(Buffer *);
 local void ProcessPresize(Buffer *);
 local void ProcessDrop(Buffer *);
+local void ProcessCancel(Buffer *);
 
 
 
@@ -148,7 +161,6 @@ local Imodman *mm;
 local Iplayerdata *pd;
 local Ilogman *lm;
 local Iconfig *cfg;
-local Iencrypt *crypters[MAXENCRYPT];
 
 local PlayerData *players;
 
@@ -193,7 +205,7 @@ local volatile struct net_stats global_stats;
 local void (*oohandlers[])(Buffer*) =
 {
 	NULL, /* 00 - nothing */
-	ProcessKey, /* 01 - key initiation */
+	NULL, /* 01 - key initiation */
 	ProcessKeyResponse, /* 02 - key response (to be used for billing server) */
 	ProcessReliable, /* 03 - reliable */
 	ProcessAck, /* 04 - reliable response */
@@ -203,7 +215,7 @@ local void (*oohandlers[])(Buffer*) =
 	ProcessBigData, /* 08 - bigpacket */
 	ProcessBigData, /* 09 - bigpacket2 */
 	ProcessPresize, /* 0A - presized bigdata */
-	NULL, /* 0B - nothing */
+	ProcessCancel, /* 0B - cancel presized */
 	NULL, /* 0C - nothing */
 	NULL, /* 0D - nothing */
 	ProcessGrouped /* 0E - grouped */
@@ -213,6 +225,7 @@ local Inet _int =
 {
 	INTERFACE_HEAD_INIT("net-udp")
 	SendToOne, SendToArena, SendToSet, SendToAll, SendWithCallback,
+	ReallyRawSend,
 	KillConnection, ProcessPacket, AddPacket, RemovePacket,
 	NewConnection, SetLimit, GetStats, GetClientStats
 };
@@ -229,9 +242,9 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
-		lm = mm->GetInterface("logman", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		if (!cfg || !lm) return MM_FAIL;
 
 		players = pd->players;
@@ -275,27 +288,21 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 		StartThread(SendThread, NULL);
 		StartThread(RelThread, NULL);
 
-		/* get encryption interfaces */
-		LoadCrypters();
-
 		/* install ourself */
-		mm->RegInterface("net", &_int, ALLARENAS);
+		mm->RegInterface(I_NET, &_int, ALLARENAS);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		/* uninstall ourself */
-		if (mm->UnregInterface("net", &_int, ALLARENAS))
+		if (mm->UnregInterface(I_NET, &_int, ALLARENAS))
 			return MM_FAIL;
 
 		/* release these */
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(lm);
-		for (i = 1; i < MAXENCRYPT; i++)
-			if (crypters[i])
-				mm->ReleaseInterface(crypters[i]);
 
 		/* clean up */
 		for (i = 0; i < MAXTYPES; i++)
@@ -312,8 +319,6 @@ EXPORT int MM_net(int action, Imodman *mm_, int arena)
 
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 
@@ -338,21 +343,21 @@ int HashIP(struct sockaddr_in sin)
 	return ((port>>1) ^ (ip) ^ (ip>>23) ^ (ip>>17)) & (HASHSIZE-1);
 }
 
-
-local void LoadCrypters()
+int LookupIP(struct sockaddr_in sin)
 {
-	int i;
-	char key[] = "encrypt\x01";
-
-	for (i = 1; i < MAXENCRYPT; i++)
+	int pid, hashbucket = HashIP(sin);
+	LockMutex(&hashmtx);
+	pid = clienthash[hashbucket];
+	while (pid >= 0)
 	{
-		/* don't forget to release to keep reference counts correct */
-		if (crypters[i])
-			mm->ReleaseInterface(crypters[i]);
-		/* get the new one */
-		key[7] = i;
-		crypters[i] = mm->GetInterface(key, ALLARENAS);
+		if (players[pid].status != S_FREE &&
+				clients[pid].sin.sin_addr.s_addr == sin.sin_addr.s_addr &&
+				clients[pid].sin.sin_port == sin.sin_port)
+			break;
+		pid = clients[pid].nextinbucket;
 	}
+	UnlockMutex(&hashmtx);
+	return pid;
 }
 
 
@@ -385,7 +390,7 @@ local void ClearOutlist(int pid)
 }
 
 
-local void InitClient(int i)
+local void InitClient(int i, Iencrypt *enc)
 {
 	/* free any buffers remaining in the outlist. there probably
 	 * shouldn't be any. just be sure. */
@@ -395,8 +400,8 @@ local void InitClient(int i)
 	LockMutex(outlistmtx + i);
 	memset(clients + i, 0, sizeof(ClientData));
 	clients[i].c2sn = -1;
-	clients[i].enctype = -1;
 	clients[i].limit = config.deflimit;
+	clients[i].enc = enc;
 	DQInit(&clients[i].outlist);
 	UnlockMutex(outlistmtx + i);
 }
@@ -412,7 +417,7 @@ local void InitPlayer(int i, int type)
 	players[i].pid = i;
 	players[i].shiptype = SPEC;
 	players[i].attachedto = -1;
-	players[i].status = S_NEED_KEY;
+	players[i].status = S_CONNECTED;
 	players[i].type = type;
 	pd->UnlockStatus();
 	pd->UnlockPlayer(i);
@@ -497,10 +502,20 @@ void InitSockets(void)
 		clients[PID_BILLER].sin.sin_family = AF_INET;
 		clients[PID_BILLER].sin.sin_addr.s_addr =
 			inet_addr(cfg->GetStr(GLOBAL, "Billing", "IP"));
-		clients[PID_BILLER].sin.sin_port = 
+		clients[PID_BILLER].sin.sin_port =
 			htons(cfg->GetInt(GLOBAL, "Billing", "Port", 1850));
 	}
 }
+
+
+#ifdef DUMP_RAW_PACKETS
+local void dump_pk(byte *data, int len)
+{
+	FILE *f = popen("xxd", "w");
+	fwrite(data, len, 1, f);
+	pclose(f);
+}
+#endif
 
 
 void * RecvThread(void *dummy)
@@ -508,7 +523,7 @@ void * RecvThread(void *dummy)
 	struct sockaddr_in sin;
 	struct timeval tv;
 	fd_set fds;
-	int len, pid, sinsize, type, maxfd = 5, hashbucket, n;
+	int len, pid, sinsize, maxfd = 5, n;
 
 	while (!killallthreads)
 	{
@@ -540,96 +555,71 @@ void * RecvThread(void *dummy)
 			len = recvfrom(mysock, buf->d.raw, MAXPACKET, 0,
 					(struct sockaddr*)&sin, &sinsize);
 
-			if (len < 1)
-			{
-				FreeBuffer(buf);
-				goto donehere;
-			}
+			if (len < 1) goto freebuf;
 
-			buf->len = len;
+#ifdef DUMP_RAW_PACKETS
+			printf("RECV: %d bytes\n", len);
+			dump_pk(buf->d.raw, len);
+#endif
 
-			/* search for an existing connection */
-			hashbucket = HashIP(sin);
 
 			/***** lock status here *****/
 			pd->LockStatus();
 
-			LockMutex(&hashmtx);
-			pid = clienthash[hashbucket];
-			while (pid >= 0)
-			{
-				if (    players[pid].status > S_FREE
-					 && clients[pid].sin.sin_addr.s_addr == sin.sin_addr.s_addr
-					 && clients[pid].sin.sin_port == sin.sin_port)
-					break;
-				pid = clients[pid].nextinbucket;
-			}
-			UnlockMutex(&hashmtx);
+			/* search for an existing connection */
+			pid = LookupIP(sin);
 
 			if (pid == -1)
-			{	/* new client */
-				pd->UnlockStatus(); /* NewConnection needs status unlocked */
-				pid = NewConnection(T_VIE, &sin);
-				pd->LockStatus();
-				if (pid == -1)
-				{
-					byte pk7[] = { 0x00, 0x07 };
-					sendto(mysock, pk7, 2, 0, (struct sockaddr*)&sin, sinsize);
-					lm->Log(L_WARN,"<net> Too many players! Dropping extra connections!");
-					goto freeit;
-				}
+			{
+				pd->UnlockStatus();
+				/* this might be a new connection. make sure it's really
+				 * a connection init packet */
+				if (IS_CONNINIT(buf))
+					DO_CBS(CB_CONNINIT, ALLARENAS, ConnectionInitFunc,
+							(&sin, buf->d.raw, len));
 				else
-				{
-					lm->Log(L_DRIVEL,"<net> [pid=%d] New connection from %s:%i",
-							pid, inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
-				}
+					lm->Log(L_DRIVEL, "<net> Recvd data before connection established");
+				goto freebuf;
 			}
 
-			/* check that it's in a reasonable status */
+			/* grab the status */
 			status = players[pid].status;
 
-			if (status == S_TIMEWAIT2)
+			if (IS_CONNINIT(buf))
 			{
-				/* if we're in the long timewait state, we should accept
-				 * key negiciation packets. */
-				if (buf->d.rel.t1 == 0x00 && buf->d.rel.t2 == 0x01)
+				pd->UnlockStatus();
+				/* here, we have a connection init, but it's from a
+				 * player we've seen before. there are a few scenarios: */
+				if (status == S_CONNECTED)
 				{
-					/* this is a key negociation. do all the stuff that
-					 * NewConnection would except the hash table bits.
-					 * note that we also manually set the status to
-					 * S_NEED_KEY. i'm pretty sure we have to do that to
-					 * be safe, since we release the mutex momentarily.
-					 * the better solution would be to make the status
-					 * mutex recursive and also get rid of the
-					 * per-player mutexes, so InitPlayer could be called
-					 * while holding the lock. */
-					players[pid].status = S_NEED_KEY;
-					pd->UnlockStatus(); /* InitPlayer needs status unlocked */
-					InitClient(pid);
-					/* initclient wipes the client struct. we need to restore
-					 * the socket address. this feels a bit hackish. */
-					memcpy(&clients[pid].sin, &sin, sizeof(struct sockaddr_in));
-					InitPlayer(pid, T_VIE);
-					pd->LockStatus();
-					lm->Log(L_DRIVEL,"<net> [pid=%d] Reconnected from timewait2", pid);
+					/* if the player is in S_CONNECTED, it means that
+					 * the connection init response got dropped on the
+					 * way to the client. we have to resend it. */
+					DO_CBS(CB_CONNINIT, ALLARENAS, ConnectionInitFunc,
+							(&sin, buf->d.raw, len));
 				}
 				else
-					/* oh well, let's just ignore it. don't set lastpkt
-					 * time for timewait state or we might never get out
-					 * of it */
-					goto freeit;
+				{
+					/* otherwise, he probably just lagged off or his
+					 * client crashed. ideally, we'd postpone this
+					 * packet, initiate a logout procedure, and then
+					 * process it. we can't do that right now, so drop
+					 * the packet, initiate the logout, and hope that
+					 * the client re-sends it soon. */
+					KillConnection(pid);
+				}
+				goto freebuf;
 			}
 
+			/* we shouldn't get packets in this state, but it's harmless
+			 * if we do. */
 			if (status == S_TIMEWAIT)
-				/* we want to stay in this (shorter) timewait state
-				 * until the sendthread moves us to the next one. still,
-				 * don't set lastpkt time. */
-				goto freeit;
+				goto freebufstatus;
 
-			if (status <= S_FREE || status > S_TIMEWAIT2)
+			if (status <= S_FREE || status > S_TIMEWAIT)
 			{
 				lm->Log(L_WARN, "<net> [pid=%d] Packet recieved from bad state %d", pid, status);
-				goto freeit;
+				goto freebufstatus;
 				/* don't set lastpkt time here */
 			}
 
@@ -643,30 +633,42 @@ void * RecvThread(void *dummy)
 			global_stats.pktrecvd++;
 
 			/* decrypt the packet */
-			type = clients[pid].enctype;
-			if (type >= 0 && type < MAXENCRYPT && crypters[type])
 			{
-				if (buf->d.rel.t1 == 0x00)
-					crypters[type]->Decrypt(pid, buf->d.raw+2, len-2);
-				else
-					crypters[type]->Decrypt(pid, buf->d.raw+1, len-1);
+				Iencrypt *enc = clients[pid].enc;
+				if (enc)
+					len = enc->Decrypt(pid, buf->d.raw, len);
 			}
+
+			if (len != 0)
+				buf->len = len;
+			else /* bad crc, or something */
+			{
+				lm->Log(L_MALICIOUS, "<net> [pid=%d] Incoming packet failed crc", pid);
+				goto freebuf;
+			}
+
+#ifdef DUMP_RAW_PACKETS
+			printf("RECV: about to process %d bytes:\n", len);
+			dump_pk(buf->d.raw, len);
+#endif
 
 			/* hand it off to appropriate place */
 			ProcessBuffer(buf);
 
 			goto donehere;
-freeit:
+freebufstatus:
 			/* unlock status here because we locked it up above and
 			 * escaped from the section with a goto. */
 			pd->UnlockStatus();
+freebuf:
 			FreeBuffer(buf);
 donehere:
 			;
 		}
 
 		if (FD_ISSET(myothersock, &fds))
-		{	/* data on port + 1 */
+		{
+			/* data on port + 1 */
 			unsigned int data[2];
 
 			sinsize = sizeof(sin);
@@ -691,7 +693,8 @@ donehere:
 		}
 
 		if (FD_ISSET(mybillingsock, &fds))
-		{	/* data from billing server */
+		{
+			/* data from billing server */
 			Buffer *buf;
 
 			buf = GetBuffer();
@@ -841,19 +844,16 @@ void * SendThread(void *dummy)
 				pd->LockStatus();
 			}
 
-			/* process timewait states
-			 * this is done with two states to ensure a complete pass
-			 * through the outgoing buffer before marking these pids as
-			 * free */
+			/* process timewait state */
 			/* btw, status is locked in here */
-			if (players[i].status == S_TIMEWAIT2 && diff > 500)
+			if (players[i].status == S_TIMEWAIT)
 			{
-				/* remove from hash table. we do this now so that
-				 * packets that arrive after the connection is closed
-				 * (because of udp misorderings) don't cause a new
-				 * connection to be created (at least for a short while)
-				 */
+				/* here, send disconnection packet */
+				char drop[2] = {0x00, 0x07};
 				int bucket;
+
+				SendToOne(i, drop, 2, NET_PRI_P5);
+
 				LockMutex(&hashmtx);
 				bucket = HashIP(clients[i].sin);
 				if (clienthash[bucket] == i)
@@ -880,13 +880,6 @@ void * SendThread(void *dummy)
 				players[i].status = S_FREE;
 
 				UnlockMutex(&hashmtx);
-			}
-			if (players[i].status == S_TIMEWAIT)
-			{
-				/* here, send disconnection packet */
-				char drop[2] = {0x00, 0x07};
-				SendToOne(i, drop, 2, NET_PRI_P5);
-				players[i].status = S_TIMEWAIT2;
 			}
 		}
 		pd->UnlockStatus();
@@ -918,6 +911,20 @@ void * RelThread(void *dummy)
 				DQRemove((DQNode*)buf);
 				FreeBuffer(buf);
 			}
+#if 0
+			/* we don't currently use this yet, but it might be useful
+			 * in the future. */
+			else if (buf->d.rel.t1 != 0x00)
+			{
+				/* it's a unreliable packet on the rel list. process,
+				 * but don't increment sequence number. */
+				DQRemove((DQNode*)buf);
+				UnlockMutex(&relmtx);
+				ProcessPacket(buf->pid, buf->d.raw, buf->len);
+				FreeBuffer(buf);
+				LockMutex(&relmtx);
+			}
+#endif
 			else if (buf->d.rel.seqnum == (clients[buf->pid].c2sn + 1) )
 			{
 				/* else, if seqnum matches, process */
@@ -938,6 +945,7 @@ void * RelThread(void *dummy)
 	return NULL;
 }
 
+
 /* ProcessBuffer
  * unreliable packets will be processed before the call returns and freed.
  * network packets will be processed by the appropriate network handler,
@@ -947,7 +955,8 @@ void ProcessBuffer(Buffer *buf)
 {
 	if (buf->d.rel.t1 == 0x00)
 	{
-		if (buf->d.rel.t2 < sizeof(oohandlers) && oohandlers[(int)buf->d.rel.t2])
+		if (buf->d.rel.t2 < (sizeof(oohandlers)/sizeof(*oohandlers)) &&
+				oohandlers[(int)buf->d.rel.t2])
 			(oohandlers[(int)buf->d.rel.t2])(buf);
 		else
 		{
@@ -1009,17 +1018,49 @@ void ProcessPacket(int pid, byte *d, int len)
 }
 
 
-int NewConnection(int type, struct sockaddr_in *sin)
+int NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc)
 {
 	int i = 0, bucket;
 
 	pd->LockStatus();
-	while (players[i].status != S_FREE && i < MAXPLAYERS) i++;
+
+	if (sin)
+	{
+		/* try to find this sin in the hash table */
+		i = LookupIP(*sin);
+
+		if (i != -1)
+		{
+			/* we found it. if its status is S_CONNECTED, just return the
+			 * pid. it means we have to redo part of the connection init. */
+			if (players[i].status == S_CONNECTED)
+			{
+				pd->UnlockStatus();
+				return i;
+			}
+			else
+			{
+				/* otherwise, something is horribly wrong. make a note to
+				 * this effect. */
+				pd->UnlockStatus();
+				lm->Log(L_ERROR, "<net> NewConnection called for an established address (pid %d)", i);
+				return -1;
+			}
+		}
+	}
+
+	for (i = 0; players[i].status != S_FREE && i < MAXPLAYERS; i++) ;
 	pd->UnlockStatus();
 
 	if (i == MAXPLAYERS) return -1;
 
-	InitClient(i);
+	if (sin)
+		lm->Log(L_DRIVEL,"<net> [pid=%d] New connection from %s:%i",
+				i, inet_ntoa(sin->sin_addr), ntohs(sin->sin_port));
+	else
+		lm->Log(L_DRIVEL,"<net> [pid=%d] New internal connection", i);
+
+	InitClient(i, enc);
 
 	clients[i].connecttime = GTC();
 
@@ -1047,7 +1088,6 @@ int NewConnection(int type, struct sockaddr_in *sin)
 
 void KillConnection(int pid)
 {
-	int type;
 	byte leaving = C2S_LEAVING;
 
 	pd->LockPlayer(pid);
@@ -1094,57 +1134,15 @@ void KillConnection(int pid)
 	ClearOutlist(pid);
 
 	/* tell encryption to forget about him */
-	type = clients[pid].enctype;
-	if (type >= 0 && type < MAXENCRYPT)
-		crypters[type]->Void(pid);
+	if (clients[pid].enc)
+	{
+		clients[pid].enc->Void(pid);
+		clients[pid].enc = NULL;
+	}
 
 	/* log message */
 	lm->Log(L_INFO, "<net> [%s] [pid=%d] Disconnected",
 			players[pid].name, pid);
-}
-
-
-void ProcessKey(Buffer *buf)
-{
-	int key = buf->d.rel.seqnum;
-	short type = *(short*)buf->d.rel.data;
-	PlayerData *player = players + buf->pid;
-
-	pd->LockStatus();
-	if (player->status != S_NEED_KEY)
-	{
-		pd->UnlockStatus();
-		lm->Log(L_MALICIOUS, "<net> [pid=%d] initiated key exchange from incorrect stage: %d, dropping", buf->pid, player->status);
-		KillConnection(buf->pid);
-		FreeBuffer(buf);
-		return;
-	}
-
-	player->status = S_CONNECTED;
-	pd->UnlockStatus();
-
-	buf->d.rel.t2 = 2;
-
-	LockMutex(outlistmtx + buf->pid);
-
-	if (config.encmode == 0)
-	{
-		SendRaw(buf->pid, buf->d.raw, 6);
-	}
-	else if (type >= 0 && type < MAXENCRYPT && crypters[type])
-	{
-		key = crypters[type]->Respond(key);
-		buf->d.rel.seqnum = key;
-		SendRaw(buf->pid, buf->d.raw, 6);
-		crypters[type]->Init(buf->pid, key);
-		clients[buf->pid].enctype = type;
-	}
-	else
-		lm->Log(L_MALICIOUS, "<net> [pid=%d] Unknown encryption type attempted to connect: %d", buf->pid, type);
-
-	UnlockMutex(outlistmtx + buf->pid);
-
-	FreeBuffer(buf);
 }
 
 
@@ -1298,7 +1296,7 @@ void ProcessBigData(Buffer *buf)
 	{
 		clients[pid].bigpktroom *= 2;
 		if (clients[pid].bigpktroom < newsize) clients[pid].bigpktroom = newsize;
-		newbuf = realloc(clients[pid].bigpktbuf, clients[pid].bigpktroom); 
+		newbuf = realloc(clients[pid].bigpktbuf, clients[pid].bigpktroom);
 		if (!newbuf)
 		{
 			lm->Log(L_ERROR,"<net> [%s] Cannot allocate %d bytes for bigpacket",
@@ -1341,7 +1339,8 @@ void ProcessPresize(Buffer *buf)
 	}
 
 	if (clients[pid].bigpktbuf)
-	{	/* copy data */
+	{
+		/* copy data */
 		if (size != clients[pid].bigpktroom)
 		{
 			lm->Log(L_MALICIOUS, "<net> [%s] Presized data length mismatch", players[pid].name);
@@ -1351,7 +1350,8 @@ void ProcessPresize(Buffer *buf)
 		clients[pid].bigpktsize += (buf->len - 6);
 	}
 	else
-	{	/* allocate it */
+	{
+		/* allocate it */
 		if (size > MAXBIGPACKET)
 		{
 			lm->Log(L_MALICIOUS,
@@ -1360,7 +1360,8 @@ void ProcessPresize(Buffer *buf)
 				MAXBIGPACKET);
 		}
 		else
-		{	/* copy initial segment	 */
+		{
+			/* copy initial segment */
 			clients[pid].bigpktbuf = amalloc(size);
 			clients[pid].bigpktroom = size;
 			memcpy(clients[pid].bigpktbuf, buf->d.rel.data, buf->len - 6);
@@ -1382,14 +1383,52 @@ reallyexit:
 }
 
 
-/*
-local void dump_pk(byte *data, int len)
+void ProcessCancel(Buffer *req)
 {
-	FILE *f = popen("xxd", "w");
-	fwrite(data, len, 1, f);
-	pclose(f);
+	/* the client has request a cancel for the file transfer. that means
+	 * we have to go through the outlist and remove all packets like
+	 * this:
+	 * 00 03 xx xx xx xx 00 0A ...
+	 * but only ones we haven't sent yet. we then have to reset the next
+	 * sequence number to the smallest sequence number of the packets we
+	 * just removed. */
+	int pid = req->pid;
+	Buffer *buf, *nbuf;
+	DQNode *outlist;
+
+	FreeBuffer(req);
+
+#if 0
+	/* the code will look mostly like this, when it's working */
+	LockMutex(outlistmtx + pid);
+
+	outlist = &clients[pid].outlist;
+	for (buf = (Buffer*)outlist->next; (DQNode*)buf != outlist; buf = nbuf)
+	{
+		/* callbacks aren't allowed for file transfers, so don't worry
+		 * about them */
+		nbuf = (Buffer*)buf->node.next;
+		if (buf->d.raw[7] == 0x0A && buf->d.raw[6] == 0x00 &&
+		    buf->d.raw[1] == 0x03 && buf->d.raw[0] == 0x00 &&
+		    /* buf hasn't been sent (FIXME) */
+		   )
+		{
+			DQRemove((DQNode*)buf);
+			FreeBuffer(buf);
+		}
+	}
+	/* FIXME: set sequence number */
+	UnlockMutex(outlistmtx + pid);
+#endif
 }
-*/
+
+
+void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len)
+{
+	sendto(mysock, pkt, len, 0,
+			(struct sockaddr*)sin, sizeof(struct sockaddr_in));
+}
+
 
 /* IMPORTANT: anyone calling SendRaw MUST hold the outlistmtx for the
  * player that they're sending data to if you want bytessince to be
@@ -1397,33 +1436,35 @@ local void dump_pk(byte *data, int len)
 void SendRaw(int pid, byte *data, int len)
 {
 	byte encbuf[MAXPACKET];
-	int type = clients[pid].enctype;
+	Iencrypt *enc = clients[pid].enc;
 
 	if (clients[pid].flags & NET_FAKE) return;
 
-	if (pid == PID_BILLER)
-	{
-		sendto(mybillingsock, data, len, 0,
-				(struct sockaddr*)&clients[pid].sin, sizeof(struct sockaddr_in));
-	}
-	else
+	if (pid != PID_BILLER)
 	{
 		memcpy(encbuf, data, len);
 
-		if (type >= 0 && crypters[type])
-		{
-			if (data[0] == 0x00)
-				crypters[type]->Encrypt(pid, encbuf+2, len-2);
-			else
-				crypters[type]->Encrypt(pid, encbuf+1, len-1);
-		}
+#ifdef DUMP_RAW_PACKETS
+		printf("SEND: %d bytes to pid %d\n", len, pid);
+		dump_pk(encbuf, len);
+#endif
+
+		if (enc)
+			len = enc->Encrypt(pid, encbuf, len);
+
+#ifdef DUMP_RAW_PACKETS
+		printf("SEND: %d bytes (after encryption):\n", len);
+		dump_pk(encbuf, len);
+#endif
 
 		sendto(mysock, encbuf, len, 0,
 				(struct sockaddr*)&clients[pid].sin, sizeof(struct sockaddr_in));
-		/*
-		printf("DEBUG: %d bytes to pid %d\n", len, pid);
-		dump_pk(data, len);
-		*/
+
+	}
+	else
+	{
+		sendto(mybillingsock, data, len, 0,
+				(struct sockaddr*)&clients[pid].sin, sizeof(struct sockaddr_in));
 	}
 
 	clients[pid].bytessince += len + IP_UDP_OVERHEAD;
@@ -1634,8 +1675,13 @@ void GetClientStats(int pid, struct client_stats *stats)
 #define ASSIGN(field) stats->field = client->field
 	ASSIGN(s2cn); ASSIGN(c2sn);
 	ASSIGN(pktsent); ASSIGN(pktrecvd); ASSIGN(bytesent); ASSIGN(byterecvd);
-	ASSIGN(enctype); ASSIGN(connecttime);
+	ASSIGN(connecttime);
 #undef ASSIGN
+	/* encryption */
+	if (clients[pid].enc)
+		stats->encname = clients[pid].enc->head.name;
+	else
+		stats->encname = "none";
 	/* convert to bytes per second */
 	stats->limit = clients->limit * 100 / BANDWIDTH_RES;
 	/* RACE: inet_ntoa is not thread-safe */

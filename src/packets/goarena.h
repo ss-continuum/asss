@@ -11,7 +11,11 @@ struct GoArenaPacket
 	i16 wavmsg;
 	i16 xres,yres,arenatype;
 	char arenaname[16];
+	u8 optionalgraphics; /* cont */
 };
+
+#define LEN_GOARENAPACKET_VIE (sizeof(struct GoArenaPacket) - 1)
+#define LEN_GOARENAPACKET_CONT sizeof(struct GoArenaPacket)
 
 #endif
 

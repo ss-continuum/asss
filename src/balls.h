@@ -34,6 +34,7 @@ struct BallData
 	ballstate_t state; /* the state of this ball */
 	int x, y, xspeed, yspeed; /* the coordinates of the ball */
 	int carrier; /* the pid that is carrying or last touched the ball */
+	int freq; /* freq of carrier */
 	u32 time; /* the time that the ball was last fired (will be 0 for
 	             balls being held). for BALL_WAITING, this time is the
 	             time when the ball will be re-spawned. */
@@ -48,6 +49,8 @@ struct ArenaBallData
 	/* points to an array of at least ballcount structs */
 };
 
+
+#define I_BALLS "balls-2"
 
 typedef struct Iballs
 {

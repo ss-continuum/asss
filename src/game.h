@@ -18,6 +18,8 @@ typedef void (*FreqChangeFunc)(int pid, int newfreq);
 typedef void (*ShipChangeFunc)(int pid, int newship, int newfreq);
 
 
+#define I_GAME "game-1"
+
 typedef struct Igame
 {
 	INTERFACE_HEAD_DECL

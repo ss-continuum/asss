@@ -10,6 +10,8 @@
  * the arena response procedure.
  */
 
+#define I_CLIENTSET "clientset-1"
+
 typedef struct Iclientset
 {
 	INTERFACE_HEAD_DECL

@@ -129,6 +129,8 @@ local void Carena(const char *params, int pid, int target)
 
 local void Cshutdown(const char *params, int pid, int target)
 {
+	byte drop[2] = {0x00, 0x07};
+	net->SendToAll(drop, 2, NET_PRI_P5);
 	ml->Quit();
 }
 
@@ -190,7 +192,7 @@ local void Csetship(const char *params, int pid, int target)
 
 local void Cversion(const char *params, int pid, int target)
 {
-	chat->SendMessage(pid, "asss %s (buildnumber %d)", ASSSVERSION, BUILDNUMBER);
+	chat->SendMessage(pid, "asss %s built at %s", ASSSVERSION, BUILDDATE);
 #ifdef DOUNAME
 	{
 		struct utsname un;
@@ -242,8 +244,32 @@ local void Crmmod(const char *params, int pid, int target)
 
 local void Cgetgroup(const char *params, int pid, int target)
 {
-	if (PID_OK(pid) && capman)
-		chat->SendMessage(pid, "Group: %s", capman->GetGroup(pid));
+	if (PID_OK(target) && capman)
+		chat->SendMessage(pid, "getgroup: %s is in group %s",
+				players[target].name,
+				capman->GetGroup(pid));
+	else if (target == TARGET_ARENA && capman)
+		chat->SendMessage(pid, "getgroup: You are in group %s",
+				capman->GetGroup(pid));
+	else
+		chat->SendMessage(pid, "getgroup: Bad target");
+}
+
+
+local void Clistmods(const char *params, int pid, int target)
+{
+	int i;
+	const char *group;
+
+	if (!capman) return;
+
+	for (i = 0; i < MAXPLAYERS; i++)
+		if (players[i].status == S_PLAYING &&
+		    strcmp(group = capman->GetGroup(i), "default"))
+			chat->SendMessage(pid, "listmods: %20s %10s %10s",
+					players[i].name,
+					arenas[players[i].arena].name,
+					group);
 }
 
 
@@ -325,8 +351,8 @@ local void Cinfo(const char *params, int pid, int target)
 				"%s: arena=%d  type=%s  res=%dx%d",
 				prefix, p->arena, type, p->xres, p->yres);
 		chat->SendMessage(pid,
-				"%s: ip=%s  port=%d  enctype=%d",
-				prefix, s.ipaddr, s.port, s.enctype);
+				"%s: ip=%s  port=%d  encname=%s",
+				prefix, s.ipaddr, s.port, s.encname);
 		chat->SendMessage(pid,
 				"%s: seconds=%d  limit=%d  avg bandwidth in/out=%d/%d",
 				prefix, tm / 100, s.limit,
@@ -427,18 +453,9 @@ local void Ca(const char *params, int pid, int target)
 	int arena = players[pid].arena;
 
 	if (target == TARGET_ARENA)
-	{
-		int set[MAXPLAYERS], setc = 0, i;
-		pd->LockStatus();
-		for (i = 0; i < MAXPLAYERS; i++)
-			if (players[i].status == S_PLAYING && players[i].arena == arena)
-				set[setc++] = i;
-		pd->UnlockStatus();
-		set[setc] = -1;
-		chat->SendSetMessage(set, "%s -%s", params, players[pid].name);
-	}
+		chat->SendArenaMessage(arena,"%s - %s",params,players[pid].name);
 	else if (PID_OK(target))
-		chat->SendMessage(target, "%s - %s", params, players[pid].name);
+		chat->SendMessage(target, "%s  -%s", params, players[pid].name);
 }
 
 
@@ -463,6 +480,7 @@ const all_commands[] =
 	CMD(insmod),
 	CMD(rmmod),
 	CMD(getgroup),
+	CMD(listmods),
 	CMD(setgroup),
 	CMD(netstats),
 	CMD(info),
@@ -480,19 +498,19 @@ EXPORT int MM_playercmd(int action, Imodman *_mm, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		chat = mm->GetInterface("chat", ALLARENAS);
-		lm = mm->GetInterface("logman", ALLARENAS);
-		cmd = mm->GetInterface("cmdman", ALLARENAS);
-		net = mm->GetInterface("net", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
-		capman = mm->GetInterface("capman", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		game = mm->GetInterface("game", ALLARENAS);
-		ml = mm->GetInterface("mainloop", ALLARENAS);
-		logfile = mm->GetInterface("log_file", ALLARENAS);
-		flags = mm->GetInterface("flags", ALLARENAS);
-		balls = mm->GetInterface("balls", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		chat = mm->GetInterface(I_CHAT, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
+		net = mm->GetInterface(I_NET, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		game = mm->GetInterface(I_GAME, ALLARENAS);
+		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
+		logfile = mm->GetInterface(I_LOG_FILE, ALLARENAS);
+		flags = mm->GetInterface(I_FLAGS, ALLARENAS);
+		balls = mm->GetInterface(I_BALLS, ALLARENAS);
 
 		if (!cmd || !net || !cfg || !aman) return MM_FAIL;
 
@@ -524,8 +542,6 @@ EXPORT int MM_playercmd(int action, Imodman *_mm, int arena)
 		mm->ReleaseInterface(balls);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

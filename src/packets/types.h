@@ -16,7 +16,8 @@
 #define S2C_SCOREUPDATE 0x09
 #define S2C_LOGINRESPONSE 0x0A
 #define S2C_SOCCERGOAL 0x0B
-/* missing 0C */
+/* compressed .wav, with extra data */
+#define S2C_WAVEFILE 0x0C
 #define S2C_FREQCHANGE 0x0D
 #define S2C_TURRET 0x0E
 #define S2C_SETTINGS 0x0F
@@ -31,15 +32,23 @@
 #define S2C_SECURITY 0x18
 #define S2C_REQUESTFORFILE 0x19
 #define S2C_TIMEDGAME 0x1A
-/* missing 1B 1C */
+/* just 1 byte, tells client they need to reset their ship */
+#define S2C_SHIPRESET 0x1B
+/* two bytes, if byte two is true, client needs to send their item info in
+ * position packets */
+#define S2C_EXTRADATA 0x1C
 #define S2C_SHIPCHANGE 0x1D
-/* missing 1E */
+#define S2C_BANNERTOGGLE 0x1E
 #define S2C_BANNER 0x1F
 #define S2C_PRIZERECV 0x20
 #define S2C_BRICK 0x21
 #define S2C_TURFFLAGS 0x22
 #define S2C_PERIODICREWARD 0x23
-/* missing 24 25 26 */
+/* complex speed stats */
+#define S2C_SPEED 0x24
+/* two bytes, if byte two is true, you can use UFO if you want to */
+#define S2C_UFO 0x25
+/* missing 26 */
 #define S2C_KEEPALIVE 0x27
 #define S2C_POSITION 0x28
 #define S2C_MAPFILENAME 0x29
@@ -49,7 +58,22 @@
 /* missing 2D */
 #define S2C_BALL 0x2E
 #define S2C_ARENA 0x2F
-/*missing 30 31 */
+/* vie's old method of showing ads */
+#define S2C_ADBANNER 0x30
+/* vie sent it after a good login, only with billing. */
+#define S2C_LOGINOK 0x31
+/* u8 type - ui16 x tile coords - ui16 y tile coords */
+#define S2C_WARPTO 0x32
+/* missing 33 34 */
+/* u8 type - unlimited number of ui16 with obj id (if & 0xF000, means
+ * turning off) */
+#define S2C_TOGGLEOBJ 0x35
+/* that ugly struct in mapobj.h that doesn't work yet */
+#define S2C_RECVOBJECT 0x36 
+/* two bytes, if byte two is true, client should send damage info */
+#define S2C_TOGGLEDAMAGE 0x37
+/* complex, the info used from a *watchdamage */
+#define S2C_DAMAGE 0x38
 
 
 /* C2S PACKET TYPES */
@@ -62,19 +86,28 @@
 #define C2S_GREEN 0x07
 #define C2S_SPECREQUEST 0x08
 #define C2S_LOGIN 0x09
-/* missing 0A 0B */
+/* ugly packet in mapobj.h */
+#define C2S_OBJECTMOVER 0x0A
+/* 1 byte, client wants the server's update for client */
+#define C2S_EXEREQUEST 0x0B
 #define C2S_MAPREQUEST 0x0C
 #define C2S_NEWSREQUEST 0x0D
-/* missing 0E */
+/* sending a .wav to another client */
+#define C2S_WAVESEND 0x0E
 #define C2S_SETFREQ 0x0F
 #define C2S_ATTACHTO 0x10
-/* missing 11 12 */
+/* new name registration data */
+#define C2S_REGDATA 0x11
+/* missing 12 */
 #define C2S_PICKUPFLAG 0x13
 #define C2S_TURRETKICKOFF 0x14
 #define C2S_DROPFLAGS 0x15
-/* missing 16 17 */
+/* uploading a file to server */
+#define C2S_UPLOADFILE 0x16
+/* missing 17 */
 #define C2S_SETSHIP 0x18
-/* missing 19 */
+/* sending new banner */
+#define C2S_BANNER 0x19
 #define C2S_SECURITYRESPONSE 0x1A
 #define C2S_CHECKSUMMISMATCH 0x1B
 #define C2S_BRICK 0x1C
@@ -83,6 +116,8 @@
 #define C2S_SHOOTBALL 0x1F
 #define C2S_PICKUPBALL 0x20
 #define C2S_GOAL 0x21
+/* missing 0x22 0x23 */
+#define C2S_CONTLOGIN 0x24
 
 
 #define S2B_KEEPALIVE 0x01
@@ -99,8 +134,8 @@
 #define S2B_SZONEMSG 0x12
 #define S2B_COMMAND 0x13
 #define S2B_CHATMSG 0x14
- 
- 
+
+
 #define B2S_PLAYERDATA 0x01
 /* missing 02 */
 #define B2S_MESSAGE 0x03

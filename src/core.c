@@ -40,7 +40,7 @@ local void ProcessLoginQueue(void);
 local void SendLoginResponse(int);
 
 /* default auth, can be replaced */
-local void DefaultAuth(int, struct LoginPacket *, void (*)(int, AuthData *));
+local void DefaultAuth(int, struct LoginPacket *, int, void (*)(int, AuthData *));
 
 
 /* GLOBALS */
@@ -76,15 +76,15 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 	{
 		/* get interface pointers */
 		mm = mm_;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		net = mm->GetInterface("net", ALLARENAS);
-		lm = mm->GetInterface("logman", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
-		ml = mm->GetInterface("mainloop", ALLARENAS);
-		map = mm->GetInterface("mapnewsdl", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		persist = mm->GetInterface("persist", ALLARENAS);
-		capman = mm->GetInterface("capman", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		net = mm->GetInterface(I_NET, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
+		map = mm->GetInterface(I_MAPNEWSDL, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		persist = mm->GetInterface(I_PERSIST, ALLARENAS);
+		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 
 		players = pd->players;
 
@@ -92,10 +92,11 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 
 		/* set up callbacks */
 		net->AddPacket(C2S_LOGIN, PLogin);
+		net->AddPacket(C2S_CONTLOGIN, PLogin);
 		mm->RegCallback(CB_MAINLOOP, ProcessLoginQueue, ALLARENAS);
 
 		/* register default interfaces which may be replaced later */
-		mm->RegInterface("auth", &_iauth, ALLARENAS);
+		mm->RegInterface(I_AUTH, &_iauth, ALLARENAS);
 
 		/* set up periodic events */
 		ml->SetTimer(SendKeepalive, 500, 500, NULL);
@@ -104,10 +105,11 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface("auth", &_iauth, ALLARENAS))
+		if (mm->UnregInterface(I_AUTH, &_iauth, ALLARENAS))
 			return MM_FAIL;
 		mm->UnregCallback(CB_MAINLOOP, ProcessLoginQueue, ALLARENAS);
 		net->RemovePacket(C2S_LOGIN, PLogin);
+		net->RemovePacket(C2S_CONTLOGIN, PLogin);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(lm);
@@ -118,8 +120,6 @@ EXPORT int MM_core(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(capman);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 
@@ -138,7 +138,6 @@ void ProcessLoginQueue(void)
 			/* for all of these states, there's nothing to do in this
 			 * loop */
 			case S_FREE:
-			case S_NEED_KEY:
 			case S_CONNECTED:
 			case S_WAIT_AUTH:
 			case S_WAIT_GLOBAL_SYNC:
@@ -146,7 +145,6 @@ void ProcessLoginQueue(void)
 			case S_WAIT_ARENA_SYNC:
 			case S_PLAYING:
 			case S_TIMEWAIT:
-			case S_TIMEWAIT2:
 				continue;
 		}
 
@@ -206,10 +204,17 @@ void ProcessLoginQueue(void)
 		{
 			case S_NEED_AUTH:
 				{
-					Iauth *auth = mm->GetInterface("auth", ALLARENAS);
+					Iauth *auth = mm->GetInterface(I_AUTH, ALLARENAS);
+					int len = LEN_LOGINPACKET_CONT;
+
+					/* figuring out the length this way is guaranteed to
+					 * work because of the length check in PLogin */
+					if (player->type == T_VIE)
+						len = LEN_LOGINPACKET_VIE;
+
 					if (auth)
 					{
-						auth->Authenticate(pid, bigloginpkt + pid, AuthDone);
+						auth->Authenticate(pid, bigloginpkt + pid, len, AuthDone);
 						mm->ReleaseInterface(auth);
 					}
 					else
@@ -245,7 +250,7 @@ void ProcessLoginQueue(void)
 				/* yes, player->shiptype will be set here because it's
 				 * done in PArena */
 				{
-					Ifreqman *fm = mm->GetInterface("freqman", player->arena);
+					Ifreqman *fm = mm->GetInterface(I_FREQMAN, player->arena);
 					int freq = 0, ship = player->shiptype;
 
 					/* if this arena has a manager, use it */
@@ -302,7 +307,13 @@ void ProcessLoginQueue(void)
 
 void PLogin(int pid, byte *p, int l)
 {
-	if (l != sizeof(struct LoginPacket) && l != sizeof(struct LoginPacket) + 63)
+	int type = players[pid].type;
+
+	if (type != T_VIE && type != T_CONT)
+		lm->Log(L_MALICIOUS,"<core> [pid=%d] Login packet from wrong client type (%d)",
+				pid, type);
+	else if ( (type == T_VIE && l != LEN_LOGINPACKET_VIE) ||
+	          (type == T_CONT && l != LEN_LOGINPACKET_CONT) )
 		lm->Log(L_MALICIOUS,"<core> [pid=%d] Bad login packet length (%d)", pid, l);
 	else if (players[pid].status != S_CONNECTED)
 		lm->Log(L_MALICIOUS,"<core> [pid=%d] Login request from wrong stage: %d", pid, players[pid].status);
@@ -319,9 +330,9 @@ void PLogin(int pid, byte *p, int l)
 			net->DropClient(oldpid);
 		}
 
-		memcpy(bigloginpkt + pid, p, sizeof(struct LoginPacket));
+		memcpy(bigloginpkt + pid, p, l);
 		players[pid].status = S_NEED_AUTH;
-		lm->Log(L_DRIVEL,"<core> Login request: \"%s\"", pkt->name);
+		lm->Log(L_DRIVEL,"<core> [pid=%d] Login request: \"%s\"", pid, pkt->name);
 	}
 }
 
@@ -398,7 +409,8 @@ void SendLoginResponse(int pid)
 }
 
 
-void DefaultAuth(int pid, struct LoginPacket *p, void (*Done)(int, AuthData *))
+void DefaultAuth(int pid, struct LoginPacket *p, int lplen,
+		void (*Done)(int, AuthData *))
 {
 	AuthData auth;
 

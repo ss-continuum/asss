@@ -9,6 +9,8 @@ findinprivs
 
 cmd_ballcount
 cmd_flagreset
+cmd_listmods
+cmd_a
 
 privcmd_report
 
@@ -22,14 +24,4 @@ cmd_getcm
 cmd_setcm
 privcmd_getcm
 privcmd_setcm
-
-; not implemented
-cmd_a
-cmd_shipreset
-cmd_scorereset
-cmd_flagreset
-privcmd_setship
-privcmd_setfreq
-privcmd_watchgreen
-privcmd_lag
 

@@ -39,11 +39,13 @@ typedef struct PlayerData
 
 
 /* flag bits for the flags bits */
+
+/* set when the player has changed freqs or ships, but before he has
+ * acknowleged it */
 #define F_DURING_CHANGE 0x01
 #define SET_DURING_CHANGE(pid) pd->players[pid].pflags |= F_DURING_CHANGE
 #define RESET_DURING_CHANGE(pid) pd->players[pid].pflags &= ~F_DURING_CHANGE
 #define IS_DURING_CHANGE(pid) (pd->players[pid].pflags & F_DURING_CHANGE)
-
 
 #endif
 

@@ -34,11 +34,11 @@ EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		balls = mm->GetInterface("balls", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
-		chat = mm->GetInterface("chat", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		balls = mm->GetInterface(I_BALLS, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
@@ -62,8 +62,6 @@ EXPORT int MM_points_goal(int action, Imodman *mm_, int arena)
 		mm->UnregCallback(CB_ARENAACTION, MyAA, arena);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 
@@ -90,7 +88,7 @@ void MyGoal(int arena, int pid, int bid, int x, int y)
 	switch (mode)
 	{
 		case GOAL_ALL:
-			freq = pd->players[pid].freq;
+			freq = balls->balldata[arena].balls[bid].freq;
 			break;
 
 		case GOAL_LEFTRIGHT:
@@ -127,6 +125,7 @@ void MyGoal(int arena, int pid, int bid, int x, int y)
 	teamset[teamc] = nmeset[nmec] = -1;
 	chat->SendSetSoundMessage(teamset, SOUND_GOAL, "Team Goal! by %s  Reward:1", pd->players[pid].name);
 	chat->SendSetSoundMessage(nmeset, SOUND_GOAL, "Enemy Goal! by %s  Reward:1", pd->players[pid].name);
+	chat->SendArenaMessage(arena,"Score: Freq zero:%u, Freq one:%u, Freq two:%u, Freq three:%u",scores[arena].score[0],scores[arena].score[1],scores[arena].score[2],scores[arena].score[3]);
 }
 
 

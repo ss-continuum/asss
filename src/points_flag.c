@@ -20,11 +20,11 @@ EXPORT int MM_points_flag(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		flags = mm->GetInterface("flags", ALLARENAS);
-		stats = mm->GetInterface("stats", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		flags = mm->GetInterface(I_FLAGS, ALLARENAS);
+		stats = mm->GetInterface(I_STATS, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
@@ -46,8 +46,6 @@ EXPORT int MM_points_flag(int action, Imodman *mm_, int arena)
 		mm->UnregCallback(CB_FLAGWIN, MyFlagWin, arena);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

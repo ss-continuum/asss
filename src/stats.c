@@ -1,4 +1,6 @@
 
+#include <string.h>
+
 #include "asss.h"
 
 /* structs */
@@ -68,11 +70,11 @@ EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		net = mm->GetInterface("net", ALLARENAS);
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		cmd = mm->GetInterface("cmdman", ALLARENAS);
-		persist = mm->GetInterface("persist", ALLARENAS);
-		chat = mm->GetInterface("chat", ALLARENAS);
+		net = mm->GetInterface(I_NET, ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
+		persist = mm->GetInterface(I_PERSIST, ALLARENAS);
+		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 
 		if (!net || !cmd || !persist) return MM_FAIL;
 
@@ -82,12 +84,12 @@ EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 		persist->RegPersistantData(&gdatadesc);
 		persist->RegPersistantData(&adatadesc);
 		net->AddPacket(C2S_CHAT, PChat);
-		mm->RegInterface("stats", &_myint, ALLARENAS);
+		mm->RegInterface(I_STATS, &_myint, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface("stats", &_myint, ALLARENAS))
+		if (mm->UnregInterface(I_STATS, &_myint, ALLARENAS))
 			return MM_FAIL;
 		net->RemovePacket(C2S_CHAT, PChat);
 		persist->UnregPersistantData(&gdatadesc);
@@ -103,8 +105,6 @@ EXPORT int MM_stats(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(pd);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 
@@ -152,7 +152,7 @@ void SendUpdates(void)
 					-1,
 					(char*)&sp,
 					sizeof(sp),
-					NET_UNRELIABLE);
+					NET_UNRELIABLE | NET_PRI_N1);
 			/* printf("DEBUG: SendUpdates sent scores of %s\n", pd->players[pid].name); */
 		}
 	}

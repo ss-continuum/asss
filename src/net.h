@@ -46,6 +46,9 @@
 #endif
 
 
+#include "encrypt.h"
+
+
 #define EXTRA_PID_COUNT 1
 #define EXTRA_PID(x) ((MAXPLAYERS)+x)
 
@@ -91,6 +94,9 @@ typedef void (*PacketFunc)(int pid, byte *data, int length);
 
 typedef void (*RelCallback)(int pid, int success, void *clos);
 
+#define CB_CONNINIT ("conninit")
+typedef void (*ConnectionInitFunc)(struct sockaddr_in *sin, byte *pkt, int len);
+
 
 struct net_stats
 {
@@ -106,12 +112,15 @@ struct client_stats
 	/* counts of stuff sent and recvd */
 	unsigned int pktsent, pktrecvd, bytesent, byterecvd;
 	/* encryption type, connect time, and bandwidth limit */
-	unsigned int enctype, connecttime, limit;
+	unsigned int connecttime, limit;
+	const char *encname;
 	/* ip info */
 	char ipaddr[16];
 	unsigned short port;
 };
 
+
+#define I_NET "net-1"
 
 typedef struct Inet
 {
@@ -124,6 +133,9 @@ typedef struct Inet
 	void (*SendWithCallback)(int *pidset, byte *data, int length,
 			RelCallback callback, void *clos);
 
+	/* only to be used by encryption modules! */
+	void (*ReallyRawSend)(struct sockaddr_in *sin, byte *pkt, int len);
+
 	void (*DropClient)(int pid);
 
 	void (*ProcessPacket)(int pid, byte *data, int length);
@@ -131,7 +143,7 @@ typedef struct Inet
 	void (*AddPacket)(byte pktype, PacketFunc func);
 	void (*RemovePacket)(byte pktype, PacketFunc func);
 
-	int (*NewConnection)(int type, struct sockaddr_in *sin);
+	int (*NewConnection)(int type, struct sockaddr_in *sin, Iencrypt *enc);
 
 	/* bandwidth limits. the units on these parameters are bytes/second */
 	void (*SetLimit)(int pid, int limit);

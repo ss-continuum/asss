@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
+#include <stdlib.h>
 
 #ifdef WIN32
 #include <malloc.h>
@@ -73,11 +74,11 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		net = mm->GetInterface("net", ALLARENAS);
-		lm = mm->GetInterface("logman", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
-		ml = mm->GetInterface("mainloop", ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		net = mm->GetInterface(I_NET, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		if (!pd || !net || !lm || !cfg || !ml) return MM_FAIL;
 
 		players = pd->players;
@@ -96,12 +97,12 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, int arena)
 
 		ml->SetTimer(ReapArenas, 1000, 1500, NULL);
 
-		mm->RegInterface("arenaman", &_int, ALLARENAS);
+		mm->RegInterface(I_ARENAMAN, &_int, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface("arenaman", &_int, ALLARENAS))
+		if (mm->UnregInterface(I_ARENAMAN, &_int, ALLARENAS))
 			return MM_FAIL;
 		net->RemovePacket(C2S_GOTOARENA, PArena);
 		net->RemovePacket(C2S_LEAVING, PLeaving);
@@ -114,8 +115,6 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, int arena)
 		mm->ReleaseInterface(ml);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 
@@ -271,7 +270,7 @@ void SendArenaResponse(int pid)
 
 	/* send settings */
 	{
-		Iclientset *clientset = mm->GetInterface("clientset", arena);
+		Iclientset *clientset = mm->GetInterface(I_CLIENTSET, arena);
 		if (clientset)
 			clientset->SendClientSettings(pid);
 	}
@@ -298,7 +297,7 @@ void SendArenaResponse(int pid)
 
 	/* send mapfilename */
 	{
-		Imapnewsdl *map = mm->GetInterface("mapnewsdl", arena);
+		Imapnewsdl *map = mm->GetInterface(I_MAPNEWSDL, arena);
 		if (map)
 			map->SendMapFilename(pid);
 	}
@@ -332,12 +331,22 @@ void PArena(int pid, byte *p, int l)
 	/* status should be S_LOGGEDIN at this point */
 	struct GoArenaPacket *go;
 	char *name, digit[2];
-	int arena;
+	int arena, type;
 
 	/* check for bad packets */
-	if (l != sizeof(struct GoArenaPacket))
+	type = players[pid].type;
+	if (type != T_VIE && type != T_CONT)
 	{
-		lm->Log(L_MALICIOUS, "<arenaman> [%s] Wrong size arena packet recvd", players[pid].name);
+		lm->Log(L_MALICIOUS,"<arenaman> [%s] Arena packet from wrong client type (%d)",
+				players[pid].name, type);
+		return;
+	}
+
+	if ( (type == T_VIE && l != LEN_GOARENAPACKET_VIE) ||
+	          (type == T_CONT && l != LEN_GOARENAPACKET_CONT) )
+	{
+		lm->Log(L_MALICIOUS,"<arenaman> [%s] Bad arena packet length (%d)",
+				players[pid].name, l);
 		return;
 	}
 

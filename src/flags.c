@@ -84,13 +84,13 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 	if (action == MM_LOAD)
 	{
 		mm = _mm;
-		net = mm->GetInterface("net", ALLARENAS);
-		cfg = mm->GetInterface("config", ALLARENAS);
-		logm = mm->GetInterface("logman", ALLARENAS);
-		pd = mm->GetInterface("playerdata", ALLARENAS);
-		aman = mm->GetInterface("arenaman", ALLARENAS);
-		ml = mm->GetInterface("mainloop", ALLARENAS);
-		mapdata = mm->GetInterface("mapdata", ALLARENAS);
+		net = mm->GetInterface(I_NET, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		logm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
+		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
 
 		mm->RegCallback(CB_ARENAACTION, AAFlag, ALLARENAS);
 		mm->RegCallback(CB_PLAYERACTION, PAFlag, ALLARENAS);
@@ -122,7 +122,7 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 		ml->SetTimer(BasicFlagTimer, 500, 500, NULL);
 		ml->SetTimer(TurfFlagTimer, 1500, 1500, NULL);
 
-		mm->RegInterface("flags", &_myint, ALLARENAS);
+		mm->RegInterface(I_FLAGS, &_myint, ALLARENAS);
 
 		/* seed random number generator */
 		srand(GTC());
@@ -130,7 +130,7 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface("flags", &_myint, ALLARENAS))
+		if (mm->UnregInterface(I_FLAGS, &_myint, ALLARENAS))
 			return MM_FAIL;
 		mm->UnregCallback(CB_ARENAACTION, AAFlag, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, PAFlag, ALLARENAS);
@@ -150,8 +150,6 @@ EXPORT int MM_flags(int action, Imodman *_mm, int arena)
 		mm->ReleaseInterface(mapdata);
 		return MM_OK;
 	}
-	else if (action == MM_CHECKBUILD)
-		return BUILDNUMBER;
 	return MM_FAIL;
 }
 

@@ -1,12 +1,14 @@
 
 #PROF_FLAGS = -pg
 
+DEFDATE := -DBUILDDATE='"$(shell date +%Y.%m.%d.%H.%M)"'
+
 LDFLAGS = -fPIC $(PROF_FLAGS)
 
 OPT_CFLAGS = -O2 -fomit-frame-pointer -Wall -fpedantic
 DEBUG_CFLAGS = -g -Wall -fpedantic
 
-CFLAGS = $(BUILDNO) -D_REENTRANT -D_GNU_SOURCE -fPIC $(DEBUG_CFLAGS) $(PROF_FLAGS)
+CFLAGS = $(DEFDATE) -D_REENTRANT -D_GNU_SOURCE -fPIC $(DEBUG_CFLAGS) $(PROF_FLAGS)
 
 ASSSLIBS = -ldl -lz -lpthread
 
@@ -21,6 +23,7 @@ INTMODS = config.o    \
           logman.o    \
           mainloop.o  \
           net.o       \
+          nullenc.o   \
           encrypt1.o  \
           arenaman.o  \
           mapdata.o   \
@@ -49,7 +52,7 @@ pre: sparse.inc letters.inc buildnumber
 
 loggers.so: log_file.o log_console.o log_sysop.o
 
-game.so: game.o chat.o flags.o balls.o fm_normal.o
+game.so: game.o chat.o flags.o balls.o fm_normal.o banners.o
 	$(CC) $(LDFLAGS) -shared -o $@ $^ -lm
 
 command.so: cmdman.o playercmd.o
@@ -85,16 +88,6 @@ Makefile.deps: # *.c *.h
 
 include Makefile.deps
 
-buildnumber: *.h
-	expr `cat buildnumber` + 1 > b.tmp
-	mv b.tmp buildnumber
-	false
-
-Makefile: buildnumber
-
-BUILDNO := -DBUILDNUMBER=$(shell cat buildnumber)
-
-
 
 %.so:
 	$(CC) $(LDFLAGS) -shared -o $@ $^
@@ -104,10 +97,6 @@ install: $(ALL_STUFF)
 
 clean:
 	-rm -f asss *.o *.so core
-
-tags:
-	flist -d *.c
-	flist -h *.c
 
 .PHONY: clean install all tags
 
