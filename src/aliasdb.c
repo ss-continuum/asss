@@ -250,7 +250,7 @@ local void Cqip(const char *params, Player *p, const Target *target)
 				"select name, inet_ntoa(ip), macid, to_days(now()) - to_days(lastseen) as daysago "
 				"from " TABLE_NAME " "
 				"where (ip & ((~0) << (32-#))) = (inet_aton(?) & ((~0) << (32-#))) "
-				"order by name "
+				"order by daysago asc "
 				"limit 50 ",
 				bits, baseip, bits);
 	}
@@ -261,7 +261,7 @@ local void Cqip(const char *params, Player *p, const Target *target)
 				"select name, inet_ntoa(ip), macid, to_days(now()) - to_days(lastseen) as daysago "
 				"from " TABLE_NAME " "
 				"where inet_ntoa(ip) like ? "
-				"order by name "
+				"order by daysago asc "
 				"limit 50",
 				params);
 	}
@@ -271,7 +271,7 @@ local void Cqip(const char *params, Player *p, const Target *target)
 				"select name, inet_ntoa(ip), macid, to_days(now()) - to_days(lastseen) as daysago "
 				"from " TABLE_NAME " "
 				"where ip = inet_aton(?) "
-				"order by name "
+				"order by daysago asc "
 				"limit 50 ",
 				params);
 	}
