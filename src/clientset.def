@@ -775,10 +775,10 @@ static char *ship_byte_names[] =
 
 /* FIXME: need cfghelp for Misc:SlowFrameRate, Misc:MaxTimerDrift */
 
-/* cfghelp: Misc:DisableBallThroughWalls, arena, bool, def: 0
+/* cfghelp: Soccer:DisableWallPass, arena, bool, def: 0
  * Whether to disable ball-passing through walls (Cont .38+) */
 
-/* cfghelp: Misc:DisableBallKilling, arena, bool, def: 0
+/* cfghelp: Soccer:DisableBallKilling, arena, bool, def: 0
  * Whether to disable ball killing in safe zones (Cont .38+) */
 
 /* cfghelp: Spawn:TeamN-X/Y/Radius, arena, int

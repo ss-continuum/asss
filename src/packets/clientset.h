@@ -52,8 +52,8 @@ struct ClientSettings
 		u32 NoXRadar : 1;
 		u32 SlowFrameRate : 3;
 		u32 DisableScreenshot : 1;
-		u32 MaxTimerDrift : 3;
 		u32 _reserved : 1;
+		u32 MaxTimerDrift : 3;
 		u32 DisableBallThroughWalls : 1;
 		u32 DisableBallKilling : 1;
 		u32 _padding : 11;

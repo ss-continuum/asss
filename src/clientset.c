@@ -136,8 +136,8 @@ local void load_settings(adata *ad, ConfigHandle conf)
 	cs->bit_set.SlowFrameRate = cfg->GetInt(conf, "Misc", "SlowFrameCheck", 0);
 	cs->bit_set.DisableScreenshot = cfg->GetInt(conf, "Misc", "DisableScreenshot", 0);
 	cs->bit_set.MaxTimerDrift = cfg->GetInt(conf, "Misc", "MaxTimerDrift", 0);
-	cs->bit_set.DisableBallThroughWalls = cfg->GetInt(conf, "Misc", "DisableBallThroughWalls", 0);
-	cs->bit_set.DisableBallKilling = cfg->GetInt(conf, "Misc", "DisableBallKilling", 0);
+	cs->bit_set.DisableBallThroughWalls = cfg->GetInt(conf, "Soccer", "DisableWallPass", 0);
+	cs->bit_set.DisableBallKilling = cfg->GetInt(conf, "Soccer", "DisableBallKilling", 0);
 
 	/* do ships */
 	for (i = 0; i < 8; i++)
@@ -394,11 +394,16 @@ void ActionFunc(Arena *arena, int action)
 	}
 	else if (action == AA_CONFCHANGED)
 	{
-		struct ClientSettings tosend;
+		struct ClientSettings old;
+		memcpy(&old, &ad->cs, SIZE);
 		load_settings(ad, arena->cfg);
-		do_mask(&tosend, ad);
-		net->SendToArena(arena, NULL, (byte*)&tosend, sizeof(tosend), NET_RELIABLE);
-		lm->LogA(L_INFO, "clientset", arena, "sending modified settings");
+		if (memcmp(&old, &ad->cs, SIZE) != 0)
+		{
+			struct ClientSettings tosend;
+			do_mask(&tosend, ad);
+			net->SendToArena(arena, NULL, (byte*)&tosend, sizeof(tosend), NET_RELIABLE);
+			lm->LogA(L_INFO, "clientset", arena, "sending modified settings");
+		}
 	}
 	else if (action == AA_DESTROY)
 	{
