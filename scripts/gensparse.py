@@ -271,9 +271,74 @@ def emit_insert(o):
 		'inl': inline_insert
 	})
 
+def emit_clean(o):
+	"clean up and minimize the memory usage"
+
+	def gen_loop(body, idx):
+		dict = \
+		{
+			'max': maxcoord(idx),
+			'body': body,
+			'type': gen_name(idx),
+			'c0': 'c_%d' % idx,
+			'c1': 'c_%d' % (idx + 1),
+			'free': free,
+			'default': default
+		}
+
+		doloop = """\
+	for (x = 0; x < %(max)d; x++)
+		for (y = 0; y < %(max)d; y++)
+		{
+			int thisfull = 0, needtofree = 0;
+			%(type)s *%(c0)s = (*%(c1)s)[x][y];
+			if (%(c0)s)
+			{
+				int x, y, chunkempty = 1;
+				thisfull = 1;
+%(body)s
+				if (chunkempty)
+					needtofree = 1;
+			}
+			if (needtofree)
+			{
+				%(free)s(%(c0)s);
+				(*%(c1)s)[x][y] = NULL;
+				thisfull = 0;
+			}
+			if (thisfull)
+				chunkempty = 0;
+		}"""
+
+		innermost = """\
+	for (x = 0; x < %(max)d; x++)
+		for (y = 0; y < %(max)d; y++)
+			if ((*%(c1)s)[x][y] != %(default)s)
+				chunkempty = 0;"""
+
+		if idx == 0:
+			return innermost % dict
+		else:
+			return doloop % dict
+
+	o.write("""
+%(static)s void cleanup_sparse(%(target)s %(c1)s)
+{
+	int x, t, chunkempty;
+%(body)s
+}
+""" % \
+	{
+		'target': targettype,
+		'c1': 'c_%d' % len(bits),
+		'body': reduce(gen_loop, range(len(bits)), ''),
+		'static': static
+	})
+
 
 def emit_all(o):
-	for f in [emit_types, emit_init, emit_delete, emit_lookup, emit_insert]:
+	for f in [emit_types, emit_init, emit_delete, emit_lookup,
+			emit_insert, emit_clean]:
 		o.write('\n/* section: %s */\n' % f.__doc__)
 		f(o)
 	o.write('\n/* done */\n')
