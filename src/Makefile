@@ -1,5 +1,5 @@
 
-CC = gcc
+CC = gcc -D_REENTRANT
 LDFLAGS = -fPIC
 
 
