@@ -61,8 +61,11 @@ enum map_tile_t
 };
 
 
+typedef struct Region Region;
+
+
 /** interface id for Imapdata */
-#define I_MAPDATA "mapdata-5"
+#define I_MAPDATA "mapdata-6"
 
 /** interface struct for Imapdata
  * you should use this to figure out what's going on in the map in a
@@ -73,7 +76,7 @@ typedef struct Imapdata
 	INTERFACE_HEAD_DECL
 	/* pyint: use */
 
-	/** finds the file currently as this arena's map.
+	/** finds the file currently used as this arena's map.
 	 * you should use this function and not try to figure out the map
 	 * filename yourself based on arena settings.
 	 * @param arena the arena whose map we want
@@ -87,43 +90,23 @@ typedef struct Imapdata
 	int (*GetMapFilename)(Arena *arena, char *buf, int buflen, const char *mapname);
 	/* pyint: arena, string out, int buflen, zstring -> int */
 
-	/** returns the number of flags on the map in a particular arena. */
+	/** gets the named attribute for the arena's map.
+	 * @param arena the arena whose map we care about.
+	 * @param key the attribute key to retrieve.
+	 * @return the key's value, or NULL if not present
+	 */
+	const char * (*GetAttr)(Arena *arena, const char *key);
+
+	/** like RegionChunk, but for the map itself. */
+	int (*MapChunk)(Arena *arena, u32 ctype, const void **datap, int *sizep);
+
+	/** returns the number of flags on the map in this arena. */
 	int (*GetFlagCount)(Arena *arena);
 	/* pyint: arena -> int */
 
-	/** returns the contents of a single tile of a map. */
+	/** returns the contents of a single tile of the map. */
 	enum map_tile_t (*GetTile)(Arena *arena, int x, int y);
 	/* pyint: arena, int, int -> int */
-
-#ifdef notyet
-
-/* draft of new region interface */
-
-#define STRTOU32(s) (*(u32*)#s)
-
-/* region chunk types */
-#define RCT_ISBASE          STRTOU32(rBSE)
-#define RCT_NOANTIWARP      STRTOU32(rNAW)
-#define RCT_NOWEAPONS       STRTOU32(rNWP)
-#define RCT_NONOFLAGS       STRTOU32(rNFL)
-
-	/* functions */
-	Region * FindRegionByName(Arena *arena, const char *name);
-	const char * RegionName(Region *reg);
-	/* puts results in *datap and *sizep, if they are not NULL. returns
-	 * true if found. so you can use as a boolean, like
-	 * if (GetRegionChunk(reg, RCT_NOANTIWARP, NULL, NULL)) { ... } */
-	int RegionChunk(Region *reg, u32 ctype, const void **datap, int *sizep);
-	/* true if the point is contained */
-	int Contains(Region *reg, int x, int y);
-	/* note that you can pass a list as the closure arg and LLAdd as the
-	 * callback here */
-	void EnumContaining(Arena *arena, int x, int y,
-			void (*cb)(void *clos, Region *reg), void *clos);
-	/* NULL if there are none */
-	Region * GetOneContaining(Arena *arena, int x, int y);
-
-#endif
 
 	/* the following three functions are in this module because of
 	 * efficiency concerns. */
@@ -139,8 +122,86 @@ typedef struct Imapdata
 
 	u32 (*GetChecksum)(Arena *arena, u32 key);
 
+	/* don't use this. */
 	void (*DoBrick)(Arena *arena, int drop, int x1, int y1, int x2, int y2);
-	/* only used from game */
+
+
+	/* new region interface */
+
+#define MAKE_CHUNK_TYPE(s) (*(u32*)#s)
+
+/* lvl chunk types */
+#define LCT_ATTR            MAKE_CHUNK_TYPE(ATTR)
+#define LCT_REGION          MAKE_CHUNK_TYPE(REGN)
+#define LCT_TILESET         MAKE_CHUNK_TYPE(TSET)
+#define LCT_TILEDATA        MAKE_CHUNK_TYPE(TILE)
+
+/* region chunk types */
+#define RCT_ISBASE          MAKE_CHUNK_TYPE(rBSE)
+#define RCT_NOANTIWARP      MAKE_CHUNK_TYPE(rNAW)
+#define RCT_NOWEAPONS       MAKE_CHUNK_TYPE(rNWP)
+#define RCT_NONOFLAGS       MAKE_CHUNK_TYPE(rNFL)
+
+	/** finds the region with a particular name.
+	 * @param arena the arena that contains the map we want to look for
+	 * the region in.
+	 * @param name the name of the region we want. for now, this is
+	 * case-insensitive.
+	 * @return a handle for the specified region, or NULL if not found.
+	 */
+
+	Region * (*FindRegionByName)(Arena *arena, const char *name);
+	/** gets the name of a region.
+	 * @param region a region handle.
+	 * @return the region's name. never NULL.
+	 */
+	const char * (*RegionName)(Region *reg);
+
+	/** gets chunk data for a particular region.
+	 * this checks if the given region has a chunk of the specified
+	 * type, and optionally returns a pointer to its data.
+	 * @param reg a region handle.
+	 * @param ctype the chunk type to look for. you probably want to use
+	 * the MAKE_CHUNK_TYPE macro.
+	 * @param datap if this isn't NULL, and the chunk is found, it will
+	 * be filled in with a pointer to the chunk's data.
+	 * @param sizep if this isn't NULL, and the chunk is found, it will
+	 * be filled in with the length of the chunk's data.
+	 * @return true if the chunk was found, false if not.
+	 */
+	int (*RegionChunk)(Region *reg, u32 ctype, const void **datap, int *sizep);
+
+	/** checks if the specified point is in the specified region.
+	 * @param reg a region handle.
+	 * @param x the x coordinate
+	 * @param y the y coordinate
+	 * @return true if the point is contained, false if not
+	 */
+	int (*Contains)(Region *reg, int x, int y);
+
+	/** calls the specified callback for each region defined in the map
+	 ** that contains the given point.
+	 * note that you can pass a LinkedList * as the closure arg and
+	 * LLAdd as the callback to get a list of containing regions.
+	 * @param arena the arena whose map we're dealing with.
+	 * @param x the x coordinate, or -1 for all regions
+	 * @param y the y coordinate, or -1 for all regions
+	 * @param cb a callback that will get called once for each region
+	 * that contains the point.
+	 * @param clos a closure argument for the callback.
+	 */
+	void (*EnumContaining)(Arena *arena, int x, int y,
+			void (*cb)(void *clos, Region *reg), void *clos);
+
+	/** finds some region containing the given point.
+	 * @param arena the arena whose map we're dealing with.
+	 * @param x the x coordinate
+	 * @param y the y coordinate
+	 * @return a region that contains the given point, or NULL if it
+	 * isn't contained in any region.
+	 */
+	Region * (*GetOneContaining)(Arena *arena, int x, int y);
+
 } Imapdata;
 
 #endif

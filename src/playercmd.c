@@ -40,6 +40,7 @@ local Iballs *balls;
 local Ilagquery *lagq;
 local Ipersist *persist;
 local Istats *stats;
+local Imapdata *mapdata;
 local Imodman *mm;
 
 static ticks_t startedat;
@@ -1486,20 +1487,13 @@ local void Cmoveflag(const char *params, Player *p, const Target *target)
 	}
 
 	/* make sure it's not in a wall or off the map */
-	{
-		struct Imapdata *mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
+	if (x < 0) x = 0;
+	if (y < 0) y = 0;
+	if (x > 1023) x = 1023;
+	if (y > 1023) y = 1023;
 
-		if (x < 0) x = 0;
-		if (y < 0) y = 0;
-		if (x > 1023) x = 1023;
-		if (y > 1023) y = 1023;
-
-		if (mapdata)
-		{
-			mapdata->FindEmptyTileNear(arena, &x, &y);
-			mm->ReleaseInterface(mapdata);
-		}
-	}
+	if (mapdata)
+		mapdata->FindEmptyTileNear(arena, &x, &y);
 
 	flags->MoveFlag(arena, flagid, x, y, freq);
 
@@ -1818,6 +1812,47 @@ local void Cscorereset(const char *params, Player *p, const Target *target)
 }
 
 
+local helptext_t mapinfo_help =
+"Targets: none\n"
+"Args: none\n"
+"Displays some information about the map in this arena.\n";
+
+local void mapinfo_count_rgns(void *clos, Region *reg)
+{
+	(*(int*)clos)++;
+}
+
+local void Cmapinfo(const char *params, Player *p, const Target *target)
+{
+	const char *name, *vers, *mapc, *tsetc, *prog;
+	char fname[128];
+	int regs = 0;
+	int hasfn = mapdata->GetMapFilename(p->arena, fname, sizeof(fname), NULL);
+
+	chat->SendMessage(p, "loaded lvl file from '%s'", hasfn ? fname : "<nowhere>");
+
+	name = mapdata->GetAttr(p->arena, "NAME");
+	vers = mapdata->GetAttr(p->arena, "VERSION");
+	mapc = mapdata->GetAttr(p->arena, "MAPCREATOR");
+	tsetc = mapdata->GetAttr(p->arena, "TILESETCREATOR");
+	prog = mapdata->GetAttr(p->arena, "PROGRAM");
+
+	chat->SendMessage(p,
+			"name: %s  "
+			"version: %s",
+			name ? name : "<not set>",
+			vers ? vers : "<not set>");
+	chat->SendMessage(p,
+			"map creator: %s  "
+			"tileset creator: %s  "
+			"program: %s",
+			mapc ? mapc : "<not set>",
+			tsetc ? tsetc : "<not set>",
+			prog ? prog : "<not set>");
+
+	mapdata->EnumContaining(p->arena, -1, -1, mapinfo_count_rgns, &regs);
+	chat->SendMessage(p, "regions: %d", regs);
+}
 
 
 
@@ -2122,6 +2157,7 @@ local const struct interface_info misc_requires[] =
 	REQUIRE(aman, I_ARENAMAN)
 	REQUIRE(lm, I_LOGMAN)
 	REQUIRE(cfg, I_CONFIG)
+	REQUIRE(mapdata, I_MAPDATA)
 	END()
 };
 local const struct cmd_info misc_commands[] =
@@ -2136,6 +2172,7 @@ local const struct cmd_info misc_commands[] =
 	CMD(getcm)
 	CMD(listarena)
 	CMD(sheep)
+	CMD(mapinfo)
 	END()
 };
 

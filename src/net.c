@@ -525,6 +525,7 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 			pthread_cancel((pthread_t)(link->data));
 		for (link = LLGetHead(&threads); link; link = link->next)
 			pthread_join((pthread_t)(link->data), NULL);
+		LLEmpty(&threads);
 
 		/* clean up */
 		for (i = 0; i < MAXTYPES; i++)

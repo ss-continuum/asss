@@ -567,7 +567,7 @@ local int arenas_get_names(DBT *key, DBT *val)
 	return FALSE;
 }
 
-local void arenas_print_names(const char *key, void *val, void *data)
+local int arenas_print_names(const char *key, void *val, void *data)
 {
 	arenas_info *i = val;
 	printf("%-16.16s  %6d /%9d  %6d /%9d  %6d /%9d\n",
@@ -576,6 +576,7 @@ local void arenas_print_names(const char *key, void *val, void *data)
 			i->arecs, i->abytes,
 			i->precs + i->arecs + i->srecs, i->pbytes + i->abytes + i->sbytes);
 	afree(val);
+	return FALSE;
 }
 
 local int cmd_arenas(int argc, char *argv[])
@@ -624,12 +625,13 @@ local int players_get_names(DBT *key, DBT *val)
 	return FALSE;
 }
 
-local void players_print_names(const char *key, void *val, void *data)
+local int players_print_names(const char *key, void *val, void *data)
 {
 	players_info *i = val;
 	printf("%-20.20s  %6d /%9d\n",
 			key, i->recs, i->bytes);
 	afree(val);
+	return FALSE;
 }
 
 local int cmd_players(int argc, char *argv[])
@@ -675,9 +677,10 @@ local int serials_get_names(DBT *key, DBT *val)
 	return FALSE;
 }
 
-local void serials_print_nums(const char *key, void *val, void *data)
+local int serials_print_nums(const char *key, void *val, void *data)
 {
 	puts(key);
+	return FALSE;
 }
 
 local int cmd_serials(int argc, char *argv[])

@@ -362,6 +362,9 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 
 		pthread_mutexattr_destroy(&recmtxattr);
 
+		FreePlayerData(magickey);
+		FreePlayerData(mtxkey);
+
 		afree(pidmap);
 		LLEnum(&pd->playerlist, afree);
 		LLEmpty(&pd->playerlist);

@@ -1127,6 +1127,7 @@ EXPORT int MM_billing(int action, Imodman *mm_, Arena *arena)
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
 		ml->ClearTimer(do_one_iter, NULL);
 		deinit_dispatch();
+		pd->FreePlayerData(pdkey);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(ml);

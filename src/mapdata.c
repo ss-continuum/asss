@@ -9,51 +9,46 @@
 #include "asss.h"
 
 /* extra includes */
+#include "pathutil.h"
 #include "sparse.inc"
 
 /* brick mode constants */
 #include "settings/game.h"
 
-/* structs for packet types and data */
-struct TileData
+
+#define METADATA_MAGIC 0x6c766c65
+#define MAX_CHUNK_SIZE (128*1024)
+
+
+/* some structs */
+typedef struct chunk
 {
-	u32 x : 12;
-	u32 y : 12;
-	u32 type : 8;
+	u32 type;
+	u32 size;
+	byte data[1];
+} chunk;
+
+struct Region
+{
+	const char *name;
+	/* FIXME: make this more memory-efficient */
+	sparse_arr tiles;
+	HashTable *chunks;
 };
 
-
-struct MapData
+typedef struct ELVL
 {
-	sparse_arr arr;
-	int flags, errors;
+	sparse_arr tiles;
+	HashTable *attrs;
+	HashTable *regions;
+	HashTable *rawchunks;
+	int errors, flags;
 	pthread_mutex_t mtx;
-};
+} ELVL;
 
-
-/* prototypes */
-local void ArenaAction(Arena *arena, int action);
-local int read_lvl(char *name, struct MapData *md);
-
-/* interface funcs */
-local int GetMapFilename(Arena *arena, char *buf, int buflen, const char *mapname);
-local int GetFlagCount(Arena *arena);
-local enum map_tile_t GetTile(Arena *arena, int x, int y);
-local void FindEmptyTileNear(Arena *arena, int *x, int *y);
-local int FindBrickEndpoints(
-		Arena *arena,
-		int mode,
-		int dropx,
-		int dropy,
-		int direction,
-		int length,
-		int *x1, int *y1, int *x2, int *y2);
-local u32 GetChecksum(Arena *arena, u32 key);
-local void DoBrick(Arena *arena, int drop, int x1, int y1, int x2, int y2);
 
 /* global data */
-
-local int mdkey;
+local int lvlkey;
 
 /* cached interfaces */
 local Imodman *mm;
@@ -63,116 +58,345 @@ local Ilogman *lm;
 local Iprng *prng;
 
 
-/* this module's interface */
-local Imapdata _int =
+/* extended lvl mini-library */
+
+local void read_plain_tile_data(ELVL *lvl, const void *vd, int len)
 {
-	INTERFACE_HEAD_INIT(I_MAPDATA, "mapdata")
-	GetMapFilename,
-	GetFlagCount, GetTile,
-	FindEmptyTileNear, FindBrickEndpoints,
-	GetChecksum, DoBrick
-};
-
-
-
-EXPORT int MM_mapdata(int action, Imodman *mm_, Arena *arena)
-{
-	if (action == MM_LOAD)
+	struct tile_data_t
 	{
-		mm = mm_;
-		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
-		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
-		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
-		prng = mm->GetInterface(I_PRNG, ALLARENAS);
-		if (!cfg || !aman || !lm || !prng) return MM_FAIL;
+		u32 x : 12;
+		u32 y : 12;
+		u32 type : 8;
+	} const *td = vd;
 
-		mdkey = aman->AllocateArenaData(sizeof(struct MapData));
-		if (mdkey == -1) return MM_FAIL;
-
-		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
-
-		mm->RegInterface(&_int, ALLARENAS);
-		return MM_OK;
-	}
-	else if (action == MM_UNLOAD)
+	while (len >= 4)
 	{
-		if (mm->UnregInterface(&_int, ALLARENAS))
-			return MM_FAIL;
-
-		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
-
-		aman->FreeArenaData(mdkey);
-
-		mm->ReleaseInterface(lm);
-		mm->ReleaseInterface(aman);
-		mm->ReleaseInterface(cfg);
-		mm->ReleaseInterface(prng);
-
-		return MM_OK;
-	}
-	return MM_FAIL;
-}
-
-
-int read_lvl(char *name, struct MapData *md)
-{
-	u16 bm;
-	struct TileData td;
-	int flags = 0, errors = 0;
-	sparse_arr arr;
-
-	FILE *f = fopen(name, "rb");
-	if (!f) return 1;
-
-	/* first try to skip over bmp header */
-	fread(&bm, sizeof(bm), 1, f);
-	if (bm == 0x4D42) /* "BM" */
-	{
-		u32 len;
-		fread(&len, sizeof(len), 1, f);
-		fseek(f, len, SEEK_SET);
-	}
-	else
-		rewind(f);
-
-	/* now read the map */
-	arr = init_sparse();
-
-	while (fread(&td, sizeof(td), 1, f))
-	{
-		if (td.x < 1024 && td.y < 1024)
+		if (td->x < 1024 && td->y < 1024)
 		{
-			if (td.type == TILE_TURF_FLAG)
-				flags++;
-			if (td.type < TILE_BIG_ASTEROID)
-				insert_sparse(arr, td.x, td.y, td.type);
+			if (td->type == TILE_TURF_FLAG)
+				lvl->flags++;
+			if (td->type < TILE_BIG_ASTEROID)
+				insert_sparse(lvl->tiles, td->x, td->y, td->type);
 			else
 			{
 				int size = 1, x, y;
-				if (td.type == TILE_BIG_ASTEROID)
+				if (td->type == TILE_BIG_ASTEROID)
 					size = 2;
-				else if (td.type == TILE_STATION)
+				else if (td->type == TILE_STATION)
 					size = 6;
-				else if (td.type == TILE_WORMHOLE)
+				else if (td->type == TILE_WORMHOLE)
 					size = 5;
 				for (x = 0; x < size; x++)
 					for (y = 0; y < size; y++)
-						insert_sparse(arr, td.x+x, td.y+y, td.type);
+						insert_sparse(lvl->tiles, td->x+x, td->y+y, td->type);
 			}
 		}
 		else
-			errors++;
-	}
+			lvl->errors++;
 
-	fclose(f);
-	md->arr = arr;
-	md->flags = flags;
-	md->errors = errors;
-	return 0;
+		td++;
+		len -= 4;
+	}
 }
 
 
-#include "pathutil.h"
+local int read_chunks(HashTable *chunks, const byte *d, int len)
+{
+	u32 buf[2] = { 0, 0 };
+	const chunk *tc;
+	chunk *c;
+
+	while (len >= 8)
+	{
+		/* first check chunk header */
+		tc = (chunk*)d;
+
+		if (tc->size > MAX_CHUNK_SIZE || (tc->size + 8) > len)
+			break;
+
+		/* allocate space for the chunk and copy it in */
+		c = amalloc(tc->size + 8);
+		memcpy(c, d, tc->size + 8);
+		d += tc->size + 8;
+		len -= tc->size + 8;
+
+		/* add it to the chunk table */
+		buf[0] = c->type;
+		HashAdd(chunks, (const char *)buf, c);
+
+		/* skip padding bytes */
+		if ((tc->size & 3) != 0)
+		{
+			int padding = 4 - (tc->size & 3);
+			d += padding;
+			len -= padding;
+		}
+	}
+
+	return len == 0;
+}
+
+
+local void free_region(Region *rgn)
+{
+	if (rgn->chunks)
+	{
+		HashEnum(rgn->chunks, hash_enum_afree, NULL);
+		HashFree(rgn->chunks);
+	}
+	if (rgn->tiles)
+		delete_sparse(rgn->tiles);
+	afree(rgn);
+}
+
+
+local int read_rle_tile_data(sparse_arr arr, const byte *d, int len)
+{
+	int cx = 0, cy = 0, i = 0, b, op, d1, n, x, y;
+
+	while (i < len)
+	{
+		if (cx < 0 || cx > 1023 || cy < 0 || cy > 1023)
+			return FALSE;
+
+		b = d[i++];
+		op = (b & 192) >> 6;
+		d1 = b & 31;
+		n = d1 + 1;
+
+		if (b & 32)
+			n = (d1 << 8) + d[i++] + 1;
+
+		switch (op)
+		{
+			case 0:
+				/* n empty in a row */
+				cx += n;
+				break;
+			case 1:
+				/* n present in a row */
+				for (x = cx; x < (cx + n); x++)
+					insert_sparse(arr, x, cy, 1);
+				cx += n;
+				break;
+			case 2:
+				/* n rows of empty */
+				if (cx != 0)
+					return FALSE;
+				cy += n;
+				break;
+			case 3:
+				/* repeat last row n times */
+				if (cx != 0 || cy == 0)
+					return FALSE;
+				for (y = cy; y < (cy + n); y++)
+					for (x = 0; x < 1024; x++)
+						if (lookup_sparse(arr, x, cy - 1))
+							insert_sparse(arr, x, y, 1);
+				cy += n;
+				break;
+		}
+
+		if (cx == 1024)
+		{
+			cx = 0;
+			cy++;
+		}
+	}
+
+	if (i != len || cy != 1024)
+		return FALSE;
+
+	return TRUE;
+}
+
+
+local int process_region_chunk(const char *key, void *vchunk, void *vrgn)
+{
+	Region *rgn = vrgn;
+	chunk *chunk = vchunk;
+
+	if (chunk->type == MAKE_CHUNK_TYPE(rNAM))
+	{
+		if (!rgn->name)
+		{
+			char *name = amalloc(chunk->size + 1);
+			memcpy(name, chunk->data, chunk->size);
+			rgn->name = name;
+		}
+		afree(chunk);
+		return TRUE;
+	}
+	else if (chunk->type == MAKE_CHUNK_TYPE(rTIL))
+	{
+		if (!rgn->tiles)
+		{
+			rgn->tiles = init_sparse();
+			if (!read_rle_tile_data(rgn->tiles, chunk->data, chunk->size))
+				lm->Log(L_WARN, "<mapdata> error in lvl file while reading rle tile data");
+		}
+		afree(chunk);
+		return TRUE;
+	}
+	else
+		return FALSE;
+}
+
+
+local int process_map_chunk(const char *key, void *vchunk, void *vlvl)
+{
+	ELVL *lvl = vlvl;
+	chunk *chunk = vchunk;
+
+	if (chunk->type == LCT_ATTR)
+	{
+		char keybuf[64], *val;
+		const byte *t;
+		t = delimcpy(keybuf, chunk->data, sizeof(keybuf), '=');
+		if (t)
+		{
+			int vlen = chunk->size - (t - chunk->data);
+			val = amalloc(vlen+1);
+			memcpy(val, t, vlen);
+			if (!lvl->attrs)
+				lvl->attrs = HashAlloc();
+			HashAdd(lvl->attrs, keybuf, val);
+		}
+		afree(chunk);
+		return TRUE;
+	}
+	else if (chunk->type == LCT_REGION)
+	{
+		Region *rgn = amalloc(sizeof(*rgn));
+		rgn->chunks = HashAlloc();
+		if (!read_chunks(rgn->chunks, chunk->data, chunk->size))
+			lm->Log(L_WARN, "<mapdata> error in lvl while reading region chunks");
+		HashEnum(rgn->chunks, process_region_chunk, rgn);
+		if (!lvl->regions)
+			lvl->regions = HashAlloc();
+		if (rgn->name)
+		{
+			/* make the region name point to its key in the hash table,
+			 * and free the memory used by the temporary name. */
+			const char *t = rgn->name;
+			rgn->name = HashAdd(lvl->regions, rgn->name, rgn);
+			afree(t);
+		}
+		else
+			free_region(rgn);
+		afree(chunk);
+		return TRUE;
+	}
+	else if (chunk->type == LCT_TILESET)
+	{
+		/* we don't use this, free it to save some memory. */
+		afree(chunk);
+		return TRUE;
+	}
+	else if (chunk->type == LCT_TILEDATA)
+	{
+		read_plain_tile_data(lvl, chunk->data, chunk->size);
+		afree(chunk);
+		return TRUE;
+	}
+	else
+		/* keep any other chunks */
+		return FALSE;
+}
+
+
+local int load_from_file(ELVL *lvl, const char *lvlname)
+{
+	struct bitmap_file_header_t
+	{
+		u16 bm;
+		u32 fsize;
+		u16 res1;
+		u16 res2;
+		u32 offbits;
+	} *bmfh;
+	struct metadata_header_t
+	{
+		u32 magic;
+		u32 totalsize;
+		u32 res1;
+	} *mdhead;
+
+	const byte *d;
+	MMapData *map = MapFile(lvlname, FALSE);
+
+	if (!map)
+		return FALSE;
+
+	lvl->tiles = init_sparse();
+
+	d = map->data;
+	bmfh = (struct bitmap_file_header_t*)d;
+	if (map->len >= sizeof(*bmfh) && bmfh->bm == 19778)
+	{
+		if (bmfh->res1 != 0)
+		{
+			/* possible metadata, try to read it */
+			mdhead = (struct metadata_header_t*)(d + bmfh->res1);
+			if (map->len >= (bmfh->res1 + 12) &&
+			    mdhead->magic == METADATA_MAGIC &&
+			    map->len >= bmfh->res1 + mdhead->totalsize)
+			{
+				/* looks good. start reading chunks. */
+				lvl->rawchunks = HashAlloc();
+				if (!read_chunks(lvl->rawchunks, d + bmfh->res1 + 12, mdhead->totalsize - 12))
+					lm->Log(L_WARN, "<mapdata> error in lvl while reading metadata chunks");
+				/* turn some of them into more useful data. */
+				HashEnum(lvl->rawchunks, process_map_chunk, lvl);
+			}
+		}
+		/* get in position for tile data */
+		d += bmfh->offbits;
+	}
+
+	/* now d points to the tile data. read until eof. */
+	read_plain_tile_data(lvl, d, map->len - (d - (const byte *)map->data));
+
+	UnmapFile(map);
+	return TRUE;
+}
+
+
+local int hash_enum_free_region(const char *key, void *rgn, void *clos)
+{
+	free_region(rgn);
+	return FALSE;
+}
+
+local void clear_level(ELVL *lvl)
+{
+	if (lvl->attrs)
+	{
+		HashEnum(lvl->attrs, hash_enum_afree, NULL);
+		HashFree(lvl->attrs);
+		lvl->attrs = NULL;
+	}
+	if (lvl->regions)
+	{
+		HashEnum(lvl->regions, hash_enum_free_region, NULL);
+		HashFree(lvl->regions);
+		lvl->regions = NULL;
+	}
+	if (lvl->rawchunks)
+	{
+		HashEnum(lvl->rawchunks, hash_enum_afree, NULL);
+		HashFree(lvl->rawchunks);
+		lvl->rawchunks = NULL;
+	}
+	if (lvl->tiles)
+	{
+		delete_sparse(lvl->tiles);
+		lvl->tiles = NULL;
+	}
+}
+
+
+/* interface functions */
 
 local int GetMapFilename(Arena *arena, char *buf, int buflen, const char *mapname)
 {
@@ -206,69 +430,56 @@ local int GetMapFilename(Arena *arena, char *buf, int buflen, const char *mapnam
 			repls[1].with ? 2 : 1) == 0;
 }
 
-void ArenaAction(Arena *arena, int action)
+
+local const char * GetAttr(Arena *arena, const char *key)
 {
-	struct MapData *md;
-	
-	md = P_ARENA_DATA(arena, mdkey);
-
-	if (action == AA_CREATE)
-		pthread_mutex_init(&md->mtx, NULL);
-	else if (action == AA_DESTROY)
-		pthread_mutex_destroy(&md->mtx);
-
-	/* no matter what is happening, destroy old mapdata */
-	if (action == AA_CREATE || action == AA_DESTROY)
-	{
-		if (md->arr)
-		{
-			delete_sparse(md->arr);
-			md->arr = NULL;
-		}
-	}
-
-	/* now, if we're creating, do it */
-	if (action == AA_CREATE)
-	{
-		char mapname[256];
-		pthread_mutex_lock(&md->mtx);
-		if (GetMapFilename(arena, mapname, sizeof(mapname), NULL) &&
-		    read_lvl(mapname, md) == 0)
-		{
-			lm->LogA(L_INFO, "mapdata", arena, "successfully processed map file '%s'",
-					mapname);
-		}
-		else
-		{
-			/* fall back to emergency. this matches the compressed map
-			 * in mapnewsdl.c. */
-			lm->LogA(L_WARN, "mapdata", arena, "error finding or reading level file");
-			md->arr = init_sparse();
-			insert_sparse(md->arr, 0, 0, 1);
-			md->flags = md->errors = 0;
-		}
-		pthread_mutex_unlock(&md->mtx);
-	}
+	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
+	if (lvl->attrs)
+		return HashGetOne(lvl->attrs, key);
+	else
+		return NULL;
 }
 
 
-enum map_tile_t GetTile(Arena *a, int x, int y)
+local int MapChunk(Arena *arena, u32 ctype, const void **datap, int *sizep)
+{
+	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
+	if (lvl->rawchunks)
+	{
+		chunk *c;
+		u32 buf[2] = { 0, 0 };
+		buf[0] = ctype;
+		c = HashGetOne(lvl->rawchunks, (const char *)buf);
+		if (c)
+		{
+			if (datap) *datap = c->data;
+			if (sizep) *sizep = c->size;
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+
+local int GetFlagCount(Arena *a)
+{
+	return ((ELVL*)P_ARENA_DATA(a, lvlkey))->flags;
+}
+
+
+local enum map_tile_t GetTile(Arena *a, int x, int y)
 {
 	int ret;
-	struct MapData *md = P_ARENA_DATA(a, mdkey);
-	pthread_mutex_lock(&md->mtx);
-	ret = md->arr ? lookup_sparse(md->arr, x, y) : -1;
-	pthread_mutex_unlock(&md->mtx);
+	ELVL *lvl = P_ARENA_DATA(a, lvlkey);
+	pthread_mutex_lock(&lvl->mtx);
+	ret = lvl->tiles ? lookup_sparse(lvl->tiles, x, y) : -1;
+	pthread_mutex_unlock(&lvl->mtx);
 	return ret;
 }
 
-int GetFlagCount(Arena *a)
-{
-	return ((struct MapData*)P_ARENA_DATA(a, mdkey))->flags;
-}
 
 
-void FindEmptyTileNear(Arena *arena, int *x, int *y)
+local void FindEmptyTileNear(Arena *arena, int *x, int *y)
 {
 	/* init context. these values are funny because they are one
 	 * iteration before where we really want to start from. */
@@ -278,13 +489,13 @@ void FindEmptyTileNear(Arena *arena, int *x, int *y)
 		int upto, remaining;
 		int x, y;
 	} ctx = { left, 0, 1, *x + 1, *y };
-	struct MapData *md;
+	ELVL *lvl;
 	sparse_arr arr;
 
-	md = P_ARENA_DATA(arena, mdkey);
-	pthread_mutex_lock(&md->mtx);
+	lvl = P_ARENA_DATA(arena, lvlkey);
+	pthread_mutex_lock(&lvl->mtx);
 
-	arr = md->arr;
+	arr = lvl->tiles;
 
 	if (!arr) goto failed_1;
 
@@ -324,11 +535,11 @@ void FindEmptyTileNear(Arena *arena, int *x, int *y)
 	}
 
 failed_1:
-	pthread_mutex_unlock(&md->mtx);
+	pthread_mutex_unlock(&lvl->mtx);
 }
 
 
-int FindBrickEndpoints(
+local int FindBrickEndpoints(
 		Arena *arena,
 		int brickmode,
 		int dropx,
@@ -337,18 +548,18 @@ int FindBrickEndpoints(
 		int length,
 		int *x1, int *y1, int *x2, int *y2)
 {
-	struct MapData *md;
+	ELVL *lvl;
 	sparse_arr arr;
 	enum { up, right, down, left } dir;
 	int bestcount, bestdir, x, y, destx = dropx, desty = dropy;
 
-	md = P_ARENA_DATA(arena, mdkey);
-	pthread_mutex_lock(&md->mtx);
-	arr = md->arr;
+	lvl = P_ARENA_DATA(arena, lvlkey);
+	pthread_mutex_lock(&lvl->mtx);
+	arr = lvl->tiles;
 
 	if (lookup_sparse(arr, dropx, dropy))
 	{
-		pthread_mutex_unlock(&md->mtx);
+		pthread_mutex_unlock(&lvl->mtx);
 		return FALSE;
 	}
 
@@ -629,19 +840,45 @@ int FindBrickEndpoints(
 	}
 
 failed_2:
-	pthread_mutex_unlock(&md->mtx);
+	pthread_mutex_unlock(&lvl->mtx);
 	return TRUE;
 }
 
 
-void DoBrick(Arena *arena, int drop, int x1, int y1, int x2, int y2)
+local u32 GetChecksum(Arena *arena, u32 key)
+{
+	int x, y, savekey = (int)key;
+	ELVL *lvl;
+	sparse_arr arr;
+
+	lvl = P_ARENA_DATA(arena, lvlkey);
+	pthread_mutex_lock(&lvl->mtx);
+	arr = lvl->tiles;
+
+	if (!arr) goto failed_3;
+
+	for (y = savekey % 32; y < 1024; y += 32)
+		for (x = savekey % 31; x < 1024; x += 31)
+		{
+			byte tile = lookup_sparse(arr, x, y);
+			if ((tile >= TILE_START && tile <= TILE_END) || tile == TILE_SAFE)
+				key += savekey ^ tile;
+		}
+
+failed_3:
+	pthread_mutex_unlock(&lvl->mtx);
+	return key;
+}
+
+
+local void DoBrick(Arena *arena, int drop, int x1, int y1, int x2, int y2)
 {
 	unsigned char tile = drop ? TILE_BRICK : 0;
 	sparse_arr arr;
-	struct MapData *md = P_ARENA_DATA(arena, mdkey);
+	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
 
-	pthread_mutex_lock(&md->mtx);
-	arr = md->arr;
+	pthread_mutex_lock(&lvl->mtx);
+	arr = lvl->tiles;
 
 	if (x1 == x2)
 	{
@@ -660,32 +897,189 @@ void DoBrick(Arena *arena, int drop, int x1, int y1, int x2, int y2)
 	if (tile == 0)
 		cleanup_sparse(arr);
 
-	pthread_mutex_unlock(&md->mtx);
+	pthread_mutex_unlock(&lvl->mtx);
 }
 
 
-u32 GetChecksum(Arena *arena, u32 key)
+local Region * FindRegionByName(Arena *arena, const char *name)
 {
-	int x, y, savekey = (int)key;
-	struct MapData *md;
-	sparse_arr arr;
+	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
 
-	md = P_ARENA_DATA(arena, mdkey);
-	pthread_mutex_lock(&md->mtx);
-	arr = md->arr;
+	if (lvl->regions)
+		return HashGetOne(lvl->regions, name);
+	else
+		return NULL;
+}
 
-	if (!arr) goto failed_3;
 
-	for (y = savekey % 32; y < 1024; y += 32)
-		for (x = savekey % 31; x < 1024; x += 31)
+local const char * RegionName(Region *reg)
+{
+	return reg->name;
+}
+
+
+local int RegionChunk(Region *reg, u32 ctype, const void **datap, int *sizep)
+{
+	if (reg->chunks)
+	{
+		chunk *c;
+
+		u32 buf[2] = { 0, 0 };
+		buf[0] = ctype;
+		c = HashGetOne(reg->chunks, (const char *)buf);
+		if (c)
 		{
-			byte tile = lookup_sparse(arr, x, y);
-			if ((tile >= TILE_START && tile <= TILE_END) || tile == TILE_SAFE)
-				key += savekey ^ tile;
+			if (datap) *datap = c->data;
+			if (sizep) *sizep = c->size;
+			return TRUE;
 		}
+	}
+	return FALSE;
+}
 
-failed_3:
-	pthread_mutex_unlock(&md->mtx);
-	return key;
+
+local int Contains(Region *reg, int x, int y)
+{
+	if (reg->tiles)
+		return lookup_sparse(reg->tiles, x, y);
+	else
+		return FALSE;
+}
+
+
+struct enum_containing_clos
+{
+	int x, y;
+	void *clos;
+	void (*cb)(void *clos, Region *reg);
+};
+
+local int enum_containing_work(const char *rname, void *vreg, void *clos)
+{
+	Region *reg = vreg;
+	struct enum_containing_clos *ecc = clos;
+
+	if (ecc->x < 0 ||
+	    ecc->y < 0 ||
+	    (reg->tiles && lookup_sparse(reg->tiles, ecc->x, ecc->y)))
+		ecc->cb(ecc->clos, reg);
+
+	return FALSE;
+}
+
+local void EnumContaining(Arena *arena, int x, int y,
+		void (*cb)(void *clos, Region *reg), void *clos)
+{
+	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
+	struct enum_containing_clos ecc = { x, y, clos, cb };
+
+	if (lvl->regions)
+		HashEnum(lvl->regions, enum_containing_work, &ecc);
+}
+
+
+local void get_one_containing_work(void *clos, Region *reg)
+{
+	*(Region**)clos = reg;
+}
+
+local Region * GetOneContaining(Arena *arena, int x, int y)
+{
+	/* FIXME: this implementation is, um, a little stupid */
+	Region *reg = NULL;
+	EnumContaining(arena, x, y, get_one_containing_work, &reg);
+	return reg;
+}
+
+
+local void md_aaction(Arena *arena, int action)
+{
+	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
+
+	if (action == AA_CREATE)
+		pthread_mutex_init(&lvl->mtx, NULL);
+	else if (action == AA_DESTROY)
+		pthread_mutex_destroy(&lvl->mtx);
+
+	/* no matter what is happening, destroy old mapdata */
+	if (action == AA_CREATE || action == AA_DESTROY)
+		clear_level(lvl);
+
+	/* now, if we're creating, do it */
+	if (action == AA_CREATE)
+	{
+		char mapname[256];
+		pthread_mutex_lock(&lvl->mtx);
+		if (GetMapFilename(arena, mapname, sizeof(mapname), NULL) &&
+		    load_from_file(lvl, mapname))
+		{
+			lm->LogA(L_INFO, "mapdata", arena, "successfully processed map file '%s'",
+					mapname);
+		}
+		else
+		{
+			/* fall back to emergency. this matches the compressed map
+			 * in mapnewsdl.c. */
+			lm->LogA(L_WARN, "mapdata", arena, "error finding or reading level file");
+			lvl->tiles = init_sparse();
+			insert_sparse(lvl->tiles, 0, 0, 1);
+			lvl->flags = lvl->errors = 0;
+		}
+		pthread_mutex_unlock(&lvl->mtx);
+	}
+}
+
+
+/* this module's interface */
+local Imapdata mapdataint =
+{
+	INTERFACE_HEAD_INIT(I_MAPDATA, "mapdata")
+	GetMapFilename,
+	GetAttr, MapChunk,
+	GetFlagCount, GetTile,
+	FindEmptyTileNear, FindBrickEndpoints,
+	GetChecksum, DoBrick,
+	FindRegionByName, RegionName,
+	RegionChunk, Contains,
+	EnumContaining, GetOneContaining
+};
+
+
+EXPORT int MM_mapdata(int action, Imodman *mm_, Arena *arena)
+{
+	if (action == MM_LOAD)
+	{
+		mm = mm_;
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
+		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		prng = mm->GetInterface(I_PRNG, ALLARENAS);
+		if (!cfg || !aman || !lm || !prng) return MM_FAIL;
+
+		lvlkey = aman->AllocateArenaData(sizeof(ELVL));
+		if (lvlkey == -1) return MM_FAIL;
+
+		mm->RegCallback(CB_ARENAACTION, md_aaction, ALLARENAS);
+
+		mm->RegInterface(&mapdataint, ALLARENAS);
+		return MM_OK;
+	}
+	else if (action == MM_UNLOAD)
+	{
+		if (mm->UnregInterface(&mapdataint, ALLARENAS))
+			return MM_FAIL;
+
+		mm->UnregCallback(CB_ARENAACTION, md_aaction, ALLARENAS);
+
+		aman->FreeArenaData(lvlkey);
+
+		mm->ReleaseInterface(lm);
+		mm->ReleaseInterface(aman);
+		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(prng);
+
+		return MM_OK;
+	}
+	return MM_FAIL;
 }
 

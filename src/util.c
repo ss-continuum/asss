@@ -507,7 +507,6 @@ static inline HashEntry *alloc_entry(const char *key)
 	return ret;
 }
 
-
 /* note: this is a case-insensitive hash! */
 static inline unsigned long hash_string(const char *s)
 {
@@ -515,57 +514,6 @@ static inline unsigned long hash_string(const char *s)
 	while (*s)
 		h ^= (h << 7) + (h >> 2) + ((*s++) | 32);
 	return h;
-}
-
-
-HashTable * HashAlloc(void)
-{
-	int i;
-	HashTable *h = amalloc(sizeof(*h));
-
-	h->bucketsm1 = 15;
-	h->ents = 0;
-	h->lists = amalloc((h->bucketsm1 + 1) * sizeof(HashEntry *));
-	for (i = 0; i <= h->bucketsm1; i++)
-		h->lists[i] = NULL;
-	h->maxload = 75;
-
-	return h;
-}
-
-void HashFree(HashTable *h)
-{
-	HashEntry *e, *n;
-	int i;
-	for (i = 0; i <= h->bucketsm1; i++)
-	{
-		e = h->lists[i];
-		while (e)
-		{
-			n = e->next;
-			afree(e);
-			e = n;
-		}
-	}
-	afree(h->lists);
-	afree(h);
-}
-
-void HashEnum(HashTable *h,
-		void (*func)(const char *key, void *val, void *data),
-		void *data)
-{
-	HashEntry *e;
-	int i;
-	for (i = 0; i <= h->bucketsm1; i++)
-	{
-		e = h->lists[i];
-		while (e)
-		{
-			func(e->key, e->p, data);
-			e = e->next;
-		}
-	}
 }
 
 static void check_rehash(HashTable *h)
@@ -622,7 +570,69 @@ static void check_rehash(HashTable *h)
 	h->bucketsm1 = newbucketsm1;
 }
 
-void HashAdd(HashTable *h, const char *s, const void *p)
+HashTable * HashAlloc(void)
+{
+	int i;
+	HashTable *h = amalloc(sizeof(*h));
+
+	h->bucketsm1 = 15;
+	h->ents = 0;
+	h->lists = amalloc((h->bucketsm1 + 1) * sizeof(HashEntry *));
+	for (i = 0; i <= h->bucketsm1; i++)
+		h->lists[i] = NULL;
+	h->maxload = 75;
+
+	return h;
+}
+
+void HashFree(HashTable *h)
+{
+	HashEntry *e, *n;
+	int i;
+	for (i = 0; i <= h->bucketsm1; i++)
+	{
+		e = h->lists[i];
+		while (e)
+		{
+			n = e->next;
+			afree(e);
+			e = n;
+		}
+	}
+	afree(h->lists);
+	afree(h);
+}
+
+void HashEnum(HashTable *h,
+		int (*func)(const char *key, void *val, void *data),
+		void *data)
+{
+	int i, rem;
+	for (i = 0; i <= h->bucketsm1; i++)
+	{
+		HashEntry *prev = NULL, *e = h->lists[i];
+		while (e)
+		{
+			HashEntry *next = e->next;
+			rem = func(e->key, e->p, data);
+			if (rem)
+			{
+				if (prev)
+					prev->next = next;
+				else
+					h->lists[i] = next;
+				afree(e);
+				h->ents--;
+			}
+			else
+				prev = e;
+			e = next;
+		}
+	}
+	check_rehash(h);
+}
+
+const char * HashAdd(HashTable *h, const char *s, const void *p)
 {
 	int slot;
 	HashEntry *e, *l;
@@ -648,6 +658,7 @@ void HashAdd(HashTable *h, const char *s, const void *p)
 
 	h->ents++;
 	check_rehash(h);
+	return e->key;
 }
 
 void HashAddFront(HashTable *h, const char *s, const void *p)
@@ -755,6 +766,12 @@ void *HashGetOne(HashTable *h, const char *s)
 		l = l->next;
 	}
 	return NULL;
+}
+
+int hash_enum_afree(const char *key, void *val, void *d)
+{
+	afree(val);
+	return FALSE;
 }
 
 

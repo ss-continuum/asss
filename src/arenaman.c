@@ -939,6 +939,8 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(ml);
 
+		FreeArenaData(adkey);
+
 		pthread_rwlock_destroy(&arenalock);
 		LLEnum(&aman->arenalist, afree);
 		LLEmpty(&aman->arenalist);

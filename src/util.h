@@ -200,14 +200,11 @@ typedef struct HashTable HashTable;
 HashTable * HashAlloc(void);
 /** frees a hash table and all associated memory. */
 void HashFree(HashTable *table);
-/** calls a function for each key, value pair in the table. */
-void HashEnum(HashTable *table,
-		void (*func)(const char *key, void *val, void *clos),
-		void *clos);
 /** inserts a new key, value pair into the table.
  * this value will show up at the end of the list when this key is
- * queried for. */
-void HashAdd(HashTable *table, const char *key, const void *value);
+ * queried for. a pointer to the hash table's internal copy of the key
+ * is returned. */
+const char * HashAdd(HashTable *table, const char *key, const void *value);
 /** inserts a new key, value pair into the table.
  * this value will show up at the front of the list when this key is
  * queried for. */
@@ -227,7 +224,13 @@ void HashGetAppend(HashTable *table, const char *key, LinkedList *ll);
 /** returns the first value that the key maps to in the table, or NULL
  ** if it's not present. */
 void *HashGetOne(HashTable *table, const char *key);
-
+/** calls a function for each key, value pair in the table.
+ * the function should return true if that item should be removed. */
+void HashEnum(HashTable *table,
+		int (*func)(const char *key, void *val, void *clos),
+		void *clos);
+/** a function to use with HashEnum that calls afree on each key. */
+int hash_enum_afree(const char *key, void *val, void *clos);
 
 #ifndef NODQ
 

@@ -111,17 +111,12 @@ APPContext *APPInitContext(APPFileFinderFunc finder, APPReportErrFunc err, const
 }
 
 
-static void afree_hash(const char *key, void *val, void *d)
-{
-	afree(val);
-}
-
 void APPFreeContext(APPContext *ctx)
 {
 	FileEntry *f = ctx->file;
 	IfBlock *ifs = ctx->ifs;
 
-	HashEnum(ctx->defs, afree_hash, NULL);
+	HashEnum(ctx->defs, hash_enum_afree, NULL);
 	HashFree(ctx->defs);
 
 	afree(ctx->arena);
