@@ -58,6 +58,9 @@ struct net_stats
 	unsigned long pcountpings, pktsent, pktrecvd;
 	unsigned long bytesent, byterecvd;
 	unsigned long buffercount, buffersused;
+#define NET_GROUPED_STATS_LEN 8
+	unsigned long grouped_stats[NET_GROUPED_STATS_LEN];
+	byte reserved[196];
 };
 
 struct net_client_stats
@@ -74,13 +77,14 @@ struct net_client_stats
 	/* ip info */
 	char ipaddr[16];
 	unsigned short port;
+	byte reserved[202];
 };
 
 
 #include "encrypt.h"
 
 
-#define I_NET "net-7.2"
+#define I_NET "net-8"
 
 typedef struct Inet
 {

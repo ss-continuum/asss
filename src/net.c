@@ -1574,6 +1574,7 @@ local void send_outgoing(ConnData *conn)
 				/* send immediately */
 				bytessince += buf->len + config.overhead;
 				SendRaw(conn, buf->d.raw, buf->len);
+				global_stats.grouped_stats[0]++;
 				if (!IS_REL(buf))
 				{
 					/* if we just sent an unreliable packet,
@@ -1599,6 +1600,11 @@ local void send_outgoing(ConnData *conn)
 		/* send the whole thing as a group */
 		SendRaw(conn, gbuf, gptr - gbuf);
 	}
+
+	if (gcount > 0 && gcount < NET_GROUPED_STATS_LEN)
+		global_stats.grouped_stats[gcount-1]++;
+	else if (gcount >= NET_GROUPED_STATS_LEN)
+		global_stats.grouped_stats[NET_GROUPED_STATS_LEN-1]++;
 
 	conn->retries += retries;
 
@@ -1714,7 +1720,7 @@ void * SendThread(void *dummy)
 			    IS_OURS(p) &&
 			    pthread_mutex_trylock(&conn->olmtx) == 0)
 			{
-				send_outgoing(conn); // BUG FIXME: sometimes conn is zeroed here
+				send_outgoing(conn);
 				submit_rel_stats(p);
 				pthread_mutex_unlock(&conn->olmtx);
 			}

@@ -716,6 +716,15 @@ local void Cnetstats(const char *tc, const char *params, Player *p, const Target
 	chat->SendMessage(p, "netstats: buffers used=%lu/%lu (%.1f%%)",
 			stats.buffersused, stats.buffercount,
 			(double)stats.buffersused/(double)stats.buffercount*100.0);
+	chat->SendMessage(p, "netstats: grouped=%ld/%ld/%ld/%ld/%ld/%ld/%ld/%ld",
+			stats.grouped_stats[0],
+			stats.grouped_stats[1],
+			stats.grouped_stats[2],
+			stats.grouped_stats[3],
+			stats.grouped_stats[4],
+			stats.grouped_stats[5],
+			stats.grouped_stats[6],
+			stats.grouped_stats[7]);
 }
 
 
