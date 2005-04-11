@@ -10,18 +10,21 @@ from pkt_types import *
 
 def make_ppk(rot, x, y, xspeed, yspeed, status, bty, nrg):
 	tm = int(util.ticks() & 0x7fffffff)
+	if random.random() < 0.05:
+		wpn = 1
+	else:
+		wpn = 0
 	ppk1 = struct.pack('< B b I h h',
 		C2S_POSITION, rot, tm, xspeed, y)
-	ppk2 = struct.pack('< b h h H h 2x',
-		status, x, yspeed, bty, nrg)
-	wpn = ''
+	ppk2 = struct.pack('< b h h H h h',
+		status, x, yspeed, bty, nrg, wpn)
 	epd = ''
 	cksum = 0
 	for c in ppk1:
 		cksum ^= ord(c)
 	for c in ppk2:
 		cksum ^= ord(c)
-	return ppk1 + chr(cksum) + ppk2 + wpn + epd
+	return ppk1 + chr(cksum) + ppk2 + epd
 
 
 class Pilot:
