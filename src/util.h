@@ -410,5 +410,12 @@ static const char * NAME(int v) \
 
 #define DEFINE_TO_STRING_HELPER(X) case X: return #X;
 
+
+/* another helpful macro */
+
+#define CLIP(x, low, high) \
+	do { if ((x) > (high)) (x) = (high); else if ((x) < (low)) (x) = (low); } while (0)
+
+
 #endif
 

@@ -60,7 +60,9 @@ struct net_stats
 	unsigned long buffercount, buffersused;
 #define NET_GROUPED_STATS_LEN 8
 	unsigned long grouped_stats[NET_GROUPED_STATS_LEN];
-	byte reserved[196];
+#define NET_PRI_STATS_LEN 5 /* must match BW_PRIS in bwlimit.h */
+	unsigned long pri_stats[NET_PRI_STATS_LEN];
+	byte reserved[176];
 };
 
 struct net_client_stats

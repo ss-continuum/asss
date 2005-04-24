@@ -746,6 +746,12 @@ local void Cnetstats(const char *tc, const char *params, Player *p, const Target
 			stats.grouped_stats[5],
 			stats.grouped_stats[6],
 			stats.grouped_stats[7]);
+	chat->SendMessage(p, "netstats: pri=%ld/%ld/%ld/%ld/%ld",
+			stats.pri_stats[0],
+			stats.pri_stats[1],
+			stats.pri_stats[2],
+			stats.pri_stats[3],
+			stats.pri_stats[4]);
 }
 
 
