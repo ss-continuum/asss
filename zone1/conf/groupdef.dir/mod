@@ -49,6 +49,7 @@ privcmd_specall
 
 cmd_prize
 privcmd_prize
+cmd_shipreset
 privcmd_shipreset
 
 privcmd_laginfo
