@@ -280,6 +280,7 @@ local void TargetToSet(const Target *target, LinkedList *set)
 /* per-player data stuff */
 
 local LinkedList blocks;
+local pthread_mutex_t blockmtx;
 struct block
 {
 	int start, len;
@@ -296,7 +297,7 @@ local int AllocatePlayerData(size_t bytes)
 	/* round up to next multiple of word size */
 	bytes = (bytes+(sizeof(int)-1)) & (~(sizeof(int)-1));
 
-	WRLOCK();
+	pthread_mutex_lock(&blockmtx);
 
 	/* first try before between two blocks (or at the beginning) */
 	for (link = LLGetHead(&blocks); link; link = link->next)
@@ -319,11 +320,13 @@ local int AllocatePlayerData(size_t bytes)
 	/* round up to the next multiple of 1k */
 	pthread_mutex_lock(&extradatamtx);
 	perplayerspace += (bytes + 1023) & ~1023;
+	RDLOCK();
 	FOR_EACH_PLAYER(p)
 		p->playerextradata = arealloc(p->playerextradata, perplayerspace);
+	RULOCK();
 	pthread_mutex_unlock(&extradatamtx);
 #else
-	WULOCK();
+	pthread_mutex_unlock(&blockmtx);
 	return -1;
 #endif
 
@@ -335,10 +338,12 @@ found:
 	LLInsertAfter(&blocks, last, nb);
 
 	/* clear all newly allocated space */
+	RDLOCK();
 	FOR_EACH_PLAYER_P(p, data, current)
 		memset(data, 0, bytes);
+	RULOCK();
 
-	WULOCK();
+	pthread_mutex_unlock(&blockmtx);
 
 	return current;
 }
@@ -346,7 +351,7 @@ found:
 local void FreePlayerData(int key)
 {
 	Link *l;
-	WRLOCK();
+	pthread_mutex_lock(&blockmtx);
 	for (l = LLGetHead(&blocks); l; l = l->next)
 	{
 		struct block *b = l->data;
@@ -357,7 +362,7 @@ local void FreePlayerData(int key)
 			break;
 		}
 	}
-	WULOCK();
+	pthread_mutex_unlock(&blockmtx);
 }
 
 
@@ -426,6 +431,7 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 		LLInit(&pd->playerlist);
 
 		LLInit(&blocks);
+		pthread_mutex_init(&blockmtx, NULL);
 
 #ifdef CFG_DYNAMIC_PPD
 		pthread_mutex_init(&extradatamtx, NULL);
