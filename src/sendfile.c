@@ -204,6 +204,7 @@ local void Cacceptfile(const char *tc, const char *params, Player *p, const Targ
 		{
 			chat->SendMessage(td->from, "%s is accepting your file.",
 				td->to->name);
+			chat->SendMessage(p, "File accepted. Transferring...");
 			ft->RequestFile(td->from, td->clientpath, uploaded, td);
 			LLRemove(&offers, td);
 			goto done;

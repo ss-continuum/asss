@@ -857,7 +857,7 @@ EXPORT int MM_flagcore(int action, Imodman *mm_, Arena *a)
 		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
 		mm->UnregCallback(CB_SHIPCHANGE, shipchange, ALLARENAS);
 		mm->UnregCallback(CB_FREQCHANGE, freqchange, ALLARENAS);
-		mm->UnregCallback(CB_KILL, mykill, ALLARENAS);
+		mm->UnregCallback(CB_KILL_POST_NOTIFY, mykill, ALLARENAS);
 
 		net->RemovePacket(C2S_PICKUPFLAG, p_flagtouch);
 		net->RemovePacket(C2S_DROPFLAGS, p_flagtimer);
