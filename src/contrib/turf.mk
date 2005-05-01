@@ -1,8 +1,7 @@
 
 # dist: public
 
-ALL_STUFF += contrib/turf.$(SO)
+turf_mods = turf_reward points_turf_reward turf_stats
 
-contrib/turf.$(SO): contrib/turf_reward.o contrib/points_turf_reward.o \
-	contrib/turf_stats.o
+$(eval $(call dl_template,turf))
 

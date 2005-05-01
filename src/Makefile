@@ -15,12 +15,14 @@
 
 
 # this should point to the root directory of the asss tree.
-ASSSHOME = ..
-BINDIR = $(ASSSHOME)/bin
-SCRIPTS = $(ASSSHOME)/scripts
-PYMOD_HEADERS = *.h */*.h
+ASSSHOME := ..
+BINDIR := $(ASSSHOME)/bin
+BUILDDIR := $(ASSSHOME)/build
+SCRIPTS := $(ASSSHOME)/scripts
+PYMOD_HEADERS := *.h */*.h
 
 INSTALL = install
+LN = ln
 PYTHON = python
 
 # default options:
@@ -133,122 +135,152 @@ endif
 
 # for older gcc, remove the -std option
 CC = gcc -std=gnu99 -pipe
-STD_CFLAGS = -I. -D_REENTRANT -D_GNU_SOURCE $(DASH_F_PIC)
+STD_CFLAGS = -I. -I$(BUILDDIR) -D_REENTRANT -D_GNU_SOURCE $(DASH_F_PIC)
 CFLAGS = $(STD_CFLAGS) $(DEBUG_CFLAGS) $(PROF_FLAGS) $(OPT_CFLAGS)
 LDFLAGS = $(DASH_PTHREAD) $(DASH_F_PIC) $(PROF_FLAGS)
 
 
 # the standalone binaries to build
-BINARIES := asss$(EXE)
+BINARIES = asss$(EXE)
 ifeq ($(have_bdb),yes)
 BINARIES += dbtool$(EXE)
 endif
 
-# dynamic libraries to build
-DLS := funky.$(SO)
+# the dynamic libraries to build
+DLS = $(funky_DL)
 ifeq ($(have_bdb),yes)
-DLS += scoring.$(SO)
+DLS += $(maybe_scoring_DL)
 endif
 ifeq ($(have_mysql),yes)
-DLS += database.$(SO)
+DLS += $(maybe_database_DL)
 endif
 ifeq ($(have_python),yes)
-DLS += pymod.$(SO)
+DLS += $(maybe_pymod_DL)
 endif
 
-ALL_STUFF = $(BINARIES) $(DLS) backtrace
 
-UTIL_OBJS = util.o pathutil.o protutil.o rwlock.o app.o md5.o $(W32COMPAT)
+# some macros to help with putting output in $(BUILDDIR)
+tobuild = $(addprefix $(BUILDDIR)/,$(1))
+tobuildo = $(addprefix $(BUILDDIR)/,$(addsuffix .o,$(1)))
+builddir = $(call tobuild,.stamp)
 
-INTERNAL_MODULES = config.o prng.o md5.o player.o core.o logman.o \
-	mainloop.o net.o enc_null.o enc_vie.o arenaman.o mapdata.o \
-	mapnewsdl.o clientset.o capman.o lagdata.o lagaction.o \
-	bw_default.o bw_nolimit.o \
-	deadlock.o idle.o \
-	log_file.o log_console.o log_sysop.o log_staff.o \
-	game.o game_timer.o chat.o flagcore.o balls.o fm_normal.o \
-	banners.o bricks.o objects.o messages.o koth.o fm_lockspec.o \
-	cmdman.o playercmd.o admincmd.o watchdamage.o buy.o help.o \
-	cfghelp.o \
-	directory.o billing.o billing_ssc.o \
-	filetrans.o quickfix.o \
-	freqowners.o arenaperm.o auth_prefix.o fake.o chatnet.o auth_file.o \
-	ap_multipub.o sendfile.o auth_ban.o \
-	unixsignal.o
+# now we get to the object files
+UTIL_OBJS = util pathutil protutil rwlock app md5 $(W32COMPAT)
 
+INTERNAL_MODULES = config prng md5 player core logman \
+	mainloop net enc_null enc_vie arenaman mapdata \
+	mapnewsdl clientset capman lagdata lagaction \
+	bw_default bw_nolimit \
+	deadlock idle \
+	log_file log_console log_sysop log_staff \
+	game game_timer chat flagcore balls fm_normal \
+	banners bricks objects messages koth fm_lockspec \
+	cmdman playercmd admincmd watchdamage buy help \
+	cfghelp \
+	directory billing billing_ssc \
+	filetrans quickfix \
+	freqowners arenaperm auth_prefix fake chatnet auth_file \
+	ap_multipub sendfile auth_ban \
+	unixsignal
 
+# this is the primary target
 all: install
 
-asss$(EXE): main.o module.o cmod.o $(UTIL_OBJS) $(INTERNAL_MODULES)
+# this builds the main asss binary
+$(call tobuild, asss$(EXE)): $(call tobuildo, main module cmod) \
+		$(call tobuildo, $(UTIL_OBJS) $(INTERNAL_MODULES))
 ifdef run_dlltool
-	dlltool.exe --export-all-symbols -D $@ -e export.exp -l import.imp $^
+	dlltool.exe --export-all-symbols -D $@ -e $(call tobuild, export.exp) -l $(call tobuild, import.imp) $^
 endif
 	$(CC) $(LDFLAGS) $(EXPORT_SYMBOLS) -o $@ $^ $(DL_LIB) $(PTHREAD_LIB) $(ZLIB_LIB) -lm
 
-dbtool$(EXE): dbtool.o statcodes.o util.c
+# this builds the dbtool binary
+$(call tobuild, dbtool$(EXE)): $(call tobuildo, dbtool statcodes) util.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -DNODQ -DNOTREAP -DNOSTRINGCHUNK -DNOMPQUEUE -DNOMMAP -o $@ $^ $(DB_LDFLAGS)
 
-scoring.$(SO): persist.o stats.o statcodes.o points_kill.o points_flag.o \
-	points_goal.o jackpot.o periodic.o points_periodic.o basicstats.o
-scoring.$(SO): LIBS=$(DB_LDFLAGS)
 
-database.$(SO): mysql.o aliasdb.o
-database.$(SO): LIBS=$(MYSQL_LDFLAGS) $(ZLIB_LIB)
+# this template makes it easy to build new dynamic libraries
+define dl_template
+$$(call tobuild, $(1).$(SO)): $$(call tobuildo,$$($(1)_mods))
+	$(CC) $(LDFLAGS) -shared -o $$@ $$^ $(SO_LDFLAGS) $$($(1)_libs)
+$(2)$(1)_DL := $$(call tobuild, $(1).$(SO))
+DLS += $$($(1)_DL)
+endef
 
-pymod.$(SO): pymod.o
-pymod.$(SO): LIBS=$(PYTHON_LDFLAGS)
+scoring_mods = \
+	persist stats statcodes points_kill points_flag \
+	points_goal jackpot persist points_periodic basicstats
+scoring_libs = $(DB_LDFLAGS)
+
+database_mods = mysql aliasdb
+database_libs = $(MYSQL_LDFLAGS) $(ZLIB_LIB)
+
+pymod_mods = pymod
+pymod_libs = $(PYTHON_LDFLAGS)
 
 include */*.mk
 
-funky.$(SO): bricklayer.o autowarp.o autoturret.o record.o sgcompat.o $(EXTRA_FUNKY_OBJS)
-funky.$(SO): LIBS=$(ZLIB_LIB) -lm
+funky_mods = bricklayer autowarp autoturret record sgcompat $(EXTRA_FUNKY_OBJS)
+funky_libs = $(ZLIB_LIB) -lm
+
+# generate rules for our dynamic libraries
+$(eval $(call dl_template,funky))
+$(eval $(call dl_template,scoring,maybe_))
+$(eval $(call dl_template,database,maybe_))
+$(eval $(call dl_template,pymod,maybe_))
 
 
-sparse.inc: $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py
+# generated files
+$(call tobuild, sparse.inc): $(builddir) $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py
 	$(PYTHON) $(SCRIPTS)/gensparse.py $@ $(SCRIPTS)/sparse_params.py
 
-letters.inc: $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font
+$(call tobuild, letters.inc): $(builddir) $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font
 	$(PYTHON) $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font $@
 
-cfghelp.inc: $(SCRIPTS)/extract-cfg-docs.py
+$(call tobuild, cfghelp.inc): $(builddir) $(SCRIPTS)/extract-cfg-docs.py
 	$(PYTHON) $(SCRIPTS)/extract-cfg-docs.py -c $@ *.c */*.c *.py */*.py *.def
 
-py_constants.inc py_callbacks.inc py_interfaces.inc: $(SCRIPTS)/pymod-process.py $(PYMOD_HEADERS)
-	$(PYTHON) $(SCRIPTS)/pymod-process.py $(PYMOD_HEADERS)
+# also builds py_callbacks.inc, py_interfaces.inc, and py_types.inc
+$(call tobuild, py_constants.inc): $(SCRIPTS)/pymod-process.py $(PYMOD_HEADERS)
+	$(PYTHON) $(SCRIPTS)/pymod-process.py $(dir $@) $(PYMOD_HEADERS)
 
 
 # c files that need special options
-persist.o: CFLAGS += $(DB_CFLAGS)
+$(call tobuild, persist.o): CFLAGS += $(DB_CFLAGS)
 
-dbtool.o: CFLAGS += $(DB_CFLAGS)
+$(call tobuild, dbtool.o): CFLAGS += $(DB_CFLAGS)
 
-mysql.o: CFLAGS += $(MYSQL_CFLAGS)
+$(call tobuild, mysql.o): CFLAGS += $(MYSQL_CFLAGS)
 
-pymod.o: CFLAGS += $(PYTHON_CFLAGS)
+$(call tobuild, pymod.o): CFLAGS += $(PYTHON_CFLAGS)
 
+%.o:
+	$(CC) $(CFLAGS) -c -o $@ $<
 
-%.$(SO):
-	$(CC) $(LDFLAGS) -shared -o $@ $^ $(SO_LDFLAGS) $(LIBS)
+install: $(BINDIR)/.stamp install2
 
-install: $(ALL_STUFF)
-	$(INSTALL) -d $(BINDIR)
-	$(INSTALL) $(ALL_STUFF) $(BINDIR)
-	-$(INSTALL) -m 644 *.py $(BINDIR)
+install2: $(call tobuild, $(BINARIES)) $(DLS) backtrace
+	$(LN) -sf $(foreach f,$^,$(shell readlink -f $(f))) $(BINDIR)
+	$(LN) -sf $(foreach f,$(wildcard *.py),$(shell readlink -f $(f))) $(BINDIR)
 
-clean: cleanbin
-	-rm -f *.inc core Makefile.deps
+clean:
+	-rm -f $(BUILDDIR)/*
 
-cleanbin:
-	-rm -f asss$(EXE) dbtool$(EXE) *.o */*.o *.$(SO) */*.$(SO) export.exp import.imp
-
-.PHONY: clean cleanbin install all
+.PHONY: clean install install2 all
 
 
-Makefile.deps: sparse.inc letters.inc cfghelp.inc py_constants.inc \
-	py_callbacks.inc py_interfaces.inc # *.c */*.c *.h */*.h
-	-$(CC) $(STD_CFLAGS) $(DB_CFLAGS) $(MYSQL_CFLAGS) $(PYTHON_CFLAGS) -MM *.c */*.c > $@
+# a rule for creating directories
+%/.stamp:
+	$(INSTALL) -d $(dir $@)
+	> $@
 
-include Makefile.deps
+$(call tobuild, Makefile.deps): $(builddir) \
+	$(call tobuild, sparse.inc letters.inc cfghelp.inc py_constants.inc) \
+	# *.c */*.c *.h */*.h
+	-$(CC) $(STD_CFLAGS) $(DB_CFLAGS) $(MYSQL_CFLAGS) $(PYTHON_CFLAGS) -MM *.c */*.c | \
+		sed 's+^[^ \t]+$$(BUILDDIR)/&+' > $@
+
+include $(call tobuild, Makefile.deps)
 
 # dist: public
 

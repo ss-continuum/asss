@@ -2,11 +2,11 @@
 # dist: public
 
 # mark
-EXTRA_FUNKY_OBJS += contrib/mark.o
+EXTRA_FUNKY_MODS += mark
 
 # auth_vie
-EXTRA_FUNKY_OBJS += contrib/auth_vie.o
+EXTRA_FUNKY_MODS += auth_vie
 
 # voices
-EXTRA_FUNKY_OBJS += contrib/voices.o
+EXTRA_FUNKY_MODS += voices
 

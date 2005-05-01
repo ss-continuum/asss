@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # dist: public
 
-import sys, re, string, glob
+import sys, os, re, string, glob
 
 DEFBUFLEN = 1024
 
@@ -1437,10 +1437,11 @@ local void add_type_objects_to_module(PyObject *m)
 """)
 
 # output files
-const_file = open('py_constants.inc', 'w')
-callback_file = open('py_callbacks.inc', 'w')
-int_file = open('py_interfaces.inc', 'w')
-type_file = open('py_types.inc', 'w')
+prefix = sys.argv[1]
+const_file = open(os.path.join(prefix, 'py_constants.inc'), 'w')
+callback_file = open(os.path.join(prefix, 'py_callbacks.inc'), 'w')
+int_file = open(os.path.join(prefix, 'py_interfaces.inc'), 'w')
+type_file = open(os.path.join(prefix, 'py_types.inc'), 'w')
 
 warning = """
 /* THIS IS AN AUTOMATICALLY GENERATED FILE */
@@ -1456,7 +1457,7 @@ typedef char charbuf[%d];
 """ % DEFBUFLEN)
 
 lines = []
-for pat in sys.argv[1:]:
+for pat in sys.argv[2:]:
 	for f in glob.glob(pat):
 		lines.extend(open(f).readlines())
 
