@@ -89,7 +89,7 @@ local void handle_sigsegv(int sig)
 	char cmd[128];
 	fcloseall();
 	memset(cmd, 0, sizeof(cmd));
-	snprintf(cmd, sizeof(cmd), "bin/backtrace bin/asss %d", getpid());
+	snprintf(cmd, sizeof(cmd), "/bin/sh bin/backtrace bin/asss %d", getpid());
 	system(cmd);
 	write(2, "Segmentation fault (backtrace dumped)\n", 38);
 #endif

@@ -27,7 +27,7 @@
 #include "fg_turf.h"
 #include "idle.h"
 
-#include "contrib/turf_reward.h"
+#include "turf/turf_reward.h"
 
 
 #define PYCBPREFIX "PY-"

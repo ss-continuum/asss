@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "asss.h"
-#include "turf_reward.h"
+#include "turf/turf_reward.h"
 
 
 local Iplayerdata *playerdata; /* player data */

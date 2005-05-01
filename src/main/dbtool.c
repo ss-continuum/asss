@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <time.h>
 
 #ifndef WIN32
 #include <unistd.h>

@@ -1,0 +1,75 @@
+
+#
+# this file is part of the makefile for asss, and gets included by the
+# main makefile. this file contains system-specific definitions,
+# including library and include file paths. generally, you should only
+# modify this file, and not Makefile, to customize the behavior or the
+# makefile.
+#
+
+# default options:
+debug := yes
+opt := no
+prof := no
+link_db_statically := no
+symlink_bins := yes
+
+# comment out any of these lines if you're missing some libraries:
+#
+# if you're missing berkeley db:
+have_bdb := yes
+#
+# if you're missing mysql:
+have_mysql := yes
+#
+# if you're missing python:
+have_python := yes
+
+# basic paths.
+# ASSSHOME should point to the root directory of the asss tree.
+ASSSHOME = ..
+BINDIR = $(ASSSHOME)/bin
+BUILDDIR = $(ASSSHOME)/build
+SCRIPTS = $(ASSSHOME)/scripts
+PYMOD_HEADERS = $(wildcard */*.h)
+
+# locations of useful programs
+INSTALL := install
+LN := ln
+PYTHON := python
+REALPATH := readlink -f
+
+# locations of library dependencies:
+
+# change this to the directory of your bdb 4.x install.
+# freebsd users probably want /usr/local for all of the _HOME variables.
+DB_HOME = /opt/db-4.0.14
+# these probably won't have to change:
+DB_INC = $(DB_HOME)/include
+DB_LIB = $(DB_HOME)/lib
+DB_CFLAGS = -I$(DB_INC)
+ifneq ($(link_db_statically),yes)
+# you might have to change -ldb-4 to -ldb4 in the next line:
+DB_LDFLAGS = -L$(DB_LIB) -Wl,-rpath,$(DB_LIB) -ldb-4
+else
+DB_LDFLAGS = $(DB_LIB)/libdb.a
+endif
+
+# change this to the directory of your mysql install.
+MYSQL_HOME = /opt/mysql
+# these probably won't have to change
+MYSQL_INC = $(MYSQL_HOME)/include
+MYSQL_LIB = $(MYSQL_HOME)/lib
+MYSQL_CFLAGS = -I$(MYSQL_INC)
+MYSQL_LDFLAGS = -L$(MYSQL_LIB) -Wl,-rpath,$(MYSQL_LIB) -lmysqlclient_r
+
+# change this to the location of your python 2.2 or higher install.
+PYTHON_HOME = /usr
+# change this to the major/minor version number of your python install.
+PYTHON_VERSION = 2.3
+# these probably won't have to change
+PYTHON_INC = $(PYTHON_HOME)/include/python$(PYTHON_VERSION)
+PYTHON_LIB = $(PYTHON_HOME)/lib/python$(PYTHON_VERSION)
+PYTHON_CFLAGS = -I$(PYTHON_INC)
+PYTHON_LDFLAGS = -L$(PYTHON_LIB)/config -lpython$(PYTHON_VERSION) $(UTIL_LIB) -lm
+
