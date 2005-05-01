@@ -116,10 +116,6 @@
 #define CFG_HANDLE_SEGV 2
 
 
-/* whether per-player space is allocated dynamically. */
-/* #define CFG_DYNAMIC_PPD */
-
-
 /* pyconst: config end */
 /* dist: public */
 
