@@ -1,0 +1,42 @@
+
+cvs sucks. what else can we use?
+
+subversion:
+	pro:
+		most popular
+		good windows support
+		closest to cvs
+	con:
+		centralized
+
+darcs:
+	pro:
+		distributed
+		conceptually extremely simple/easy to use
+		good email support
+		great support for cherry-picking
+	con:
+		questionable windows support/no gui
+		each repository is a single line
+
+monotone:
+	pro:
+		distributed
+		i like the design
+		built-in crypto
+		might support one public repo that i can cherry-pick
+			changes from, and maintain my own secure line within
+	con:
+		dependence on crypto, possibly harder to use
+		not good support for cherry-picking
+		questionable windows support/no gui
+
+arch:
+	pro:
+		distributed
+		good support for cherry-picking
+		merge operators?
+	con:
+		hard to learn
+		horrid windows support
+
