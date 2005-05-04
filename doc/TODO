@@ -18,8 +18,6 @@ basestats:
 			per-base defender/attacker profiles
 			per-base overall profiles
 
-fix General:MaxPlaying=0
-
 fix game.c time init stuff for fake players.
 
 add time-related functions to python.

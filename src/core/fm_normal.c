@@ -163,13 +163,15 @@ local void Initial(Player *p, int *ship, int *freq)
 {
 	Arena *arena = p->arena;
 	int f, s = *ship;
+	int maxplaying;
 	ConfigHandle ch;
 
 	if (!arena) return;
 
 	ch = arena->cfg;
 
-	if (count_current_playing(arena) >= MAXPLAYING(ch) ||
+	if (((maxplaying = MAXPLAYING(ch)) > 0 &&
+	     count_current_playing(arena) >= maxplaying) ||
 	    p->flags.no_ship ||
 	    !screen_res_allowed(p, ch) ||
 	    INITIALSPEC(ch))
@@ -196,6 +198,7 @@ local void Ship(Player *p, int *ship, int *freq)
 {
 	Arena *arena = p->arena;
 	int f = *freq, s = *ship;
+	int maxplaying;
 	ConfigHandle ch;
 
 	if (!arena) return;
@@ -222,7 +225,9 @@ local void Ship(Player *p, int *ship, int *freq)
 		goto deny;
 	}
 	/* check if changing from spec and too many playing */
-	else if (p->p_ship == SHIP_SPEC && count_current_playing(arena) >= MAXPLAYING(ch))
+	else if (p->p_ship == SHIP_SPEC &&
+	         (maxplaying = MAXPLAYING(ch)) > 0 &&
+	         count_current_playing(arena) >= maxplaying)
 	{
 		if (chat)
 			chat->SendMessage(p,
@@ -261,7 +266,7 @@ local void Freq(Player *p, int *ship, int *freq)
 {
 	Arena *arena = p->arena;
 	int f = *freq, s = *ship;
-	int count, max, inclspec, maxfreq, privlimit;
+	int count, max, inclspec, maxfreq, privlimit, maxplaying;
 	ConfigHandle ch;
 
 	if (!arena) return;
@@ -324,7 +329,8 @@ local void Freq(Player *p, int *ship, int *freq)
 	 * many people playing. */
 	if (s != SHIP_SPEC &&
 	    p->p_ship == SHIP_SPEC &&
-	    count_current_playing(arena) >= MAXPLAYING(ch))
+	    (maxplaying = MAXPLAYING(ch)) > 0 &&
+	    count_current_playing(arena) >= maxplaying)
 	{
 		s = p->p_ship;
 		f = p->p_freq;
