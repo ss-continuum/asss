@@ -100,7 +100,8 @@ clean:
 # generating dependencies. automatic, but can be forced with "make deps".
 $(call tobuild, deps.mk) deps: $(builddir) # */*.c */*.h
 	-$(CC) $(STD_CFLAGS) $(DB_CFLAGS) $(MYSQL_CFLAGS) $(PYTHON_CFLAGS) -MM -MG */*.c | \
-		sed 's+^[^ \t]\|[a-z_-]*\.inc+$$(BUILDDIR)/&+g' > $(call tobuild, deps.mk)
+	  sed -e 's+^[^ \t]+$$(BUILDDIR)/&+' -e 's+\([^ \t]*/\)\?\([a-z_-]*\.inc\)+$$(BUILDDIR)/\2+g' > \
+	  $(call tobuild, deps.mk)
 
 include $(call tobuild, deps.mk)
 
