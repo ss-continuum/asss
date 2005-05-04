@@ -4,8 +4,6 @@
 #ifndef __BWLIMIT_H
 #define __BWLIMIT_H
 
-#define I_BWLIMIT "bwlimit-1"
-
 /* these are the available classes/priorities of traffic */
 enum
 {
@@ -18,6 +16,8 @@ enum
 };
 
 typedef struct BWLimit BWLimit;
+
+#define I_BWLIMIT "bwlimit-2"
 
 typedef struct Ibwlimit
 {
@@ -39,6 +39,8 @@ typedef struct Ibwlimit
 	void (*AdjustForRetry)(BWLimit *bw);
 
 	int (*GetCanBufferPackets)(BWLimit *bw);
+
+	void (*GetInfo)(BWLimit *bw, char *buf, int buflen);
 } Ibwlimit;
 
 #endif

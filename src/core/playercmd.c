@@ -793,9 +793,12 @@ local void Cinfo(const char *tc, const char *params, Player *p, const Target *ta
 					prefix, s.ipaddr, s.port, s.encname, t->macid, t->permid);
 			ignoring = (int)(100.0 * game->GetIgnoreWeapons(t));
 			chat->SendMessage(p,
-					"%s: limit=%d  avg bw in/out=%ld/%ld  ignoringwpns=%d%%  dropped=%ld",
-					prefix, s.limit, s.byterecvd*100/tm, s.bytesent*100/tm,
+					"%s: avg bw in/out=%ld/%ld  ignoringwpns=%d%%  dropped=%ld",
+					prefix, s.byterecvd*100/tm, s.bytesent*100/tm,
 					ignoring, s.pktdropped);
+			chat->SendMessage(p,
+					"%s: bwlimit=%s",
+					prefix, s.bwlimitinfo);
 		}
 		else if (IS_CHAT(t))
 		{

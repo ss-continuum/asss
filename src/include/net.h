@@ -73,13 +73,15 @@ struct net_client_stats
 	unsigned long pktsent, pktrecvd, bytesent, byterecvd;
 	/* count of s2c packets dropped */
 	unsigned long pktdropped;
-	/* encryption type and bandwidth limit */
-	unsigned int limit;
+	unsigned int unused1;
+	/* encryption type */
 	const char *encname;
 	/* ip info */
 	char ipaddr[16];
 	unsigned short port;
-	byte reserved[202];
+	/* bandwidth limit info */
+	char bwlimitinfo[32];
+	byte reserved[170];
 };
 
 

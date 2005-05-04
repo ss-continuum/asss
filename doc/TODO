@@ -1,6 +1,4 @@
 
-add back support for bwlimit stats in /?info
-
 do bit overrides in clientset.
 
 basestats:

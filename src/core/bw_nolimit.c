@@ -27,6 +27,11 @@ local int GetCanBufferPackets(BWLimit *bw)
 	return 30;
 }
 
+local void GetInfo(BWLimit *bw, char *buf, int buflen)
+{
+	astrncpy(buf, "(no limit)", buflen);
+}
+
 
 local struct Ibwlimit bwint =
 {
@@ -34,7 +39,7 @@ local struct Ibwlimit bwint =
 	New, NoOp1,
 	NoOp2, Check,
 	NoOp1, NoOp1,
-	GetCanBufferPackets
+	GetCanBufferPackets, GetInfo
 };
 
 int MM_bw_nolimit(int action, Imodman *mm, Arena *arena)

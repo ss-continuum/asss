@@ -2,6 +2,7 @@
 /* dist: public */
 
 #include <string.h>
+#include <stdio.h>
 #include <math.h>
 
 #include "asss.h"
@@ -119,6 +120,11 @@ local int GetCanBufferPackets(BWLimit *bw)
 	return cansend;
 }
 
+local void GetInfo(BWLimit *bw, char *buf, int buflen)
+{
+	snprintf(buf, buflen, "%d bytes/s", bw->limit);
+}
+
 
 local struct Ibwlimit bwint =
 {
@@ -126,7 +132,7 @@ local struct Ibwlimit bwint =
 	New, Free,
 	Iter, Check,
 	AdjustForAck, AdjustForRetry,
-	GetCanBufferPackets
+	GetCanBufferPackets, GetInfo
 };
 
 int MM_bw_default(int action, Imodman *mm, Arena *arena)

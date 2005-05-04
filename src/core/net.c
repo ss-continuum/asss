@@ -2641,11 +2641,12 @@ void GetClientStats(Player *p, struct net_client_stats *stats)
 		stats->encname = conn->enc->head.name;
 	else
 		stats->encname = "none";
-	/* FIXME: get stats from bwlimit */
-	stats->limit = -1;
+	stats->unused1 = 0;
 	/* RACE: inet_ntoa is not thread-safe */
 	astrncpy(stats->ipaddr, inet_ntoa(conn->sin.sin_addr), sizeof(stats->ipaddr));
 	stats->port = conn->sin.sin_port;
+	memset(stats->bwlimitinfo, 0, sizeof(stats->bwlimitinfo));
+	bwlimit->GetInfo(conn->bw, stats->bwlimitinfo, sizeof(stats->bwlimitinfo));
 }
 
 int GetLastPacketTime(Player *p)
