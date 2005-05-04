@@ -216,7 +216,7 @@ local void Pppk(Player *p, byte *pkt, int len)
 	Player *i;
 	Link *link;
 	ticks_t gtc = current_ticks();
-	int latency, isnewer;
+	int latency, isnewer, isfake = (p->type == T_FAKE);
 
 #ifdef CFG_RELAX_LENGTH_CHECKS
 	if (len < 22)
@@ -236,7 +236,7 @@ local void Pppk(Player *p, byte *pkt, int len)
 	if (!arena || arena->status != ARENA_RUNNING || p->status != S_PLAYING) return;
 
 	/* do checksum */
-	if (p->type != T_FAKE)
+	if (!isfake)
 	{
 		byte checksum = 0;
 		int left = 22;
@@ -265,8 +265,9 @@ local void Pppk(Player *p, byte *pkt, int len)
 		x1 = pos->x;
 		y1 = pos->y;
 
-		/* update region-based stuff once in a while */
-		if (isnewer && TICK_DIFF(gtc, data->lastrgncheck) >= adata->regionchecktime)
+		/* update region-based stuff once in a while, for real players only */
+		if (isnewer && !isfake &&
+		    TICK_DIFF(gtc, data->lastrgncheck) >= adata->regionchecktime)
 		{
 			update_regions(p, x1 >> 4, y1 >> 4);
 			data->lastrgncheck = gtc;
@@ -290,8 +291,10 @@ local void Pppk(Player *p, byte *pkt, int len)
 			pos->status &= ~STATUS_ANTIWARP;
 
 		/* if this is a plain position packet with no weapons, and is in
-		 * the wrong order, there's no need to send it. */
-		if (!isnewer && pos->weapon.type == 0)
+		 * the wrong order, there's no need to send it. but fake players
+		 * never got data->pos.time initialized correctly, so do a
+		 * little special case. */
+		if (!isnewer && !isfake && pos->weapon.type == 0)
 			return;
 
 		/* there are several reasons to send a weapon packet (05) instead of
@@ -481,7 +484,7 @@ local void Pppk(Player *p, byte *pkt, int len)
 	}
 
 	/* lag data */
-	if (lagc)
+	if (lagc && !isfake)
 		lagc->Position(
 				p,
 				TICK_DIFF(gtc, pos->time) * 10,
@@ -489,10 +492,10 @@ local void Pppk(Player *p, byte *pkt, int len)
 				data->wpnsent);
 
 	/* only copy if the new one is later */
-	if (isnewer)
+	if (isnewer || isfake)
 	{
 		/* FIXME: make this asynchronous? */
-		if ((pos->status ^ data->pos.status) & STATUS_SAFEZONE)
+		if (((pos->status ^ data->pos.status) & STATUS_SAFEZONE) && !isfake)
 			DO_CBS(CB_SAFEZONE, arena, SafeZoneFunc, (p, pos->x, pos->y, pos->status & STATUS_SAFEZONE));
 
 		/* copy the whole thing. this will copy the epd, or, if the client
@@ -510,7 +513,7 @@ local void Pppk(Player *p, byte *pkt, int len)
 		p->position.status = pos->status;
 	}
 
-	if (p->flags.sent_ppk == 0)
+	if (p->flags.sent_ppk == 0 && !isfake)
 	{
 		p->flags.sent_ppk = 1;
 		ml->SetTimer(run_enter_game_cb, 0, 0, p, NULL);

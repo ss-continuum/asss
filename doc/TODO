@@ -18,8 +18,6 @@ basestats:
 			per-base defender/attacker profiles
 			per-base overall profiles
 
-fix game.c time init stuff for fake players.
-
 add time-related functions to python.
 
 add mutiple spawn locations for balls.
