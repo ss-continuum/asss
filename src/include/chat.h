@@ -150,6 +150,9 @@ typedef struct Ichat
 	 */
 	void (*SetPlayerChatMask)(Player *p, chat_mask_t mask, int timeout);
 	/* pyint: player, int, int -> void */
+
+	/** A utility function for sending lists of items in a chat message. */
+	void (*SendWrappedText)(Player *p, const char *text);
 } Ichat;
 
 

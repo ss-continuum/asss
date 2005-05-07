@@ -35,15 +35,10 @@ local void do_cmd_help(Player *p, const char *cmd)
 }
 
 
-local void send_msg_cb(const char *line, void *clos)
-{
-	chat->SendMessage((Player*)clos, "  %s", line);
-}
-
 local void do_list_sections(Player *p)
 {
 	chat->SendMessage(p, "Known config file sections:");
-	wrap_text(cfghelp->all_section_names, 80, ' ', send_msg_cb, p);
+	chat->SendWrappedText(p, cfghelp->all_section_names);
 }
 
 local void do_list_keys(Player *p, const char *sec)
@@ -52,7 +47,7 @@ local void do_list_keys(Player *p, const char *sec)
 	if (sh)
 	{
 		chat->SendMessage(p, "Known keys in section %s:", sec);
-		wrap_text(sh->all_key_names, 80, ' ', send_msg_cb, p);
+		chat->SendWrappedText(p, sh->all_key_names);
 	}
 	else
 		chat->SendMessage(p, "I don't know anything about section %s", sec);
@@ -76,7 +71,7 @@ local void do_setting_help(Player *p, const char *sec, const char *key)
 				chat->SendMessage(p, "  Range: %s", kh->range);
 			if (kh->def)
 				chat->SendMessage(p, "  Default: %s", kh->def);
-			wrap_text(kh->helptext, 80, ' ', send_msg_cb, p);
+			chat->SendWrappedText(p, kh->helptext);
 		}
 		else
 			chat->SendMessage(p, "I don't know anything about key %s", key);

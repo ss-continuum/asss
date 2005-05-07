@@ -104,25 +104,15 @@ local void Ckick(const char *tc, const char *params, Player *p, const Target *ta
 }
 
 
-#define MAXDATA 4090
-
 local void add_mid_ban(TreapHead *node, void *clos)
 {
 	ban_node_t *ban = (ban_node_t*)node;
-	char *start = clos, *p;
-	int l = strlen(start);
-	p = start + l;
+	StringBuffer *sb = clos;
 	if (ban->expire)
-		snprintf(p, MAXDATA - l, ", %u (%ld min. left)",
+		SBPrintf(sb, ", %u (%ld min. left)",
 				(unsigned)ban->head.key, (ban->expire - time(NULL) + 30) / 60);
 	else
-		snprintf(p, MAXDATA - l, ", %u",
-				(unsigned)ban->head.key);
-}
-
-local void send_msg_cb(const char *line, void *clos)
-{
-	chat->SendMessage((Player*)clos, "  %s", line);
+		SBPrintf(sb, ", %u", (unsigned)ban->head.key);
 }
 
 local helptext_t listmidbans_help =
@@ -133,12 +123,14 @@ local helptext_t listmidbans_help =
 
 local void Clistmidbans(const char *tc, const char *params, Player *p, const Target *target)
 {
-	char data[MAXDATA+6] = "";
+	StringBuffer sb;
+	SBInit(&sb);
 	pthread_mutex_lock(&banmtx);
-	TrEnum(banroot, add_mid_ban, data);
+	TrEnum(banroot, add_mid_ban, &sb);
 	pthread_mutex_unlock(&banmtx);
 	chat->SendMessage(p, "Active machine id bans:");
-	wrap_text(data+2, 80, ' ', send_msg_cb, p);
+	chat->SendWrappedText(p, SBText(&sb, 2));
+	SBDestroy(&sb);
 }
 
 

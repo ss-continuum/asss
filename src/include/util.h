@@ -315,6 +315,28 @@ void SCFree(StringChunk *chunk);
 #endif
 
 
+#ifndef NOSTRBUFFER
+
+/* stringbuffer: an append-only string buffer thingy. */
+
+typedef struct StringBuffer StringBuffer;
+
+void SBInit(StringBuffer *sb);
+void SBPrintf(StringBuffer *sb, const char *fmt, ...) ATTR_FORMAT(printf, 2, 3);
+const char * SBText(StringBuffer *sb, int offset);
+void SBDestroy(StringBuffer *sb);
+
+/* don't look, implementation details */
+struct StringBuffer
+{
+	char *start, *end;
+	size_t alloc;
+	char initial[128];
+};
+
+#endif
+
+
 #ifndef NOMPQUEUE
 
 #include "pthread.h"

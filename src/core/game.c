@@ -595,11 +595,6 @@ local void PSpecRequest(Player *p, byte *pkt, int len)
 
 /* ?spec command */
 
-local void send_msg_cb(const char *line, void *clos)
-{
-	chat->SendMessage((Player*)clos, "  %s", line);
-}
-
 local helptext_t spec_help =
 "Targets: any\n"
 "Args: none\n"
@@ -608,44 +603,37 @@ local helptext_t spec_help =
 
 local void Cspec(const char *cmd, const char *params, Player *p, const Target *target)
 {
-	char names[500], *end = names;
+	StringBuffer sb;
 	int scnt = 0;
 	Player *t = (target->type == T_PLAYER) ? target->u.p : p;
 	Player *pp;
 	pdata *data;
 	Link *link;
 
+	SBInit(&sb);
 	pd->Lock();
 	FOR_EACH_PLAYER_P(pp, data, pdkey)
 		if (data->speccing == t &&
 		    (!capman->HasCapability(pp, CAP_INVISIBLE_SPECTATOR) ||
 		     capman->HigherThan(p, pp)))
 		{
-			if ((end - names) < sizeof(names) - 34)
-			{
-				strcpy(end, ", ");
-				end += 2;
-				strcpy(end, pp->name);
-				end += strlen(pp->name);
-				scnt++;
-			}
+			scnt++;
+			SBPrintf(&sb, ", %s", pp->name);
 		}
 	pd->Unlock();
 
-	if (end != names)
+	if (scnt > 1)
 	{
-		char output[524];
-
-		snprintf(output, sizeof(output),
-			(scnt == 1) ? "%i spectator: %s" : "%i spectators: %s",
-			scnt, names + 2);
-
-		wrap_text(output, 80, ' ', send_msg_cb, p);
+		chat->SendMessage(p, "%d spectators:", scnt);
+		chat->SendWrappedText(p, SBText(&sb, 2));
 	}
+	else if (scnt == 1)
+		chat->SendMessage(p, "1 spectator: %s", SBText(&sb, 2));
 	else if (p == t)
 		chat->SendMessage(p, "No players spectating you.");
 	else
 		chat->SendMessage(p, "No players spectating %s.", t->name);
+	SBDestroy(&sb);
 }
 
 

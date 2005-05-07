@@ -1109,6 +1109,83 @@ void SCFree(StringChunk *chunk)
 #endif
 
 
+#ifndef NOSTRINGCHUNK
+
+void SBInit(StringBuffer *sb)
+{
+	sb->start = sb->end = sb->initial;
+	sb->alloc = sizeof(sb->initial);
+	sb->start[0] = '\0';
+}
+
+void SBPrintf(StringBuffer *sb, const char *fmt, ...)
+{
+	va_list args;
+	int len, used, needed;
+
+	/* figure out how long the result is */
+#ifdef BROKEN_VSNPRINTF
+	char buf[1024];
+
+	va_start(args, fmt);
+	vsnprintf(buf, 1024, fmt, args);
+	va_end(args);
+	len = strlen(buf);
+#else
+	va_start(args, fmt);
+	len = vsnprintf(NULL, 0, fmt, args);
+	va_end(args);
+#endif
+
+	/* figure out if we need to reallocate */
+	used = sb->end - sb->start;
+	needed = used + len + 1;
+	if (sb->alloc < needed)
+	{
+		while (sb->alloc < needed)
+			sb->alloc *= 2;
+		if (sb->start == sb->initial)
+		{
+			/* need to allocate and copy */
+			sb->start = amalloc(sb->alloc);
+			memcpy(sb->start, sb->initial, sizeof(sb->initial));
+		}
+		else
+		{
+			/* buffer already heap-allocated, realloc */
+			sb->start = arealloc(sb->start, sb->alloc);
+		}
+		sb->end = sb->start + used;
+	}
+
+	/* now print */
+#ifdef BROKEN_VSNPRINTF
+	memcpy(sb->end, buf, len+1);
+#else
+	va_start(args, fmt);
+	vsnprintf(sb->end, len+1, fmt, args);
+	va_end(args);
+#endif
+	sb->end += len;
+}
+
+const char * SBText(StringBuffer *sb, int offset)
+{
+	int len = sb->end - sb->start;
+	return (offset < len) ? sb->start + offset : sb->end;
+}
+
+void SBDestroy(StringBuffer *sb)
+{
+	if (sb->start != sb->initial)
+		afree(sb->start);
+	sb->start = sb->end = NULL;
+	sb->alloc = -1;
+}
+
+#endif
+
+
 #ifndef NOMPQUEUE
 
 void MPInit(MPQueue *q)

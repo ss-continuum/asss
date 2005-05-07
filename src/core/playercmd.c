@@ -341,17 +341,10 @@ local void Cversion(const char *tc, const char *params, Player *p, const Target 
 
 #define MAXDATA 4090
 
-local void add_mod(const char *name, const char *info, void *buf)
+local void add_mod(const char *name, const char *info, void *vsb)
 {
-	char *start = buf, *p;
-	int l = strlen(buf);
-	p = start + l;
-	snprintf(p, MAXDATA - l, ", %s", name);
-}
-
-local void send_msg_cb(const char *line, void *clos)
-{
-	chat->SendMessage((Player*)clos, "  %s", line);
+	StringBuffer *sb = vsb;
+	SBPrintf(sb, ", %s", name);
 }
 
 local helptext_t lsmod_help =
@@ -362,19 +355,20 @@ local helptext_t lsmod_help =
 
 local void Clsmod(const char *tc, const char *params, Player *p, const Target *target)
 {
-	char data[MAXDATA+6];
-	memset(data, 0, sizeof(data));
+	StringBuffer sb;
+	SBInit(&sb);
 	if (strstr(params, "-a"))
 	{
-		mm->EnumModules(add_mod, (void*)data, p->arena);
+		mm->EnumModules(add_mod, (void*)&sb, p->arena);
 		chat->SendMessage(p, "Modules attached to arena %s:", p->arena->name);
 	}
 	else
 	{
-		mm->EnumModules(add_mod, (void*)data, NULL);
+		mm->EnumModules(add_mod, (void*)&sb, NULL);
 		chat->SendMessage(p, "Loaded modules:");
 	}
-	wrap_text(data+2, 80, ' ', send_msg_cb, p);
+	chat->SendWrappedText(p, SBText(&sb, 2));
+	SBDestroy(&sb);
 }
 
 
@@ -1536,6 +1530,11 @@ local void Cflagreset(const char *tc, const char *params, Player *p, const Targe
 }
 
 
+local void send_msg_cb(const char *line, void *clos)
+{
+	chat->SendMessage((Player*)clos, "  %s", line);
+}
+
 local helptext_t reloadconf_help =
 "Targets: none\n"
 "Args: [-f] [path]\n"
@@ -1728,8 +1727,8 @@ local helptext_t listarena_help =
 
 local void Clistarena(const char *tc, const char *params, Player *p, const Target *target)
 {
-	char text[850], *pos = text;
-	int total = 0, playing = 0, donedots = 0;
+	StringBuffer sb;
+	int total = 0, playing = 0;
 	Arena *a;
 	Player *p2;
 	Link *link;
@@ -1750,6 +1749,7 @@ local void Clistarena(const char *tc, const char *params, Player *p, const Targe
 		return;
 	}
 
+	SBInit(&sb);
 	pd->Lock();
 	FOR_EACH_PLAYER(p2)
 		if (p2->status == S_PLAYING && p2->arena == a)
@@ -1757,21 +1757,13 @@ local void Clistarena(const char *tc, const char *params, Player *p, const Targe
 			total++;
 			if (p2->p_ship != SHIP_SPEC)
 				playing++;
-			if ((pos - text) < (sizeof(text) - 10))
-			{
-				snprintf(pos, sizeof(text)-(pos-text), ", %s", p2->name);
-				pos = pos + strlen(pos);
-			}
-			else if (!donedots)
-			{
-				strcpy(pos, ", ...");
-				donedots = 1;
-			}
+			SBPrintf(&sb, ", %s", p2->name);
 		}
 	pd->Unlock();
 
 	chat->SendMessage(p, "Arena '%s': %d total, %d playing", a->name, total, playing);
-	wrap_text(text+2, 80, ' ', send_msg_cb, p);
+	chat->SendWrappedText(p, SBText(&sb, 2));
+	SBDestroy(&sb);
 }
 
 

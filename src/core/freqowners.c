@@ -85,8 +85,8 @@ EXPORT int MM_freqowners(int action, Imodman *mm_, Arena *arena)
 }
 
 
-local void count_freq(Arena *arena, int freq, Player *excl, int *total, int *hasowner,
-		char *ownerbuf, int ownerbuflen)
+local void count_freq(Arena *arena, int freq, Player *excl, int *total,
+		int *hasowner, StringBuffer *sb)
 {
 	int t = 0;
 	Player *i;
@@ -103,12 +103,8 @@ local void count_freq(Arena *arena, int freq, Player *excl, int *total, int *has
 			if (OWNSFREQ(i))
 			{
 				*hasowner = TRUE;
-				if (ownerbuf)
-				{
-					int l = strlen(ownerbuf);
-					if ((l + strlen(i->name) + 3) < ownerbuflen)
-						sprintf(ownerbuf + l, ", %s", i->name);
-				}
+				if (sb)
+					SBPrintf(sb, ", %s", i->name);
 			}
 		}
 	pd->Unlock();
@@ -133,12 +129,6 @@ local int kick_timer(void *param)
 	chat->SendMessage(t, "You have been kicked off your freq.");
 	game->SetFreqAndShip(t, SHIP_SPEC, t->arena->specfreq);
 	return FALSE;
-}
-
-
-local void send_msg_cb(const char *line, void *clos)
-{
-	chat->SendMessage((Player*)clos, "  %s", line);
 }
 
 
@@ -187,20 +177,22 @@ void Ctakeownership(const char *tc, const char *params, Player *p, const Target 
 	else
 	{
 		int total, hasowner;
-		char ownerbuf[400];
-		count_freq(p->arena, p->p_freq, p, &total, &hasowner,
-				ownerbuf, sizeof(ownerbuf));
+		StringBuffer sb;
+
+		SBInit(&sb);
+		count_freq(p->arena, p->p_freq, p, &total, &hasowner, &sb);
 
 		if (hasowner)
 		{
 			chat->SendMessage(p, "Your freq already has one or more owners:");
-			wrap_text(ownerbuf+2, 80, ' ', send_msg_cb, p);
+			chat->SendWrappedText(p, SBText(&sb, 2));
 		}
 		else
 		{
 			OWNSFREQ(p) = 1;
 			chat->SendMessage(p, "You are now the owner of your freq.");
 		}
+		SBDestroy(&sb);
 	}
 }
 
@@ -253,7 +245,7 @@ void MyFreqCh(Player *p, int newfreq)
 	if (owner_allowed(arena, newfreq))
 	{
 		int total, hasowner;
-		count_freq(arena, newfreq, p, &total, &hasowner, NULL, 0);
+		count_freq(arena, newfreq, p, &total, &hasowner, NULL);
 
 		if (total == 0)
 		{

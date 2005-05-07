@@ -343,18 +343,14 @@ local helptext_t objlist_help =
 "List all ServerControlled object id's. Use ?objinfo <id> for attributes\n"
 "Object commands: ?objon ?objoff ?objset ?objmove ?objimage ?objlayer ?objtimer ?objmode ?objinfo ?objlist\n";
 
-local void send_msg_cb(const char *line, void *clos)
-{
-	chat->SendMessage((Player*)clos, "  %s", line);
-}
-
 local void Cobjlist(const char *cmd, const char *params, Player *p, const Target *target)
 {
-	char objects[512], *c = objects;
+	StringBuffer sb;
 	aodata *ad = P_ARENA_DATA(p->arena, aokey);
 	int scnt = 0;
 	Link *l;
 
+	SBInit(&sb);
 	MUTEX_LOCK(ad);
 
 	for (l = LLGetHead(&ad->list); l; l = l->next)
@@ -363,22 +359,7 @@ local void Cobjlist(const char *cmd, const char *params, Player *p, const Target
 
 		if (node->current.mode == MODE_ServerControlled)
 		{
-			char ids[12];
-
-			snprintf(ids, sizeof(ids), "%d", node->current.id);
-
-			if ((c - objects + 3 + strlen(ids)) > sizeof(objects))
-			{
-				if ((c - objects + 6) < sizeof(objects))
-					strcpy(c, ", ...");
-				break;
-			}
-
-			strcpy(c, ", ");
-			c += 2;
-			strcpy(c, ids);
-			c += strlen(ids);
-
+			SBPrintf(&sb, ", %d", node->current.id);
 			scnt++;
 		}
 	}
@@ -389,10 +370,11 @@ local void Cobjlist(const char *cmd, const char *params, Player *p, const Target
 	{
 		chat->SendMessage(p, "%d ServerControlled object%s:",
 				scnt, (scnt == 1) ? "" : "s");
-		wrap_text(objects + 2, 80, ' ', send_msg_cb, p);
+		chat->SendWrappedText(p, SBText(&sb, 2));
 	}
 	else
 		chat->SendMessage(p, "0 ServerControlled objects.");
+	SBDestroy(&sb);
 }
 
 

@@ -287,6 +287,17 @@ local void SendRemotePrivMessage(LinkedList *set, int sound,
 }
 
 
+local void send_msg_cb(const char *line, void *clos)
+{
+	SendMessage_((Player*)clos, "  %s", line);
+}
+
+local void SendWrappedText(Player *p, const char *text)
+{
+	wrap_text(text, 80, ' ', send_msg_cb, p);
+}
+
+
 /* incoming chat handling functions */
 
 #define CMD_CHAR_1 '?'
@@ -833,7 +844,8 @@ local Ichat _int =
 	SendArenaSoundMessage, SendModMessage,
 	SendRemotePrivMessage,
 	GetArenaChatMask, SetArenaChatMask,
-	GetPlayerChatMask, SetPlayerChatMask
+	GetPlayerChatMask, SetPlayerChatMask,
+	SendWrappedText
 };
 
 
