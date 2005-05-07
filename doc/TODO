@@ -1,4 +1,6 @@
 
+this line should cause a conflict.
+
 basestats:
 	split class defs from actual module.
 		or
