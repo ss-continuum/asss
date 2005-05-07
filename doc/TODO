@@ -1,6 +1,4 @@
 
-do bit overrides in clientset.
-
 basestats:
 	split class defs from actual module.
 		or

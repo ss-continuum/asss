@@ -155,6 +155,7 @@ local void load_settings(adata *ad, ConfigHandle conf)
 local override_key_t GetOverrideKey(const char *section, const char *key)
 {
 #define MAKE_KEY(field, len) ((offsetof(struct ClientSettings, field)) << 3 | ((len) << 16))
+#define MAKE_BKEY(field, off, len) ((((offsetof(struct ClientSettings, field)) << 3) + (off)) | ((len) << 16))
 	char fullkey[MAXSECTIONLEN+MAXKEYLEN];
 	int i, j;
 
@@ -174,52 +175,58 @@ local override_key_t GetOverrideKey(const char *section, const char *key)
 		{
 			/* basic stuff */
 			for (j = 0; j < COUNT(ship_long_names); j++)
-				if (strcasecmp(ship_long_names[j], section) == 0)
+				if (strcasecmp(ship_long_names[j], key) == 0)
 					return MAKE_KEY(ships[i].long_set[j], 32);
 			for (j = 0; j < COUNT(ship_short_names); j++)
-				if (strcasecmp(ship_short_names[j], section) == 0)
+				if (strcasecmp(ship_short_names[j], key) == 0)
 					return MAKE_KEY(ships[i].short_set[j], 16);
 			for (j = 0; j < COUNT(ship_byte_names); j++)
-				if (strcasecmp(ship_byte_names[j], section) == 0)
+				if (strcasecmp(ship_byte_names[j], key) == 0)
 					return MAKE_KEY(ships[i].byte_set[j], 8);
 
-			/* don't support weapons bits yet:
-#define DO(x) \
-			wb.x = cfg->GetInt(conf, shipname, #x, 0)
-			DO(ShrapnelMax);  DO(ShrapnelRate);  DO(AntiWarpStatus);
-			DO(CloakStatus);  DO(StealthStatus); DO(XRadarStatus);
-			DO(InitialGuns);  DO(MaxGuns);
-			DO(InitialBombs); DO(MaxBombs);
-			DO(DoubleBarrel); DO(EmpBomb); DO(SeeMines);
-			DO(Unused1);
+#define DO(field, x, off, len) \
+			if (strcasecmp(#x, key) == 0) \
+				return MAKE_BKEY(ships[i].field, off, len)
+			DO(Weapons, ShrapnelMax, 0, 5);
+			DO(Weapons, ShrapnelRate, 5, 5);
+			DO(Weapons, CloakStatus, 10, 2);
+			DO(Weapons, StealthStatus, 12, 2);
+			DO(Weapons, XRadarStatus, 14, 2);
+			DO(Weapons, AntiWarpStatus, 16, 2);
+			DO(Weapons, InitialGuns, 18, 2);
+			DO(Weapons, MaxGuns, 20, 2);
+			DO(Weapons, InitialBombs, 22, 2);
+			DO(Weapons, MaxBombs, 24, 2);
+			DO(Weapons, DoubleBarrel, 26, 1);
+			DO(Weapons, EmpBomb, 27, 1);
+			DO(Weapons, SeeMines, 28, 1);
+			DO(Weapons, Unused1, 29, 3);
+
+			DO(short_set[10], SeeBombLevel, 0, 2);
+			DO(short_set[10], DisableFastShooting, 2, 1);
+			DO(short_set[10], Radius, 3, 8);
 #undef DO
-			ss->Weapons = wb;
-			*/
-
-			/* don't support the strange bitfield yet:
-			memset(&misc, 0, sizeof(misc));
-			misc.SeeBombLevel = cfg->GetInt(conf, shipname, "SeeBombLevel", 0);
-			misc.DisableFastShooting = cfg->GetInt(conf, shipname,
-					"DisableFastShooting", 0);
-			misc.Radius = cfg->GetInt(conf, shipname, "Radius", 0);
-			ss->short_set[10] = *(unsigned short*)&misc;
-			*/
-
 			return 0;
 		}
 
-	/* don't support spawn locations yet:
-	for (i = 0; i < 4; i++)
+	/* spawn locations */
+	if (strcasecmp("Spawn", section) == 0)
 	{
-		char xname[] = "Team#-X";
-		char yname[] = "Team#-Y";
-		char rname[] = "Team#-Radius";
-		xname[4] = yname[4] = rname[4] = '0' + i;
-		cs->spawn_pos[i].x = cfg->GetInt(conf, "Spawn", xname, 0);
-		cs->spawn_pos[i].y = cfg->GetInt(conf, "Spawn", yname, 0);
-		cs->spawn_pos[i].r = cfg->GetInt(conf, "Spawn", rname, 0);
+		for (i = 0; i < 4; i++)
+		{
+			char xname[] = "Team#-X";
+			char yname[] = "Team#-Y";
+			char rname[] = "Team#-Radius";
+			xname[4] = yname[4] = rname[4] = '0' + i;
+			if (strcasecmp(xname, key) == 0)
+				return MAKE_BKEY(spawn_pos[i], 0, 10);
+			if (strcasecmp(yname, key) == 0)
+				return MAKE_BKEY(spawn_pos[i], 10, 10);
+			if (strcasecmp(rname, key) == 0)
+				return MAKE_BKEY(spawn_pos[i], 20, 9);
+		}
+		return 0;
 	}
-	*/
 
 	/* need full key for remaining ones: */
 	snprintf(fullkey, sizeof(fullkey), "%s:%s", section, key);
@@ -235,19 +242,22 @@ local override_key_t GetOverrideKey(const char *section, const char *key)
 		if (strcasecmp(byte_names[i], fullkey) == 0)
 			return MAKE_KEY(byte_set[i], 8);
 
-	/* we don't support overriding bits yet:
-	cs->bit_set.ExactDamage = cfg->GetInt(conf, "Bullet", "ExactDamage", 0);
-	cs->bit_set.HideFlags = cfg->GetInt(conf, "Spectator", "HideFlags", 0);
-	cs->bit_set.NoXRadar = cfg->GetInt(conf, "Spectator", "NoXRadar", 0);
-	cs->bit_set.SlowFrameRate = cfg->GetInt(conf, "Misc", "SlowFrameCheck", 0);
-	cs->bit_set.DisableScreenshot = cfg->GetInt(conf, "Misc", "DisableScreenshot", 0);
-	cs->bit_set.MaxTimerDrift = cfg->GetInt(conf, "Misc", "MaxTimerDrift", 0);
-	cs->bit_set.DisableBallThroughWalls = cfg->GetInt(conf, "Misc", "DisableBallThroughWalls", 0);
-	cs->bit_set.DisableBallKilling = cfg->GetInt(conf, "Misc", "DisableBallKilling", 0);
-	*/
+#define DO(k, s, off, len) \
+	if (strcasecmp(#k ":" #s, fullkey) == 0) \
+		return MAKE_BKEY(bit_set, off, len)
+	DO(Bullet, ExactDamage, 8, 1);
+	DO(Spectator, HideFlags, 9, 1);
+	DO(Spectator, NoXRadar, 10, 1);
+	DO(Misc, SlowFrameCheck, 11, 3);
+	DO(Misc, DisableScreenshot, 14, 1);
+	DO(Misc, MaxTimerDrift, 16, 3);
+	DO(Misc, DisableBallThroughWalls, 19, 1);
+	DO(Misc, DisableBallKilling, 20, 1);
+#undef DO
 
 	return 0;
 #undef MAKE_KEY
+#undef MAKE_BKEY
 }
 
 
@@ -259,34 +269,56 @@ local void override_work(overridedata *od, override_key_t key, i32 val, int set)
 {
 	int len = (key >> 16) & 0xffffu;
 	int offset = key & 0xffffu;
-	u32 mask = set ? 0xffffffffu : 0;
 
 	/* don't override type byte */
 	if (offset < 8)
 		return;
 
-	if ((offset & 7) == 0 && len == 8)
+	if (len <= 32 && ((offset & 31) + len) <= 32)
 	{
-		/* easy case: write byte */
-		offset >>= 3;
-		((i8*)od->bits)[offset] = val;
-		((u8*)od->mask)[offset] = mask;
+		/* easier case: a bunch of bits that fit within a word boundary */
+		int wordoff = offset >> 5;
+		int bitoff = offset & 31;
+		u32 mask = (0xffffffffu >> (32 - len)) << bitoff;
+
+		if (set)
+		{
+			((u32*)od->bits)[wordoff] &= ~mask;
+			((u32*)od->bits)[wordoff] |= val << bitoff;
+			((u32*)od->mask)[wordoff] |= mask;
+		}
+		else
+			((u32*)od->mask)[wordoff] &= ~mask;
 	}
-	else if ((offset & 15) == 0 && len == 16)
+#if 0
+	else if (len <= 32 && ((offset & 31) + len) <= 64)
 	{
-		/* easy case: write short */
-		offset >>= 4;
-		((i16*)od->bits)[offset] = val;
-		((u16*)od->mask)[offset] = mask;
+		/* harder case: some bunch of bits that cross a word boundary.
+		 * this code is untested and probably contains bugs. luckily, no
+		 * actual settings need to use it. if, in the future, it becomes
+		 * useful, the #if 0 can be removed. */
+		int wordoff = offset >> 5;
+		int bitoff = offset & 31;
+		u32 maskv = (0xffffffffu >> (32 - bitoff));
+		u32 mask0 = maskv << bitoff;
+		u32 mask1 = 0xffffffffu >> (bitoff + len - 32);
+
+		if (set)
+		{
+			((u32*)od->bits)[wordoff+0] &= ~mask0;
+			((u32*)od->bits)[wordoff+0] |= (val & maskv) << bitoff;
+			((u32*)od->mask)[wordoff+0] |= mask0;
+			((u32*)od->bits)[wordoff+1] &= ~mask1;
+			((u32*)od->bits)[wordoff+1] |= val >> (32 - bitoff);
+			((u32*)od->mask)[wordoff+1] |= mask1;
+		}
+		else
+		{
+			((u32*)od->mask)[wordoff+0] &= ~mask0;
+			((u32*)od->mask)[wordoff+1] &= ~mask1;
+		}
 	}
-	else if ((offset & 31) == 0 && len == 32)
-	{
-		/* easy case: write long */
-		offset >>= 5;
-		((i32*)od->bits)[offset] = val;
-		((u32*)od->mask)[offset] = mask;
-	}
-	/* FIXME: add bit support here */
+#endif
 	else
 	{
 		lm->Log(L_WARN, "<clientset> illegal override key: %x", key);
