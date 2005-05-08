@@ -353,7 +353,7 @@ local Inet_client netclientint =
 EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 {
 	int i, relthdcount;
-	pthread_t thd;
+	pthread_t *thd;
 
 	assert(sizeof(global_stats) == 256);
 	assert(NET_PRI_STATS_LEN == BW_PRIS);
@@ -409,14 +409,17 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		MPInit(&relqueue);
 
 		/* start the threads */
-		pthread_create(&thd, NULL, RecvThread, NULL);
-		LLAdd(&threads, (void*)thd);
-		pthread_create(&thd, NULL, SendThread, NULL);
-		LLAdd(&threads, (void*)thd);
+		thd = amalloc(sizeof(pthread_t));
+		pthread_create(thd, NULL, RecvThread, NULL);
+		LLAdd(&threads, thd);
+		thd = amalloc(sizeof(pthread_t));
+		pthread_create(thd, NULL, SendThread, NULL);
+		LLAdd(&threads, thd);
 		for (i = 0; i < relthdcount; i++)
 		{
-			pthread_create(&thd, NULL, RelThread, (void*)i);
-			LLAdd(&threads, (void*)thd);
+			thd = amalloc(sizeof(pthread_t));
+			pthread_create(thd, NULL, RelThread, (void*)i);
+			LLAdd(&threads, thd);
 		}
 
 		ml->SetTimer(queue_more_data, 20, 11, NULL, NULL);
@@ -483,9 +486,16 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 
 		/* kill threads */
 		for (link = LLGetHead(&threads); link; link = link->next)
-			pthread_cancel((pthread_t)(link->data));
+		{
+			pthread_t *thd = link->data;
+			pthread_cancel(*thd);
+		}
 		for (link = LLGetHead(&threads); link; link = link->next)
-			pthread_join((pthread_t)(link->data), NULL);
+		{
+			pthread_t *thd = link->data;
+			pthread_join(*thd, NULL);
+			afree(thd);
+		}
 		LLEmpty(&threads);
 
 		/* clean up */
