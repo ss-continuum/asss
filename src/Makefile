@@ -40,7 +40,7 @@ endif
 
 # for older gcc, remove the -std option
 CC = gcc -std=gnu99 -pipe
-STD_CFLAGS = -I. -Iinclude -I$(BUILDDIR) -D_REENTRANT -D_GNU_SOURCE $(DASH_F_PIC)
+STD_CFLAGS = -I. -Iinclude -I$(BUILDDIR) $(EXTRA_INCLUDE_DIRS) -D_REENTRANT -D_GNU_SOURCE $(DASH_F_PIC)
 CFLAGS = $(STD_CFLAGS) $(DEBUG_CFLAGS) $(PROF_FLAGS) $(OPT_CFLAGS)
 LDFLAGS = $(DASH_PTHREAD) $(DASH_F_PIC) $(PROF_FLAGS)
 
@@ -77,11 +77,9 @@ install: $(BINDIR)/.stamp install2
 
 install2: $(BINS) $(DLS)
 ifeq ($(symlink_bins),yes)
-	$(LN) -sf $(foreach f,$^,$(shell $(REALPATH) $(f))) $(BINDIR)
-	$(LN) -sf $(foreach f,$(wildcard */*.py),$(shell $(REALPATH) $(f))) $(BINDIR)
+	$(LN) -sf $(foreach f,$^ $(wildcard */*.py) $(EXTRA_INSTALL_FILES),$(shell $(REALPATH) $(f))) $(BINDIR)
 else
-	$(INSTALL) $^ $(BINDIR)
-	$(INSTALL) */*.py $(BINDIR)
+	$(INSTALL) $^ $(wildcard */*.py) $(EXTRA_INSTALL_FILES) $(BINDIR)
 endif
 
 clean:
@@ -90,7 +88,7 @@ clean:
 
 # a rule for creating directories
 %/.stamp:
-	$(INSTALL) -d $(dir $@)
+	-$(INSTALL) -d $(dir $@)
 	> $@
 
 # the basic rule for compiling .c files
@@ -100,7 +98,7 @@ clean:
 # generating dependencies. automatic, but can be forced with "make deps".
 $(call tobuild, deps.mk) deps: $(builddir) # */*.c */*.h
 	-$(CC) $(STD_CFLAGS) $(DB_CFLAGS) $(MYSQL_CFLAGS) $(PYTHON_CFLAGS) -MM -MG */*.c | \
-	  sed -e 's+^[^ \t]+$$(BUILDDIR)/&+' -e 's+\([^ \t]*/\)\?\([a-z_-]*\.inc\)+$$(BUILDDIR)/\2+g' > \
+	  sed -e 's+^[^[:space:]]+$$(BUILDDIR)/&+' -e 's+\([^[:space:]]*/\)\?\([a-z_-]*\.inc\)+$$(BUILDDIR)/\2+g' > \
 	  $(call tobuild, deps.mk)
 
 include $(call tobuild, deps.mk)

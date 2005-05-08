@@ -13,7 +13,7 @@ INTERNAL_MODULES = \
 	cfghelp filetrans quickfix \
 	freqowners arenaperm auth_prefix fake chatnet \
 	ap_multipub sendfile auth_ban auth_file \
-	deadlock unixsignal
+	deadlock $(unixsignal)
 
 # generated file for mapdata
 $(call tobuild, sparse.inc): $(builddir) $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py
