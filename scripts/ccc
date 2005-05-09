@@ -34,7 +34,7 @@ class View:
 		me.scrollback = 0
 		me.newcrap = 0
 
-		add_line('Window: %s' % me.name, view = me, setnewcrap = 0)
+		add_line('Window: %s' % me.name, view = me, setnewcrap = 0, no_all_view = 1)
 
 	def display(me, wins):
 		# draw lines
@@ -60,6 +60,9 @@ class View:
 def make_arena_view():
 	return View('messages', '')
 
+def make_all_view():
+	return View('all', '')
+
 def make_mod_view():
 	return View('mod chat', '\\')
 
@@ -69,12 +72,22 @@ def make_chat_view(num, name):
 def make_priv_view(name):
 	return View('priv %s' % name, ':%s:' % name)
 
-def find_arena_view():
+def find_named_view(n):
 	for v in views:
-		if v.name == 'messages':
+		if v.name == n:
 			return v
-	else:
-		return None
+
+def find_arena_view():
+	return find_named_view('messages')
+
+def find_all_view():
+	return find_named_view('all')
+
+def find_primary_view():
+	v = find_all_view()
+	if v: return v
+	v = find_arena_view()
+	if v: return v
 
 def find_mod_view():
 	for v in views:
@@ -82,21 +95,21 @@ def find_mod_view():
 			return v
 	if opts.get('automkwin', 0):
 		v = make_mod_view()
-		i = views.index(find_arena_view())
+		i = views.index(find_primary_view())
 		if i == 0:
 			views.append(v)
 		else:
 			views.insert(i, v)
 		return v
 
-def find_chat_view(num):
+def find_chat_view(num, chat_name = ''):
 	name = 'chat %d' % num
 	for v in views:
 		if v.name.startswith(name):
 			return v
 	if opts.get('automkwin', 0):
-		v = make_chat_view(num, '')
-		i = views.index(find_arena_view())
+		v = make_chat_view(num, chat_name)
+		i = views.index(find_primary_view())
 		if i == 0:
 			views.append(v)
 		else:
@@ -110,7 +123,7 @@ def find_priv_view(name):
 			return v
 	if opts.get('automkwin', 0):
 		v = make_priv_view(name)
-		i = views.index(find_arena_view())
+		i = views.index(find_primary_view())
 		if i == 0:
 			views.append(v)
 		else:
@@ -812,6 +825,9 @@ def process_cmd(cmd):
 		if sub == 'mod':
 			if not find_mod_view():
 				views.append(make_mod_view())
+		elif sub == 'all':
+			if not find_all_view():
+				views.append(make_all_view())
 		elif sub == 'chat':
 			num = int(rest)
 			if not find_chat_view(num):
@@ -934,7 +950,7 @@ def process_loginok(line):
 			chats = opts['chats'].split(',')
 			idx = 1
 			for c in chats:
-				if not find_chat_view(idx):
+				if not find_chat_view(idx, chat_name = c):
 					views.append(make_chat_view(idx, c))
 				idx += 1
 
@@ -1111,7 +1127,7 @@ def send_line(line):
 		sock.sendall(line + '\n')
 
 
-def add_line(line, color = None, view = None, setnewcrap = 1, sync = 0):
+def add_line(line, color = None, view = None, setnewcrap = 1, sync = 0, no_all_view = 0):
 	if not views:
 		return
 	# by default, send things to the arena view
@@ -1119,7 +1135,9 @@ def add_line(line, color = None, view = None, setnewcrap = 1, sync = 0):
 		view = find_arena_view()
 	if color is None:
 		color = colors.info
-	view.text.addline(Line(line, color))
+	# add the line to the target view
+	lineobj = Line(line, color)
+	view.text.addline(lineobj)
 	if view != views[0] and setnewcrap:
 		view.newcrap += 1
 	if jumpback:
@@ -1128,6 +1146,15 @@ def add_line(line, color = None, view = None, setnewcrap = 1, sync = 0):
 		if view == views[0]:
 			view.newcrap += 1
 		view.scrollback += 1
+	# optionally, also add it to the "all" view
+	if not no_all_view:
+		allview = find_all_view()
+		if allview:
+			allview.text.addline(lineobj)
+			if jumpback:
+				allview.scrollback = 0
+			elif allview.scrollback > 0:
+				allview.scrollback += 1
 	if sync:
 		redisplay()
 
@@ -1430,7 +1457,9 @@ def main():
 
 		views = None
 		views = [make_arena_view()]
-		add_line('Window: messages', view = find_arena_view(), setnewcrap = 0)
+		add_line('Window: messages', view = find_arena_view(), setnewcrap = 0, no_all_view = 1)
+		if opts.get('allwindow', 0):
+			views.insert(0, make_all_view())
 
 		init_logfile(opts.get('logfile'))
 
