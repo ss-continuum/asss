@@ -97,9 +97,8 @@ clean:
 
 # generating dependencies. automatic, but can be forced with "make deps".
 $(call tobuild, deps.mk) deps: $(builddir) # */*.c */*.h
-	-$(CC) $(STD_CFLAGS) $(DB_CFLAGS) $(MYSQL_CFLAGS) $(PYTHON_CFLAGS) -MM -MG */*.c | \
-	  sed -e 's+^[^[:space:]]+$$(BUILDDIR)/&+' -e 's+\([^[:space:]]*/\)\?\([a-z_-]*\.inc\)+$$(BUILDDIR)/\2+g' > \
-	  $(call tobuild, deps.mk)
+	$(PYTHON) $(SCRIPTS)/makedeps.py $(STD_CFLAGS) $(DB_CFLAGS) $(MYSQL_CFLAGS) $(PYTHON_CFLAGS) \
+		*/*.c -P '$$(BUILDDIR)/' -o $(call tobuild, deps.mk)
 
 include $(call tobuild, deps.mk)
 
