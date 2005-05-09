@@ -4,6 +4,8 @@
 #include <signal.h>
 #include <pthread.h>
 
+/* nasty hack to avoid warning when using python versions 2.4 and above */
+#undef _POSIX_C_SOURCE
 #include "Python.h"
 #include "structmember.h"
 
