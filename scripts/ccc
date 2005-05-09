@@ -2,7 +2,7 @@
 # ccc - a console chat client for asss <grelminar@yahoo.com>
 # dist: public
 
-ccc_version = '2.3'
+ccc_version = '2.4'
 
 import sys, time, curses, socket, select, os
 
@@ -80,24 +80,42 @@ def find_mod_view():
 	for v in views:
 		if v.name == 'mod chat':
 			return v
-	else:
-		return None
+	if opts.get('automkwin', 0):
+		v = make_mod_view()
+		i = views.index(find_arena_view())
+		if i == 0:
+			views.append(v)
+		else:
+			views.insert(i, v)
+		return v
 
 def find_chat_view(num):
 	name = 'chat %d' % num
 	for v in views:
 		if v.name.startswith(name):
 			return v
-	else:
-		return None
+	if opts.get('automkwin', 0):
+		v = make_chat_view(num, '')
+		i = views.index(find_arena_view())
+		if i == 0:
+			views.append(v)
+		else:
+			views.insert(i, v)
+		return v
 
 def find_priv_view(name):
-	name = ('priv %s' % name).lower()
+	vname = ('priv %s' % name).lower()
 	for v in views:
-		if v.name.lower() == name:
+		if v.name.lower() == vname:
 			return v
-	else:
-		return None
+	if opts.get('automkwin', 0):
+		v = make_priv_view(name)
+		i = views.index(find_arena_view())
+		if i == 0:
+			views.append(v)
+		else:
+			views.insert(i, v)
+		return v
 
 def display_view_list(scr):
 	if not scr or len(views) < 2:
