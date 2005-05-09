@@ -5,19 +5,24 @@
 
 testzone = """
 	server = 'server.sscx.net'
-	port = 5002
+	port = 5000
 	name = '...'
 	password = '...'
 	chats = '...'
 	arena = '0'
-	#init = '?chat'
+	#init = '?version'
 	logfile = '~/logs/ccc-%Y-%m'
 	#keepalive = 180  # only if you need it
 """
 
 default = testzone
 
+# automatically set up windows for chats
 chatwindows = 1
+# automatically create windows for priv msgs, etc.
+automkwin = 1
+# create an "all" window
+# allwindow = 1
 
 # bindings
 
@@ -35,6 +40,9 @@ chatwindows = 1
 # color('info', 63)
 # color('priv', 118)
 
+# ignore list
+
+# ignore('annoying person')
 
 # dist: public
 
