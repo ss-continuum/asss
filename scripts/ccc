@@ -705,6 +705,41 @@ class Colors:
 			setattr(me, name, curses.color_pair(num))
 
 
+class IgnoreList:
+	def __init__(me):
+		me.ignored = {}
+
+	def add(me, name):
+		name = name.lower()
+		if not me.ignored.has_key(name):
+			me.ignored[name] = 0
+			return 1
+
+	def remove(me, name):
+		name = name.lower()
+		if me.ignored.has_key(name):
+			del me.ignored[name]
+			return 1
+
+	def checkignored(me, name):
+		name = name.lower()
+		if me.ignored.has_key(name):
+			me.ignored[name] += 1
+			return 1
+
+	def __str__(me):
+		if not me.ignored:
+			return "ignore list empty"
+		else:
+			s = []
+			for name, count in me.ignored.iteritems():
+				if count == 1:
+					s.append('%s (1 msg)' % name)
+				else:
+					s.append('%s (%d msgs)' % (name, count))
+			return 'ignore list: ' + ', '.join(s)
+
+
 def init_logfile(fname):
 	global logfile, original_log_filename
 	import os.path
@@ -855,6 +890,24 @@ def process_cmd(cmd):
 			add_line("Disconnected.")
 			log(L_INFO, "Disconnected.")
 			disconnect(None) # disable auto-login
+	elif cmd.startswith('ignore'):
+		rest = cmd[6:].strip()
+		if rest:
+			if ignorelist.add(rest):
+				add_line("Ignoring: %s" % rest)
+			else:
+				add_line("Already ignored")
+		else:
+			add_line(str(ignorelist))
+	elif cmd.startswith('unignore'):
+		rest = cmd[8:].strip()
+		if rest:
+			if ignorelist.remove(rest):
+				add_line("Unignoring: %s" % rest)
+			else:
+				add_line("Not ignored")
+		else:
+			add_line(str(ignorelist))
 	else:
 		send_line("SEND:PUB:?%s" % cmd)
 
@@ -1035,27 +1088,37 @@ def process_msg(line):
 			disconnect(0)
 	elif type == 'PUB' or type == 'PUBM':
 		name, msg = rest.split(':', 1)
+		if ignorelist.checkignored(name): return
 		txt = '%s> %s' % (name, msg)
 		add_line(txt, colors.pub)
 		log(L_PUB, txt)
 	elif type == 'PRIV':
 		name, msg = rest.split(':', 1)
+		if ignorelist.checkignored(name): return
 		txt = '%s> %s' % (name, msg)
 		add_line(txt, colors.priv, find_priv_view(name))
 		last_priv_list.add(name)
 		log(L_PRIV, txt)
 	elif type == 'FREQ':
 		name, msg = rest.split(':', 1)
+		if ignorelist.checkignored(name): return
 		txt = '%s> %s' % (name, msg)
 		add_line(txt, colors.freq)
 		log(L_FREQ, txt)
 	elif type == 'CHAT':
-		msg = rest
-		chan, _ = rest.split(':', 1)
-		add_line(msg, colors.chat, find_chat_view(int(chan)))
-		log(L_CHAT, msg)
+		chan, text = rest.split(':', 1)
+		try:
+			# there's no foolproof way to get the name from a chat
+			# message, so this is our best effort
+			name, _ = text.split('> ', 1)
+			if ignorelist.checkignored(name): return
+		except:
+			pass
+		add_line(rest, colors.chat, find_chat_view(int(chan)))
+		log(L_CHAT, rest)
 	elif type == 'MOD':
 		name, msg = rest.split(':', 1)
+		if ignorelist.checkignored(name): return
 		txt = '%s> %s' % (name, msg)
 		add_line(txt, colors.mod, find_mod_view())
 		log(L_MOD, txt)
@@ -1065,6 +1128,7 @@ def process_msg(line):
 		log(L_SYSOP, msg)
 	elif type == 'SQUAD':
 		squad, sender, msg = rest.split(':', 2)
+		if ignorelist.checkignored(sender): return
 		txt = '(#%s)(%s)> %s' % (squad, sender, msg)
 		add_line(txt, colors.squad)
 		log(L_SQUAD, txt)
@@ -1378,6 +1442,12 @@ def process_config(file):
 		deferred_color_args.append(args)
 	opts['color'] = color
 
+	# add an ignore function
+	def ignore(name):
+		global ignorelist
+		ignorelist.add(name)
+	opts['ignore'] = ignore
+
 	execfile(file, opts, opts)
 
 	# check command-line params
@@ -1393,7 +1463,7 @@ def process_config(file):
 					traceback.print_exc()
 			else:
 				try:
-					exec arg
+					exec cleanup_code(arg) in opts
 				except:
 					import traceback
 					print "Can't process command line argument '%s':" % arg
@@ -1421,6 +1491,7 @@ def process_config(file):
 def main():
 	global wins, sock, views, myname, colors, chatparser, opts
 	global last_priv_list, deferred_typed_lines, last_login_try
+	global ignorelist
 
 	colors = None
 	myname = '(not connected)'
@@ -1431,6 +1502,7 @@ def main():
 	last_priv_list = LastPrivList(10)
 	wins = MyWindows()
 	chatparser = ChatParser()
+	ignorelist = IgnoreList()
 	sock = None
 
 	# get config file
