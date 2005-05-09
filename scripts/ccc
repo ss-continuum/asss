@@ -19,6 +19,8 @@ ship_names = \
 	8: 'Spectator'
 }
 
+biller_reconnect_msg = 'notice: connection to user database server restored.'
+
 class MyWindows:
 	def __init__(me):
 		me.stdscr = me.twin = me.iwin = me.pwin = None
@@ -788,17 +790,20 @@ def end_curses():
 	curses.endwin()
 
 
-def disconnect():
+def disconnect(set_last_login_try = 'now'):
 	global myname, sock, last_login_try
 
 	myname = '(not connected)'
 	sock.close()
 	sock = None
-	last_login_try = time.time()
+	if set_last_login_try == 'now':
+		last_login_try = time.time()
+	else:
+		last_login_try = set_last_login_try
 
 
 def process_cmd(cmd):
-	global showtime, breakloop, sock, last_login_try
+	global showtime, breakloop, sock
 
 	if cmd.startswith('exit') or cmd.startswith('quit'):
 		breakloop = 1
@@ -849,8 +854,7 @@ def process_cmd(cmd):
 		else:
 			add_line("Disconnected.")
 			log(L_INFO, "Disconnected.")
-			disconnect()
-			last_login_try = None # disable auto-login
+			disconnect(None) # disable auto-login
 	else:
 		send_line("SEND:PUB:?%s" % cmd)
 
@@ -1025,6 +1029,10 @@ def process_msg(line):
 		add_line(msg, colors.arena)
 		log(L_ARENA, msg)
 		chatparser.line(rest)
+		# special case for auto-reconnect after biller drop:
+		if rest.lower().startswith(biller_reconnect_msg):
+			add_line("Auto-reconnecting...")
+			disconnect(0)
 	elif type == 'PUB' or type == 'PUBM':
 		name, msg = rest.split(':', 1)
 		txt = '%s> %s' % (name, msg)
