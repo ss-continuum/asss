@@ -66,7 +66,7 @@ MYSQL_LDFLAGS = -L$(MYSQL_LIB) -Wl,-rpath,$(MYSQL_LIB) -lmysqlclient_r
 # change this to the location of your python 2.2 or higher install.
 PYTHON_HOME = /usr
 # change this to the major/minor version number of your python install.
-PYTHON_VERSION = 2.3
+PYTHON_VERSION = 2.4
 # these probably won't have to change
 PYTHON_INC = $(PYTHON_HOME)/include/python$(PYTHON_VERSION)
 PYTHON_LIB = $(PYTHON_HOME)/lib/python$(PYTHON_VERSION)
