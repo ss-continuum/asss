@@ -40,13 +40,13 @@ find $d -name MT -exec rm -rf {} \; -prune
 find $d -exec touch -r $d/bin/asss {} \;
 tar --numeric-owner -czvf $d.tar.gz $d
 
-exit
+# exit
 
 set +e
 
 # make smaller package
-rm -f $d/doc/*.pdf $d/clients/* $d/scrty* $d/arenas/scf/scf.lvl
-rm -f $d/bin $d/freebsd/bin/*
+rm -rf $d/doc/*.pdf $d/clients/* $d/scrty* $d/arenas/scf/scf.lvl
+rm -rf $d/bin $d/freebsd/bin/*
 
 #find $d -exec touch -r $d/bin/asss {} \;
 tar --numeric-owner -czvf $d-srconly.tar.gz $d
