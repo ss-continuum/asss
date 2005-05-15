@@ -1,6 +1,5 @@
 #!/bin/sh
-[ -d scripts ] || { echo "run from the cvs root" ; exit ; }
+[ -d scripts ] || { echo "run from the mt root" ; exit ; }
 alias ul="ssh asss 'cat > web/changelog.txt ; echo done'"
 #alias ul="ncftpput -v -u asssweb -p `cat asssweb.yi.org-password` -c asssweb.yi.org www/changelog.txt"
-# i love one-liners
-find -name CVS | sed -e 's+/CVS++' -e 's+^\./++' | xargs cvs log -l | cvs2cl --stdin --stdout --no-wrap --no-indent --hide-filenames | sed -e 's+\t+    +g' -e 's+\(:[0-9][0-9]\)  d\(avid\)\?$+\1+' | ul
+time python scripts/mymtclog.py | ul
