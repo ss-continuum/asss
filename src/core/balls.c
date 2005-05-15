@@ -432,7 +432,7 @@ local void load_ball_settings(Arena *arena, int spawnballs)
 void AABall(Arena *arena, int action)
 {
 	/* create the mutex if necessary */
-	if (action == AA_CREATE)
+	if (action == AA_PRECREATE)
 	{
 		pthread_mutexattr_t attr;
 

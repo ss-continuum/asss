@@ -1103,9 +1103,9 @@ local void md_aaction(Arena *arena, int action)
 {
 	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
 
-	if (action == AA_CREATE)
+	if (action == AA_PRECREATE)
 		pthread_mutex_init(&lvl->mtx, NULL);
-	else if (action == AA_DESTROY)
+	else if (action == AA_POSTDESTROY)
 		pthread_mutex_destroy(&lvl->mtx);
 
 	/* no matter what is happening, destroy old mapdata */

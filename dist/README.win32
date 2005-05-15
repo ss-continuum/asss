@@ -28,7 +28,7 @@ module is somewhat better tested than the alternative.
 
 Known bugs:
 
-nothing major as of now.
+asss crashes during shutdown, at least on my system.
 
 
 Contributors:

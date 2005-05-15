@@ -3,6 +3,10 @@
 # on the OS we're running on.
 
 SYS_NAME := $(shell uname -s)
+ifeq ($(SYS_NAME),)
+# if this fails, assume mingw. this is a hack to allow building in dev-c++.
+SYS_NAME := MINGW-dev-c++
+endif
 
 ifeq ($(SYS_NAME),Linux)
 UTIL_LIB = -lutil

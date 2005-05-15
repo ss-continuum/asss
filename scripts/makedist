@@ -36,6 +36,8 @@ test -d freebsd || rm -f $d/*freebsd*
 rm -f $d/*.win32 $d/*.bat
 
 find $d -name MT -exec rm -rf {} \; -prune
+find $d -name CVS -exec rm -rf {} \; -prune
+find $d -name .stamp -exec rm -rf {} \; -prune
 
 find $d -exec touch -r $d/bin/asss {} \;
 tar --numeric-owner -czvf $d.tar.gz $d

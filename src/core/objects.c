@@ -629,10 +629,12 @@ void ArenaAction(Arena *arena, int action)
 	const char *lvzs, *tmp = NULL;
 	char lvzname[256], fname[256];
 
-	if (action == AA_CREATE)
+	if (action == AA_PRECREATE)
 	{
 		pthread_mutex_init(&ad->obj_mtx, NULL);
-
+	}
+	else if (action == AA_CREATE)
+	{
 		/* now look for lvzs */
 		lvzs = cfg->GetStr(arena->cfg, "General", "LevelFiles");
 		if (!lvzs) lvzs = cfg->GetStr(arena->cfg, "Misc", "LevelFiles");
@@ -660,7 +662,9 @@ void ArenaAction(Arena *arena, int action)
 		for (l = LLGetHead(&ad->list); l; l = l->next)
 			afree(l->data);
 		LLEmpty(&ad->list);
-
+	}
+	else if (action == AA_POSTDESTROY)
+	{
 		pthread_mutex_destroy(&ad->obj_mtx);
 	}
 }
