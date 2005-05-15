@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # like gcc -MM, but stupider, in python, and with a prefix feature.
+# dist: public
 
 import sys, os, glob, re
 

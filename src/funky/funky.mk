@@ -8,3 +8,5 @@ $(eval $(call dl_template,funky))
 $(call tobuild, letters.inc): $(builddir) $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font
 	$(PYTHON) $(SCRIPTS)/processfont.py $(SCRIPTS)/banner.font $@
 
+# dist: public
+

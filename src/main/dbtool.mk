@@ -9,3 +9,5 @@ ifeq ($(have_bdb),yes)
 BINS += $(call tobuild, dbtool$(EXE))
 endif
 
+# dist: public
+

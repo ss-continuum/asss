@@ -17,4 +17,5 @@ $(call tobuild, py_constants.inc py_callbacks.inc py_interfaces.inc py_types.inc
 # special options for pymod.o
 $(call tobuild, pymod.o): CFLAGS += $(PYTHON_CFLAGS)
 
+# dist: public
 

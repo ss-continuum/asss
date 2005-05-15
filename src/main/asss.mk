@@ -9,3 +9,5 @@ endif
 
 BINS += $(call tobuild, asss$(EXE))
 
+# dist: public
+

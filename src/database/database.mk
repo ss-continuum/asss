@@ -11,3 +11,5 @@ endif
 # special rules for mysql.o
 $(call tobuild, mysql.o): CFLAGS += $(MYSQL_CFLAGS)
 
+# dist: public
+

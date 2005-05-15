@@ -73,3 +73,5 @@ PYTHON_LIB = $(PYTHON_HOME)/lib/python$(PYTHON_VERSION)
 PYTHON_CFLAGS = -I$(PYTHON_INC)
 PYTHON_LDFLAGS = -L$(PYTHON_LIB)/config -lpython$(PYTHON_VERSION) $(UTIL_LIB) -lm
 
+# dist: public
+

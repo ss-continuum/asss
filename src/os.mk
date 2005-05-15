@@ -61,3 +61,4 @@ ifneq ($(SYS_NAME),ok)
 $(error "Unknown operating system, you'll have to edit the makefile yourself")
 endif
 
+# dist: public

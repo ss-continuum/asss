@@ -26,3 +26,5 @@ $(call tobuild, cfghelp.inc): $(builddir) $(SCRIPTS)/extract-cfg-docs.py
 # used by unixsignal
 BINS += core/backtrace
 
+# dist: public
+

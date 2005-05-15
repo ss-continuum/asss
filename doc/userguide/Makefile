@@ -48,11 +48,11 @@ publish: pdf html
 
 ### Dependencies and commands
 
-commands.tex: $(ASSSDIR)/src/*.c $(ASSSDIR)/scripts/extract-docs.py
-	python $(ASSSDIR)/scripts/extract-docs.py $@ $(ASSSDIR)/src/*.{c,py}
+commands.tex: $(ASSSDIR)/src/*/*.c $(ASSSDIR)/src/*/*.py $(ASSSDIR)/scripts/extract-docs.py
+	python $(ASSSDIR)/scripts/extract-docs.py $@ $(ASSSDIR)/src/*/*.c $(ASSSDIR)/src/*/*.py
 
-settings.tex: $(ASSSDIR)/src/*.c $(ASSSDIR)/scripts/extract-cfg-docs.py
-	python $(ASSSDIR)/scripts/extract-cfg-docs.py -l $@ $(ASSSDIR)/src/*.{c,def,py}
+settings.tex: $(ASSSDIR)/src/*/*.c $(ASSSDIR)/src/*/*.py $(ASSSDIR)/src/*/*.def $(ASSSDIR)/scripts/extract-cfg-docs.py
+	python $(ASSSDIR)/scripts/extract-cfg-docs.py -l $@ $(ASSSDIR)/src/*/*.c $(ASSSDIR)/src/*/*.py $(ASSSDIR)/src/*/*.def
 
 userguide.dvi: userguide.tex commands.tex settings.tex
 	latex userguide.tex

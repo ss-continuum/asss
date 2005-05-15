@@ -13,3 +13,5 @@ endif
 # special options for persist.o
 $(call tobuild, persist.o): CFLAGS += $(DB_CFLAGS)
 
+# dist: public
+
