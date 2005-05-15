@@ -9,18 +9,14 @@ documentation is available at http://sscx.net/asss/
 
 To build asss, you'll need to download a few extra libraries and programs.
 
-1. Download the package of general windows dependencies from
-http://sscx.net/asss/windeps.zip, and extract it into the asss directory
-(one level above "src").
-
-2. Download a recent version of Python from www.python.org and install
+1. Download a recent version of Python from www.python.org and install
 it somewhere.
 
-3. Copy the two files python24.dll and python.exe from the python
+2. Copy the two files python24.dll and python.exe from the Python
 directory into the windeps directory. If you installed Python
 systemwide, python24.dll might be somewhere in your windows directory.
 
-4. Copy all the files from the include directory of the Python install
+3. Copy all the files from the include directory of the Python install
 into windeps\pythoninc.
 
 Now building asss should work.

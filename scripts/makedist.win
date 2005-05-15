@@ -34,20 +34,18 @@ mv -f $d/README.developers.win32 $d/README.developers
 sed 's/^unixsignal$/; not on windows: &/' $d/conf/modules.conf > modules.conf.win32
 mv -f modules.conf.win32 $d/conf/modules.conf
 
-# package this stuff separately
-cd $d
-start //wait zip -v -9 -r ../windeps.zip windeps
-cd ..
-rm -rf $d/windeps
+find $d -name MT -exec rm -rf {} \; -prune
+find $d -name CVS -exec rm -rf {} \; -prune
+find $d -name .stamp -exec rm -rf {} \; -prune
+
+# let users grab these from python
+rm -f $d/windeps/{python.exe,python*.dll,pythoninc/*}
 
 #find $d -exec touch -r $d/bin/asss.exe {} \;
 
 start //wait zip -v -9 -r $d.zip $d
 
 #exit
-
-rm -rf $d/src $d/scripts $d/doc
-start //wait zip -v -9 -r $d-binonly.zip $d
 
 rm -rf $d
 
