@@ -48,10 +48,6 @@ local pthread_mutexattr_t recmtxattr;
 local Iplayerdata pdint;
 
 
-local void NoOp(Player *p)
-{
-}
-
 local void Lock(void)
 {
 	RDLOCK();
@@ -345,7 +341,6 @@ local Iplayerdata pdint =
 {
 	INTERFACE_HEAD_INIT(I_PLAYERDATA, "playerdata")
 	NewPlayer, FreePlayer, KickPlayer,
-	NoOp, NoOp,
 	PidToPlayer, FindPlayer,
 	TargetToSet,
 	AllocatePlayerData, FreePlayerData,

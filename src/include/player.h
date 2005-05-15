@@ -308,12 +308,6 @@ typedef struct Iplayerdata
 	/* pyint: player -> void */
 
 
-	/* these are deprecated. they're only here for binary compatibility.
-	 * don't use them. */
-	void (*LockPlayer__Deprecated)(Player *p);
-	void (*UnlockPlayer__Deprecated)(Player *p);
-
-
 	/** Finds the player with the given pid.
 	 * @param pid the pid to find
 	 * @return the player with the given pid, or NULL if not found
