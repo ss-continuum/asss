@@ -406,14 +406,16 @@ local void arenaAction(Arena *arena, int action)
 {
 	TurfArena *ta, **p_ta = P_ARENA_DATA(arena, trkey);
 
-	if(action == AA_CREATE)
+	if (action == AA_PRECREATE)
 	{
 		pthread_mutexattr_t attr;
 		pthread_mutexattr_init(&attr);
 		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 		pthread_mutex_init((pthread_mutex_t*)P_ARENA_DATA(arena, mtxkey), &attr);
 		pthread_mutexattr_destroy(&attr);
-
+	}
+	else if (action == AA_CREATE)
+	{
 		ta = amalloc(sizeof(*ta));
 
 		*p_ta = ta;
@@ -513,10 +515,13 @@ local void arenaAction(Arena *arena, int action)
 
 	UNLOCK_STATUS(arena);
 
-	if( action == AA_DESTROY )
+	if (action == AA_DESTROY)
 	{
 		afree(ta);
 		*p_ta = NULL;
+	}
+	else if (action == AA_POSTDESTROY)
+	{
 		pthread_mutex_destroy((pthread_mutex_t*)P_ARENA_DATA(arena, mtxkey));
 	}
 }

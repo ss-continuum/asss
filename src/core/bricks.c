@@ -117,7 +117,7 @@ void ArenaAction(Arena *arena, int action)
 {
 	brickdata *bd = P_ARENA_DATA(arena, brickkey);
 
-	if (action == AA_CREATE)
+	if (action == AA_PRECREATE)
 	{
 		pthread_mutex_init(&bd->mtx, NULL);
 
@@ -151,6 +151,9 @@ void ArenaAction(Arena *arena, int action)
 	{
 		LLEnum(&bd->list, afree);
 		LLEmpty(&bd->list);
+	}
+	else if (action == AA_POSTDESTROY)
+	{
 		pthread_mutex_destroy(&bd->mtx);
 	}
 }
