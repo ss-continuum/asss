@@ -27,7 +27,8 @@ def parse_certs(certdata):
 		elif state == 'getdata':
 			if l.endswith(']'):
 				cur_data += l[:-1]
-				certs[cur_certname] = base64.decodestring(cur_data)
+				certs[cur_certname] = \
+						base64.decodestring(cur_data).strip()
 				cur_certname = ''
 				cur_signer = ''
 				cur_data = ''
@@ -43,24 +44,36 @@ def parse_certs(certdata):
 	assert state == 'nocert'
 	return certs
 
-queue = [run('automate heads', BRANCH)]
+entries = {}
 
-while queue:
-	rev = queue.pop(0)
+heads = run('automate heads', BRANCH).splitlines()
+
+ancestors = run('automate ancestors', *heads).splitlines()
+every = int(len(ancestors)/80)
+
+for n, rev in enumerate(ancestors):
 	certs = parse_certs(run('certs', rev))
-	for parent in run('automate parents', rev).splitlines():
-		if parent not in queue:
-			queue.append(parent)
-
 	if '@' not in certs['author'] and certs['author'].startswith('d'):
 		certs['author'] = 'grelminar@yahoo.com'
+	certs['rev'] = rev
 
-	print """\
-%(date)s    %(author)s
+	entry = """\
+%(date)s    %(author)s    %(branch)s    %(rev)s
 
 %(changelog)s
+
+
 """ % certs
+	entries[certs['date']] = entry
 
 	# simple progress display
-	print >>sys.stderr, certs['date'], '\r',
+	if n % every == 0:
+		sys.stderr.write('=')
+sys.stderr.write('\n')
+
+entries = entries.items()
+entries.sort()
+entries.reverse()
+for _, entry in entries:
+	sys.stdout.write(entry)
 
