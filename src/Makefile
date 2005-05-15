@@ -89,7 +89,7 @@ clean:
 # a rule for creating directories
 %/.stamp:
 	-$(INSTALL) -d $(dir $@)
-	> $@
+	-$(INSTALL) Makefile $@
 
 # the basic rule for compiling .c files
 %.o:

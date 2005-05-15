@@ -6,11 +6,11 @@ set -x
 umask 022
 
 : using ASSSDIR=${ASSSDIR:=/e/src/asss}
+: using CENCDIR=${CENCDIR:=/e/src/contenc}
 
 cd $ASSSDIR
 
-#d="asss-`date +%Y%m%d`"
-d="asss-`sed -n 's/#define ASSSVERSION "\(.*\)"/\1/p' src/defs.h`"
+d="asss-`sed -n 's/#define ASSSVERSION "\(.*\)"/\1/p' src/include/defs.h`"
 
 rm -rf $d
 cp -a dist $d
@@ -18,20 +18,15 @@ mkdir $d/{data,log,tmp}
 
 rm -rf doc/doxygen/*
 tar cf - `grep -lr '[d]ist: public' src scripts doc` scripts/banner.font \
-	windeps src/security.c | \
+	src/asss.dev windeps | \
 	(cd $d ; tar xf -)
 
-make -C $d/src -f Makefile.devcpp debug=no opt=yes install
-make -C /e/src/extra-asss/contenc -f Makefile.win "ASSSDIR=`pwd`/$d" security.dll
-mv /e/src/extra-asss/contenc/security.dll $d/bin/
-make -C /e/src/extra-asss/contenc -f Makefile.win "ASSSDIR=`pwd`/$d" clean
-make -C $d/src -f Makefile.devcpp clean
-rm -f $d/src/security.c
+cp -a ${CENCDIR} $d/src/contenc
+make -C $d/src -f Makefile debug=no opt=yes install
+rm -rf $d/build $d/src/contenc
 
-find $d -name CVS -exec rm -rf {} \; -prune
 rm -f $d/README.freebsd
-# force people to download these themselves:
-rm -f $d/windeps/python*.dll $d/windeps/python.exe $d/windeps/pythoninc/*
+
 # supply different readmes on windows
 mv -f $d/README.win32 $d/README
 mv -f $d/README.developers.win32 $d/README.developers
@@ -39,13 +34,20 @@ mv -f $d/README.developers.win32 $d/README.developers
 sed 's/^unixsignal$/; not on windows: &/' $d/conf/modules.conf > modules.conf.win32
 mv -f modules.conf.win32 $d/conf/modules.conf
 
-find $d -exec touch -r $d/bin/asss.exe {} \;
+# package this stuff separately
+cd $d
+start //wait zip -v -9 -r ../windeps.zip windeps
+cd ..
+rm -rf $d/windeps
+
+#find $d -exec touch -r $d/bin/asss.exe {} \;
+
 start //wait zip -v -9 -r $d.zip $d
 
 #exit
 
-rm -rf $d/src $d/scripts $d/doc $d/windeps
+rm -rf $d/src $d/scripts $d/doc
 start //wait zip -v -9 -r $d-binonly.zip $d
 
-#rm -rf $d
+rm -rf $d
 
