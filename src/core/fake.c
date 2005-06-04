@@ -60,7 +60,6 @@ local int EndFaked(Player *p)
 		lm->LogP(L_WARN, "fake", p, "fake player with bad status");
 
 	arena = p->arena;
-	p->arena = NULL;
 
 	/* leave arena */
 	if (arena)
