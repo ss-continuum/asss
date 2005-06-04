@@ -19,6 +19,7 @@ SO = so
 unixsignal = unixsignal
 SYS_NAME := ok
 endif
+
 ifeq ($(SYS_NAME),FreeBSD)
 UTIL_LIB = -lutil
 ZLIB_LIB = -lz
@@ -29,6 +30,7 @@ SO = so
 unixsignal = unixsignal
 SYS_NAME := ok
 endif
+
 ifeq ($(findstring CYGWIN,$(SYS_NAME)),CYGWIN)
 $(warning WARNING: cygwin support hasn't been tested recently. it's probably broken.)
 PTHREAD_LIB = -lpthread
@@ -36,6 +38,7 @@ EXE = .exe
 SO = so
 SYS_NAME := ok
 endif
+
 ifeq ($(findstring MINGW,$(SYS_NAME)),MINGW)
 
 # set up paths to point to windeps
@@ -50,8 +53,8 @@ include $(WINDEPS)/system-windeps.mk
 run_dlltool = yes
 PTHREAD_LIB = -L$(WINDEPS) -lpthreadGC2 -lwsock32
 ZLIB_LIB = -L$(WINDEPS) -lzdll
-SO_LDFLAGS = $(call tobuild, import.imp) $(PTHREAD_LIB)
-EXPORT_SYMBOLS = $(call tobuild, export.exp)
+SO_LDFLAGS = $(call tobuild,import.imp) $(PTHREAD_LIB)
+EXPORT_SYMBOLS = $(call tobuild,export.exp)
 EXE = .exe
 SO = dll
 W32COMPAT = win32compat
@@ -61,6 +64,7 @@ EXTRA_INSTALL_FILES = $(WINDEPS)/zlib1.dll $(WINDEPS)/pthreadGC2.dll \
 
 SYS_NAME := ok
 endif
+
 ifneq ($(SYS_NAME),ok)
 $(error "Unknown operating system, you'll have to edit the makefile yourself")
 endif
