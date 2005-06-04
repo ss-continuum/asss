@@ -1109,7 +1109,7 @@ void SCFree(StringChunk *chunk)
 #endif
 
 
-#ifndef NOSTRINGCHUNK
+#ifndef NOSTRINGBUFFER
 
 void SBInit(StringBuffer *sb)
 {

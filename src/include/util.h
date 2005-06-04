@@ -315,7 +315,7 @@ void SCFree(StringChunk *chunk);
 #endif
 
 
-#ifndef NOSTRBUFFER
+#ifndef NOSTRINGBUFFER
 
 /* stringbuffer: an append-only string buffer thingy. */
 
