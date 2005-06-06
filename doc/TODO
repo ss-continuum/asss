@@ -1,19 +1,4 @@
 
-basestats:
-	split class defs from actual module.
-		or
-	add export to xml every hour.
-	add ship stats:
-		sample one player every so often, record:
-			which ship they're in
-			which base they're in
-			whether they're attacking or defending
-		calculate:
-			overall defender ship profile
-			overall attacker ship profile
-			per-base defender/attacker profiles
-			per-base overall profiles
-
 add time-related functions to python.
 
 add mutiple spawn locations for balls.
