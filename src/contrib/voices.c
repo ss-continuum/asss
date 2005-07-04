@@ -153,7 +153,7 @@ EXPORT int MM_voices(int action, Imodman *mm_, Arena *arena)
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 
-		if (!net || !pd || !cfg
+		if (!net || !pd || !cfg ||
 			-1 == ( vdkey = pd->AllocatePlayerData(sizeof(vdata)) )
 			)
 		{

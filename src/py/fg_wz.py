@@ -322,7 +322,7 @@ def cleanup(a, fid, reason, carrier, freq):
 			myfreq = -1
 		if center:
 			x = sets.spawnx
-			y = sets.spawnx
+			y = sets.spawny
 			r = sets.spawnr
 		else:
 			x = carrier.position[0] >> 4
