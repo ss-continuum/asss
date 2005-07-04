@@ -1,6 +1,8 @@
 
 /* dist: public */
 
+#include <string.h>
+
 #include "asss.h"
 #include "fake.h"
 
@@ -22,10 +24,10 @@ local Player * CreateFakePlayer(const char *name, Arena *arena, int ship, int fr
 	if (!p) return NULL;
 
 	/* set up pdata struct and pretend he's logged in */
-	astrncpy(p->name, name, 20);
-	astrncpy(p->pkt.name, name, 20);
-	astrncpy(p->squad, "", 20);
-	astrncpy(p->pkt.squad, "", 20);
+	strncpy(p->pkt.name, name, 20);
+	astrncpy(p->name, name, 21);
+	strncpy(p->pkt.squad, "", 20);
+	astrncpy(p->squad, "", 21);
 	astrncpy(p->clientname, "<internal fake player>", sizeof(p->clientname));
 	p->p_ship = ship;
 	p->p_freq = freq;
@@ -35,13 +37,13 @@ local Player * CreateFakePlayer(const char *name, Arena *arena, int ship, int fr
 	/* enter arena */
 	if (net) net->SendToArena(arena, p, (byte*)&p->pkt, 64, NET_RELIABLE);
 	if (chatnet) chatnet->SendToArena(arena, p,
-			"ENTERING:%s:%d:%d", name, ship, freq);
+			"ENTERING:%s:%d:%d", p->name, ship, freq);
 	p->status = S_PLAYING;
 
 	if (lm)
 		lm->Log(L_INFO, "<fake> {%s} [%s] fake player created",
 				arena->name,
-				name);
+				p->name);
 
 	return p;
 }
