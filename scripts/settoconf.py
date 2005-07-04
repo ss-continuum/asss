@@ -3,13 +3,9 @@
 
 import sys
 
-file = sys.stdin
-
-lines = file.readlines()
-
 data = {}
 
-for l in lines:
+for l in sys.stdin.readlines():
 	f = l.strip().split(':', 5)
 
 	while len(f) < 6:
@@ -17,14 +13,11 @@ for l in lines:
 
 	sec, key, val, min, max, desc = f
 
-	s = data.get(sec, {})
-	s[key] = val
-	data[sec] = s
+	data.setdefault(sec, {})[key] = val
 
 for sec, vals in data.items():
-	print '\n[%s]' % sec
+	print '[%s]' % sec
 	for key, val in vals.items():
-		print '%s = %s' % (key, val)
-
-print
+		print '%s=%s' % (key, val)
+	print
 
