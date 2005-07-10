@@ -1,5 +1,5 @@
 
-funky_mods = bricklayer autowarp autoturret record sgcompat $(EXTRA_FUNKY_OBJS)
+funky_mods = bricklayer autowarp autoturret record sgcompat $(EXTRA_FUNKY_MODS)
 funky_libs = $(ZLIB_LIB) -lm
 
 $(eval $(call dl_template,funky))
