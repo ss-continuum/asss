@@ -819,7 +819,7 @@ void SendState(Player *p)
 		if (data->off == 0)
 			*(u16*)(toggle+1+2*t++) = data->defaults.id;
 
-		if (t >= ad->tog_diffs || e >= ad->ext_diffs)
+		if (t >= ad->tog_diffs && e >= ad->ext_diffs)
 			break;
 	}
 
