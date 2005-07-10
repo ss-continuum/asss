@@ -311,12 +311,13 @@ local void SendWrappedText(Player *p, const char *text)
 local void run_commands(const char *text, Player *p, Target *target)
 {
 	char buf[512], *b;
-	int count = 0, initial, multi;
+	int count = 0, initial = 0, multi;
 
 	if (!cmd) return;
 
 	/* skip initial * or ? */
-	initial = *text++;
+	if (*text == CMD_CHAR_1 || *text == CMD_CHAR_2)
+		initial = *text++;
 	/* check if this is a multi-command */
 	multi = (*text == CMD_MULTI_CHAR);
 
