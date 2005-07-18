@@ -77,6 +77,8 @@
 #define S2C_TOGGLEDAMAGE 0x37
 /* complex, the info used from a *watchdamage */
 #define S2C_DAMAGE 0x38
+/* missing 39 3A */
+#define S2C_REDIRECT 0x3B
 
 
 /* C2S PACKET TYPES */

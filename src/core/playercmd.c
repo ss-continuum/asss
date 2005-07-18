@@ -19,6 +19,7 @@
 #include "asss.h"
 #include "jackpot.h"
 #include "persist.h"
+#include "redirect.h"
 
 
 /* global data */
@@ -41,6 +42,7 @@ local Ilagquery *lagq;
 local Ipersist *persist;
 local Istats *stats;
 local Imapdata *mapdata;
+local Iredirect *redir;
 local Imodman *mm;
 
 static ticks_t startedat;
@@ -1077,10 +1079,11 @@ local void Csend(const char *tc, const char *params, Player *p, const Target *ta
 	Player *t = target->u.p;
 	if (target->type != T_PLAYER || *params == '\0')
 		return;
-	if (t->type == T_CONT)
+	if (t->type == T_CONT || t->type == T_CHAT)
 		aman->SendToArena(t, params, 0, 0);
 	else
-		chat->SendMessage(p, "You can only use ?send on players using Continuum");
+		chat->SendMessage(p,
+				"You can only use ?send on players using Continuum or chat clients");
 }
 
 
@@ -1927,6 +1930,24 @@ local void Cmapinfo(const char *tc, const char *params, Player *p, const Target 
 }
 
 
+local helptext_t redirect_help =
+"Targets: any\n"
+"Args: <redirect alias> | <ip>:<port>[:<arena>]\n"
+"Module: redirect\n"
+"Redirects the target to a different zone.\n";
+
+local void Credirect(const char *tc, const char *params, Player *p, const Target *t)
+{
+	Target nt;
+	if (t->type == T_ARENA)
+	{
+		nt.type = T_PLAYER;
+		nt.u.p = p;
+		t = &nt;
+	}
+	redir->AliasRedirect(t, params);
+}
+
 
 /* command group system */
 
@@ -2238,6 +2259,18 @@ local const struct cmd_info misc_commands[] =
 };
 
 
+local const struct interface_info external_requires[] =
+{
+	REQUIRE(redir, I_REDIRECT)
+	END()
+};
+local const struct cmd_info external_commands[] =
+{
+	CMD(redirect)
+	END()
+};
+
+
 /* list of groups */
 local struct cmd_group all_cmd_groups[] =
 {
@@ -2250,6 +2283,7 @@ local struct cmd_group all_cmd_groups[] =
 	CMD_GROUP(lag)
 	CMD_GROUP(stats)
 	CMD_GROUP(misc)
+	CMD_GROUP(external)
 	END()
 };
 

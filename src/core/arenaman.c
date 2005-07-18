@@ -10,6 +10,7 @@
 #include "rwlock.h"
 #include "clientset.h"
 #include "persist.h"
+#include "redirect.h"
 
 #include "packets/goarena.h"
 
@@ -615,6 +616,13 @@ local void PArena(Player *p, byte *pkt, int len)
 	{
 		if (!has_cap_go(p)) return;
 		astrncpy(name, go->arenaname, 16);
+		if (p->type == T_CONT)
+		{
+			Iredirect *redir = mm->GetInterface(I_REDIRECT, ALLARENAS);
+			int handled = redir && redir->ArenaRequest(p, name);
+			mm->ReleaseInterface(redir);
+			if (handled) return;
+		}
 	}
 	else if (go->arenatype == -2 || go->arenatype == -1)
 	{
@@ -648,14 +656,35 @@ local void PArena(Player *p, byte *pkt, int len)
 
 local void MArena(Player *p, const char *line)
 {
-	complete_go(p, line[0] ? line : "0", SHIP_SPEC, 0, 0, 0, 0, 0, 0);
+	if (line[0])
+	{
+		complete_go(p, line, SHIP_SPEC, 0, 0, 0, 0, 0, 0);
+	}
+	else
+	{
+		char name[16];
+		int spx, spy;
+		Iarenaplace *ap = mm->GetInterface(I_ARENAPLACE, ALLARENAS);
+		if (ap)
+		{
+			if (!ap->Place(name, sizeof(name), &spx, &spy, p))
+				strcpy(name, "0");
+			mm->ReleaseInterface(ap);
+		}
+		else
+			strcpy(name, "0");
+		complete_go(p, name, SHIP_SPEC, 0, 0, 0, 0, 0, 0);
+	}
 }
 
 
 local void SendToArena(Player *p, const char *aname, int spawnx, int spawny)
 {
 	if (p->type == T_CONT)
-		complete_go(p, aname, p->p_ship, p->xres, p->yres, p->flags.want_all_lvz, p->pkt.acceptaudio, spawnx, spawny);
+		complete_go(p, aname, p->p_ship, p->xres, p->yres,
+				p->flags.want_all_lvz, p->pkt.acceptaudio, spawnx, spawny);
+	else if (p->type == T_CHAT)
+		complete_go(p, aname, SHIP_SPEC, 0, 0, 0, 0, 0, 0);
 }
 
 local void PLeaving(Player *p, byte *pkt, int len)
