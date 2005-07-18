@@ -1,4 +1,19 @@
 
+add callbacks:
+
+	#define CB_TURRET "playerturret"
+	typedef void (*PlayerTurret)(Arena *arena, Player *p, int old_attach);
+	//p->p_attached determines attachment/detachment
+	//p->p_attached == PID_NONE if detach
+	//in the case of detachment, old_attach will be the pid of the player detached from
+
+	//in koth.h
+	#define CB_KOTH "koth"
+	typedef void (*KothWin)(Arena *arena, LinkedList *winners, int points);
+	//the linklist is the one in check_koth(), a list of players that receive KOTH reward 
+
+add GetRandomPointInRegion to mapdata for dr brain.
+
 add time-related functions to python.
 
 add mutiple spawn locations for balls.
