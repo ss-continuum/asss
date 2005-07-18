@@ -57,10 +57,17 @@ all: install
 
 # this template makes it easy to build new dynamic libraries
 define dl_template
+# the main rule:
 $$(call tobuild, $(1).$(SO)): $$(call tobuildo,$$($(1)_mods))
 	$(CC) $(LDFLAGS) -shared -o $$@ $$^ $(SO_LDFLAGS) $$($(1)_libs)
+# this macro can be used to refer to the library file.
+# the optional $(2) is used to support conditional inclusion:
 $(2)$(1)_DL := $$(call tobuild, $(1).$(SO))
+# add the library file to the global list of libraries to build:
 DLS += $$($(1)_DL)
+# define a convenience alias for building a specific library:
+$(1): $$($(2)$(1)_DL)
+.PHONY: $(1)
 endef
 
 # these gets initialized to empty, and will be added to by expansions of
