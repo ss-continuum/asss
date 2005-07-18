@@ -379,7 +379,7 @@ def create_c_to_py_func(name, func):
 			# this is an outgoing arg
 			argname += '_out'
 			vargname = argname + '_v'
-			decls.append('\t%s;' % (typ.buf_decl(vargname)))
+			decls.append('\t%s;' % (typ.parse_decl(vargname)))
 			outformat.append(typ.format_char())
 			try:
 				outargs.append(typ.parse_converter())
@@ -408,6 +408,9 @@ def create_c_to_py_func(name, func):
 			outargs.append('&%s' % vargname)
 			allargs.append(typ.ptr_decl(argname))
 			extras3.append(typ.conv_to_buf(argname, vargname))
+
+			if arg.tp == 'string':
+				print "warning: %s: string inout args are probably broken" % name
 
 		elif 'buflen' in opts:
 			# this arg is a buffer length
