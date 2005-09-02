@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import sys, os, base64
+import sys, os, base64, re, textwrap
 
 BRANCH = 'asss.asss.main'
 
@@ -44,6 +44,34 @@ def parse_certs(certdata):
 	assert state == 'nocert'
 	return certs
 
+def parse_revision(revdata):
+	def get_filename(line):
+		return re.search('"([^"]*)"', line).group(1)
+	files = []
+	seen = {}
+	for l in revdata.splitlines():
+		if l.startswith('add_file'):
+			fn = get_filename(l)
+			files.append('+%s' % fn)
+			seen[fn] = 1
+		elif l.startswith('delete_file'):
+			fn = get_filename(l)
+			files.append('-%s' % fn)
+			seen[fn] = 1
+		elif l.startswith('patch'):
+			fn = get_filename(l)
+			if fn not in seen:
+				files.append('%s' % fn)
+		elif l.startswith('rename_file'):
+			renamefrom = get_filename(l)
+		elif l.startswith('         to'):
+			files.append('%s->%s' % (renamefrom, get_filename(l)))
+	return files
+
+def author_hook(certs):
+	if '@' not in certs['author'] and certs['author'].startswith('d'):
+		certs['author'] = 'grelminar@yahoo.com'
+
 entries = {}
 
 heads = run('automate heads', BRANCH).splitlines()
@@ -51,16 +79,23 @@ heads = run('automate heads', BRANCH).splitlines()
 ancestors = run('automate ancestors', *heads).splitlines()
 every = int(len(ancestors)/80)
 
+wrapper = textwrap.TextWrapper(width=72, initial_indent='files: ',
+		subsequent_indent='  ')
+
 for n, rev in enumerate(ancestors):
 	certs = parse_certs(run('certs', rev))
-	if '@' not in certs['author'] and certs['author'].startswith('d'):
-		certs['author'] = 'grelminar@yahoo.com'
+	author_hook(certs)
 	certs['rev'] = rev
+
+	files = parse_revision(run('cat revision', rev))
+	certs['files'] = wrapper.fill(' '.join(files))
 
 	entry = """\
 %(date)s    %(author)s    %(branch)s    %(rev)s
 
 %(changelog)s
+
+%(files)s
 
 
 """ % certs
