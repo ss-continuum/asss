@@ -50,7 +50,7 @@ local int AliasRedirect(const Target *target, const char *alias)
 	 * Settings in the Redirects section correspond to arena names. If a
 	 * player tries to ?go to an arena name listed in this section, they
 	 * will be redirected to the zone specified as the value of the
-	 * setting. The format of values is "ip:port[:arena]".
+	 * setting. The format of values is 'ip:port[:arena]'.
 	 */
 	char ipstr[16], portstr[16];
 	const char *t = cfg->GetStr(GLOBAL, "Redirects", alias);

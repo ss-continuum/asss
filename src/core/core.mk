@@ -21,7 +21,7 @@ $(call tobuild, sparse.inc): $(builddir) $(SCRIPTS)/gensparse.py $(SCRIPTS)/spar
 
 # generated file for cfghelp
 $(call tobuild, cfghelp.inc): $(builddir) $(SCRIPTS)/extract-cfg-docs.py
-	$(PYTHON) $(SCRIPTS)/extract-cfg-docs.py -c $@ */*.c */*.py *.def
+	$(PYTHON) $(SCRIPTS)/extract-cfg-docs.py -c $@ */*.c */*.py core/clientset.def
 
 # used by unixsignal
 BINS += core/backtrace
