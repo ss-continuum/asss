@@ -76,13 +76,13 @@ entries = {}
 
 heads = run('automate heads', BRANCH).splitlines()
 
-ancestors = run('automate ancestors', *heads).splitlines()
-every = int(len(ancestors)/80)
+revs = heads + run('automate ancestors', *heads).splitlines()
+every = int(len(revs)/80)
 
 wrapper = textwrap.TextWrapper(width=72, initial_indent='files: ',
 		subsequent_indent='  ')
 
-for n, rev in enumerate(ancestors):
+for n, rev in enumerate(revs):
 	certs = parse_certs(run('certs', rev))
 	author_hook(certs)
 	certs['rev'] = rev
