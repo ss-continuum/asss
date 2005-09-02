@@ -10,7 +10,27 @@ add callbacks:
 	//in koth.h
 	#define CB_KOTH "koth"
 	typedef void (*KothWin)(Arena *arena, LinkedList *winners, int points);
-	//the linklist is the one in check_koth(), a list of players that receive KOTH reward 
+	//the linklist is the one in check_koth(), a list of players that receive KOTH reward
+
+fix CMD handling, and change ccc to use CMD again.
+
+dr brain: Purge+ wanted me to ask that you add groupids to billing_ssc.
+Looks like you just need to change one line (line 933 as of 1.3.6).
+
+consider making cfghelp dynamic:
+	parse out cfghelp sections for each .c file in the build rule for
+	.o, compile the output separately and somehow link it in to the .o,
+	as a symbol named "<modname>_cfghelp". then, in cmod, look for that
+	symbol name, and pass it to cfghelp somehow.
+
+	what about python?
+
+KaasAap: Maybe this would be a good thing to change for ccc: the
+variable 'myfreq' won't be updated when user changes frequency with '=#'
+(somewhere at line 1092).
+
+make chatnet send NOOPs after three minutes of no traffic in either
+direction, not just s2c.
 
 add GetRandomPointInRegion to mapdata for dr brain.
 
@@ -42,9 +62,30 @@ write fg_ctf:
 
 make *setship, *setfreq use the freq manager.
 
+Dr Brain: and my own personal gripe: recursive #includes aren't relative
+to the included file. So if I have arenas/(public)/arena.conf include
+flags.conf, and have some other arena include (public)'s arena.conf, it
+won't be able to find flags.conf. The workaround is to use absolute
+paths for everything, but that's cumbersome if you ever want to move
+configs around (and I frequently do)
+
+Dr Brain: Ok, another request: some way to increment the weapon packet
+count for a player. I need this because I send fake weapon packets to
+individual players and Smong brought to my attention that it ruins the
+weapon packetloss tracking. I think a Igame function would work best.
+Something like game->IncrementWeaponPacketCount(Player *p);
+
+Dr Brain: another suggestion: where there are no quickfix results, don't
+send the empty file to be ignored by the client. instead, give a message
+saying there were no results
+
 tcp biller protocol changes:
 	add port to CONNECT?
 	add timezone to PLOGIN
+
+	smong: CONNECTBAD:swname:billername:reason, billing.c doesn't seem to
+	match this. billing.c just uses 'CONNECTBAD:swname:reason'. this is from
+	the 140 windows distro
 
 stag> you need a list of arena variables "new" to asss
 stag> sort ?lsmod output by name
