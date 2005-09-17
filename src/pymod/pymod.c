@@ -1566,7 +1566,7 @@ local void init_asss_module(void)
 local int load_py_module(mod_args_t *args, const char *line)
 {
 	PyObject *mod;
-	lm->Log(L_INFO, "<pymod> loading python module '%s'", line);
+	lm->Log(L_SYNC | L_INFO, "<pymod> loading python module '%s'", line);
 	mod = PyImport_ImportModule((char*)line);
 	if (mod)
 	{
@@ -1578,8 +1578,8 @@ local int load_py_module(mod_args_t *args, const char *line)
 	}
 	else
 	{
-		lm->Log(L_ERROR, "<pymod> error loading python module '%s'", line);
-		log_py_exception(L_ERROR, NULL);
+		lm->Log(L_SYNC | L_ERROR, "<pymod> error loading python module '%s'", line);
+		log_py_exception(L_SYNC | L_ERROR, NULL);
 		return MM_FAIL;
 	}
 }
