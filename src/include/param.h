@@ -13,6 +13,14 @@
 #define CFG_LVZ_SEARCH_PATH "arenas/%b/%m:maps/%m:%m:arenas/(default)/%m"
 
 
+/* the import path used for C modules */
+#define CFG_CMOD_SEARCH_PATH "localbin:bin:corebin"
+
+
+/* the import path used for python modules */
+#define CFG_PYTHON_IMPORT_PATH "python:" CFG_CMOD_SEARCH_PATH
+
+
 /* whether to log private and chat messages */
 /* #define CFG_LOG_PRIVATE */
 

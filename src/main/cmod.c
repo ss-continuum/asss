@@ -93,17 +93,31 @@ local int load_c_module(const char *spec_, mod_args_t *args)
 #endif
 	else
 	{
-		char cwd[PATH_MAX];
+		char cwd[PATH_MAX], dir[NAME_MAX];
+		const char *tmp = NULL;
 		getcwd(cwd, sizeof(cwd));
-		path = buf;
-		if (snprintf(path, sizeof(buf), "%s/bin/%s"
+		path = NULL;
+		while (strsplit(CFG_CMOD_SEARCH_PATH, ":", dir, sizeof(dir), &tmp))
+		{
+			if (snprintf(buf, sizeof(buf), "%s/%s/%s"
 #ifndef WIN32
-					".so"
+						".so",
 #else
-					".dll"
+						".dll",
 #endif
-					, cwd, filename) > sizeof(buf))
+						cwd, dir, filename) > sizeof(buf))
+				continue;
+			if (access(buf, F_OK) == 0)
+			{
+				path = buf;
+				break;
+			}
+		}
+		if (!path)
+		{
+			LOG1(L_ERROR, "<cmod> can't find file: %s", filename);
 			goto die;
+		}
 	}
 
 	cmd->handle = dlopen(path, RTLD_NOW | RTLD_GLOBAL);

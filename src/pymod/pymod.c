@@ -1696,11 +1696,19 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 		sigaction(SIGINT, &sa_before, NULL);
 #endif
 		/* set up our search path */
-		PyRun_SimpleString(
-				"import sys, os\n"
-				"sys.path[:0] = ["
-				"  os.getcwd() + '/python',"
-				"  os.getcwd() + '/bin']\n");
+		{
+			char dir[1024], code[1024];
+			const char *tmp = NULL;
+			while (strsplit(CFG_PYTHON_IMPORT_PATH, ":", dir, sizeof(dir), &tmp))
+			{
+				if (snprintf(code, sizeof(code),
+							"import sys, os\n"
+							"sys.path.append(os.path.join(os.getcwd(), '%s'))\n",
+							dir) > sizeof(code))
+					continue;
+				PyRun_SimpleString(code);
+			}
+		}
 		/* add our module */
 		init_asss_module();
 		init_py_callbacks();
