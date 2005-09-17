@@ -40,13 +40,13 @@ local int load_c_module(const char *spec_, mod_args_t *args)
 	Ilogman *lm = NULL;
 
 #define LOG0(lev, fmt) \
-	if (lm) lm->Log(lev, fmt); \
+	if (lm) lm->Log(L_SYNC | lev, fmt); \
 	else fprintf(stderr, "%c " fmt "\n", lev);
 #define LOG1(lev, fmt, a1) \
-	if (lm) lm->Log(lev, fmt, a1); \
+	if (lm) lm->Log(L_SYNC | lev, fmt, a1); \
 	else fprintf(stderr, "%c " fmt "\n", lev, a1);
 #define LOG2(lev, fmt, a1, a2) \
-	if (lm) lm->Log(lev, fmt, a1, a2); \
+	if (lm) lm->Log(L_SYNC | lev, fmt, a1, a2); \
 	else fprintf(stderr, "%c " fmt "\n", lev, a1, a2);
 
 	/* make copy of specifier */

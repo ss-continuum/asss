@@ -20,17 +20,14 @@ local void * LoggingThread(void *);
 
 local MPQueue queue;
 local pthread_t thd;
-
 local Imodman *mm;
 
 /* don't load these during initialization, it would make a cycle. the
  * noinit is a hint to detect-cycles.py that these interfaces aren't
  * requested during initialization. */
 local /* noinit */ Iconfig *cfg;
-local /* noinit */ Iplayerdata *pd;
-local /* noinit */ Iarenaman *aman;
 
-local Ilogman _int =
+local Ilogman logint =
 {
 	INTERFACE_HEAD_INIT(I_LOGMAN, "logman")
 	Log, LogA, LogP, FilterLog
@@ -43,28 +40,22 @@ EXPORT int MM_logman(int action, Imodman *mm_, Arena *arena)
 	{
 		mm = mm_;
 		cfg = NULL;
-		pd = NULL;
-		aman = NULL;
 		MPInit(&queue);
-		mm->RegInterface(&_int, ALLARENAS);
+		mm->RegInterface(&logint, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_POSTLOAD)
 	{
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
-		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
-		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		pthread_create(&thd, NULL, LoggingThread, NULL);
 	}
 	else if (action == MM_PREUNLOAD)
 	{
 		mm->ReleaseInterface(cfg); cfg = NULL;
-		mm->ReleaseInterface(pd); pd = NULL;
-		mm->ReleaseInterface(aman); aman = NULL;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (mm->UnregInterface(&_int, ALLARENAS))
+		if (mm->UnregInterface(&logint, ALLARENAS))
 			return MM_FAIL;
 		MPAdd(&queue, NULL);
 		pthread_join(thd, NULL);
@@ -164,7 +155,7 @@ void LogP(char level, const char *mod, Player *p, const char *format, ...)
 		async = 0;
 	}
 
-	if (!pd || !aman || !p)
+	if (!p)
 		len = snprintf(buf, 1024, "%c <%s> [(bad player)] ",
 				level,
 				mod);

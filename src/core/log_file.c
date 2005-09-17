@@ -132,5 +132,7 @@ void ReopenLog(void)
 	logfile = fopen(fname, "a");
 
 	pthread_mutex_unlock(&logmtx);
+
+	LogFile("I <log_file> opening log file ==================================");
 }
 
