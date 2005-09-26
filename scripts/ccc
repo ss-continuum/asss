@@ -2,7 +2,7 @@
 # ccc - a console chat client for asss <grelminar@yahoo.com>
 # dist: public
 
-ccc_version = '2.4.1'
+ccc_version = '2.4.2'
 
 import sys, time, curses, socket, select, os
 
@@ -1192,7 +1192,7 @@ def process_incoming(line):
 
 
 def send_line(line):
-	if line == "SEND:PUB:?chat":
+	if line == "SEND:CMD:chat":
 		# special handling for the results of ?chat:
 		chatparser.reset()
 	if sock:
