@@ -389,8 +389,8 @@ void RegInterface(void *iface, Arena *arena)
 		HashAddFront(globalints, id, iface);
 	else
 	{
-		char key[64];
-		snprintf(key, 64, "%p-%s", (void*)arena, id);
+		char key[MAX_ID_LEN];
+		snprintf(key, sizeof(key), "%p-%s", (void*)arena, id);
 		HashAddFront(arenaints, key, iface);
 	}
 
@@ -423,8 +423,8 @@ int UnregInterface(void *iface, Arena *arena)
 		HashRemove(globalints, id, iface);
 	else
 	{
-		char key[64];
-		snprintf(key, 64, "%p-%s", (void*)arena, id);
+		char key[MAX_ID_LEN];
+		snprintf(key, sizeof(key), "%p-%s", (void*)arena, id);
 		HashRemove(arenaints, key, iface);
 	}
 
@@ -443,8 +443,8 @@ void * GetInterface(const char *id, Arena *arena)
 		head = HashGetOne(globalints, id);
 	else
 	{
-		char key[64];
-		snprintf(key, 64, "%p-%s", (void*)arena, id);
+		char key[MAX_ID_LEN];
+		snprintf(key, sizeof(key), "%p-%s", (void*)arena, id);
 		head = HashGetOne(arenaints, key);
 		/* if the arena doesn't have it, fall back to a global one */
 		if (!head)
@@ -489,8 +489,8 @@ void RegCallback(const char *id, void *f, Arena *arena)
 	}
 	else
 	{
-		char key[64];
-		snprintf(key, 64, "%p-%s", (void*)arena, id);
+		char key[MAX_ID_LEN];
+		snprintf(key, sizeof(key), "%p-%s", (void*)arena, id);
 		HashAdd(arenacallbacks, key, f);
 	}
 	pthread_mutex_unlock(&cbmtx);
@@ -505,8 +505,8 @@ void UnregCallback(const char *id, void *f, Arena *arena)
 	}
 	else
 	{
-		char key[64];
-		snprintf(key, 64, "%p-%s", (void*)arena, id);
+		char key[MAX_ID_LEN];
+		snprintf(key, sizeof(key), "%p-%s", (void*)arena, id);
 		HashRemove(arenacallbacks, key, f);
 	}
 	pthread_mutex_unlock(&cbmtx);
@@ -520,9 +520,9 @@ void LookupCallback(const char *id, Arena *arena, LinkedList *ll)
 	HashGetAppend(globalcallbacks, id, ll);
 	if (arena != ALLARENAS)
 	{
-		char key[64];
+		char key[MAX_ID_LEN];
 		/* then append local ones */
-		snprintf(key, 64, "%p-%s", (void*)arena, id);
+		snprintf(key, sizeof(key), "%p-%s", (void*)arena, id);
 		HashGetAppend(arenacallbacks, key, ll);
 	}
 	pthread_mutex_unlock(&cbmtx);

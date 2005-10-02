@@ -57,6 +57,8 @@ enum
 #define MM_OK     0  /**< success */
 #define MM_FAIL   1  /**< failure */
 
+/** the maximum length of a callback or interface id. */
+#define MAX_ID_LEN 128
 
 /** all interfaces declarations MUST start with this macro */
 #define INTERFACE_HEAD_DECL struct InterfaceHead head;

@@ -755,7 +755,7 @@ local void destroy_callback_ticket(void *v)
 
 local PyObject *mthd_reg_callback(PyObject *self, PyObject *args)
 {
-	char *rawcbid, pycbid[128];
+	char *rawcbid, pycbid[MAX_ID_LEN];
 	PyObject *func;
 	Arena *arena = ALLARENAS;
 	struct callback_ticket *tkt;
@@ -785,7 +785,7 @@ local PyObject *mthd_reg_callback(PyObject *self, PyObject *args)
 
 local PyObject *mthd_call_callback(PyObject *self, PyObject *args)
 {
-	char *rawcbid, pycbid[128];
+	char *rawcbid, pycbid[MAX_ID_LEN];
 	PyObject *cbargs, *ret = NULL;
 	Arena *arena = ALLARENAS;
 	py_cb_caller func;
@@ -849,7 +849,6 @@ local PyObject *mthd_get_interface(PyObject *self, PyObject *args)
 	if (!PyArg_ParseTuple(args, "s|O&", &iid, cvt_p2c_arena, &arena))
 		return NULL;
 
-	iid += 3;
 	typeo = HashGetOne(pyint_ints, iid);
 	if (typeo)
 	{
@@ -893,13 +892,13 @@ local void destroy_interface(void *v)
 
 local PyObject *mthd_reg_interface(PyObject *self, PyObject *args)
 {
-	char *iid;
+	char *rawiid, pyiid[MAX_ID_LEN];
 	PyObject *funcs;
 	Arena *arena = ALLARENAS;
 	pyint_generic_interface *newint;
 	void *realint;
 
-	if (!PyArg_ParseTuple(args, "sO|O&", &iid, &funcs, cvt_p2c_arena, &arena))
+	if (!PyArg_ParseTuple(args, "sO|O&", &rawiid, &funcs, cvt_p2c_arena, &arena))
 		return NULL;
 
 	if (!PyTuple_Check(funcs))
@@ -908,7 +907,8 @@ local PyObject *mthd_reg_interface(PyObject *self, PyObject *args)
 		return NULL;
 	}
 
-	realint = HashGetOne(pyint_impl_ints, iid);
+	snprintf(pyiid, sizeof(pyiid), "%s%s", PYINTPREFIX, rawiid);
+	realint = HashGetOne(pyint_impl_ints, pyiid);
 	if (!realint)
 	{
 		PyErr_SetString(PyExc_TypeError, "you can't implement that interface in Python");
@@ -919,7 +919,7 @@ local PyObject *mthd_reg_interface(PyObject *self, PyObject *args)
 
 	newint = amalloc(sizeof(*newint));
 	newint->head.magic = MODMAN_MAGIC;
-	newint->head.iid = astrdup(iid);
+	newint->head.iid = astrdup(pyiid);
 	newint->head.name = "__unused__";
 	newint->head.reserved1 = 0;
 	newint->head.refcount = 0;
@@ -1579,7 +1579,7 @@ local void init_asss_module(void)
 	/* handle constants */
 #define STRING(x) PyModule_AddStringConstant(m, #x, x);
 #define PYCALLBACK(x) PyModule_AddStringConstant(m, #x, x);
-#define PYINTERFACE(x) PyModule_AddStringConstant(m, #x, PYINTPREFIX x);
+#define PYINTERFACE(x) PyModule_AddStringConstant(m, #x, x);
 #define INT(x) PyModule_AddIntConstant(m, #x, x);
 #define ONE(x) PyModule_AddIntConstant(m, #x, 1);
 #include "py_constants.inc"
