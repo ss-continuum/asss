@@ -1260,7 +1260,7 @@ void * RecvThread(void *dummy)
 		do {
 			pthread_testcancel();
 			selfds = myfds;
-			tv.tv_sec = 10;
+			tv.tv_sec = 1;
 			tv.tv_usec = 0;
 		} while (select(maxfd+1, &selfds, NULL, NULL, &tv) < 1);
 
