@@ -755,12 +755,12 @@ local void destroy_callback_ticket(void *v)
 
 local PyObject *mthd_reg_callback(PyObject *self, PyObject *args)
 {
-	char *cbid;
+	char *rawcbid, pycbid[128];
 	PyObject *func;
 	Arena *arena = ALLARENAS;
 	struct callback_ticket *tkt;
 
-	if (!PyArg_ParseTuple(args, "sO|O&", &cbid, &func, cvt_p2c_arena, &arena))
+	if (!PyArg_ParseTuple(args, "sO|O&", &rawcbid, &func, cvt_p2c_arena, &arena))
 		return NULL;
 
 	if (!PyCallable_Check(func))
@@ -771,12 +771,13 @@ local PyObject *mthd_reg_callback(PyObject *self, PyObject *args)
 
 	Py_INCREF(func);
 
-	mm->RegCallback(cbid, func, arena);
+	snprintf(pycbid, sizeof(pycbid), "%s%s", PYCBPREFIX, rawcbid);
+	mm->RegCallback(pycbid, func, arena);
 
-	tkt = amalloc(sizeof(*tkt) + strlen(cbid));
+	tkt = amalloc(sizeof(*tkt) + strlen(pycbid));
 	tkt->func = func;
 	tkt->arena = arena;
-	strcpy(tkt->cbid, cbid);
+	strcpy(tkt->cbid, pycbid);
 
 	return PyCObject_FromVoidPtr(tkt, destroy_callback_ticket);
 }
@@ -784,12 +785,12 @@ local PyObject *mthd_reg_callback(PyObject *self, PyObject *args)
 
 local PyObject *mthd_call_callback(PyObject *self, PyObject *args)
 {
-	char *cbid;
+	char *rawcbid, pycbid[128];
 	PyObject *cbargs, *ret = NULL;
 	Arena *arena = ALLARENAS;
 	py_cb_caller func;
 
-	if (!PyArg_ParseTuple(args, "sO|O&", &cbid, &cbargs, cvt_p2c_arena, &arena))
+	if (!PyArg_ParseTuple(args, "sO|O&", &rawcbid, &cbargs, cvt_p2c_arena, &arena))
 		return NULL;
 
 	if (!PyTuple_Check(cbargs))
@@ -798,11 +799,41 @@ local PyObject *mthd_call_callback(PyObject *self, PyObject *args)
 		return NULL;
 	}
 
-	func = HashGetOne(py_cb_callers, cbid);
+	snprintf(pycbid, sizeof(pycbid), "%s%s", PYCBPREFIX, rawcbid);
+	func = HashGetOne(py_cb_callers, pycbid);
 	if (func)
+	{
+		/* this is a callback defined in a C header file, so call the
+		 * generated glue code. this might end up transferring control
+		 * back into python. */
 		ret = func(arena, cbargs);
+	}
 	else
-		PyErr_SetString(PyExc_TypeError, "you can't call that callback from Python");
+	{
+		/* this isn't defined in a C header file, so treat it as a
+		 * python->python only callback, and manually call the
+		 * registered handlers. */
+		LinkedList cbs = LL_INITIALIZER;
+		Link *l;
+		mm->LookupCallback(pycbid, arena, &cbs);
+		for (l = LLGetHead(&cbs); l; l = l->next)
+		{
+			PyObject * out = PyObject_Call(l->data, cbargs, NULL);
+			if (!out)
+				log_py_exception(L_ERROR, "python error calling py->py callback");
+			else
+			{
+				if (out != Py_None)
+					log_py_exception(L_ERROR, "callback CB_TURFVICTORY didn't return None as expected");
+				Py_DECREF(out);
+			}
+		}
+
+		Py_DECREF(args);
+		mm->FreeLookupResult(&cbs);
+
+		ret = Py_BuildValue("");
+	}
 
 	return ret;
 }
@@ -1547,7 +1578,7 @@ local void init_asss_module(void)
 
 	/* handle constants */
 #define STRING(x) PyModule_AddStringConstant(m, #x, x);
-#define PYCALLBACK(x) PyModule_AddStringConstant(m, #x, PYCBPREFIX x);
+#define PYCALLBACK(x) PyModule_AddStringConstant(m, #x, x);
 #define PYINTERFACE(x) PyModule_AddStringConstant(m, #x, PYINTPREFIX x);
 #define INT(x) PyModule_AddIntConstant(m, #x, x);
 #define ONE(x) PyModule_AddIntConstant(m, #x, 1);
