@@ -254,8 +254,10 @@ struct Player
 		/** if the player needs to transition to a leaving arena state
 		 ** while wainting for the database to return */
 		u32 leave_arena_when_done_waiting : 1;
+		/** if the player's obscenity filter is on */
+		u32 obscenity_filter : 1;
 		/** fill this up to 32 bits */
-		u32 padding : 21;
+		u32 padding : 20;
 	} flags;
 	/** space for private data associated with this player */
 	byte playerextradata[0];

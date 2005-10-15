@@ -12,7 +12,7 @@ INTERNAL_MODULES = \
 	directory billing billing_ssc redirect \
 	cfghelp filetrans quickfix \
 	freqowners arenaperm auth_prefix fake chatnet \
-	ap_multipub sendfile auth_ban auth_file \
+	ap_multipub sendfile auth_ban auth_file obscene \
 	deadlock $(unixsignal)
 
 # generated file for mapdata

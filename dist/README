@@ -1,6 +1,7 @@
 
 Hi. This is a development release of asss ("a small subspace server").
 If you have any questions or comments, mail them to grelminar@yahoo.com.
+The official home page of asss is http://sscx.net/asss/.
 The forum at http://forums.minegoboom.com/ (not run by me) is also a
 helpful resource.
 
@@ -29,7 +30,7 @@ module is somewhat better tested than the alternative.
 
 Known bugs:
 
-nothing major as of now.
+See http://sscx.net/asss/bugs/
 
 
 Contributors:
@@ -45,8 +46,9 @@ GiGaKiLLeR <gigamon@hotmail.com> - the turf scoring modules
 Stag Shot <ffl2000vv@yahoo.com> - soccer scoring, game timers
 PriitK <?> - continuum support, ssc biller support
 Catid <?> - many security fixes, mark, file administration, objects
-Smong <?> - misc. documentation and fixes
+Smong <?> - many many bug fixes, misc. documentation
 Snrrrub <snrrrub@yahoo.com> - misc. fixes and other stuff
 Dr Brain <?> - initial ?putmap implementation
 The Junky <the_junky@extreme-games.net> - alias db enhancements
+Niadh - obscene implementation
 

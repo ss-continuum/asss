@@ -10,7 +10,8 @@ struct GoArenaPacket
 {
 	u8 type;
 	u8 shiptype;
-	i16 wavmsg;
+	i8 obscenity_filter;
+	i8 wavmsg;
 	i16 xres;
 	i16 yres;
 	i16 arenatype;

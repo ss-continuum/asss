@@ -504,7 +504,8 @@ local void count_players(Arena *a, int *totalp, int *playingp)
 
 
 local void complete_go(Player *p, const char *reqname, int ship,
-		int xres, int yres, int gfx, int voices, int spawnx, int spawny)
+		int xres, int yres, int gfx, int voices, int obscene,
+		int spawnx, int spawny)
 {
 	char name[16], *t;
 
@@ -573,6 +574,7 @@ local void complete_go(Player *p, const char *reqname, int ship,
 	p->yres = yres;
 	p->flags.want_all_lvz = gfx;
 	p->pkt.acceptaudio = voices;
+	p->flags.obscenity_filter = obscene;
 	sp->x = spawnx;
 	sp->y = spawny;
 
@@ -648,17 +650,24 @@ local void PArena(Player *p, byte *pkt, int len)
 	}
 
 	/* only use extra byte if it's there */
+	/* cfghelp: Chat:ForceFilter, global, boolean, default: 0
+	 * If true, players will always start with the obscenity filter on
+	 * by default. If false, use their preference. */
 	complete_go(p, name, go->shiptype, go->xres, go->yres,
 			(len >= LEN_GOARENAPACKET_CONT) ? go->optionalgraphics : 0,
-			go->wavmsg, spx, spy);
+			go->wavmsg,
+			go->obscenity_filter || cfg->GetInt(GLOBAL, "Chat", "ForceFilter", 0),
+			spx, spy);
 }
 
 
 local void MArena(Player *p, const char *line)
 {
+	int obscenity_filter =
+		p->flags.obscenity_filter || cfg->GetInt(GLOBAL, "Chat", "ForceFilter", 0);
 	if (line[0])
 	{
-		complete_go(p, line, SHIP_SPEC, 0, 0, 0, 0, 0, 0);
+		complete_go(p, line, SHIP_SPEC, 0, 0, 0, 0, obscenity_filter, 0, 0);
 	}
 	else
 	{
@@ -673,7 +682,7 @@ local void MArena(Player *p, const char *line)
 		}
 		else
 			strcpy(name, "0");
-		complete_go(p, name, SHIP_SPEC, 0, 0, 0, 0, 0, 0);
+		complete_go(p, name, SHIP_SPEC, 0, 0, 0, 0, obscenity_filter, 0, 0);
 	}
 }
 
@@ -682,9 +691,12 @@ local void SendToArena(Player *p, const char *aname, int spawnx, int spawny)
 {
 	if (p->type == T_CONT)
 		complete_go(p, aname, p->p_ship, p->xres, p->yres,
-				p->flags.want_all_lvz, p->pkt.acceptaudio, spawnx, spawny);
+				p->flags.want_all_lvz, p->pkt.acceptaudio,
+				p->flags.obscenity_filter, spawnx, spawny);
 	else if (p->type == T_CHAT)
-		complete_go(p, aname, SHIP_SPEC, 0, 0, 0, 0, 0, 0);
+		complete_go(p, aname, SHIP_SPEC, 0, 0,
+				0, 0, p->flags.obscenity_filter,
+				0, 0);
 }
 
 local void PLeaving(Player *p, byte *pkt, int len)

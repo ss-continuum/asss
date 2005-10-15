@@ -9,6 +9,7 @@
 
 #include "asss.h"
 #include "persist.h"
+#include "obscene.h"
 
 #include "packets/chat.h"
 
@@ -31,6 +32,7 @@ local Imodman *mm;
 local Iarenaman *aman;
 local Icapman *capman;
 local Ipersist *persist;
+local Iobscene *obscene;
 
 struct player_mask_t
 {
@@ -186,14 +188,15 @@ local void SendSetSoundMessage(LinkedList *set, char sound, const char *str, ...
 	va_end(args);
 }
 
-local void get_arena_set(LinkedList *set, Arena *arena)
+local void get_arena_set(LinkedList *set, Arena *arena, Player *except)
 {
 	Link *link;
 	Player *p;
 	pd->Lock();
 	FOR_EACH_PLAYER(p)
 		if (p->status == S_PLAYING &&
-		    (arena == ALLARENAS || p->arena == arena))
+		    (arena == ALLARENAS || p->arena == arena) &&
+		    p != except)
 			LLAdd(set, p);
 	pd->Unlock();
 }
@@ -216,7 +219,7 @@ local void SendArenaMessage(Arena *arena, const char *str, ...)
 	LinkedList set = LL_INITIALIZER;
 	va_list args;
 
-	get_arena_set(&set, arena);
+	get_arena_set(&set, arena, NULL);
 
 	va_start(args, str);
 	v_send_msg(&set, MSG_ARENA, 0, NULL, str, args);
@@ -230,7 +233,7 @@ local void SendArenaSoundMessage(Arena *arena, char sound, const char *str, ...)
 	LinkedList set = LL_INITIALIZER;
 	va_list args;
 
-	get_arena_set(&set, arena);
+	get_arena_set(&set, arena, NULL);
 
 	va_start(args, str);
 	v_send_msg(&set, MSG_ARENA, sound, NULL, str, args);
@@ -339,12 +342,76 @@ local void run_commands(const char *text, Player *p, Target *target)
 }
 
 
+local void obscene_filter(LinkedList *unfiltered, LinkedList *filtered)
+{
+	Link *l;
+	for (l = LLGetHead(unfiltered); l; )
+	{
+		Player *p = l->data;
+		l = l->next;
+		if (p->flags.obscenity_filter)
+		{
+			LLRemove(unfiltered, p);
+			LLAdd(filtered, p);
+		}
+	}
+}
+
+local void send_reply(LinkedList *set, char type, char sound,
+		Player *from, int frompid, const char *msg, int chatnetoffset)
+{
+	byte buf[MAXPACKET];
+	struct ChatPacket *to = (struct ChatPacket*)buf;
+	LinkedList filtered = LL_INITIALIZER;
+	const char *ctype = get_chat_type(type);
+	int netflags = (type == MSG_PUBMACRO) ? (cfg_msgrel | NET_PRI_N1) : cfg_msgrel;
+	int n = strlen(msg);
+
+	if (n > (MAXPACKET-10))
+		return;
+
+	if (type == MSG_MODCHAT)
+		type = MSG_SYSOPWARNING;
+
+	to->pktype = S2C_CHAT;
+	to->type = type;
+	to->sound = sound;
+	to->pid = frompid;
+	strcpy(to->text, msg);
+
+	if (obscene)
+		obscene_filter(set, &filtered);
+
+	if (net)
+		net->SendToSet(set, buf, n+6, netflags);
+	if (chatnet)
+		chatnet->SendToSet(set, "MSG:%s:%s:%s",
+				ctype, from->name, to->text + chatnetoffset);
+
+	/* cfghelp: Chat:FilterMode, global, boolean, default: 1
+	 * If true, replace obscene words with garbage characters,
+	 * otherwise suppress whole line. */
+	if (obscene &&
+	    (!obscene->Filter(to->text + chatnetoffset) ||
+	     cfg->GetInt(GLOBAL, "Chat", "FilterMode", 1)))
+	{
+		if (net)
+			net->SendToSet(&filtered, buf, n+6, netflags);
+		if (chatnet)
+			chatnet->SendToSet(&filtered, "MSG:%s:%s:%s",
+					ctype, from->name, to->text + chatnetoffset);
+	}
+
+	LLEmpty(&filtered);
+	LLEmpty(set);
+}
+
+
 local void handle_pub(Player *p, const char *msg, int ismacro, int isallcmd, int sound)
 {
 	Arena *arena = p->arena;
 	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
 	struct player_mask_t *pm = PPDATA(p, pmkey);
-	struct ChatPacket *to = alloca(strlen(msg) + 40);
 
 	if (((msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2) && msg[1] != '\0') ||
 	    isallcmd)
@@ -359,20 +426,11 @@ local void handle_pub(Player *p, const char *msg, int ismacro, int isallcmd, int
 	}
 	else if (OK(ismacro ? MSG_PUBMACRO : MSG_PUB))
 	{
-		to->pktype = S2C_CHAT;
-		to->type = ismacro ? MSG_PUBMACRO : MSG_PUB;
-		to->sound = sound;
-		to->pid = p->pid;
-		strcpy(to->text, msg);
-
-		if (net)
-			net->SendToArena(arena, p, (byte*)to, strlen(msg)+6,
-					ismacro ? cfg_msgrel | NET_PRI_N1 : cfg_msgrel);
-		if (chatnet)
-			chatnet->SendToArena(arena, p, "MSG:PUB:%s:%s", p->name, msg);
-
-		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, to->type, sound, NULL, -1, msg));
-
+		int type = ismacro ? MSG_PUBMACRO : MSG_PUB;
+		LinkedList set = LL_INITIALIZER;
+		get_arena_set(&set, arena, p);
+		send_reply(&set, type, sound, p, p->pid, msg, 0);
+		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, type, sound, NULL, -1, msg));
 		lm->LogP(L_DRIVEL, "chat", p, "pub msg: %s", msg);
 	}
 }
@@ -383,24 +441,18 @@ local void handle_modchat(Player *p, const char *msg, int sound)
 	Arena *arena = p->arena;
 	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
 	struct player_mask_t *pm = PPDATA(p, pmkey);
-	LinkedList set = LL_INITIALIZER;
-	struct ChatPacket *to = alloca(strlen(msg) + 40);
-
-	to->pktype = S2C_CHAT;
-	to->type = MSG_SYSOPWARNING;
-	to->sound = sound;
-	to->pid = p->pid;
-	sprintf(to->text, "%s> %s", p->name, msg);
 
 	if (capman)
 	{
 		if (capman->HasCapability(p, CAP_SENDMODCHAT) && OK(MSG_MODCHAT))
 		{
+			LinkedList set = LL_INITIALIZER;
+			char buf[MAXPACKET];
+
 			get_cap_set(&set, CAP_MODCHAT, p);
-			if (net) net->SendToSet(&set, (byte*)to, strlen(to->text)+6, NET_RELIABLE);
-			if (chatnet) chatnet->SendToSet(&set, "MSG:MOD:%s:%s",
-					p->name, msg);
-			LLEmpty(&set);
+			snprintf(buf, sizeof(buf)-10, "%s> %s", p->name, msg);
+
+			send_reply(&set, MSG_MODCHAT, sound, p, -1, buf, strlen(p->name) + 2);
 			DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_MODCHAT, sound, NULL, -1, msg));
 			lm->LogP(L_DRIVEL, "chat", p, "mod chat: %s", msg);
 		}
@@ -422,7 +474,7 @@ local void handle_freq(Player *p, int freq, const char *msg, int sound)
 	Arena *arena = p->arena;
 	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
 	struct player_mask_t *pm = PPDATA(p, pmkey);
-	struct ChatPacket *to = alloca(strlen(msg) + 40);
+	int type = (p->p_freq == freq) ? MSG_FREQ : MSG_NMEFREQ;
 
 	if ((msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2) && msg[1] != '\0')
 	{
@@ -435,17 +487,11 @@ local void handle_freq(Player *p, int freq, const char *msg, int sound)
 			run_commands(msg, p, &target);
 		}
 	}
-	else if (OK(p->p_freq == freq ? MSG_FREQ : MSG_NMEFREQ))
+	else if (OK(type))
 	{
 		LinkedList set = LL_INITIALIZER;
 		Link *link;
 		Player *i;
-
-		to->pktype = S2C_CHAT;
-		to->type = p->p_freq == freq ? MSG_FREQ : MSG_NMEFREQ;
-		to->sound = sound;
-		to->pid = p->pid;
-		strcpy(to->text, msg);
 
 		pd->Lock();
 		FOR_EACH_PLAYER(i)
@@ -455,10 +501,7 @@ local void handle_freq(Player *p, int freq, const char *msg, int sound)
 				LLAdd(&set, i);
 		pd->Unlock();
 
-		if (net) net->SendToSet(&set, (byte*)to, strlen(to->text)+6, cfg_msgrel);
-		if (chatnet) chatnet->SendToSet(&set, "MSG:FREQ:%s:%s",
-				p->name,
-				msg);
+		send_reply(&set, type, sound, p, p->pid, msg, 0);
 		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_FREQ, sound, NULL, freq, msg));
 		lm->LogP(L_DRIVEL, "chat", p, "freq msg (%d): %s", freq, msg);
 	}
@@ -484,19 +527,9 @@ local void handle_priv(Player *p, Player *dst, const char *msg, int isallcmd, in
 	}
 	else if (OK(MSG_PRIV))
 	{
-		if (IS_STANDARD(dst))
-		{
-			struct ChatPacket *to = alloca(strlen(msg) + 40);
-			to->pktype = S2C_CHAT;
-			to->type = MSG_PRIV;
-			to->sound = sound;
-			to->pid = p->pid;
-			strcpy(to->text, msg);
-			net->SendToOne(dst, (byte*)to, strlen(to->text)+6, NET_RELIABLE);
-		}
-		else if (IS_CHAT(dst))
-			chatnet->SendToOne(dst, "MSG:PRIV:%s:%s",
-					p->name, msg);
+		LinkedList set = LL_INITIALIZER;
+		LLAdd(&set, dst);
+		send_reply(&set, MSG_PRIV, sound, p, p->pid, msg, 0);
 		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_PRIV, sound, dst, -1, msg));
 #ifdef CFG_LOG_PRIVATE
 		lm->LogP(L_DRIVEL, "chat", p, "to [%s] priv msg: %s",
@@ -535,22 +568,17 @@ local void handle_remote_priv(Player *p, const char *msg, int isallcmd, int soun
 	else if (OK(MSG_REMOTEPRIV))
 	{
 		Player *d = pd->FindPlayer(dest);
-		if (d)
+		if (d && d->status != S_PLAYING)
+			return;
+		else if (d)
 		{
-			if (d->status != S_PLAYING)
-				return;
-			if (IS_STANDARD(d))
-			{
-				struct ChatPacket *to = alloca(strlen(msg) + 40);
-				to->pktype = S2C_CHAT;
-				to->type = MSG_REMOTEPRIV;
-				to->sound = sound;
-				to->pid = -1;
-				snprintf(to->text, strlen(msg)+30, "(%s)>%s", p->name, t);
-				net->SendToOne(d, (byte*)to, strlen(to->text)+6, NET_RELIABLE);
-			}
-			else if (IS_CHAT(d))
-				chatnet->SendToOne(d, "MSG:PRIV:%s:%s", p->name, t);
+			LinkedList set = LL_INITIALIZER;
+			char buf[MAXPACKET];
+
+			LLAdd(&set, d);
+			snprintf(buf, sizeof(buf)-10, "(%s)>%s", p->name, t);
+
+			send_reply(&set, MSG_REMOTEPRIV, sound, p, -1, buf, strlen(p->name) + 3);
 		}
 
 		/* the billing module will catch these if dest is null. also: we
@@ -864,6 +892,7 @@ EXPORT int MM_chat(int action, Imodman *mm_, Arena *arena)
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 		persist = mm->GetInterface(I_PERSIST, ALLARENAS);
+		obscene = mm->GetInterface(I_OBSCENE, ALLARENAS);
 		if (!cfg || !aman || !pd || !lm) return MM_FAIL;
 
 		cmkey = aman->AllocateArenaData(sizeof(chat_mask_t));
@@ -923,6 +952,7 @@ EXPORT int MM_chat(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(capman);
 		mm->ReleaseInterface(persist);
+		mm->ReleaseInterface(obscene);
 		return MM_OK;
 	}
 	return MM_FAIL;
