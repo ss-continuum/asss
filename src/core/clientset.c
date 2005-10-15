@@ -114,7 +114,7 @@ local void load_settings(adata *ad, ConfigHandle conf)
 		misc.DisableFastShooting = cfg->GetInt(conf, shipname,
 				"DisableFastShooting", 0);
 		misc.Radius = cfg->GetInt(conf, shipname, "Radius", 0);
-		ss->short_set[10] = *(unsigned short*)&misc;
+		memcpy(&ss->short_set[10], &misc, 2);
 	}
 
 	/* spawn locations */
