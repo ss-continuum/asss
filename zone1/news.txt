@@ -1,26 +1,25 @@
 
-Welcome to asss (a small subspace server) 1.4.0.
+Welcome to asss (a small subspace server) 1.4.1.
 
 asss is a new subspace server, written from scratch. It has lots of cool
 new features and improvements over subgame.
 
 This news.txt will be used for updates about new features and other
-important information. If you have any suggestions of any kind, please
-let me know.
+important information.
 
-This server is connected to the SSC billing server. If you notice any
-problems with inter-zone features (features that involve the billing
-server), please let me know.
+This server is connected to the SSC billing server.
 
+Web: http://sscx.net/asss/
+Email: grelminar@yahoo.com
 
 Recent updates:
-    * build system updates.
+    * redirect feature.
 
-    * new bandwidth management code.
+    * obscene module.
+
+    * various bug fixes.
 
     * more detail at http://sscx.net/asss/changelog.txt
 
-
-Contact: grelminar@yahoo.com
 
  vim: et ff=dos
