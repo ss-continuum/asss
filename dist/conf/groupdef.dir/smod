@@ -40,4 +40,6 @@ cmd_putmap
 cmd_userdbadm
 
 privcmd_send
+cmd_redirect
+privcmd_redirect
 
