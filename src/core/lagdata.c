@@ -6,7 +6,7 @@
 #include "asss.h"
 
 #define MAX_PING 10000
-#define PLOSS_MIN_PACKETS 20
+#define PLOSS_MIN_PACKETS 200
 
 #define USE_BUCKETS
 
@@ -171,10 +171,12 @@ local void QueryCPing(Player *p, struct PingSummary *ping)
 {
 	LagData *ld = PPDATA(p, lagkey);
 	PEDANTIC_LOCK();
-	ping->cur = ld->cping.lastping;
-	ping->avg = ld->cping.averageping;
-	ping->min = ld->cping.lowestping;
-	ping->max = ld->cping.highestping;
+	/* convert units: values in cping are round trip, in ticks.
+	 * we want one-way, in milliseconds. */
+	ping->cur = ld->cping.lastping * 10 / 2;
+	ping->avg = ld->cping.averageping * 10 / 2;
+	ping->min = ld->cping.lowestping * 10 / 2;
+	ping->max = ld->cping.highestping * 10 / 2;
 	/* special stuff for client ping: */
 	ping->s2cslowtotal = ld->cping.s2cslowtotal;
 	ping->s2cfasttotal = ld->cping.s2cfasttotal;

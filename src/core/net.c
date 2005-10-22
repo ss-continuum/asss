@@ -2097,7 +2097,6 @@ void ProcessSyncRequest(Buffer *buf)
 	ts.servertime = current_ticks();
 	/* note: this bypasses bandwidth limits */
 	SendRaw(conn, (byte*)&ts, sizeof(ts));
-	pthread_mutex_unlock(&conn->olmtx);
 
 	/* submit data to lagdata */
 	if (lagc && conn->p)
@@ -2111,6 +2110,8 @@ void ProcessSyncRequest(Buffer *buf)
 		data.c_time = ts.clienttime;
 		lagc->TimeSync(conn->p, &data);
 	}
+
+	pthread_mutex_unlock(&conn->olmtx);
 
 	FreeBuffer(buf);
 }
