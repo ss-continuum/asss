@@ -223,6 +223,11 @@ local int GetRowCount(db_res *res)
 	return mysql_num_rows((MYSQL_RES*)res);
 }
 
+local int GetFieldCount(db_res *res)
+{
+	return mysql_num_fields((MYSQL_RES*)res);
+}
+
 local db_row * GetRow(db_res *res)
 {
 	return (db_row*)mysql_fetch_row((MYSQL_RES*)res);
@@ -233,6 +238,22 @@ local const char * GetField(db_row *row, int fieldnum)
 	return ((MYSQL_ROW)row)[fieldnum];
 }
 
+local int GetLastInsertId(void)
+{
+	return mysql_insert_id(mydb);
+}
+
+local int EscapeString(const char *str, char *buf, int buflen)
+{
+	int n = strlen(str);
+	/* this is the formula for the maximal blowup of the escaped string.
+	 * if the buffer doesn't have enough room, fail. */
+	if (n * 2 + 1 > buflen)
+		return FALSE;
+	mysql_escape_string(buf, str, n);
+	return TRUE;
+}
+
 
 
 local Ireldb my_int =
@@ -240,7 +261,10 @@ local Ireldb my_int =
 	INTERFACE_HEAD_INIT(I_RELDB, "mysql-db")
 	GetStatus,
 	Query,
-	GetRowCount, GetRow, GetField
+	GetRowCount, GetFieldCount,
+	GetRow, GetField,
+	GetLastInsertId,
+	EscapeString
 };
 
 
