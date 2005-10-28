@@ -79,7 +79,11 @@ local void uploaded(const char *path, void *clos)
 	const char *t1, *t2;
 
 	LOCK();
-	if (td->to->status != S_PLAYING || !IS_STANDARD(td->to))
+	if (path == NULL)
+	{
+		lm->Log(L_WARN, "<sendfile> upload failed");
+	}
+	else if (td->to->status != S_PLAYING || !IS_STANDARD(td->to))
 	{
 		lm->Log(L_WARN,
 				"<sendfile> bad state or client type for recipient of received file");

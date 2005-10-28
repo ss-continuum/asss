@@ -52,33 +52,6 @@ local pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 #define UNLOCK() pthread_mutex_unlock(&mtx)
 
 
-local void p_inc_file(Player *p, byte *data, int len)
-{
-	struct upload_data *ud = PPDATA(p, udkey);
-	char fname[] = "tmp/uploaded-XXXXXX";
-	int fd;
-	FILE *fp;
-
-	if (capman && !capman->HasCapability(p, CAP_UPLOADFILE))
-		return;
-
-	fd = mkstemp(fname);
-	if (fd < 0)
-	{
-		lm->LogP(L_WARN, "filetrans", p, "can't create temp file for upload");
-		return;
-	}
-
-	fp = fdopen(fd, "wb");
-	if (!fp) return;
-	fwrite(data+17, len-17, 1, fp);
-	fclose(fp);
-
-	if (ud->uploaded)
-		ud->uploaded(fname, ud->clos);
-}
-
-
 local void cleanup_ud(Player *p, int success)
 {
 	struct upload_data *ud = PPDATA(p, udkey);
@@ -112,6 +85,32 @@ local void cleanup_ud(Player *p, int success)
 }
 
 
+local void p_inc_file(Player *p, byte *data, int len)
+{
+	struct upload_data *ud = PPDATA(p, udkey);
+	char fname[] = "tmp/uploaded-XXXXXX";
+	int fd;
+	int ok = FALSE;
+
+	if (capman && !capman->HasCapability(p, CAP_UPLOADFILE))
+		return;
+
+	fd = mkstemp(fname);
+	if (fd >= 0)
+	{
+		ud->fname = astrdup(fname);
+		ud->fp = fdopen(fd, "wb");
+		if (ud->fp &&
+		    fwrite(data+17, len-17, 1, ud->fp) == 1)
+			ok = TRUE;
+	}
+	else
+		lm->LogP(L_WARN, "filetrans", p, "can't create temp file for upload");
+
+	cleanup_ud(p, ok);
+}
+
+
 local void sized_p_inc_file(Player *p, byte *data, int len, int offset, int totallen)
 {
 	struct upload_data *ud = PPDATA(p, udkey);
@@ -119,7 +118,7 @@ local void sized_p_inc_file(Player *p, byte *data, int len, int offset, int tota
 	if (offset == -1)
 	{
 		/* canceled */
-		cleanup_ud(p, 0);
+		cleanup_ud(p, FALSE);
 	}
 	else if (offset == 0 && ud->fp == NULL && len > 17)
 	{
@@ -152,7 +151,7 @@ local void sized_p_inc_file(Player *p, byte *data, int len, int offset, int tota
 		else
 		{
 			lm->LogP(L_INFO, "filetrans", p, "completed upload");
-			cleanup_ud(p, 1);
+			cleanup_ud(p, TRUE);
 		}
 	}
 }
@@ -291,15 +290,17 @@ local void SetWorkingDirectory(Player *p, const char *path)
 local void paction(Player *p, int action)
 {
 	struct upload_data *ud = PPDATA(p, udkey);
+	LOCK();
 	if (action == PA_CONNECT)
 	{
 		ud->work_dir = astrdup(".");
 	}
 	else if (action == PA_DISCONNECT)
 	{
-		cleanup_ud(p, 0);
+		cleanup_ud(p, FALSE);
 		afree(ud->work_dir);
 	}
+	UNLOCK();
 }
 
 
