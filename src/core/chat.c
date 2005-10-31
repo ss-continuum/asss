@@ -74,11 +74,11 @@ local void expire_mask(Player *p)
 	pm->lastcheck = now;
 }
 
-/* call with player lock */
 local void check_flood(Player *p)
 {
 	struct player_mask_t *pm = PPDATA(p, pmkey);
 
+	LOCK();
 	pm->msgs++;
 
 	if (pm->msgs >= cfg_floodlimit &&
@@ -86,6 +86,12 @@ local void check_flood(Player *p)
 	    !capman->HasCapability(p, CAP_CANSPAM))
 	{
 		pm->msgs >>= 1;
+		if (pm->expires)
+			/* already has a mask, add time */
+			pm->expires += cfg_floodshutup;
+		else if (pm->mask == 0)
+			/* only set expiry time if this is a new shutup */
+			pm->expires = time(NULL) + cfg_floodshutup;
 		pm->mask |=
 			1 << MSG_PUBMACRO |
 			1 << MSG_PUB |
@@ -96,14 +102,24 @@ local void check_flood(Player *p)
 			1 << MSG_CHAT |
 			1 << MSG_MODCHAT |
 			1 << MSG_BCOMMAND;
-		if (pm->expires)
-			/* already has a mask, add time */
-			pm->expires += cfg_floodshutup;
-		else
-			pm->expires = time(NULL) + cfg_floodshutup;
 		SendMessage_(p, "You have been shut up for %d seconds for flooding.", cfg_floodshutup);
 		lm->LogP(L_INFO, "chat", p, "flooded chat, shut up for %d seconds", cfg_floodshutup);
 	}
+	UNLOCK();
+}
+
+local int ok(Player *p, int type)
+{
+	struct player_mask_t *pm = PPDATA(p, pmkey);
+	chat_mask_t *am = p->arena ? P_ARENA_DATA(p->arena, cmkey) : NULL;
+	chat_mask_t mask;
+
+	LOCK();
+	expire_mask(p);
+	mask = pm->mask | (am ? *am : 0);
+	UNLOCK();
+
+	return IS_ALLOWED(mask, type);
 }
 
 
@@ -308,9 +324,6 @@ local void SendWrappedText(Player *p, const char *text)
 #define CMD_MULTI_CHAR '|'
 #define MOD_CHAT_CHAR '\\'
 
-#define OK(type) IS_ALLOWED(pm->mask | *am, type)
-
-
 local void run_commands(const char *text, Player *p, Target *target)
 {
 	char buf[512], *b;
@@ -410,21 +423,19 @@ local void send_reply(LinkedList *set, char type, char sound,
 local void handle_pub(Player *p, const char *msg, int ismacro, int isallcmd, int sound)
 {
 	Arena *arena = p->arena;
-	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
-	struct player_mask_t *pm = PPDATA(p, pmkey);
 
 	if (((msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2) && msg[1] != '\0') ||
 	    isallcmd)
 	{
-		if (OK(MSG_COMMAND))
+		if (ok(p, MSG_COMMAND))
 		{
 			Target target;
 			target.type = T_ARENA;
-			target.u.arena = p->arena;
+			target.u.arena = arena;
 			run_commands(msg, p, &target);
 		}
 	}
-	else if (OK(ismacro ? MSG_PUBMACRO : MSG_PUB))
+	else if (ok(p, ismacro ? MSG_PUBMACRO : MSG_PUB))
 	{
 		int type = ismacro ? MSG_PUBMACRO : MSG_PUB;
 		LinkedList set = LL_INITIALIZER;
@@ -438,13 +449,9 @@ local void handle_pub(Player *p, const char *msg, int ismacro, int isallcmd, int
 
 local void handle_modchat(Player *p, const char *msg, int sound)
 {
-	Arena *arena = p->arena;
-	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
-	struct player_mask_t *pm = PPDATA(p, pmkey);
-
 	if (capman)
 	{
-		if (capman->HasCapability(p, CAP_SENDMODCHAT) && OK(MSG_MODCHAT))
+		if (capman->HasCapability(p, CAP_SENDMODCHAT) && ok(p, MSG_MODCHAT))
 		{
 			LinkedList set = LL_INITIALIZER;
 			char buf[MAXPACKET];
@@ -453,7 +460,7 @@ local void handle_modchat(Player *p, const char *msg, int sound)
 			snprintf(buf, sizeof(buf)-10, "%s> %s", p->name, msg);
 
 			send_reply(&set, MSG_MODCHAT, sound, p, -1, buf, strlen(p->name) + 2);
-			DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_MODCHAT, sound, NULL, -1, msg));
+			DO_CBS(CB_CHATMSG, ALLARENAS, ChatMsgFunc, (p, MSG_MODCHAT, sound, NULL, -1, msg));
 			lm->LogP(L_DRIVEL, "chat", p, "mod chat: %s", msg);
 		}
 		else
@@ -472,22 +479,20 @@ local void handle_modchat(Player *p, const char *msg, int sound)
 local void handle_freq(Player *p, int freq, const char *msg, int sound)
 {
 	Arena *arena = p->arena;
-	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
-	struct player_mask_t *pm = PPDATA(p, pmkey);
 	int type = (p->p_freq == freq) ? MSG_FREQ : MSG_NMEFREQ;
 
 	if ((msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2) && msg[1] != '\0')
 	{
-		if (OK(MSG_COMMAND))
+		if (ok(p, MSG_COMMAND))
 		{
 			Target target;
 			target.type = T_FREQ;
-			target.u.freq.arena = p->arena;
+			target.u.freq.arena = arena;
 			target.u.freq.freq = freq;
 			run_commands(msg, p, &target);
 		}
 	}
-	else if (OK(type))
+	else if (ok(p, type))
 	{
 		LinkedList set = LL_INITIALIZER;
 		Link *link;
@@ -511,13 +516,11 @@ local void handle_freq(Player *p, int freq, const char *msg, int sound)
 local void handle_priv(Player *p, Player *dst, const char *msg, int isallcmd, int sound)
 {
 	Arena *arena = p->arena;
-	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
-	struct player_mask_t *pm = PPDATA(p, pmkey);
 
 	if (((msg[0] == CMD_CHAR_1 || msg[0] == CMD_CHAR_2) && msg[1] != '\0') ||
 	    isallcmd)
 	{
-		if (OK(MSG_COMMAND))
+		if (ok(p, MSG_COMMAND))
 		{
 			Target target;
 			target.type = T_PLAYER;
@@ -525,7 +528,7 @@ local void handle_priv(Player *p, Player *dst, const char *msg, int isallcmd, in
 			run_commands(msg, p, &target);
 		}
 	}
-	else if (OK(MSG_PRIV))
+	else if (ok(p, MSG_PRIV))
 	{
 		LinkedList set = LL_INITIALIZER;
 		LLAdd(&set, dst);
@@ -541,9 +544,6 @@ local void handle_priv(Player *p, Player *dst, const char *msg, int isallcmd, in
 
 local void handle_remote_priv(Player *p, const char *msg, int isallcmd, int sound)
 {
-	Arena *arena = p->arena;
-	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
-	struct player_mask_t *pm = PPDATA(p, pmkey);
 	const char *t;
 	char dest[24];
 
@@ -553,7 +553,7 @@ local void handle_remote_priv(Player *p, const char *msg, int isallcmd, int soun
 	else if (((t[0] == CMD_CHAR_1 || t[0] == CMD_CHAR_2) && t[1] != '\0') ||
 	         isallcmd)
 	{
-		if (OK(MSG_COMMAND))
+		if (ok(p, MSG_COMMAND))
 		{
 			Player *d = pd->FindPlayer(dest);
 			if (d && d->status == S_PLAYING)
@@ -565,7 +565,7 @@ local void handle_remote_priv(Player *p, const char *msg, int isallcmd, int soun
 			}
 		}
 	}
-	else if (OK(MSG_REMOTEPRIV))
+	else if (ok(p, MSG_REMOTEPRIV))
 	{
 		Player *d = pd->FindPlayer(dest);
 		if (d && d->status != S_PLAYING)
@@ -585,7 +585,7 @@ local void handle_remote_priv(Player *p, const char *msg, int isallcmd, int soun
 		 * overload the meaning of the text field: if dest is non-null,
 		 * text is the text of the message. if it is null, text is
 		 * ":target:msg". */
-		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_REMOTEPRIV, sound, d, -1, d ? t : msg));
+		DO_CBS(CB_CHATMSG, ALLARENAS, ChatMsgFunc, (p, MSG_REMOTEPRIV, sound, d, -1, d ? t : msg));
 
 #ifdef CFG_LOG_PRIVATE
 		lm->LogP(L_DRIVEL, "chat", p, "to [%s] remote priv: %s", dest, t);
@@ -596,9 +596,7 @@ local void handle_remote_priv(Player *p, const char *msg, int isallcmd, int soun
 
 local void handle_chat(Player *p, const char *msg, int sound)
 {
-	struct player_mask_t *pm = PPDATA(p, pmkey);
-
-	if (IS_ALLOWED(pm->mask, MSG_CHAT))
+	if (ok(p, MSG_CHAT))
 	{
 		/* msg should look like "text" or "#;text" */
 		DO_CBS(CB_CHATMSG, ALLARENAS, ChatMsgFunc, (p, MSG_CHAT, sound, NULL, -1, msg));
@@ -628,8 +626,6 @@ local void PChat(Player *p, byte *pkt, int len)
 	pkt[len-1] = 0;
 
 	if (!arena || p->status != S_PLAYING) return;
-
-	expire_mask(p);
 
 	/* remove control characters from the chat message */
 	for (t = from->text; *t; t++)
@@ -707,8 +703,6 @@ local void MChat(Player *p, const char *line)
 
 	if (!p->arena || p->status != S_PLAYING || strlen(line) > 500) return;
 
-	expire_mask(p);
-
 	t = delimcpy(subtype, line, sizeof(subtype), ':');
 	if (!t) return;
 
@@ -752,27 +746,32 @@ local void MChat(Player *p, const char *line)
 }
 
 
-
-
 /* chat mask stuff */
 
 local chat_mask_t GetArenaChatMask(Arena *arena)
 {
-	chat_mask_t *cmp = P_ARENA_DATA(arena, cmkey);
-	return arena ? *cmp : 0;
+	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
+	chat_mask_t ret = 0;
+	LOCK();
+	if (arena)
+		ret = *am;
+	UNLOCK();
+	return ret;
 }
 
 local void SetArenaChatMask(Arena *arena, chat_mask_t mask)
 {
-	chat_mask_t *cmp = P_ARENA_DATA(arena, cmkey);
-	if (arena) *cmp = mask;
+	chat_mask_t *am = P_ARENA_DATA(arena, cmkey);
+	LOCK();
+	if (arena)
+		*am = mask;
+	UNLOCK();
 }
 
 local chat_mask_t GetPlayerChatMask(Player *p)
 {
 	struct player_mask_t *pm = PPDATA(p, pmkey);
 	chat_mask_t ret = 0;
-
 	if (p)
 	{
 		LOCK();
@@ -780,7 +779,6 @@ local chat_mask_t GetPlayerChatMask(Player *p)
 		ret = pm->mask;
 		UNLOCK();
 	}
-
 	return ret;
 }
 
@@ -857,8 +855,10 @@ local void paction(Player *p, int action, Arena *arena)
 	struct player_mask_t *pm = PPDATA(p, pmkey);
 	if (action == PA_PREENTERARENA)
 	{
+		LOCK();
 		pm->mask = pm->expires = pm->msgs = 0;
 		pm->lastcheck = current_ticks();
+		UNLOCK();
 	}
 }
 
