@@ -16,8 +16,13 @@ typedef struct ModuleData
 	mod_args_t args;
 	ModuleLoaderFunc loader;
 	char loadername[16];
-	LinkedList attached; /* this holds arena pointers */
 } ModuleData;
+
+typedef struct AttachData
+{
+	ModuleData *mod;
+	Arena *arena;
+} AttachData;
 
 
 local int LoadModule_(const char *);
@@ -51,6 +56,7 @@ local HashTable *arenacallbacks, *globalcallbacks;
 local HashTable *arenaints, *globalints, *intsbyname;
 local HashTable *loaders;
 local LinkedList mods;
+local LinkedList attachments;
 local int nomoremods;
 
 local pthread_mutex_t modmtx;
@@ -87,6 +93,7 @@ Imodman * InitModuleManager(void)
 	pthread_mutexattr_destroy(&attr);
 
 	LLInit(&mods);
+	LLInit(&attachments);
 	arenacallbacks = HashAlloc();
 	globalcallbacks = HashAlloc();
 	arenaints = HashAlloc();
@@ -187,7 +194,6 @@ local int LoadModule_(const char *spec)
 		{
 			astrncpy(mod->loadername, loadername, sizeof(mod->loadername));
 			mod->loader = loader;
-			LLInit(&mod->attached);
 			LLAdd(&mods, mod);
 		}
 		else
@@ -206,13 +212,24 @@ local int LoadModule_(const char *spec)
 /* call with modmtx held */
 local int unload_by_ptr(ModuleData *mod)
 {
-	Link *l;
+	Link *l, *next;
 	int ret;
 
-	/* detach this module from all arenas it's attached to */
-	for (l = LLGetHead(&mod->attached); l; l = l->next)
-		mod->loader(MM_DETACH, &mod->args, NULL, (Arena*)(l->data));
-	LLEmpty(&mod->attached);
+	/* detach this module from all arenas it's attached to.
+	 * TODO: this is inefficient.
+	 * TODO: if a module unload fails, it will be detached from all
+	 * arenas, but still loaded. */
+	for (l = LLGetHead(&attachments); l; l = next)
+	{
+		AttachData *ad = l->data;
+		next = l->next;
+		if (ad->mod == mod)
+		{
+			mod->loader(MM_DETACH, &mod->args, NULL, ad->arena);
+			LLRemove(&attachments, ad);
+			afree(ad);
+		}
+	}
 
 	ret = mod->loader(MM_UNLOAD, &mod->args, NULL, NULL);
 	if (ret == MM_OK)
@@ -246,10 +263,11 @@ local void recursive_unload(Link *l)
 {
 	if (l)
 	{
+		ModuleData *mod = l->data;
 		recursive_unload(l->next);
-		if (unload_by_ptr((ModuleData*)(l->data)) == MM_FAIL)
+		if (unload_by_ptr(mod) == MM_FAIL)
 			fprintf(stderr, "E <module> error unloading module %s\n",
-					((ModuleData*)(l->data))->args.name);
+					mod->args.name);
 	}
 }
 
@@ -287,15 +305,43 @@ void EnumModules(void (*func)(const char *, const char *, void *),
 {
 	Link *l;
 	pthread_mutex_lock(&modmtx);
-	for (l = LLGetHead(&mods); l; l = l->next)
-	{
-		ModuleData *mod = l->data;
-		if (filter == NULL || LLMember(&mod->attached, filter))
+	/* TODO: this returns modules in load order for no filter, and
+	 * reverse-attach order for a filter. possibly change to use load
+	 * order for both cases. */
+	if (filter == NULL)
+		for (l = LLGetHead(&mods); l; l = l->next)
+		{
+			ModuleData *mod = l->data;
 			func(mod->args.name, mod->args.info, clos);
-	}
+		}
+	else
+		for (l = LLGetHead(&attachments); l; l = l->next)
+		{
+			AttachData *ad = l->data;
+			if (ad->arena == filter)
+				func(ad->mod->args.name, ad->mod->args.info, clos);
+		}
 	pthread_mutex_unlock(&modmtx);
 }
 
+local int is_attached(ModuleData *mod, Arena *arena, int remove)
+{
+	Link *l;
+	for (l = LLGetHead(&attachments); l; l = l->next)
+	{
+		AttachData *ad = l->data;
+		if (ad->mod == mod && ad->arena == arena)
+		{
+			if (remove)
+			{
+				LLRemove(&attachments, ad);
+				afree(ad);
+			}
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
 
 int AttachModule(const char *name, Arena *arena)
 {
@@ -304,10 +350,15 @@ int AttachModule(const char *name, Arena *arena)
 	pthread_mutex_lock(&modmtx);
 	mod = get_module_by_name(name);
 	if (mod &&
-	    !LLMember(&mod->attached, arena) &&
+	    !is_attached(mod, arena, FALSE) &&
 	    mod->loader(MM_ATTACH, &mod->args, NULL, arena) == MM_OK)
 	{
-		LLAdd(&mod->attached, arena);
+		AttachData *ad = amalloc(sizeof(*ad));
+		ad->mod = mod;
+		ad->arena = arena;
+		/* use LLAddFront so that detaching things happens in the
+		 * reverse order of attaching. */
+		LLAddFirst(&attachments, ad);
 		ret = MM_OK;
 	}
 	pthread_mutex_unlock(&modmtx);
@@ -321,7 +372,7 @@ int DetachModule(const char *name, Arena *arena)
 	pthread_mutex_lock(&modmtx);
 	mod = get_module_by_name(name);
 	if (mod &&
-	    LLRemove(&mod->attached, arena))
+	    is_attached(mod, arena, TRUE))
 	{
 		mod->loader(MM_DETACH, &mod->args, NULL, arena);
 		ret = MM_OK;
@@ -332,13 +383,19 @@ int DetachModule(const char *name, Arena *arena)
 
 void DetachAllFromArena(Arena *arena)
 {
-	Link *l;
+	Link *l, *next;
 	pthread_mutex_lock(&modmtx);
-	for (l = LLGetHead(&mods); l; l = l->next)
+	/* TODO: this is inefficient */
+	for (l = LLGetHead(&attachments); l; l = next)
 	{
-		ModuleData *mod = l->data;
-		if (LLRemove(&mod->attached, arena))
-			mod->loader(MM_DETACH, &mod->args, NULL, arena);
+		AttachData *ad = l->data;
+		next = l->next;
+		if (ad->arena == arena)
+		{
+			ad->mod->loader(MM_DETACH, &ad->mod->args, NULL, arena);
+			LLRemove(&attachments, ad);
+			afree(ad);
+		}
 	}
 	pthread_mutex_unlock(&modmtx);
 }
