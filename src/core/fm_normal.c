@@ -15,10 +15,6 @@
  * Whether to include spectators when enforcing maximum freq sizes. */
 #define INCLSPEC(ch) cfg->GetInt(ch, "Team", "IncludeSpectators", 0)
 
-/* cfghelp: Team:MaxPerTeam, arena, int, def: 0
- * The maximum number of players on a public freq. Zero means no limit. */
-#define MAXTEAM(ch) cfg->GetInt(ch, "Team", "MaxPerTeam", 0)
-
 /* cfghelp: General:MaxPlaying, arena, int, def: 100
  * This is the most players that will be allowed to play in the arena at
  * once. Zero means no limit. */
@@ -72,6 +68,22 @@ local int count_freq(Arena *arena, int freq, Player *excl, int inclspec)
 	return t;
 }
 
+local int get_max_for_freq(ConfigHandle ch, int f)
+{
+	/* cfghelp: Team:PrivFreqStart, arena, int, range: 0-9999, def: 100
+	 * Freqs above this value are considered private freqs. */
+	if (f > 0 && f >= cfg->GetInt(ch, "Team", "PrivFreqStart", 100))
+		/* cfghelp: Team:MaxPerPrivateTeam, arena, int, def: 0
+		 * The maximum number of players on a private freq. Zero means
+		 * no limit. */
+		return cfg->GetInt(ch, "Team", "MaxPerPrivateTeam", 0);
+	else
+		/* cfghelp: Team:MaxPerTeam, arena, int, def: 0
+		 * The maximum number of players on a public freq. Zero means no
+		 * limit. */
+		return cfg->GetInt(ch, "Team", "MaxPerTeam", 0);
+}
+
 
 local int FindLegalShip(Arena *arena, int freq, int ship)
 {
@@ -101,13 +113,13 @@ local int BalanceFreqs(Arena *arena, Player *excl, int inclspec)
 {
 	Player *i;
 	Link *link;
-	int counts[CFG_MAX_DESIRED] = { 0 }, desired, min = INT_MAX, best = -1, max, j;
+	int counts[CFG_MAX_DESIRED] = { 0 }, min = INT_MAX, best = -1, j;
 
-	max = MAXTEAM(arena->cfg);
+	int max = get_max_for_freq(arena->cfg, 0);
 	/* cfghelp: Team:DesiredTeams, arena, int, def: 2
 	 * The number of teams that the freq balancer will form as players
 	 * enter. */
-	desired = cfg->GetInt(arena->cfg,
+	int desired = cfg->GetInt(arena->cfg,
 			"Team", "DesiredTeams", 2);
 
 	if (desired < 1) desired = 1;
@@ -237,20 +249,33 @@ local void Ship(Player *p, int *ship, int *freq)
 	/* ok, allowed change */
 	else
 	{
-		/* check if he's changing from spec */
-		if (p->p_ship == SHIP_SPEC && p->p_freq == arena->specfreq)
+		/* check if he's changing from speccing on the spec freq, or on a
+		 * regular freq that's full */
+		if (p->p_ship == SHIP_SPEC)
 		{
-			/* leaving spec, we have to assign him to a freq */
-			int inclspec = INCLSPEC(ch);
-			f = BalanceFreqs(arena, p, inclspec);
-			/* and make sure the ship is still legal */
-			s = FindLegalShip(arena, f, s);
+			int need_balance = FALSE;
+			if (f == arena->specfreq)
+				/* leaving spec mode on spec freq, always reassign */
+				need_balance = TRUE;
+			else
+			{
+				/* unspeccing from a non-spec freq. only reassign if full.
+				 * note: we can always do this count assuming IncludeSpectators
+				 * is false. the reasoning is: we know that p is currently on f.
+				 * if IncludeSpectators is true, then there are <= max people on
+				 * f in total, so count_freq(a, f, p, TRUE) must be < max, so
+				 * the condition will never be true. only if IncludeSpectators
+				 * is false does count >= max have a chance of being true. */
+				int max = get_max_for_freq(ch, f);
+				if (max > 0 && count_freq(arena, f, p, FALSE) >= max)
+					need_balance = TRUE;
+			}
+
+			if (need_balance)
+				f = BalanceFreqs(arena, p, INCLSPEC(ch));
 		}
-		else
-		{
-			/* don't touch freq, but make sure ship is ok */
-			s = FindLegalShip(arena, f, s);
-		}
+		/* and make sure the ship is still legal */
+		s = FindLegalShip(arena, f, s);
 	}
 
 	*ship = s; *freq = f;
@@ -266,7 +291,7 @@ local void Freq(Player *p, int *ship, int *freq)
 {
 	Arena *arena = p->arena;
 	int f = *freq, s = *ship;
-	int count, max, inclspec, maxfreq, privlimit, maxplaying;
+	int inclspec, maxfreq, maxplaying;
 	ConfigHandle ch;
 
 	if (!arena) return;
@@ -277,17 +302,6 @@ local void Freq(Player *p, int *ship, int *freq)
 	 * The highest frequency allowed. Set this below PrivFreqStart to
 	 * disallow private freqs. */
 	maxfreq = cfg->GetInt(ch, "Team", "MaxFrequency", 9999);
-	/* cfghelp: Team:PrivFreqStart, arena, int, range: 0-9999, def: 100
-	 * Freqs above this value are considered private freqs. */
-	privlimit = cfg->GetInt(ch, "Team", "PrivFreqStart", 100);
-
-	if (f >= privlimit)
-		/* cfghelp: Team:MaxPerPrivateTeam, arena, int, def: 0
-		 * The maximum number of players on a private freq. Zero means
-		 * no limit. */
-		max = cfg->GetInt(ch, "Team", "MaxPerPrivateTeam", 0);
-	else
-		max = MAXTEAM(ch);
 
 	/* special case: speccer re-entering spec freq */
 	if (s == SHIP_SPEC && f == arena->specfreq)
@@ -299,7 +313,8 @@ local void Freq(Player *p, int *ship, int *freq)
 	else
 	{
 		/* check to make sure the new freq is ok */
-		count = count_freq(arena, f, p, inclspec);
+		int count = count_freq(arena, f, p, inclspec);
+		int max = get_max_for_freq(ch, f);
 		if (max > 0 && count >= max)
 			/* the freq has too many people, assign him to another */
 			f = BalanceFreqs(arena, p, inclspec);
