@@ -29,6 +29,7 @@
 #include "fg_turf.h"
 #include "idle.h"
 #include "redirect.h"
+#include "brickwriter.h"
 
 #include "turf/turf_reward.h"
 
