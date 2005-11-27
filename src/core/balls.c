@@ -30,7 +30,7 @@ typedef struct MyBallData
 	 * going to get. */
 	int sendtime;
 	ticks_t lastsent;
-	int spawnx, spawny, spawnr;
+	int spawnx[4], spawny[4], spawnr[4];
 	/* this is the delay between a goal and the ball respawning. */
 	int goaldelay;
 	/* this controls whether a death on a goal tile scores or not */
@@ -203,7 +203,7 @@ void SpawnBall(Arena *arena, int bid)
 {
 	MyBallData *pbd = P_ARENA_DATA(arena, pbdkey);
 
-	int cx, cy, rad, x, y;
+	int cx, cy, rad, x, y, idx;
 	struct BallData d;
 
 	d.state = BALL_ONMAP;
@@ -211,9 +211,16 @@ void SpawnBall(Arena *arena, int bid)
 	d.carrier = NULL;
 	d.time = current_ticks();
 
-	cx = pbd->spawnx;
-	cy = pbd->spawny;
-	rad = pbd->spawnr;
+	if (pbd->spawnx[3] && pbd->spawny[3])
+		idx = bid % 4;  /* we have four settings, do mod 4 */
+	else if (pbd->spawnx[1] && pbd->spawny[1])
+		idx = bid % 2;  /* we have two settings, do mod 2 */
+	else
+		idx = 0;        /* just one setting, use it */
+
+	cx = pbd->spawnx[idx];
+	cy = pbd->spawny[idx];
+	rad = pbd->spawnr[idx];
 
 	/* pick random tile */
 	{
@@ -388,13 +395,30 @@ local void load_ball_settings(Arena *arena, int spawnballs)
 		LOCK_STATUS(arena);
 		/* cfghelp: Soccer:SpawnX, arena, int, range: 0-1023, def: 512
 		 * The X coordinate that the ball spawns at (in tiles). */
-		pbd->spawnx = cfg->GetInt(c, "Soccer", "SpawnX", 512);
+		pbd->spawnx[0] = cfg->GetInt(c, "Soccer", "SpawnX", 512);
 		/* cfghelp: Soccer:SpawnY, arena, int, range: 0-1023, def: 512
 		 * The Y coordinate that the ball spawns at (in tiles). */
-		pbd->spawny = cfg->GetInt(c, "Soccer", "SpawnY", 512);
+		pbd->spawny[0] = cfg->GetInt(c, "Soccer", "SpawnY", 512);
 		/* cfghelp: Soccer:SpawnRadius, arena, int, def: 20
 		 * How far from the spawn center the ball can spawn (in tiles). */
-		pbd->spawnr = cfg->GetInt(c, "Soccer", "SpawnRadius", 20);
+		pbd->spawnr[0] = cfg->GetInt(c, "Soccer", "SpawnRadius", 20);
+		for (i = 1; i < 4; i++)
+		{
+			/* cfghelp: Soccer:SpawnX/Y/RadiusN, arena, int, def: 0
+			 * The spawn coordinates and radius for balls other than the
+			 * first one. N goes from 1 to 3 (0 is take care of by the
+			 * settings without a number). If only Spawn... is set, all
+			 * balls use it. If Spawn... and Spawn...1 are set, even
+			 * balls use Spawn... and odd use Spawn...1. If all four are
+			 * set, use mod 4. */
+			char xname[] = "SpawnX#";
+			char yname[] = "SpawnY#";
+			char rname[] = "SpawnRadius#";
+			xname[6] = yname[6] = rname[11] = '0' + i;
+			pbd->spawnx[i] = cfg->GetInt(c, "Soccer", xname, 0);
+			pbd->spawny[i] = cfg->GetInt(c, "Soccer", yname, 0);
+			pbd->spawnr[i] = cfg->GetInt(c, "Soccer", rname, 0);
+		}
 		/* cfghelp: Soccer:SendTime, arena, int, range: 100-3000, def: 1000
 		 * How often the server sends ball positions (in ticks). */
 		pbd->sendtime = cfg->GetInt(c, "Soccer", "SendTime", 1000);
