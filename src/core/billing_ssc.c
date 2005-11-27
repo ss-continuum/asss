@@ -930,7 +930,9 @@ local void got_connection(void)
 	/* cfghelp: Billing:ServerID, global, int, def: 0
 	 * ServerID identifying zone to user database server. */
 	pkt.ServerID = cfg->GetInt(GLOBAL, "Billing", "ServerID", 0);
-	pkt.GroupID = 1;
+	/* cfghelp: Billing:GroupID, global, int, def: 1
+	 * GroupID identifying zone to user database server. */
+	pkt.GroupID = cfg->GetInt(GLOBAL, "Billing", "GroupID", 1);
 	/* cfghelp: Billing:ScoreID, global, int, def: 0
 	 * Score realm. */
 	pkt.ScoreID = cfg->GetInt(GLOBAL, "Billing", "ScoreID", 0);
