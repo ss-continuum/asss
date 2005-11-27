@@ -2,7 +2,7 @@
 # ccc - a console chat client for asss <grelminar@yahoo.com>
 # dist: public
 
-ccc_version = '2.4.2'
+ccc_version = '2.4.3'
 
 import sys, time, curses, socket, select, os
 
@@ -1029,10 +1029,10 @@ def process_loginbad(line):
 
 
 def process_inarena(line):
-	global myname, myfreq
+	global myname
 
 	arena, freq = line.split(':')
-	myfreq = int(freq)
+	freq = int(freq)
 	txt = "Entered arena: %s" % arena
 	add_line(txt)
 	log(L_INFO, txt)
@@ -1040,7 +1040,7 @@ def process_inarena(line):
 	view = find_arena_view()
 	if view:
 		view.players.clear()
-		view.players.add(Player(myname, myfreq))
+		view.players.add(Player(myname, freq))
 
 	for l in deferred_typed_lines:
 		process_typed('', l)
@@ -1495,7 +1495,6 @@ def main():
 
 	colors = None
 	myname = '(not connected)'
-	myfreq = 0
 	deferred_typed_lines = []
 	last_login_try = 0
 
