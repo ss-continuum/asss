@@ -66,6 +66,7 @@ local void do_quickfix(Player *p, const char *limit)
 	const struct section_help *sh;
 	char name[] = "tmp/quickfix-XXXXXX";
 	FILE *f;
+	long pos;
 
 	arena = p->arena;
 	if (!arena) return;
@@ -101,11 +102,20 @@ local void do_quickfix(Player *p, const char *limit)
 		}
 	}
 
+	pos = ftell(f);
 	fclose(f);
 
 	/* send and delete file */
-	chat->SendMessage(p, "Sending settings...");
-	filetrans->SendFile(p, name, "server.set", TRUE);
+	if (pos > 0)
+	{
+		chat->SendMessage(p, "Sending settings...");
+		filetrans->SendFile(p, name, "server.set", TRUE);
+	}
+	else
+	{
+		chat->SendMessage(p, "No settings matched your query.");
+		remove(name);
+	}
 }
 
 
