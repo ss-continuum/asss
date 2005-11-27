@@ -623,11 +623,23 @@ void PlayerAction(Player *p, int action, Arena *arena)
 	}
 }
 
+
+local void one_lvz_file(const char *fn, int optional, void *clos)
+{
+	Arena *arena = clos;
+	MMapData *mmd = MapFile(fn, FALSE);
+	if (mmd)
+	{
+		lm->LogA(L_DRIVEL, "objects", arena,
+				"reading object: %s", fn);
+		ReadLVZFile(arena, mmd->data, mmd->len, optional);
+		UnmapFile(mmd);
+	}
+}
+
 void ArenaAction(Arena *arena, int action)
 {
 	aodata *ad = P_ARENA_DATA(arena, aokey);
-	const char *lvzs, *tmp = NULL;
-	char lvzname[256], fname[256];
 
 	if (action == AA_PRECREATE)
 	{
@@ -635,25 +647,7 @@ void ArenaAction(Arena *arena, int action)
 	}
 	else if (action == AA_CREATE)
 	{
-		/* now look for lvzs */
-		lvzs = cfg->GetStr(arena->cfg, "General", "LevelFiles");
-		if (!lvzs) lvzs = cfg->GetStr(arena->cfg, "Misc", "LevelFiles");
-		while (strsplit(lvzs, ",: ", lvzname, sizeof(lvzname), &tmp))
-		{
-			char *real = lvzname[0] == '+' ? lvzname+1 : lvzname;
-			if (mapdata->GetMapFilename(arena, fname, sizeof(fname), real))
-			{
-				MMapData *mmd = MapFile(fname, FALSE);
-				if (mmd)
-				{
-					lm->LogA(L_DRIVEL, "objects", arena,
-						"reading object: %s", lvzname);
-
-					ReadLVZFile(arena, mmd->data, mmd->len, *lvzname == '+');
-					UnmapFile(mmd);
-				}
-			}
-		}
+		mapdata->EnumLVZFiles(arena, one_lvz_file, arena);
 	}
 	else if (action == AA_DESTROY)
 	{

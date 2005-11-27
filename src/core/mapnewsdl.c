@@ -271,6 +271,16 @@ local void free_maps(Arena *arena)
 }
 
 
+local void one_lvz_file(const char *fn, int optional, void *clos)
+{
+	struct MapDownloadData *data = compress_map(fn, FALSE);
+	if (data)
+	{
+		data->optional = optional;
+		LLAdd((LinkedList*)clos, data);
+	}
+}
+
 local void ArenaAction(Arena *arena, int action)
 {
 	LinkedList *dls = P_ARENA_DATA(arena, dlkey);
@@ -282,14 +292,13 @@ local void ArenaAction(Arena *arena, int action)
 	if (action == AA_CREATE)
 	{
 		struct MapDownloadData *data = NULL;
-		char lvzname[256], fname[256];
-		const char *lvzs, *tmp = NULL;
+		char fname[256];
 
 		/* first add the map itself */
 		/* cfghelp: General:Map, arena, string
 		 * The name of the level file for this arena. */
 		if (mapdata->GetMapFilename(arena, fname, sizeof(fname), NULL))
-			data = compress_map(fname, 1);
+			data = compress_map(fname, TRUE);
 
 		if (!data)
 		{
@@ -315,25 +324,7 @@ local void ArenaAction(Arena *arena, int action)
 		LLAdd(dls, data);
 
 		/* now look for lvzs */
-		/* cfghelp: General:LevelFiles, arena, string
-		 * A list of extra files to send to the client for downloading.
-		 * A '+' before any file means it's marked as optional. */
-		lvzs = cfg->GetStr(arena->cfg, "General", "LevelFiles");
-		if (!lvzs) lvzs = cfg->GetStr(arena->cfg, "Misc", "LevelFiles");
-		while (strsplit(lvzs, ",: ", lvzname, sizeof(lvzname), &tmp))
-		{
-			char *real = lvzname[0] == '+' ? lvzname+1 : lvzname;
-			if (mapdata->GetMapFilename(arena, fname, sizeof(fname), real))
-			{
-				data = compress_map(fname, 0);
-				if (data)
-				{
-					if (lvzname[0] == '+')
-						data->optional = 1;
-					LLAdd(dls, data);
-				}
-			}
-		}
+		mapdata->EnumLVZFiles(arena, one_lvz_file, dls);
 	}
 }
 

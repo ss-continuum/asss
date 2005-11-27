@@ -215,6 +215,9 @@ typedef struct Imapdata
 	Region * (*GetOneContaining)(Arena *arena, int x, int y);
 	/* pyint: arena, int, int -> region */
 
+	void (*EnumLVZFiles)(Arena *arena,
+			void (*func)(const char *fn, int optional, void *clos),
+			void *clos);
 } Imapdata;
 
 #endif

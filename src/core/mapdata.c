@@ -507,6 +507,23 @@ local int GetMapFilename(Arena *arena, char *buf, int buflen, const char *mapnam
 }
 
 
+local void EnumLVZFiles(Arena *arena,
+		void (*func)(const char *fn, int optional, void *clos),
+		void *clos)
+{
+	char lvzname[256], fname[256];
+	const char *tmp = NULL;
+	const char *lvzs = cfg->GetStr(arena->cfg, "General", "LevelFiles");
+	if (!lvzs) lvzs = cfg->GetStr(arena->cfg, "Misc", "LevelFiles");
+	while (strsplit(lvzs, ",: ", lvzname, sizeof(lvzname), &tmp))
+	{
+		char *real = lvzname[0] == '+' ? lvzname+1 : lvzname;
+		if (GetMapFilename(arena, fname, sizeof(fname), real))
+			func(fname, lvzname[0] == '+', clos);
+	}
+}
+
+
 local const char * GetAttr(Arena *arena, const char *key)
 {
 	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
@@ -1149,7 +1166,8 @@ local Imapdata mapdataint =
 	GetMemoryStats,
 	FindRegionByName, RegionName,
 	RegionChunk, Contains,
-	EnumContaining, GetOneContaining
+	EnumContaining, GetOneContaining,
+	EnumLVZFiles
 };
 
 
