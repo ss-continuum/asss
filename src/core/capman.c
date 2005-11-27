@@ -37,9 +37,8 @@ local Ilogman *lm;
 local Iconfig *cfg;
 
 
-local void update_group(Player *p, Arena *arena)
+local void update_group(Player *p, pdata *pdata, Arena *arena, int log)
 {
-	pdata *pdata = PPDATA(p, pdkey);
 	const char *g;
 
 	if (!p->flags.authenticated)
@@ -55,14 +54,16 @@ local void update_group(Player *p, Arena *arena)
 	{
 		astrncpy(pdata->group, g, MAXGROUPLEN);
 		pdata->source = src_arena;
-		lm->LogP(L_DRIVEL, "capman", p, "assigned to group '%s' (arena)", pdata->group);
+		if (log)
+			lm->LogP(L_DRIVEL, "capman", p, "assigned to group '%s' (arena)", pdata->group);
 	}
 #ifdef CFG_USE_ARENA_STAFF_LIST
 	else if (arena && arena->cfg && (g = cfg->GetStr(arena->cfg, "Staff", p->name)))
 	{
 		astrncpy(pdata->group, g, MAXGROUPLEN);
 		pdata->source = src_arenalist;
-		lm->LogP(L_DRIVEL, "capman", p, "assigned to group '%s' (arenaconf)", pdata->group);
+		if (log)
+			lm->LogP(L_DRIVEL, "capman", p, "assigned to group '%s' (arenaconf)", pdata->group);
 	}
 #endif
 	else if ((g = cfg->GetStr(staff_conf, AG_GLOBAL, p->name)))
@@ -70,7 +71,8 @@ local void update_group(Player *p, Arena *arena)
 		/* only global groups available for now */
 		astrncpy(pdata->group, g, MAXGROUPLEN);
 		pdata->source = src_global;
-		lm->LogP(L_DRIVEL, "capman", p, "assigned to group '%s' (global)", pdata->group);
+		if (log)
+			lm->LogP(L_DRIVEL, "capman", p, "assigned to group '%s' (global)", pdata->group);
 	}
 	else
 	{
@@ -82,13 +84,13 @@ local void update_group(Player *p, Arena *arena)
 
 local void paction(Player *p, int action, Arena *arena)
 {
-	char *group = ((pdata*)PPDATA(p, pdkey))->group;
+	pdata *pdata = PPDATA(p, pdkey);
 	if (action == PA_PREENTERARENA)
-		update_group(p, arena);
+		update_group(p, pdata, arena, TRUE);
 	else if (action == PA_CONNECT)
-		update_group(p, NULL);
+		update_group(p, pdata, NULL, TRUE);
 	else if (action == PA_DISCONNECT || action == PA_LEAVEARENA)
-		astrncpy(group, "none", MAXGROUPLEN);
+		astrncpy(pdata->group, "none", MAXGROUPLEN);
 }
 
 local void new_player(Player *p, int isnew)
@@ -188,6 +190,14 @@ local int HasCapability(Player *p, const char *cap)
 }
 
 
+local int HasCapabilityInArena(Player *p, Arena *a, const char *cap)
+{
+	pdata tmp_pdata;
+	update_group(p, &tmp_pdata, a, FALSE);
+	return cfg->GetStr(groupdef, tmp_pdata.group, cap) != NULL;
+}
+
+
 local int HasCapabilityByName(const char *name, const char *cap)
 {
 	/* figure out his group */
@@ -212,7 +222,7 @@ local int HigherThan(Player *a, Player *b)
 local Icapman capint =
 {
 	INTERFACE_HEAD_INIT(I_CAPMAN, "capman-groups")
-	HasCapability, HasCapabilityByName, HigherThan
+	HasCapability, HasCapabilityByName, HasCapabilityInArena, HigherThan
 };
 
 local Igroupman grpint =

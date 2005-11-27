@@ -30,7 +30,7 @@
 
 
 /** the interface id for Icapman */
-#define I_CAPMAN "capman-2.1"
+#define I_CAPMAN "capman-3"
 
 /** the interface struct for Icapman */
 typedef struct Icapman
@@ -57,6 +57,17 @@ typedef struct Icapman
 	 */
 	int (*HasCapabilityByName)(const char *name, const char *cap);
 	/* pyint: string, string -> int */
+
+	/** Checks if a player has a given capability in an arena other than
+	 ** the one he's currently in.
+	 * @param p the player
+	 * @param a the arena to check in
+	 * @param cap the capability to check for
+	 * @return true if the player would have the requested capability,
+	 * if he were in that arena
+	 */
+	int (*HasCapabilityInArena)(Player *p, Arena *a, const char *cap);
+	/* pyint: player, arena, string -> int */
 
 	/** Determines if a player can perform actions on another player.
 	 * For certain actions (e.g., /?kick), you need to know if a player

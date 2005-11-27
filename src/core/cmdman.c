@@ -179,10 +179,11 @@ local void log_command(Player *p, const Target *target, const char *cmd, const c
 }
 
 
-local int allowed(Player *p, const char *cmd, const char *prefix)
+local int allowed(Player *p, const char *cmd, const char *prefix,
+		Arena *remarena)
 {
 	char cap[40];
-	
+
 	if (!capman)
 	{
 #ifdef ALLOW_ALL_IF_CAPMAN_IS_MISSING
@@ -195,7 +196,10 @@ local int allowed(Player *p, const char *cmd, const char *prefix)
 	}
 
 	snprintf(cap, sizeof(cap), "%s_%s", prefix, cmd);
-	return capman->HasCapability(p, cap);
+	if (remarena)
+		return capman->HasCapabilityInArena(p, remarena, cap);
+	else
+		return capman->HasCapability(p, cap);
 }
 
 
@@ -205,6 +209,7 @@ void Command(const char *line, Player *p, const Target *target)
 	char cmd[40], *t;
 	int skiplocal = FALSE;
 	const char *origline, *prefix;
+	Arena *remarena = NULL;
 
 	/* almost all commands assume p->arena is non-null */
 	if (p->arena == NULL)
@@ -230,7 +235,15 @@ void Command(const char *line, Player *p, const Target *target)
 	if (target->type == T_ARENA || target->type == T_NONE)
 		prefix = "cmd";
 	else if (target->type == T_PLAYER)
-		prefix = (target->u.p->arena == p->arena) ? "privcmd" : "rprivcmd";
+	{
+		if (target->u.p->arena == p->arena)
+			prefix = "privcmd";
+		else
+		{
+			remarena = target->u.p->arena;
+			prefix = "rprivcmd";
+		}
+	}
 	else
 		prefix = "privcmd";
 
@@ -243,7 +256,7 @@ void Command(const char *line, Player *p, const Target *target)
 		if (defaultfunc)
 			defaultfunc(cmd, origline, p, target);
 	}
-	else if (allowed(p, cmd, prefix))
+	else if (allowed(p, cmd, prefix, remarena))
 	{
 		Link *l;
 		for (l = LLGetHead(&lst); l; l = l->next)
