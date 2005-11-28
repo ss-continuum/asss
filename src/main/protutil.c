@@ -189,6 +189,7 @@ enum sp_read_result do_sp_read(sp_conn *conn)
 	else if (n > 0)
 	{
 		buf->cur += n;
+		conn->lastrecvtime = current_ticks();
 		return sp_read_ok;
 	}
 	else

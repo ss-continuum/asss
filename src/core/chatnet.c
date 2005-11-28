@@ -117,6 +117,7 @@ local Player * try_accept(int s)
 	cli->sin = sin;
 	cli->lastproctime = TICK_MAKE(current_ticks() - 1000U);
 	cli->lastsendtime = TICK_MAKE(current_ticks() + 1000U);
+	cli->lastrecvtime = TICK_MAKE(current_ticks() + 1000U);
 	cli->inbuf = NULL;
 	LLInit(&cli->outbufs);
 
@@ -244,9 +245,10 @@ local int do_one_iter(void *dummy)
 			if (cli->inbuf &&
 			    TICK_DIFF(gtc, cli->lastproctime) > cfg_msgdelay)
 				LLAdd(&toproc, p);
-			/* send noop if we haven't sent anything to this client for
-			 * 3 minutes */
-			if (TICK_DIFF(gtc, cli->lastsendtime) > 18000)
+			/* send noop if we haven't sent anything to this client, and
+			 * they haven't sent anything to us, for 3 minutes. */
+			if (TICK_DIFF(gtc, cli->lastsendtime) > 18000 &&
+			    TICK_DIFF(gtc, cli->lastrecvtime) > 18000)
 				sp_send(cli, "NOOP");
 		}
 	pd->Unlock();
