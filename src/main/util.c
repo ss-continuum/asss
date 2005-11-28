@@ -587,6 +587,13 @@ void LLSort(LinkedList *lst, int (*lt)(const void *a, const void *b))
 	}
 }
 
+int LLSort_StringCompare(const void *a, const void *b)
+{
+	const char *as = a;
+	const char *bs = b;
+	return strcmp(as, bs) < 0;
+}
+
 
 /* HashTable data type */
 

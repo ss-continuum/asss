@@ -341,36 +341,71 @@ local void Cversion(const char *tc, const char *params, Player *p, const Target 
 }
 
 
-#define MAXDATA 4090
-
-local void add_mod(const char *name, const char *info, void *vsb)
+struct lsmod_ctx
 {
-	StringBuffer *sb = vsb;
-	SBPrintf(sb, ", %s", name);
+	LinkedList names;
+	const char *substr;
+};
+
+local void add_mod(const char *name, const char *info, void *clos)
+{
+	struct lsmod_ctx *ctx = clos;
+	if (ctx->substr == NULL || strcasestr(name, ctx->substr) != NULL)
+		LLAdd(&ctx->names, name);
 }
 
 local helptext_t lsmod_help =
 "Targets: none\n"
-"Args: [{-a}]\n"
+"Args: [{-a}] [{-s}] [<text>]\n"
 "Lists all the modules currently loaded into the server. With {-a}, lists\n"
-"only modules attached to this arena.\n";
+"only modules attached to this arena. With {-s}, sorts by name.\n"
+"With optional text, limits modules displayed to those whose names\n"
+"contain the given text.\n";
 
 local void Clsmod(const char *tc, const char *params, Player *p, const Target *target)
 {
-	StringBuffer sb;
-	SBInit(&sb);
-	if (strstr(params, "-a"))
+	Arena *limit = NULL;
+	int sort = FALSE;
+	struct lsmod_ctx ctx;
+	char word[64], substr[64];
+	const char *tmp = NULL;
+
+	LLInit(&ctx.names);
+	ctx.substr = NULL;
+
+	while (strsplit(params, " ", word, sizeof(word), &tmp))
 	{
-		mm->EnumModules(add_mod, (void*)&sb, p->arena);
-		chat->SendMessage(p, "Modules attached to arena %s:", p->arena->name);
+		if (strcmp(word, "-a") == 0)
+			limit = p->arena;
+		else if (strcmp(word, "-s") == 0)
+			sort = TRUE;
+		else
+		{
+			astrncpy(substr, word, sizeof(substr));
+			ctx.substr = substr;
+		}
 	}
+
+	mm->EnumModules(add_mod, (void*)&ctx, limit);
+	if (sort)
+		LLSort(&ctx.names, LLSort_StringCompare);
+
+	if (limit)
+		chat->SendMessage(p, "Modules attached to arena %s:", limit->name);
 	else
-	{
-		mm->EnumModules(add_mod, (void*)&sb, NULL);
 		chat->SendMessage(p, "Loaded modules:");
+
+	{
+		Link *l;
+		StringBuffer sb;
+		SBInit(&sb);
+		for (l = LLGetHead(&ctx.names); l; l = l->next)
+			SBPrintf(&sb, ", %s", (const char*)l->data);
+		chat->SendWrappedText(p, SBText(&sb, 2));
+		SBDestroy(&sb);
 	}
-	chat->SendWrappedText(p, SBText(&sb, 2));
-	SBDestroy(&sb);
+
+	LLEmpty(&ctx.names);
 }
 
 
