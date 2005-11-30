@@ -1473,7 +1473,7 @@ local PyObject * mthd_for_each_arena(PyObject *self, PyObject *args)
 	}
 
 	aman->Lock();
-	FOR_EACH_PLAYER(a)
+	FOR_EACH_ARENA(a)
 	{
 		PyObject *ret = PyObject_CallFunction(func, "(O&)",
 				cvt_c2p_arena, a);
