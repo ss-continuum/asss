@@ -975,7 +975,7 @@ def myplayeraction(p, action, arena):
     if action == asss.PA_CONNECT:
         p.my_words = []
 
-paref = asss.reg_callback(asss.CB_PLAYER, myplayeraction)
+paref = asss.reg_callback(asss.CB_PLAYERACTION, myplayeraction)
 
 def c_testcmd(cmd, params, p, target):
     """Test command documentation."""
