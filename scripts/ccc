@@ -2,7 +2,7 @@
 # ccc - a console chat client for asss <grelminar@yahoo.com>
 # dist: public
 
-ccc_version = '2.4.3'
+ccc_version = '2.4.4'
 
 import sys, time, curses, socket, select, os
 
@@ -1333,7 +1333,7 @@ def redisplay():
 
 
 def try_connect():
-	global sock, last_login_try
+	global sock, last_login_try, login_retry_time
 
 	last_login_try = time.time()
 	try:
@@ -1344,10 +1344,13 @@ def try_connect():
 
 		add_line("Logging in as %s..." % opts['name'], sync = 1)
 		send_line("LOGIN:1;ccc %s:%s:%s" % (ccc_version, opts['name'], opts['password']))
+		login_retry_time = opts.get('login_retry_time', 60) / 2
 	except socket.error, e:
 		disconnect()
 		_, etxt = e
 		add_line("Socket error: %s" % etxt, sync = 1)
+		login_retry_time = min(2 * login_retry_time,
+				opts.get('max_login_retry_time', 3*60*60))
 
 
 
@@ -1483,7 +1486,7 @@ def process_config(file):
 	jumpback = opts.get('jumpback', 0)
 	keeplines = opts.get('keeplines', 1000)
 	keepalive = opts.get('keepalive', 0)
-	login_retry_time = opts.get('login_retry_time', 60)
+	login_retry_time = opts.get('login_retry_time', 60) / 2
 
 	return opts
 
