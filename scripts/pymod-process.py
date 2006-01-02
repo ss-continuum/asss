@@ -981,9 +981,7 @@ local PyTypeObject %(typestructname)s = {
 		funcnames = []
 		lastout = None
 
-		funcidx = -1
 		for name, thing in dirs:
-			funcidx = funcidx + 1
 			try:
 				tokens = tokenize_signature(thing)
 				func = parse_func(tokens)
@@ -1006,8 +1004,7 @@ local %(retdecl)s %(funcname)s(%(allargs)s)
 				"function %(name)s in interface %(iid)s");
 		return %(defretval)s;
 	}
-	out = call_gen_py_interface(PYINTPREFIX %(iid)s, %(funcidx)d, args, %(arenaval)s);
-	Py_DECREF(args);
+	out = call_gen_py_interface(PYINTPREFIX %(iid)s, "%(name)s", args, %(arenaval)s);
 	if (!out)
 	{
 		log_py_exception(L_ERROR, "python error calling "
@@ -1030,7 +1027,7 @@ local %(retdecl)s %(funcname)s(%(allargs)s)
 	if (out != Py_None)
 	{
 		Py_DECREF(out);
-		log_py_exception(L_ERROR, "callback %(name)s didn't return None as expected");
+		log_py_exception(L_ERROR, "interface func %(name)s didn't return None as expected");
 		return %(defretval)s;
 	}
 """)

@@ -654,7 +654,8 @@ typedef struct {
 } pyint_generic_interface;
 
 
-local PyObject * call_gen_py_interface(const char *iid, int idx, PyObject *args, Arena *arena)
+local PyObject * call_gen_py_interface(const char *iid,
+		const char *method, PyObject *args, Arena *arena)
 {
 	pyint_generic_interface *i;
 	PyObject *ret = NULL;
@@ -662,10 +663,15 @@ local PyObject * call_gen_py_interface(const char *iid, int idx, PyObject *args,
 	i = mm->GetInterface(iid, arena);
 	if (i && i->funcs && i->py_int_magic == PY_INT_MAGIC)
 	{
-		PyObject *func = PyTuple_GetItem(i->funcs, idx);
+		PyObject *func = PyObject_GetAttrString(i->funcs, (char*)method);
 		if (func)
+		{
 			ret = PyObject_Call(func, args, NULL);
+			Py_DECREF(func);
+		}
 	}
+	/* do this in common code instead of repeating it for each stub. */
+	Py_DECREF(args);
 	/* the refcount on a python interface struct is meaningless, so
 	 * don't bother releasing it. */
 	return ret;
@@ -825,7 +831,7 @@ local PyObject *mthd_call_callback(PyObject *self, PyObject *args)
 			else
 			{
 				if (out != Py_None)
-					log_py_exception(L_ERROR, "callback CB_TURFVICTORY didn't return None as expected");
+					log_py_exception(L_ERROR, "callback didn't return None as expected");
 				Py_DECREF(out);
 			}
 		}
@@ -894,21 +900,24 @@ local void destroy_interface(void *v)
 local PyObject *mthd_reg_interface(PyObject *self, PyObject *args)
 {
 	char *rawiid, pyiid[MAX_ID_LEN];
-	PyObject *funcs;
+	PyObject *obj, *iidobj;
 	Arena *arena = ALLARENAS;
 	pyint_generic_interface *newint;
 	void *realint;
 
-	if (!PyArg_ParseTuple(args, "sO|O&", &rawiid, &funcs, cvt_p2c_arena, &arena))
+	if (!PyArg_ParseTuple(args, "O|O&", &obj, cvt_p2c_arena, &arena))
 		return NULL;
 
-	if (!PyTuple_Check(funcs))
+	iidobj = PyObject_GetAttrString(obj, "iid");
+	if (!iidobj || !(rawiid = PyString_AsString(iidobj)))
 	{
-		PyErr_SetString(PyExc_TypeError, "funcs isn't a tuple");
+		PyErr_SetString(PyExc_TypeError, "interface object missing 'iid'");
+		Py_XDECREF(iidobj);
 		return NULL;
 	}
 
 	snprintf(pyiid, sizeof(pyiid), "%s%s", PYINTPREFIX, rawiid);
+	Py_DECREF(iidobj);
 	realint = HashGetOne(pyint_impl_ints, pyiid);
 	if (!realint)
 	{
@@ -916,7 +925,7 @@ local PyObject *mthd_reg_interface(PyObject *self, PyObject *args)
 		return NULL;
 	}
 
-	Py_INCREF(funcs);
+	Py_INCREF(obj);
 
 	newint = amalloc(sizeof(*newint));
 	newint->head.magic = MODMAN_MAGIC;
@@ -927,7 +936,7 @@ local PyObject *mthd_reg_interface(PyObject *self, PyObject *args)
 	newint->py_int_magic = PY_INT_MAGIC;
 	newint->real_interface = realint;
 	newint->arena = arena;
-	newint->funcs = funcs;
+	newint->funcs = obj;
 
 	/* this is the "real" one that other modules will make calls on */
 	mm->RegInterface(realint, arena);
@@ -1100,12 +1109,82 @@ local PyObject *mthd_set_timer(PyObject *self, PyObject *args)
 }
 
 
+/* general persistent data */
+
+local int persistent_data_common(PyObject *args,
+		int *key, int *interval, int *scope, PyObject **funcs)
+{
+	const char *attrs[] = { "get", "set", "clear", NULL };
+	int i;
+	PyObject *obj;
+
+	if (!persist)
+	{
+		PyErr_SetString(PyExc_Exception, "the persist module isn't loaded");
+		return FALSE;
+	}
+
+	if (!cPickle)
+	{
+		PyErr_SetString(PyExc_Exception, "cPickle isn't loaded");
+		return FALSE;
+	}
+
+	if (!PyArg_ParseTuple(args, "O", funcs))
+		return FALSE;
+
+	for (i = 0; attrs[i]; i++)
+	{
+		PyObject *func = PyObject_GetAttrString(*funcs, (char*)attrs[i]);
+		if (!func || !PyCallable_Check(func))
+		{
+			PyErr_SetString(PyExc_TypeError,
+					"one of 'get', 'set', or 'clear' is missing or not callable");
+			Py_XDECREF(func);
+			return FALSE;
+		}
+		Py_DECREF(func);
+	}
+
+#define GET(name) \
+	obj = PyObject_GetAttrString(*funcs, #name); \
+	if (!obj || !PyInt_Check(obj)) \
+	{ \
+		PyErr_SetString(PyExc_TypeError, "'" #name "' is missing or not integer"); \
+		Py_XDECREF(obj); \
+		return FALSE; \
+	} \
+	*name = PyInt_AsLong(obj); \
+	Py_DECREF(obj)
+
+	GET(key);
+	GET(interval);
+	GET(scope);
+
+#undef GET
+
+	if (*scope != PERSIST_ALLARENAS && *scope != PERSIST_GLOBAL)
+	{
+		PyErr_SetString(PyExc_ValueError, "scope must be PERSIST_ALLARENAS or PERSIST_GLOBAL");
+		return FALSE;
+	}
+
+	if (*interval < 0 || *interval > MAX_INTERVAL)
+	{
+		PyErr_SetString(PyExc_ValueError, "interval out of range");
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+
 /* player persistent data */
 
 struct pypersist_ppd
 {
 	PlayerPersistentData ppd;
-	PyObject *get, *set, *clear;
+	PyObject *funcs;
 };
 
 
@@ -1116,7 +1195,7 @@ local int get_player_data(Player *p, void *data, int len, void *v)
 	const void *pkldata;
 	int pkllen;
 
-	val = PyEval_CallFunction(pyppd->get, "(O&)", cvt_c2p_player, p);
+	val = PyObject_CallMethod(pyppd->funcs, "get", "(O&)", cvt_c2p_player, p);
 	if (!val)
 	{
 		log_py_exception(L_ERROR, "error in persistent data getter");
@@ -1173,7 +1252,7 @@ local void set_player_data(Player *p, void *data, int len, void *v)
 		return;
 	}
 
-	ret = PyEval_CallFunction(pyppd->set, "(O&O)", cvt_c2p_player, p, val);
+	ret = PyObject_CallMethod(pyppd->funcs, "set", "(O&O)", cvt_c2p_player, p, val);
 	Py_XDECREF(ret);
 	if (!ret)
 		log_py_exception(L_ERROR, "error in persistent data setter");
@@ -1184,7 +1263,7 @@ local void clear_player_data(Player *p, void *v)
 	struct pypersist_ppd *pyppd = v;
 	PyObject *ret;
 
-	ret = PyEval_CallFunction(pyppd->clear, "(O&)", cvt_c2p_player, p);
+	ret = PyObject_CallMethod(pyppd->funcs, "clear", "(O&)", cvt_c2p_player, p);
 	Py_XDECREF(ret);
 	if (!ret)
 		log_py_exception(L_ERROR, "error in persistent data clearer");
@@ -1195,55 +1274,20 @@ local void unreg_ppd(void *v)
 {
 	struct pypersist_ppd *pyppd = v;
 	persist->UnregPlayerPD(&pyppd->ppd);
-	Py_XDECREF(pyppd->get);
-	Py_XDECREF(pyppd->set);
-	Py_XDECREF(pyppd->clear);
+	Py_XDECREF(pyppd->funcs);
 	afree(pyppd);
 }
 
 local PyObject * mthd_reg_ppd(PyObject *self, PyObject *args)
 {
 	struct pypersist_ppd *pyppd;
-	PyObject *get, *set, *clear;
 	int key, interval, scope;
+	PyObject *funcs;
 
-	if (!persist)
-	{
-		PyErr_SetString(PyExc_Exception, "the persist module isn't loaded");
-		return NULL;
-	}
-
-	if (!cPickle)
-	{
-		PyErr_SetString(PyExc_Exception, "cPickle isn't loaded");
-		return NULL;
-	}
-
-	if (!PyArg_ParseTuple(args, "iiiOOO", &key, &interval, &scope,
-				&get, &set, &clear))
+	if (!persistent_data_common(args, &key, &interval, &scope, &funcs))
 		return NULL;
 
-	if (!PyCallable_Check(get) || !PyCallable_Check(set) || !PyCallable_Check(clear))
-	{
-		PyErr_SetString(PyExc_TypeError, "one of the functions isn't callable");
-		return NULL;
-	}
-
-	if (scope != PERSIST_ALLARENAS && scope != PERSIST_GLOBAL)
-	{
-		PyErr_SetString(PyExc_ValueError, "scope must be PERSIST_ALLARENAS or PERSIST_GLOBAL");
-		return NULL;
-	}
-
-	if (interval < 0 || interval > MAX_INTERVAL)
-	{
-		PyErr_SetString(PyExc_ValueError, "interval out of range");
-		return NULL;
-	}
-
-	Py_INCREF(get);
-	Py_INCREF(set);
-	Py_INCREF(clear);
+	Py_INCREF(funcs);
 
 	pyppd = amalloc(sizeof(*pyppd));
 	pyppd->ppd.key = key;
@@ -1253,9 +1297,7 @@ local PyObject * mthd_reg_ppd(PyObject *self, PyObject *args)
 	pyppd->ppd.SetData = set_player_data;
 	pyppd->ppd.ClearData = clear_player_data;
 	pyppd->ppd.clos = pyppd;
-	pyppd->get = get;
-	pyppd->set = set;
-	pyppd->clear = clear;
+	pyppd->funcs = funcs;
 
 	persist->RegPlayerPD(&pyppd->ppd);
 
@@ -1268,7 +1310,7 @@ local PyObject * mthd_reg_ppd(PyObject *self, PyObject *args)
 struct pypersist_apd
 {
 	ArenaPersistentData apd;
-	PyObject *get, *set, *clear;
+	PyObject *funcs;
 };
 
 
@@ -1279,7 +1321,7 @@ local int get_arena_data(Arena *a, void *data, int len, void *v)
 	const void *pkldata;
 	int pkllen;
 
-	val = PyEval_CallFunction(pyapd->get, "(O&)", cvt_c2p_arena, a);
+	val = PyObject_CallMethod(pyapd->funcs, "get", "(O&)", cvt_c2p_arena, a);
 	if (!val)
 	{
 		log_py_exception(L_ERROR, "error in persistent data getter");
@@ -1336,7 +1378,7 @@ local void set_arena_data(Arena *a, void *data, int len, void *v)
 		return;
 	}
 
-	ret = PyEval_CallFunction(pyapd->set, "(O&O)", cvt_c2p_arena, a, val);
+	ret = PyObject_CallMethod(pyapd->funcs, "set", "(O&O)", cvt_c2p_arena, a, val);
 	Py_XDECREF(ret);
 	if (!ret)
 		log_py_exception(L_ERROR, "error in persistent data setter");
@@ -1347,7 +1389,7 @@ local void clear_arena_data(Arena *a, void *v)
 	struct pypersist_apd *pyapd = v;
 	PyObject *ret;
 
-	ret = PyEval_CallFunction(pyapd->clear, "(O&)", cvt_c2p_arena, a);
+	ret = PyObject_CallMethod(pyapd->funcs, "clear", "(O&)", cvt_c2p_arena, a);
 	Py_XDECREF(ret);
 	if (!ret)
 		log_py_exception(L_ERROR, "error in persistent data clearer");
@@ -1358,55 +1400,20 @@ local void unreg_apd(void *v)
 {
 	struct pypersist_apd *pyapd = v;
 	persist->UnregArenaPD(&pyapd->apd);
-	Py_XDECREF(pyapd->get);
-	Py_XDECREF(pyapd->set);
-	Py_XDECREF(pyapd->clear);
+	Py_XDECREF(pyapd->funcs);
 	afree(pyapd);
 }
 
 local PyObject * mthd_reg_apd(PyObject *self, PyObject *args)
 {
 	struct pypersist_apd *pyapd;
-	PyObject *get, *set, *clear;
+	PyObject *funcs;
 	int key, interval, scope;
 
-	if (!persist)
-	{
-		PyErr_SetString(PyExc_Exception, "the persist module isn't loaded");
-		return NULL;
-	}
-
-	if (!cPickle)
-	{
-		PyErr_SetString(PyExc_Exception, "cPickle isn't loaded");
-		return NULL;
-	}
-
-	if (!PyArg_ParseTuple(args, "iiiOOO", &key, &interval, &scope,
-				&get, &set, &clear))
+	if (!persistent_data_common(args, &key, &interval, &scope, &funcs))
 		return NULL;
 
-	if (!PyCallable_Check(get) || !PyCallable_Check(set) || !PyCallable_Check(clear))
-	{
-		PyErr_SetString(PyExc_TypeError, "one of the functions isn't callable");
-		return NULL;
-	}
-
-	if (scope != PERSIST_ALLARENAS && scope != PERSIST_GLOBAL)
-	{
-		PyErr_SetString(PyExc_ValueError, "scope must be PERSIST_ALLARENAS or PERSIST_GLOBAL");
-		return NULL;
-	}
-
-	if (interval < 0 || interval > MAX_INTERVAL)
-	{
-		PyErr_SetString(PyExc_ValueError, "interval out of range");
-		return NULL;
-	}
-
-	Py_INCREF(get);
-	Py_INCREF(set);
-	Py_INCREF(clear);
+	Py_INCREF(funcs);
 
 	pyapd = amalloc(sizeof(*pyapd));
 	pyapd->apd.key = key;
@@ -1416,9 +1423,7 @@ local PyObject * mthd_reg_apd(PyObject *self, PyObject *args)
 	pyapd->apd.SetData = set_arena_data;
 	pyapd->apd.ClearData = clear_arena_data;
 	pyapd->apd.clos = pyapd;
-	pyapd->get = get;
-	pyapd->set = set;
-	pyapd->clear = clear;
+	pyapd->funcs = funcs;
 
 	persist->RegArenaPD(&pyapd->apd);
 
@@ -1647,8 +1652,8 @@ local int call_maybe_with_arena(PyObject *mod, const char *funcname, Arena *a)
 	if (func)
 	{
 		PyObject *ret = a ?
-			PyEval_CallFunction(func, "(O&)", cvt_c2p_arena, a) :
-			PyEval_CallFunction(func, NULL);
+			PyObject_CallFunction(func, "(O&)", cvt_c2p_arena, a) :
+			PyObject_CallFunction(func, NULL);
 		Py_XDECREF(ret);
 		Py_DECREF(func);
 		if (ret)

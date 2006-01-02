@@ -274,93 +274,93 @@ def flagonmap(a, fid, x, y, freq):
 
 # the flaggame interface
 
-def init(a):
-	# get settings
-	a.fg_wz_sets = sets = WZSets(a)
+class WZFlagGame:
+	iid = asss.I_FLAGGAME
 
-	if sets.carryflags < asss.CARRY_ALL:
-		lm.LogA(asss.L_ERROR, 'fg_wz', a, 'invalid Flag:CarryFlags for warzone-style game')
-		del a.fg_wz_sets
-		return
+	def Init(me, a):
+		# get settings
+		a.fg_wz_sets = sets = WZSets(a)
 
-	# set up flag game
-	flagcore.SetCarryMode(a, sets.carryflags)
-	flagcore.ReserveFlags(a, sets.max)
+		if sets.carryflags < asss.CARRY_ALL:
+			lm.LogA(asss.L_ERROR, 'fg_wz', a, 'invalid Flag:CarryFlags for warzone-style game')
+			del a.fg_wz_sets
+			return
 
-	# set up more stuff
-	a.fg_wz_neuts = []
-	a.fg_wz_current = 0
+		# set up flag game
+		flagcore.SetCarryMode(a, sets.carryflags)
+		flagcore.ReserveFlags(a, sets.max)
 
-	a.fg_wz_spawntmr = asss.set_timer(lambda: spawn_timer(a), 500)
+		# set up more stuff
+		a.fg_wz_neuts = []
+		a.fg_wz_current = 0
 
-
-def flagtouch(a, p, fid):
-	sets = a.fg_wz_sets
-	if sets.carryflags == asss.CARRY_ALL:
-		cancarry = MAXFLAGS
-	else:
-		cancarry = sets.carryflags - 1
-
-	if p.flagscarried >= cancarry:
-		lm.LogP(asss.L_MALICIOUS, 'flagcore', p, "tried to pick up too many flags")
-		return
-
-	# assign him the flag
-	f = asss.flaginfo()
-	f.state = asss.FI_CARRIED
-	f.carrier = p
-	flagcore.SetFlags(a, fid, f)
+		a.fg_wz_spawntmr = asss.set_timer(lambda: spawn_timer(a), 500)
 
 
-def cleanup(a, fid, reason, carrier, freq):
-	sets = a.fg_wz_sets
-
-	def spawn(owned, center, func=spawn_flag):
-		if owned:
-			myfreq = freq
+	def FlagTouch(me, a, p, fid):
+		sets = a.fg_wz_sets
+		if sets.carryflags == asss.CARRY_ALL:
+			cancarry = MAXFLAGS
 		else:
-			myfreq = -1
-		if center:
-			x = sets.spawnx
-			y = sets.spawny
-			r = sets.spawnr
-		else:
-			x = carrier.position[0] >> 4
-			y = carrier.position[1] >> 4
-			r = sets.dropr
-		func(a, fid, x, y, r, myfreq)
+			cancarry = sets.carryflags - 1
 
-	if reason == asss.CLEANUP_DROPPED or \
-	   reason == asss.CLEANUP_KILL_CANTCARRY or \
-	   reason == asss.CLEANUP_KILL_FAKE:
-		# this acts like a normal drop
-		spawn(sets.dropowned, sets.dropcenter)
+		if p.flagscarried >= cancarry:
+			lm.LogP(asss.L_MALICIOUS, 'flagcore', p, "tried to pick up too many flags")
+			return
 
-	elif reason == asss.CLEANUP_INSAFE:
-		# similar, but use safe zone settings
-		spawn(sets.safeowned, sets.safecenter)
-
-	elif reason == asss.CLEANUP_KILL_TK:
-		# only spawn if we're not transferring
-		if not sets.friendlytransfer:
-			spawn(sets.tkowned, sets.tkcenter)
-
-	elif reason == asss.CLEANUP_SHIPCHANGE or \
-	     reason == asss.CLEANUP_FREQCHANGE or \
-	     reason == asss.CLEANUP_LEFTARENA or \
-	     reason == asss.CLEANUP_OTHER:
-		# neuts
-		spawn(sets.neutowned, sets.neutcenter, neut_flag)
+		# assign him the flag
+		f = asss.flaginfo()
+		f.state = asss.FI_CARRIED
+		f.carrier = p
+		flagcore.SetFlags(a, fid, f)
 
 
-myflaggame = (init, flagtouch, cleanup)
+	def Cleanup(me, a, fid, reason, carrier, freq):
+		sets = a.fg_wz_sets
+
+		def spawn(owned, center, func=spawn_flag):
+			if owned:
+				myfreq = freq
+			else:
+				myfreq = -1
+			if center:
+				x = sets.spawnx
+				y = sets.spawny
+				r = sets.spawnr
+			else:
+				x = carrier.position[0] >> 4
+				y = carrier.position[1] >> 4
+				r = sets.dropr
+			func(a, fid, x, y, r, myfreq)
+
+		if reason == asss.CLEANUP_DROPPED or \
+		   reason == asss.CLEANUP_KILL_CANTCARRY or \
+		   reason == asss.CLEANUP_KILL_FAKE:
+			# this acts like a normal drop
+			spawn(sets.dropowned, sets.dropcenter)
+
+		elif reason == asss.CLEANUP_INSAFE:
+			# similar, but use safe zone settings
+			spawn(sets.safeowned, sets.safecenter)
+
+		elif reason == asss.CLEANUP_KILL_TK:
+			# only spawn if we're not transferring
+			if not sets.friendlytransfer:
+				spawn(sets.tkowned, sets.tkcenter)
+
+		elif reason == asss.CLEANUP_SHIPCHANGE or \
+			 reason == asss.CLEANUP_FREQCHANGE or \
+			 reason == asss.CLEANUP_LEFTARENA or \
+			 reason == asss.CLEANUP_OTHER:
+			# neuts
+			spawn(sets.neutowned, sets.neutcenter, neut_flag)
 
 
 # attaching/detaching
 
 def mm_attach(a):
 	try:
-		a.fg_wz_intref = asss.reg_interface(asss.I_FLAGGAME, myflaggame, a)
+		a.fg_wz_intref = asss.reg_interface(WZFlagGame(), a)
 		a.fg_wz_cbref1 = asss.reg_callback(asss.CB_FLAGONMAP, flagonmap, a)
 	except:
 		mm_detach(a)
