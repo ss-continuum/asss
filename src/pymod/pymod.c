@@ -3,6 +3,7 @@
 
 #include <signal.h>
 #include <pthread.h>
+#include <assert.h>
 
 /* nasty hack to avoid warning when using python versions 2.4 and above */
 #undef _POSIX_C_SOURCE
@@ -661,14 +662,19 @@ local PyObject * call_gen_py_interface(const char *iid,
 	PyObject *ret = NULL;
 
 	i = mm->GetInterface(iid, arena);
-	if (i && i->funcs && i->py_int_magic == PY_INT_MAGIC)
+	if (i && i->py_int_magic == PY_INT_MAGIC)
 	{
-		PyObject *func = PyObject_GetAttrString(i->funcs, (char*)method);
-		if (func)
+		if (i->funcs)
 		{
-			ret = PyObject_Call(func, args, NULL);
-			Py_DECREF(func);
+			PyObject *func = PyObject_GetAttrString(i->funcs, (char*)method);
+			if (func)
+			{
+				ret = PyObject_Call(func, args, NULL);
+				Py_DECREF(func);
+			}
 		}
+		else
+			PyErr_SetString(PyExc_ValueError, "stale interface object");
 	}
 	/* do this in common code instead of repeating it for each stub. */
 	Py_DECREF(args);
@@ -859,6 +865,9 @@ local PyObject *mthd_get_interface(PyObject *self, PyObject *args)
 	typeo = HashGetOne(pyint_ints, iid);
 	if (typeo)
 	{
+		/* this is an interface defined in a C header file, so get the
+		 * current C implementation and construct an interface object
+		 * whose functions are generated glue code. */
 		void *i = mm->GetInterface(iid, arena);
 		if (i)
 		{
@@ -867,10 +876,25 @@ local PyObject *mthd_get_interface(PyObject *self, PyObject *args)
 			return (PyObject*)o;
 		}
 		else
-			return PyErr_Format(PyExc_Exception, "interface %s wasn't found", iid);
+			return PyErr_Format(PyExc_Exception, "C interface %s wasn't found", iid);
 	}
 	else
-		return PyErr_Format(PyExc_Exception, "interface %s isn't available to python", iid);
+	{
+		/* this isn't defined in a C header file, so treat it as a
+		 * python->python only interface, and return a reference to the
+		 * implementation object. */
+		char pyiid[MAX_ID_LEN];
+		snprintf(pyiid, sizeof(pyiid), "%s%s", PYINTPREFIX, iid);
+		pyint_generic_interface *i = mm->GetInterface(pyiid, arena);
+		if (i && i->py_int_magic == PY_INT_MAGIC)
+		{
+			assert(i->real_interface == NULL);
+			Py_INCREF(i->funcs);
+			return i->funcs;
+		}
+		else
+			return PyErr_Format(PyExc_Exception, "py->py interface %s wasn't found", iid);
+	}
 }
 
 
@@ -882,19 +906,25 @@ local void destroy_interface(void *v)
 	Py_DECREF(i->funcs);
 	i->funcs = NULL;
 
+	/* we haven't been properly maintaining this refcount, so zero it
+	 * here so that the module manager won't complain. */
 	i->head.refcount = 0;
 	mm->UnregInterface(i, i->arena);
 
-	if ((r = mm->UnregInterface(i->real_interface, i->arena)))
+	if (i->real_interface)
 	{
-		lm->Log(L_WARN, "<pymod> there are %d remaining references"
-				" to an interface implemented in python!", r);
+		if ((r = mm->UnregInterface(i->real_interface, i->arena)))
+		{
+			lm->Log(L_WARN, "<pymod> there are %d C remaining references"
+					" to an interface implemented in python!", r);
+			/* leak the interface struct. messy, but at least we have
+			 * less chance of crashing this way. */
+			return;
+		}
 	}
-	else
-	{
-		afree(i->head.iid);
-		afree(i);
-	}
+
+	afree(i->head.iid);
+	afree(i);
 }
 
 local PyObject *mthd_reg_interface(PyObject *self, PyObject *args)
@@ -919,11 +949,6 @@ local PyObject *mthd_reg_interface(PyObject *self, PyObject *args)
 	snprintf(pyiid, sizeof(pyiid), "%s%s", PYINTPREFIX, rawiid);
 	Py_DECREF(iidobj);
 	realint = HashGetOne(pyint_impl_ints, pyiid);
-	if (!realint)
-	{
-		PyErr_SetString(PyExc_TypeError, "you can't implement that interface in Python");
-		return NULL;
-	}
 
 	Py_INCREF(obj);
 
@@ -939,7 +964,8 @@ local PyObject *mthd_reg_interface(PyObject *self, PyObject *args)
 	newint->funcs = obj;
 
 	/* this is the "real" one that other modules will make calls on */
-	mm->RegInterface(realint, arena);
+	if (realint)
+		mm->RegInterface(realint, arena);
 	/* this is the dummy one registered with an iid that's only known
 	 * internally to pymod. */
 	mm->RegInterface(newint, arena);
@@ -1150,7 +1176,7 @@ local int persistent_data_common(PyObject *args,
 	obj = PyObject_GetAttrString(*funcs, #name); \
 	if (!obj || !PyInt_Check(obj)) \
 	{ \
-		PyErr_SetString(PyExc_TypeError, "'" #name "' is missing or not integer"); \
+		PyErr_Format(PyExc_TypeError, "'%s' is missing or not integer", #name); \
 		Py_XDECREF(obj); \
 		return FALSE; \
 	} \
