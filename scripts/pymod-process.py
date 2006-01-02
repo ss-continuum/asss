@@ -1181,7 +1181,7 @@ local int cvt_p2c_%(name)s(PyObject *o, void **pp)
 	}
 	else
 	{
-		PyErr_SetString(PyExc_TypeError, "arg isn't a '%(name)s'");
+		PyErr_Format(PyExc_TypeError, "arg isn't a '%%s'", "%(name)s");
 		return FALSE;
 	}
 }
@@ -1370,7 +1370,7 @@ local int cvt_p2c_%(name)s(PyObject *o, void **pp)
 	}
 	else
 	{
-		PyErr_SetString(PyExc_TypeError, "arg isn't a '%(name)s'");
+		PyErr_Format(PyExc_TypeError, "arg isn't a '%%s'", "%(name)s");
 		return FALSE;
 	}
 }
