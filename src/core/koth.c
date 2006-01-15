@@ -92,6 +92,11 @@ local void start_koth(Arena *arena)
 	chat->SendArenaMessage(arena, "King of the Hill game starting");
 	lm->LogA(L_DRIVEL, "koth", arena, "game starting");
 
+	DO_CBS(CB_KOTH_START, arena, KothStartFunc, (arena, LLCount(&set)));
+	for (link = LLGetHead(&set); link; link = link->next)
+		DO_CBS(CB_CROWNCHANGE, arena, CrownChangeFunc,
+				(link->data, TRUE, KOTH_CAUSE_GAME_START));
+
 	LLEmpty(&set);
 }
 
@@ -138,6 +143,8 @@ local void check_koth(Arena *arena)
 			pts = 1000 / count;
 		mm->ReleaseInterface(pk);
 
+		DO_CBS(CB_KOTH_END, arena, KothEndFunc, (arena, playing, count, pts));
+
 		for (link = LLGetHead(&hadset); link; link = link->next)
 		{
 			p = link->data;
@@ -146,8 +153,11 @@ local void check_koth(Arena *arena)
 			chat->SendArenaMessage(arena, "King of the Hill: %s awarded %d points",
 					p->name, pts);
 			lm->LogP(L_DRIVEL, "koth", p, "won koth game");
+			DO_CBS(CB_KOTH_PLAYER_WIN, arena, KothPlayerWinFunc, (arena, p, pts));
 		}
 		stats->SendUpdates();
+
+		DO_CBS(CB_KOTH_PLAYER_WIN_END, arena, KothPlayerWinEndFunc, (arena));
 
 		if (playing >= adata->minplaying)
 			start_koth(arena);
@@ -237,6 +247,9 @@ local void paction(Player *p, int action, Arena *arena)
 		LOCK();
 		pdata->crown = pdata->hadcrown = 0;
 		UNSET_HAS_CROWN(pid);
+
+		DO_CBS(CB_CROWNCHANGE, arena, CrownChangeFunc,
+				(p, FALSE, KOTH_CAUSE_LEAVE_GAME));
 		UNLOCK();
 	}
 }
@@ -262,7 +275,11 @@ local void mykill(Arena *arena, Player *killer, Player *killed,
 	{
 		eddata->deaths++;
 		if (eddata->deaths > adata->deathcount)
+		{
 			remove_crown(killed);
+			DO_CBS(CB_CROWNCHANGE, arena, CrownChangeFunc,
+					(killed, FALSE, KOTH_CAUSE_TOO_MANY_DEATHS));
+		}
 	}
 
 	if (erdata->crown)
@@ -272,6 +289,8 @@ local void mykill(Arena *arena, Player *killer, Player *killed,
 			add_crown_time(killer, adata->killadjusttime);
 			 */
 		set_crown_time(killer, adata->expiretime);
+		/* this is just extending the expiry time; no change in status,
+		 * so no need to call callbacks. */
 	}
 	else
 	{
@@ -290,6 +309,8 @@ local void mykill(Arena *arena, Player *killer, Player *killed,
 				set_crown_time(killer, adata->expiretime);
 				chat->SendMessage(killer, "You earned back a crown");
 				lm->LogP(L_DRIVEL, "koth", killer, "earned back a crown");
+				DO_CBS(CB_CROWNCHANGE, arena, CrownChangeFunc,
+						(killer, TRUE, KOTH_CAUSE_RECOVERED));
 			}
 			else
 				chat->SendMessage(killer, "%d kill%s left to earn back a crown",
@@ -303,7 +324,7 @@ local void mykill(Arena *arena, Player *killer, Player *killed,
 
 local void p_kothexpired(Player *p, byte *pkt, int len)
 {
-	if (len != 1)
+	if (len != 1 || !p->arena)
 	{
 		lm->LogP(L_MALICIOUS, "koth", p, "bad KoTH expired packet len=%i", len);
 		return;
@@ -311,6 +332,8 @@ local void p_kothexpired(Player *p, byte *pkt, int len)
 
 	LOCK();
 	remove_crown(p);
+	DO_CBS(CB_CROWNCHANGE, p->arena, CrownChangeFunc,
+			(p, FALSE, KOTH_CAUSE_EXPIRED));
 	UNLOCK();
 }
 
