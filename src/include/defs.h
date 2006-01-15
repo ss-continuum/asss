@@ -25,9 +25,9 @@
 #endif
 
 /** a version number, represented as a string */
-#define ASSSVERSION "1.4.1"
+#define ASSSVERSION "1.4.2"
 /** a version number, represented as an integer */
-#define ASSSVERSION_NUM 0x00010401
+#define ASSSVERSION_NUM 0x00010402
 #define BUILDDATE __DATE__ " " __TIME__
 
 

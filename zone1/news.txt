@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 1.4.1.
+Welcome to asss (a small subspace server) 1.4.2.
 
 asss is a new subspace server, written from scratch. It has lots of cool
 new features and improvements over subgame.
@@ -13,11 +13,7 @@ Web: http://sscx.net/asss/
 Email: grelminar@yahoo.com
 
 Recent updates:
-    * redirect feature.
-
-    * obscene module.
-
-    * various bug fixes.
+    * many more bug fixes.
 
     * more detail at http://sscx.net/asss/changelog.txt
 
