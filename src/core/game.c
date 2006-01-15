@@ -1344,6 +1344,13 @@ local void ShipReset(const Target *target)
 }
 
 
+local void IncrementWeaponPacketCount(Player *p, int packets)
+{
+	pdata *data = PPDATA(p, pdkey), *idata;
+	data->wpnsent += packets;
+}
+
+
 local void clear_data(Player *p, void *v)
 {
 	/* this was taken care of in PA_PREENTERARENA */
@@ -1401,7 +1408,8 @@ local Igame _myint =
 	Lock, Unlock, LockArena, UnlockArena,
 	FakePosition, FakeKill,
 	GetIgnoreWeapons, SetIgnoreWeapons,
-	ShipReset
+	ShipReset,
+	IncrementWeaponPacketCount
 };
 
 

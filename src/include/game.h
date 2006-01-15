@@ -227,6 +227,8 @@ typedef struct Igame
 	 */
 	void (*ShipReset)(const Target *target);
 	/* pyint: target -> void */
+
+	void (*IncrementWeaponPacketCount)(Player *p, int packets);
 } Igame;
 
 
