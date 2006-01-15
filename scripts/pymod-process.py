@@ -695,23 +695,13 @@ def translate_pycb(name, ctype, line):
 	{
 		log_py_exception(L_ERROR, "python error building args for "
 			"callback %(name)s");
-		return %(defretval)s;
+		return;
 	}
 """
 	decref = """
 	Py_DECREF(args);
 """
 
-	if cbvars['outargs']:
-		buildspot1 = ''
-		buildspot2 = buildcode
-		decrefspot1 = ''
-		decrefspot2 = decref
-	else:
-		buildspot1 = buildcode
-		buildspot2 = ''
-		decrefspot1 = decref
-		decrefspot2 = ''
 	code = []
 	code.append("""
 local %(retdecl)s %(funcname)s(%(allargs)s)
@@ -720,12 +710,13 @@ local %(retdecl)s %(funcname)s(%(allargs)s)
 	LinkedList cbs = LL_INITIALIZER;
 	Link *l;
 %(decls)s
+	mm->LookupCallback(PYCBPREFIX %(name)s, %(arenaval)s, &cbs);
+	if (LLIsEmpty(&cbs))
+		return;
 """)
 	if not outargs:
 		code.append(buildcode)
 	code.append("""
-	mm->LookupCallback(PYCBPREFIX %(name)s, %(arenaval)s, &cbs);
-
 	for (l = LLGetHead(&cbs); l; l = l->next)
 	{
 """)
