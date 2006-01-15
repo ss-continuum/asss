@@ -442,20 +442,42 @@ local void Cuserdbadm(const char *tc, const char *params, Player *p, const Targe
 
 local void process_connectok(const char *line)
 {
-	lm->Log(L_INFO, "<billing> logged into user db server (%s)",
-			line);
+	char swname[128];
+	const char *billername;
+
+	billername = delimcpy(swname, line, sizeof(swname), ':');
+	if (billername)
+	{
+		lm->Log(L_INFO, "<billing> logged into user db server (%s; %s)",
+				billername, swname);
+	}
+	else
+	{
+		lm->Log(L_INFO, "<billing> logged into user db server with "
+				"malformed response: %s", line);
+	}
+
 	state = s_loggedin;
 }
 
 local void process_connectbad(const char *line)
 {
+	char swname[128];
 	char billername[128];
 	const char *reason;
 
-	reason = delimcpy(billername, line, sizeof(billername), ':');
-
-	lm->Log(L_INFO, "<billing> user db server (%s) rejected login: %s",
-			billername, reason);
+	reason = delimcpy(swname, line, sizeof(swname), ':');
+	if (reason)
+	{
+		reason = delimcpy(billername, reason, sizeof(billername), ':');
+		lm->Log(L_INFO, "<billing> user db server (%s; %s) rejected login: %s",
+				billername, swname, reason);
+	}
+	else
+	{
+		lm->Log(L_INFO, "<billing> user db server rejected login with "
+				"malformed response: %s", line);
+	}
 
 	/* now close it and don't try again */
 	drop_connection(s_loginfailed);
