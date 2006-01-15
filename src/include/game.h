@@ -105,6 +105,16 @@ typedef void (*GreenFunc)(Player *p, int x, int y, int prize);
 /* pycb: player, int, int, int */
 
 
+/** this callback is called whenever someone attaches or detaches. */
+#define CB_ATTACH "attach-1"
+/** the type of CB_ATTACH
+ * @param p the player who is attaching or detaching
+ * @param to the player being attached to, or NULL when detaching
+ */
+typedef void (*AttachFunc)(Player *p, Player *to);
+/* pycb: player, player */
+
+
 /** the game interface id */
 #define I_GAME "game-7"
 

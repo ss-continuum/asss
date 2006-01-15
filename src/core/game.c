@@ -1066,6 +1066,7 @@ local void PAttach(Player *p, byte *pkt2, int len)
 {
 	int pid2 = ((struct SimplePacket*)pkt2)->d1;
 	Arena *arena = p->arena;
+	Player *to = NULL;
 
 	if (len != 3)
 	{
@@ -1078,7 +1079,7 @@ local void PAttach(Player *p, byte *pkt2, int len)
 
 	if (pid2 != -1)
 	{
-		Player *to = pd->PidToPlayer(pid2);
+		to = pd->PidToPlayer(pid2);
 		if (!to ||
 		    to->status != S_PLAYING ||
 		    to == p ||
@@ -1096,6 +1097,8 @@ local void PAttach(Player *p, byte *pkt2, int len)
 		struct SimplePacket pkt = { S2C_TURRET, p->pid, pid2 };
 		net->SendToArena(arena, NULL, (byte*)&pkt, 5, NET_RELIABLE);
 		p->p_attached = pid2;
+
+		DO_CBS(CB_ATTACH, p->arena, AttachFunc, (p, to));
 	}
 }
 
