@@ -45,6 +45,10 @@
 
 #define MAXTYPES 64
 
+#define REL_HEADER 6
+
+#define CHUNK_SIZE 480
+
 /* check whether we manage this client */
 #define IS_OURS(p) ((p)->type == T_CONT || (p)->type == T_VIE)
 
@@ -1348,7 +1352,7 @@ local Player *get_next_player(int *pos)
 
 int queue_more_data(void *dummy)
 {
-#define REQUESTATONCE (config.queue_packets*480)
+#define REQUESTATONCE (config.queue_packets * CHUNK_SIZE)
 	static int nextplayer = 0;
 
 	byte *buffer, *dp;
@@ -1392,18 +1396,15 @@ int queue_more_data(void *dummy)
 
 			/* put data in outlist, in 480 byte chunks */
 			dp = buffer;
-			while (needed > 480)
+			while (needed > CHUNK_SIZE)
 			{
-				memcpy(packet.data, dp, 480);
-				BufferPacket(conn, (byte*)&packet, 486, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
-				dp += 480;
-				needed -= 480;
+				memcpy(packet.data, dp, CHUNK_SIZE);
+				BufferPacket(conn, (byte*)&packet, CHUNK_SIZE + 6, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
+				dp += CHUNK_SIZE;
+				needed -= CHUNK_SIZE;
 			}
-			if (needed > 0)
-			{
-				memcpy(packet.data, dp, needed);
-				BufferPacket(conn, (byte*)&packet, needed + 6, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
-			}
+			memcpy(packet.data, dp, needed);
+			BufferPacket(conn, (byte*)&packet, needed + 6, NET_PRI_N1 | NET_RELIABLE, NULL, NULL);
 
 			/* check if we need more */
 			if (sd->offset >= sd->totallen)
@@ -1776,7 +1777,7 @@ void * RelThread(void *dummy)
 			pthread_mutex_unlock(&conn->relmtx);
 
 			/* process it */
-			buf->len -= 6;
+			buf->len -= REL_HEADER;
 			memmove(buf->d.raw, buf->d.rel.data, buf->len);
 			ProcessBuffer(buf);
 
@@ -2368,7 +2369,7 @@ void SendRaw(ConnData *conn, byte *data, int len)
 	byte encbuf[MAXPACKET+4];
 	Player *p = conn->p;
 
-	assert(len < MAXPACKET);
+	assert(len <= MAXPACKET);
 	memcpy(encbuf, data, len);
 
 #ifdef CFG_DUMP_RAW_PACKETS
@@ -2405,7 +2406,7 @@ Buffer * BufferPacket(ConnData *conn, byte *data, int len, int flags,
 	Buffer *buf;
 	int pri;
 
-	assert(len <= MAXPACKET);
+	assert(len <= (MAXPACKET - REL_HEADER));
 
 	switch (flags & 0x70)
 	{
@@ -2460,7 +2461,7 @@ Buffer * BufferPacket(ConnData *conn, byte *data, int len, int flags,
 	/* get data into packet */
 	if (flags & NET_RELIABLE)
 	{
-		buf->len = len + 6;
+		buf->len = len + REL_HEADER;
 		buf->d.rel.t1 = 0x00;
 		buf->d.rel.t2 = 0x03;
 		buf->d.rel.seqnum = conn->s2cn++;
@@ -2498,7 +2499,7 @@ void SendToOne(Player *p, byte *data, int len, int flags)
 	ConnData *conn = PPDATA(p, connkey);
 	if (!IS_OURS(p)) return;
 	/* see if we can do it the quick way */
-	if (len <= MAXPACKET)
+	if (len <= (MAXPACKET - REL_HEADER))
 	{
 		pthread_mutex_lock(&conn->olmtx);
 		BufferPacket(conn, data, len, flags, NULL, NULL);
@@ -2544,18 +2545,18 @@ void SendToTarget(const Target *target, byte *data, int len, int flags)
 
 void SendToSet(LinkedList *set, byte *data, int len, int flags)
 {
-	if (len > MAXPACKET)
+	if (len > (MAXPACKET - REL_HEADER))
 	{
 		/* use 00 08/9 packets */
-		byte buf[482], *dp = data;
+		byte buf[CHUNK_SIZE + 2], *dp = data;
 
 		buf[0] = 0x00; buf[1] = 0x08;
-		while (len > 480)
+		while (len > CHUNK_SIZE)
 		{
-			memcpy(buf+2, dp, 480);
-			SendToSet(set, buf, 482, flags);
-			dp += 480;
-			len -= 480;
+			memcpy(buf+2, dp, CHUNK_SIZE);
+			SendToSet(set, buf, CHUNK_SIZE + 2, flags);
+			dp += CHUNK_SIZE;
+			len -= CHUNK_SIZE;
 		}
 		buf[1] = 0x09;
 		memcpy(buf+2, dp, len);
@@ -2586,7 +2587,7 @@ void SendWithCallback(
 {
 	ConnData *conn = PPDATA(p, connkey);
 	/* we can't handle big packets here */
-	assert(len < MAXPACKET);
+	assert(len <= (MAXPACKET - REL_HEADER));
 	if (!IS_OURS(p)) return;
 
 	pthread_mutex_lock(&conn->olmtx);
@@ -2723,18 +2724,18 @@ void SendPacket(ClientConnection *cc, byte *pkt, int len, int flags)
 {
 	if (!cc) return;
 	pthread_mutex_lock(&cc->c.olmtx);
-	if (len > MAXPACKET)
+	if (len > (MAXPACKET - REL_HEADER))
 	{
 		/* use 00 08/9 packets */
-		byte buf[482], *dp = pkt;
+		byte buf[CHUNK_SIZE + 2], *dp = pkt;
 
 		buf[0] = 0x00; buf[1] = 0x08;
-		while (len > 480)
+		while (len > CHUNK_SIZE)
 		{
-			memcpy(buf+2, dp, 480);
-			BufferPacket(&cc->c, buf, 482, flags | NET_RELIABLE, NULL, NULL);
-			dp += 480;
-			len -= 480;
+			memcpy(buf+2, dp, CHUNK_SIZE);
+			BufferPacket(&cc->c, buf, CHUNK_SIZE + 2, flags | NET_RELIABLE, NULL, NULL);
+			dp += CHUNK_SIZE;
+			len -= CHUNK_SIZE;
 		}
 		buf[1] = 0x09;
 		memcpy(buf+2, dp, len);
