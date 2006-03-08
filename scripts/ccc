@@ -2,7 +2,7 @@
 # ccc - a console chat client for asss <grelminar@yahoo.com>
 # dist: public
 
-ccc_version = '2.4.4'
+ccc_version = '2.5'
 
 import sys, time, curses, socket, select, os
 
@@ -20,6 +20,8 @@ ship_names = \
 }
 
 biller_reconnect_msg = 'notice: connection to user database server restored.'
+
+automkwin_default = 1
 
 class MyWindows:
 	def __init__(me):
@@ -69,7 +71,10 @@ def make_mod_view():
 	return View('mod chat', '\\')
 
 def make_chat_view(num, name):
-	return View('chat %d (%s)' % (num, name), ';%d;' % num)
+	if name:
+		return View('chat %d (%s)' % (num, name), ';%d;' % num)
+	else:
+		return View('chat %d' % (num), ';%d;' % num)
 
 def make_priv_view(name):
 	return View('priv %s' % name, ':%s:' % name)
@@ -95,7 +100,7 @@ def find_mod_view():
 	for v in views:
 		if v.name == 'mod chat':
 			return v
-	if opts.get('automkwin', 0):
+	if opts.get('automkwin', automkwin_default):
 		v = make_mod_view()
 		i = views.index(find_primary_view())
 		if i == 0:
@@ -104,14 +109,26 @@ def find_mod_view():
 			views.insert(i, v)
 		return v
 
-def find_chat_view(num, chat_name = ''):
+def find_chat_view(num, chat_name = '', noauto = 0):
 	name = 'chat %d' % num
 	for v in views:
 		if v.name.startswith(name):
 			return v
-	if opts.get('automkwin', 0):
+	if not noauto and opts.get('automkwin', automkwin_default):
 		v = make_chat_view(num, chat_name)
-		i = views.index(find_primary_view())
+		# try to insert in order
+		pnum = num
+		while pnum > 1:
+			pnum -= 1
+			pv = find_chat_view(pnum, noauto = 1)
+			if pv:
+				i = views.index(pv) + 1
+				break
+		else:
+			if num == 1:
+				i = views.index(find_primary_view()) + 1
+			else:
+				i = views.index(find_primary_view())
 		if i == 0:
 			views.append(v)
 		else:
@@ -123,7 +140,7 @@ def find_priv_view(name):
 	for v in views:
 		if v.name.lower() == vname:
 			return v
-	if opts.get('automkwin', 0):
+	if opts.get('automkwin', automkwin_default):
 		v = make_priv_view(name)
 		i = views.index(find_primary_view())
 		if i == 0:
@@ -659,6 +676,7 @@ class ChatParser:
 
 			view = find_chat_view(me.idx)
 			if view:
+				view.name = 'chat %d (%s)' % (me.idx, chat)
 				for n in names:
 					view.players.add(Player(n, 0))
 		except:
@@ -771,26 +789,59 @@ def init_logfile(fname):
 def reload_logfile():
 	init_logfile(original_log_filename)
 
+def try_load_log_history():
+	import re
+
+	log_line_re = re.compile('(.{24}) ([A-Z]) (.*)')
+
+	colormap = {}
+	for k, v in globals().iteritems():
+		if k.startswith('L_'):
+			colormap[v] = getattr(colors, k[2:].lower(), colors.default)
+
+	if not logfile:
+		return
+
+	for line in open(logfile.name, 'r').readlines():
+		m = log_line_re.match(line)
+		if not m: continue
+		tm, tp, txt = m.groups()
+		tm = time.mktime(time.strptime(tm, '%a %b %d %H:%M:%S %Y'))
+		color = colormap.get(tp, colors.default)
+		lineobj = Line(txt, color, tm)
+		view = None
+		# only handle diverting history to chat views and mod chat.
+		# don't try to recreate private message views, even if automkwin
+		# is on.
+		if tp == L_CHAT:
+			chatno, _ = txt.split(':', 1)
+			chatno = int(chatno)
+			view = find_chat_view(chatno)
+		elif tp == L_MOD:
+			view = find_mod_view()
+		if not view:
+			view = views[0]
+		view.text.addline(lineobj)
+
 
 # log types
-L_INFO = 'I'
-L_KILL = 'K'
 L_CMD = 'D'
-L_PUB = 'P'
+L_INFO = 'I'
 L_ARENA = 'A'
+L_PUB = 'P'
 L_PRIV = 'V'
-L_REMOTEPRIV = 'R'
-L_FREQ = 'T' # team
-L_NMEFREQ = 'E' # team
-L_CHAT = 'C'
-L_SYSOP = 'W' # warn
-L_MOD = 'M'
 L_SQUAD = 'Q'
+L_REMPRIV = 'R'
+L_FREQ = 'T' # team
+L_CHAT = 'C'
+L_MOD = 'M'
+L_SYSOP = 'W' # warn
+L_KILL = 'K'
 
 def log(type, text):
 	if not logfile:
 		return
-	line = (time.asctime(), ' ', type, ' ', text, '\n')
+	line = (time.ctime(), ' ', type, ' ', text, '\n')
 	line = ''.join(line)
 	logfile.write(line)
 
@@ -1003,13 +1054,6 @@ def process_loginok(line):
 	# join chats and other autocommands
 	if opts.has_key('chats'):
 		deferred_typed_lines.append('?chat=%s' % opts['chats'])
-		if opts.get('chatwindows', 0):
-			chats = opts['chats'].split(',')
-			idx = 1
-			for c in chats:
-				if not find_chat_view(idx, chat_name = c):
-					views.append(make_chat_view(idx, c))
-				idx += 1
 
 	# init lines can be split by newlines or bars
 	if opts.has_key('init'):
@@ -1544,6 +1588,7 @@ def main():
 			views.insert(0, make_all_view())
 
 		init_logfile(opts.get('logfile'))
+		try_load_log_history()
 
 		main_loop()
 
