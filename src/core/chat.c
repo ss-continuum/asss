@@ -134,6 +134,7 @@ local const char *get_chat_type(int type)
 		case MSG_PUBMACRO: return "PUBM";
 		case MSG_PRIV: return "PRIV";
 		case MSG_FREQ: return "FREQ";
+		case MSG_NMEFREQ: return "FREQ";
 		case MSG_SYSOPWARNING: return "SYSOP";
 		case MSG_CHAT: return "CHAT";
 		case MSG_MODCHAT: return "MOD";
