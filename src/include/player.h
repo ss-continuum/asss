@@ -98,13 +98,10 @@ enum
 	/* transitions to: send_arena_response (or do_arena_sync2) */
 	S_WAIT_ARENA_SYNC1,
 
-	/** done with scores, needs to send arena response */
-	/* transitions to: do_arena_callbacks (or do_arena_sync2) */
-	S_SEND_ARENA_RESPONSE,
-
-	/** area response sent, now call arena entering callbacks */
+	/** done with scores, needs to send arena response and run arena
+	 ** entering callbacks */
 	/* transitions to: playing (or do_arena_sync2) */
-	S_DO_ARENA_CALLBACKS,
+	S_ARENA_RESP_AND_CBS,
 
 	/** player is playing in an arena. typically the longest state */
 	/* transitions to: leaving_arena */

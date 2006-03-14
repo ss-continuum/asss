@@ -276,7 +276,7 @@ local void SendArenaResponse(Player *p)
 
 	pd->Lock();
 	FOR_EACH_PLAYER(op)
-		if ((op->status == S_PLAYING || op->status == S_DO_ARENA_CALLBACKS) &&
+		if (op->status == S_PLAYING &&
 		    op->arena == a &&
 		    op != p )
 		{
@@ -340,16 +340,10 @@ local int initiate_leave_arena(Player *p)
 			 * nice to find a better way to handle it. */
 			p->flags.leave_arena_when_done_waiting = 1;
 			break;
-		case S_SEND_ARENA_RESPONSE:
+		case S_ARENA_RESP_AND_CBS:
 			/* in these, stuff has come out of the database. put it back
 			 * in. */
 			p->status = S_DO_ARENA_SYNC2;
-			break;
-		case S_DO_ARENA_CALLBACKS:
-			/* put stuff back in database and also notify other players
-			 * of the leaving player. */
-			p->status = S_DO_ARENA_SYNC2;
-			notify = TRUE;
 			break;
 		case S_PLAYING:
 			/* do all of the above, plus call leaving callbacks. */
