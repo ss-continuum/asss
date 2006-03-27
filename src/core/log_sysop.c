@@ -181,7 +181,7 @@ void Clastlog(const char *cmd, const char *params, Player *p, const Target *targ
 	c = (ll_pos - 1 + MAXLAST) % MAXLAST;
 	while (c != ll_pos && ll_data[c][0] != '\0' && left > 0)
 	{
-		if (*end == '\0' || strstr(ll_data[c], end))
+		if (*end == '\0' || strcasestr(ll_data[c], end))
 			lines[--left] = ll_data[c];
 		c = (c - 1 + MAXLAST) % MAXLAST;
 	}
