@@ -93,7 +93,7 @@ startover:
 				ret = td->func(td->param);
 				LOCK();
 				thistimer = NULL;
-				if (td->killme || !ret)
+				if (td->interval == 0 || td->killme || !ret)
 				{
 					LLRemove(&timers, td);
 					afree(td);
