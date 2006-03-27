@@ -86,9 +86,9 @@ void LogFile(const char *s)
 			time(&t1);
 			strftime(t3, sizeof(t3), CFG_TIMEFORMAT, localtime(&t1));
 			fputs(t3, logfile);
-			putc(' ', logfile);
+			fputs(" ", logfile);
 			fputs(s, logfile);
-			putc('\n', logfile);
+			fputs("\n", logfile);
 		}
 		pthread_mutex_unlock(&logmtx);
 	}
