@@ -995,9 +995,17 @@ def process_typed(prefix, line):
 		txt = "%s:%s> %s" % (chan, myname, msg)
 		add_line(txt, colors.chat, find_chat_view(int(chan)))
 		log(L_CHAT, txt)
-	elif line.startswith("'") or line.startswith('//') or line.startswith('"'):
-		# team chat
+
+	elif line.startswith("'"):
+		send_line("SEND:FREQ:%d:%s" % (myfreq, line[1:]) )
+		txt = "%s> %s" % (myname, line[1:])
+		add_line(txt, colors.freq)
+		log(L_FREQ, txt)
+
+	elif line.startswith('"'):
+		# foreign freq chat
 		pass
+
 	elif line.startswith(':'):
 		# priv msg
 		ns = line.find(':', 1)
