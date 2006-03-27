@@ -510,32 +510,54 @@ local helptext_t find_help =
 local void Cfind(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Link *link;
-	Player *i;
-	char newcmd[64];
+	Player *i, *best = NULL;
+	int score = INT_MAX; /* lower is better */
 
 	if (target->type != T_ARENA || !*params) return;
 
 	pd->Lock();
 	FOR_EACH_PLAYER(i)
 	{
-		if (i->status == S_PLAYING &&
-		    strcasestr(i->name, params))
+		const char *pos;
+		if (i->status != S_PLAYING)
+			continue;
+		if (strcasecmp(i->name, params) == 0)
 		{
-			if (i->arena->name[0] != '#' ||
-			    capman->HasCapability(p, CAP_SEEPRIVARENA) ||
-			    p->arena == i->arena)
-				chat->SendMessage(p, "%s is in arena %s.", i->name, i->arena->name);
-			else
-				chat->SendMessage(p, "%s is in a private arena.", i->name);
-			pd->Unlock();
-			return;
+			/* exact matches always win */
+			best = i;
+			break;
+		}
+		pos = strcasestr(i->name, params);
+		if (pos)
+		{
+			/* if only a substring match, score based on distance from
+			 * start of name. */
+			int newscore = pos - i->name;
+			if (newscore < score)
+			{
+				best = i;
+				score = newscore;
+			}
 		}
 	}
 	pd->Unlock();
 
-	/* if not found, fall back to the default */
-	snprintf(newcmd, sizeof(newcmd), "\\find %s", params);
-	cmd->Command(newcmd, p, target);
+	if (best)
+	{
+		if (best->arena->name[0] != '#' ||
+		    capman->HasCapability(p, CAP_SEEPRIVARENA) ||
+		    p->arena == best->arena)
+			chat->SendMessage(p, "%s is in arena %s.", best->name, best->arena->name);
+		else
+			chat->SendMessage(p, "%s is in a private arena.", best->name);
+	}
+	else
+	{
+		/* if not found, fall back to the default */
+		char newcmd[64];
+		snprintf(newcmd, sizeof(newcmd), "\\find %s", params);
+		cmd->Command(newcmd, p, target);
+	}
 }
 
 
