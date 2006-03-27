@@ -176,9 +176,9 @@ void *LLRemoveFirst(LinkedList *lst);
 int LLIsEmpty(LinkedList *lst);
 /** returns the number of items in a list. */
 int LLCount(LinkedList *lst);
-/** calls a function on each item in a list. */
-int LLMember(LinkedList *lst, const void *data);
 /** returns true if the given item is in the list. */
+int LLMember(LinkedList *lst, const void *data);
+/** calls a function on each item in a list. */
 void LLEnum(LinkedList *lst, void (*func)(const void *ptr));
 /** returns the first link in the list. */
 Link *LLGetHead(LinkedList *lst);
