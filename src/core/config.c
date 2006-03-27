@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <assert.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -28,17 +29,22 @@ struct Entry
 	const char *keystr, *val, *info;
 };
 
-struct ConfigFile
+typedef struct ConfigFile
 {
-	int refcount;
-	HashTable *thetable;
-	StringChunk *thestrings;
-	pthread_mutex_t mutex; /* this mutex is recursive */
+	pthread_mutex_t mutex; /* recursive */
+	LinkedList handles;
+	HashTable *table;
+	StringChunk *strings;
 	LinkedList dirty;
-	ConfigChangedFunc changed;
-	void *clos;
 	time_t lastmod;
 	char *filename, *arena, *name;
+} ConfigFile;
+
+struct ConfigHandle
+{
+	ConfigFile *file;
+	ConfigChangedFunc func;
+	void *clos;
 };
 
 
@@ -90,60 +96,71 @@ local char * unescape_string(char *dst, int dstlen, char *src, char stopon)
 }
 
 
-local int write_dirty_values(void *dummy)
+/* call with cf->mutex held */
+local void write_dirty_values_one(ConfigFile *cf, int call_cbs)
 {
 	char buf[CFG_MAX_LINE];
-	Link *l1, *l2;
-	ConfigHandle ch;
 	FILE *fp;
+	Link *l;
+
+	l = LLGetHead(&cf->dirty);
+	if (l)
+	{
+		if (lm)
+			lm->Log(L_INFO, "<config> writing dirty settings: %s",
+					cf->filename);
+
+		if ((fp = fopen(cf->filename, "a")))
+		{
+			struct stat st;
+			for (; l; l = l->next)
+			{
+				struct Entry *e = l->data;
+				if (e->info) fprintf(fp, "; %s\n", e->info);
+				/* escape keystr and val */
+				escape_string(buf, sizeof(buf), e->keystr);
+				fputs(buf, fp);
+				fputs(" = ", fp);
+				escape_string(buf, sizeof(buf), e->val);
+				fputs(buf, fp);
+				fputs("\n\n", fp);
+				afree(e->keystr);
+				afree(e->info);
+				afree(e);
+			}
+			fclose(fp);
+			/* set lastmod so that we don't think it's dirty */
+			if (stat(cf->filename, &st) == 0)
+				cf->lastmod = st.st_mtime;
+		}
+		else
+			if (lm)
+				lm->Log(L_WARN, "<config> failed to write dirty values: %s",
+						cf->filename);
+
+		LLEmpty(&cf->dirty);
+
+		/* call changed callbacks */
+		for (l = LLGetHead(&cf->handles); call_cbs && l; l = l->next)
+		{
+			ConfigHandle ch = l->data;
+			if (ch->func)
+				ch->func(ch->clos);
+		}
+	}
+}
+
+local int write_dirty_values(void *dummy)
+{
+	Link *l;
 
 	pthread_mutex_lock(&cfgmtx);
-	for (l1 = LLGetHead(&files); l1; l1 = l1->next)
+	for (l = LLGetHead(&files); l; l = l->next)
 	{
-		ch = l1->data;
-		pthread_mutex_lock(&ch->mutex);
-		l2 = LLGetHead(&ch->dirty);
-		if (l2)
-		{
-			if (lm)
-				lm->Log(L_INFO, "<config> writing dirty settings to '%s'",
-						ch->filename);
-
-			if ((fp = fopen(ch->filename, "a")))
-			{
-				struct stat st;
-				for (; l2; l2 = l2->next)
-				{
-					struct Entry *e = l2->data;
-					if (e->info) fprintf(fp, "; %s\n", e->info);
-					/* escape keystr and val */
-					escape_string(buf, sizeof(buf), e->keystr);
-					fputs(buf, fp);
-					fputs(" = ", fp);
-					escape_string(buf, sizeof(buf), e->val);
-					fputs(buf, fp);
-					fputs("\n\n", fp);
-					afree(e->keystr);
-					afree(e->info);
-					afree(e);
-				}
-				fclose(fp);
-				/* set lastmod so that we don't think it's dirty */
-				if (stat(ch->filename, &st) == 0)
-					ch->lastmod = st.st_mtime;
-			}
-			else
-				if (lm)
-					lm->Log(L_WARN, "<config> failed to write dirty values to '%s'",
-							ch->filename);
-
-			LLEmpty(&ch->dirty);
-
-			/* call changed callback */
-			if (ch->changed)
-				ch->changed(ch->clos);
-		}
-		pthread_mutex_unlock(&ch->mutex);
+		ConfigFile *cf = l->data;
+		pthread_mutex_lock(&cf->mutex);
+		write_dirty_values_one(cf, TRUE);
+		pthread_mutex_unlock(&cf->mutex);
 	}
 	pthread_mutex_unlock(&cfgmtx);
 
@@ -179,7 +196,8 @@ local int locate_config_file(char *dest, int destlen, const char *arena, const c
 
 #define LINESIZE CFG_MAX_LINE
 
-local void do_load(ConfigHandle ch, const char *arena, const char *name)
+/* call with cf->mutex held */
+local void do_load(ConfigFile *cf, const char *arena, const char *name)
 {
 	APPContext *ctx;
 	char line[LINESIZE], *buf, *t;
@@ -236,22 +254,22 @@ local void do_load(ConfigHandle ch, const char *arena, const char *name)
 
 				unescape_string(val, sizeof(val), buf, 0);
 
-				data = SCAdd(ch->thestrings, val);
+				data = SCAdd(cf->strings, val);
 
 				if (strchr(thespot, ':'))
 					/* this syntax lets you specify a section and key on
 					 * one line. it does _not_ modify the "current
 					 * section" */
-					HashReplace(ch->thetable, thespot, data);
+					HashReplace(cf->table, thespot, data);
 				else if (thespot > key)
-					HashReplace(ch->thetable, key, data);
+					HashReplace(cf->table, key, data);
 				else
 					report_error("ignoring value not in any section");
 			}
 			else
 				/* there is no value for this key, so enter it with the
 				 * empty string. */
-				HashReplace(ch->thetable, key, "");
+				HashReplace(cf->table, key, "");
 		}
 	}
 
@@ -259,43 +277,54 @@ local void do_load(ConfigHandle ch, const char *arena, const char *name)
 }
 
 
-local void ReloadConfigFile(ConfigHandle ch)
+/* call with cf->mutex not held */
+local void reload_file(ConfigFile *cf)
 {
 	struct stat st;
 
 	if (lm)
 		lm->Log(L_INFO, "<config> reloading file from disk: %s",
-				ch->filename);
+				cf->filename);
 
-	pthread_mutex_lock(&ch->mutex);
+	pthread_mutex_lock(&cf->mutex);
 
 	/* just in case */
-	write_dirty_values(NULL);
+	write_dirty_values_one(cf, FALSE);
 
 	/* free this stuff, then create it again */
-	SCFree(ch->thestrings);
-	HashFree(ch->thetable);
-	ch->thetable = HashAlloc();
-	ch->thestrings = SCAlloc();
+	SCFree(cf->strings);
+	HashFree(cf->table);
+	cf->table = HashAlloc();
+	cf->strings = SCAlloc();
 
 	/* now load file again */
-	do_load(ch, ch->arena, ch->name);
+	do_load(cf, cf->arena, cf->name);
 
-	ch->lastmod = stat(ch->filename, &st) == 0 ? st.st_mtime : 0;
+	cf->lastmod = stat(cf->filename, &st) == 0 ? st.st_mtime : 0;
 
-	/* call changed callback */
-	if (ch->changed)
-		ch->changed(ch->clos);
-
-	pthread_mutex_unlock(&ch->mutex);
+	pthread_mutex_unlock(&cf->mutex);
 }
 
-
-local void AddRef(ConfigHandle ch)
+local void ReloadConfigFile(ConfigHandle ch)
 {
-	pthread_mutex_lock(&ch->mutex);
-	ch->refcount++;
-	pthread_mutex_unlock(&ch->mutex);
+	reload_file(ch->file);
+}
+
+local ConfigHandle new_handle(ConfigFile *cf, ConfigChangedFunc func, void *clos)
+{
+	ConfigHandle ch = amalloc(sizeof(*ch));
+	ch->file = cf;
+	ch->func = func;
+	ch->clos = clos;
+	pthread_mutex_lock(&cf->mutex);
+	LLAdd(&cf->handles, ch);
+	pthread_mutex_unlock(&cf->mutex);
+	return ch;
+}
+
+local ConfigHandle AddRef(ConfigHandle ch)
+{
+	return new_handle(ch->file, NULL, NULL);
 }
 
 
@@ -310,21 +339,21 @@ local int maybe_reload_files(void *v)
 {
 	struct maybe_reload_data *data = v;
 	Link *l;
-	ConfigHandle ch;
+	ConfigFile *cf;
 	struct stat st;
 
 	pthread_mutex_lock(&cfgmtx);
 	for (l = LLGetHead(&files); l; l = l->next)
 	{
-		ch = l->data;
+		cf = l->data;
 		if (data ?
-		    (!data->pathname || strstr(ch->filename, data->pathname)) :
-		    (stat(ch->filename, &st) == 0 && st.st_mtime != ch->lastmod))
+		    (!data->pathname || strstr(cf->filename, data->pathname)) :
+		    (stat(cf->filename, &st) == 0 && st.st_mtime != cf->lastmod))
 		{
-			/* this calls changed callback */
-			ReloadConfigFile(ch);
+			/* this calls changed callbacks */
+			reload_file(cf);
 			if (data && data->callback)
-				data->callback(ch->filename, data->clos);
+				data->callback(cf->filename, data->clos);
 		}
 	}
 	pthread_mutex_unlock(&cfgmtx);
@@ -345,31 +374,52 @@ local void ForceReload(const char *pathname,
 }
 
 
-local ConfigHandle new_file()
+local ConfigFile *new_file()
 {
-	ConfigHandle f;
+	ConfigFile *f;
 	pthread_mutexattr_t attr;
 
-	f = amalloc(sizeof(struct ConfigFile));
-	f->refcount = 1;
-	f->thetable = HashAlloc();
-	f->thestrings = SCAlloc();
-	f->changed = NULL;
-	LLInit(&f->dirty);
+	f = amalloc(sizeof(*f));
 
 	pthread_mutexattr_init(&attr);
 	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 	pthread_mutex_init(&f->mutex, &attr);
 	pthread_mutexattr_destroy(&attr);
 
+	LLInit(&f->handles);
+	f->table = HashAlloc();
+	f->strings = SCAlloc();
+	LLInit(&f->dirty);
+
 	return f;
+}
+
+local void free_file(ConfigFile *cf)
+{
+	if (LLCount(&cf->handles))
+	{
+		/* this can only happen when we're unloading this module, in
+		 * which case it doesn't really matter if we delete these or
+		 * not, but it's nice to be complete. */
+		LLEnum(&cf->handles, afree);
+		LLEmpty(&cf->handles);
+	}
+
+	SCFree(cf->strings);
+	HashFree(cf->table);
+	pthread_mutex_destroy(&cf->mutex);
+	afree(cf->filename);
+	afree(cf->arena);
+	afree(cf->name);
+	afree(cf);
 }
 
 
 local ConfigHandle OpenConfigFile(const char *arena, const char *name,
 		ConfigChangedFunc func, void *clos)
 {
-	ConfigHandle thefile;
+	ConfigHandle ch;
+	ConfigFile *cf;
 	char fname[PATH_MAX];
 	struct stat st;
 
@@ -379,64 +429,51 @@ local ConfigHandle OpenConfigFile(const char *arena, const char *name,
 
 	/* first try to get it out of the table */
 	pthread_mutex_lock(&cfgmtx);
-	thefile = HashGetOne(opened, fname);
-	if (thefile)
+	cf = HashGetOne(opened, fname);
+	if (!cf)
 	{
-		thefile->refcount++;
-		pthread_mutex_unlock(&cfgmtx);
-		return thefile;
+		/* if not, make a new one */
+		cf = new_file();
+		cf->filename = astrdup(fname);
+		cf->arena = astrdup(arena);
+		cf->name = astrdup(name);
+		cf->lastmod = stat(fname, &st) == 0 ? st.st_mtime : 0;
+
+		/* load the settings */
+		do_load(cf, arena, name);
+
+		/* add this to the opened table */
+		HashAdd(opened, fname, cf);
+		LLAdd(&files, cf);
 	}
+	/* create handle while holding cfgmtx to preserve invariant:
+	 * all open files have at least one handle */
+	ch = new_handle(cf, func, clos);
 	pthread_mutex_unlock(&cfgmtx);
 
-	/* if not, make a new one */
-	thefile = new_file();
-	thefile->filename = astrdup(fname);
-	thefile->arena = astrdup(arena);
-	thefile->name = astrdup(name);
-	thefile->lastmod = stat(fname, &st) == 0 ? st.st_mtime : 0;
-	thefile->changed = func;
-	thefile->clos = clos;
-
-	/* load the settings */
-	do_load(thefile, arena, name);
-
-	/* add this to the opened table */
-	pthread_mutex_lock(&cfgmtx);
-	HashAdd(opened, fname, thefile);
-	LLAdd(&files, thefile);
-	pthread_mutex_unlock(&cfgmtx);
-
-	return thefile;
+	return ch;
 }
 
 local void CloseConfigFile(ConfigHandle ch)
 {
+	ConfigFile *cf;
 	if (!ch) return;
+	cf = ch->file;
 
-	pthread_mutex_lock(&ch->mutex);
-	if (--ch->refcount < 1)
+	pthread_mutex_lock(&cfgmtx);
+	pthread_mutex_lock(&cf->mutex);
+	assert(LLRemove(&cf->handles, ch));
+	if (LLCount(&cf->handles) == 0)
 	{
-		/* don't call callbacks for dirty values that are written as
-		 * we're closing the file */
-		ch->changed = NULL;
-		write_dirty_values(NULL);
-		pthread_mutex_unlock(&ch->mutex);
-
-		pthread_mutex_lock(&cfgmtx);
-		HashRemove(opened, ch->filename, ch);
-		LLRemove(&files, ch);
-		pthread_mutex_unlock(&cfgmtx);
-
-		SCFree(ch->thestrings);
-		HashFree(ch->thetable);
-		pthread_mutex_destroy(&ch->mutex);
-		afree(ch->filename);
-		afree(ch->arena);
-		afree(ch->name);
-		afree(ch);
+		write_dirty_values_one(cf, FALSE);
+		pthread_mutex_unlock(&cf->mutex);
+		HashRemove(opened, cf->filename, cf);
+		LLRemove(&files, cf);
+		free_file(cf);
 	}
 	else
-		pthread_mutex_unlock(&ch->mutex);
+		pthread_mutex_unlock(&cf->mutex);
+	pthread_mutex_unlock(&cfgmtx);
 }
 
 
@@ -444,23 +481,25 @@ local const char *GetStr(ConfigHandle ch, const char *sec, const char *key)
 {
 	char keystring[MAXSECTIONLEN+MAXKEYLEN+2];
 	const char *res;
+	ConfigFile *cf;
 
 	if (!ch) return NULL;
 	if (ch == GLOBAL) ch = global;
+	cf = ch->file;
 
-	pthread_mutex_lock(&ch->mutex);
+	pthread_mutex_lock(&cf->mutex);
 	if (sec && key)
 	{
 		snprintf(keystring, MAXSECTIONLEN+MAXKEYLEN+1, "%s:%s", sec, key);
-		res = HashGetOne(ch->thetable, keystring);
+		res = HashGetOne(cf->table, keystring);
 	}
 	else if (sec)
-		res = HashGetOne(ch->thetable, sec);
+		res = HashGetOne(cf->table, sec);
 	else if (key)
-		res = HashGetOne(ch->thetable, key);
+		res = HashGetOne(cf->table, key);
 	else
 		res = NULL;
-	pthread_mutex_unlock(&ch->mutex);
+	pthread_mutex_unlock(&cf->mutex);
 
 	return res;
 }
@@ -484,9 +523,11 @@ local void SetStr(ConfigHandle ch, const char *sec, const char *key,
 	struct Entry *e = NULL;
 	char keystring[MAXSECTIONLEN+MAXKEYLEN+2];
 	const char *res, *data;
+	ConfigFile *cf;
 
 	if (!ch || !val) return;
 	if (ch == GLOBAL) ch = global;
+	cf = ch->file;
 
 	if (sec && key)
 		snprintf(keystring, MAXSECTIONLEN+MAXKEYLEN+1, "%s:%s", sec, key);
@@ -497,13 +538,13 @@ local void SetStr(ConfigHandle ch, const char *sec, const char *key,
 	else
 		return;
 
-	pthread_mutex_lock(&ch->mutex);
+	pthread_mutex_lock(&cf->mutex);
 
 	/* check it against the current value */
-	res = HashGetOne(ch->thetable, keystring);
+	res = HashGetOne(cf->table, keystring);
 	if (res && !strcmp(res, val))
 	{
-		pthread_mutex_unlock(&ch->mutex);
+		pthread_mutex_unlock(&cf->mutex);
 		return;
 	}
 
@@ -515,14 +556,14 @@ local void SetStr(ConfigHandle ch, const char *sec, const char *key,
 		e->info = astrdup(info);
 	}
 
-	data = SCAdd(ch->thestrings, val);
-	HashReplace(ch->thetable, keystring, data);
+	data = SCAdd(cf->strings, val);
+	HashReplace(cf->table, keystring, data);
 	if (perm)
 	{
 		e->val = data;
-		LLAdd(&ch->dirty, e);
+		LLAdd(&cf->dirty, e);
 	}
-	pthread_mutex_unlock(&ch->mutex);
+	pthread_mutex_unlock(&cf->mutex);
 }
 
 local void SetInt(ConfigHandle ch, const char *sec, const char *key,
@@ -586,8 +627,6 @@ EXPORT int MM_config(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
-		pthread_mutexattr_t attr;
-
 		mm = mm_;
 
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
@@ -596,10 +635,7 @@ EXPORT int MM_config(int action, Imodman *mm_, Arena *arena)
 		LLInit(&files);
 		opened = HashAlloc();
 
-		pthread_mutexattr_init(&attr);
-		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-		pthread_mutex_init(&cfgmtx, &attr);
-		pthread_mutexattr_destroy(&attr);
+		pthread_mutex_init(&cfgmtx, NULL);
 
 		global = OpenConfigFile(NULL, NULL, global_changed, NULL);
 		if (!global) return MM_FAIL;
@@ -619,30 +655,31 @@ EXPORT int MM_config(int action, Imodman *mm_, Arena *arena)
 	else if (action == MM_PREUNLOAD)
 	{
 		mm->ReleaseInterface(lm);
+		lm = NULL;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 
+		CloseConfigFile(global);
+
 		ml->ClearTimer(write_dirty_values, NULL);
 		ml->ClearTimer(maybe_reload_files, NULL);
 		mm->ReleaseInterface(ml);
 
-		/* one last time... */
-		write_dirty_values(NULL);
-
 		{
-			/* try to clear existing files */
-			Link *l, *n;
-			for (l = LLGetHead(&files); l; l = n)
+			/* free existing files */
+			Link *l;
+			for (l = LLGetHead(&files); l; l = l->next)
 			{
-				n = l->next;
-				CloseConfigFile(l->data);
+				write_dirty_values_one(l->data, FALSE);
+				free_file(l->data);
 			}
+			LLEmpty(&files);
+			HashFree(opened);
 		}
 
-		HashFree(opened);
 		pthread_mutex_destroy(&cfgmtx);
 
 		return MM_OK;
