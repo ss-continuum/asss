@@ -298,16 +298,16 @@ local void Freq(Player *p, int *ship, int *freq)
 
 	ch = arena->cfg;
 	inclspec = INCLSPEC(ch);
-	/* cfghelp: Team:MaxFrequency, arena, int, range: 0-9999, def: 9999
-	 * The highest frequency allowed. Set this below PrivFreqStart to
-	 * disallow private freqs. */
-	maxfreq = cfg->GetInt(ch, "Team", "MaxFrequency", 9999);
+	/* cfghelp: Team:MaxFrequency, arena, int, range: 1-10000, def: 10000
+	 * One more than the highest frequency allowed. Set this below
+	 * PrivFreqStart to disallow private freqs. */
+	maxfreq = cfg->GetInt(ch, "Team", "MaxFrequency", 10000);
 
 	/* special case: speccer re-entering spec freq */
 	if (s == SHIP_SPEC && f == arena->specfreq)
 		return;
 
-	if (f < 0 || f > maxfreq)
+	if (f < 0 || f >= maxfreq)
 		/* he requested a bad freq. drop him elsewhere. */
 		f = BalanceFreqs(arena, p, inclspec);
 	else
