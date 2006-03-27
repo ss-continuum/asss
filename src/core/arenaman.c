@@ -74,8 +74,10 @@ local void arena_conf_changed(void *v)
 	Arena *a = v;
 
 	/* only running arenas should recieve confchanged events */
+	RDLOCK();
 	if (a->status == ARENA_RUNNING)
 		DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_CONFCHANGED));
+	RDUNLOCK();
 }
 
 
