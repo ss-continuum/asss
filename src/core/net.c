@@ -25,9 +25,6 @@
 
 /* configuration stuff */
 
-/* whether to increase bandwidth limit only when it's hit */
-/* #define CFG_USE_HITLIMIT */
-
 /* the size of the ip address hash table. this _must_ be a power of two. */
 #define CFG_HASHSIZE 256
 
