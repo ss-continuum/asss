@@ -1081,10 +1081,10 @@ def process_loginbad(line):
 
 
 def process_inarena(line):
-	global myname
+	global myname, myfreq
 
 	arena, freq = line.split(':')
-	freq = int(freq)
+	myfreq = int(freq)
 	txt = "Entered arena: %s" % arena
 	add_line(txt)
 	log(L_INFO, txt)
@@ -1092,7 +1092,7 @@ def process_inarena(line):
 	view = find_arena_view()
 	if view:
 		view.players.clear()
-		view.players.add(Player(myname, freq))
+		view.players.add(Player(myname, myfreq))
 
 	for l in deferred_typed_lines:
 		process_typed('', l)
@@ -1189,11 +1189,14 @@ def process_msg(line):
 
 
 def process_sfc(line):
-	global colors
+	global colors, myfreq
 
 	player, ship, freq = line.split(':')
 	ship = int(ship)
 	freq = int(freq)
+
+	if (player == myname):
+		myfreq = freq
 
 	view = find_arena_view()
 	if view: view.players.sfc(player, ship, freq)
