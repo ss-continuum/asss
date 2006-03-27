@@ -140,7 +140,7 @@ local void SendMapFilename(Player *p)
 		Link *l;
 
 		/* allocate for the maximum possible */
-		mf = alloca(sizeof(mf->files[0]) * LLCount(dls));
+		mf = alloca(1 + sizeof(mf->files[0]) * LLCount(dls));
 
 		for (l = LLGetHead(dls); l; l = l->next)
 		{
