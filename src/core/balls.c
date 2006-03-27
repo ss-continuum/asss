@@ -802,6 +802,9 @@ int BasicBallTimer(void *dummy)
 		ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
 		MyBallData *pbd = P_ARENA_DATA(arena, pbdkey);
 
+		if (arena->status != ARENA_RUNNING)
+			continue;
+
 		LOCK_STATUS(arena);
 		if (abd->ballcount > 0)
 		{
