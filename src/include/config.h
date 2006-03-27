@@ -45,7 +45,7 @@
 
 
 /** other modules should manipulate config files through ConfigHandles. */
-typedef struct ConfigFile *ConfigHandle;
+typedef struct ConfigHandle *ConfigHandle;
 
 /** use this special ConfigHandle to refer to the global config file. */
 #define GLOBAL ((ConfigHandle)(-3))
@@ -138,6 +138,10 @@ typedef struct Iconfig
 	 * "arena.conf" in the arena directory. If name and arena are both
 	 * NULL, it looks for "global.conf" in the global conf directory.
 	 *
+	 * The optional callback function can call GetStr or GetInt on this
+	 * (or other) config files, but it should not call any other
+	 * functions in the config interface.
+	 *
 	 * @param arena the name of the arena to use when searching for the
 	 * file
 	 * @param name the name of the desired config file
@@ -174,7 +178,7 @@ typedef struct Iconfig
 	 * shouldn't have to use this at all, unless you're writing code to
 	 * allow access to config files from another language.
 	 */
-	void (*AddRef)(ConfigHandle ch);
+	ConfigHandle (*AddRef)(ConfigHandle ch);
 
 	/** Forces the server to write changes back to config files on disk.
 	 * You shouldn't have to call this, as it's done automatically

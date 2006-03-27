@@ -412,7 +412,7 @@ local void do_end_interval(const char *ag, int interval)
 	{
 		/* global data is loaded during S_WAIT_GLOBAL_SYNC, so we want to
 		 * perform the getting/clearing if the player is after that. */
-		statmin = S_DO_ARENA_CALLBACKS;
+		statmin = S_DO_GLOBAL_CALLBACKS;
 		/* after we've saved global data for the last time, status goes
 		 * to S_TIMEWAIT, so if we're before that, we still have data to
 		 * save. */
@@ -421,7 +421,7 @@ local void do_end_interval(const char *ag, int interval)
 	else
 	{
 		/* similar to above, but for arena data */
-		statmin = S_SEND_ARENA_RESPONSE;
+		statmin = S_ARENA_RESP_AND_CBS;
 		statmax = S_WAIT_ARENA_SYNC2;
 	}
 

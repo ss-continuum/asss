@@ -421,9 +421,11 @@ local void aaction(Arena *arena, int action)
 			Player *p;
 			Link *link;
 			lm->LogA(L_INFO, "clientset", arena, "sending modified settings");
+			pd->Lock();
 			FOR_EACH_PLAYER(p)
 				if (p->arena == arena && p->status == S_PLAYING)
 					send_one_settings(p, ad);
+			pd->Unlock();
 		}
 	}
 	else if (action == AA_DESTROY)

@@ -297,7 +297,7 @@ local void close_config_file(void *v)
 
 local PyObject * cvt_c2p_config(ConfigHandle ch)
 {
-	cfg->AddRef(ch);
+	ch = cfg->AddRef(ch);
 	return PyCObject_FromVoidPtr(ch, close_config_file);
 }
 

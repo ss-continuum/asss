@@ -487,21 +487,40 @@ void CheckGameOver(Arena *arena, int bid)
 
 }
 
-void ScoreMsg(Arena *arena, Player *p)  // pid = -1 means arena-wide, otherwise private
+void ScoreMsg(Arena *arena, Player *p)  // p = NULL means arena-wide, otherwise private
 {
 	struct ArenaScores *scores = P_ARENA_DATA(arena, scrkey);
-	char _buf[256];
+	int cfg_freqtypes = cfg->GetInt(arena->cfg, "Misc", "FrequencyShipTypes", 0);
+	char msg[256];
 
-	strcpy(_buf,"SCORE: Warbirds:%d  Javelins:%d");
+	/* no score message shown when mode = 0 */
+	if (scores->mode == 0)
+		return;
+
 	if (scores->mode > 2)
-		{
-			strcat(_buf,"  Spiders:%d  Leviathans:%d");
-			if (!p) chat->SendArenaMessage(arena,_buf,scores->score[0],scores->score[1],scores->score[2],scores->score[3]);
-			else chat->SendMessage(p,_buf,scores->score[0],scores->score[1],scores->score[2],scores->score[3]);
-		}
-		else
-			if (!p) chat->SendArenaMessage(arena,_buf,scores->score[0],scores->score[1]);
-			else chat->SendMessage(p,_buf,scores->score[0],scores->score[1]);
+	{
+		/* modes 3, 4, 5 and 6 show 4 teams */
+		const char *fmt = cfg_freqtypes ?
+			"SCORE: Warbirds:%d Javelins:%d Spiders:%d Leviathans:%d" :
+			"SCORE: Team0:%d Team1:%d Team2:%d Team3:%d";
+		snprintf(msg, sizeof(msg), fmt,
+				scores->score[0], scores->score[1],
+				scores->score[2], scores->score[3]);
+	}
+	else
+	{
+		/* modes 1 and 2 only have 2 teams */
+		const char *fmt = cfg_freqtypes ?
+			"SCORE: Warbirds:%d Javelins:%d" :
+			"SCORE: Evens:%d Odds:%d";
+		snprintf(msg, sizeof(msg), fmt,
+				scores->score[0], scores->score[1]);
+	}
+
+	if (p)
+		chat->SendMessage(p, "%s", msg);
+	else
+		chat->SendArenaMessage(arena, "%s", msg);
 }
 
 

@@ -95,7 +95,7 @@ client sends:
 	SEND:PUB:msg
 	SEND:PUBM:msg
 	SEND:PRIV:name:msg
-		(the same message type works for both regular and remove priv msgs)
+		(the same message type works for both regular and remote priv msgs)
 	SEND:FREQ:freq:msg
 		(freq is the number of the destination freq)
 	SEND:CHAT:line

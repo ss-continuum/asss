@@ -38,8 +38,11 @@ local int msg_timer(void *v)
 	pm->count++;
 	for (i = 0; i < MAXMSGS; i++)
 		if (pm->msgs[i].msg && pm->msgs[i].interval > 0)
-			if (((pm->count - pm->msgs[i].initialdelay) % pm->msgs[i].interval) == 0)
+		{
+			int diff = pm->count - pm->msgs[i].initialdelay;
+			if (diff >= 0 && (diff % pm->msgs[i].interval) == 0)
 				chat->SendArenaMessage(pm->arena, "%s", pm->msgs[i].msg);
+		}
 	return TRUE;
 }
 

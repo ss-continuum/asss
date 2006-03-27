@@ -276,8 +276,7 @@ int process_player_states(void *v)
 			case S_DO_GLOBAL_CALLBACKS: ns = S_SEND_LOGIN_RESPONSE; break;
 			case S_SEND_LOGIN_RESPONSE: ns = S_LOGGEDIN;            break;
 			case S_DO_FREQ_AND_ARENA_SYNC: ns = S_WAIT_ARENA_SYNC1; break;
-			case S_SEND_ARENA_RESPONSE: ns = S_DO_ARENA_CALLBACKS;  break;
-			case S_DO_ARENA_CALLBACKS:  ns = S_PLAYING;             break;
+			case S_ARENA_RESP_AND_CBS:  ns = S_PLAYING;             break;
 			case S_LEAVING_ARENA:       ns = S_DO_ARENA_SYNC2;      break;
 			case S_DO_ARENA_SYNC2:      ns = S_WAIT_ARENA_SYNC2;    break;
 			case S_LEAVING_ZONE:        ns = S_WAIT_GLOBAL_SYNC2;   break;
@@ -390,7 +389,7 @@ int process_player_states(void *v)
 				d->hasdoneasync = TRUE;
 				break;
 
-			case S_SEND_ARENA_RESPONSE:
+			case S_ARENA_RESP_AND_CBS:
 				if (stats)
 				{
 					/* try to get scores in pdata packet */
@@ -408,9 +407,7 @@ int process_player_states(void *v)
 				aman->SendArenaResponse(player);
 				player->flags.sent_ppk = 0;
 				player->flags.sent_wpn = 0;
-				break;
 
-			case S_DO_ARENA_CALLBACKS:
 				DO_CBS(CB_PLAYERACTION,
 				       player->arena,
 				       PlayerActionFunc,
@@ -686,7 +683,7 @@ void player_sync_done(Player *p)
 	if (p->status == S_WAIT_ARENA_SYNC1)
 	{
 		if (!p->flags.leave_arena_when_done_waiting)
-			p->status = S_SEND_ARENA_RESPONSE;
+			p->status = S_ARENA_RESP_AND_CBS;
 		else
 			p->status = S_DO_ARENA_SYNC2;
 	}

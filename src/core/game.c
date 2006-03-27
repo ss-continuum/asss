@@ -1349,7 +1349,7 @@ local void ShipReset(const Target *target)
 
 local void IncrementWeaponPacketCount(Player *p, int packets)
 {
-	pdata *data = PPDATA(p, pdkey), *idata;
+	pdata *data = PPDATA(p, pdkey);
 	data->wpnsent += packets;
 }
 
