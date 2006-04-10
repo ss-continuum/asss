@@ -58,7 +58,7 @@ typedef void (*CommandFunc)(const char *command, const char *params,
 typedef const char *helptext_t;
 
 /** the interface id for Icmdman */
-#define I_CMDMAN "cmdman-8"
+#define I_CMDMAN "cmdman-9"
 
 /** the interface struct for Icmdman */
 typedef struct Icmdman
@@ -87,8 +87,11 @@ typedef struct Icmdman
 	 * @param typedline the thing that the player typed
 	 * @param p the player who issued the command
 	 * @param target how the command was issued
+	 * @param sound the sound from the chat packet that this command
+	 * came from
 	 */
-	void (*Command)(const char *typedline, Player *p, const Target *target);
+	void (*Command)(const char *typedline, Player *p,
+			const Target *target, int sound);
 	helptext_t (*GetHelpText)(const char *cmdname, Arena *arena);
 } Icmdman;
 

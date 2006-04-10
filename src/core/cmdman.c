@@ -21,7 +21,7 @@ typedef struct cmddata_t
 
 local void AddCommand(const char *, CommandFunc, Arena *, helptext_t);
 local void RemoveCommand(const char *, CommandFunc, Arena *);
-local void Command(const char *, Player *, const Target *);
+local void Command(const char *, Player *, const Target *, int);
 local helptext_t GetHelpText(const char *, Arena *);
 
 /* static data */
@@ -203,7 +203,7 @@ local int allowed(Player *p, const char *cmd, const char *prefix,
 }
 
 
-void Command(const char *line, Player *p, const Target *target)
+void Command(const char *line, Player *p, const Target *target, int sound)
 {
 	LinkedList lst = LL_INITIALIZER;
 	char cmd[40], *t;
@@ -226,8 +226,9 @@ void Command(const char *line, Player *p, const Target *target)
 	t = cmd;
 	while (*line && *line != ' ' && *line != '=' && (t-cmd) < 30)
 		*t++ = *line++;
-	/* close it off */
-	*t = 0;
+	/* close it off and add sound hack */
+	*t++ = 0;
+	*t++ = (char)sound;
 	/* skip spaces */
 	while (*line && (*line == ' ' || *line == '='))
 		line++;

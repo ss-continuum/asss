@@ -325,7 +325,7 @@ local void SendWrappedText(Player *p, const char *text)
 #define CMD_MULTI_CHAR '|'
 #define MOD_CHAT_CHAR '\\'
 
-local void run_commands(const char *text, Player *p, Target *target)
+local void run_commands(const char *text, Player *p, Target *target, int sound)
 {
 	char buf[512], *b;
 	int count = 0, initial = 0, multi;
@@ -351,7 +351,7 @@ local void run_commands(const char *text, Player *p, Target *target)
 		/* give modules a chance to rewrite the command */
 		DO_CBS(CB_REWRITECOMMAND, ALLARENAS, CommandRewriterFunc, (initial, buf, sizeof(buf)));
 		/* now run it */
-		cmd->Command(buf, p, target);
+		cmd->Command(buf, p, target, sound);
 	}
 }
 
@@ -433,7 +433,7 @@ local void handle_pub(Player *p, const char *msg, int ismacro, int isallcmd, int
 			Target target;
 			target.type = T_ARENA;
 			target.u.arena = arena;
-			run_commands(msg, p, &target);
+			run_commands(msg, p, &target, sound);
 		}
 	}
 	else if (ok(p, ismacro ? MSG_PUBMACRO : MSG_PUB))
@@ -490,7 +490,7 @@ local void handle_freq(Player *p, int freq, const char *msg, int sound)
 			target.type = T_FREQ;
 			target.u.freq.arena = arena;
 			target.u.freq.freq = freq;
-			run_commands(msg, p, &target);
+			run_commands(msg, p, &target, sound);
 		}
 	}
 	else if (ok(p, type))
@@ -526,7 +526,7 @@ local void handle_priv(Player *p, Player *dst, const char *msg, int isallcmd, in
 			Target target;
 			target.type = T_PLAYER;
 			target.u.p = dst;
-			run_commands(msg, p, &target);
+			run_commands(msg, p, &target, sound);
 		}
 	}
 	else if (ok(p, MSG_PRIV))
@@ -562,7 +562,7 @@ local void handle_remote_priv(Player *p, const char *msg, int isallcmd, int soun
 				Target target;
 				target.type = T_PLAYER;
 				target.u.p = d;
-				run_commands(t, p, &target);
+				run_commands(t, p, &target, sound);
 			}
 		}
 	}

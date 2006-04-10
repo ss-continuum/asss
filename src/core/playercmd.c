@@ -556,7 +556,7 @@ local void Cfind(const char *tc, const char *params, Player *p, const Target *ta
 		/* if not found, fall back to the default */
 		char newcmd[64];
 		snprintf(newcmd, sizeof(newcmd), "\\find %s", params);
-		cmd->Command(newcmd, p, target);
+		cmd->Command(newcmd, p, target, 0);
 	}
 }
 
@@ -1027,9 +1027,10 @@ local helptext_t a_help =
 
 local void Ca(const char *tc, const char *params, Player *p, const Target *target)
 {
+	int sound = tc[strlen(tc)+1];
 	LinkedList set = LL_INITIALIZER;
 	pd->TargetToSet(target, &set);
-	chat->SendSetMessage(&set, "%s  -%s", params, p->name);
+	chat->SendSetSoundMessage(&set, sound, "%s  -%s", params, p->name);
 	LLEmpty(&set);
 }
 
@@ -1041,9 +1042,10 @@ local helptext_t aa_help =
 
 local void Caa(const char *tc, const char *params, Player *p, const Target *target)
 {
+	int sound = tc[strlen(tc)+1];
 	LinkedList set = LL_INITIALIZER;
 	pd->TargetToSet(target, &set);
-	chat->SendSetMessage(&set, "%s", params);
+	chat->SendSetSoundMessage(&set, sound, "%s", params);
 	LLEmpty(&set);
 }
 
@@ -1055,7 +1057,8 @@ local helptext_t z_help =
 
 local void Cz(const char *tc, const char *params, Player *p, const Target *target)
 {
-	chat->SendArenaMessage(NULL, "%s  -%s", params, p->name);
+	int sound = tc[strlen(tc)+1];
+	chat->SendArenaSoundMessage(NULL, sound, "%s  -%s", params, p->name);
 }
 
 
@@ -1066,7 +1069,8 @@ local helptext_t az_help =
 
 local void Caz(const char *tc, const char *params, Player *p, const Target *target)
 {
-	chat->SendArenaMessage(NULL, "%s", params);
+	int sound = tc[strlen(tc)+1];
+	chat->SendArenaSoundMessage(NULL, sound, "%s", params);
 }
 
 
