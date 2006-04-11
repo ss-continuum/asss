@@ -28,6 +28,11 @@
  * Maximum screen height allowed in the arena. Zero means no limit. */
 #define MAXYRES(ch) cfg->GetInt(ch, "Misc", "MaxYres", 0)
 
+/* cfghelp: Team:MaxFrequency, arena, int, range: 1-10000, def: 10000
+ * One more than the highest frequency allowed. Set this below
+ * PrivFreqStart to disallow private freqs. */
+#define MAXFREQ(ch) cfg->GetInt(ch, "Team", "MaxFrequency", 10000)
+
 
 local Iplayerdata *pd;
 local Iconfig *cfg;
@@ -196,8 +201,12 @@ local void Initial(Player *p, int *ship, int *freq)
 	else
 	{
 		/* we have to assign him to a freq */
-		int inclspec = INCLSPEC(ch);
-		f = BalanceFreqs(arena, p, inclspec);
+		f = BalanceFreqs(arena, p, INCLSPEC(ch));
+		if (f < 0 || f >= MAXFREQ(ch))
+		{
+			f = arena->specfreq;
+			s = SHIP_SPEC;
+		}
 		/* and make sure the ship is still legal */
 		s = FindLegalShip(arena, f, s);
 	}
@@ -272,7 +281,14 @@ local void Ship(Player *p, int *ship, int *freq)
 			}
 
 			if (need_balance)
+			{
 				f = BalanceFreqs(arena, p, INCLSPEC(ch));
+				if (f < 0 || f >= MAXFREQ(ch))
+				{
+					f = arena->specfreq;
+					s = SHIP_SPEC;
+				}
+			}
 		}
 		/* and make sure the ship is still legal */
 		s = FindLegalShip(arena, f, s);
@@ -298,26 +314,37 @@ local void Freq(Player *p, int *ship, int *freq)
 
 	ch = arena->cfg;
 	inclspec = INCLSPEC(ch);
-	/* cfghelp: Team:MaxFrequency, arena, int, range: 1-10000, def: 10000
-	 * One more than the highest frequency allowed. Set this below
-	 * PrivFreqStart to disallow private freqs. */
-	maxfreq = cfg->GetInt(ch, "Team", "MaxFrequency", 10000);
+	maxfreq = MAXFREQ(ch);
 
 	/* special case: speccer re-entering spec freq */
 	if (s == SHIP_SPEC && f == arena->specfreq)
 		return;
 
 	if (f < 0 || f >= maxfreq)
+	{
 		/* he requested a bad freq. drop him elsewhere. */
 		f = BalanceFreqs(arena, p, inclspec);
+		if (f < 0 || f >= maxfreq)
+		{
+			f = arena->specfreq;
+			s = SHIP_SPEC;
+		}
+	}
 	else
 	{
 		/* check to make sure the new freq is ok */
 		int count = count_freq(arena, f, p, inclspec);
 		int max = get_max_for_freq(ch, f);
 		if (max > 0 && count >= max)
+		{
 			/* the freq has too many people, assign him to another */
 			f = BalanceFreqs(arena, p, inclspec);
+			if (f < 0 || f >= maxfreq)
+			{
+				f = arena->specfreq;
+				s = SHIP_SPEC;
+			}
+		}
 		/* cfghelp: Team:ForceEvenTeams, arena, boolean, def: 0
 		 * Whether players can switch to more populous teams. */
 		else if (cfg->GetInt(ch, "Team", "ForceEvenTeams", 0))
