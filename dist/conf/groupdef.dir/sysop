@@ -44,6 +44,7 @@ cmd_admlogfile
 cmd_reloadconf
 
 cmd_addallowed
+privcmd_set_local_password
 
 ; temporary
 cmd_dropturret

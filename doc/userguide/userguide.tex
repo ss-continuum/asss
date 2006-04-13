@@ -714,6 +714,12 @@ player is allowed, he will \emph{not} be assigned groups based on name.
 The \verb/auth_file/ module also allows you to lock a specific player
 name out of a zone.
 
+\textbf{Note:} In the default configuration, \verb/auth_file/ is
+insecure, since anyone can log in as a player that has no password set,
+and then set one. See the documentation for
+\verb/General:RequireAuthenticationToSetPassword/, and also read the
+comments in the default \verb/passwd.conf/.
+
 To use a fallback module for the \verb/billing/ module, simply make sure
 that that module is loaded before \verb/billing/ is loaded.
 

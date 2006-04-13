@@ -6,7 +6,6 @@
 
 [General]
 AllowUnknown = yes
-AutoAdd = yes
 
 [Users]
 Grelminar = 561fb382be64fdfd6c4bc4450577b966
@@ -29,14 +28,32 @@ someone = any
 
 #include "md5.h"
 
+#define PWHASHLEN 32
+
+typedef struct pdata
+{
+	int set;
+	char pwhash[PWHASHLEN+1];
+} pdata;
+
 local Imodman *mm;
 local Iplayerdata *pd;
 local Iconfig *cfg;
 local Icmdman *cmd;
+local Ichat *chat;
 local ConfigHandle pwdfile;
+local int pdkey;
 
 
-local void hash_password(const char *name, const char *pwd, char out[33])
+local void newplayer(Player *p, int new)
+{
+	pdata *pdata = PPDATA(p, pdkey);
+	pdata->set = FALSE;
+}
+
+
+local void hash_password(const char *name, const char *pwd, char
+		out[PWHASHLEN+1])
 {
 	static const char table[16] = "0123456789abcdef";
 	struct MD5Context ctx;
@@ -53,18 +70,19 @@ local void hash_password(const char *name, const char *pwd, char out[33])
 	MD5Update(&ctx, msg, 56);
 	MD5Final(hash, &ctx);
 
-	for (i = 0; i < 16; i++)
+	for (i = 0; i < PWHASHLEN/2; i++)
 	{
 		out[i*2+0] = table[(hash[i] & 0xf0) >> 4];
 		out[i*2+1] = table[(hash[i] & 0x0f) >> 0];
 	}
-	out[32] = 0;
+	out[PWHASHLEN] = 0;
 }
 
 
 local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 		void (*done)(Player *p, AuthData *data))
 {
+	pdata *pdata = PPDATA(p, pdkey);
 	AuthData ad;
 	const char *line;
 	char name[32];
@@ -82,6 +100,10 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 	astrncpy(ad.name, name, sizeof(ad.name));
 	astrncpy(ad.sendname, name, sizeof(ad.sendname));
 
+	/* hash password into pdata */
+	hash_password(name, pass, pdata->pwhash);
+	pdata->set = TRUE;
+
 	/* check if this user has an entry */
 	line = cfg->GetStr(pwdfile, "users", name);
 
@@ -93,11 +115,7 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 			ad.code = AUTH_OK;
 		else
 		{
-			char hex[33];
-
-			hash_password(name, pass, hex);
-
-			if (strcmp(hex, line))
+			if (strcmp(pdata->pwhash, line))
 				ad.code = AUTH_BADPASSWORD;
 			else
 			{
@@ -115,26 +133,10 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 		 * mod: auth_file
 		 * Determines whether to allow players not listed in the
 		 * password file. */
-		int allow = cfg->GetInt(pwdfile, "General", "AllowUnknown", 1);
+		int allow = cfg->GetInt(pwdfile, "General", "AllowUnknown", TRUE);
 
 		if (allow)
-		{
 			ad.code = AUTH_OK;
-
-			/* cfghelp: General:AutoAdd, passwd.conf, bool, def: 0, \
-			 * mod: auth_file
-			 * Determines whether to automatically add players with
-			 * no password entries to the password file. */
-			if (cfg->GetInt(pwdfile, "General", "AutoAdd", 0))
-			{
-				char hex[33];
-
-				hash_password(name, pass, hex);
-
-				cfg->SetStr(pwdfile, "users", name, hex, NULL, TRUE);
-				ad.authenticated = TRUE;
-			}
-		}
 		else
 			ad.code = AUTH_NOPERMISSION2;
 	}
@@ -143,29 +145,38 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 }
 
 
-local helptext_t passwd_help =
+local helptext_t local_password_help =
 "Module: auth_file\n"
 "Targets: none\n"
 "Args: <new password>\n"
 "Changes your local server password. Note that this command only changes\n"
 "the password used by the auth_file authentication mechanism (used when the\n"
-"billing server is disconnected. This command does involve the billing server.\n";
+"billing server is disconnected. This command does not involve the billing\n"
+"server.\n";
 
 local void Cpasswd(const char *tc, const char *params, Player *p, const Target *target)
 {
-	Ichat *chat;
-	char hex[33];
+	char hex[PWHASHLEN+1];
 
 	if (!*params)
-		return;
-
-	hash_password(p->name, params, hex);
-
-	cfg->SetStr(pwdfile, "users", p->name, hex, NULL, TRUE);
-
-	chat = mm->GetInterface(I_CHAT, ALLARENAS);
-	if (chat) chat->SendMessage(p, "Password set");
-	mm->ReleaseInterface(chat);
+		chat->SendMessage(p, "You must specify a password.");
+	else
+	{
+		/* cfghelp: General:RequireAuthenticationToSetPassword, \
+		 * passwd.conf, bool, def: 1, mod: auth_file
+		 * If true, you must be authenticated (have used a correct password)
+		 * according to this module or some other module before using
+		 * ?local_password to change your local password. */
+		if (cfg->GetInt(pwdfile, "General", "RequireAuthenticationToSetPassword", TRUE) &&
+		    !p->flags.authenticated)
+			chat->SendMessage(p, "You must be authenticated to change your local password.");
+		else
+		{
+			hash_password(p->name, params, hex);
+			cfg->SetStr(pwdfile, "users", p->name, hex, NULL, TRUE);
+			chat->SendMessage(p, "Password set");
+		}
+	}
 }
 
 
@@ -178,31 +189,65 @@ local helptext_t addallowed_help =
 
 local void Caddallowed(const char *tc, const char *params, Player *p, const Target *target)
 {
-	Ichat *chat;
-	const char *pwd;
-
 	if (!*params)
-		return;
-
-	pwd = cfg->GetStr(pwdfile, "users", params);
-	chat = mm->GetInterface(I_CHAT, ALLARENAS);
-
-	if (pwd)
-		chat->SendMessage(p, "%s has already set a password.", params);
+		chat->SendMessage(p, "You must specify a player name.");
 	else
 	{
-		char buf[128];
-		time_t tm = time(NULL);
+		const char *pwd = cfg->GetStr(pwdfile, "users", params);
+		if (pwd)
+			chat->SendMessage(p, "%s has already set a local password.", params);
+		else
+		{
+			char buf[128];
+			time_t tm = time(NULL);
 
-		snprintf(buf, sizeof(buf), "added by %s on ", p->name);
-		ctime_r(&tm, buf + strlen(buf));
-		RemoveCRLF(buf);
+			snprintf(buf, sizeof(buf), "added by %s on ", p->name);
+			ctime_r(&tm, buf + strlen(buf));
+			RemoveCRLF(buf);
 
-		cfg->SetStr(pwdfile, "users", params, "any", buf, TRUE);
-		chat->SendMessage(p, "Added %s to the allowed player list.", params);
+			cfg->SetStr(pwdfile, "users", params, "any", buf, TRUE);
+			chat->SendMessage(p, "Added %s to the allowed player list.", params);
+		}
 	}
+}
 
-	mm->ReleaseInterface(chat);
+
+local helptext_t set_local_password_help =
+"Module: auth_file\n"
+"Targets: player\n"
+"Args: none\n"
+"If used on a player that has no local password set, it will set their\n"
+"local password to the password they used to log in to this session.\n";
+
+local void Cset_local_password(const char *tc, const char *params, Player *p, const Target *target)
+{
+	if (target->type != T_PLAYER)
+		chat->SendMessage(p, "You must use this on a player.");
+	else
+	{
+		Player *t = target->u.p;
+		pdata *pdata = PPDATA(t, pdkey);
+		const char *pwd = cfg->GetStr(pwdfile, "users", t->name);
+
+		if (pwd)
+			chat->SendMessage(p, "%s has already set a local password.", t->name);
+		else if (!pdata->set)
+			/* maybe they logged in with another auth module? */
+			chat->SendMessage(p, "Hashed password missing.");
+		else
+		{
+			char buf[128];
+			time_t tm = time(NULL);
+
+			snprintf(buf, sizeof(buf), "added by %s on ", p->name);
+			ctime_r(&tm, buf + strlen(buf));
+			RemoveCRLF(buf);
+
+			cfg->SetStr(pwdfile, "users", t->name, pdata->pwhash, buf, TRUE);
+			chat->SendMessage(p, "Set local password for %s.", t->name);
+			chat->SendMessage(t, "Your password has been set as a local password by %s.", p->name);
+		}
+	}
 }
 
 
@@ -222,16 +267,23 @@ EXPORT int MM_auth_file(int action, Imodman *mm_, Arena *arena)
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
+		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 
-		if (!cfg || !cmd || !pd) return MM_FAIL;
+		if (!cfg || !cmd || !pd || !chat) return MM_FAIL;
+
+		pdkey = pd->AllocatePlayerData(sizeof(pdata));
+		if (pdkey == -1) return MM_FAIL;
 
 		pwdfile = cfg->OpenConfigFile(NULL, "passwd.conf", NULL, NULL);
 
 		if (!pwdfile) return MM_FAIL;
 
-		cmd->AddCommand("passwd", Cpasswd, ALLARENAS, passwd_help);
+		cmd->AddCommand("passwd", Cpasswd, ALLARENAS, local_password_help);
+		cmd->AddCommand("local_password", Cpasswd, ALLARENAS, local_password_help);
 		cmd->AddCommand("addallowed", Caddallowed, ALLARENAS, addallowed_help);
+		cmd->AddCommand("set_local_password", Cset_local_password, ALLARENAS, set_local_password_help);
 
+		mm->RegCallback(CB_NEWPLAYER, newplayer, ALLARENAS);
 		mm->RegInterface(&myauth, ALLARENAS);
 
 		return MM_OK;
@@ -240,9 +292,14 @@ EXPORT int MM_auth_file(int action, Imodman *mm_, Arena *arena)
 	{
 		if (mm->UnregInterface(&myauth, ALLARENAS))
 			return MM_FAIL;
+		mm->UnregCallback(CB_NEWPLAYER, newplayer, ALLARENAS);
 		cmd->RemoveCommand("passwd", Cpasswd, ALLARENAS);
+		cmd->RemoveCommand("local_password", Cpasswd, ALLARENAS);
 		cmd->RemoveCommand("addallowed", Caddallowed, ALLARENAS);
+		cmd->RemoveCommand("set_local_password", Cset_local_password, ALLARENAS);
 		cfg->CloseConfigFile(pwdfile);
+		pd->FreePlayerData(pdkey);
+		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(pd);

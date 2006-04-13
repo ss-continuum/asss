@@ -139,6 +139,7 @@ local inline int dontlog(const char *cmd)
 	if (!strcasecmp(cmd, "chat")) return TRUE;
 	if (!strcasecmp(cmd, "password")) return TRUE;
 	if (!strcasecmp(cmd, "passwd")) return TRUE;
+	if (!strcasecmp(cmd, "local_password")) return TRUE;
 	if (!strcasecmp(cmd, "squadcreate")) return TRUE;
 	if (!strcasecmp(cmd, "squadjoin")) return TRUE;
 	if (!strcasecmp(cmd, "addop")) return TRUE;

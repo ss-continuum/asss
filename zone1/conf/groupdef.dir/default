@@ -53,6 +53,7 @@ cmd_userid
 privcmd_userid
 
 cmd_passwd
+cmd_local_password
 
 cmd_sheep
 
