@@ -503,9 +503,14 @@ local void Pppk(Player *p, byte *pkt, int len)
 		 * zeroed before data was recvd into it. */
 		memcpy(&data->pos, pkt, sizeof(data->pos));
 
-		/* update position in global players array */
-		p->position.x = pos->x;
-		p->position.y = pos->y;
+		/* update position in global player struct.
+		 * only copy x/y if they are nonzero, so we keep track of last
+		 * non-zero position. */
+		if (pos->x != 0 || pos->y != 0)
+		{
+			p->position.x = pos->x;
+			p->position.y = pos->y;
+		}
 		p->position.xspeed = pos->xspeed;
 		p->position.yspeed = pos->yspeed;
 		p->position.rotation = pos->rotation;

@@ -154,7 +154,7 @@ EXPORT int MM_balls(int action, Imodman *mm_, Arena *arena)
 
 
 
-local void send_ball_packet(Arena *arena, int bid, int rel)
+local void send_ball_packet(Arena *arena, int bid)
 {
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
 	struct BallPacket bp;
@@ -179,11 +179,12 @@ local void send_ball_packet(Arena *arena, int bid, int rel)
 	}
 	UNLOCK_STATUS(arena);
 
-	net->SendToArena(arena, NULL, (byte*)&bp, sizeof(bp), rel);
+	net->SendToArena(arena, NULL, (byte*)&bp, sizeof(bp),
+			NET_UNRELIABLE | BALL_SEND_PRI);
 }
 
 
-local void phase_ball(Arena *arena, int bid, int relflags)
+local void phase_ball(Arena *arena, int bid)
 {
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
 	struct BallData *bd = abd->balls + bid;
@@ -194,7 +195,7 @@ local void phase_ball(Arena *arena, int bid, int relflags)
 	bd->xspeed = bd->yspeed = 0;
 	bd->time = (ticks_t)(-1); /* this is the key for making it phased */
 	bd->carrier = NULL;
-	send_ball_packet(arena, bid, relflags);
+	send_ball_packet(arena, bid);
 	UNLOCK_STATUS(arena);
 }
 
@@ -279,7 +280,7 @@ void SetBallCount(Arena *arena, int ballcount)
 		/* send it reliably, because clients are never going to see this
 		 * ball ever again. */
 		for (i = ballcount; i < oldc; i++)
-			phase_ball(arena, i, NET_RELIABLE);
+			phase_ball(arena, i);
 	}
 
 	/* do the realloc here so that if we have to phase, we do it before
@@ -317,7 +318,7 @@ void PlaceBall(Arena *arena, int bid, struct BallData *newpos)
 	if (bid >= 0 && bid < abd->ballcount)
 	{
 		abd->balls[bid] = *newpos;
-		send_ball_packet(arena, bid, NET_UNRELIABLE);
+		send_ball_packet(arena, bid);
 	}
 	UNLOCK_STATUS(arena);
 
@@ -338,7 +339,7 @@ void EndGame(Arena *arena)
 
 	for (i = 0; i < abd->ballcount; i++)
 	{
-		phase_ball(arena, i, NET_RELIABLE);
+		phase_ball(arena, i);
 		abd->balls[i].state = BALL_WAITING;
 		abd->balls[i].carrier = NULL;
 	}
@@ -511,7 +512,7 @@ local void CleanupAfter(Arena *arena, Player *p, int neut)
 			b->xspeed = b->yspeed = 0;
 			if (neut) b->carrier = NULL;
 			b->time = current_ticks();
-			send_ball_packet(arena, i, NET_UNRELIABLE);
+			send_ball_packet(arena, i);
 			/* don't forget fire callbacks */
 			DO_CBS(CB_BALLFIRE, arena, BallFireFunc,
 					(arena, p, i));
@@ -522,7 +523,7 @@ local void CleanupAfter(Arena *arena, Player *p, int neut)
 			 * it's last touched pid to -1 so that the last touched pid
 			 * always refers to a valid player. */
 			b->carrier = NULL;
-			send_ball_packet(arena, i, NET_UNRELIABLE);
+			send_ball_packet(arena, i);
 		}
 	UNLOCK_STATUS(arena);
 }
@@ -631,7 +632,7 @@ void PPickupBall(Player *p, byte *pkt, int len)
 	bd->carrier = p;
 	bd->freq = p->p_freq;
 	bd->time = 0;
-	send_ball_packet(arena, bp->ballid, NET_UNRELIABLE | BALL_SEND_PRI);
+	send_ball_packet(arena, bp->ballid);
 
 	/* now call callbacks */
 	DO_CBS(CB_BALLPICKUP, arena, BallPickupFunc,
@@ -698,7 +699,7 @@ void PFireBall(Player *p, byte *pkt, int len)
 	bd->yspeed = fb->yspeed;
 	bd->freq = p->p_freq;
 	bd->time = fb->time;
-	send_ball_packet(arena, bid, NET_UNRELIABLE | BALL_SEND_PRI);
+	send_ball_packet(arena, bid);
 
 	/* finally call callbacks */
 	DO_CBS(CB_BALLFIRE, arena, BallFireFunc, (arena, p, bid));
@@ -780,7 +781,7 @@ void PGoal(Player *p, byte *pkt, int len)
 	else
 	{
 		/* phase it, then set it to waiting */
-		phase_ball(arena, bid, NET_UNRELIABLE);
+		phase_ball(arena, bid);
 		bd->state = BALL_WAITING;
 		bd->carrier = NULL;
 		bd->time = TICK_MAKE(current_ticks() + pbd->goaldelay);
@@ -823,7 +824,7 @@ int BasicBallTimer(void *dummy)
 					{
 						/* it's on the map, just send the position
 						 * update */
-						send_ball_packet(arena, bid, NET_UNRELIABLE);
+						send_ball_packet(arena, bid);
 					}
 					else if (b->state == BALL_CARRIED && b->carrier)
 					{
@@ -831,7 +832,7 @@ int BasicBallTimer(void *dummy)
 						struct PlayerPosition *pos = &b->carrier->position;
 						b->x = pos->x;
 						b->y = pos->y;
-						send_ball_packet(arena, bid, NET_UNRELIABLE);
+						send_ball_packet(arena, bid);
 					}
 					else if (b->state == BALL_WAITING)
 					{
