@@ -626,9 +626,8 @@ void PPickupBall(Player *p, byte *pkt, int len)
 	bd->state = BALL_CARRIED;
 	bd->x = p->position.x;
 	bd->y = p->position.y;
-	/* note: these have to be nonzero to work around a cont bug */
-	bd->xspeed = 1;
-	bd->yspeed = 1;
+	bd->xspeed = 0;
+	bd->yspeed = 0;
 	bd->carrier = p;
 	bd->freq = p->p_freq;
 	bd->time = 0;
