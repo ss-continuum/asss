@@ -324,6 +324,10 @@ local void Pppk(Player *p, byte *pkt, int len)
 		    !(p->position.status & STATUS_SAFEZONE))
 			sendtoall = 2;
 
+		/* send flashes to everyone, reliably */
+		if (pos->status & STATUS_FLASH)
+			sendtoall = 2;
+
 		if (sendwpn)
 		{
 			int range = wpnrange[pos->weapon.type], nflags;
