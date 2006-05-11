@@ -49,15 +49,6 @@
 /* check whether we manage this client */
 #define IS_OURS(p) ((p)->type == T_CONT || (p)->type == T_VIE)
 
-/* check if a buffer is reliable */
-#define IS_REL(buf) ((buf)->d.rel.t2 == 0x03 && (buf)->d.rel.t1 == 0x00)
-
-/* check if a buffer is presized */
-#define IS_PRESIZED(buf) \
-	(IS_REL(buf) && \
-	 (buf)->d.rel.data[1] == 0x0A && \
-	 (buf)->d.rel.data[0] == 0x00)
-
 /* check if a buffer is a connection init packet */
 #define IS_CONNINIT(buf)                        \
 (                                               \
@@ -132,7 +123,7 @@ typedef struct
 	LinkedList sizedsends;
 	/* bandwidth limiting */
 	BWLimit *bw;
-	/* the outlist */
+	/* the outlists */
 	DQNode outlist[BW_PRIS];
 	/* the reliable buffer space */
 	struct Buffer *relbuf[CFG_INCOMING_BUFFER];
@@ -183,6 +174,14 @@ struct ClientConnection
 	Iclientencrypt *enc;
 	ClientEncryptData *ced;
 };
+
+
+typedef struct GroupedPacket
+{
+	byte buf[MAXPACKET];
+	byte *ptr;
+	int count;
+} GroupedPacket;
 
 
 /* prototypes */
@@ -661,8 +660,8 @@ local void InitConnData(ConnData *conn, Iencrypt *enc)
 	pthread_mutex_init(&conn->bigmtx, NULL);
 	conn->bw = bwlimit->New();
 	conn->enc = enc;
-	conn->avgrtt = 300; /* an initial guess */
-	conn->rttdev = 150;
+	conn->avgrtt = 200; /* an initial guess */
+	conn->rttdev = 100;
 	conn->lastpkt = current_ticks();
 	LLInit(&conn->sizedsends);
 	for (i = 0; i < BW_PRIS; i++)
@@ -1420,14 +1419,63 @@ int queue_more_data(void *dummy)
 }
 
 
+local void grouped_init(GroupedPacket *gp)
+{
+	gp->buf[0] = 0x00;
+	gp->buf[1] = 0x0E;
+	gp->ptr = gp->buf + 2;
+	gp->count = 0;
+}
+
+local void grouped_flush(GroupedPacket *gp, ConnData *conn)
+{
+	if (gp->count == 1)
+	{
+		/* there's only one in the group, so don't send it
+		 * in a group. +3 to skip past the 00 0E and size of
+		 * first packet */
+		SendRaw(conn, gp->buf + 3, (gp->ptr - gp->buf) - 3);
+	}
+	else if (gp->count > 1)
+	{
+		/* send the whole thing as a group */
+		SendRaw(conn, gp->buf, gp->ptr - gp->buf);
+	}
+
+	if (gp->count > 0 && gp->count < NET_GROUPED_STATS_LEN)
+		global_stats.grouped_stats[gp->count-1]++;
+	else if (gp->count >= NET_GROUPED_STATS_LEN)
+		global_stats.grouped_stats[NET_GROUPED_STATS_LEN-1]++;
+
+	grouped_init(gp);
+}
+
+local void grouped_send(GroupedPacket *gp, Buffer *buf, ConnData *conn)
+{
+	if (buf->len <= 255)
+	{
+		if ((gp->ptr - gp->buf) > (MAXPACKET - 10 - buf->len))
+			grouped_flush(gp, conn);
+		*gp->ptr++ = (byte)buf->len;
+		memcpy(gp->ptr, buf->d.raw, buf->len);
+		gp->ptr += buf->len;
+		gp->count++;
+	}
+	else
+	{
+		/* can't fit in group, send immediately */
+		SendRaw(conn, buf->d.raw, buf->len);
+		global_stats.grouped_stats[0]++;
+	}
+}
+
+
 /* call with outlistmtx locked */
 local void send_outgoing(ConnData *conn)
 {
-	byte gbuf[MAXPACKET] = { 0x00, 0x0E };
-	byte *gptr = gbuf + 2;
-
+	GroupedPacket gp;
 	ticks_t now = current_millis();
-	int gcount = 0, pri, retries = 0, minseqnum, outlistlen = 0, cangroup;
+	int pri, retries = 0, minseqnum, outlistlen = 0;
 	Buffer *buf, *nbuf;
 	DQNode *outlist;
 	/* use an estimate of the average round-trip time to figure out when
@@ -1447,6 +1495,8 @@ local void send_outgoing(ConnData *conn)
 		if (buf->d.rel.seqnum < minseqnum)
 			minseqnum = buf->d.rel.seqnum;
 
+	grouped_init(&gp);
+
 	/* process highest priority first */
 	for (pri = BW_PRIS-1; pri >= 0; pri--)
 	{
@@ -1457,6 +1507,14 @@ local void send_outgoing(ConnData *conn)
 
 			outlistlen++;
 
+			/* check some invariants */
+			if (buf->d.rel.t1 == 0x00 && buf->d.rel.t2 == 0x03)
+				assert(pri == BW_REL);
+			else if (buf->d.rel.t1 == 0x00 && buf->d.rel.t2 == 0x04)
+				assert(pri == BW_ACK);
+			else
+				assert(pri != BW_REL && pri != BW_ACK);
+
 			/* check if it's time to send this yet (use linearly
 			 * increasing timeouts) */
 			if (buf->tries != 0 &&
@@ -1464,7 +1522,7 @@ local void send_outgoing(ConnData *conn)
 				continue;
 
 			/* only buffer fixed number of rel packets to client */
-			if (IS_REL(buf) && (buf->d.rel.seqnum - minseqnum) > cansend)
+			if (pri == BW_REL && (buf->d.rel.seqnum - minseqnum) > cansend)
 				continue;
 
 			/* if we've retried too many times, kick the player */
@@ -1474,15 +1532,11 @@ local void send_outgoing(ConnData *conn)
 				return;
 			}
 
-			/* figure out if we're going to group this one */
-			cangroup = (buf->len <= 255) &&
-			           ((gptr - gbuf) < (MAXPACKET - 10 - buf->len));
-
 			/* at this point, there's only one more check to determine
 			 * if we're sending this packet now: bandwidth limiting. */
 			if (!bwlimit->Check(
 						conn->bw,
-						cangroup ? buf->len + 1 : buf->len + config.overhead,
+						buf->len + ((buf->len <= 255) ? 1 : config.overhead),
 						pri))
 			{
 				/* try dropping it, if we can */
@@ -1508,54 +1562,22 @@ local void send_outgoing(ConnData *conn)
 			buf->lastretry = now;
 			buf->tries++;
 
-			if (cangroup)
+			/* this sends it or adds it to a pending grouped packet */
+			grouped_send(&gp, buf, conn);
+
+			/* if we just sent an unreliable packet, free it so we don't
+			 * send it again. */
+			if (pri != BW_REL)
 			{
-				*gptr++ = (unsigned char)buf->len;
-				memcpy(gptr, buf->d.raw, buf->len);
-				gptr += buf->len;
-				gcount++;
-				if (!IS_REL(buf))
-				{
-					DQRemove((DQNode*)buf);
-					FreeBuffer(buf);
-					outlistlen--;
-				}
-			}
-			else
-			{
-				/* send immediately */
-				SendRaw(conn, buf->d.raw, buf->len);
-				global_stats.grouped_stats[0]++;
-				if (!IS_REL(buf))
-				{
-					/* if we just sent an unreliable packet,
-					 * free it so we don't send it again. */
-					DQRemove((DQNode*)buf);
-					FreeBuffer(buf);
-					outlistlen--;
-				}
+				DQRemove((DQNode*)buf);
+				FreeBuffer(buf);
+				outlistlen--;
 			}
 		}
 	}
 
-	/* try sending the grouped packet */
-	if (gcount == 1)
-	{
-		/* there's only one in the group, so don't send it
-		 * in a group. +3 to skip past the 00 0E and size of
-		 * first packet */
-		SendRaw(conn, gbuf + 3, (gptr - gbuf) - 3);
-	}
-	else if (gcount > 1)
-	{
-		/* send the whole thing as a group */
-		SendRaw(conn, gbuf, gptr - gbuf);
-	}
-
-	if (gcount > 0 && gcount < NET_GROUPED_STATS_LEN)
-		global_stats.grouped_stats[gcount-1]++;
-	else if (gcount >= NET_GROUPED_STATS_LEN)
-		global_stats.grouped_stats[NET_GROUPED_STATS_LEN-1]++;
+	/* flush the pending grouped packet */
+	grouped_flush(&gp, conn);
 
 	conn->retries += retries;
 
@@ -2058,8 +2080,14 @@ void ProcessAck(Buffer *buf)
 
 			if (b->tries == 1)
 			{
-				int rtt = TICK_DIFF(current_millis(), b->lastretry);
-				int dev = conn->avgrtt - rtt;
+				int rtt, dev;
+				rtt = TICK_DIFF(current_millis(), b->lastretry);
+				if (rtt < 0)
+				{
+					lm->Log(L_ERROR, "<net> negative rtt (%d); clock going backwards", rtt);
+					rtt = 100;
+				}
+				dev = conn->avgrtt - rtt;
 				if (dev < 0) dev = -dev;
 				conn->rttdev = (conn->rttdev * 3 + dev) / 4;
 				conn->avgrtt = (conn->avgrtt * 7 + rtt) / 8;
@@ -2404,6 +2432,8 @@ Buffer * BufferPacket(ConnData *conn, byte *data, int len, int flags,
 	int pri;
 
 	assert(len <= (MAXPACKET - REL_HEADER));
+	/* you can't buffer already-reliable packets */
+	assert(!(data[0] == 0x00 && data[1] == 0x03));
 
 	switch (flags & 0x70)
 	{
