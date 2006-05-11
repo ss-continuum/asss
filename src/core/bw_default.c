@@ -13,7 +13,8 @@ struct BWLimit
 	/* sincetime is in millis, not ticks */
 	ticks_t sincetime;
 	int limit;
-	int bytes_since[BW_PRIS];
+	int avail[BW_PRIS];
+	int maxavail;
 	int hitlimit;
 };
 
@@ -29,6 +30,7 @@ local int client_can_buffer;
 
 /* various other settings */
 local int limitscale;
+local int maxavail;
 local int use_hitlimit;
 
 
@@ -36,6 +38,7 @@ local BWLimit * New()
 {
 	BWLimit *bw = amalloc(sizeof(*bw));
 	bw->limit = limit_low; /* start slow */
+	bw->maxavail = maxavail;
 	bw->hitlimit = 0;
 	bw->sincetime = current_millis();
 	return bw;
@@ -59,31 +62,30 @@ local void Iter(BWLimit *bw, ticks_t now)
 	}
 	for (pri = 0; pri < BW_PRIS; pri++)
 	{
-		bw->bytes_since[pri] -= slices * (bw->limit * pri_limits[pri] / 100) / granularity;
-		if (bw->bytes_since[pri] < 0)
-			bw->bytes_since[pri] = 0;
+		bw->avail[pri] += slices * (bw->limit * pri_limits[pri] / 100) / granularity;
+		if (bw->avail[pri] > bw->maxavail)
+			bw->avail[pri] = bw->maxavail;
 	}
 }
 
 
 local int Check(BWLimit *bw, int bytes, int pri)
 {
-	int bs_copy[BW_PRIS];
+	int avail_copy[BW_PRIS];
 	int p;
-	memcpy(bs_copy, bw->bytes_since, sizeof(bs_copy));
+	memcpy(avail_copy, bw->avail, sizeof(avail_copy));
 	for (p = pri; p >= 0; p--)
 	{
-		int slack = pri_limits[p] * bw->limit / 100 - bs_copy[p];
-		if (slack >= bytes)
+		if (avail_copy[p] >= bytes)
 		{
-			bs_copy[p] += bytes;
-			memcpy(bw->bytes_since, bs_copy, sizeof(bs_copy));
+			avail_copy[p] -= bytes;
+			memcpy(bw->avail, avail_copy, sizeof(avail_copy));
 			return TRUE;
 		}
-		else if (slack > 0)
+		else
 		{
-			bs_copy[p] += slack;
-			bytes -= slack;
+			bytes -= avail_copy[p];
+			avail_copy[p] = 0;
 		}
 	}
 	bw->hitlimit = TRUE;
@@ -122,7 +124,8 @@ local int GetCanBufferPackets(BWLimit *bw)
 
 local void GetInfo(BWLimit *bw, char *buf, int buflen)
 {
-	snprintf(buf, buflen, "%d bytes/s", bw->limit);
+	snprintf(buf, buflen, "%d b/s, burst %d b",
+			bw->limit, bw->maxavail);
 }
 
 
@@ -147,6 +150,7 @@ EXPORT int MM_bw_default(int action, Imodman *mm, Arena *arena)
 		limit_high = cfg->GetInt(GLOBAL, "Net", "LimitMaximum", 102400);
 		client_can_buffer = cfg->GetInt(GLOBAL, "Net", "SendAtOnce", 30);
 		limitscale = cfg->GetInt(GLOBAL, "Net", "LimitScale", MAXPACKET * 1);
+		maxavail = cfg->GetInt(GLOBAL, "Net", "Burst", MAXPACKET * 4);
 		use_hitlimit = cfg->GetInt(GLOBAL, "Net", "UseHitLimit", 0);
 		/* these may need some tweaking */
 		pri_limits[0] = cfg->GetInt(GLOBAL, "Net", "PriLimit0", 20); /* low pri unrel */
