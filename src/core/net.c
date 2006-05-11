@@ -1435,7 +1435,7 @@ local void send_outgoing(ConnData *conn)
 	unsigned long timeout = conn->avgrtt + 4*conn->rttdev;
 	int cansend = bwlimit->GetCanBufferPackets(conn->bw);
 
-	CLIP(timeout, 100, 2000);
+	CLIP(timeout, 250, 2000);
 
 	/* update the bandwidth limiter's counters */
 	bwlimit->Iter(conn->bw, now);
@@ -1475,7 +1475,8 @@ local void send_outgoing(ConnData *conn)
 			}
 
 			/* figure out if we're going to group this one */
-			cangroup = buf->len <= 255 && ((gptr - gbuf) + buf->len) < (MAXPACKET-10);
+			cangroup = (buf->len <= 255) &&
+			           ((gptr - gbuf) < (MAXPACKET - 10 - buf->len));
 
 			/* at this point, there's only one more check to determine
 			 * if we're sending this packet now: bandwidth limiting. */
@@ -2047,8 +2048,7 @@ void ProcessAck(Buffer *buf)
 	for (b = (Buffer*)outlist->next; (DQNode*)b != outlist; b = nbuf)
 	{
 		nbuf = (Buffer*)b->node.next;
-		if (IS_REL(b) &&
-		    b->d.rel.seqnum == buf->d.rel.seqnum)
+		if (b->d.rel.seqnum == buf->d.rel.seqnum)
 		{
 			DQRemove((DQNode*)b);
 			pthread_mutex_unlock(&conn->olmtx);
@@ -2472,20 +2472,6 @@ Buffer * BufferPacket(ConnData *conn, byte *data, int len, int flags,
 
 	/* add it to out list */
 	DQAdd(&conn->outlist[pri], (DQNode*)buf);
-
-	/* if it's urgent, do one retry now */
-	if (flags & NET_URGENT)
-	{
-		if (bwlimit->Check(
-					conn->bw,
-					len + config.overhead,
-					pri))
-		{
-			buf->lastretry = current_millis();
-			buf->tries++;
-			SendRaw(conn, buf->d.raw, buf->len);
-		}
-	}
 
 	return buf;
 }
