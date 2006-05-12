@@ -45,7 +45,9 @@ typedef enum db_command
 	DBCMD_PUT_ARENA,   /* data1 = arena */
 	DBCMD_SYNCWAIT,    /* data1 = seconds */
 	DBCMD_PUTALL,      /* no params */
-	DBCMD_ENDINTERVAL  /* agorname = ag (for shared) or name (nonshared), data2 = interval */
+	DBCMD_ENDINTERVAL, /* agorname = ag (for shared) or name (nonshared), data2 = interval */
+	DBCMD_GET_GENERIC,
+	DBCMD_PUT_GENERIC
 } db_command;
 
 /* structs */
@@ -59,6 +61,13 @@ typedef struct DBMessage
 	int data;
 	void (*playercb)(Player *p);
 	void (*arenacb)(Arena *a);
+	/* generic */
+	void *key;
+	int keylen;
+	void *val;
+	int vallen;
+	void (*gencb)(void *clos, int result);
+	void *clos;
 } DBMessage;
 
 /* private data */
@@ -112,6 +121,9 @@ local void put_serialno(const char *sg, int interval, unsigned int serialno)
 	memset(&curr, 0, sizeof(curr));
 	strncpy(curr.arenagrp, sg, sizeof(curr.arenagrp));
 	curr.interval = interval;
+#ifdef USE_RECTYPES
+	curr.rectype = ASSS_DB_SERIAL_RECTYPE;
+#endif
 
 	memset(&key, 0, sizeof(key));
 	key.data = &curr;
@@ -136,6 +148,9 @@ local unsigned int get_serialno(const char *sg, int interval)
 	memset(&curr, 0, sizeof(curr));
 	strncpy(curr.arenagrp, sg, sizeof(curr.arenagrp));
 	curr.interval = interval;
+#ifdef USE_RECTYPES
+	curr.rectype = ASSS_DB_SERIAL_RECTYPE;
+#endif
 
 	/* prepare for query */
 	memset(&key, 0, sizeof(key));
@@ -191,6 +206,9 @@ local void put_one_arena(ArenaPersistentData *data, Arena *arena, int serialno)
 	else
 		keydata.serialno = serialno;
 	keydata.key = data->key;
+#ifdef USE_RECTYPES
+	keydata.rectype = ASSS_DB_ARENA_RECTYPE;
+#endif
 
 	/* prepare key dbt */
 	memset(&key, 0, sizeof(key));
@@ -248,6 +266,9 @@ local void put_one_player(PlayerPersistentData *data, Player *p, Arena *arena, i
 	else
 		keydata.serialno = serialno;
 	keydata.key = data->key;
+#ifdef USE_RECTYPES
+	keydata.rectype = ASSS_DB_ARENA_RECTYPE;
+#endif
 
 	/* prepare key dbt */
 	memset(&key, 0, sizeof(key));
@@ -305,6 +326,9 @@ local void get_one_arena(ArenaPersistentData *data, Arena *arena, int serialno)
 	else
 		keydata.serialno = serialno;
 	keydata.key = data->key;
+#ifdef USE_RECTYPES
+	keydata.rectype = ASSS_DB_ARENA_RECTYPE;
+#endif
 
 	/* prepare dbt's */
 	memset(&key, 0, sizeof(key));
@@ -354,6 +378,9 @@ local void get_one_player(PlayerPersistentData *data, Player *p, Arena *arena, i
 	else
 		keydata.serialno = serialno;
 	keydata.key = data->key;
+#ifdef USE_RECTYPES
+	keydata.rectype = ASSS_DB_PLAYER_RECTYPE;
+#endif
 
 	/* prepare dbt's */
 	memset(&key, 0, sizeof(key));
@@ -492,6 +519,55 @@ local void do_end_interval(const char *ag, int interval)
 }
 
 
+local void get_generic(DBMessage *msg)
+{
+	DBT key, val;
+	int err;
+
+	memset(&key, 0, sizeof(key));
+	key.data = msg->key;
+	key.size = msg->keylen;
+	memset(&val, 0, sizeof(val));
+	val.data = msg->val;
+	val.ulen = msg->vallen;
+	val.flags = DB_DBT_USERMEM;
+
+	err = db->get(db, NULL, &key, &val, 0);
+
+	afree(msg->key);
+
+	msg->gencb(msg->clos, err == 0);
+
+	if (err != 0 && err != DB_NOTFOUND)
+		lm->Log(L_WARN, "<persist> db->get error (4): %s",
+				db_strerror(err));
+}
+
+local void put_generic(DBMessage *msg)
+{
+	DBT key, val;
+	int err;
+
+	memset(&key, 0, sizeof(key));
+	key.data = msg->key;
+	key.size = msg->keylen;
+	memset(&val, 0, sizeof(val));
+	val.data = msg->val;
+	val.size = msg->vallen;
+
+	err = db->put(db, NULL, &key, &val, 0);
+
+	afree(msg->key);
+	afree(msg->val);
+
+	msg->gencb(msg->clos, err == 0);
+
+	if (err)
+		lm->Log(L_WARN, "<persist> db->put error (4): %s",
+				db_strerror(err));
+}
+
+
 local void *DBThread(void *dummy)
 {
 	DBMessage *msg;
@@ -570,6 +646,14 @@ local void *DBThread(void *dummy)
 
 			case DBCMD_ENDINTERVAL:
 				do_end_interval(msg->agorname, msg->data);
+				break;
+
+			case DBCMD_GET_GENERIC:
+				get_generic(msg);
+				break;
+
+			case DBCMD_PUT_GENERIC:
+				put_generic(msg);
 				break;
 		}
 
@@ -734,6 +818,60 @@ local int SyncTimer(void *dummy)
 	return 1;
 }
 
+local void GetGeneric(
+			int typekey,
+			void *key, int keylen,
+			void *val, int vallen,
+			void (*callback)(void *clos, int result),
+			void *clos)
+{
+	struct generic_record_key_suffix suffix;
+	DBMessage *msg = amalloc(sizeof(*msg));
+	void *newkey = amalloc(keylen + sizeof(suffix));
+
+	suffix.key = typekey;
+	suffix.rectype = ASSS_DB_GENERIC_RECTYPE;
+	memcpy(newkey, key, keylen);
+	memcpy(newkey+keylen, &suffix, sizeof(suffix));
+
+	msg->command = DBCMD_GET_GENERIC;
+	msg->key = newkey;
+	msg->keylen = keylen + sizeof(suffix);
+	msg->val = val;
+	msg->vallen = vallen;
+	msg->gencb = callback;
+	msg->clos = clos;
+	MPAdd(&dbq, msg);
+}
+
+local void PutGeneric(
+			int typekey,
+			void *key, int keylen,
+			void *val, int vallen,
+			void (*callback)(void *clos, int result),
+			void *clos)
+{
+	struct generic_record_key_suffix suffix;
+	DBMessage *msg = amalloc(sizeof(*msg));
+	void *newkey = amalloc(keylen + sizeof(suffix));
+	void *newval = amalloc(vallen);
+
+	suffix.key = typekey;
+	suffix.rectype = ASSS_DB_GENERIC_RECTYPE;
+	memcpy(newkey, key, keylen);
+	memcpy(newkey+keylen, &suffix, sizeof(suffix));
+	memcpy(newval, val, vallen);
+
+	msg->command = DBCMD_PUT_GENERIC;
+	msg->key = newkey;
+	msg->keylen = keylen + sizeof(suffix);
+	msg->val = newval;
+	msg->vallen = vallen;
+	msg->gencb = callback;
+	msg->clos = clos;
+	MPAdd(&dbq, msg);
+}
+
 
 /* other stuff */
 
@@ -840,7 +978,8 @@ local Ipersist _myint =
 	PutPlayer, GetPlayer,
 	PutArena, GetArena,
 	EndInterval,
-	StabilizeScores
+	StabilizeScores,
+	GetGeneric, PutGeneric
 };
 
 

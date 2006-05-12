@@ -117,6 +117,32 @@ typedef struct Ipersist
 	/* only specify one of the first two params */
 
 	void (*StabilizeScores)(int seconds, int query, void (*callback)(Player *dummy));
+
+	/* generic db interface */
+
+	/** Read key/value pair.
+	 * callback(clos, TRUE) will be called when if the key is present
+	 * and val will be filled in.
+	 * callback(clos, FALSE) will be called if it's not found.
+	 * key/keylen do not have to be preserve once this returns.
+	 */
+	void (*GetGeneric)(
+			int typekey,
+			void *key, int keylen,
+			void *val, int vallen,
+			void (*callback)(void *clos, int present),
+			void *clos);
+	/** Write key/value pair.
+	 * callback(clos, _) will be called when the value is written.
+	 * key/keylen/val/vallen do not have to be preserved once this
+	 * returns.
+	 */
+	void (*PutGeneric)(
+			int typekey,
+			void *key, int keylen,
+			void *val, int vallen,
+			void (*callback)(void *clos, int unused),
+			void *clos);
 } Ipersist;
 
 
