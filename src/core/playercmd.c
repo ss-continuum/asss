@@ -808,6 +808,36 @@ local void Cnetstats(const char *tc, const char *params, Player *p, const Target
 }
 
 
+local void do_common_bw_stuff(Player *p, Player *t, ticks_t tm,
+		const char *prefix, int include_sensitive)
+{
+	struct net_client_stats s;
+	int ignoring;
+
+	if (!net) return;
+
+	net->GetClientStats(t, &s);
+	if (include_sensitive)
+	{
+		chat->SendMessage(p,
+				"%s: ip=%s  port=%d  encname=%s  macid=%u  permid=%u",
+				prefix, s.ipaddr, s.port, s.encname, t->macid, t->permid);
+	}
+	ignoring = game ? (int)(100.0 * game->GetIgnoreWeapons(t)) : 0;
+	chat->SendMessage(p,
+			"%s: avg bw in/out=%ld/%ld  ignoringwpns=%d%%  dropped=%ld",
+			prefix, s.byterecvd*100/tm, s.bytesent*100/tm,
+			ignoring, s.pktdropped);
+	chat->SendMessage(p,
+			"%s: bwlimit=%s",
+			prefix, s.bwlimitinfo);
+	if (t->flags.no_ship)
+		chat->SendMessage(p, "%s: lag too high to play", prefix);
+	if (t->flags.no_flags_balls)
+		chat->SendMessage(p, "%s: lag too high to carry flags or balls", prefix);
+}
+
+
 local helptext_t info_help =
 "Targets: player\n"
 "Args: none\n"
@@ -821,12 +851,9 @@ local void Cinfo(const char *tc, const char *params, Player *p, const Target *ta
 		chat->SendMessage(p, "info: must use on a player");
 	else
 	{
-		const char *prefix;
-		int tm;
 		Player *t = target->u.p;
-
-		prefix = params[0] ? params : "info";
-		tm = TICK_DIFF(current_ticks(), t->connecttime);
+		const char *prefix = t->name;
+		ticks_t tm = TICK_DIFF(current_ticks(), t->connecttime);
 
 		chat->SendMessage(p,
 				"%s: pid=%d  name='%s'  squad='%s'  auth=%c  ship=%d  freq=%d",
@@ -838,20 +865,7 @@ local void Cinfo(const char *tc, const char *params, Player *p, const Target *ta
 				t->yres, tm / 100, p->connectas ? p->connectas : "<default>");
 		if (IS_STANDARD(t))
 		{
-			struct net_client_stats s;
-			int ignoring;
-			net->GetClientStats(t, &s);
-			chat->SendMessage(p,
-					"%s: ip=%s  port=%d  encname=%s  macid=%u  permid=%u",
-					prefix, s.ipaddr, s.port, s.encname, t->macid, t->permid);
-			ignoring = (int)(100.0 * game->GetIgnoreWeapons(t));
-			chat->SendMessage(p,
-					"%s: avg bw in/out=%ld/%ld  ignoringwpns=%d%%  dropped=%ld",
-					prefix, s.byterecvd*100/tm, s.bytesent*100/tm,
-					ignoring, s.pktdropped);
-			chat->SendMessage(p,
-					"%s: bwlimit=%s",
-					prefix, s.bwlimitinfo);
+			do_common_bw_stuff(p, t, tm, prefix, TRUE);
 		}
 		else if (IS_CHAT(t))
 		{
@@ -866,10 +880,6 @@ local void Cinfo(const char *tc, const char *params, Player *p, const Target *ta
 				mm->ReleaseInterface(chatnet);
 			}
 		}
-		if (t->flags.no_ship)
-			chat->SendMessage(p, "%s: lag too high to play", prefix);
-		if (t->flags.no_flags_balls)
-			chat->SendMessage(p, "%s: lag too high to carry flags or balls", prefix);
 		if (t->flags.see_all_posn)
 			chat->SendMessage(p, "%s: requested all position packets", prefix);
 		if (t->status != S_PLAYING)
@@ -1708,67 +1718,67 @@ local void Cuptime(const char *tc, const char *params, Player *p, const Target *
 
 local helptext_t lag_help =
 "Targets: none or player\n"
-"Args: none\n"
-"Displays basic lag information about you or a target player.\n";
+"Args: [{-v}]\n"
+"Displays lag information about you or a target player.\n"
+"Use {-v} for more detail. The format of the ping fields is\n"
+"\"last average (min-max)\".\n";
 
 local void Clag(const char *tc, const char *params, Player *p, const Target *target)
 {
-	struct PingSummary pping, cping;
-	struct PLossSummary ploss;
-	Player *t = target->type == T_PLAYER ? target->u.p : p;
-
-	lagq->QueryPPing(t, &pping);
-	lagq->QueryCPing(t, &cping);
-	lagq->QueryPLoss(t, &ploss);
-
-	if (t == p)
-		chat->SendMessage(p,
-			"ping: s2c: %d (%d-%d) c2s: %d (%d-%d)  ploss: s2c: %.2f c2s: %.2f",
-			cping.avg, cping.min, cping.max,
-			pping.avg, pping.min, pping.max,
-			100.0*ploss.s2c, 100.0*ploss.c2s);
-	else
-		chat->SendMessage(p,
-			"%s: ping: s2c: %d (%d-%d) c2s: %d (%d-%d)  ploss: s2c: %.2f c2s: %.2f",
-			t->name,
-			cping.avg, cping.min, cping.max,
-			pping.avg, pping.min, pping.max,
-			100.0*ploss.s2c, 100.0*ploss.c2s);
-}
-
-
-local helptext_t laginfo_help =
-"Targets: none or player\n"
-"Args: none\n"
-"Displays tons of lag information about a player.\n";
-
-local void Claginfo(const char *tc, const char *params, Player *p, const Target *target)
-{
 	struct PingSummary pping, cping, rping;
 	struct PLossSummary ploss;
-	struct ReliableLagData rlag;
-	Player *t = (target->type) == T_PLAYER ? target->u.p : p;
+	int avg;
+	Player *t = target->type == T_PLAYER ? target->u.p : p;
+	const char *prefix = t == p ? "lag" : t->name;
+
+	if (!IS_STANDARD(t))
+	{
+		chat->SendMessage(p, "%s %s using a game client.",
+				t == p ? "You" : t->name,
+				t == p ? "aren't" : "isn't");
+		return;
+	}
 
 	lagq->QueryPPing(t, &pping);
 	lagq->QueryCPing(t, &cping);
 	lagq->QueryRPing(t, &rping);
 	lagq->QueryPLoss(t, &ploss);
-	lagq->QueryRelLag(t, &rlag);
 
-	chat->SendMessage(p, "%s: s2c ping: %d %d (%d-%d) (reported by client)",
-		t->name, cping.cur, cping.avg, cping.min, cping.max);
-	chat->SendMessage(p, "%s: c2s ping: %d %d (%d-%d) (from position pkt times)",
-		t->name, pping.cur, pping.avg, pping.min, pping.max);
-	chat->SendMessage(p, "%s: rel ping: %d %d (%d-%d) (reliable ping)",
-		t->name, rping.cur, rping.avg, rping.min, rping.max);
-	chat->SendMessage(p, "%s: ploss: s2c: %.2f c2s: %.2f s2cwpn: %.2f",
-		t->name, 100.0*ploss.s2c, 100.0*ploss.c2s, 100.0*ploss.s2cwpn);
-	chat->SendMessage(p, "%s: reliable dups: %.2f%%  reliable resends: %.2f%%",
-		t->name, 100.0*(double)rlag.reldups/(double)rlag.c2sn,
-		100.0*(double)rlag.retries/(double)rlag.s2cn);
-	chat->SendMessage(p, "%s: s2c slow: %d/%d  s2c fast: %d/%d",
-		t->name, cping.s2cslowcurrent, cping.s2cslowtotal,
-		cping.s2cfastcurrent, cping.s2cfasttotal);
+	/* weight reliable ping twice the s2c and c2s */
+	/* FIXME: remove code duplication with lagaction.c */
+	avg = (pping.avg + cping.avg + 2*rping.avg) / 4;
+
+	if (!strstr(params, "-v"))
+	{
+		chat->SendMessage(p,
+				"%s: avg ping: %d  ploss: s2c: %.2f c2s: %.2f",
+				prefix, avg, 100.0*ploss.s2c, 100.0*ploss.c2s);
+	}
+	else
+	{
+		struct ReliableLagData rlag;
+		ticks_t tm = TICK_DIFF(current_ticks(), t->connecttime);
+
+		lagq->QueryRelLag(t, &rlag);
+
+		chat->SendMessage(p, "%s: s2c ping: %d %d (%d-%d) (reported by client)",
+				prefix, cping.cur, cping.avg, cping.min, cping.max);
+		chat->SendMessage(p, "%s: c2s ping: %d %d (%d-%d) (from position pkt times)",
+				prefix, pping.cur, pping.avg, pping.min, pping.max);
+		chat->SendMessage(p, "%s: rel ping: %d %d (%d-%d) (reliable ping)",
+				prefix, rping.cur, rping.avg, rping.min, rping.max);
+		chat->SendMessage(p, "%s: effective ping: %d (average of above)",
+				prefix, avg);
+		chat->SendMessage(p, "%s: ploss: s2c: %.2f c2s: %.2f s2cwpn: %.2f",
+				prefix, 100.0*ploss.s2c, 100.0*ploss.c2s, 100.0*ploss.s2cwpn);
+		chat->SendMessage(p, "%s: reliable dups: %.2f%%  reliable resends: %.2f%%",
+				prefix, 100.0*(double)rlag.reldups/(double)rlag.c2sn,
+				100.0*(double)rlag.retries/(double)rlag.s2cn);
+		chat->SendMessage(p, "%s: s2c slow: %d/%d  s2c fast: %d/%d",
+				prefix, cping.s2cslowcurrent, cping.s2cslowtotal,
+				cping.s2cfastcurrent, cping.s2cfasttotal);
+		do_common_bw_stuff(p, t, tm, prefix, FALSE);
+	}
 }
 
 
@@ -2271,7 +2281,6 @@ local const struct interface_info lag_requires[] =
 local const struct cmd_info lag_commands[] =
 {
 	CMD(lag)
-	CMD(laginfo)
 	CMD(laghist)
 	END()
 };

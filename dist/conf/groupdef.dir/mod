@@ -52,7 +52,6 @@ privcmd_prize
 cmd_shipreset
 privcmd_shipreset
 
-privcmd_laginfo
 privcmd_spec
 
 privcmd_usage
