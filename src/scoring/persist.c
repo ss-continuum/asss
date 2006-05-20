@@ -519,7 +519,7 @@ local void do_end_interval(const char *ag, int interval)
 }
 
 
-local void get_generic(DBMessage *msg)
+local int get_generic(DBMessage *msg)
 {
 	DBT key, val;
 	int err;
@@ -536,14 +536,14 @@ local void get_generic(DBMessage *msg)
 
 	afree(msg->key);
 
-	msg->gencb(msg->clos, err == 0);
-
 	if (err != 0 && err != DB_NOTFOUND)
 		lm->Log(L_WARN, "<persist> db->get error (4): %s",
 				db_strerror(err));
+
+	return err == 0;
 }
 
-local void put_generic(DBMessage *msg)
+local int put_generic(DBMessage *msg)
 {
 	DBT key, val;
 	int err;
@@ -560,11 +560,11 @@ local void put_generic(DBMessage *msg)
 	afree(msg->key);
 	afree(msg->val);
 
-	msg->gencb(msg->clos, err == 0);
-
 	if (err)
 		lm->Log(L_WARN, "<persist> db->put error (4): %s",
 				db_strerror(err));
+
+	return err == 0;
 }
 
 
@@ -574,6 +574,7 @@ local void *DBThread(void *dummy)
 	Link *l, *link;
 	Arena *arena;
 	Player *i;
+	int result;
 
 	for (;;)
 	{
@@ -582,6 +583,8 @@ local void *DBThread(void *dummy)
 
 		/* break on null */
 		if (!msg) break;
+
+		result = 0;
 
 		/* lock data descriptor lists */
 		pthread_mutex_lock(&dbmtx);
@@ -649,11 +652,11 @@ local void *DBThread(void *dummy)
 				break;
 
 			case DBCMD_GET_GENERIC:
-				get_generic(msg);
+				result = get_generic(msg);
 				break;
 
 			case DBCMD_PUT_GENERIC:
-				put_generic(msg);
+				result = put_generic(msg);
 				break;
 		}
 
@@ -663,6 +666,7 @@ local void *DBThread(void *dummy)
 		/* if we were looking for notification, notify */
 		if (msg->playercb) msg->playercb(msg->p);
 		if (msg->arenacb) msg->arenacb(msg->arena);
+		if (msg->gencb) msg->gencb(msg->clos, result);
 		if (msg->command == DBCMD_ENDINTERVAL)
 			DO_CBS(CB_INTERVAL_ENDED, ALLARENAS, EndIntervalFunc, ());
 
