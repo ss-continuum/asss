@@ -20,6 +20,7 @@
 #include "net-client.h"
 #include "banners.h"
 #include "persist.h"
+#include "pwcache.h"
 #include "protutil.h"
 #include "packets/billing.h"
 #include "packets/banners.h"
@@ -29,11 +30,17 @@ typedef struct pdata
 {
 	long billingid;
 	unsigned long usage;
-	char firstused[32];
-	void (*Done)(Player *p, AuthData *data);
 	int knowntobiller;
-	struct PlayerScore saved_score;
 	int demographics_set;
+	/* holds copy of name and password temporarily */
+	struct
+	{
+		void (*done)(Player *p, AuthData *data);
+		char name[24];
+		char pw[24];
+	} *logindata;
+	char firstused[32];
+	struct PlayerScore saved_score;
 } pdata;
 
 
@@ -71,7 +78,7 @@ local Imainloop *ml;
 local Ichat *chat;
 local Icmdman *cmd;
 local Iconfig *cfg;
-local Iauth *oldauth;
+local Ipwcache *pwcache;
 local Inet *net;
 local Inet_client *netcli;
 local Istats *stats;
@@ -109,6 +116,49 @@ local void drop_connection(int newstate)
 	lastevent = time(NULL);
 }
 
+local void pwcache_done(void *clos, int result)
+{
+	AuthData ad;
+	Player *p = clos;
+	pdata *data = PPDATA(p, pdkey);
+
+	if (!data->logindata)
+	{
+		lm->LogP(L_WARN, "billing_ssc", p, "unexpected pwcache response");
+		return;
+	}
+
+	if (result == MATCH)
+	{
+		/* correct password, player is ok and authenticated */
+		ad.code = AUTH_OK;
+		ad.authenticated = TRUE;
+		astrncpy(ad.name, data->logindata->name, sizeof(ad.name));
+		astrncpy(ad.sendname, data->logindata->name, sizeof(ad.sendname));
+		astrncpy(ad.squad, "", sizeof(ad.squad));
+	}
+	else if (result == NOT_FOUND)
+	{
+		/* add ^ in front of name and accept as unauthenticated */
+		ad.code = AUTH_OK;
+		ad.authenticated = FALSE;
+		ad.name[0] = ad.sendname[0] = '^';
+		astrncpy(ad.name + 1, data->logindata->name, sizeof(ad.name) - 1);
+		astrncpy(ad.sendname + 1, data->logindata->name, sizeof(ad.sendname) - 1);
+		astrncpy(ad.squad, "", sizeof(ad.squad));
+		data->knowntobiller = FALSE;
+	}
+	else /* mismatch or anything else */
+	{
+		ad.code = AUTH_BADPASSWORD;
+		ad.authenticated = FALSE;
+	}
+
+	data->logindata->done(p, &ad);
+	afree(data->logindata);
+	data->logindata = NULL;
+}
+
 /* the auth interface */
 
 local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
@@ -117,6 +167,18 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 	pdata *data = PPDATA(p, pdkey);
 
 	pthread_mutex_lock(&mtx);
+
+	/* default to false */
+	data->knowntobiller = FALSE;
+
+	/* set up temporary login data struct */
+	data->logindata = amalloc(sizeof(*data->logindata));
+	astrncpy(data->logindata->name, lp->name,
+			sizeof(data->logindata->name));
+	if (pwcache)
+		astrncpy(data->logindata->pw, lp->password,
+				sizeof(data->logindata->pw));
+	data->logindata->done = Done;
 
 	if (state == s_loggedin)
 	{
@@ -148,7 +210,6 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 			}
 
 			netcli->SendPacket(cc, (byte*)&pkt, pktsize, NET_RELIABLE);
-			data->Done = Done;
 			data->knowntobiller = TRUE;
 			pending_auths++;
 		}
@@ -159,17 +220,19 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 			ad.code = AUTH_SERVERBUSY;
 			ad.authenticated = FALSE;
 			Done(p, &ad);
+			afree(data->logindata);
+			data->logindata = NULL;
 		}
+	}
+	else if (pwcache)
+	{
+		/* biller isn't connected, fall back to pw cache */
+		pwcache->Check(lp->name, lp->password, pwcache_done, p);
 	}
 	else
 	{
-		/* biller isn't connected, fall back to next highest priority */
-		lm->Log(L_DRIVEL,
-				"<billing_ssc> user database not connected; falling back to '%s'",
-				oldauth->head.name);
-		oldauth->Authenticate(p, lp, lplen, Done);
-		data->knowntobiller = FALSE;
-		// FIXME: add ^ prefix in front of the name if not authenticated
+		/* act like not found in pwcache */
+		pwcache_done(p, NOT_FOUND);
 	}
 
 	pthread_mutex_unlock(&mtx);
@@ -205,35 +268,41 @@ local void paction(Player *p, int action, Arena *arena)
 {
 	pdata *data = PPDATA(p, pdkey);
 	pthread_mutex_lock(&mtx);
-	if (action == PA_DISCONNECT && data->knowntobiller)
+	if (action == PA_DISCONNECT)
 	{
-		struct S2B_UserLogoff pkt;
-
-		if(data->Done)
+		if (data->logindata)
 		{
-			//disconnected while waiting auth
-			pending_auths--;
-			data->Done = NULL;
-			interrupted_auths++;
+			/* disconnected while waiting for auth */
+			if (data->knowntobiller)
+			{
+				pending_auths--;
+				interrupted_auths++;
+			}
+			afree(data->logindata);
+			data->logindata = NULL;
 		}
-
-		pkt.Type = S2B_USER_LOGOFF;
-		pkt.ConnectionID = p->pid;
-		pkt.DisconnectReason = 0;  //FIXME: put real reason here
-		//FIXME: get real latency numbers
-		pkt.Latency = 0;
-		pkt.Ping = 0;
-		pkt.PacketLossS2C = 0;
-		pkt.PacketLossC2S = 0;
-
-		if (update_score(p, &data->saved_score))
+		if (data->knowntobiller)
 		{
-			pkt.Score = data->saved_score;
-			netcli->SendPacket(cc, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
+			struct S2B_UserLogoff pkt;
+
+			pkt.Type = S2B_USER_LOGOFF;
+			pkt.ConnectionID = p->pid;
+			pkt.DisconnectReason = 0;  //FIXME: put real reason here
+			//FIXME: get real latency numbers
+			pkt.Latency = 0;
+			pkt.Ping = 0;
+			pkt.PacketLossS2C = 0;
+			pkt.PacketLossC2S = 0;
+
+			if (update_score(p, &data->saved_score))
+			{
+				pkt.Score = data->saved_score;
+				netcli->SendPacket(cc, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
+			}
+			else
+				netcli->SendPacket(cc, (byte*)&pkt,
+						offsetof(struct S2B_UserLogoff, Score), NET_RELIABLE);
 		}
-		else
-			netcli->SendPacket(cc, (byte*)&pkt,
-					offsetof(struct S2B_UserLogoff, Score), NET_RELIABLE);
 	}
 #if 0
 	/* i don't want the biller messing with my stats */
@@ -546,7 +615,7 @@ local void process_user_login(const char *data,int len)
 	}
 
 	bdata = PPDATA(p, pdkey);
-	if (!bdata->Done)
+	if (!bdata->logindata)
 	{
 		lm->LogP(L_WARN, "billing_ssc", p, "unexpected player auth response");
 		return;
@@ -585,6 +654,9 @@ local void process_user_login(const char *data,int len)
 				bnr->SetBanner(p, (Banner*)pkt->Banner, TRUE);
 			mm->ReleaseInterface(bnr);
 		}
+
+		if (pwcache)
+			pwcache->Set(bdata->logindata->name, bdata->logindata->pw);
 	}
 	else
 	{
@@ -605,8 +677,9 @@ local void process_user_login(const char *data,int len)
 			ad.code = AUTH_NOPERMISSION;
 		ad.authenticated = FALSE;
 	}
-	bdata->Done(p, &ad);
-	bdata->Done = NULL;
+	bdata->logindata->done(p, &ad);
+	afree(bdata->logindata);
+	bdata->logindata = NULL;
 	pending_auths--;
 }
 
@@ -1151,12 +1224,12 @@ EXPORT int MM_billing_ssc(int action, Imodman *mm_, Arena *arena)
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
-		oldauth = mm->GetInterface(I_AUTH, ALLARENAS);
+		pwcache = mm->GetInterface(I_PWCACHE, ALLARENAS);
 		stats = mm->GetInterface(I_STATS, ALLARENAS);
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 
 		if (!net || !netcli || !pd || !lm || !ml || !chat || !cmd ||
-				!cfg || !oldauth || !stats)
+				!cfg || !stats)
 			return MM_FAIL;
 		pdkey = pd->AllocatePlayerData(sizeof(pdata));
 		if (pdkey == -1) return MM_FAIL;
@@ -1222,7 +1295,7 @@ EXPORT int MM_billing_ssc(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(cfg);
-		mm->ReleaseInterface(oldauth);
+		mm->ReleaseInterface(pwcache);
 		mm->ReleaseInterface(stats);
 		mm->ReleaseInterface(capman);
 		return MM_OK;
