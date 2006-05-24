@@ -96,7 +96,7 @@ local int FindLegalShip(Arena *arena, int freq, int ship)
 	 * If this is set, freq 0 will only be allowed to use warbirds, freq
 	 * 1 can only use javelins, etc. */
 	int clockwork = cfg->GetInt(arena->cfg,
-			"Misc", "FrequencyShipTypes", 0);
+			"Team", "FrequencyShipTypes", 0);
 
 	if (clockwork)
 	{
