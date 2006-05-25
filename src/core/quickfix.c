@@ -145,6 +145,7 @@ local void p_settingchange(Player *p, byte *pkt, int len)
 	time_t tm = time(NULL);
 	const char *pos = (const char*)pkt + 1;
 	char sec[MAXSECTIONLEN], key[MAXKEYLEN], info[128];
+	int permanent = TRUE;
 
 	arena = p->arena;
 	if (!arena) return;
@@ -174,9 +175,26 @@ local void p_settingchange(Player *p, byte *pkt, int len)
 		CHECK(pos)
 		pos = delimcpy(key, pos, MAXKEYLEN, ':');
 		CHECK(pos)
-		lm->LogP(L_INFO, "quickfix", p, "setting %s:%s = %s",
-				sec, key, pos);
-		cfg->SetStr(ch, sec, key, pos, info, TRUE);
+		if (strcmp(sec, "__pragma") == 0)
+		{
+			if (strcmp(key, "perm") == 0)
+			{
+				/* send __pragma:perm:0 to make further settings changes
+				 * temporary */
+				permanent = atoi(pos);
+			}
+			else if (strcmp(key, "flush") == 0)
+			{
+				/* send __pragma:flush:1 to flush settings changes */
+				cfg->FlushDirtyValues();
+			}
+		}
+		else
+		{
+			lm->LogP(L_INFO, "quickfix", p, "setting %s:%s = %s",
+					sec, key, pos);
+			cfg->SetStr(ch, sec, key, pos, info, permanent);
+		}
 		pos = pos + strlen(pos) + 1;
 		if (pos[0] == '\0') break;
 	}

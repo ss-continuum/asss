@@ -36,6 +36,7 @@ typedef struct ConfigFile
 	HashTable *table;
 	StringChunk *strings;
 	LinkedList dirty;
+	int anychanged;
 	time_t lastmod;
 	char *filename, *arena, *name;
 } ConfigFile;
@@ -139,7 +140,11 @@ local void write_dirty_values_one(ConfigFile *cf, int call_cbs)
 						cf->filename);
 
 		LLEmpty(&cf->dirty);
+	}
 
+	if (cf->anychanged)
+	{
+		cf->anychanged = FALSE;
 		/* call changed callbacks */
 		for (l = LLGetHead(&cf->handles); call_cbs && l; l = l->next)
 		{
@@ -390,6 +395,7 @@ local ConfigFile *new_file()
 	f->table = HashAlloc();
 	f->strings = SCAlloc();
 	LLInit(&f->dirty);
+	f->anychanged = FALSE;
 
 	return f;
 }
@@ -520,7 +526,6 @@ local int GetInt(ConfigHandle ch, const char *sec, const char *key, int def)
 local void SetStr(ConfigHandle ch, const char *sec, const char *key,
 		const char *val, const char *info, int perm)
 {
-	struct Entry *e = NULL;
 	char keystring[MAXSECTIONLEN+MAXKEYLEN+2];
 	const char *res, *data;
 	ConfigFile *cf;
@@ -548,18 +553,15 @@ local void SetStr(ConfigHandle ch, const char *sec, const char *key,
 		return;
 	}
 
+	data = SCAdd(cf->strings, val);
+	HashReplace(cf->table, keystring, data);
+	cf->anychanged = TRUE;
 	if (perm)
 	{
 		/* make a dirty list entry for it */
-		e = amalloc(sizeof(*e));
+		struct Entry *e = amalloc(sizeof(*e));
 		e->keystr = astrdup(keystring);
 		e->info = astrdup(info);
-	}
-
-	data = SCAdd(cf->strings, val);
-	HashReplace(cf->table, keystring, data);
-	if (perm)
-	{
 		e->val = data;
 		LLAdd(&cf->dirty, e);
 	}
