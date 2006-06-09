@@ -211,8 +211,8 @@ local void Pppk(Player *p, byte *pkt, int len)
 	Arena *arena = p->arena;
 	adata *adata = P_ARENA_DATA(arena, adkey);
 	pdata *data = PPDATA(p, pdkey), *idata;
-	int sendwpn, x1, y1;
-	int sendtoall = 0, randnum = prng->Rand();
+	int sendwpn = FALSE, sendtoall = FALSE, x1, y1, nflags;
+	int randnum = prng->Rand();
 	Player *i;
 	Link *link;
 	ticks_t gtc = current_ticks();
@@ -297,40 +297,53 @@ local void Pppk(Player *p, byte *pkt, int len)
 		if (!isnewer && !isfake && pos->weapon.type == 0)
 			return;
 
+		/* by default, send unreliable droppable packets. weapons get a
+		 * higher priority. */
+		nflags = NET_UNRELIABLE | NET_DROPPABLE |
+			(pos->weapon.type ? NET_PRI_P5 : NET_PRI_P3);
+
 		/* there are several reasons to send a weapon packet (05) instead of
 		 * just a position one (28) */
-		sendwpn = 0;
 		/* if there's a real weapon */
-		if (pos->weapon.type > 0) sendwpn = 1;
+		if (pos->weapon.type > 0)
+			sendwpn = TRUE;
 		/* if the bounty is over 255 */
-		if (pos->bounty & 0xFF00) sendwpn = 1;
+		if (pos->bounty & 0xFF00)
+			sendwpn = TRUE;
 		/* if the pid is over 255 */
-		if (p->pid & 0xFF00) sendwpn = 1;
+		if (p->pid & 0xFF00)
+			sendwpn = TRUE;
 
 		/* send mines to everyone */
 		if ( ( pos->weapon.type == W_BOMB ||
 		       pos->weapon.type == W_PROXBOMB) &&
 		     pos->weapon.alternate)
-			sendtoall = 1;
+			sendtoall = TRUE;
 
 		/* send some percent of antiwarp positions to everyone */
 		if ( pos->weapon.type == 0 &&
 		     (pos->status & STATUS_ANTIWARP) &&
 		     prng->Rand() < cfg_sendanti)
-			sendtoall = 1;
+			sendtoall = TRUE;
 
 		/* send safe zone enters to everyone, reliably */
 		if ((pos->status & STATUS_SAFEZONE) &&
 		    !(p->position.status & STATUS_SAFEZONE))
-			sendtoall = 2;
+		{
+			sendtoall = TRUE;
+			nflags = NET_RELIABLE;
+		}
 
 		/* send flashes to everyone, reliably */
 		if (pos->status & STATUS_FLASH)
-			sendtoall = 2;
+		{
+			sendtoall = TRUE;
+			nflags = NET_RELIABLE;
+		}
 
 		if (sendwpn)
 		{
-			int range = wpnrange[pos->weapon.type], nflags;
+			int range = wpnrange[pos->weapon.type];
 			struct S2CWeapons wpn = {
 				S2C_WEAPON, pos->rotation, gtc & 0xFFFF, pos->x, pos->yspeed,
 				p->pid, pos->xspeed, 0, pos->status, (u8)latency,
@@ -341,16 +354,6 @@ local void Pppk(Player *p, byte *pkt, int len)
 			/* move this field from the main packet to the extra data,
 			 * in case they don't match. */
 			wpn.extra.energy = pos->energy;
-
-			if (sendtoall != 2)
-				nflags = NET_UNRELIABLE | NET_DROPPABLE;
-			else
-				nflags = NET_RELIABLE;
-
-			if (wpn.weapon.type == 0)
-				nflags |= NET_PRI_P3;
-			else
-				nflags |= NET_PRI_P5;
 
 			do_checksum(&wpn);
 
@@ -415,7 +418,6 @@ local void Pppk(Player *p, byte *pkt, int len)
 		}
 		else
 		{
-			int nflags;
 			struct S2CPosition sendpos = {
 				S2C_POSITION, pos->rotation, gtc & 0xFFFF, pos->x, (u8)latency,
 				(u8)pos->bounty, (u8)p->pid, pos->status, pos->yspeed, pos->y, pos->xspeed
@@ -424,10 +426,6 @@ local void Pppk(Player *p, byte *pkt, int len)
 			/* move this field from the main packet to the extra data,
 			 * in case they don't match. */
 			sendpos.extra.energy = pos->energy;
-
-			nflags = NET_UNRELIABLE | NET_PRI_P3 | NET_DROPPABLE;
-			if (sendtoall == 2)
-				nflags |= NET_RELIABLE;
 
 			pd->Lock();
 			FOR_EACH_PLAYER_P(i, idata, pdkey)

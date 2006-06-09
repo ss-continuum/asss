@@ -1542,6 +1542,7 @@ local void send_outgoing(ConnData *conn)
 				/* try dropping it, if we can */
 				if (buf->flags & NET_DROPPABLE)
 				{
+					assert(pri < BW_REL);
 					DQRemove((DQNode*)buf);
 					FreeBuffer(buf);
 					conn->pktdropped++;
@@ -2434,6 +2435,9 @@ Buffer * BufferPacket(ConnData *conn, byte *data, int len, int flags,
 	assert(len <= (MAXPACKET - REL_HEADER));
 	/* you can't buffer already-reliable packets */
 	assert(!(data[0] == 0x00 && data[1] == 0x03));
+	/* reliable packets can't be droppable */
+	assert((flags & (NET_RELIABLE | NET_DROPPABLE)) !=
+			(NET_RELIABLE | NET_DROPPABLE));
 
 	switch (flags & 0x70)
 	{
