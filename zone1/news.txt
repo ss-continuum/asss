@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 1.4.2.
+Welcome to asss (a small subspace server) 1.4.3.
 
 asss is a new subspace server, written from scratch. It has lots of cool
 new features and improvements over subgame.

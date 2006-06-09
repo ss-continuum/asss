@@ -29,21 +29,27 @@ checks = [
 	(re_module, 'requiremod')
 ]
 
+def escape(s):
+	# replace < and > with math symbols
+	s = s.replace('<', '\\lt{}')
+	s = s.replace('>', '\\gt{}')
+
+	# handle other punctuation
+	s = s.replace('_', '\\_')
+	s = s.replace('#', '\\#')
+	s = s.replace('$', '\\$')
+	s = s.replace('^', '\\^')
+	s = s.replace('%', '\\%')
+	s = s.replace('|', '\\vbar{}')
+
+	return s
+
+
 def print_line(line):
 	# replace braces with texttt expressions
 	line = re_braces.sub(r"\\texttt\1", line)
 
-	# replace < and > with math symbols
-	line = line.replace('<', '\\lt{}')
-	line = line.replace('>', '\\gt{}')
-
-	# handle other punctuation
-	line = line.replace('_', '\\_')
-	line = line.replace('#', '\\#')
-	line = line.replace('$', '\\$')
-	line = line.replace('^', '\\^')
-	line = line.replace('%', '\\%')
-	line = line.replace('|', '\\vbar{}')
+	line = escape(line)
 
 	# check itemized lists
 	if line.startswith(' * '):
@@ -62,7 +68,7 @@ def print_line(line):
 def print_doc(cmd, text):
 	initem = 0
 	out = ''
-	out += "\\command{%s}\n" % cmd
+	out += "\\command{%s}\n" % escape(cmd)
 	for line in text:
 		if line.startswith(' * '):
 			line = '\\item ' + line[3:]
