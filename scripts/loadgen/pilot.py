@@ -99,8 +99,9 @@ class Circler(Pilot):
 
 
 class Client(prot.Connection):
-	def __init__(me, name = None, pwd = '', defarena = 0):
+	def __init__(me, name = None, pwd = '', defarena = 0, ploss=0):
 		prot.Connection.__init__(me)
+		me.packetloss = ploss
 
 		me.add_handler(0x0200, me.handle_connected)
 		me.add_handler(S2C_WHOAMI, me.handle_whoami)
@@ -146,7 +147,7 @@ class Client(prot.Connection):
 	def handle_inarena(me, pkt):
 		log("in arena, starting ppks")
 		me.timers.add(10 + 10*random.random(), me.send_ppk)
-		me.timers.add(200 + 50*random.random(), me.send_chat)
+		me.timers.add(20 + 50*random.random(), me.send_chat)
 
 	def handle_weapon(me, pkt):
 		#log("got weapon")
@@ -185,10 +186,12 @@ class Client(prot.Connection):
 
 	def send_chat(me):
 		me.chat_sent += 1
-		pkt = struct.pack('< B B x h', C2S_CHAT, 2, -1)
-		pkt += 'msg from %d' % me.pid
-		pkt += chr(0)
-		me.send(pkt, 1)
+		for i in range(random.choice([1, 1, 1, 2, 2, 3])):
+			pkt = struct.pack('< B B x h', C2S_CHAT, 2, -1)
+			pkt += 'msg %d-%d from %d' % (
+				i, random.randint(0, 99999), me.pid)
+			pkt += chr(0)
+			me.send(pkt, 1)
 
 	def print_stats(me):
 		log("pos_sent=%2d  pos_rcvd=%4d  wpn_rcvd=%3d  "

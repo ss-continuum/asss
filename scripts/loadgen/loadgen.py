@@ -4,6 +4,7 @@ import sys, os, time, random, select, signal, optparse
 import util, prot, ui, pilot, timer
 
 clients = []
+def_ploss = 0.01
 
 def set_signal():
 	def sigfunc(signum, frame):
@@ -17,7 +18,8 @@ def set_signal():
 
 def new_client(name = None):
 	dest = random.randint(0, opts.arenas - 1)
-	client = pilot.Client(name=name, defarena=dest)
+	client = pilot.Client(name=name, defarena=dest,
+			ploss=def_ploss)
 	client.connect(opts.server, opts.port)
 	clients.append(client)
 

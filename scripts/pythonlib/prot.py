@@ -1,5 +1,5 @@
 
-import sys, struct, time
+import sys, struct, time, random
 
 import util
 
@@ -31,6 +31,7 @@ class Connection:
 		me.reliable_retry = 100 # 1 second
 		me.max_bigpkt = 512 * 1024
 		me.timeoutinterval = 1500
+		me.packetloss = 0
 
 		# connection state
 		me.encstate = enc.EncState()
@@ -64,6 +65,9 @@ class Connection:
 		try:
 			r = me.sock.recv(512)
 			if r:
+				# packetloss simulation
+				if random.random() < me.packetloss:
+					return
 				me.lastrecv = util.ticks()
 				r = me.encstate.decrypt(r)
 				me.process_pkt(r)
@@ -75,7 +79,6 @@ class Connection:
 			# probably ewouldblock
 			raise
 			pass
-
 
 
 	def try_sending_outqueue(me):
