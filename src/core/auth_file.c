@@ -151,7 +151,7 @@ local helptext_t local_password_help =
 "Args: <new password>\n"
 "Changes your local server password. Note that this command only changes\n"
 "the password used by the auth_file authentication mechanism (used when the\n"
-"billing server is disconnected. This command does not involve the billing\n"
+"billing server is disconnected). This command does not involve the billing\n"
 "server.\n";
 
 local void Cpasswd(const char *tc, const char *params, Player *p, const Target *target)
