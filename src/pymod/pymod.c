@@ -297,7 +297,6 @@ local void close_config_file(void *v)
 
 local PyObject * cvt_c2p_config(ConfigHandle ch)
 {
-	ch = cfg->AddRef(ch);
 	return PyCObject_FromVoidPtr(ch, close_config_file);
 }
 
@@ -557,7 +556,7 @@ local PyObject *Arena_get_basename(PyObject *obj, void *v)
 local PyObject *Arena_get_cfg(PyObject *obj, void *v)
 {
 	GET_AND_CHECK_ARENA(a)
-	return cvt_c2p_config(a->cfg);
+	return cvt_c2p_config(cfg->AddRef(a->cfg));
 }
 
 local PyObject *Arena_get_specfreq(PyObject *obj, void *v)
