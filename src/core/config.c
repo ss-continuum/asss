@@ -97,6 +97,48 @@ local char * unescape_string(char *dst, int dstlen, char *src, char stopon)
 }
 
 
+local ConfigFile *new_file()
+{
+	ConfigFile *f;
+	pthread_mutexattr_t attr;
+
+	f = amalloc(sizeof(*f));
+
+	pthread_mutexattr_init(&attr);
+	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+	pthread_mutex_init(&f->mutex, &attr);
+	pthread_mutexattr_destroy(&attr);
+
+	LLInit(&f->handles);
+	f->table = HashAlloc();
+	f->strings = SCAlloc();
+	LLInit(&f->dirty);
+	f->anychanged = FALSE;
+
+	return f;
+}
+
+local void free_file(ConfigFile *cf)
+{
+	if (LLCount(&cf->handles))
+	{
+		/* this can only happen when we're unloading this module, in
+		 * which case it doesn't really matter if we delete these or
+		 * not, but it's nice to be complete. */
+		LLEnum(&cf->handles, afree);
+		LLEmpty(&cf->handles);
+	}
+
+	SCFree(cf->strings);
+	HashFree(cf->table);
+	pthread_mutex_destroy(&cf->mutex);
+	afree(cf->filename);
+	afree(cf->arena);
+	afree(cf->name);
+	afree(cf);
+}
+
+
 /* call with cf->mutex held */
 local void write_dirty_values_one(ConfigFile *cf, int call_cbs)
 {
@@ -157,15 +199,29 @@ local void write_dirty_values_one(ConfigFile *cf, int call_cbs)
 
 local int write_dirty_values(void *dummy)
 {
-	Link *l;
+	Link *l, *next;
 
 	pthread_mutex_lock(&cfgmtx);
-	for (l = LLGetHead(&files); l; l = l->next)
+	for (l = LLGetHead(&files); l; l = next)
 	{
 		ConfigFile *cf = l->data;
+		next = l->next;
+
 		pthread_mutex_lock(&cf->mutex);
-		write_dirty_values_one(cf, TRUE);
-		pthread_mutex_unlock(&cf->mutex);
+		if (LLIsEmpty(&cf->handles))
+		{
+			write_dirty_values_one(cf, FALSE);
+			pthread_mutex_unlock(&cf->mutex);
+
+			HashRemove(opened, cf->filename, cf);
+			LLRemove(&files, cf);
+			free_file(cf);
+		}
+		else
+		{
+			write_dirty_values_one(cf, TRUE);
+			pthread_mutex_unlock(&cf->mutex);
+		}
 	}
 	pthread_mutex_unlock(&cfgmtx);
 
@@ -379,48 +435,6 @@ local void ForceReload(const char *pathname,
 }
 
 
-local ConfigFile *new_file()
-{
-	ConfigFile *f;
-	pthread_mutexattr_t attr;
-
-	f = amalloc(sizeof(*f));
-
-	pthread_mutexattr_init(&attr);
-	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-	pthread_mutex_init(&f->mutex, &attr);
-	pthread_mutexattr_destroy(&attr);
-
-	LLInit(&f->handles);
-	f->table = HashAlloc();
-	f->strings = SCAlloc();
-	LLInit(&f->dirty);
-	f->anychanged = FALSE;
-
-	return f;
-}
-
-local void free_file(ConfigFile *cf)
-{
-	if (LLCount(&cf->handles))
-	{
-		/* this can only happen when we're unloading this module, in
-		 * which case it doesn't really matter if we delete these or
-		 * not, but it's nice to be complete. */
-		LLEnum(&cf->handles, afree);
-		LLEmpty(&cf->handles);
-	}
-
-	SCFree(cf->strings);
-	HashFree(cf->table);
-	pthread_mutex_destroy(&cf->mutex);
-	afree(cf->filename);
-	afree(cf->arena);
-	afree(cf->name);
-	afree(cf);
-}
-
-
 local ConfigHandle OpenConfigFile(const char *arena, const char *name,
 		ConfigChangedFunc func, void *clos)
 {
@@ -452,8 +466,8 @@ local ConfigHandle OpenConfigFile(const char *arena, const char *name,
 		HashAdd(opened, fname, cf);
 		LLAdd(&files, cf);
 	}
-	/* create handle while holding cfgmtx to preserve invariant:
-	 * all open files have at least one handle */
+	/* create handle while holding cfgmtx so that the file doesn't get
+	 * garbage collected before it has a reference */
 	ch = new_handle(cf, func, clos);
 	pthread_mutex_unlock(&cfgmtx);
 
@@ -466,20 +480,9 @@ local void CloseConfigFile(ConfigHandle ch)
 	if (!ch) return;
 	cf = ch->file;
 
-	pthread_mutex_lock(&cfgmtx);
 	pthread_mutex_lock(&cf->mutex);
 	assert(LLRemove(&cf->handles, ch));
-	if (LLCount(&cf->handles) == 0)
-	{
-		write_dirty_values_one(cf, FALSE);
-		pthread_mutex_unlock(&cf->mutex);
-		HashRemove(opened, cf->filename, cf);
-		LLRemove(&files, cf);
-		free_file(cf);
-	}
-	else
-		pthread_mutex_unlock(&cf->mutex);
-	pthread_mutex_unlock(&cfgmtx);
+	pthread_mutex_unlock(&cf->mutex);
 }
 
 
