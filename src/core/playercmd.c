@@ -1913,7 +1913,7 @@ local void Cscorereset(const char *tc, const char *params, Player *p, const Targ
 		if (cfg->GetInt(p->arena->cfg, "Misc", "SelfScoreReset", 0))
 		{
 			stats->ScoreReset(p, INTERVAL_RESET);
-			stats->SendUpdates();
+			stats->SendUpdates(NULL);
 			chat->SendMessage(p, "Score reset");
 		}
 		else
@@ -1923,7 +1923,7 @@ local void Cscorereset(const char *tc, const char *params, Player *p, const Targ
 	else if (target->type == T_PLAYER)
 	{
 		stats->ScoreReset(target->u.p, INTERVAL_RESET);
-		stats->SendUpdates();
+		stats->SendUpdates(NULL);
 		chat->SendMessage(p, "Player score reset");
 	}
 }
@@ -1948,7 +1948,7 @@ local void Cpoints(const char *tc, const char *params, Player *p, const Target *
 		for (l = LLGetHead(&set); l; l = l->next)
 			stats->IncrementStat(l->data, STAT_FLAG_POINTS, n);
 		LLEmpty(&set);
-		stats->SendUpdates();
+		stats->SendUpdates(NULL);
 	}
 }
 

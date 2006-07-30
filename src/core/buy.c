@@ -171,7 +171,7 @@ local void Cbuy(const char *tc, const char *params, Player *p, const Target *tar
 					t.u.p = p;
 					/* deduct from flag points to keep kill average the same. */
 					stats->IncrementStat(p, STAT_FLAG_POINTS, -cost);
-					stats->SendUpdates();
+					stats->SendUpdates(NULL);
 					game->GivePrize(&t, items[item].type, 1);
 					chat->SendMessage(p, "Bought %s.", items[item].setting);
 					if (lm) lm->LogP(L_DRIVEL, "buy", p, "bought %s", items[item].setting);

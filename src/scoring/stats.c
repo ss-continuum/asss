@@ -296,7 +296,7 @@ local int dirty_count(stat_info *si)
 
 #include "packets/scoreupd.h"
 
-local void SendUpdates(void)
+local void SendUpdates(Player *exclude)
 {
 	pdata *stats;
 	struct ScorePacket sp = { S2C_SCOREUPDATE };
@@ -305,7 +305,7 @@ local void SendUpdates(void)
 
 	pd->Lock();
 	FOR_EACH_PLAYER_P(p, stats, pdkey)
-		if (p->status == S_PLAYING)
+		if (p->status == S_PLAYING && p != exclude)
 		{
 			LOCK_PLAYER(stats);
 			if (dirty_count(stats->reset))
@@ -320,7 +320,7 @@ local void SendUpdates(void)
 
 				net->SendToArena(
 						p->arena,
-						NULL,
+						exclude,
 						(char*)&sp,
 						sizeof(sp),
 						NET_UNRELIABLE | NET_PRI_N1);

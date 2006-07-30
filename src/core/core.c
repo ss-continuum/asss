@@ -402,7 +402,7 @@ int process_player_states(void *v)
 					player->pkt.losses =
 						stats->GetStat(player, STAT_DEATHS, INTERVAL_RESET);
 					/* also get other player's scores into their pdatas */
-					stats->SendUpdates();
+					stats->SendUpdates(player);
 				}
 				aman->SendArenaResponse(player);
 				player->flags.sent_ppk = 0;

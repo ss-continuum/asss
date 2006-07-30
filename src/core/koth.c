@@ -155,7 +155,7 @@ local void check_koth(Arena *arena)
 			lm->LogP(L_DRIVEL, "koth", p, "won koth game");
 			DO_CBS(CB_KOTH_PLAYER_WIN, arena, KothPlayerWinFunc, (arena, p, pts));
 		}
-		stats->SendUpdates();
+		stats->SendUpdates(NULL);
 
 		DO_CBS(CB_KOTH_PLAYER_WIN_END, arena, KothPlayerWinEndFunc, (arena));
 

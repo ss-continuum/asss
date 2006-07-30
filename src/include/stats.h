@@ -14,7 +14,7 @@
 #include "statcodes.h"
 
 
-#define I_STATS "stats-2"
+#define I_STATS "stats-3"
 
 typedef struct Istats
 {
@@ -41,9 +41,11 @@ typedef struct Istats
 	/* gets the value of one statistic */
 	/* pyint: player, int, int -> int */
 
-	void (*SendUpdates)(void);
-	/* sends out score updates for everyone that needs to be updated */
-	/* pyint: void -> void */
+	void (*SendUpdates)(Player *exclude);
+	/* sends out score updates for everyone that needs to be updated,
+	 * except don't send updates about exclude, or about anyone else to
+	 * exclude. */
+	/* pyint: player -> void */
 
 	void (*ScoreReset)(Player *p, int interval);
 	/* this basically resets all of a player's stats to 0, but doesn't

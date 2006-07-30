@@ -1110,24 +1110,26 @@ local int doReward(Arena *arena)
 		{
 		case TR_AWARD_PLAYER:
 			awardPtsPlayer(arena, ta);
-			stats->SendUpdates();
+			stats->SendUpdates(NULL);
 			break;
 		case TR_AWARD_TEAM:
 			awardPtsTeam(arena, ta);
-			stats->SendUpdates();
+			stats->SendUpdates(NULL);
 			break;
 		case TR_AWARD_BOTH:
 			awardPtsPlayerTeam(arena, ta);
-			stats->SendUpdates();
+			stats->SendUpdates(NULL);
 			break;
 		case TR_AWARD_NONE: default:
 			break;
 		}
 
 		/* do the callback for post-reward (WHILE LOCK IS IN PLACE)
-	 	* Note: this might become a problem if functions registered with the
-	 	*        callback require a large amount of processing time */
-		DO_CBS(CB_TURFPOSTREWARD, arena, TurfPostRewardFunc, (arena, ta));
+		 * Note: this might become a problem if functions registered
+		 * with the callback require a large amount of processing time
+		 * */
+		DO_CBS(CB_TURFPOSTREWARD, arena, TurfPostRewardFunc, (arena,
+					ta));
 
 		/* check if we are to update flags */
 		if( ta->calcState.update )

@@ -315,7 +315,7 @@ void MyGoal(Arena *arena, Player *p, int bid, int x, int y)
 		chat->SendSetSoundMessage(&nmeset, SOUND_GOAL,
 			"Enemy Goal! by %s  Reward:%d", p->name, points);
 
-		stats->SendUpdates();
+		stats->SendUpdates(NULL);
 	}
 	else
 	{
