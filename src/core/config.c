@@ -342,6 +342,7 @@ local void do_load(ConfigFile *cf, const char *arena, const char *name)
 local void reload_file(ConfigFile *cf)
 {
 	struct stat st;
+	Link *l;
 
 	if (lm)
 		lm->Log(L_INFO, "<config> reloading file from disk: %s",
@@ -362,6 +363,14 @@ local void reload_file(ConfigFile *cf)
 	do_load(cf, cf->arena, cf->name);
 
 	cf->lastmod = stat(cf->filename, &st) == 0 ? st.st_mtime : 0;
+
+	/* call changed callbacks */
+	for (l = LLGetHead(&cf->handles); l; l = l->next)
+	{
+		ConfigHandle ch = l->data;
+		if (ch->func)
+			ch->func(ch->clos);
+	}
 
 	pthread_mutex_unlock(&cf->mutex);
 }
@@ -413,6 +422,8 @@ local int maybe_reload_files(void *v)
 		{
 			/* this calls changed callbacks */
 			reload_file(cf);
+			/* this calls informative callbacks to let the caller know
+			 * which files are being reloaded */
 			if (data && data->callback)
 				data->callback(cf->filename, data->clos);
 		}
