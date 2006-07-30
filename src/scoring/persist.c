@@ -831,7 +831,7 @@ local void GetGeneric(
 {
 	struct generic_record_key_suffix suffix;
 	DBMessage *msg = amalloc(sizeof(*msg));
-	void *newkey = amalloc(keylen + sizeof(suffix));
+	byte *newkey = amalloc(keylen + sizeof(suffix));
 
 	suffix.key = typekey;
 	suffix.rectype = ASSS_DB_GENERIC_RECTYPE;
@@ -857,8 +857,8 @@ local void PutGeneric(
 {
 	struct generic_record_key_suffix suffix;
 	DBMessage *msg = amalloc(sizeof(*msg));
-	void *newkey = amalloc(keylen + sizeof(suffix));
-	void *newval = amalloc(vallen);
+	byte *newkey = amalloc(keylen + sizeof(suffix));
+	byte *newval = amalloc(vallen);
 
 	suffix.key = typekey;
 	suffix.rectype = ASSS_DB_GENERIC_RECTYPE;
