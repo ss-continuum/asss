@@ -1104,7 +1104,7 @@ local void handle_ping_packet(ListenData *ld)
 		sdata.refresh = now;
 	}
 
-	if (len == 4 && ld->connectas == NULL)
+	if (len == 4 && (ld->connectas == NULL || ld->connectas[0] == '\0'))
 	{
 		data[1] = data[0];
 		data[0] = sdata.global.total;
