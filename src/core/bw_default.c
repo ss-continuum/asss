@@ -19,7 +19,7 @@ struct BWLimit
 };
 
 /* the limits on the bandwidth limit */
-local int limit_low, limit_high;
+local int limit_low, limit_high, limit_initial;
 
 /* this array represent the percentage of traffic that is allowed to
  * be at or lower than each priority level. */
@@ -37,7 +37,7 @@ local int use_hitlimit;
 local BWLimit * New()
 {
 	BWLimit *bw = amalloc(sizeof(*bw));
-	bw->limit = limit_low; /* start slow */
+	bw->limit = limit_initial;
 	bw->maxavail = maxavail;
 	bw->hitlimit = 0;
 	bw->sincetime = current_millis();
@@ -148,6 +148,7 @@ EXPORT int MM_bw_default(int action, Imodman *mm, Arena *arena)
 
 		limit_low = cfg->GetInt(GLOBAL, "Net", "LimitMinimum", 2500);
 		limit_high = cfg->GetInt(GLOBAL, "Net", "LimitMaximum", 102400);
+		limit_initial = cfg->GetInt(GLOBAL, "Net", "LimitInitial", 5000);
 		client_can_buffer = cfg->GetInt(GLOBAL, "Net", "SendAtOnce", 30);
 		limitscale = cfg->GetInt(GLOBAL, "Net", "LimitScale", MAXPACKET * 1);
 		maxavail = cfg->GetInt(GLOBAL, "Net", "Burst", MAXPACKET * 4);
