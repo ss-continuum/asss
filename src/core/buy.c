@@ -211,10 +211,12 @@ EXPORT int MM_buy(int action, Imodman *mm, Arena *arena)
 	else if (action == MM_ATTACH)
 	{
 		cmd->AddCommand("buy", Cbuy, arena, NULL);
+		return MM_OK;
 	}
 	else if (action == MM_DETACH)
 	{
 		cmd->RemoveCommand("buy", Cbuy, arena);
+		return MM_OK;
 	}
 	return MM_FAIL;
 }
