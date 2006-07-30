@@ -865,9 +865,7 @@ local void process_cmdchat(const char *data,int len)
 	}
 }
 
-#ifdef CFG_ALLOW_BILLING_USERPKT
-/* this doesn't look like a good idea to me... */
-local void process_userpkt(const char *data,int len)
+local void process_userpkt(const char *data, int len)
 {
 	struct B2S_UserPacket *pkt = (struct B2S_UserPacket *)data;
 	int datalen = len - offsetof(struct B2S_UserPacket, Data[1]);
@@ -879,18 +877,37 @@ local void process_userpkt(const char *data,int len)
 	}
 
 	if (pkt->ConnectionID == 0xffffffffU)
+	{
+		/* send to all players not allowed */
+		lm->Log(L_WARN, "<billing_ssc> b2s user packet filtered (target all)");
+		/* unlikely to get this, maybe during score reset?
 		net->SendToArena(ALLARENAS, NULL, pkt->Data, datalen, NET_RELIABLE);
+		*/
+	}
 	else
 	{
 		Player *p = pd->PidToPlayer(pkt->ConnectionID);
+
 		if (p)
-			net->SendToOne(p, pkt->Data, datalen, NET_RELIABLE);
+		{
+			/* only allow S2C_LOGINTEXT for banned players to get the ban text. */
+			if (*pkt->Data == S2C_LOGINTEXT)
+			{
+				net->SendToOne(p, pkt->Data, datalen, NET_RELIABLE);
+			}
+			else
+			{
+				lm->Log(L_WARN, "<billing_ssc> b2s user packet "
+					"filtered (target [%s])", p->name);
+			}
+		}
+		else
+		{
+			lm->Log(L_WARN, "<billing_ssc> b2s user packet "
+				"unknown pid (%d)", pkt->ConnectionID);
+		}
 	}
-	lm->Log(L_DRIVEL, "<billing_ssc> [pid=%d] "
-			"user data packet from billing server, %d bytes",
-			(int)pkt->ConnectionID, len);
 }
-#endif
 
 local void process_scorereset(const char *data,int len)
 {
@@ -970,11 +987,9 @@ local void process_packet(byte *pkt, int len)
 		case B2S_SCORERESET:
 			process_scorereset(pkt,len);
 			break;
-#ifdef CFG_ALLOW_BILLING_USERPKT
 		case B2S_USER_PACKET:
 			process_userpkt(pkt,len);
 			break;
-#endif
 		case B2S_BILLING_IDENTITY:
 			process_identity(pkt,len);
 			break;
