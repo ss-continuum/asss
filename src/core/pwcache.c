@@ -74,6 +74,8 @@ local void Check(const char *name, const char *pwd,
 {
 	char work[NAMELEN+PWLEN];
 	check_state_t *st = amalloc(sizeof(*st));
+	st->done = done;
+	st->clos = clos;
 	hash_password(name, pwd, st->given, work);
 	persist->GetGeneric(
 			KEY_PWCACHE,
