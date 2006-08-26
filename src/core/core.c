@@ -31,6 +31,7 @@ typedef struct
 	AuthData *authdata;
 	struct LoginPacket *loginpkt;
 	int lplen;
+	Player *replaced_by;
 	unsigned hasdonegsync : 1;
 	unsigned hasdoneasync : 1;
 	unsigned hasdonegcallbacks : 1;
@@ -642,27 +643,34 @@ void AuthDone(Player *p, AuthData *auth)
 	{
 		/* login suceeded */
 
-		/* make sure we don't have two identical players */
+		/* try to locate existing player with the same name */
 		Player *oldp = pd->FindPlayer(auth->name);
 
-		if (oldp != NULL && oldp != p)
-		{
-			lm->Log(L_DRIVEL,"<core> [%s] player already on, kicking him off "
-					"(pid %d replacing %d)",
-					auth->name, p->pid, oldp->pid);
-			pd->KickPlayer(oldp);
-		}
-
-		/* also copy to player struct */
+		/* set new player's name */
 		strncpy(p->pkt.name, auth->sendname, 20);
 		astrncpy(p->name, auth->name, 21);
 		strncpy(p->pkt.squad, auth->squad, 20);
 		astrncpy(p->squad, auth->squad, 21);
 
-		/* increment stage */
-		pd->WriteLock();
-		p->status = S_NEED_GLOBAL_SYNC;
-		pd->WriteUnlock();
+		/* make sure we don't have two identical players. if so, do not
+		 * increment stage yet. we'll do it when the other player
+		 * leaves. */
+		if (oldp != NULL && oldp != p)
+		{
+			pdata *oldd = PPDATA(oldp, pdkey);
+			lm->Log(L_DRIVEL,"<core> [%s] player already on, kicking him off "
+					"(pid %d replacing %d)",
+					auth->name, p->pid, oldp->pid);
+			oldd->replaced_by = p;
+			pd->KickPlayer(oldp);
+		}
+		else
+		{
+			/* increment stage */
+			pd->WriteLock();
+			p->status = S_NEED_GLOBAL_SYNC;
+			pd->WriteUnlock();
+		}
 	}
 	else
 	{
@@ -692,7 +700,26 @@ void player_sync_done(Player *p)
 	else if (p->status == S_WAIT_GLOBAL_SYNC1)
 		p->status = S_DO_GLOBAL_CALLBACKS;
 	else if (p->status == S_WAIT_GLOBAL_SYNC2)
+	{
+		pdata *d = PPDATA(p, pdkey);
+		Player *replaced_by = d->replaced_by;
+		if (replaced_by)
+		{
+			if (replaced_by->status != S_WAIT_AUTH)
+			{
+				lm->Log(L_WARN, "<core> [oldpid=%d] [newpid=%d] "
+						"unexpected status when replacing players: %d",
+						p->pid, replaced_by->pid, replaced_by->status);
+			}
+			else
+			{
+				replaced_by->status = S_NEED_GLOBAL_SYNC;
+				d->replaced_by = NULL;
+			}
+		}
+
 		p->status = S_TIMEWAIT;
+	}
 	else
 		lm->Log(L_WARN, "<core> [pid=%d] player_sync_done called from wrong status: %d",
 				p->pid, p->status);
