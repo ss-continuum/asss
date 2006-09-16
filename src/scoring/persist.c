@@ -242,7 +242,6 @@ local void put_one_arena(ArenaPersistentData *data, Arena *arena, int serialno)
 }
 
 
-/* call with player locked */
 local void put_one_player(PlayerPersistentData *data, Player *p, Arena *arena, int serialno)
 {
 	byte buf[MAXPERSISTLENGTH];
@@ -351,7 +350,6 @@ local void get_one_arena(ArenaPersistentData *data, Arena *arena, int serialno)
 }
 
 
-/* call with player locked */
 local void get_one_player(PlayerPersistentData *data, Player *p, Arena *arena, int serialno)
 {
 	struct player_record_key keydata;
