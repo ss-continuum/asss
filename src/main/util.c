@@ -229,7 +229,8 @@ void wrap_text(const char *txt, int mlen, char delim,
 		}
 
 		strcat(line, buf);
-		strcat(line, delimstr);
+		if (*p)
+			strcat(line, delimstr);
 	}
 
 	if (line[0] && line[0] != delim)
