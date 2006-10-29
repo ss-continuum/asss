@@ -180,6 +180,8 @@ int LLCount(LinkedList *lst);
 int LLMember(LinkedList *lst, const void *data);
 /** calls a function on each item in a list. */
 void LLEnum(LinkedList *lst, void (*func)(const void *ptr));
+/** calls a function on each item in a list. the item is passed as non-const.*/
+void LLEnumNC(LinkedList *lst, void (*func)(void *ptr));
 /** returns the first link in the list. */
 Link *LLGetHead(LinkedList *lst);
 /** sorts the list. the comparator must return true if a is less than b.

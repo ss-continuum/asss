@@ -507,6 +507,13 @@ void LLEnum(LinkedList *lst, void (*func)(const void *ptr))
 		func(l->data);
 }
 
+void LLEnumNC(LinkedList *lst, void (*func)(void *ptr))
+{
+	Link *l;
+	for (l = lst->start; l; l = l->next)
+		func(l->data);
+}
+
 
 static void sort_work_split(Link *src, Link **a, Link **b)
 {
