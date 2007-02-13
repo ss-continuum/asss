@@ -1317,56 +1317,26 @@ local void end_sized(Player *p, int success)
 }
 
 
-local Player *get_next_player(int *pos)
-{
-	Link *l;
-	int i = 0;
-
-	pd->Lock();
-	for (l = LLGetHead(&pd->playerlist); l; l = l->next)
-	{
-		Player *cp = l->data;
-		if (!IS_OURS(cp))
-			continue;
-		else if (i++ == *pos)
-			break;
-	}
-	pd->Unlock();
-
-	if (l)
-	{
-		(*pos)++;
-		return l->data;
-	}
-	else
-	{
-		*pos = 0;
-		return NULL;
-	}
-}
-
-
 int queue_more_data(void *dummy)
 {
 #define REQUESTATONCE (config.queue_packets * CHUNK_SIZE)
-	static int nextplayer = 0;
-
 	byte *buffer, *dp;
 	struct ReliablePacket packet;
 	int needed;
-	Link *l;
+	Link *l, *link;
 	Player *p;
 	ConnData *conn;
 
 	buffer = alloca(REQUESTATONCE);
 
-	p = get_next_player(&nextplayer);
-
-	if (p &&
-	    p->status < S_TIMEWAIT &&
-	    (conn = PPDATA(p, connkey)) &&
-	    pthread_mutex_trylock(&conn->olmtx) == 0)
+	pd->Lock();
+	FOR_EACH_PLAYER_P(p, conn, connkey)
 	{
+		if (!IS_OURS(p) || p->status >= S_TIMEWAIT)
+			continue;
+		if (pthread_mutex_trylock(&conn->olmtx) != 0)
+			continue;
+
 		if ((l = LLGetHead(&conn->sizedsends)) &&
 		    DQCount(&conn->outlist[BW_REL]) < config.queue_threshold)
 		{
@@ -1410,10 +1380,10 @@ int queue_more_data(void *dummy)
 				LLRemove(&conn->sizedsends, sd);
 				afree(sd);
 			}
-
 		}
 		pthread_mutex_unlock(&conn->olmtx);
 	}
+	pd->Unlock();
 
 	return TRUE;
 }
