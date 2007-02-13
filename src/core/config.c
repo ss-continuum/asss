@@ -487,13 +487,16 @@ local ConfigHandle OpenConfigFile(const char *arena, const char *name,
 
 local void CloseConfigFile(ConfigHandle ch)
 {
+	int removed;
+
 	ConfigFile *cf;
 	if (!ch) return;
 	cf = ch->file;
 
 	pthread_mutex_lock(&cf->mutex);
-	assert(LLRemove(&cf->handles, ch));
+	removed = LLRemove(&cf->handles, ch);
 	pthread_mutex_unlock(&cf->mutex);
+	assert(removed);
 }
 
 
