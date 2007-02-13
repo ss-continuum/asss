@@ -42,7 +42,7 @@ local struct Ibwlimit bwint =
 	GetCanBufferPackets, GetInfo
 };
 
-int MM_bw_nolimit(int action, Imodman *mm, Arena *arena)
+EXPORT int MM_bw_nolimit(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
