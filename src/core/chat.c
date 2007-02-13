@@ -273,7 +273,7 @@ local void SendModMessage(const char *fmt, ...)
 	va_list args;
 	get_cap_set(&set, CAP_MODCHAT, NULL);
 	va_start(args, fmt);
-	v_send_msg(&set, MSG_ARENA, 0, NULL, fmt, args);
+	v_send_msg(&set, MSG_SYSOPWARNING, 0, NULL, fmt, args);
 	va_end(args);
 	LLEmpty(&set);
 }
