@@ -374,8 +374,7 @@ local int load_from_file(ELVL *lvl, const char *lvlname)
 	{
 		u16 bm;
 		u32 fsize;
-		u16 res1;
-		u16 res2;
+		u32 res1;
 		u32 offbits;
 	} *bmfh;
 	struct metadata_header_t
