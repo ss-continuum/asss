@@ -73,7 +73,7 @@ local void arena_conf_changed(void *v)
 {
 	Arena *a = v;
 
-	/* only running arenas should recieve confchanged events */
+	/* only running arenas should receive confchanged events */
 	RDLOCK();
 	if (a->status == ARENA_RUNNING)
 		DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_CONFCHANGED));
@@ -511,7 +511,7 @@ local void complete_go(Player *p, const char *reqname, int ship,
 
 	if (p->status != S_LOGGEDIN && p->status != S_PLAYING && p->status != S_LEAVING_ARENA)
 	{
-		lm->LogP(L_MALICIOUS, "arenaman", p, "sent arena request from bad status (%d)",
+		lm->LogP(L_WARN, "arenaman", p, "state sync problem: sent arena request from bad status (%d)",
 				p->status);
 		return;
 	}

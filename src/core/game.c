@@ -782,7 +782,7 @@ local void PSetShip(Player *p, byte *pkt, int len)
 
 	if (p->status != S_PLAYING || !arena)
 	{
-		lm->LogP(L_MALICIOUS, "game", p, "ship request from bad status");
+		lm->LogP(L_WARN, "game", p, "state sync problem: ship request from bad status");
 		return;
 	}
 
@@ -796,14 +796,14 @@ local void PSetShip(Player *p, byte *pkt, int len)
 
 	if (p->flags.during_change)
 	{
-		lm->LogP(L_MALICIOUS, "game", p, "ship request before ack from previous change");
+		lm->LogP(L_WARN, "game", p, "state sync problem: ship request before ack from previous change");
 		pthread_mutex_unlock(&freqshipmtx);
 		return;
 	}
 
 	if (ship == p->p_ship)
 	{
-		lm->LogP(L_MALICIOUS, "game", p, "already in requested ship");
+		lm->LogP(L_WARN, "game", p, "state sync problem: already in requested ship");
 		pthread_mutex_unlock(&freqshipmtx);
 		return;
 	}

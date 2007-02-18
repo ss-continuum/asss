@@ -639,7 +639,7 @@ local void PChat(Player *p, byte *pkt, int len)
 	switch (from->type)
 	{
 		case MSG_ARENA:
-			lm->LogP(L_MALICIOUS, "chat", p, "recieved arena message");
+			lm->LogP(L_MALICIOUS, "chat", p, "received arena message");
 			break;
 
 		case MSG_PUBMACRO:
@@ -680,7 +680,7 @@ local void PChat(Player *p, byte *pkt, int len)
 			break;
 
 		case MSG_SYSOPWARNING:
-			lm->LogP(L_MALICIOUS, "chat", p, "recieved sysop message");
+			lm->LogP(L_MALICIOUS, "chat", p, "received sysop message");
 			break;
 
 		case MSG_CHAT:
@@ -688,7 +688,7 @@ local void PChat(Player *p, byte *pkt, int len)
 			break;
 
 		default:
-			lm->LogP(L_MALICIOUS, "chat", p, "recieved undefined type %d chat message", from->type);
+			lm->LogP(L_MALICIOUS, "chat", p, "received undefined type %d chat message", from->type);
 			break;
 	}
 

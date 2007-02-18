@@ -577,7 +577,7 @@ void PPickupBall(Player *p, byte *pkt, int len)
 
 	if (p->p_ship >= SHIP_SPEC)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "ball pickup packet from spec");
+		logm->LogP(L_WARN, "balls", p, "state sync problem: ball pickup packet from spec");
 		return;
 	}
 
@@ -602,7 +602,7 @@ void PPickupBall(Player *p, byte *pkt, int len)
 	/* make sure someone else didn't get it first */
 	if (bd->state != BALL_ONMAP)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "tried to pick up a carried ball");
+		logm->LogP(L_WARN, "balls", p, "state sync problem: tried to pick up a carried ball");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -669,7 +669,7 @@ void PFireBall(Player *p, byte *pkt, int len)
 
 	if (p->p_ship >= SHIP_SPEC)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "ball fire packet from spec");
+		logm->LogP(L_WARN, "balls", p, "state sync problem: ball fire packet from spec");
 		return;
 	}
 
@@ -686,7 +686,7 @@ void PFireBall(Player *p, byte *pkt, int len)
 
 	if (bd->state != BALL_CARRIED || bd->carrier != p)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "player tried to fire ball he wasn't carrying");
+		logm->LogP(L_WARN, "balls", p, "state sync problem: player tried to fire ball he wasn't carrying");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -752,7 +752,7 @@ void PGoal(Player *p, byte *pkt, int len)
 
 	if (bd->state != BALL_ONMAP)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "sent goal for carried ball");
+		logm->LogP(L_WARN, "balls", p, "state sync problem: sent goal for carried ball");
 		UNLOCK_STATUS(arena);
 		return;
 	}

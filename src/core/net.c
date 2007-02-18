@@ -981,7 +981,7 @@ local void handle_game_packet(ListenData *ld)
 
 	if (status > S_TIMEWAIT)
 	{
-		lm->Log(L_WARN, "<net> [pid=%d] packet recieved from bad state %d", p->pid, status);
+		lm->Log(L_WARN, "<net> [pid=%d] packet received from bad state %d", p->pid, status);
 		goto freebuf;
 		/* don't set lastpkt time here */
 	}
