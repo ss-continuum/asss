@@ -1,7 +1,7 @@
 
 [Bomb]
 BombDamageLevel=750
-BombAliveTime=8000
+BombAliveTime=6000
 BombExplodeDelay=150
 BombExplodePixels=80
 ProximityDistance=3
@@ -22,17 +22,17 @@ ShrapnelDamagePercent=1000
 Random=1
 
 [Burst]
-BurstDamageLevel=700
+BurstDamageLevel=515
 
 [Toggle]
-AntiWarpPixels=1000
+AntiWarpPixels=1500
 
 [Prize]
 MultiPrizeCount=10
 PrizeFactor=10000
-PrizeDelay=700
-PrizeHideCount=10
-MinimumVirtual=10
+PrizeDelay=300
+PrizeHideCount=30
+MinimumVirtual=256
 UpgradeVirtual=6
 PrizeMaxExist=8000
 PrizeMinExist=4000
@@ -77,14 +77,14 @@ RepelDistance=512
 [Message]
 MessageReliable=0
 AllowAudioMessages=1
-BongAllowed=1
-QuickMessageLimit=30
-MessageTeamReliable=0
+BongAllowed=0
+QuickMessageLimit=8
+MessageTeamReliable=1
 MessageDistance=17000
 
 [Wormhole]
 GravityBombs=1
-SwitchTime=100000
+SwitchTime=0
 
 [Latency]
 SendRoutePercent=500
@@ -106,31 +106,31 @@ CutbackWatermark=2400
 
 [Brick]
 BrickTime=12000
-BrickSpan=20
+BrickSpan=7
 
 [Rocket]
 RocketThrust=25
 RocketSpeed=5500
 
 [Door]
-DoorDelay=600
-DoorMode=-2
+DoorDelay=400
+DoorMode=-1
 
 [Misc]
 WarpPointDelay=6000
-DecoyAliveTime=1500
+DecoyAliveTime=3000
 BounceFactor=22
-SendPositionDelay=20
+SendPositionDelay=10
 SlowFrameCheck=0
-AllowSavedShips=0
+AllowSavedShips=1
 SafetyLimit=90000
 FrequencyShift=900
 TickerDelay=1000
 ExtraPositionData=0
-WarpRadiusLimit=20
+WarpRadiusLimit=1024
 ActivateAppShutdownTime=0
 NearDeathLevel=0
-VictoryMusic=0
+VictoryMusic=1
 FrequencyShipTypes=0
 BannerPoints=0
 MaxLossesToPlay=0
@@ -148,42 +148,43 @@ RewardMinimumPlayers=5
 RewardPoints=30
 
 [Periodic]
-RewardDelay=6000
-RewardMinimumPlayers=2
+RewardDelay=0
+RewardMinimumPlayers=16
 RewardPoints=50
 
 [Security]
 S2CKickOutPercentWeapons=700
-SecurityKickOff=0
+SecurityKickOff=1
 SuicideLimit=10
-MaxShipTypeSwitchCount=90
+MaxShipTypeSwitchCount=40
 PacketModificationMax=3
 MaxDeathWithoutFiring=5
 
 [PacketLoss]
-C2SKickOutPercent=850
-S2CKickOutPercent=850
-SpectatorPercentAdjust=350
+C2SKickOutPercent=800
+S2CKickOutPercent=800
+SpectatorPercentAdjust=100
 PacketLossDisableWeapons=1
 C2SNegativeKickOutPercent=50
 
 [Routing]
-RadarFavor=7
+RadarFavor=3
 CloseEnoughBulletAdjust=512
 CloseEnoughBombAdjust=2048
-DeathDistance=16000
-DoubleSendPercent=500
-WallResendCount=1
+DeathDistance=2800
+DoubleSendPercent=880
+WallResendCount=2
 
 [King]
-DeathCount=1
-ExpireTime=3000
+DeathCount=0
+ExpireTime=30000
 RewardFactor=1000
 NonCrownAdjustTime=3000
-NonCrownMinimumBounty=300
+NonCrownMinimumBounty=100
 CrownRecoverKills=3
 
 [Bullet]
+ExactDamage=0
 BulletDamageLevel=200
 BulletDamageUpgrade=100
 BulletAliveTime=550
