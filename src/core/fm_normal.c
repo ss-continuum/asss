@@ -118,7 +118,8 @@ local int BalanceFreqs(Arena *arena, Player *excl, int inclspec)
 {
 	Player *i;
 	Link *link;
-	int counts[CFG_MAX_DESIRED] = { 0 }, min = INT_MAX, best = -1, j;
+	int counts[CFG_MAX_DESIRED] = { 0 }, min = INT_MAX, j;
+	int best[CFG_MAX_DESIRED] = { 0 }, num = -1;
 
 	int max = get_max_for_freq(arena->cfg, 0);
 	/* cfghelp: Team:DesiredTeams, arena, int, def: 2
@@ -144,13 +145,33 @@ local int BalanceFreqs(Arena *arena, Player *excl, int inclspec)
 		if (counts[j] < min)
 		{
 			min = counts[j];
-			best = j;
+			num = 1;
+			best[0] = j;
+		}
+		else if (counts[j] == min)
+		{
+			best[num++] = j;
 		}
 
-	if (best == -1) /* shouldn't happen */
+	if (num <= 0) /* shouldn't happen */
 		return 0;
 	else if (max == 0 || min < max) /* we found a spot */
-		return best;
+	{
+		int rnd;
+		Iprng *r = mm->GetInterface(I_PRNG, ALLARENAS);
+
+		if (r)
+		{
+			rnd = r->Rand();
+			mm->ReleaseInterface(r);
+		}
+		else
+			rnd = current_ticks();
+
+		num = rnd % num;
+
+		return best[num];
+	}
 	else /* no spots within desired freqs */
 	{
 		/* try incrementing freqs until we find one with < max players */
@@ -214,6 +235,8 @@ local void Initial(Player *p, int *ship, int *freq)
 	*ship = s; *freq = f;
 }
 
+/* FIXME we use this in Ship now. Rearrange or fwd declare everything */
+local void Freq(Player *p, int *ship, int *freq);
 
 local void Ship(Player *p, int *ship, int *freq)
 {
@@ -256,6 +279,12 @@ local void Ship(Player *p, int *ship, int *freq)
 		goto deny;
 	}
 	/* ok, allowed change */
+	/* when ships == freq, support ship change -> freq change custom */
+	else if (cfg->GetInt(arena->cfg, "Team", "FrequencyShipTypes", 0))
+	{
+		*freq = s;
+		return Freq(p, ship, freq);
+	}
 	else
 	{
 		/* check if he's changing from speccing on the spec freq, or on a
