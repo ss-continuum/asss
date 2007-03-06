@@ -48,7 +48,7 @@ local void do_query(struct db_cmd *cmd)
 {
 	int q;
 
-	if (lm) lm->Log(L_DRIVEL, "<mysql> query: %s", cmd->query);
+	//if (lm) lm->Log(L_DRIVEL, "<mysql> query: %s", cmd->query);
 
 	q = mysql_real_query(mydb, cmd->query, cmd->qlen);
 
@@ -98,7 +98,8 @@ local void close_db(void *v)
 local void * work_thread(void *dummy)
 {
 	struct db_cmd *cmd;
-
+	ticks_t tickcnt;
+	
 	mydb = mysql_init(NULL);
 
 	if (mydb == NULL)
@@ -114,21 +115,35 @@ local void * work_thread(void *dummy)
 	/* try to connect */
 	if (lm)
 		lm->Log(L_INFO, "<mysql> connecting to mysql db on %s, user %s, db %s", host, user, dbname);
-	while (mysql_real_connect(mydb, host, user, pw, dbname, 0, NULL, 0) == NULL)
+	while (mysql_real_connect(mydb, host, user, pw, dbname, 0, NULL, CLIENT_COMPRESS) == NULL)
 	{
 		if (lm) lm->Log(L_WARN, "<mysql> connect failed: %s", mysql_error(mydb));
 		pthread_testcancel();
-		sleep(10);
+		sleep(60);
 		pthread_testcancel();
 	}
 
 	connected = 1;
+	tickcnt = current_millis();
 
 	/* now serve requests */
 	for (;;)
 	{
 		/* the pthread_cond_wait inside MPRemove is a cancellation point */
 		cmd = MPRemove(&dbq);
+
+		if (mysql_ping(mydb))               // if not, re-establish connection
+		{
+			if (mysql_real_connect(mydb, host, user, pw, dbname, 0, NULL, CLIENT_COMPRESS))
+			{   
+				if (lm)
+					lm->Log(L_INFO, "<mysql> Connection to database re-established.");
+			}
+			else
+				if (lm) lm->Log(L_INFO, "<mysql> Attempt to re-establish database connection failed.");
+
+			tickcnt = current_millis();
+		}
 
 		switch (cmd->type)
 		{

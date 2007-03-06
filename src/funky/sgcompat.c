@@ -171,7 +171,7 @@ local void Csg_where(const char *tc, const char *params, Player *p, const Target
 
 
 /* weight reliable ping twice the s2c and c2s */
-#define AVG_PING(field) (pping.field + cping.field + 2*rping.field) / 4
+#define AVG_PING(field) (rping.field)
 
 local void Csg_info(const char *tc, const char *params, Player *p, const Target *target)
 {

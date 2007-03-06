@@ -1746,13 +1746,13 @@ local void Clag(const char *tc, const char *params, Player *p, const Target *tar
 
 	/* weight reliable ping twice the s2c and c2s */
 	/* FIXME: remove code duplication with lagaction.c */
-	avg = (pping.avg + cping.avg + 2*rping.avg) / 4;
+	avg = rping.avg;
 
 	if (!strstr(params, "-v"))
 	{
 		chat->SendMessage(p,
 				"%s: avg ping: %d  ploss: s2c: %.2f c2s: %.2f",
-				prefix, avg, 100.0*ploss.s2c, 100.0*ploss.c2s);
+				prefix, cping.avg, 100.0*ploss.s2c, 100.0*ploss.c2s);
 	}
 	else
 	{
@@ -1761,14 +1761,8 @@ local void Clag(const char *tc, const char *params, Player *p, const Target *tar
 
 		lagq->QueryRelLag(t, &rlag);
 
-		chat->SendMessage(p, "%s: s2c ping: %d %d (%d-%d) (reported by client)",
+		chat->SendMessage(p, "%s: avg ping: %d %d (%d-%d) (reported by client)",
 				prefix, cping.cur, cping.avg, cping.min, cping.max);
-		chat->SendMessage(p, "%s: c2s ping: %d %d (%d-%d) (from position pkt times)",
-				prefix, pping.cur, pping.avg, pping.min, pping.max);
-		chat->SendMessage(p, "%s: rel ping: %d %d (%d-%d) (reliable ping)",
-				prefix, rping.cur, rping.avg, rping.min, rping.max);
-		chat->SendMessage(p, "%s: effective ping: %d (average of above)",
-				prefix, avg);
 		chat->SendMessage(p, "%s: ploss: s2c: %.2f c2s: %.2f s2cwpn: %.2f",
 				prefix, 100.0*ploss.s2c, 100.0*ploss.c2s, 100.0*ploss.s2cwpn);
 		chat->SendMessage(p, "%s: reliable dups: %.2f%%  reliable resends: %.2f%%",
