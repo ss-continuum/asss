@@ -282,8 +282,8 @@ local void Ship(Player *p, int *ship, int *freq)
 	/* when ships == freq, support ship change -> freq change custom */
 	else if (cfg->GetInt(arena->cfg, "Team", "FrequencyShipTypes", 0))
 	{
-		*freq = s;
-		return Freq(p, ship, freq);
+		f = s;
+		Freq(p, &s, &f);
 	}
 	else
 	{
@@ -380,8 +380,18 @@ local void Freq(Player *p, int *ship, int *freq)
 		{
 			int old = count_freq(arena, p->p_freq, p, inclspec);
 
+			/* we pick their freq if they are coming from spec */
+			if (p->p_ship == SHIP_SPEC && p->p_freq == arena->specfreq)
+			{
+				f = BalanceFreqs(arena, p, inclspec);
+				if (f < 0 || f >= maxfreq)
+				{
+					f = arena->specfreq;
+					s = SHIP_SPEC;
+				}
+			}
 			/* ForceEvenTeams */
-			if (old < count)
+			else if (old < count)
 			{
 				if (chat)
 					chat->SendMessage(p,
