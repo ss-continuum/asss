@@ -565,7 +565,7 @@ void PBroadcast(Player *p, byte *pkt, int len)
 				struct ToggledObject *objt = (struct ToggledObject *)(pkt + 4);
 				aodata *ad = P_ARENA_DATA(p->arena, aokey);
 				lvzdata *node;
-
+#if 0 /* stag shot says this is broken */
 				MUTEX_LOCK(ad);
 
 				while (i--)
@@ -581,6 +581,7 @@ void PBroadcast(Player *p, byte *pkt, int len)
 					}
 
 				MUTEX_UNLOCK(ad);
+#endif
 			}
 			break;
 

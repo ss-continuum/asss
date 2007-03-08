@@ -279,44 +279,43 @@ local void Ship(Player *p, int *ship, int *freq)
 		goto deny;
 	}
 	/* ok, allowed change */
-	/* when ships == freq, support ship change -> freq change custom */
-	else if (cfg->GetInt(arena->cfg, "Team", "FrequencyShipTypes", 0))
-	{
-		f = s;
-		Freq(p, &s, &f);
-	}
 	else
 	{
+		int need_balance = FALSE;
+
 		/* check if he's changing from speccing on the spec freq, or on a
 		 * regular freq that's full */
-		if (p->p_ship == SHIP_SPEC)
+		if (p->p_ship == SHIP_SPEC && f == arena->specfreq)
 		{
-			int need_balance = FALSE;
-			if (f == arena->specfreq)
-				/* leaving spec mode on spec freq, always reassign */
+			/* leaving spec mode on spec freq, always reassign */
+			need_balance = TRUE;
+		}
+		else if (cfg->GetInt(arena->cfg, "Team", "FrequencyShipTypes", 0))
+		{
+			f = s;
+			Freq(p, &s, &f);
+		}
+		else if (p->p_ship == SHIP_SPEC)
+		{
+			/* unspeccing from a non-spec freq. only reassign if full.
+			 * note: we can always do this count assuming IncludeSpectators
+			 * is false. the reasoning is: we know that p is currently on f.
+			 * if IncludeSpectators is true, then there are <= max people on
+			 * f in total, so count_freq(a, f, p, TRUE) must be < max, so
+			 * the condition will never be true. only if IncludeSpectators
+			 * is false does count >= max have a chance of being true. */
+			int max = get_max_for_freq(ch, f);
+			if (max > 0 && count_freq(arena, f, p, FALSE) >= max)
 				need_balance = TRUE;
-			else
-			{
-				/* unspeccing from a non-spec freq. only reassign if full.
-				 * note: we can always do this count assuming IncludeSpectators
-				 * is false. the reasoning is: we know that p is currently on f.
-				 * if IncludeSpectators is true, then there are <= max people on
-				 * f in total, so count_freq(a, f, p, TRUE) must be < max, so
-				 * the condition will never be true. only if IncludeSpectators
-				 * is false does count >= max have a chance of being true. */
-				int max = get_max_for_freq(ch, f);
-				if (max > 0 && count_freq(arena, f, p, FALSE) >= max)
-					need_balance = TRUE;
-			}
+		}
 
-			if (need_balance)
+		if (need_balance)
+		{
+			f = BalanceFreqs(arena, p, INCLSPEC(ch));
+			if (f < 0 || f >= MAXFREQ(ch))
 			{
-				f = BalanceFreqs(arena, p, INCLSPEC(ch));
-				if (f < 0 || f >= MAXFREQ(ch))
-				{
-					f = arena->specfreq;
-					s = SHIP_SPEC;
-				}
+				f = arena->specfreq;
+				s = SHIP_SPEC;
 			}
 		}
 		/* and make sure the ship is still legal */
@@ -380,18 +379,8 @@ local void Freq(Player *p, int *ship, int *freq)
 		{
 			int old = count_freq(arena, p->p_freq, p, inclspec);
 
-			/* we pick their freq if they are coming from spec */
-			if (p->p_ship == SHIP_SPEC && p->p_freq == arena->specfreq)
-			{
-				f = BalanceFreqs(arena, p, inclspec);
-				if (f < 0 || f >= maxfreq)
-				{
-					f = arena->specfreq;
-					s = SHIP_SPEC;
-				}
-			}
 			/* ForceEvenTeams */
-			else if (old < count)
+			if (old < count)
 			{
 				if (chat)
 					chat->SendMessage(p,
