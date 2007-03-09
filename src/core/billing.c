@@ -644,13 +644,11 @@ local void process_chattxt(const char *line)
 local void process_chat(const char *line)
 {
 	/* b->g: "CHAT:pid:number" */
-	char pidstr[16], num[16];
+	char pidstr[16];
 	const char *t = line;
 	Player *p;
 
 	t = delimcpy(pidstr, t, sizeof(pidstr), ':');
-	if (!t) return;
-	t = delimcpy(num, t, sizeof(num), ':');
 	if (!t) return;
 
 	p = pd->PidToPlayer(atoi(pidstr));
@@ -660,7 +658,7 @@ local void process_chat(const char *line)
 		LinkedList list = { &link, &link };
 
 		chat->SendAnyMessage(&list, MSG_CHAT, chatdata.sound, NULL,
-				"%s:%s> %s", num, chatdata.sender, chatdata.text);
+				"%s:%s> %s", t, chatdata.sender, chatdata.text);
 	}
 }
 
