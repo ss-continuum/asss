@@ -193,7 +193,7 @@ local void phase_ball(Arena *arena, int bid)
 	bd->state = BALL_ONMAP;
 	bd->x = bd->y = 30000;
 	bd->xspeed = bd->yspeed = 0;
-	bd->time = (ticks_t)(-1); /* this is the key for making it phased */
+	bd->time = (ticks_t)0; /* this is the key for making it phased */
 	bd->carrier = NULL;
 	send_ball_packet(arena, bid);
 	UNLOCK_STATUS(arena);
