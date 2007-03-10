@@ -867,8 +867,8 @@ local void flagTag(Arena *arena, Player *p, int fid, int oldfreq, int freq)
 	{
 		/* flag was already owned by that team */
 		UNLOCK_STATUS(arena);
-		logman->LogP(L_MALICIOUS, "turf_reward", p,
-			"flag tagged was already owned by player's team.");
+		logman->LogP(L_WARN, "turf_reward", p,
+			"state sync problem: flag tagged was already owned by player's team.");
 		return;
 	}
 

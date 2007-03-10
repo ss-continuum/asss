@@ -579,7 +579,7 @@ local void p_flagtouch(Player *p, byte *pkt, int len)
 		ERR(L_MALICIOUS, "flag pickup packet from bad state/arena")
 
 	if (p->p_ship >= SHIP_SPEC)
-		ERR(L_MALICIOUS, "flag pickup packet from spec")
+		ERR(L_WARN, "state sync problem: flag pickup packet from spec")
 
 	if (p->flags.during_change)
 		ERR(L_INFO, "flag pickup packet before ack from ship/freq change")
@@ -620,7 +620,7 @@ local void p_flagtimer(Player *p, byte *pkt, int len)
 		ERR(L_MALICIOUS, "flag drop packet from bad state/arena")
 
 	if (p->p_ship >= SHIP_SPEC)
-		ERR(L_MALICIOUS, "flag drop packet from spec")
+		ERR(L_WARN, "state sync problem: flag drop packet from spec")
 
 	ad = P_ARENA_DATA(a, adkey);
 

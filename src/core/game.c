@@ -935,7 +935,7 @@ local void PSetFreq(Player *p, byte *pkt, int len)
 	if (len != 3)
 		lm->LogP(L_MALICIOUS, "game", p, "bad freq req packet len=%i", len);
 	else if (p->flags.during_change)
-		lm->LogP(L_MALICIOUS, "game", p, "freq change before ack from previous change");
+		lm->LogP(L_WARN, "game", p, "state sync problem: freq change before ack from previous change");
 	else
 		freq_change_request(p, ((struct SimplePacket*)pkt)->d1);
 }

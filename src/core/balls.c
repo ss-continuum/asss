@@ -609,7 +609,7 @@ void PPickupBall(Player *p, byte *pkt, int len)
 
 	if (bp->time != bd->time)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "tried to pick up a ball from stale coords");
+		logm->LogP(L_WARN, "balls", p, "state sync problem: tried to pick up a ball from stale coords");
 		UNLOCK_STATUS(arena);
 		return;
 	}
