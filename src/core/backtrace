@@ -9,7 +9,7 @@ exec >segv-$PID.bt 2>&1
 
 echo >$TMP '
 set height 0
-bt full
+thread apply all bt full
 quit
 '
 
