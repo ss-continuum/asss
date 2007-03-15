@@ -47,7 +47,7 @@ typedef struct adata
  */
 local void check_consistency(void)
 {
-#ifndef NDEBUG
+#if 0
 	Player *p;
 	Arena *a;
 	adata *ad;
@@ -56,8 +56,8 @@ local void check_consistency(void)
 	Iplayerdata *pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 	int pdkey = pd->AllocatePlayerData(sizeof(int));
 
-	LOCK();
 	aman->Lock();
+	LOCK();
 	FOR_EACH_ARENA_P(a, ad, adkey)
 		for (i = 0; i < ad->count; i++)
 			if (ad->fis[i].state == FI_CARRIED)
@@ -67,12 +67,14 @@ local void check_consistency(void)
 				       ad->fis[i].freq == ad->fis[i].carrier->p_freq);
 				(*((int*)PPDATA(ad->fis[i].carrier, pdkey)))++;
 			}
+	UNLOCK();
 	aman->Unlock();
 	pd->Lock();
+	LOCK();
 	FOR_EACH_PLAYER_P(p, count, pdkey)
 		assert(*count == p->pkt.flagscarried);
-	pd->Unlock();
 	UNLOCK();
+	pd->Unlock();
 
 	pd->FreePlayerData(pdkey);
 	mm->ReleaseInterface(pd);
