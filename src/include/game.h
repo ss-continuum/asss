@@ -114,9 +114,10 @@ typedef void (*GreenFunc)(Player *p, int x, int y, int prize);
 typedef void (*AttachFunc)(Player *p, Player *to);
 /* pycb: player, player */
 
+enum { ENERGY_SEE_NONE, ENERGY_SEE_ALL, ENERGY_SEE_TEAM, ENERGY_SEE_SPEC };
 
 /** the game interface id */
-#define I_GAME "game-7"
+#define I_GAME "game-8"
 
 /** the game interface struct */
 typedef struct Igame
@@ -239,6 +240,11 @@ typedef struct Igame
 	/* pyint: target -> void */
 
 	void (*IncrementWeaponPacketCount)(Player *p, int packets);
+
+	void (*SetPlayerEnergyViewing)(Player *p, int value);
+	void (*SetSpectatorEnergyViewing)(Player *p, int value);
+	void (*ResetPlayerEnergyViewing)(Player *p);
+	void (*ResetSpectatorEnergyViewing)(Player *p);
 } Igame;
 
 
