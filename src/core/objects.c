@@ -209,7 +209,7 @@ local void Cobjimage(const char *cmd, const char *params, Player *p, const Targe
 	char id[256];
 	const char *image = delimcpy(id, params, sizeof(id), ' ');
 	if (image) Image(target, atoi(id), atoi(image));
-	else chat->SendMessage(p, "Invalid syntax. Please read ?help objimage");
+	else chat->SendMessage(p, "Invalid syntax. Please read help for ?objimage");
 }
 
 local helptext_t objlayer_help =
@@ -251,7 +251,7 @@ local void Cobjtimer(const char *cmd, const char *params, Player *p, const Targe
 	char id[256];
 	const char *timer = delimcpy(id, params, sizeof(id), ' ');
 	if (timer) Timer(target, atoi(id), atoi(timer));
-	else chat->SendMessage(p, "Invalid syntax. Please read ?help objtimer");
+	else chat->SendMessage(p, "Invalid syntax. Please read help for ?objtimer");
 }
 
 local helptext_t objmode_help =

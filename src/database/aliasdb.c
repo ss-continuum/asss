@@ -194,7 +194,7 @@ local void Calias(const char *tc, const char *params, Player *p, const Target *t
 
 	if (!name || !*name)
 	{
-		chat->SendMessage(p, "Invalid syntax. See ?help alias.");
+		chat->SendMessage(p, "Invalid syntax. See help for ?alias.");
 		return;
 	}
 
