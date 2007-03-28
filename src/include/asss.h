@@ -40,4 +40,5 @@
 #include "prng.h"
 #include "bricks.h"
 #include "mapdata.h"
+#include "objects.h"
 
