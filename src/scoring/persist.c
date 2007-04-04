@@ -916,7 +916,22 @@ local void aaction(Arena *arena, int action)
 local int init_db(void)
 {
 	int err;
-	mkdir(ASSS_DB_HOME, 0755);
+	
+	int dir_mode = 755;
+	int db_mode = 644;
+
+	if (cfg)
+	{
+		/* cfghelp: Persist:DirMode, global, int, def: 755
+		* The permission mode in which to create the data directory. */
+		dir_mode = cfg->GetInt(GLOBAL, "Persist", "DirMode", 755);
+
+		/* cfghelp: Persist:DBMode, global, int, def: 644
+		* The permission mode in which to create the database files. */
+		db_mode = cfg->GetInt(GLOBAL, "Persist", "DBMode", 644);
+	}
+
+	mkdir(ASSS_DB_HOME, dir_mode);
 	if ((err = db_env_create(&dbenv, 0)))
 	{
 		fprintf(stderr, "db_env_create: %s\n", db_strerror(err));
@@ -926,7 +941,7 @@ local int init_db(void)
 				dbenv,
 				ASSS_DB_HOME,
 				DB_INIT_CDB | DB_INIT_MPOOL | DB_CREATE,
-				0644)))
+				db_mode)))
 	{
 		fprintf(stderr, "db_env_create: %s\n", db_strerror(err));
 		goto close_env;
@@ -947,7 +962,7 @@ local int init_db(void)
 				NULL,
 				DB_BTREE,
 				DB_CREATE,
-				0644)))
+				db_mode)))
 	{
 		fprintf(stderr, "db_env_create: %s\n", db_strerror(err));
 		goto close_db;
