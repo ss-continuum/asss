@@ -210,21 +210,6 @@ local void uploaded(const char *fname, void *clos)
 		else
 		{
 			chat->SendMessage(u->p, "File received: %s", u->serverpath);
-
-			if (cfg)
-			{
-				/* cfghelp: Putfile:Mode, global, int, def: 644
-				 * The permission mode for upleaded files. */
-				int mode = cfg->GetInt(GLOBAL, "Putfile", "Mode", 644);
-				int c = chmod(fname, mode);
-				
-				if (c != 0)
-				{
-					/* some kind of error */
-					chat->SendMessage(u->p, "Couldn't chmod file: %s", u->serverpath);
-				}
-			}
-
 			if (u->setting && cfg)
 			{
 				char info[128];
