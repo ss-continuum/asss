@@ -301,8 +301,8 @@ local int process_region_chunk_first_pass(const char *key, void *vchunk, void *v
 
 local int process_region_chunk_second_pass(const char *key, void *vchunk, void *vrgn)
 {
-        Region *rgn = vrgn;
-        chunk *chunk = vchunk;
+	Region *rgn = vrgn;
+	chunk *chunk = vchunk;
 
 	if (chunk->type == MAKE_CHUNK_TYPE(rTIL))
 	{
@@ -327,7 +327,6 @@ local void * region_thread(void *dummy)
 		if (rgn != NULL)
 		{
 			pthread_mutex_lock(&rgn->region_mutex);
-	
 			HashEnum(rgn->chunks, process_region_chunk_second_pass, rgn);
 			pthread_mutex_unlock(&rgn->region_mutex);
 		}
@@ -336,8 +335,6 @@ local void * region_thread(void *dummy)
 			pthread_testcancel();
 			fullsleep(10);
 		}
-
-		pthread_testcancel();
 	}
 }
 
@@ -1250,10 +1247,10 @@ EXPORT int MM_mapdata(int action, Imodman *mm_, Arena *arena)
 
 		mm->UnregCallback(CB_ARENAACTION, md_aaction, ALLARENAS);
 
-                pthread_cancel(rthd);
-                pthread_join(rthd, NULL);
+		pthread_cancel(rthd);
+		pthread_join(rthd, NULL);
 
-                MPDestroy(&region_queue);
+		MPDestroy(&region_queue);
 
 		aman->FreeArenaData(lvlkey);
 
