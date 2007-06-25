@@ -841,8 +841,8 @@ local void Clistmod(const char *tc, const char *params, Player *p, const Target 
 
 		if (capman->HasCapability(i, CAP_IS_STAFF))
 			fmt = ": %20s %10s %10s";
-		else if (seeallstaff && strcmp(grp, "default") != 0)
-			fmt = ": %20s %10s (%8s)";
+		else if (seeallstaff && strcmp(grp, "default") != 0 && strcmp(grp, "none") != 0)
+			fmt = ": %20s %10s (%s)";
 		else
 			fmt = NULL;
 
@@ -1167,23 +1167,6 @@ local void Caz(const char *tc, const char *params, Player *p, const Target *targ
 {
 	int sound = tc[strlen(tc)+1];
 	chat->SendArenaSoundMessage(NULL, sound, "%s", params);
-}
-
-
-local helptext_t cheater_help =
-"Targets: none\n"
-"Args: <message>\n"
-"Sends the message to all online staff members.\n";
-
-local void Ccheater(const char *tc, const char *params, Player *p, const Target *target)
-{
-	Arena *arena = p->arena;
-	if (IS_ALLOWED(chat->GetPlayerChatMask(p), MSG_MODCHAT))
-	{
-		chat->SendModMessage("cheater {%s} %s: %s",
-				arena->name, p->name, params);
-		chat->SendMessage(p, "Message has been sent to online staff");
-	}
 }
 
 
@@ -2259,7 +2242,6 @@ local const struct cmd_info core_commands[] =
 	CMD(aa)
 	CMD(z)
 	CMD(az)
-	CMD(cheater)
 	CMD(warn)
 	CMD(netstats)
 	CMD(send)

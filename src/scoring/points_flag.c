@@ -56,7 +56,8 @@ void MyFlagWin(Arena *arena, int freq, int *ppoints)
 	FOR_EACH_PLAYER(i)
 		if (i->status == S_PLAYING &&
 		    i->arena == arena &&
-		    i->p_ship != SHIP_SPEC)
+		    i->p_ship != SHIP_SPEC &&
+		    IS_HUMAN(i))
 		{
 			players++;
 			if (i->p_freq == freq)

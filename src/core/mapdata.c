@@ -33,6 +33,7 @@ struct Region
 	const char *name;
 	HashTable *chunks;
 	u32 setmap[8];
+	pthread_mutex_t region_mutex;
 };
 
 typedef struct ELVL
@@ -50,6 +51,8 @@ typedef struct ELVL
 
 /* global data */
 local int lvlkey;
+local MPQueue region_queue;
+local pthread_t rthd;
 
 /* cached interfaces */
 local Imodman *mm;
@@ -140,11 +143,15 @@ local int read_chunks(HashTable *chunks, const byte *d, int len)
 
 local void free_region(Region *rgn)
 {
+	pthread_mutex_lock(&rgn->region_mutex);
 	if (rgn->chunks)
 	{
 		HashEnum(rgn->chunks, hash_enum_afree, NULL);
 		HashFree(rgn->chunks);
 	}
+	MPClearOne(&region_queue, rgn);
+	pthread_mutex_unlock(&rgn->region_mutex);
+	pthread_mutex_destroy(&rgn->region_mutex);
 	afree(rgn);
 }
 
@@ -272,7 +279,7 @@ local int read_rle_tile_data(Region *rgn, const byte *d, int len)
 }
 
 
-local int process_region_chunk(const char *key, void *vchunk, void *vrgn)
+local int process_region_chunk_first_pass(const char *key, void *vchunk, void *vrgn)
 {
 	Region *rgn = vrgn;
 	chunk *chunk = vchunk;
@@ -288,7 +295,16 @@ local int process_region_chunk(const char *key, void *vchunk, void *vrgn)
 		afree(chunk);
 		return TRUE;
 	}
-	else if (chunk->type == MAKE_CHUNK_TYPE(rTIL))
+	else
+		return FALSE;
+}
+
+local int process_region_chunk_second_pass(const char *key, void *vchunk, void *vrgn)
+{
+        Region *rgn = vrgn;
+        chunk *chunk = vchunk;
+
+	if (chunk->type == MAKE_CHUNK_TYPE(rTIL))
 	{
 		if (!rgn->lvl->rgntiles)
 			rgn->lvl->rgntiles = init_sparse();
@@ -303,6 +319,27 @@ local int process_region_chunk(const char *key, void *vchunk, void *vrgn)
 		return FALSE;
 }
 
+local void * region_thread(void *dummy)
+{
+	for (;;)
+	{
+		Region *rgn = MPTryRemove(&region_queue);
+		if (rgn != NULL)
+		{
+			pthread_mutex_lock(&rgn->region_mutex);
+	
+			HashEnum(rgn->chunks, process_region_chunk_second_pass, rgn);
+			pthread_mutex_unlock(&rgn->region_mutex);
+		}
+		else
+		{
+			pthread_testcancel();
+			fullsleep(10);
+		}
+
+		pthread_testcancel();
+	}
+}
 
 local int process_map_chunk(const char *key, void *vchunk, void *vlvl)
 {
@@ -329,11 +366,16 @@ local int process_map_chunk(const char *key, void *vchunk, void *vlvl)
 	else if (chunk->type == MAKE_CHUNK_TYPE(REGN))
 	{
 		Region *rgn = amalloc(sizeof(*rgn));
+		
+		pthread_mutex_init(&rgn->region_mutex, NULL);
+		pthread_mutex_lock(&rgn->region_mutex);
+
 		rgn->lvl = lvl;
 		rgn->chunks = HashAlloc();
 		if (!read_chunks(rgn->chunks, chunk->data, chunk->size))
 			lm->Log(L_WARN, "<mapdata> error in lvl while reading region chunks");
-		HashEnum(rgn->chunks, process_region_chunk, rgn);
+		HashEnum(rgn->chunks, process_region_chunk_first_pass, rgn);
+		
 		if (!lvl->regions)
 			lvl->regions = HashAlloc();
 		if (rgn->name)
@@ -343,11 +385,16 @@ local int process_map_chunk(const char *key, void *vchunk, void *vlvl)
 			const char *t = rgn->name;
 			rgn->name = HashAdd(lvl->regions, rgn->name, rgn);
 			afree(t);
+			MPAdd(&region_queue, rgn);
 		}
 		else
 			/* all regions must have a name */
 			free_region(rgn);
+	
 		afree(chunk);
+
+		pthread_mutex_unlock(&rgn->region_mutex);
+
 		return TRUE;
 	}
 	else if (chunk->type == MAKE_CHUNK_TYPE(TSET))
@@ -1046,6 +1093,7 @@ local const char * RegionName(Region *rgn)
 
 local int RegionChunk(Region *rgn, u32 ctype, const void **datap, int *sizep)
 {
+	pthread_mutex_lock(&rgn->region_mutex);
 	if (rgn->chunks)
 	{
 		chunk *c;
@@ -1057,9 +1105,11 @@ local int RegionChunk(Region *rgn, u32 ctype, const void **datap, int *sizep)
 		{
 			if (datap) *datap = c->data;
 			if (sizep) *sizep = c->size;
+			pthread_mutex_unlock(&rgn->region_mutex);
 			return TRUE;
 		}
 	}
+	pthread_mutex_unlock(&rgn->region_mutex);
 	return FALSE;
 }
 
@@ -1184,6 +1234,10 @@ EXPORT int MM_mapdata(int action, Imodman *mm_, Arena *arena)
 		lvlkey = aman->AllocateArenaData(sizeof(ELVL));
 		if (lvlkey == -1) return MM_FAIL;
 
+		MPInit(&region_queue);
+
+		pthread_create(&rthd, NULL, region_thread, NULL);
+
 		mm->RegCallback(CB_ARENAACTION, md_aaction, ALLARENAS);
 
 		mm->RegInterface(&mapdataint, ALLARENAS);
@@ -1195,6 +1249,11 @@ EXPORT int MM_mapdata(int action, Imodman *mm_, Arena *arena)
 			return MM_FAIL;
 
 		mm->UnregCallback(CB_ARENAACTION, md_aaction, ALLARENAS);
+
+                pthread_cancel(rthd);
+                pthread_join(rthd, NULL);
+
+                MPDestroy(&region_queue);
 
 		aman->FreeArenaData(lvlkey);
 

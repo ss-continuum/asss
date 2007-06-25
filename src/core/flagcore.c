@@ -44,11 +44,11 @@ typedef struct adata
 
 /* checks consistency internal data. currently only checks
  * pkt.flagscarried values against internal flag state.
+ * temporarily disabled due to issues with locking order.
  */
-/* commented for now because it deadlocks with arena events */
-#if 0
 local void check_consistency(void)
 {
+#if 0
 	Player *p;
 	Arena *a;
 	adata *ad;
@@ -77,10 +77,9 @@ local void check_consistency(void)
 
 	pd->FreePlayerData(pdkey);
 	mm->ReleaseInterface(pd);
-}
-#else
-#define check_consistency()
 #endif
+}
+
 
 local void ensure_space(adata *ad, int wanted)
 {

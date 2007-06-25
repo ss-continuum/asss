@@ -687,6 +687,47 @@ local void Cenergy(const char *cmd, const char *params, Player *p, const Target 
 	}
 }
 
+local void SetPlayerEnergyViewing(Player *p, int value)
+{
+	pdata *data = PPDATA(p, pdkey);
+	data->pl_epd.seenrg = value;
+}
+
+local void SetSpectatorEnergyViewing(Player *p, int value)
+{
+	pdata *data = PPDATA(p, pdkey);
+	data->pl_epd.seenrgspec = value;
+}
+
+local void ResetPlayerEnergyViewing(Player *p)
+{
+	int seenrg = SEE_NONE;
+	pdata *data = PPDATA(p, pdkey);
+	adata *ad = P_ARENA_DATA(p->arena, adkey);
+	
+	if (ad->all_nrg)  seenrg = ad->all_nrg;
+	if (capman && capman->HasCapability(p, "seenrg"))
+	{
+		seenrg = SEE_ALL;
+	}
+	
+	data->pl_epd.seenrg = seenrg;
+}
+
+local void ResetSpectatorEnergyViewing(Player *p)
+{
+	int seenrgspec = SEE_NONE;
+	pdata *data = PPDATA(p, pdkey);
+	adata *ad = P_ARENA_DATA(p->arena, adkey);
+
+	if (ad->spec_nrg)  seenrgspec = ad->spec_nrg;
+	if (capman && capman->HasCapability(p, "seenrg"))
+	{
+		seenrgspec = SEE_ALL;
+	}
+
+	data->pl_epd.seenrgspec = seenrgspec;
+}
 
 /* call with freqshipmtx lock held */
 local void expire_lock(Player *p)
@@ -1419,7 +1460,9 @@ local Igame _myint =
 	FakePosition, FakeKill,
 	GetIgnoreWeapons, SetIgnoreWeapons,
 	ShipReset,
-	IncrementWeaponPacketCount
+	IncrementWeaponPacketCount,
+	SetPlayerEnergyViewing, SetSpectatorEnergyViewing,
+	ResetPlayerEnergyViewing, ResetSpectatorEnergyViewing
 };
 
 
