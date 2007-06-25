@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #include "asss.h"
 #include "rwlock.h"
@@ -45,7 +46,10 @@ local rwlock_t arenalock;
 /* stuff to keep track of private per-arena memory */
 local int perarenaspace;
 
-typedef struct { byte resurrect; } adata;
+typedef struct {
+	int holds;
+	int resurrect;
+} adata;
 local int adkey;
 
 /* forward declaration */
@@ -87,7 +91,7 @@ local void arena_sync_done(Arena *a)
 	if (a->status == ARENA_WAIT_SYNC1)
 		a->status = ARENA_RUNNING;
 	else if (a->status == ARENA_WAIT_SYNC2)
-		a->status = ARENA_DO_DEINIT;
+		a->status = ARENA_DO_DESTROY1;
 	else
 		lm->LogA(L_WARN, "arenaman", a, "arena_sync_done called from wrong state");
 	WRUNLOCK();
@@ -115,11 +119,19 @@ local int ProcessArenaStates(void *dummy)
 			case ARENA_WAIT_SYNC1:
 			case ARENA_WAIT_SYNC2:
 				continue;
+			case ARENA_WAIT_HOLDS1:
+				if (ad->holds == 0)
+					status = a->status = ARENA_DO_INIT2;
+				break;
+			case ARENA_WAIT_HOLDS2:
+				if (ad->holds == 0)
+					status = a->status = ARENA_DO_DESTROY2;
+				break;
 		}
 
 		switch (status)
 		{
-			case ARENA_DO_INIT:
+			case ARENA_DO_INIT1:
 				/* some callbacks */
 				DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_PRECREATE));
 				/* config file */
@@ -129,8 +141,14 @@ local int ProcessArenaStates(void *dummy)
 				a->specfreq = cfg->GetInt(a->cfg, "Team", "SpectatorFrequency", CFG_DEF_SPEC_FREQ);
 				/* attach modules */
 				do_attach(a);
+				/* set up for callbacks */
+				a->status = ARENA_WAIT_HOLDS1;
+				assert(ad->holds == 0);
 				/* more callbacks */
 				DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_CREATE));
+				break;
+
+			case ARENA_DO_INIT2:
 				/* finally, persistant stuff */
 				if (persist)
 				{
@@ -157,7 +175,7 @@ local int ProcessArenaStates(void *dummy)
 						a->status = ARENA_WAIT_SYNC2;
 					}
 					else
-						a->status = ARENA_DO_DEINIT;
+						a->status = ARENA_DO_DESTROY1;
 				}
 				else
 				{
@@ -166,9 +184,14 @@ local int ProcessArenaStates(void *dummy)
 				}
 				break;
 
-			case ARENA_DO_DEINIT:
+			case ARENA_DO_DESTROY1:
 				/* reverse order: callbacks, detach, close config file */
+				a->status = ARENA_WAIT_HOLDS2;
+				assert(ad->holds == 0);
 				DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_DESTROY));
+				break;
+
+			case ARENA_DO_DESTROY2:
 				mm->DetachAllFromArena(a);
 				cfg->CloseConfigFile(a->cfg);
 				a->cfg = NULL;
@@ -180,7 +203,7 @@ local int ProcessArenaStates(void *dummy)
 					 * modules like it was just created. */
 					memset(a->arenaextradata, 0, perarenaspace);
 					ad->resurrect = FALSE;
-					a->status = ARENA_DO_INIT;
+					a->status = ARENA_DO_INIT1;
 				}
 				else
 				{
@@ -215,8 +238,9 @@ local Arena * create_arena(const char *name)
 	if (t < a->basename)
 		astrncpy(a->basename, AG_PUBLIC, 20);
 
-	a->status = ARENA_DO_INIT;
+	a->status = ARENA_DO_INIT1;
 	a->cfg = NULL;
+	ad->holds = 0;
 	ad->resurrect = FALSE;
 
 	LLAdd(&aman->arenalist, a);
@@ -533,7 +557,7 @@ local void complete_go(Player *p, const char *reqname, int ship,
 
 	/* try to locate an existing arena */
 	WRLOCK();
-	a = do_find_arena(name, ARENA_DO_INIT, ARENA_DO_DEINIT);
+	a = do_find_arena(name, ARENA_DO_INIT1, ARENA_DO_DESTROY2);
 
 	if (a == NULL)
 	{
@@ -855,6 +879,40 @@ local void Unlock(void)
 }
 
 
+local void Hold(Arena *a)
+{
+	adata *ad = P_ARENA_DATA(a, adkey);
+	WRLOCK();
+	if (a->status == ARENA_WAIT_HOLDS1 ||
+	    a->status == ARENA_WAIT_HOLDS2)
+	{
+		ad->holds++;
+	}
+	else
+	{
+		lm->LogA(L_ERROR, "arenaman", a, "Hold called from invalid state");
+	}
+	WRUNLOCK();
+}
+
+local void Unhold(Arena *a)
+{
+	adata *ad = P_ARENA_DATA(a, adkey);
+	WRLOCK();
+	if ((a->status == ARENA_WAIT_HOLDS1 ||
+	     a->status == ARENA_WAIT_HOLDS2) &&
+	    ad->holds > 0)
+	{
+		ad->holds--;
+	}
+	else
+	{
+		lm->LogA(L_ERROR, "arenaman", a, "Unhold called from invalid state");
+	}
+	WRUNLOCK();
+}
+
+
 local void GetPopulationSummary(int *totalp, int *playingp)
 {
 	/* arena lock held (shared) here */
@@ -896,7 +954,8 @@ local Iarenaman myint =
 	SendToArena, FindArena,
 	GetPopulationSummary,
 	AllocateArenaData, FreeArenaData,
-	Lock, Unlock
+	Lock, Unlock,
+	Hold, Unhold
 };
 
 EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)

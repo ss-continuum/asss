@@ -69,10 +69,16 @@ typedef void (*ArenaActionFunc)(Arena *arena, int action);
 enum
 {
 	/** someone wants to enter the arena. first, the config file must be
-	 ** loaded, callbacks called, and the persistant data loaded. */
-	ARENA_DO_INIT,
+	 ** loaded and callbacks called. */
+	ARENA_DO_INIT1,
 
-	/** waiting on the database */
+	/** waiting on modules to do init work. */
+	ARENA_WAIT_HOLDS1,
+
+	/** load persistent data. */
+	ARENA_DO_INIT2,
+
+	/** waiting on the database or callbacks. */
 	ARENA_WAIT_SYNC1,
 
 	/** now the arena is fully created. core can now send the arena
@@ -87,16 +93,22 @@ enum
 	ARENA_DO_WRITE_DATA,
 
 	/** waiting on the database to finish before we can unregister
-	 ** modules... */
+	 ** modules. */
 	ARENA_WAIT_SYNC2,
 
-	/** ...then unload the config file. status returns to free after this. */
-	ARENA_DO_DEINIT
+	/** arena destroy callbacks. */
+	ARENA_DO_DESTROY1,
+
+	/** waiting for modules to do destroy work. */
+	ARENA_WAIT_HOLDS2,
+
+	/** finish destroy process. */
+	ARENA_DO_DESTROY2
 };
 
 
 /** the interface id for arenaman */
-#define I_ARENAMAN "arenaman-6"
+#define I_ARENAMAN "arenaman-7"
 
 /** the arenaman interface struct */
 typedef struct Iarenaman
@@ -173,6 +185,22 @@ typedef struct Iarenaman
 	void (*Unlock)(void);
 	/* pyint: void -> void */
 
+	/** Puts a "hold" on an arena, preventing it from proceeding to the
+	 ** next stage in initialization until the hold is removed.
+	 * This can be used to do some time-consuming work during arena
+	 * creation asynchronously, e.g. in another thread. It may only be
+	 * used in CB_ARENAACTION callbacks, only for AA_CREATE and
+	 * AA_DESTROY actions.
+	 */
+	void (*Hold)(Arena *a);
+	/* pyint: arena -> void */
+	/** Removes a "hold" on an arena.
+	 * This must be called exactly once for each time Hold is called. It
+	 * may be called from any thread.
+	 */
+	void (*Unhold)(Arena *a);
+	/* pyint: arena -> void */
+
 	/** This is a list of all the arenas the server knows about.
 	 * Don't forget the lock. You shouldn't use this directly, but use
 	 * these macros instead:
@@ -214,7 +242,7 @@ typedef struct Iarenaman
  * @see Iarenaman::Lock
  * @see Iarenaman::AllocateArenaData
  */
- #define FOR_EACH_ARENA_P(a, d, key) \
+#define FOR_EACH_ARENA_P(a, d, key) \
 	for ( \
 			link = LLGetHead(&aman->arenalist); \
 			link && ((a = link->data, \
