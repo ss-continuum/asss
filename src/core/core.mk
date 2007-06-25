@@ -8,12 +8,12 @@ INTERNAL_MODULES = \
 	log_file log_console log_sysop log_staff \
 	game game_timer chat flagcore balls fm_normal \
 	banners bricks objects messages koth fm_lockspec \
-	cmdman playercmd admincmd watchdamage buy help \
+	cmdman playercmd admincmd watchdamage buy help notify \
 	directory billing billing_ssc pwcache \
 	cfghelp filetrans quickfix \
 	freqowners arenaperm auth_prefix fake chatnet \
 	ap_multipub sendfile auth_ban auth_file obscene \
-	deadlock $(unixsignal) notify
+	deadlock $(unixsignal)
 
 # generated file for mapdata
 $(call tobuild, sparse.inc): $(builddir) $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py

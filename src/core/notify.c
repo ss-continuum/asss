@@ -34,7 +34,7 @@ local void register_commands()
 	cmds = cfg->GetStr(GLOBAL, "Notify", "AlertCommand");
 	/* default to ?cheater */
 	if (!cmds)
-		cmds = "cheater,help";
+		cmds = "cheater";
 
 	LLInit(&notify_commands);
 	while (strsplit(cmds, " ,:;", word, sizeof(cmd), &tmp))
