@@ -33,7 +33,6 @@ struct Region
 	const char *name;
 	HashTable *chunks;
 	u32 setmap[8];
-	pthread_mutex_t region_mutex;
 };
 
 typedef struct ELVL
@@ -46,13 +45,14 @@ typedef struct ELVL
 	HashTable *rawchunks;
 	int errors, flags;
 	pthread_mutex_t mtx;
+	int action;
 } ELVL;
 
 
 /* global data */
 local int lvlkey;
-local MPQueue region_queue;
-local pthread_t rthd;
+local MPQueue work_queue;
+local pthread_t work_thread;
 
 /* cached interfaces */
 local Imodman *mm;
@@ -143,15 +143,11 @@ local int read_chunks(HashTable *chunks, const byte *d, int len)
 
 local void free_region(Region *rgn)
 {
-	pthread_mutex_lock(&rgn->region_mutex);
 	if (rgn->chunks)
 	{
 		HashEnum(rgn->chunks, hash_enum_afree, NULL);
 		HashFree(rgn->chunks);
 	}
-	MPClearOne(&region_queue, rgn);
-	pthread_mutex_unlock(&rgn->region_mutex);
-	pthread_mutex_destroy(&rgn->region_mutex);
 	afree(rgn);
 }
 
@@ -279,7 +275,7 @@ local int read_rle_tile_data(Region *rgn, const byte *d, int len)
 }
 
 
-local int process_region_chunk_first_pass(const char *key, void *vchunk, void *vrgn)
+local int process_region_chunk(const char *key, void *vchunk, void *vrgn)
 {
 	Region *rgn = vrgn;
 	chunk *chunk = vchunk;
@@ -295,16 +291,7 @@ local int process_region_chunk_first_pass(const char *key, void *vchunk, void *v
 		afree(chunk);
 		return TRUE;
 	}
-	else
-		return FALSE;
-}
-
-local int process_region_chunk_second_pass(const char *key, void *vchunk, void *vrgn)
-{
-	Region *rgn = vrgn;
-	chunk *chunk = vchunk;
-
-	if (chunk->type == MAKE_CHUNK_TYPE(rTIL))
+	else if (chunk->type == MAKE_CHUNK_TYPE(rTIL))
 	{
 		if (!rgn->lvl->rgntiles)
 			rgn->lvl->rgntiles = init_sparse();
@@ -317,25 +304,6 @@ local int process_region_chunk_second_pass(const char *key, void *vchunk, void *
 	}
 	else
 		return FALSE;
-}
-
-local void * region_thread(void *dummy)
-{
-	for (;;)
-	{
-		Region *rgn = MPTryRemove(&region_queue);
-		if (rgn != NULL)
-		{
-			pthread_mutex_lock(&rgn->region_mutex);
-			HashEnum(rgn->chunks, process_region_chunk_second_pass, rgn);
-			pthread_mutex_unlock(&rgn->region_mutex);
-		}
-		else
-		{
-			pthread_testcancel();
-			fullsleep(10);
-		}
-	}
 }
 
 local int process_map_chunk(const char *key, void *vchunk, void *vlvl)
@@ -363,15 +331,11 @@ local int process_map_chunk(const char *key, void *vchunk, void *vlvl)
 	else if (chunk->type == MAKE_CHUNK_TYPE(REGN))
 	{
 		Region *rgn = amalloc(sizeof(*rgn));
-		
-		pthread_mutex_init(&rgn->region_mutex, NULL);
-		pthread_mutex_lock(&rgn->region_mutex);
-
 		rgn->lvl = lvl;
 		rgn->chunks = HashAlloc();
 		if (!read_chunks(rgn->chunks, chunk->data, chunk->size))
 			lm->Log(L_WARN, "<mapdata> error in lvl while reading region chunks");
-		HashEnum(rgn->chunks, process_region_chunk_first_pass, rgn);
+		HashEnum(rgn->chunks, process_region_chunk, rgn);
 		
 		if (!lvl->regions)
 			lvl->regions = HashAlloc();
@@ -382,16 +346,13 @@ local int process_map_chunk(const char *key, void *vchunk, void *vlvl)
 			const char *t = rgn->name;
 			rgn->name = HashAdd(lvl->regions, rgn->name, rgn);
 			afree(t);
-			MPAdd(&region_queue, rgn);
+			MPAdd(&work_queue, rgn);
 		}
 		else
 			/* all regions must have a name */
 			free_region(rgn);
 	
 		afree(chunk);
-
-		pthread_mutex_unlock(&rgn->region_mutex);
-
 		return TRUE;
 	}
 	else if (chunk->type == MAKE_CHUNK_TYPE(TSET))
@@ -1090,7 +1051,6 @@ local const char * RegionName(Region *rgn)
 
 local int RegionChunk(Region *rgn, u32 ctype, const void **datap, int *sizep)
 {
-	pthread_mutex_lock(&rgn->region_mutex);
 	if (rgn->chunks)
 	{
 		chunk *c;
@@ -1102,11 +1062,9 @@ local int RegionChunk(Region *rgn, u32 ctype, const void **datap, int *sizep)
 		{
 			if (datap) *datap = c->data;
 			if (sizep) *sizep = c->size;
-			pthread_mutex_unlock(&rgn->region_mutex);
 			return TRUE;
 		}
 	}
-	pthread_mutex_unlock(&rgn->region_mutex);
 	return FALSE;
 }
 
@@ -1162,6 +1120,45 @@ local Region * GetOneContaining(Arena *arena, int x, int y)
 }
 
 
+local void * work_thread_func(void *dummy)
+{
+	for (;;)
+	{
+		ELVL *lvl;
+		Arena *arena = MPRemove(&work_queue);
+		if (!arena)
+			return NULL;
+
+		lvl = P_ARENA_DATA(arena, lvlkey);
+
+		pthread_mutex_lock(&lvl->mtx);
+		/* clear on either create or destory */
+		clear_level(lvl);
+		/* on create, do work */
+		if (lvl->action == AA_CREATE)
+		{
+			char mapname[256];
+			if (GetMapFilename(arena, mapname, sizeof(mapname), NULL) &&
+			    load_from_file(lvl, mapname))
+			{
+				lm->LogA(L_INFO, "mapdata", arena, "successfully processed map file '%s'",
+						mapname);
+			}
+			else
+			{
+				/* fall back to emergency. this matches the compressed map
+				 * in mapnewsdl.c. */
+				lm->LogA(L_WARN, "mapdata", arena, "error finding or reading level file");
+				lvl->tiles = init_sparse();
+				insert_sparse(lvl->tiles, 0, 0, 1);
+				lvl->flags = lvl->errors = 0;
+			}
+		}
+		pthread_mutex_unlock(&lvl->mtx);
+		aman->Unhold(arena);
+	}
+}
+
 local void md_aaction(Arena *arena, int action)
 {
 	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
@@ -1171,31 +1168,12 @@ local void md_aaction(Arena *arena, int action)
 	else if (action == AA_POSTDESTROY)
 		pthread_mutex_destroy(&lvl->mtx);
 
-	/* no matter what is happening, destroy old mapdata */
+	/* pass these actions to the worker thread */
 	if (action == AA_CREATE || action == AA_DESTROY)
-		clear_level(lvl);
-
-	/* now, if we're creating, do it */
-	if (action == AA_CREATE)
 	{
-		char mapname[256];
-		pthread_mutex_lock(&lvl->mtx);
-		if (GetMapFilename(arena, mapname, sizeof(mapname), NULL) &&
-		    load_from_file(lvl, mapname))
-		{
-			lm->LogA(L_INFO, "mapdata", arena, "successfully processed map file '%s'",
-					mapname);
-		}
-		else
-		{
-			/* fall back to emergency. this matches the compressed map
-			 * in mapnewsdl.c. */
-			lm->LogA(L_WARN, "mapdata", arena, "error finding or reading level file");
-			lvl->tiles = init_sparse();
-			insert_sparse(lvl->tiles, 0, 0, 1);
-			lvl->flags = lvl->errors = 0;
-		}
-		pthread_mutex_unlock(&lvl->mtx);
+		lvl->action = action;
+		aman->Hold(arena);
+		MPAdd(&work_queue, arena);
 	}
 }
 
@@ -1231,9 +1209,9 @@ EXPORT int MM_mapdata(int action, Imodman *mm_, Arena *arena)
 		lvlkey = aman->AllocateArenaData(sizeof(ELVL));
 		if (lvlkey == -1) return MM_FAIL;
 
-		MPInit(&region_queue);
+		MPInit(&work_queue);
 
-		pthread_create(&rthd, NULL, region_thread, NULL);
+		pthread_create(&work_thread, NULL, work_thread_func, NULL);
 
 		mm->RegCallback(CB_ARENAACTION, md_aaction, ALLARENAS);
 
@@ -1247,10 +1225,10 @@ EXPORT int MM_mapdata(int action, Imodman *mm_, Arena *arena)
 
 		mm->UnregCallback(CB_ARENAACTION, md_aaction, ALLARENAS);
 
-		pthread_cancel(rthd);
-		pthread_join(rthd, NULL);
+		MPAdd(&work_queue, NULL);
+		pthread_join(work_thread, NULL);
 
-		MPDestroy(&region_queue);
+		MPDestroy(&work_queue);
 
 		aman->FreeArenaData(lvlkey);
 
