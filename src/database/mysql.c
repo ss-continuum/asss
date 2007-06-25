@@ -48,7 +48,9 @@ local void do_query(struct db_cmd *cmd)
 {
 	int q;
 
-	//if (lm) lm->Log(L_DRIVEL, "<mysql> query: %s", cmd->query);
+#ifdef CFG_LOG_MYSQL_QUERIES
+	if (lm) lm->Log(L_DRIVEL, "<mysql> query: %s", cmd->query);
+#endif
 
 	q = mysql_real_query(mydb, cmd->query, cmd->qlen);
 
@@ -99,7 +101,7 @@ local void * work_thread(void *dummy)
 {
 	struct db_cmd *cmd;
 	ticks_t tickcnt;
-	
+
 	mydb = mysql_init(NULL);
 
 	if (mydb == NULL)
@@ -132,10 +134,11 @@ local void * work_thread(void *dummy)
 		/* the pthread_cond_wait inside MPRemove is a cancellation point */
 		cmd = MPRemove(&dbq);
 
-		if (mysql_ping(mydb))               // if not, re-establish connection
+		/* reconnect if necessary */
+		if (mysql_ping(mydb))
 		{
 			if (mysql_real_connect(mydb, host, user, pw, dbname, 0, NULL, CLIENT_COMPRESS))
-			{   
+			{
 				if (lm)
 					lm->Log(L_INFO, "<mysql> Connection to database re-established.");
 			}

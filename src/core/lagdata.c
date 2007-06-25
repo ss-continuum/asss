@@ -102,7 +102,8 @@ local void Position(Player *p, int ping, int cliping, unsigned int wpnsent)
 {
 	LagData *ld = PPDATA(p, lagkey);
 	PEDANTIC_LOCK();
-	add_ping(&ld->pping, ping);
+	/* convert one-way to round-trip */
+	add_ping(&ld->pping, ping * 2);
 	ld->lastwpnsent = wpnsent;
 	PEDANTIC_UNLOCK();
 }
@@ -171,8 +172,8 @@ local void QueryCPing(Player *p, struct PingSummary *ping)
 {
 	LagData *ld = PPDATA(p, lagkey);
 	PEDANTIC_LOCK();
-	/* convert units: values in cping are round trip, in ticks.
-	 * we want one-way, in milliseconds. */
+	/* convert units: values in cping are in ticks.
+	 * we want milliseconds. */
 	ping->cur = ld->cping.lastping * 10;
 	ping->avg = ld->cping.averageping * 10;
 	ping->min = ld->cping.lowestping * 10;

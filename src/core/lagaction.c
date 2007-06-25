@@ -81,7 +81,7 @@ local void check_lag(Player *p, laglimits_t *ll)
 	lag->QueryPLoss(p, &ploss);
 
 	/* weight reliable ping twice the s2c and c2s */
-	avg = cping.avg;
+	avg = (pping.avg + cping.avg + 2*rping.avg) / 4;
 
 	p->flags.no_ship = 0;
 
