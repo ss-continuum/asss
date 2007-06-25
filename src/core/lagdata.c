@@ -112,7 +112,7 @@ local void RelDelay(Player *p, int ping)
 {
 	LagData *ld = PPDATA(p, lagkey);
 	PEDANTIC_LOCK();
-	add_ping(&ld->rping, ping/2);
+	add_ping(&ld->rping, ping);
 	PEDANTIC_UNLOCK();
 }
 
@@ -173,10 +173,10 @@ local void QueryCPing(Player *p, struct PingSummary *ping)
 	PEDANTIC_LOCK();
 	/* convert units: values in cping are round trip, in ticks.
 	 * we want one-way, in milliseconds. */
-	ping->cur = ld->cping.lastping * 10 / 2;
-	ping->avg = ld->cping.averageping * 10 / 2;
-	ping->min = ld->cping.lowestping * 10 / 2;
-	ping->max = ld->cping.highestping * 10 / 2;
+	ping->cur = ld->cping.lastping * 10;
+	ping->avg = ld->cping.averageping * 10;
+	ping->min = ld->cping.lowestping * 10;
+	ping->max = ld->cping.highestping * 10;
 	/* special stuff for client ping: */
 	ping->s2cslowtotal = ld->cping.s2cslowtotal;
 	ping->s2cfasttotal = ld->cping.s2cfasttotal;

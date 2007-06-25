@@ -193,7 +193,7 @@ local void phase_ball(Arena *arena, int bid)
 	bd->state = BALL_ONMAP;
 	bd->x = bd->y = 30000;
 	bd->xspeed = bd->yspeed = 0;
-	bd->time = (ticks_t)(-1); /* this is the key for making it phased */
+	bd->time = (ticks_t)0; /* this is the key for making it phased */
 	bd->carrier = NULL;
 	send_ball_packet(arena, bid);
 	UNLOCK_STATUS(arena);
@@ -609,7 +609,7 @@ void PPickupBall(Player *p, byte *pkt, int len)
 
 	if (bp->time != bd->time)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "tried to pick up a ball from stale coords");
+		logm->LogP(L_WARN, "balls", p, "state sync problem: tried to pick up a ball from stale coords");
 		UNLOCK_STATUS(arena);
 		return;
 	}

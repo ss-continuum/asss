@@ -214,25 +214,69 @@ local void Cballcount(const char *tc, const char *params, Player *p, const Targe
 
 local helptext_t setfreq_help =
 "Targets: player, freq, or arena\n"
-"Args: <freq number>\n"
-"Moves the targets to the specified freq.\n";
+"Args: [{-f}] <freq number>\n"
+"Moves the targets to the specified freq.\n"
+"If -f is specified, this command ignores the arena freqman.\n";
 
 local void Csetfreq(const char *tc, const char *params, Player *p, const Target *target)
 {
+	int use_fm = 1;
+	int freq = 0;
+	int ship = SHIP_SPEC;
+	char *t = params;
+
 	if (!*params)
 		return;
 
+	if (0 == strncmp(t, "-f", 2))
+	{
+		use_fm = 0;
+		t += 2;
+		while (isspace(*t)) t++;
+	}
+
+	freq = atoi(t);
+
 	if (target->type == T_PLAYER)
-		game->SetFreq(target->u.p, atoi(params));
+		{
+		Player *p = target->u.p;
+		ship = p->p_ship;
+
+		if (use_fm)
+		{
+			Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
+			if (fm)
+			{
+				fm->FreqChange(p, &ship, &freq);
+				mm->ReleaseInterface(fm);
+			}
+		}
+
+		game->SetFreqAndShip(p, ship, freq);
+		}
 	else
 	{
-		int freq = atoi(params);
 		LinkedList set = LL_INITIALIZER;
 		Link *l;
 
 		pd->TargetToSet(target, &set);
 		for (l = LLGetHead(&set); l; l = l->next)
-			game->SetFreq(l->data, freq);
+			{
+			Player *p = l->data;
+			ship = p->p_ship;
+
+			if (use_fm)
+			{
+				Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
+				if (fm)
+				{
+					fm->FreqChange(p, &ship, &freq);
+					mm->ReleaseInterface(fm);
+				}
+			}
+
+			game->SetFreqAndShip(p, ship, freq);
+			}
 		LLEmpty(&set);
 	}
 }
@@ -240,29 +284,71 @@ local void Csetfreq(const char *tc, const char *params, Player *p, const Target 
 
 local helptext_t setship_help =
 "Targets: player, freq, or arena\n"
-"Args: <ship number>\n"
+"Args: [{-f}] <ship number>\n"
 "Sets the targets to the specified ship. The argument must be a\n"
-"number from 1 (Warbird) to 8 (Shark), or 9 (Spec).\n";
+"number from 1 (Warbird) to 8 (Shark), or 9 (Spec).\n"
+"If -f is specified, this command ignores the arena freqman.\n";
 
 local void Csetship(const char *tc, const char *params, Player *p, const Target *target)
 {
+	int use_fm = 1;
+	int freq = 0;
+	int ship = SHIP_SPEC;
+	char *t = params;
+
 	if (!*params)
 		return;
 
+	if (0 == strncmp(t, "-f", 2))
+	{
+		use_fm = 0;
+		t += 2;
+		while (isspace(*t)) t++;
+	}
+
+	ship = (atoi(t) - 1) % (SHIP_SPEC + 1);
+	ship = abs(ship);
+
 	if (target->type == T_PLAYER)
-		game->SetShip(target->u.p, atoi(params) - 1);
+		{
+		Player *p = target->u.p;
+		freq = p->p_freq;
+
+		if (use_fm)
+		{
+			Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
+			if (fm)
+			{
+				fm->ShipChange(p, &ship, &freq);
+				mm->ReleaseInterface(fm);
+			}
+		}
+
+		game->SetFreqAndShip(p, ship, freq);
+		}
 	else
 	{
-		int ship = atoi(params) - 1;
 		LinkedList set = LL_INITIALIZER;
 		Link *l;
 
-		if (ship < SHIP_WARBIRD || ship > SHIP_SPEC)
-			return;
-
 		pd->TargetToSet(target, &set);
 		for (l = LLGetHead(&set); l; l = l->next)
-			game->SetShip(l->data, ship);
+			{
+			Player *p = l->data;
+			freq = p->p_freq;
+
+			if (use_fm)
+			{
+				Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
+				if (fm)
+				{
+					fm->ShipChange(p, &ship, &freq);
+					mm->ReleaseInterface(fm);
+				}
+			}
+
+			game->SetFreqAndShip(p, ship, freq);
+			}
 		LLEmpty(&set);
 	}
 }
@@ -1746,13 +1832,13 @@ local void Clag(const char *tc, const char *params, Player *p, const Target *tar
 
 	/* weight reliable ping twice the s2c and c2s */
 	/* FIXME: remove code duplication with lagaction.c */
-	avg = (pping.avg + cping.avg + 2*rping.avg) / 4;
+	avg = rping.avg;
 
 	if (!strstr(params, "-v"))
 	{
 		chat->SendMessage(p,
 				"%s: avg ping: %d  ploss: s2c: %.2f c2s: %.2f",
-				prefix, avg, 100.0*ploss.s2c, 100.0*ploss.c2s);
+				prefix, cping.avg, 100.0*ploss.s2c, 100.0*ploss.c2s);
 	}
 	else
 	{
@@ -1761,14 +1847,8 @@ local void Clag(const char *tc, const char *params, Player *p, const Target *tar
 
 		lagq->QueryRelLag(t, &rlag);
 
-		chat->SendMessage(p, "%s: s2c ping: %d %d (%d-%d) (reported by client)",
+		chat->SendMessage(p, "%s: avg ping: %d %d (%d-%d) (reported by client)",
 				prefix, cping.cur, cping.avg, cping.min, cping.max);
-		chat->SendMessage(p, "%s: c2s ping: %d %d (%d-%d) (from position pkt times)",
-				prefix, pping.cur, pping.avg, pping.min, pping.max);
-		chat->SendMessage(p, "%s: rel ping: %d %d (%d-%d) (reliable ping)",
-				prefix, rping.cur, rping.avg, rping.min, rping.max);
-		chat->SendMessage(p, "%s: effective ping: %d (average of above)",
-				prefix, avg);
 		chat->SendMessage(p, "%s: ploss: s2c: %.2f c2s: %.2f s2cwpn: %.2f",
 				prefix, 100.0*ploss.s2c, 100.0*ploss.c2s, 100.0*ploss.s2cwpn);
 		chat->SendMessage(p, "%s: reliable dups: %.2f%%  reliable resends: %.2f%%",

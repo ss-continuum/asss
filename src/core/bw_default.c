@@ -149,7 +149,7 @@ EXPORT int MM_bw_default(int action, Imodman *mm, Arena *arena)
 		limit_low = cfg->GetInt(GLOBAL, "Net", "LimitMinimum", 2500);
 		limit_high = cfg->GetInt(GLOBAL, "Net", "LimitMaximum", 102400);
 		limit_initial = cfg->GetInt(GLOBAL, "Net", "LimitInitial", 5000);
-		client_can_buffer = cfg->GetInt(GLOBAL, "Net", "SendAtOnce", 30);
+		client_can_buffer = cfg->GetInt(GLOBAL, "Net", "SendAtOnce", 255);
 		limitscale = cfg->GetInt(GLOBAL, "Net", "LimitScale", MAXPACKET * 1);
 		maxavail = cfg->GetInt(GLOBAL, "Net", "Burst", MAXPACKET * 4);
 		use_hitlimit = cfg->GetInt(GLOBAL, "Net", "UseHitLimit", 0);

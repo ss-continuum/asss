@@ -381,7 +381,7 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		/* cfghelp: Net:MaxOutlistSize, global, int, def: 200
 		 * How many S2C packets the server will buffer for a client
 		 * before dropping him. */
-		config.maxoutlist = cfg->GetInt(GLOBAL, "Net", "MaxOutlistSize", 200);
+		config.maxoutlist = cfg->GetInt(GLOBAL, "Net", "MaxOutlistSize", 500);
 		/* (deliberately) undocumented settings */
 		config.maxretries = cfg->GetInt(GLOBAL, "Net", "MaxRetries", 15);
 		config.queue_threshold = cfg->GetInt(GLOBAL, "Net", "PresizedQueueThreshold", 5);

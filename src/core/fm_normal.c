@@ -118,7 +118,8 @@ local int BalanceFreqs(Arena *arena, Player *excl, int inclspec)
 {
 	Player *i;
 	Link *link;
-	int counts[CFG_MAX_DESIRED] = { 0 }, min = INT_MAX, best = -1, j;
+	int counts[CFG_MAX_DESIRED] = { 0 }, min = INT_MAX, j;
+	int best[CFG_MAX_DESIRED] = { 0 }, num = -1;
 
 	int max = get_max_for_freq(arena->cfg, 0);
 	/* cfghelp: Team:DesiredTeams, arena, int, def: 2
@@ -144,13 +145,33 @@ local int BalanceFreqs(Arena *arena, Player *excl, int inclspec)
 		if (counts[j] < min)
 		{
 			min = counts[j];
-			best = j;
+			num = 1;
+			best[0] = j;
+		}
+		else if (counts[j] == min)
+		{
+			best[num++] = j;
 		}
 
-	if (best == -1) /* shouldn't happen */
+	if (num <= 0) /* shouldn't happen */
 		return 0;
 	else if (max == 0 || min < max) /* we found a spot */
-		return best;
+	{
+		int rnd;
+		Iprng *r = mm->GetInterface(I_PRNG, ALLARENAS);
+
+		if (r)
+		{
+			rnd = r->Rand();
+			mm->ReleaseInterface(r);
+		}
+		else
+			rnd = current_ticks();
+
+		num = rnd % num;
+
+		return best[num];
+	}
 	else /* no spots within desired freqs */
 	{
 		/* try incrementing freqs until we find one with < max players */
@@ -214,6 +235,8 @@ local void Initial(Player *p, int *ship, int *freq)
 	*ship = s; *freq = f;
 }
 
+/* FIXME we use this in Ship now. Rearrange or fwd declare everything */
+local void Freq(Player *p, int *ship, int *freq);
 
 local void Ship(Player *p, int *ship, int *freq)
 {
@@ -258,36 +281,41 @@ local void Ship(Player *p, int *ship, int *freq)
 	/* ok, allowed change */
 	else
 	{
+		int need_balance = FALSE;
+
 		/* check if he's changing from speccing on the spec freq, or on a
 		 * regular freq that's full */
-		if (p->p_ship == SHIP_SPEC)
+		if (p->p_ship == SHIP_SPEC && f == arena->specfreq)
 		{
-			int need_balance = FALSE;
-			if (f == arena->specfreq)
-				/* leaving spec mode on spec freq, always reassign */
+			/* leaving spec mode on spec freq, always reassign */
+			need_balance = TRUE;
+		}
+		else if (cfg->GetInt(arena->cfg, "Team", "FrequencyShipTypes", 0))
+		{
+			f = s;
+			Freq(p, &s, &f);
+		}
+		else if (p->p_ship == SHIP_SPEC)
+		{
+			/* unspeccing from a non-spec freq. only reassign if full.
+			 * note: we can always do this count assuming IncludeSpectators
+			 * is false. the reasoning is: we know that p is currently on f.
+			 * if IncludeSpectators is true, then there are <= max people on
+			 * f in total, so count_freq(a, f, p, TRUE) must be < max, so
+			 * the condition will never be true. only if IncludeSpectators
+			 * is false does count >= max have a chance of being true. */
+			int max = get_max_for_freq(ch, f);
+			if (max > 0 && count_freq(arena, f, p, FALSE) >= max)
 				need_balance = TRUE;
-			else
-			{
-				/* unspeccing from a non-spec freq. only reassign if full.
-				 * note: we can always do this count assuming IncludeSpectators
-				 * is false. the reasoning is: we know that p is currently on f.
-				 * if IncludeSpectators is true, then there are <= max people on
-				 * f in total, so count_freq(a, f, p, TRUE) must be < max, so
-				 * the condition will never be true. only if IncludeSpectators
-				 * is false does count >= max have a chance of being true. */
-				int max = get_max_for_freq(ch, f);
-				if (max > 0 && count_freq(arena, f, p, FALSE) >= max)
-					need_balance = TRUE;
-			}
+		}
 
-			if (need_balance)
+		if (need_balance)
+		{
+			f = BalanceFreqs(arena, p, INCLSPEC(ch));
+			if (f < 0 || f >= MAXFREQ(ch))
 			{
-				f = BalanceFreqs(arena, p, INCLSPEC(ch));
-				if (f < 0 || f >= MAXFREQ(ch))
-				{
-					f = arena->specfreq;
-					s = SHIP_SPEC;
-				}
+				f = arena->specfreq;
+				s = SHIP_SPEC;
 			}
 		}
 		/* and make sure the ship is still legal */
