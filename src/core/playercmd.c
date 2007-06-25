@@ -223,7 +223,7 @@ local void Csetfreq(const char *tc, const char *params, Player *p, const Target 
 	int use_fm = 1;
 	int freq = 0;
 	int ship = SHIP_SPEC;
-	char *t = params;
+	const char *t = params;
 
 	if (!*params)
 		return;
@@ -238,7 +238,7 @@ local void Csetfreq(const char *tc, const char *params, Player *p, const Target 
 	freq = atoi(t);
 
 	if (target->type == T_PLAYER)
-		{
+	{
 		Player *p = target->u.p;
 		ship = p->p_ship;
 
@@ -253,7 +253,7 @@ local void Csetfreq(const char *tc, const char *params, Player *p, const Target 
 		}
 
 		game->SetFreqAndShip(p, ship, freq);
-		}
+	}
 	else
 	{
 		LinkedList set = LL_INITIALIZER;
@@ -294,7 +294,7 @@ local void Csetship(const char *tc, const char *params, Player *p, const Target 
 	int use_fm = 1;
 	int freq = 0;
 	int ship = SHIP_SPEC;
-	char *t = params;
+	const char *t = params;
 
 	if (!*params)
 		return;
@@ -310,7 +310,7 @@ local void Csetship(const char *tc, const char *params, Player *p, const Target 
 	ship = abs(ship);
 
 	if (target->type == T_PLAYER)
-		{
+	{
 		Player *p = target->u.p;
 		freq = p->p_freq;
 
@@ -325,7 +325,7 @@ local void Csetship(const char *tc, const char *params, Player *p, const Target 
 		}
 
 		game->SetFreqAndShip(p, ship, freq);
-		}
+	}
 	else
 	{
 		LinkedList set = LL_INITIALIZER;

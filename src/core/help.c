@@ -6,14 +6,12 @@
 #include "asss.h"
 #include "cfghelp.h"
 
-#define MAX_COMMAND_LENGTH 32
-
-local Imodman *mm;
 local Ichat *chat;
 local Icmdman *cmdman;
 local Icfghelp *cfghelp;
+local Iconfig *cfg;
 
-local char command_name[MAX_COMMAND_LENGTH];
+local const char *command_name = NULL;
 
 local void do_cmd_help(Player *p, const char *cmd)
 {
@@ -127,41 +125,22 @@ local void Chelp(const char *tc, const char *params, Player *p, const Target *ta
 		do_cmd_help(p, params);
 }
 
-//set command_name. Defaults to ?help
-local void get_command_name()
-{
-	int set = 0;
-	
-	Iconfig *cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
-	if (cfg)
-	{
-		const char *cmd = cfg->GetStr(GLOBAL, "Help", "CommandName");
-		if (cmd)
-		{
-			astrncpy(command_name, cmd, MAX_COMMAND_LENGTH);
-			set = 1;
-		}
-
-		mm->ReleaseInterface(cfg);
-	}
-	
-	if (!set)
-		astrncpy(command_name, "help", MAX_COMMAND_LENGTH);
-}
-
-EXPORT int MM_help(int action, Imodman *_mm, Arena *arena)
+EXPORT int MM_help(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
-		mm = _mm;
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		cmdman = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		cfghelp = mm->GetInterface(I_CFGHELP, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		if (!chat || !cmdman)
 			return MM_FAIL;
 
-		get_command_name();
-				
+		if (cfg)
+			command_name = astrdup(cfg->GetStr(GLOBAL, "Help", "CommandName"));
+		if (!command_name)
+			command_name = astrdup("help");
+
 		cmdman->AddCommand(command_name, Chelp, ALLARENAS, help_help);
 		return MM_OK;
 	}
@@ -170,7 +149,9 @@ EXPORT int MM_help(int action, Imodman *_mm, Arena *arena)
 		cmdman->RemoveCommand(command_name, Chelp, ALLARENAS);
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(cmdman);
+		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(cfghelp);
+		afree(command_name);
 		return MM_OK;
 	}
 	return MM_FAIL;

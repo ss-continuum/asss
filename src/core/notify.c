@@ -6,10 +6,8 @@
 local Ichat *chat;
 local Icmdman *cmd;
 local Iconfig *cfg;
-local Imodman *mm;
 
-#define NOTIFY_COMMANDS_LENGTH 255
-local char notify_commands[NOTIFY_COMMANDS_LENGTH];
+local LinkedList notify_commands;
 
 local helptext_t notify_help =
 "Targets: none\n"
@@ -29,60 +27,51 @@ local void Cnotify(const char *tc, const char *params, Player *p, const Target *
 
 local void register_commands()
 {
-	char cmds_str[NOTIFY_COMMANDS_LENGTH];
-	char buf[64];
+	char word[64];
 	const char *tmp = NULL;
-	const char *cfg_result;
-		       
-	cfg_result = cfg->GetStr(GLOBAL, "Notify", "AlertCommand");
+	const char *cmds;
 
-	//default to ?cheater
-	if (!cfg_result) 
-		astrncpy(notify_commands, "cheater", NOTIFY_COMMANDS_LENGTH);
-	else
-		astrncpy(notify_commands, cfg_result, NOTIFY_COMMANDS_LENGTH);
-	
-	//make a copy, so that strsplit doesn't destory the original
-	astrncpy(cmds_str, notify_commands, NOTIFY_COMMANDS_LENGTH);
-	while (strsplit(cmds_str, " ,:;", buf, sizeof(buf), &tmp))
+	cmds = cfg->GetStr(GLOBAL, "Notify", "AlertCommand");
+	/* default to ?cheater */
+	if (!cmds)
+		cmds = "cheater,help";
+
+	LLInit(&notify_commands);
+	while (strsplit(cmds, " ,:;", word, sizeof(cmd), &tmp))
 	{
-		cmd->AddCommand(ToLowerStr(buf), Cnotify, ALLARENAS, notify_help);
+		ToLowerStr(word);
+		LLAdd(&notify_commands, astrdup(word));
+		cmd->AddCommand(word, Cnotify, ALLARENAS, notify_help);
 	}
 }
 
 local void unregister_commands()
 {
-	char cmds_str[NOTIFY_COMMANDS_LENGTH];
-	char buf[64];
-	const char *tmp = NULL;
-	
-	//make a copy, so that strsplit doesn't destory the original
-	astrncpy(cmds_str, notify_commands, NOTIFY_COMMANDS_LENGTH);
-	while (strsplit(cmds_str, " ,:;", buf, sizeof(buf), &tmp))
-	{
-		cmd->RemoveCommand(ToLowerStr(buf), Cnotify, ALLARENAS);
-	}
+	Link *l;
+	for (l = LLGetHead(&notify_commands); l; l = l->next)
+		cmd->RemoveCommand(l->data, Cnotify, ALLARENAS);
+	LLEnum(&notify_commands, afree);
+	LLEmpty(&notify_commands);
 }
 
-EXPORT int MM_notify(int action, Imodman *mm_, Arena *arena)
+EXPORT int MM_notify(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
-		mm = mm_;
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 
 		if (!chat || !cmd || !cfg) return MM_FAIL;
-	
+
 		register_commands();
-		
+
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		unregister_commands();
-		
+
 		mm->ReleaseInterface(chat);
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(cfg);
@@ -90,7 +79,4 @@ EXPORT int MM_notify(int action, Imodman *mm_, Arena *arena)
 	}
 	return MM_FAIL;
 }
-
-
-
 
