@@ -27,7 +27,7 @@ local void Cnotify(const char *tc, const char *params, Player *p, const Target *
 
 local void register_commands()
 {
-	char word[64];
+	char word[256];
 	const char *tmp = NULL;
 	const char *cmds;
 
@@ -37,7 +37,7 @@ local void register_commands()
 		cmds = "cheater";
 
 	LLInit(&notify_commands);
-	while (strsplit(cmds, " ,:;", word, sizeof(cmd), &tmp))
+	while (strsplit(cmds, " ,:;", word, sizeof(word), &tmp))
 	{
 		ToLowerStr(word);
 		LLAdd(&notify_commands, astrdup(word));
