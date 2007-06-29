@@ -346,7 +346,6 @@ local int process_map_chunk(const char *key, void *vchunk, void *vlvl)
 			const char *t = rgn->name;
 			rgn->name = HashAdd(lvl->regions, rgn->name, rgn);
 			afree(t);
-			MPAdd(&work_queue, rgn);
 		}
 		else
 			/* all regions must have a name */
