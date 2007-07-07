@@ -43,9 +43,9 @@ typedef struct ELVL
 	HashTable *attrs;
 	HashTable *regions;
 	HashTable *rawchunks;
-	int errors, flags;
+	/* if loading is true, you're not allowed to read any other fields */
+	int errors, flags, action, loading;
 	pthread_mutex_t mtx;
-	int action;
 } ELVL;
 
 
@@ -568,7 +568,10 @@ local enum map_tile_t GetTile(Arena *a, int x, int y)
 	int ret;
 	ELVL *lvl = P_ARENA_DATA(a, lvlkey);
 	pthread_mutex_lock(&lvl->mtx);
-	ret = lvl->tiles ? lookup_sparse(lvl->tiles, x, y) : -1;
+	if (lvl->loading || !lvl->tiles)
+		ret = -1;
+	else
+		ret = lookup_sparse(lvl->tiles, x, y);
 	pthread_mutex_unlock(&lvl->mtx);
 	return ret;
 }
@@ -592,8 +595,8 @@ local void FindEmptyTileNear(Arena *arena, int *x, int *y)
 	pthread_mutex_lock(&lvl->mtx);
 
 	arr = lvl->tiles;
-
-	if (!arr) goto failed_1;
+	if (lvl->loading || !arr)
+		goto failed;
 
 	/* do it */
 	for (;;)
@@ -622,7 +625,7 @@ local void FindEmptyTileNear(Arena *arena, int *x, int *y)
 			if (ctx.upto < 35)
 				continue;
 			else
-				goto failed_1;
+				goto failed;
 		}
 
 		/* return values */
@@ -630,7 +633,7 @@ local void FindEmptyTileNear(Arena *arena, int *x, int *y)
 		break;
 	}
 
-failed_1:
+failed:
 	pthread_mutex_unlock(&lvl->mtx);
 }
 
@@ -651,9 +654,9 @@ local int FindBrickEndpoints(
 
 	lvl = P_ARENA_DATA(arena, lvlkey);
 	pthread_mutex_lock(&lvl->mtx);
-	arr = lvl->tiles;
 
-	if (lookup_sparse(arr, dropx, dropy))
+	arr = lvl->tiles;
+	if (lvl->loading || lookup_sparse(arr, dropx, dropy))
 	{
 		pthread_mutex_unlock(&lvl->mtx);
 		return FALSE;
@@ -699,7 +702,7 @@ local int FindBrickEndpoints(
 			/* shouldn't happen */
 			*x1 = *x2 = dropx;
 			*y1 = *y2 = dropy;
-			goto failed_2;
+			goto failed;
 		}
 
 		if (bestcount == length)
@@ -878,10 +881,10 @@ local int FindBrickEndpoints(
 			x2[3] = x;
 		}
 
-		goto failed_2;
+		goto failed;
 	}
 	else
-		goto failed_2;
+		goto failed;
 
 	/* enter first coordinate */
 	dropx = x = *x1 = destx; dropy = y = *y1 = desty;
@@ -935,7 +938,7 @@ local int FindBrickEndpoints(
 		*y2 = y;
 	}
 
-failed_2:
+failed:
 	pthread_mutex_unlock(&lvl->mtx);
 	return TRUE;
 }
@@ -949,9 +952,10 @@ local u32 GetChecksum(Arena *arena, u32 key)
 
 	lvl = P_ARENA_DATA(arena, lvlkey);
 	pthread_mutex_lock(&lvl->mtx);
-	arr = lvl->tiles;
 
-	if (!arr) goto failed_3;
+	arr = lvl->tiles;
+	if (lvl->loading || !arr)
+		goto failed;
 
 	for (y = savekey % 32; y < 1024; y += 32)
 		for (x = savekey % 31; x < 1024; x += 31)
@@ -961,7 +965,7 @@ local u32 GetChecksum(Arena *arena, u32 key)
 				key += savekey ^ tile;
 		}
 
-failed_3:
+failed:
 	pthread_mutex_unlock(&lvl->mtx);
 	return key;
 }
@@ -974,7 +978,10 @@ local void DoBrick(Arena *arena, int drop, int x1, int y1, int x2, int y2)
 	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
 
 	pthread_mutex_lock(&lvl->mtx);
+
 	arr = lvl->tiles;
+	if (lvl->loading || !arr)
+		goto failed;
 
 	if (x1 == x2)
 	{
@@ -993,6 +1000,7 @@ local void DoBrick(Arena *arena, int drop, int x1, int y1, int x2, int y2)
 	if (tile == 0)
 		cleanup_sparse(arr);
 
+failed:
 	pthread_mutex_unlock(&lvl->mtx);
 }
 
@@ -1007,6 +1015,11 @@ local void GetMemoryStats(Arena *arena, struct mapdata_memory_stats_t *stats)
 	/* get data for lvl itself */
 	bts = blks = 0;
 	pthread_mutex_lock(&lvl->mtx);
+	if (lvl->loading)
+	{
+		pthread_mutex_unlock(&lvl->mtx);
+		return;
+	}
 	sparse_allocated(lvl->tiles, &bts, &blks);
 	pthread_mutex_unlock(&lvl->mtx);
 	stats->lvlbytes = bts;
@@ -1130,7 +1143,11 @@ local void * work_thread_func(void *dummy)
 
 		lvl = P_ARENA_DATA(arena, lvlkey);
 
+		/* make sure loading is true, so we can modify things in lvl */
 		pthread_mutex_lock(&lvl->mtx);
+		assert(lvl->loading);
+		pthread_mutex_unlock(&lvl->mtx);
+
 		/* clear on either create or destory */
 		clear_level(lvl);
 		/* on create, do work */
@@ -1153,6 +1170,8 @@ local void * work_thread_func(void *dummy)
 				lvl->flags = lvl->errors = 0;
 			}
 		}
+		pthread_mutex_lock(&lvl->mtx);
+		lvl->loading = FALSE;
 		pthread_mutex_unlock(&lvl->mtx);
 		aman->Unhold(arena);
 	}
@@ -1171,6 +1190,7 @@ local void md_aaction(Arena *arena, int action)
 	if (action == AA_CREATE || action == AA_DESTROY)
 	{
 		lvl->action = action;
+		lvl->loading = TRUE;
 		aman->Hold(arena);
 		MPAdd(&work_queue, arena);
 	}
