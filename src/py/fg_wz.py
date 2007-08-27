@@ -150,7 +150,7 @@ def spawn_flag(a, i, cx, cy, r, freq, fallback = 1):
 		# and move off of any tiles
 		x, y = mapdata.FindEmptyTileNear(a, x, y)
 		# check if it's hitting another flag:
-		for j in range(a.fg_wz_current):
+		for j in xrange(a.fg_wz_current):
 			if i != j:
 				n2, f2 = flagcore.GetFlags(a, j)
 				if n2 == 1 and f2.state == asss.FI_ONMAP and \
@@ -203,7 +203,7 @@ def spawn_timer(a):
 		a.fg_wz_current = current = prng.Number(sets.min, sets.max)
 
 	# spawn flags?
-	for i in range(current):
+	for i in xrange(current):
 		n, f = flagcore.GetFlags(a, i)
 		if n != 1: continue
 		if f.state == asss.FI_NONE:
@@ -233,7 +233,7 @@ def check_win(a):
 	ownedflags = 0
 	winfreq = -1
 
-	for i in range(current):
+	for i in xrange(current):
 		n, f = flagcore.GetFlags(a, i)
 		assert n == 1
 		if f.state == asss.FI_ONMAP:
@@ -244,7 +244,7 @@ def check_win(a):
 				ownedflags = 1
 
 	# just to check
-	for i in range(current, a.fg_wz_sets.max):
+	for i in xrange(current, a.fg_wz_sets.max):
 		n, f = flagcore.GetFlags(a, current)
 		assert n == 0 or f.state == asss.FI_NONE
 

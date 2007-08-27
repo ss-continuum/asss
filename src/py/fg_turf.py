@@ -28,7 +28,7 @@ class TurfFlagGame:
 		f = asss.flaginfo()
 		f.state = asss.FI_ONMAP
 		f.freq = -1
-		for i in range(fc):
+		for i in xrange(fc):
 			flagcore.SetFlags(a, i, f)
 
 	def FlagTouch(me, a, p, fid):
@@ -54,7 +54,7 @@ class OwnershipAPD:
 	def get(me, a):
 		if getattr(a, 'fg_turf_persist', 0):
 			owners = []
-			for i in range(a.fg_turf_fc):
+			for i in xrange(a.fg_turf_fc):
 				n, f = flagcore.GetFlags(a, i)
 				assert n == 1
 				owners.append(f.freq)
@@ -68,7 +68,7 @@ class OwnershipAPD:
 		if getattr(a, 'fg_turf_persist', 0) and len(owners) == a.fg_turf_fc:
 			f = asss.flaginfo()
 			f.state = asss.FI_ONMAP
-			for i in range(a.fg_turf_fc):
+			for i in xrange(a.fg_turf_fc):
 				f.freq = owners[i]
 				flagcore.SetFlags(a, i, f)
 
