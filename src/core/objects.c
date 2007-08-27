@@ -565,11 +565,12 @@ void PBroadcast(Player *p, byte *pkt, int len)
 				struct ToggledObject *objt = (struct ToggledObject *)(pkt + 4);
 				aodata *ad = P_ARENA_DATA(p->arena, aokey);
 				lvzdata *node;
-#if 0 /* stag shot says this is broken */
+
 				MUTEX_LOCK(ad);
 
 				while (i--)
-					if ((node = getDataFromId(&ad->list, objt[i].id)))
+					if ((node = getDataFromId(&ad->list, objt[i].id)) &&
+					    node->current.time == 0)
 					{
 						if (objt[i].off == 1 && node->off == 0)
 							ad->tog_diffs--;
@@ -581,7 +582,7 @@ void PBroadcast(Player *p, byte *pkt, int len)
 					}
 
 				MUTEX_UNLOCK(ad);
-#endif
+
 			}
 			break;
 
@@ -764,9 +765,6 @@ void ReadLVZFile(Arena *a, byte *file, int flen, int opt)
 						memcpy(&data->defaults, objd, sizeof(*objd));
 						memcpy(&data->current, objd, sizeof(*objd));
 
-						lm->LogA(L_DRIVEL, "objects", a,
-								"read object %i", objd->id);
-
 						LLAdd(&ad->list, data);
 
 						objd++;
@@ -837,7 +835,8 @@ void Toggle(const Target *t, int id, int on)
 
 		MUTEX_LOCK(ad);
 
-		if ((node = getDataFromId(&ad->list, id)))
+		if ((node = getDataFromId(&ad->list, id)) &&
+		    node->current.time == 0)
 		{
 			if (on != 0 && node->off == 1)
 				ad->tog_diffs++;
@@ -870,7 +869,8 @@ void ToggleSet(const Target *t, short *id, char *ons, int size)
 
 			MUTEX_LOCK(ad);
 
-			if ((node = getDataFromId(&ad->list, id[size])))
+			if ((node = getDataFromId(&ad->list, id[size])) &&
+			    node->current.time == 0)
 			{
 				if (ons[size] != 0 && node->off == 1)
 					ad->tog_diffs++;
