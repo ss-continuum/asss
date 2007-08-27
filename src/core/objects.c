@@ -61,6 +61,7 @@ local void ArenaAction(Arena *arena, int action);
 
 /* local data */
 local Imodman *mm;
+local Imainloop *mainloop;
 local Inet *net;
 local Icapman *capman;
 local Ilogman *lm;
@@ -384,6 +385,7 @@ EXPORT int MM_objects(int action, Imodman *mm_, Arena *arena)
 	{
 		mm = mm_;
 
+		mainloop = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
@@ -394,8 +396,8 @@ EXPORT int MM_objects(int action, Imodman *mm_, Arena *arena)
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 
-		if (!aman || !net || !capman || !pd || !lm || !cfg || !mapdata ||
-				!cmd || !chat)
+		if (!mainloop || !aman || !net || !capman || !pd || !lm || !cfg ||
+		    !mapdata || !cmd || !chat)
 			return MM_FAIL;
 
 		pokey = pd->AllocatePlayerData(sizeof(podata));
@@ -448,6 +450,7 @@ EXPORT int MM_objects(int action, Imodman *mm_, Arena *arena)
 		cmd->RemoveCommand("objinfo", Cobjinfo, ALLARENAS);
 		cmd->RemoveCommand("objlist", Cobjlist, ALLARENAS);
 
+		mm->ReleaseInterface(mainloop);
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(mapdata);
 		mm->ReleaseInterface(cfg);
@@ -632,11 +635,17 @@ local void one_lvz_file(const char *fn, int optional, void *clos)
 	MMapData *mmd = MapFile(fn, FALSE);
 	if (mmd)
 	{
-		lm->LogA(L_DRIVEL, "objects", arena,
-				"reading object: %s", fn);
+		lm->LogA(L_DRIVEL, "objects", arena, "reading object: %s", fn);
 		ReadLVZFile(arena, mmd->data, mmd->len, optional);
 		UnmapFile(mmd);
 	}
+}
+
+local void aaction_work(void *clos)
+{
+	Arena *arena = clos;
+	mapdata->EnumLVZFiles(arena, one_lvz_file, arena);
+	aman->Unhold(arena);
 }
 
 void ArenaAction(Arena *arena, int action)
@@ -649,12 +658,12 @@ void ArenaAction(Arena *arena, int action)
 	}
 	else if (action == AA_CREATE)
 	{
-		mapdata->EnumLVZFiles(arena, one_lvz_file, arena);
+		mainloop->RunInThread(aaction_work, arena);
+		aman->Hold(arena);
 	}
 	else if (action == AA_DESTROY)
 	{
 		Link *l;
-
 		for (l = LLGetHead(&ad->list); l; l = l->next)
 			afree(l->data);
 		LLEmpty(&ad->list);

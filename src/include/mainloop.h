@@ -23,6 +23,9 @@ typedef int (*TimerFunc)(void *param);
  */
 typedef void (*CleanupFunc)(void *param);
 
+/** threadpool work functions must be of this type. */
+typedef void (*WorkFunc)(void *param);
+
 /** this callback is called once per iteration of the main loop.
  * probably a few hundred times per second.
  */
@@ -82,6 +85,9 @@ typedef struct Imainloop
 	 * @param code the exit code to be returned to the OS
 	 */
 	void (*Quit)(int code);
+
+	/** Runs the given function on some other thread. */
+	void (*RunInThread)(WorkFunc func, void *param);
 } Imainloop;
 
 

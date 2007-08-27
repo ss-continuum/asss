@@ -44,19 +44,17 @@ typedef struct ELVL
 	HashTable *attrs;
 	HashTable *regions;
 	HashTable *rawchunks;
-	/* if loading is true, you're not allowed to read any other fields */
-	int errors, flags, action, loading;
+	int errors, flags;
 	pthread_mutex_t mtx;
 } ELVL;
 
 
 /* global data */
 local int lvlkey;
-local MPQueue work_queue;
-local pthread_t work_thread;
 
 /* cached interfaces */
 local Imodman *mm;
+local Imainloop *mainloop;
 local Iconfig *cfg;
 local Iarenaman *aman;
 local Ilogman *lm;
@@ -533,7 +531,7 @@ local void EnumLVZFiles(Arena *arena,
 local const char * GetAttr(Arena *arena, const char *key)
 {
 	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
-	if (!lvl->loading && lvl->attrs)
+	if (lvl->attrs)
 		return HashGetOne(lvl->attrs, key);
 	else
 		return NULL;
@@ -543,7 +541,7 @@ local const char * GetAttr(Arena *arena, const char *key)
 local int MapChunk(Arena *arena, u32 ctype, const void **datap, int *sizep)
 {
 	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
-	if (!lvl->loading && lvl->rawchunks)
+	if (lvl->rawchunks)
 	{
 		chunk *c;
 		u32 buf[2] = { 0, 0 };
@@ -563,10 +561,7 @@ local int MapChunk(Arena *arena, u32 ctype, const void **datap, int *sizep)
 local int GetFlagCount(Arena *a)
 {
 	ELVL *lvl = P_ARENA_DATA(a, lvlkey);
-	if (!lvl->loading)
-		return lvl->flags;
-	else
-		return -1;
+	return lvl->flags;
 }
 
 
@@ -575,10 +570,7 @@ local enum map_tile_t GetTile(Arena *a, int x, int y)
 	int ret;
 	ELVL *lvl = P_ARENA_DATA(a, lvlkey);
 	pthread_mutex_lock(&lvl->mtx);
-	if (lvl->loading || !lvl->tiles)
-		ret = -1;
-	else
-		ret = lookup_sparse(lvl->tiles, x, y);
+	ret = lvl->tiles ? lookup_sparse(lvl->tiles, x, y) : -1;
 	pthread_mutex_unlock(&lvl->mtx);
 	return ret;
 }
@@ -602,7 +594,7 @@ local void FindEmptyTileNear(Arena *arena, int *x, int *y)
 	pthread_mutex_lock(&lvl->mtx);
 
 	arr = lvl->tiles;
-	if (lvl->loading || !arr)
+	if (!arr)
 		goto failed;
 
 	/* do it */
@@ -663,7 +655,7 @@ local int FindBrickEndpoints(
 	pthread_mutex_lock(&lvl->mtx);
 
 	arr = lvl->tiles;
-	if (lvl->loading || lookup_sparse(arr, dropx, dropy))
+	if (lookup_sparse(arr, dropx, dropy))
 	{
 		pthread_mutex_unlock(&lvl->mtx);
 		return FALSE;
@@ -961,7 +953,7 @@ local u32 GetChecksum(Arena *arena, u32 key)
 	pthread_mutex_lock(&lvl->mtx);
 
 	arr = lvl->tiles;
-	if (lvl->loading || !arr)
+	if (!arr)
 		goto failed;
 
 	for (y = savekey % 32; y < 1024; y += 32)
@@ -985,9 +977,8 @@ local void DoBrick(Arena *arena, int drop, int x1, int y1, int x2, int y2)
 	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
 
 	pthread_mutex_lock(&lvl->mtx);
-
 	arr = lvl->tiles;
-	if (lvl->loading || !arr)
+	if (!arr)
 		goto failed;
 
 	if (x1 == x2)
@@ -1022,11 +1013,6 @@ local void GetMemoryStats(Arena *arena, struct mapdata_memory_stats_t *stats)
 	/* get data for lvl itself */
 	bts = blks = 0;
 	pthread_mutex_lock(&lvl->mtx);
-	if (lvl->loading)
-	{
-		pthread_mutex_unlock(&lvl->mtx);
-		return;
-	}
 	sparse_allocated(lvl->tiles, &bts, &blks);
 	pthread_mutex_unlock(&lvl->mtx);
 	stats->lvlbytes = bts;
@@ -1138,50 +1124,36 @@ local Region * GetOneContaining(Arena *arena, int x, int y)
 	return set ? *set : NULL;
 }
 
-
-local void * work_thread_func(void *dummy)
+local void aaction_work(void *clos)
 {
-	for (;;)
+	Arena *arena = clos;
+	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
+
+	pthread_mutex_lock(&lvl->mtx);
+	/* clear on either create or destory */
+	clear_level(lvl);
+	/* on create, do work */
+	if (arena->status < ARENA_RUNNING)
 	{
-		ELVL *lvl;
-		Arena *arena = MPRemove(&work_queue);
-		if (!arena)
-			return NULL;
-
-		lvl = P_ARENA_DATA(arena, lvlkey);
-
-		/* make sure loading is true, so we can modify things in lvl */
-		pthread_mutex_lock(&lvl->mtx);
-		assert(lvl->loading);
-		pthread_mutex_unlock(&lvl->mtx);
-
-		/* clear on either create or destory */
-		clear_level(lvl);
-		/* on create, do work */
-		if (lvl->action == AA_CREATE)
+		char mapname[256];
+		if (GetMapFilename(arena, mapname, sizeof(mapname), NULL) &&
+		    load_from_file(lvl, mapname))
 		{
-			char mapname[256];
-			if (GetMapFilename(arena, mapname, sizeof(mapname), NULL) &&
-			    load_from_file(lvl, mapname))
-			{
-				lm->LogA(L_INFO, "mapdata", arena, "successfully processed map file '%s'",
-						mapname);
-			}
-			else
-			{
-				/* fall back to emergency. this matches the compressed map
-				 * in mapnewsdl.c. */
-				lm->LogA(L_WARN, "mapdata", arena, "error finding or reading level file");
-				lvl->tiles = init_sparse();
-				insert_sparse(lvl->tiles, 0, 0, 1);
-				lvl->flags = lvl->errors = 0;
-			}
+			lm->LogA(L_INFO, "mapdata", arena,
+					"successfully processed map file '%s'", mapname);
 		}
-		pthread_mutex_lock(&lvl->mtx);
-		lvl->loading = FALSE;
-		pthread_mutex_unlock(&lvl->mtx);
-		aman->Unhold(arena);
+		else
+		{
+			/* fall back to emergency. this matches the compressed map
+			 * in mapnewsdl.c. */
+			lm->LogA(L_WARN, "mapdata", arena, "error finding or reading level file");
+			lvl->tiles = init_sparse();
+			insert_sparse(lvl->tiles, 0, 0, 1);
+			lvl->flags = lvl->errors = 0;
+		}
 	}
+	pthread_mutex_unlock(&lvl->mtx);
+	aman->Unhold(arena);
 }
 
 local void md_aaction(Arena *arena, int action)
@@ -1194,12 +1166,10 @@ local void md_aaction(Arena *arena, int action)
 		pthread_mutex_destroy(&lvl->mtx);
 
 	/* pass these actions to the worker thread */
-	if (action == AA_CREATE || action == AA_DESTROY)
+	if (action == AA_PRECREATE || action == AA_DESTROY)
 	{
-		lvl->action = action;
-		lvl->loading = TRUE;
+		mainloop->RunInThread(aaction_work, arena);
 		aman->Hold(arena);
-		MPAdd(&work_queue, arena);
 	}
 }
 
@@ -1226,18 +1196,15 @@ EXPORT int MM_mapdata(int action, Imodman *mm_, Arena *arena)
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
+		mainloop = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		prng = mm->GetInterface(I_PRNG, ALLARENAS);
-		if (!cfg || !aman || !lm || !prng) return MM_FAIL;
+		if (!mainloop || !cfg || !aman || !lm || !prng) return MM_FAIL;
 
 		lvlkey = aman->AllocateArenaData(sizeof(ELVL));
 		if (lvlkey == -1) return MM_FAIL;
-
-		MPInit(&work_queue);
-
-		pthread_create(&work_thread, NULL, work_thread_func, NULL);
 
 		mm->RegCallback(CB_ARENAACTION, md_aaction, ALLARENAS);
 
@@ -1251,13 +1218,9 @@ EXPORT int MM_mapdata(int action, Imodman *mm_, Arena *arena)
 
 		mm->UnregCallback(CB_ARENAACTION, md_aaction, ALLARENAS);
 
-		MPAdd(&work_queue, NULL);
-		pthread_join(work_thread, NULL);
-
-		MPDestroy(&work_queue);
-
 		aman->FreeArenaData(lvlkey);
 
+		mm->ReleaseInterface(mainloop);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);

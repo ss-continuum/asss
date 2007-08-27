@@ -70,6 +70,12 @@ enum
 {
 	/** someone wants to enter the arena. first, the config file must be
 	 ** loaded and callbacks called. */
+	ARENA_DO_INIT0,
+
+	/** waiting for first round of callbacks */
+	ARENA_WAIT_HOLDS0,
+
+	/** attaching and more callbacks */
 	ARENA_DO_INIT1,
 
 	/** waiting on modules to do init work. */
@@ -189,8 +195,8 @@ typedef struct Iarenaman
 	 ** next stage in initialization until the hold is removed.
 	 * This can be used to do some time-consuming work during arena
 	 * creation asynchronously, e.g. in another thread. It may only be
-	 * used in CB_ARENAACTION callbacks, only for AA_CREATE and
-	 * AA_DESTROY actions.
+	 * used in CB_ARENAACTION callbacks, only for AA_PRECREATE,
+	 * AA_CREATE and AA_DESTROY actions.
 	 */
 	void (*Hold)(Arena *a);
 	/* pyint: arena -> void */

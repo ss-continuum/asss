@@ -114,11 +114,10 @@ local int ProcessArenaStates(void *dummy)
 
 		switch (status)
 		{
-			case ARENA_RUNNING:
-			case ARENA_CLOSING:
-			case ARENA_WAIT_SYNC1:
-			case ARENA_WAIT_SYNC2:
-				continue;
+			case ARENA_WAIT_HOLDS0:
+				if (ad->holds == 0)
+					status = a->status = ARENA_DO_INIT1;
+				break;
 			case ARENA_WAIT_HOLDS1:
 				if (ad->holds == 0)
 					status = a->status = ARENA_DO_INIT2;
@@ -131,14 +130,19 @@ local int ProcessArenaStates(void *dummy)
 
 		switch (status)
 		{
-			case ARENA_DO_INIT1:
-				/* some callbacks */
-				DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_PRECREATE));
+			case ARENA_DO_INIT0:
 				/* config file */
 				a->cfg = cfg->OpenConfigFile(a->basename, NULL, arena_conf_changed, a);
 				/* cfghelp: Team:SpectatorFrequency, arena, int, range: 0-9999, def: 8025
 				 * The frequency that spectators are assigned to, by default. */
 				a->specfreq = cfg->GetInt(a->cfg, "Team", "SpectatorFrequency", CFG_DEF_SPEC_FREQ);
+				/* some callbacks */
+				a->status = ARENA_WAIT_HOLDS0;
+				assert(ad->holds == 0);
+				DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_PRECREATE));
+				break;
+
+			case ARENA_DO_INIT1:
 				/* attach modules */
 				do_attach(a);
 				/* set up for callbacks */
@@ -203,7 +207,7 @@ local int ProcessArenaStates(void *dummy)
 					 * modules like it was just created. */
 					memset(a->arenaextradata, 0, perarenaspace);
 					ad->resurrect = FALSE;
-					a->status = ARENA_DO_INIT1;
+					a->status = ARENA_DO_INIT0;
 				}
 				else
 				{
@@ -238,7 +242,7 @@ local Arena * create_arena(const char *name)
 	if (t < a->basename)
 		astrncpy(a->basename, AG_PUBLIC, 20);
 
-	a->status = ARENA_DO_INIT1;
+	a->status = ARENA_DO_INIT0;
 	a->cfg = NULL;
 	ad->holds = 0;
 	ad->resurrect = FALSE;
@@ -557,7 +561,7 @@ local void complete_go(Player *p, const char *reqname, int ship,
 
 	/* try to locate an existing arena */
 	WRLOCK();
-	a = do_find_arena(name, ARENA_DO_INIT1, ARENA_DO_DESTROY2);
+	a = do_find_arena(name, ARENA_DO_INIT0, ARENA_DO_DESTROY2);
 
 	if (a == NULL)
 	{
@@ -883,7 +887,8 @@ local void Hold(Arena *a)
 {
 	adata *ad = P_ARENA_DATA(a, adkey);
 	WRLOCK();
-	if (a->status == ARENA_WAIT_HOLDS1 ||
+	if (a->status == ARENA_WAIT_HOLDS0 ||
+	    a->status == ARENA_WAIT_HOLDS1 ||
 	    a->status == ARENA_WAIT_HOLDS2)
 	{
 		ad->holds++;
@@ -899,7 +904,8 @@ local void Unhold(Arena *a)
 {
 	adata *ad = P_ARENA_DATA(a, adkey);
 	WRLOCK();
-	if ((a->status == ARENA_WAIT_HOLDS1 ||
+	if ((a->status == ARENA_WAIT_HOLDS0 ||
+	     a->status == ARENA_WAIT_HOLDS1 ||
 	     a->status == ARENA_WAIT_HOLDS2) &&
 	    ad->holds > 0)
 	{

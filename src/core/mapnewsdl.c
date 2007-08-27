@@ -249,23 +249,6 @@ fail1:
 }
 
 
-/* call with arena data lock */
-local void free_maps(Arena *arena)
-{
-	LinkedList *dls;
-	Link *l;
-
-	dls = P_ARENA_DATA(arena, dlkey);
-	for (l = LLGetHead(dls); l; l = l->next)
-	{
-		struct MapDownloadData *data = l->data;
-		afree(data->cmpmap);
-		afree(data);
-	}
-	LLEmpty(dls);
-}
-
-
 local void one_lvz_file(const char *fn, int optional, void *clos)
 {
 	struct MapDownloadData *data = compress_map(fn, FALSE);
@@ -276,50 +259,66 @@ local void one_lvz_file(const char *fn, int optional, void *clos)
 	}
 }
 
+local void aaction_work(void *clos)
+{
+	Arena *arena = clos;
+	LinkedList *dls = P_ARENA_DATA(arena, dlkey);
+	struct MapDownloadData *data = NULL;
+	char fname[256];
+
+	/* first add the map itself */
+	/* cfghelp: General:Map, arena, string
+	 * The name of the level file for this arena. */
+	if (mapdata->GetMapFilename(arena, fname, sizeof(fname), NULL))
+		data = compress_map(fname, TRUE);
+
+	if (!data)
+	{
+		/* emergency hardcoded map: */
+		byte emergencymap[] =
+		{
+			0x2a, 0x74, 0x69, 0x6e, 0x79, 0x6d, 0x61, 0x70,
+			0x2e, 0x6c, 0x76, 0x6c, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x78, 0x9c, 0x63, 0x60, 0x60, 0x60, 0x04,
+			0x00, 0x00, 0x05, 0x00, 0x02
+		};
+
+		lm->LogA(L_WARN, "mapnewsdl", arena, "can't load level file, falling back to tinymap.lvl");
+		data = amalloc(sizeof(*data));
+		data->checksum = 0x5643ef8a;
+		data->uncmplen = 4;
+		data->cmplen = sizeof(emergencymap);
+		data->cmpmap  = amalloc(sizeof(emergencymap));
+		memcpy(data->cmpmap, emergencymap, sizeof(emergencymap));
+		astrncpy(data->filename, "tinymap.lvl", sizeof(data->filename));
+	}
+
+	LLAdd(dls, data);
+
+	/* now look for lvzs */
+	mapdata->EnumLVZFiles(arena, one_lvz_file, dls);
+
+	aman->Unhold(arena);
+}
+
 local void ArenaAction(Arena *arena, int action)
 {
-	LinkedList *dls = P_ARENA_DATA(arena, dlkey);
-
-	/* clear any old maps lying around */
-	if (action == AA_CREATE || action == AA_DESTROY)
-		free_maps(arena);
-
 	if (action == AA_CREATE)
 	{
-		struct MapDownloadData *data = NULL;
-		char fname[256];
-
-		/* first add the map itself */
-		/* cfghelp: General:Map, arena, string
-		 * The name of the level file for this arena. */
-		if (mapdata->GetMapFilename(arena, fname, sizeof(fname), NULL))
-			data = compress_map(fname, TRUE);
-
-		if (!data)
+		ml->RunInThread(aaction_work, arena);
+		aman->Hold(arena);
+	}
+	else if (action == AA_DESTROY)
+	{
+		LinkedList *dls = P_ARENA_DATA(arena, dlkey);
+		Link *l;
+		for (l = LLGetHead(dls); l; l = l->next)
 		{
-			/* emergency hardcoded map: */
-			byte emergencymap[] =
-			{
-				0x2a, 0x74, 0x69, 0x6e, 0x79, 0x6d, 0x61, 0x70,
-				0x2e, 0x6c, 0x76, 0x6c, 0x00, 0x00, 0x00, 0x00,
-				0x00, 0x78, 0x9c, 0x63, 0x60, 0x60, 0x60, 0x04,
-				0x00, 0x00, 0x05, 0x00, 0x02
-			};
-
-			lm->LogA(L_WARN, "mapnewsdl", arena, "can't load level file, falling back to tinymap.lvl");
-			data = amalloc(sizeof(*data));
-			data->checksum = 0x5643ef8a;
-			data->uncmplen = 4;
-			data->cmplen = sizeof(emergencymap);
-			data->cmpmap  = amalloc(sizeof(emergencymap));
-			memcpy(data->cmpmap, emergencymap, sizeof(emergencymap));
-			astrncpy(data->filename, "tinymap.lvl", sizeof(data->filename));
+			struct MapDownloadData *data = l->data;
+			afree(data->cmpmap);
+			afree(data);
 		}
-
-		LLAdd(dls, data);
-
-		/* now look for lvzs */
-		mapdata->EnumLVZFiles(arena, one_lvz_file, dls);
+		LLEmpty(dls);
 	}
 }
 

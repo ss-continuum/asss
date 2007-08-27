@@ -124,6 +124,10 @@
 #define CFG_HANDLE_SEGV 2
 
 
+/* how many threads there are in the general-purpose thread pool. */
+#define CFG_THREAD_POOL_WORKER_THREADS 3
+
+
 /* pyconst: config end */
 /* dist: public */
 

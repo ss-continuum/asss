@@ -8,7 +8,6 @@
 #include "asss.h"
 
 
-
 typedef struct TimerData
 {
 	TimerFunc func;
@@ -18,53 +17,24 @@ typedef struct TimerData
 	int killme;
 } TimerData;
 
-
-
-local void StartTimer(TimerFunc, int, int, void *, void *);
-local void ClearTimer(TimerFunc, void *);
-local void CleanupTimer(TimerFunc func, void *key, CleanupFunc cleanup);
-
-local int RunLoop(void);
-local void KillML(int code);
-
-
-
-local Imainloop _int =
+typedef struct WorkData
 {
-	INTERFACE_HEAD_INIT(I_MAINLOOP, "mainloop")
-	StartTimer, ClearTimer, CleanupTimer, RunLoop, KillML
-};
+	WorkFunc func;
+	void *param;
+} WorkData;
+
 
 local int privatequit;
 local TimerData *thistimer;
 local LinkedList timers;
 local Imodman *mm;
 
+local pthread_t worker_threads[CFG_THREAD_POOL_WORKER_THREADS];
+local MPQueue work_queue;
+
 local pthread_mutex_t tmrmtx = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK() pthread_mutex_lock(&tmrmtx)
 #define UNLOCK() pthread_mutex_unlock(&tmrmtx)
-
-
-EXPORT int MM_mainloop(int action, Imodman *mm_, Arena *arena)
-{
-	if (action == MM_LOAD)
-	{
-		mm = mm_;
-		privatequit = 0;
-		LLInit(&timers);
-		mm->RegInterface(&_int, ALLARENAS);
-		return MM_OK;
-	}
-	else if (action == MM_UNLOAD)
-	{
-		LLEnum(&timers, afree);
-		LLEmpty(&timers);
-		if (mm->UnregInterface(&_int, ALLARENAS))
-			return MM_FAIL;
-		return MM_OK;
-	}
-	return MM_FAIL;
-}
 
 
 int RunLoop(void)
@@ -168,5 +138,64 @@ void CleanupTimer(TimerFunc func, void *key, CleanupFunc cleanup)
 void ClearTimer(TimerFunc f, void *key)
 {
 	CleanupTimer(f, key, NULL);
+}
+
+
+void RunInThread(WorkFunc func, void *param)
+{
+	WorkData *wd = amalloc(sizeof(*wd));
+	wd->func = func;
+	wd->param = param;
+	MPAdd(&work_queue, wd);
+}
+
+local void *thread_main(void *dummy)
+{
+	for (;;)
+	{
+		WorkData *wd = MPRemove(&work_queue);
+		if (!wd)
+			return NULL;
+		wd->func(wd->param);
+		afree(wd);
+	}
+}
+
+
+local Imainloop _int =
+{
+	INTERFACE_HEAD_INIT(I_MAINLOOP, "mainloop")
+	StartTimer, ClearTimer, CleanupTimer, RunLoop, KillML,
+	RunInThread
+};
+
+EXPORT int MM_mainloop(int action, Imodman *mm_, Arena *arena)
+{
+	int i;
+	if (action == MM_LOAD)
+	{
+		mm = mm_;
+		privatequit = 0;
+		LLInit(&timers);
+		MPInit(&work_queue);
+		for (i = 0; i < CFG_THREAD_POOL_WORKER_THREADS; i++)
+			pthread_create(&worker_threads[i], NULL, thread_main, NULL);
+		mm->RegInterface(&_int, ALLARENAS);
+		return MM_OK;
+	}
+	else if (action == MM_UNLOAD)
+	{
+		LLEnum(&timers, afree);
+		LLEmpty(&timers);
+		for (i = 0; i < CFG_THREAD_POOL_WORKER_THREADS; i++)
+			MPAdd(&work_queue, NULL);
+		for (i = 0; i < CFG_THREAD_POOL_WORKER_THREADS; i++)
+			pthread_join(worker_threads[i], NULL);
+		MPDestroy(&work_queue);
+		if (mm->UnregInterface(&_int, ALLARENAS))
+			return MM_FAIL;
+		return MM_OK;
+	}
+	return MM_FAIL;
 }
 
