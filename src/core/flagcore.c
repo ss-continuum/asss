@@ -448,6 +448,17 @@ local void paction(Player *p, int action, Arena *a)
 	check_consistency();
 }
 
+local void newplayer(Player *p, int new)
+{
+	if (p->type == T_FAKE && p->arena && !new)
+	{
+		/* extra cleanup for fake players that were carrying flags,
+		 * since PA_LEAVEARENA isn't called. */
+		cleanup(p, p->arena, CLEANUP_LEFTARENA);
+	}
+	check_consistency();
+}
+
 local void shipchange(Player *p, int newship, int newfreq)
 {
 	cleanup(p, p->arena, CLEANUP_SHIPCHANGE);
@@ -838,6 +849,7 @@ EXPORT int MM_flagcore(int action, Imodman *mm_, Arena *a)
 		net->AddPacket(C2S_DROPFLAGS, p_flagtimer);
 
 		mm->RegCallback(CB_PLAYERACTION, paction, ALLARENAS);
+		mm->RegCallback(CB_NEWPLAYER, newplayer, ALLARENAS);
 		mm->RegCallback(CB_ARENAACTION, aaction, ALLARENAS);
 		mm->RegCallback(CB_SHIPCHANGE, shipchange, ALLARENAS);
 		mm->RegCallback(CB_FREQCHANGE, freqchange, ALLARENAS);
@@ -855,6 +867,7 @@ EXPORT int MM_flagcore(int action, Imodman *mm_, Arena *a)
 		ml->ClearTimer(send_turf_timer, NULL);
 
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
+		mm->UnregCallback(CB_NEWPLAYER, newplayer, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
 		mm->UnregCallback(CB_SHIPCHANGE, shipchange, ALLARENAS);
 		mm->UnregCallback(CB_FREQCHANGE, freqchange, ALLARENAS);

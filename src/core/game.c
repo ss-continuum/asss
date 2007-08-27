@@ -565,7 +565,7 @@ local void add_speccing(pdata *data, Player *t)
 		if (tdata->epd_queries++ == 0)
 		{
 			byte pkt[2] = { S2C_SPECDATA, 1 };
-			net->SendToOne(data->speccing, pkt, 2, NET_RELIABLE);
+			net->SendToOne(t, pkt, 2, NET_RELIABLE);
 		}
 	}
 }
@@ -1246,6 +1246,30 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 }
 
 
+local void NewPlayer(Player *p, int new)
+{
+	if (p->type == T_FAKE && !new)
+	{
+		/* extra cleanup for fake players since PA_LEAVEARENA isn't
+		 * called. fake players can't be speccing anyone else, but other
+		 * players can be speccing them. */
+		Link *link;
+		Player *i;
+		pdata *idata;
+
+		pthread_mutex_lock(&specmtx);
+
+		pd->Lock();
+		FOR_EACH_PLAYER_P(i, idata, pdkey)
+			if (idata->speccing == p)
+				clear_speccing(idata);
+		pd->Unlock();
+
+		pthread_mutex_unlock(&specmtx);
+	}
+}
+
+
 local void ArenaAction(Arena *arena, int action)
 {
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
@@ -1525,6 +1549,7 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		wpnrange[W_THOR] = 30000;
 
 		mm->RegCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
+		mm->RegCallback(CB_NEWPLAYER, NewPlayer, ALLARENAS);
 		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 
 		net->AddPacket(C2S_POSITION, Pppk);
@@ -1569,6 +1594,7 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		net->RemovePacket(C2S_ATTACHTO, PAttach);
 		net->RemovePacket(C2S_TURRETKICKOFF, PKickoff);
 		mm->UnregCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
+		mm->UnregCallback(CB_NEWPLAYER, NewPlayer, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 		if (persist)
 			persist->UnregPlayerPD(&persdata);
