@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "asss.h"
+#include "packets/mapfname.h"
 
 /* extra includes */
 #include "pathutil.h"
@@ -515,10 +516,12 @@ local void EnumLVZFiles(Arena *arena,
 		void *clos)
 {
 	char lvzname[256], fname[256];
+	int count = 0;
 	const char *tmp = NULL;
 	const char *lvzs = cfg->GetStr(arena->cfg, "General", "LevelFiles");
 	if (!lvzs) lvzs = cfg->GetStr(arena->cfg, "Misc", "LevelFiles");
-	while (strsplit(lvzs, ",: ", lvzname, sizeof(lvzname), &tmp))
+	while (strsplit(lvzs, ",: ", lvzname, sizeof(lvzname), &tmp) &&
+	       ++count <= MAX_LVZ_FILES)
 	{
 		char *real = lvzname[0] == '+' ? lvzname+1 : lvzname;
 		if (GetMapFilename(arena, fname, sizeof(fname), real))
@@ -530,7 +533,7 @@ local void EnumLVZFiles(Arena *arena,
 local const char * GetAttr(Arena *arena, const char *key)
 {
 	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
-	if (lvl->attrs)
+	if (!lvl->loading && lvl->attrs)
 		return HashGetOne(lvl->attrs, key);
 	else
 		return NULL;
@@ -540,7 +543,7 @@ local const char * GetAttr(Arena *arena, const char *key)
 local int MapChunk(Arena *arena, u32 ctype, const void **datap, int *sizep)
 {
 	ELVL *lvl = P_ARENA_DATA(arena, lvlkey);
-	if (lvl->rawchunks)
+	if (!lvl->loading && lvl->rawchunks)
 	{
 		chunk *c;
 		u32 buf[2] = { 0, 0 };
@@ -559,7 +562,11 @@ local int MapChunk(Arena *arena, u32 ctype, const void **datap, int *sizep)
 
 local int GetFlagCount(Arena *a)
 {
-	return ((ELVL*)P_ARENA_DATA(a, lvlkey))->flags;
+	ELVL *lvl = P_ARENA_DATA(a, lvlkey);
+	if (!lvl->loading)
+		return lvl->flags;
+	else
+		return -1;
 }
 
 

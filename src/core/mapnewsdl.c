@@ -116,7 +116,7 @@ local u32 GetNewsChecksum(void)
 
 local void SendMapFilename(Player *p)
 {
-	struct MapFilename *mf;
+	struct MapFilename mf;
 	LinkedList *dls;
 	struct MapDownloadData *data;
 	int len;
@@ -139,34 +139,29 @@ local void SendMapFilename(Player *p)
 		int idx = 0;
 		Link *l;
 
-		/* allocate for the maximum possible */
-		mf = alloca(1 + sizeof(mf->files[0]) * LLCount(dls));
-
 		for (l = LLGetHead(dls); l; l = l->next)
 		{
 			data = l->data;
 			if (!data->optional || p->flags.want_all_lvz)
 			{
-				strncpy(mf->files[idx].filename, data->filename, 16);
-				mf->files[idx].checksum = data->checksum;
-				mf->files[idx].size = data->cmplen;
+				strncpy(mf.files[idx].filename, data->filename, 16);
+				mf.files[idx].checksum = data->checksum;
+				mf.files[idx].size = data->cmplen;
 				idx++;
 			}
 		}
-		len = 1 + sizeof(mf->files[0]) * idx;
+		len = 1 + sizeof(mf.files[0]) * idx;
 	}
 	else
 	{
 		data = LLGetHead(dls)->data;
-		mf = alloca(21);
-
-		strncpy(mf->files[0].filename, data->filename, 16);
-		mf->files[0].checksum = data->checksum;
+		strncpy(mf.files[0].filename, data->filename, 16);
+		mf.files[0].checksum = data->checksum;
 		len = 21;
 	}
 
-	mf->type = S2C_MAPFILENAME;
-	net->SendToOne(p, (byte*)mf, len, NET_RELIABLE);
+	mf.type = S2C_MAPFILENAME;
+	net->SendToOne(p, (byte*)&mf, len, NET_RELIABLE);
 }
 
 

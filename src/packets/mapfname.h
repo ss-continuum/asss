@@ -6,6 +6,7 @@
 
 /* mapfname.h - map filename packet */
 
+#define MAX_LVZ_FILES 16
 
 struct MapFilename
 {
@@ -15,7 +16,7 @@ struct MapFilename
 		char filename[16];
 		u32 checksum;
 		u32 size; /* cont only */
-	} files[1];
+	} files[MAX_LVZ_FILES + 1];
 };
 
 #endif
