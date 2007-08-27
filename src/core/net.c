@@ -378,7 +378,7 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		 * How long to get no data from a client before disconnecting
 		 * him (in ticks). */
 		config.droptimeout = cfg->GetInt(GLOBAL, "Net", "DropTimeout", 3000);
-		/* cfghelp: Net:MaxOutlistSize, global, int, def: 200
+		/* cfghelp: Net:MaxOutlistSize, global, int, def: 500
 		 * How many S2C packets the server will buffer for a client
 		 * before dropping him. */
 		config.maxoutlist = cfg->GetInt(GLOBAL, "Net", "MaxOutlistSize", 500);
