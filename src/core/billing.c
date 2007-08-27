@@ -705,7 +705,7 @@ local void process_rmtsqd(const char *line)
 
 	pd->Lock();
 	FOR_EACH_PLAYER(p)
-		if (strcmp(destsq, p->squad) == 0)
+		if (strcasecmp(destsq, p->squad) == 0)
 			LLAdd(&list, p);
 	pd->Unlock();
 
