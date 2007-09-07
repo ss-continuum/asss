@@ -1,7 +1,7 @@
 
 Hi. This is a development release of asss ("a small subspace server").
 If you have any questions or comments, mail them to grelminar@yahoo.com.
-The official home page of asss is http://sscx.net/asss/.
+The official home page of asss is http://asss.yi.org/.
 The forum at http://forums.minegoboom.com/ (not run by me) is also a
 helpful resource.
 
@@ -30,7 +30,7 @@ module is somewhat better tested than the alternative.
 
 Known bugs:
 
-See http://sscx.net/asss/bugs/
+See http://asss.yi.org/bugs/
 
 
 Contributors:
@@ -51,4 +51,5 @@ Snrrrub <snrrrub@yahoo.com> - misc. fixes and other stuff
 Dr Brain <?> - initial ?putmap implementation
 The Junky <the_junky@extreme-games.net> - alias db enhancements
 Niadh - obscene implementation
+numpf - various contributions
 

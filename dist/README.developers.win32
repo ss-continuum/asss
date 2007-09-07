@@ -5,7 +5,7 @@ introduction
 There's source included in the src directory. There are some modules
 that I can't include the source to for various reasons. There's a
 binary of them for windows (bin/security.dll) included. More developer
-documentation is available at http://sscx.net/asss/
+documentation is available at http://asss.yi.org/
 
 To build asss, you'll need to download a few extra libraries and programs.
 

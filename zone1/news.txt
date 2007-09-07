@@ -1,5 +1,5 @@
 
-Welcome to asss (a small subspace server) 1.4.3.
+Welcome to asss (a small subspace server) 1.4.4.
 
 asss is a new subspace server, written from scratch. It has lots of cool
 new features and improvements over subgame.
@@ -9,13 +9,9 @@ important information.
 
 This server is connected to the SSC billing server.
 
-Web: http://sscx.net/asss/
+Web: http://asss.yi.org/asss/
 Email: grelminar@yahoo.com
 
-Recent updates:
-    * many more bug fixes.
-
-    * more detail at http://sscx.net/asss/changelog.txt
 
 
  vim: et ff=dos

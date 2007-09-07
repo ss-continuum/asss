@@ -1233,7 +1233,7 @@ void * MPTryRemove(MPQueue *q)
 	pthread_mutex_unlock(&q->mtx);
 	return data;
 }
-	
+
 void * MPRemove(MPQueue *q)
 {
 	void *data;
