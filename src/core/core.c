@@ -73,7 +73,7 @@ local Istats *stats;
 
 local int pdkey;
 
-#define CVERSION_CONT 39
+#define CVERSION_CONT 40
 #define CVERSION_VIE 134
 
 local u32 contchecksum, codechecksum;
