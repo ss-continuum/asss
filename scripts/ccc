@@ -2,7 +2,7 @@
 # ccc - a console chat client for asss <grelminar@yahoo.com>
 # dist: public
 
-ccc_version = '2.5'
+ccc_version = '2.6'
 
 import sys, time, curses, socket, select, os
 
@@ -279,7 +279,12 @@ class Line:
 		me.lastopts = None
 		me.lastres = None
 
+	def halfdayid(me):
+		return time.strftime('[%a %b %d %p]', time.localtime(me.time))
+
 	def wordbreak(me, width, showtime = 0, indent = 2):
+		if me.time is None:
+			showtime = 0
 
 		if me.lastopts != (width, showtime, indent):
 			me.lastopts = (width, showtime, indent)
@@ -325,6 +330,12 @@ class Line:
 class Text:
 	def __init__(me):
 		me.lines = []
+
+	def lastline(me):
+		if not me.lines:
+			return None
+		else:
+			return me.lines[-1]
 
 	def addline(me, l):
 		me.lines.append(l)
@@ -695,6 +706,7 @@ class Colors:
 
 		me.default = color_pair(0)
 		me.info = color_pair(14 % me.pairs) | A_BOLD
+		me.date = color_pair(6 % me.pairs)
 		me.arena = color_pair(10 % me.pairs) | A_BOLD
 		me.pub = color_pair(15 % me.pairs)
 		me.priv = color_pair(2)
@@ -821,6 +833,10 @@ def try_load_log_history():
 			view = find_mod_view()
 		if not view:
 			view = views[0]
+		lastline = view.text.lastline()
+		if lastline and lastline.halfdayid() != lineobj.halfdayid():
+			dateline = Line(lineobj.halfdayid(), colors.date, tm = None)
+			view.text.addline(dateline)
 		view.text.addline(lineobj)
 
 
@@ -1264,6 +1280,11 @@ def add_line(line, color = None, view = None, setnewcrap = 1, sync = 0, no_all_v
 		color = colors.info
 	# add the line to the target view
 	lineobj = Line(line, color)
+	# maybe add current date
+	lastline = view.text.lastline()
+	if lastline and lastline.halfdayid() != lineobj.halfdayid():
+		dateline = Line(lineobj.halfdayid(), colors.date, tm = None)
+		view.text.addline(dateline)
 	view.text.addline(lineobj)
 	if view != views[0] and setnewcrap:
 		view.newcrap += 1
