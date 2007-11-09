@@ -13,7 +13,7 @@ local Inet *net;
 local Ichatnet *chatnet;
 local Icmdman *cmd;
 local Ilogman *lm;
-
+local Imainloop *ml;
 
 local Player * CreateFakePlayer(const char *name, Arena *arena, int ship, int freq)
 {
@@ -48,20 +48,11 @@ local Player * CreateFakePlayer(const char *name, Arena *arena, int ship, int fr
 	return p;
 }
 
-
-local int EndFaked(Player *p)
+local int end_fake_timer_callback(void *clos)
 {
-	Arena *arena;
+	Player *p = clos;
+	Arena *arena = p->arena;
 	struct SimplePacket pk = { S2C_PLAYERLEAVING };
-
-	if (!p)
-		return 0;
-	if (p->type != T_FAKE)
-		return 0;
-	if (p->status != S_PLAYING || !p->arena)
-		lm->LogP(L_WARN, "fake", p, "fake player with bad status");
-
-	arena = p->arena;
 
 	/* leave arena */
 	if (arena)
@@ -80,6 +71,20 @@ local int EndFaked(Player *p)
 
 	/* leave game */
 	pd->FreePlayer(p);
+
+	return FALSE;
+}
+
+local int EndFaked(Player *p)
+{
+	if (!p)
+		return 0;
+	if (p->type != T_FAKE)
+		return 0;
+	if (p->status != S_PLAYING || !p->arena)
+		lm->LogP(L_WARN, "fake", p, "fake player with bad status");
+
+	ml->SetTimer(end_fake_timer_callback, 0, 0, p, p);	
 
 	return 1;
 }
@@ -116,8 +121,9 @@ EXPORT int MM_fake(int action, Imodman *mm_, Arena *arena)
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		chatnet = mm->GetInterface(I_CHATNET, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 
-		if (!pd || !aman || !cmd) return MM_FAIL;
+		if (!pd || !aman || !cmd || !ml) return MM_FAIL;
 
 		cmd->AddCommand("makefake", Cmakefake, ALLARENAS, NULL);
 		cmd->AddCommand("killfake", Ckillfake, ALLARENAS, NULL);
@@ -136,6 +142,7 @@ EXPORT int MM_fake(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(net);
 		mm->ReleaseInterface(chatnet);
 		mm->ReleaseInterface(lm);
+		mm->ReleaseInterface(ml);
 		return MM_OK;
 	}
 	return MM_FAIL;
