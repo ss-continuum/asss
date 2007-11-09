@@ -1183,8 +1183,18 @@ local void Cwarn(const char *tc, const char *params, Player *p, const Target *ta
 	{
 		Link link = { NULL, target->u.p };
 		LinkedList lst = { &link, &link };
-		chat->SendAnyMessage(&lst, MSG_SYSOPWARNING, SOUND_BEEP1, NULL,
-				"WARNING: %s  -%s", params, p->name);
+		if (capman->HasCapability(p, CAP_IS_STAFF))
+		{
+			chat->SendAnyMessage(&lst, MSG_SYSOPWARNING, 
+					SOUND_BEEP1, NULL, "WARNING: %s  -%s", 
+					params, p->name);
+		}
+		else
+		{
+			chat->SendAnyMessage(&lst, MSG_SYSOPWARNING, 
+					SOUND_BEEP1, NULL, "WARNING: %s",
+					params);
+		}
 		chat->SendMessage(p, "Player warned");
 	}
 }
