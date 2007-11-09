@@ -1200,6 +1200,26 @@ local void Cwarn(const char *tc, const char *params, Player *p, const Target *ta
 }
 
 
+local helptext_t reply_help =
+"Targets: player\n"
+"Args: <message>\n"
+"Sends a private message to a player.\n"
+"Useful for logging replies to moderator help requests.\n";
+
+local void Creply(const char *tc, const char *params, Player *p, const Target *target)
+{
+	if (target->type != T_PLAYER)
+		chat->SendMessage(p, "You must target a player.");
+	else
+	{
+		Link link = { NULL, target->u.p };
+		LinkedList lst = { &link, &link };
+		chat->SendAnyMessage(&lst, MSG_PRIV, 0, p, "%s", params);
+		chat->SendMessage(p, "Private message sent to player");
+	}
+}
+
+
 local helptext_t warpto_help =
 "Targets: player, freq, or arena\n"
 "Args: <x coord> <y coord>\n"
@@ -2260,6 +2280,7 @@ local const struct cmd_info core_commands[] =
 	CMD(z)
 	CMD(az)
 	CMD(warn)
+	CMD(reply)
 	CMD(netstats)
 	CMD(send)
 	CMD(recyclearena)
