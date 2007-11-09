@@ -3,9 +3,10 @@
 
 EXE=$1
 PID=$2
+TYPE=$3
 TMP=gdbcmds.$$.tmp
 
-exec >segv-$PID.bt 2>&1
+exec >$TYPE-$PID.bt 2>&1
 
 echo >$TMP '
 set height 0

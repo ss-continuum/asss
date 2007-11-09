@@ -83,15 +83,31 @@ local void handle_sigsegv(int sig)
 	void *bt[100];
 	int n = backtrace(bt, 100);
 	fcloseall();
-	write(2, "Seg fault, backtrace:\n", 22);
+
+	if (sig == SIGSEGV)
+		write(2, "Seg fault, backtrace:\n", 22);
+	else
+		write(2, "Deadlock, backtrace:\n", 21);
+
 	backtrace_symbols_fd(bt, n, 2);
 #elif CFG_HANDLE_SEGV == 2
 	char cmd[128];
+	char *type;
 	fcloseall();
 	memset(cmd, 0, sizeof(cmd));
-	snprintf(cmd, sizeof(cmd), "/bin/sh bin/backtrace bin/asss %d", getpid());
+
+	if (sig == SIGSEGV)
+		type = "segv";
+	else
+		type = "abrt";
+
+	snprintf(cmd, sizeof(cmd), "/bin/sh bin/backtrace bin/asss %d %s", getpid(), type);
 	system(cmd);
-	write(2, "Segmentation fault (backtrace dumped)\n", 38);
+	
+	if (sig == SIGSEGV)
+		write(2, "Segmentation fault (backtrace dumped)\n", 38);
+	else
+		write(2, "Deadlock (backtrace dumped)\n", 28);
 #endif
 	_exit(1);
 }
@@ -132,6 +148,7 @@ local void init_signals(void)
 #ifdef CFG_HANDLE_SEGV
 	sa.sa_handler = handle_sigsegv;
 	sigaction(SIGSEGV, &sa, NULL);
+	sigaction(SIGABRT, &sa, NULL);
 #endif
 }
 
@@ -149,6 +166,7 @@ local void deinit_signals(void)
 	sigaction(SIGUSR1, &sa, NULL);
 	sigaction(SIGUSR2, &sa, NULL);
 	sigaction(SIGSEGV, &sa, NULL);
+	sigaction(SIGABRT, &sa, NULL);
 }
 
 local void write_pid(const char *fn)
