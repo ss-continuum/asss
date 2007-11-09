@@ -19,9 +19,21 @@ local void Cnotify(const char *tc, const char *params, Player *p, const Target *
 	Arena *arena = p->arena;
 	if (IS_ALLOWED(chat->GetPlayerChatMask(p), MSG_MODCHAT))
 	{
-		chat->SendModMessage("%s {%s} %s: %s", tc,
-				arena->name, p->name, params);
-		chat->SendMessage(p, "Message has been sent to online staff");
+		if (params && *params)
+		{
+			chat->SendModMessage("%s {%s} %s: %s", tc,
+					arena->name, p->name, params);
+			chat->SendMessage(p, "Message has been sent to online staff");
+		}
+		else
+		{
+			const char *empty_reply = cfg->GetStr(GLOBAL, "Notify", "EmptyReply");
+
+			if (!empty_reply)
+				empty_reply = "Please include a message to send to online staff";
+
+			chat->SendMessage(p, "%s", empty_reply);
+		}
 	}
 }
 
