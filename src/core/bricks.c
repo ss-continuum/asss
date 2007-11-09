@@ -30,6 +30,9 @@ local void SendOldBricks(Player *p);
 
 local void expire_bricks(Arena *arena);
 
+local void DoBrickModeCallback(Arena *arena, int brickmode, int dropx,
+                int dropy, int direction, int length, LinkedList *bricks);
+
 
 /* packet funcs */
 local void PBrick(Player *, byte *, int);
@@ -37,6 +40,7 @@ local void PBrick(Player *, byte *, int);
 
 /* interface */
 local void DropBrick(Arena *arena, int freq, int x1, int y1, int x2, int y2);
+local void HandleBrick(Player *p, int x, int y, LinkedList *bricks);
 
 local Ibricks _myint =
 {
@@ -44,6 +48,11 @@ local Ibricks _myint =
 	DropBrick
 };
 
+local Ibrickhandler _myhandler =
+{
+	INTERFACE_HEAD_INIT(I_BRICK_HANDLER, "brick")
+	HandleBrick
+};
 
 /* global data */
 
@@ -54,6 +63,7 @@ local Imodman *mm;
 local Iarenaman *aman;
 local Imapdata *mapdata;
 local Imainloop *ml;
+local Iprng *prng;
 
 /* big arrays */
 local int brickkey;
@@ -73,7 +83,8 @@ EXPORT int MM_bricks(int action, Imodman *mm_, Arena *arena)
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
-		if (!net || !cfg || !lm || !aman || !ml || !mapdata)
+		prng = mm->GetInterface(I_PRNG, ALLARENAS);
+		if (!net || !cfg || !lm || !aman || !ml || !mapdata || !prng)
 			return MM_FAIL;
 
 		brickkey = aman->AllocateArenaData(sizeof(brickdata));
@@ -82,10 +93,12 @@ EXPORT int MM_bricks(int action, Imodman *mm_, Arena *arena)
 
 		mm->RegCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
 		mm->RegCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
+		mm->RegCallback(CB_DOBRICKMODE, DoBrickModeCallback, ALLARENAS);
 
 		net->AddPacket(C2S_BRICK, PBrick);
 
 		mm->RegInterface(&_myint, ALLARENAS);
+		mm->RegInterface(&_myhandler, ALLARENAS);
 
 		return MM_OK;
 	}
@@ -94,10 +107,14 @@ EXPORT int MM_bricks(int action, Imodman *mm_, Arena *arena)
 		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
 
+		if (mm->UnregInterface(&_myhandler, ALLARENAS))
+			return MM_FAIL;
+
 		net->RemovePacket(C2S_BRICK, PBrick);
 
 		mm->UnregCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
+		mm->UnregCallback(CB_DOBRICKMODE, DoBrickModeCallback, ALLARENAS);
 
 		aman->FreeArenaData(brickkey);
 
@@ -107,6 +124,7 @@ EXPORT int MM_bricks(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(mapdata);
 		mm->ReleaseInterface(ml);
+		mm->ReleaseInterface(prng);
 		return MM_OK;
 	}
 	return MM_FAIL;
@@ -280,30 +298,359 @@ void PBrick(Player *p, byte *pkt, int len)
 
 	expire_bricks(arena);
 
-	if (bd->brickmode == BRICK_CAGE)
+	Ibrickhandler *bh = mm->GetInterface(I_BRICK_HANDLER, arena);
+	if (bh == NULL)
 	{
-		int x1[4], y1[4], x2[4], y2[4];
-
-		if (mapdata->FindBrickEndpoints(arena, 3,
-					dx, dy, p->position.rotation, bd->brickspan,
-					x1, y1, x2, y2))
-		{
-			drop_brick(arena, p->p_freq, x1[0], y1[0], x2[0], y2[0]);
-			drop_brick(arena, p->p_freq, x1[1], y1[1], x2[1], y2[1]);
-			drop_brick(arena, p->p_freq, x1[2], y1[2], x2[2], y2[2]);
-			drop_brick(arena, p->p_freq, x1[3], y1[3], x2[3], y2[3]);
-		}
+		lm->LogP(L_ERROR, "bricks", p, "No brick handler found.");
 	}
 	else
 	{
-		int x1, y1, x2, y2;
+		LinkedList brick_list;
+		Link *link;
 
-		if (mapdata->FindBrickEndpoints(arena, bd->brickmode,
-					dx, dy, p->position.rotation, bd->brickspan,
-					&x1, &y1, &x2, &y2))
-			drop_brick(arena, p->p_freq, x1, y1, x2, y2);
+		LLInit(&brick_list);
+
+		bh->HandleBrick(p, dx, dy, &brick_list);
+
+		for (link = LLGetHead(&brick_list); link; link = link->next)
+		{
+			Brick *brick = link->data;
+			drop_brick(arena, p->p_freq, brick->x1, brick->y1, brick->x2, brick->y2);
+			afree(brick);
+		}
+
+		mm->ReleaseInterface(bh);
+
+		LLEmpty(&brick_list);
 	}
+
 
 	pthread_mutex_unlock(&bd->mtx);
 }
 
+local void HandleBrick(Player *p, int x, int y, LinkedList *bricks)
+{
+	Arena *arena = p->arena;
+        brickdata *bd = P_ARENA_DATA(arena, brickkey);
+
+	DO_CBS(CB_DOBRICKMODE, arena, DoBrickModeFunction, (arena, 
+		bd->brickmode, x, y, p->position.rotation, bd->brickspan, 
+		bricks));
+}
+
+local void DoBrickModeCallback(Arena *arena, int brickmode, int dropx, 
+		int dropy, int direction, int length, LinkedList *bricks)
+{
+	/* This code has been moved from mapdata for greater flexibility. It
+	 * has been modified to be called as a callback instead of a module
+	 * function. This will allow new modules to add additional brick modes.
+	 *
+	 * Though some might say it's less efficient here, brick code really
+	 * should be in the brick module. The few indirections are very minor
+	 * computation wise. 
+	 * -Dr Brain
+	 */
+
+	enum { up, right, down, left } dir;
+	int bestcount, bestdir, x, y, destx = dropx, desty = dropy;
+	Brick *brick;
+
+	if (mapdata->GetTile(arena, dropx, dropy))
+	{
+		return;
+	}
+
+	/* in the worst case, we can always just drop a single block */
+
+	if (brickmode == BRICK_VIE)
+	{
+		/* find closest wall and the point next to it */
+		bestcount = 3000;
+		bestdir = -1;
+		for (dir = 0; dir < 4; dir++)
+		{
+			int count = 0, oldx = dropx, oldy = dropy;
+			x = dropx; y = dropy;
+
+			while (x >= 0 && x < 1024 &&
+			       y >= 0 && y < 1024 &&
+			       mapdata->GetTile(arena, x, y) == 0 &&
+			       count < length)
+			{
+				switch (dir)
+				{
+					case down:  oldy = y++; break;
+					case right: oldx = x++; break;
+					case up:    oldy = y--; break;
+					case left:  oldx = x--; break;
+				}
+				count++;
+			}
+
+			if (count < bestcount)
+			{
+				bestcount = count;
+				bestdir = dir;
+				destx = oldx; desty = oldy;
+			}
+		}
+
+		if (bestdir == -1)
+		{
+			/* shouldn't happen */
+			goto failed;
+		}
+
+		if (bestcount == length)
+		{
+			/* no closest wall */
+			if (prng->Get32() & 1)
+			{
+				destx = dropx - length / 2;
+				desty = dropy;
+				bestdir = left;
+			}
+			else
+			{
+				destx = dropx;
+				desty = dropy - length / 2;
+				bestdir = up;
+			}
+		}
+	}
+	else if (brickmode == BRICK_AHEAD)
+	{
+		int count = 0, oldx = dropx, oldy = dropy;
+
+		x = dropx; y = dropy;
+
+		bestdir = ((direction + 5) % 40) / 10;
+
+		while (x >= 0 && x < 1024 &&
+		       y >= 0 && y < 1024 &&
+		       mapdata->GetTile(arena, x, y) == 0 &&
+		       count < length)
+		{
+			switch (bestdir)
+			{
+				case down:  oldy = y++; break;
+				case right: oldx = x++; break;
+				case up:    oldy = y--; break;
+				case left:  oldx = x--; break;
+			}
+			count++;
+		}
+
+		destx = oldx; desty = oldy;
+	}
+	else if (brickmode == BRICK_LATERAL)
+	{
+		int count = 0, oldx = dropx, oldy = dropy;
+
+		x = dropx; y = dropy;
+
+		bestdir = ((direction + 15) % 40) / 10;
+
+		while (x >= 0 && x < 1024 &&
+		       y >= 0 && y < 1024 &&
+		       mapdata->GetTile(arena, x, y) == 0 &&
+		       count <= length / 2)
+		{
+			switch (bestdir)
+			{
+				case down:  oldy = y++; break;
+				case right: oldx = x++; break;
+				case up:    oldy = y--; break;
+				case left:  oldx = x--; break;
+			}
+			count++;
+		}
+
+		destx = oldx; desty = oldy;
+	}
+	else if (brickmode == BRICK_CAGE)
+	{
+		Brick *cage_bricks[4];
+
+		/* generate drop coords inside map */
+		int sx = dropx - (length) / 2,
+			sy = dropy - (length) / 2,
+			ex = dropx + (length + 1) / 2,
+			ey = dropy + (length + 1) / 2;
+
+		if (sx < 0) sx = 0;
+		if (sy < 0) sy = 0;
+		if (ex > 1023) ex = 1023;
+		if (ey > 1023) ey = 1023;
+
+		/* top */
+		x = sx;
+		y = sy;
+
+		/* allocate bricks and add them to the list*/
+		cage_bricks[0] = amalloc(sizeof(Brick));
+		cage_bricks[1] = amalloc(sizeof(Brick));
+		cage_bricks[2] = amalloc(sizeof(Brick));
+		cage_bricks[3] = amalloc(sizeof(Brick));
+		LLAdd(bricks, cage_bricks[0]);
+		LLAdd(bricks, cage_bricks[1]);
+		LLAdd(bricks, cage_bricks[2]);
+		LLAdd(bricks, cage_bricks[3]);
+
+
+		while (x <= ex && mapdata->GetTile(arena, x, y))
+			++x;
+
+		if (x > ex)
+		{
+			cage_bricks[0]->x1 = dropx;
+			cage_bricks[0]->x2 = dropx;
+			cage_bricks[0]->y1 = dropy;
+			cage_bricks[0]->y2 = dropy;
+		}
+		else
+		{
+			cage_bricks[0]->x1 = x++;
+			while (x <= ex && !mapdata->GetTile(arena, x, y))
+				++x;
+			cage_bricks[0]->x2 = x-1;
+			cage_bricks[0]->y1 = y;
+			cage_bricks[0]->y2 = y;
+		}
+
+		/* bottom */
+		x = sx;
+		y = ey;
+
+		while (x <= ex && mapdata->GetTile(arena, x, y))
+			++x;
+
+		if (x > ex)
+		{
+			cage_bricks[1]->x1 = dropx;
+			cage_bricks[1]->x2 = dropx;
+			cage_bricks[1]->y1 = dropy;
+			cage_bricks[1]->y2 = dropy;
+		}
+		else
+		{
+			cage_bricks[1]->x1 = x++;
+			while (x <= ex && !mapdata->GetTile(arena, x, y))
+				++x;
+			cage_bricks[1]->x2 = x-1;
+			cage_bricks[1]->y1 = y;
+			cage_bricks[1]->y2 = y;
+		}
+
+		/* left */
+		x = sx;
+		y = sy;
+
+		while (y <= ey && mapdata->GetTile(arena, x, y))
+			++y;
+
+		if (y > ey)
+		{
+			cage_bricks[2]->x1 = dropx;
+			cage_bricks[2]->x2 = dropx;
+			cage_bricks[2]->y1 = dropy;
+			cage_bricks[2]->y2 = dropy;
+		}
+		else
+		{
+			cage_bricks[2]->y1 = y++;
+			while (y <= ey && !mapdata->GetTile(arena, x, y))
+				++y;
+			cage_bricks[2]->y2 = y-1;
+			cage_bricks[2]->x1 = x;
+			cage_bricks[2]->x2 = x;
+		}
+
+		/* right */
+		x = ex;
+		y = sy;
+
+		while (y <= ey && mapdata->GetTile(arena, x, y))
+			++y;
+
+		if (y > ey)
+		{
+			cage_bricks[3]->x1 = dropx;
+			cage_bricks[3]->x2 = dropx;
+			cage_bricks[3]->y1 = dropy;
+			cage_bricks[3]->y2 = dropy;
+		}
+		else
+		{
+			cage_bricks[3]->y1 = y++;
+			while (y <= ey && !mapdata->GetTile(arena, x, y))
+				++y;
+			cage_bricks[3]->y2 = y-1;
+			cage_bricks[3]->x1 = x;
+			cage_bricks[3]->x2 = x;
+		}
+
+		goto failed;
+	}
+	else
+		goto failed;
+
+	/* allocate the brick */
+	brick = amalloc(sizeof(*brick));
+	LLAdd(bricks, brick);
+
+	/* enter first coordinate */
+	dropx = x = brick->x1 = destx; dropy = y = brick->y1 = desty;
+
+	/* go from closest point */
+	switch (bestdir)
+	{
+		case down:
+			while (mapdata->GetTile(arena, x, y) == 0 &&
+			       (dropy - y) < length &&
+			       y >= 0)
+				desty = y--;
+			break;
+
+		case right:
+			while (mapdata->GetTile(arena, x, y) == 0 &&
+			       (dropx - x) < length &&
+			       x >= 0)
+				destx = x--;
+			break;
+
+		case up:
+			while (mapdata->GetTile(arena, x, y) == 0 &&
+			       (y - dropy) < length &&
+			       y < 1024)
+				desty = y++;
+			break;
+
+		case left:
+			while (mapdata->GetTile(arena, x, y) == 0 &&
+			       (x - dropx) < length &&
+			       x < 1024)
+				destx = x++;
+			break;
+	}
+
+	/* enter second coordinate */
+	brick->x2 = destx; brick->y2 = desty;
+
+	/* swap if necessary */
+	if (brick->x1 > brick->x2)
+	{
+		x = brick->x1;
+		brick->x1 = brick->x2;
+		brick->x2 = x;
+	}
+	if (brick->y1 > brick->y2)
+	{
+		y = brick->y1;
+		brick->y1 = brick->y2;
+		brick->y2 = y;
+	}
+
+failed:
+	return;
+}

@@ -15,6 +15,16 @@
 
 DEFINE_ENUM(BRICK_MODE_MAP)
 
+#define CB_DOBRICKMODE "dobrickmode"
+
+typedef void (*DoBrickModeFunction)(Arena *arena, int brickmode, int dropx,
+		int dropy, int direction, int length, LinkedList *bricks);
+
+typedef struct Brick
+{
+	int x1, y1, x2, y2;
+} Brick;
+
 #define I_BRICKS "bricks-1"
 
 typedef struct Ibricks
@@ -25,6 +35,17 @@ typedef struct Ibricks
 	void (*DropBrick)(Arena *arena, int freq, int x1, int y1, int x2, int y2);
 	/* pyint: arena, int, int, int, int, int -> void */
 } Ibricks;
+
+#define I_BRICK_HANDLER "bh-1"
+
+typedef struct Ibrickhandler
+{
+	INTERFACE_HEAD_DECL
+
+	/* Should return a set of Brick structs in the bricks list. The
+	 * brick module will handle deleting them. */
+	void (*HandleBrick)(Player *p, int x, int y, LinkedList *bricks);
+} Ibrickhandler;
 
 #endif
 

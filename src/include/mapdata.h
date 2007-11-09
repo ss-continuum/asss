@@ -73,7 +73,7 @@ struct mapdata_memory_stats_t
 
 
 /** interface id for Imapdata */
-#define I_MAPDATA "mapdata-7"
+#define I_MAPDATA "mapdata-8"
 
 /** interface struct for Imapdata
  * you should use this to figure out what's going on in the map in a
@@ -125,11 +125,6 @@ typedef struct Imapdata
 	 ** placing a flag. */
 	void (*FindEmptyTileNear)(Arena *arena, int *x, int *y);
 	/* pyint: arena, int inout, int inout -> void */
-
-	/** calculates the placement of a brick of a given length dropped at
-	 ** a certain position. direction is in ship graphic units: 0-39 */
-	int (*FindBrickEndpoints)(Arena *arena, int brickmode, int dropx, int dropy, int direction,
-			int length, int *x1, int *y1, int *x2, int *y2);
 
 	u32 (*GetChecksum)(Arena *arena, u32 key);
 
@@ -218,6 +213,14 @@ typedef struct Imapdata
 	void (*EnumLVZFiles)(Arena *arena,
 			void (*func)(const char *fn, int optional, void *clos),
 			void *clos);
+	
+	/** sets x and y to random coordinates within the specified region
+	 * or -1 if there's an error.
+	 * @param rgn the Region to find a random point within
+	 * @param x pointer to the x coordinate
+	 * @param y pointer to the y coordinate
+	 */
+	void (*FindRandomPoint)(Region *rgn, int *x, int *y);
 } Imapdata;
 
 #endif

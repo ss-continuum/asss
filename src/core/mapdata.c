@@ -34,6 +34,15 @@ struct Region
 	const char *name;
 	HashTable *chunks;
 	u32 setmap[8];
+
+	/* Random point generation stuff */
+	int tiles;
+	LinkedList rle_data;
+};
+
+struct RLEEntry
+{
+	int x, y, width, height;
 };
 
 typedef struct ELVL
@@ -146,6 +155,8 @@ local void free_region(Region *rgn)
 	{
 		HashEnum(rgn->chunks, hash_enum_afree, NULL);
 		HashFree(rgn->chunks);
+		LLEnum(&rgn->rle_data, afree);
+		LLEmpty(&rgn->rle_data);
 	}
 	afree(rgn);
 }
@@ -217,6 +228,12 @@ local int read_rle_tile_data(Region *rgn, const byte *d, int len)
 {
 	int cx = 0, cy = 0, i = 0, b, op, d1, n, x, y;
 
+	int last_row = -1;
+	LinkedList last_row_data;
+	Link *link;
+
+	LLInit(&last_row_data);
+
 	while (i < len)
 	{
 		if (cx < 0 || cx > 1023 || cy < 0 || cy > 1023)
@@ -238,6 +255,20 @@ local int read_rle_tile_data(Region *rgn, const byte *d, int len)
 				break;
 			case 1:
 				/* n present in a row */
+				if (cy != last_row)
+				{
+					LLEmpty(&last_row_data);
+					last_row = cy;
+				}
+				struct RLEEntry *entry = amalloc(sizeof(*entry));
+				entry->x = cx;
+				entry->y = cy;
+				entry->width = n;
+				entry->height = 1;
+				LLAdd(&last_row_data, entry);
+				LLAdd(&rgn->rle_data, entry);
+				rgn->tiles += n;
+
 				for (x = cx; x < (cx + n); x++)
 					add_rgn_tile(rgn, x, cy);
 				cx += n;
@@ -252,11 +283,20 @@ local int read_rle_tile_data(Region *rgn, const byte *d, int len)
 				/* repeat last row n times */
 				if (cx != 0 || cy == 0)
 					return FALSE;
+
+				for (link = LLGetHead(&last_row_data); link; link = link->next)
+				{
+					struct RLEEntry *entry = link->data;
+					entry->height += n;
+					rgn->tiles += n * entry->width;
+				}
+
 				for (y = cy; y < (cy + n); y++)
 					for (x = 0; x < 1024; x++)
 						if (Contains(rgn, x, cy - 1))
 							add_rgn_tile(rgn, x, y);
 				cy += n;
+				last_row = cy - 1;
 				break;
 		}
 
@@ -332,6 +372,8 @@ local int process_map_chunk(const char *key, void *vchunk, void *vlvl)
 		Region *rgn = amalloc(sizeof(*rgn));
 		rgn->lvl = lvl;
 		rgn->chunks = HashAlloc();
+		rgn->tiles = 0;
+		LLInit(&rgn->rle_data);
 		if (!read_chunks(rgn->chunks, chunk->data, chunk->size))
 			lm->Log(L_WARN, "<mapdata> error in lvl while reading region chunks");
 		HashEnum(rgn->chunks, process_region_chunk, rgn);
@@ -576,7 +618,6 @@ local enum map_tile_t GetTile(Arena *a, int x, int y)
 }
 
 
-
 local void FindEmptyTileNear(Arena *arena, int *x, int *y)
 {
 	/* init context. these values are funny because they are one
@@ -635,313 +676,6 @@ local void FindEmptyTileNear(Arena *arena, int *x, int *y)
 failed:
 	pthread_mutex_unlock(&lvl->mtx);
 }
-
-
-local int FindBrickEndpoints(
-		Arena *arena,
-		int brickmode,
-		int dropx,
-		int dropy,
-		int direction,
-		int length,
-		int *x1, int *y1, int *x2, int *y2)
-{
-	ELVL *lvl;
-	sparse_arr arr;
-	enum { up, right, down, left } dir;
-	int bestcount, bestdir, x, y, destx = dropx, desty = dropy;
-
-	lvl = P_ARENA_DATA(arena, lvlkey);
-	pthread_mutex_lock(&lvl->mtx);
-
-	arr = lvl->tiles;
-	if (lookup_sparse(arr, dropx, dropy))
-	{
-		pthread_mutex_unlock(&lvl->mtx);
-		return FALSE;
-	}
-
-	/* in the worst case, we can always just drop a single block */
-
-	if (brickmode == BRICK_VIE)
-	{
-		/* find closest wall and the point next to it */
-		bestcount = 3000;
-		bestdir = -1;
-		for (dir = 0; dir < 4; dir++)
-		{
-			int count = 0, oldx = dropx, oldy = dropy;
-			x = dropx; y = dropy;
-
-			while (x >= 0 && x < 1024 &&
-			       y >= 0 && y < 1024 &&
-			       lookup_sparse(arr, x, y) == 0 &&
-			       count < length)
-			{
-				switch (dir)
-				{
-					case down:  oldy = y++; break;
-					case right: oldx = x++; break;
-					case up:    oldy = y--; break;
-					case left:  oldx = x--; break;
-				}
-				count++;
-			}
-
-			if (count < bestcount)
-			{
-				bestcount = count;
-				bestdir = dir;
-				destx = oldx; desty = oldy;
-			}
-		}
-
-		if (bestdir == -1)
-		{
-			/* shouldn't happen */
-			*x1 = *x2 = dropx;
-			*y1 = *y2 = dropy;
-			goto failed;
-		}
-
-		if (bestcount == length)
-		{
-			/* no closest wall */
-			if (prng->Get32() & 1)
-			{
-				destx = dropx - length / 2;
-				desty = dropy;
-				bestdir = left;
-			}
-			else
-			{
-				destx = dropx;
-				desty = dropy - length / 2;
-				bestdir = up;
-			}
-		}
-	}
-	else if (brickmode == BRICK_AHEAD)
-	{
-		int count = 0, oldx = dropx, oldy = dropy;
-
-		x = dropx; y = dropy;
-
-		bestdir = ((direction + 5) % 40) / 10;
-
-		while (x >= 0 && x < 1024 &&
-		       y >= 0 && y < 1024 &&
-		       lookup_sparse(arr, x, y) == 0 &&
-		       count < length)
-		{
-			switch (bestdir)
-			{
-				case down:  oldy = y++; break;
-				case right: oldx = x++; break;
-				case up:    oldy = y--; break;
-				case left:  oldx = x--; break;
-			}
-			count++;
-		}
-
-		destx = oldx; desty = oldy;
-	}
-	else if (brickmode == BRICK_LATERAL)
-	{
-		int count = 0, oldx = dropx, oldy = dropy;
-
-		x = dropx; y = dropy;
-
-		bestdir = ((direction + 15) % 40) / 10;
-
-		while (x >= 0 && x < 1024 &&
-		       y >= 0 && y < 1024 &&
-		       lookup_sparse(arr, x, y) == 0 &&
-		       count <= length / 2)
-		{
-			switch (bestdir)
-			{
-				case down:  oldy = y++; break;
-				case right: oldx = x++; break;
-				case up:    oldy = y--; break;
-				case left:  oldx = x--; break;
-			}
-			count++;
-		}
-
-		destx = oldx; desty = oldy;
-	}
-	else if (brickmode == BRICK_CAGE)
-	{
-		/* generate drop coords inside map */
-		int sx = dropx - (length) / 2,
-			sy = dropy - (length) / 2,
-			ex = dropx + (length + 1) / 2,
-			ey = dropy + (length + 1) / 2;
-
-		if (sx < 0) sx = 0;
-		if (sy < 0) sy = 0;
-		if (ex > 1023) ex = 1023;
-		if (ey > 1023) ey = 1023;
-
-		/* top */
-		x = sx;
-		y = sy;
-
-		while (x <= ex && lookup_sparse(arr, x, y))
-			++x;
-
-		if (x > ex)
-		{
-			x1[0] = dropx;
-			x2[0] = dropx;
-			y1[0] = dropy;
-			y2[0] = dropy;
-		}
-		else
-		{
-			x1[0] = x++;
-			while (x <= ex && !lookup_sparse(arr, x, y))
-				++x;
-			x2[0] = x-1;
-			y1[0] = y;
-			y2[0] = y;
-		}
-
-		/* bottom */
-		x = sx;
-		y = ey;
-
-		while (x <= ex && lookup_sparse(arr, x, y))
-			++x;
-
-		if (x > ex)
-		{
-			x1[1] = dropx;
-			x2[1] = dropx;
-			y1[1] = dropy;
-			y2[1] = dropy;
-		}
-		else
-		{
-			x1[1] = x++;
-			while (x <= ex && !lookup_sparse(arr, x, y))
-				++x;
-			x2[1] = x-1;
-			y1[1] = y;
-			y2[1] = y;
-		}
-
-		/* left */
-		x = sx;
-		y = sy;
-
-		while (y <= ey && lookup_sparse(arr, x, y))
-			++y;
-
-		if (y > ey)
-		{
-			x1[2] = dropx;
-			x2[2] = dropx;
-			y1[2] = dropy;
-			y2[2] = dropy;
-		}
-		else
-		{
-			y1[2] = y++;
-			while (y <= ey && !lookup_sparse(arr, x, y))
-				++y;
-			y2[2] = y-1;
-			x1[2] = x;
-			x2[2] = x;
-		}
-
-		/* right */
-		x = ex;
-		y = sy;
-
-		while (y <= ey && lookup_sparse(arr, x, y))
-			++y;
-
-		if (y > ey)
-		{
-			x1[3] = dropx;
-			x2[3] = dropx;
-			y1[3] = dropy;
-			y2[3] = dropy;
-		}
-		else
-		{
-			y1[3] = y++;
-			while (y <= ey && !lookup_sparse(arr, x, y))
-				++y;
-			y2[3] = y-1;
-			x1[3] = x;
-			x2[3] = x;
-		}
-
-		goto failed;
-	}
-	else
-		goto failed;
-
-	/* enter first coordinate */
-	dropx = x = *x1 = destx; dropy = y = *y1 = desty;
-
-	/* go from closest point */
-	switch (bestdir)
-	{
-		case down:
-			while (lookup_sparse(arr, x, y) == 0 &&
-			       (dropy - y) < length &&
-			       y >= 0)
-				desty = y--;
-			break;
-
-		case right:
-			while (lookup_sparse(arr, x, y) == 0 &&
-			       (dropx - x) < length &&
-			       x >= 0)
-				destx = x--;
-			break;
-
-		case up:
-			while (lookup_sparse(arr, x, y) == 0 &&
-			       (y - dropy) < length &&
-			       y < 1024)
-				desty = y++;
-			break;
-
-		case left:
-			while (lookup_sparse(arr, x, y) == 0 &&
-			       (x - dropx) < length &&
-			       x < 1024)
-				destx = x++;
-			break;
-	}
-
-	/* enter second coordinate */
-	*x2 = destx; *y2 = desty;
-
-	/* swap if necessary */
-	if (*x1 > *x2)
-	{
-		x = *x1;
-		*x1 = *x2;
-		*x2 = x;
-	}
-	if (*y1 > *y2)
-	{
-		y = *y1;
-		*y1 = *y2;
-		*y2 = y;
-	}
-
-failed:
-	pthread_mutex_unlock(&lvl->mtx);
-	return TRUE;
-}
-
 
 local u32 GetChecksum(Arena *arena, u32 key)
 {
@@ -1124,6 +858,46 @@ local Region * GetOneContaining(Arena *arena, int x, int y)
 	return set ? *set : NULL;
 }
 
+local void FindRandomPoint(Region *rgn, int *x, int *y)
+{
+	Link *link;
+	int rand_index;
+
+	if (!rgn || rgn->tiles == 0)
+	{
+		*x = -1;
+		*y = -1;
+		return;
+	}
+
+	rand_index = prng->Number(0, rgn->tiles - 1);
+
+	link = LLGetHead(&rgn->rle_data);
+	while (link)
+	{
+		struct RLEEntry *entry = link->data;
+
+		int n = entry->width * entry->height;
+		if (rand_index < n)
+		{
+			*x = entry->x + (rand_index % entry->width);
+			*y = entry->y + (rand_index / entry->width);
+			return;
+		}
+		else
+		{
+			rand_index -= n;
+		}
+
+		link = link->next;
+	}
+
+	lm->Log(L_ERROR, "<mapdata> Error with random point in region %s", rgn->name);
+
+	*x = -1;
+	*y = -1;
+}
+
 local void aaction_work(void *clos)
 {
 	Arena *arena = clos;
@@ -1181,13 +955,13 @@ local Imapdata mapdataint =
 	GetMapFilename,
 	GetAttr, MapChunk,
 	GetFlagCount, GetTile,
-	FindEmptyTileNear, FindBrickEndpoints,
+	FindEmptyTileNear,
 	GetChecksum, DoBrick,
 	GetMemoryStats,
 	FindRegionByName, RegionName,
 	RegionChunk, Contains,
 	EnumContaining, GetOneContaining,
-	EnumLVZFiles
+	EnumLVZFiles, FindRandomPoint
 };
 
 
