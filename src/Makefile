@@ -19,6 +19,10 @@
 # include file paths, and build options. generally, you should only
 # modify system.mk, and not this file, to customize the behavior of the
 # makefile.
+have_system_mk := $(wildcard system.mk)
+ifeq ($(strip $(have_system_mk)),)
+$(error system.mk does not exist! Copy system.mk.dist to system.mk and edit it to your needs.)
+endif
 include system.mk
 
 # this file adjusts the makefile depending on the operating system we're
