@@ -1,3 +1,4 @@
-syntax: glob
-src/system.mk
-
+syntax: regexp
+^src/system.mk
+^bin
+^build
