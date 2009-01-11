@@ -321,7 +321,7 @@ local void SendUpdates(Player *exclude)
 				net->SendToArena(
 						p->arena,
 						exclude,
-						(char*)&sp,
+						(unsigned char*)&sp,
 						sizeof(sp),
 						NET_UNRELIABLE | NET_PRI_N1);
 			}

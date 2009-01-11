@@ -174,8 +174,8 @@ local int is_ascii7_str(const unsigned char *c)
  * creating my own. */
 local void print_quoted(const unsigned char *c)
 {
-	if (is_ascii7_str(c) && strchr(c, ',') == NULL)
-		fputs(c, stdout);
+	if (is_ascii7_str(c) && strchr((const char *)c, ',') == NULL)
+		fputs((const char *)c, stdout);
 	else
 	{
 		putchar('"');
@@ -442,7 +442,7 @@ local int stats_print_stats(DBT *key, DBT *val)
 	if (!stats_match(key, val))
 		return FALSE;
 
-	print_quoted(k->name);
+	print_quoted((unsigned char *)k->name);
 	cur = 0;
 	for (; c--; v++)
 	{

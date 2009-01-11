@@ -190,8 +190,8 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 			pkt.Type = S2B_USER_LOGIN;
 			pkt.MakeNew = lp->flags;
 			pkt.IPAddress = inet_addr(p->ipaddr);
-			astrncpy(pkt.Name,lp->name,sizeof(pkt.Name));
-			astrncpy(pkt.Password,lp->password,sizeof(pkt.Password));
+			astrncpy((char*)pkt.Name,lp->name,sizeof(pkt.Name));
+			astrncpy((char*)pkt.Password,lp->password,sizeof(pkt.Password));
 			pkt.ConnectionID = p->pid;
 			pkt.MachineID = lp->macid;
 			pkt.Timezone = (i16)lp->timezonebias;
@@ -354,12 +354,12 @@ local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, c
 		 * most billers probably don't support this feature yet. */
 		t = strchr(text, ';');
 		if (t && (t-text) < 10)
-			text = delimcpy(pkt.ChannelNr, text, sizeof(pkt.ChannelNr), ';');
+			text = delimcpy((char*)pkt.ChannelNr, text, sizeof(pkt.ChannelNr), ';');
 		else
-			strcpy(pkt.ChannelNr, "1");
-		astrncpy(pkt.Text, text, sizeof(pkt.Text));
+			strcpy((char*)pkt.ChannelNr, "1");
+		astrncpy((char*)pkt.Text, text, sizeof(pkt.Text));
 		pthread_mutex_lock(&mtx);
-		netcli->SendPacket(cc, (byte*)&pkt, strchr(pkt.Text,0) + 1 - (char*)&pkt, NET_RELIABLE);
+		netcli->SendPacket(cc, (byte*)&pkt, strchr((char*)pkt.Text,0) + 1 - (char*)&pkt, NET_RELIABLE);
 		pthread_mutex_unlock(&mtx);
 	}
 	else if (type == MSG_REMOTEPRIV && target == NULL)
@@ -381,9 +381,9 @@ local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, c
 			lm->LogP(L_MALICIOUS, "billing_ssc", p, "malformed remote private message");
 		else
 		{
-			snprintf(pkt.Text, sizeof(pkt.Text), ":%s:(%s)>%s", dest, p->name, t);
+			snprintf((char*)pkt.Text, sizeof(pkt.Text), ":%s:(%s)>%s", dest, p->name, t);
 			pthread_mutex_lock(&mtx);
-			netcli->SendPacket(cc, (byte*)&pkt, strchr(pkt.Text,0) + 1 - (char*)&pkt, NET_RELIABLE);
+			netcli->SendPacket(cc, (byte*)&pkt, strchr((char*)pkt.Text,0) + 1 - (char*)&pkt, NET_RELIABLE);
 			pthread_mutex_unlock(&mtx);
 		}
 	}
@@ -419,10 +419,10 @@ local void rewrite_chat_command(Player *p, const char *line, struct S2B_UserComm
 	 * Secret prefix to prepend to local chats */
 	const char *localprefix = cfg->GetStr(GLOBAL, "Billing", "LocalChatPrefix");
 
-	char *d = pkt->Text + 6;
+	char *d = (char*)pkt->Text + 6;
 	line += 5; /* skip chat= */
 
-	strcpy(pkt->Text, "?chat=");
+	strcpy((char*)pkt->Text, "?chat=");
 	while (line && d < (char *)pkt->Text+sizeof(pkt->Text)-64)
 	{
 		char chatname[32],origchatname[32];
@@ -478,11 +478,11 @@ local void Cdefault(const char *tc, const char *line, Player *p, const Target *t
 	else
 	{
 		pkt.Text[0] = '?';
-		astrncpy(pkt.Text+1, line, sizeof(pkt.Text)-1);
+		astrncpy((char*)(pkt.Text+1), line, sizeof(pkt.Text)-1);
 	}
 
 	pthread_mutex_lock(&mtx);
-	netcli->SendPacket(cc, (byte*)&pkt, strchr(pkt.Text,0) + 1 - (char*)&pkt, NET_RELIABLE);
+	netcli->SendPacket(cc, (byte*)&pkt, strchr((char*)pkt.Text,0) + 1 - (char*)&pkt, NET_RELIABLE);
 	pthread_mutex_unlock(&mtx);
 }
 
@@ -643,9 +643,9 @@ local void process_user_login(const char *data,int len)
 		ad.demodata = (pkt->Result == B2S_LOGIN_ASKDEMOGRAPHICS);
 		ad.code = AUTH_OK;
 		ad.authenticated = TRUE;
-		astrncpy(ad.name, pkt->Name, sizeof(ad.name));
-		astrncpy(ad.sendname, pkt->Name, sizeof(ad.sendname));
-		astrncpy(ad.squad, pkt->Squad, sizeof(ad.squad));
+		astrncpy(ad.name, (char*)pkt->Name, sizeof(ad.name));
+		astrncpy(ad.sendname, (char*)pkt->Name, sizeof(ad.sendname));
+		astrncpy(ad.squad, (char*)pkt->Squad, sizeof(ad.squad));
 		/* pass banner to banners module only if it exists */
 		if (memcmp(pkt->Banner, zerobanner, BANNER_SIZE))
 		{
@@ -699,7 +699,7 @@ local void process_rmt(const char *data,int len)
 		Player *p;
 		char recipient[32], sender[32];
 		const char *t;
-		const char *text = delimcpy(recipient, pkt->Text+1, sizeof(recipient), ':');
+		const char *text = delimcpy(recipient, (char*)(pkt->Text+1), sizeof(recipient), ':');
 
 		if (!text || *text != '(')
 			return;
@@ -851,10 +851,10 @@ local void process_cmdchat(const char *data,int len)
 	p = pd->PidToPlayer(pkt->ConnectionID);
 	if (p)
 	{
-		const char *t=strchr(pkt->Text,'|');
-		if (t && !strncmp(pkt->Text, "$l$", 3))
+		const char *t=strchr((char*)pkt->Text,'|');
+		if (t && !strncmp((char*)pkt->Text, "$l$", 3))
 			chat->SendMessage(p, "(local) %s", t+1);
-		else if (t && !strncmp(pkt->Text, "$s$", 3))
+		else if (t && !strncmp((char*)pkt->Text, "$s$", 3))
 			chat->SendMessage(p, "(staff) %s", t+1);
 		else
 			chat->SendMessage(p, "%s", pkt->Text);
@@ -970,31 +970,31 @@ local void process_packet(byte *pkt, int len)
 	switch (*pkt)
 	{
 		case B2S_USER_LOGIN:
-			process_user_login(pkt,len);
+			process_user_login((char*)pkt,len);
 			break;
 		case B2S_USER_PRIVATE_CHAT:
-			process_rmt(pkt,len);
+			process_rmt((char*)pkt,len);
 			break;
 		case B2S_USER_KICKOUT:
-			process_kickout(pkt,len);
+			process_kickout((char*)pkt,len);
 			break;
 		case B2S_USER_COMMAND_CHAT:
-			process_cmdchat(pkt,len);
+			process_cmdchat((char*)pkt,len);
 			break;
 		case B2S_USER_CHANNEL_CHAT:
-			process_chanchat(pkt,len);
+			process_chanchat((char*)pkt,len);
 			break;
 		case B2S_SCORERESET:
-			process_scorereset(pkt,len);
+			process_scorereset((char*)pkt,len);
 			break;
 		case B2S_USER_PACKET:
-			process_userpkt(pkt,len);
+			process_userpkt((char*)pkt,len);
 			break;
 		case B2S_BILLING_IDENTITY:
-			process_identity(pkt,len);
+			process_identity((char*)pkt,len);
 			break;
 		case B2S_USER_MCHANNEL_CHAT:
-			process_mchanchat(pkt,len);
+			process_mchanchat((char*)pkt,len);
 			break;
 		default:
 			lm->Log(L_WARN, "<billing_ssc> unsupported packet type %d", *pkt);
@@ -1025,12 +1025,12 @@ local void got_connection(void)
 	 * Score realm. */
 	pkt.ScoreID = cfg->GetInt(GLOBAL, "Billing", "ScoreID", 0);
 
-	astrncpy(pkt.ServerName, servername?servername:"", sizeof(pkt.ServerName));
+	astrncpy((char*)pkt.ServerName, servername?servername:"", sizeof(pkt.ServerName));
 	if (net->GetListenData(0, &port, NULL, 0))
 		pkt.Port = port;
 	else
 		pkt.Port = 0;
-	astrncpy(pkt.Password, password?password:"", sizeof(pkt.Password));
+	astrncpy((char*)pkt.Password, password?password:"", sizeof(pkt.Password));
 
 	pthread_mutex_lock(&mtx);
 	netcli->SendPacket(cc, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);

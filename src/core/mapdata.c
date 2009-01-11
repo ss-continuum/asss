@@ -354,7 +354,7 @@ local int process_map_chunk(const char *key, void *vchunk, void *vlvl)
 	{
 		char keybuf[64], *val;
 		const byte *t;
-		t = delimcpy(keybuf, chunk->data, sizeof(keybuf), '=');
+		t = (byte *)delimcpy(keybuf, (char *)chunk->data, sizeof(keybuf), '=');
 		if (t)
 		{
 			int vlen = chunk->size - (t - chunk->data);

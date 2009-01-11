@@ -207,7 +207,7 @@ local struct MapDownloadData * compress_map(const char *fname, int docomp)
 
 	/* set up packet header */
 	cmap[0] = S2C_MAPDATA;
-	strncpy(cmap+1, mapname, 16);
+	strncpy((char*)(cmap+1), mapname, 16);
 
 	if (docomp)
 	{

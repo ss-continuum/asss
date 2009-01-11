@@ -629,7 +629,7 @@ local void PChat(Player *p, byte *pkt, int len)
 	if (!arena || p->status != S_PLAYING) return;
 
 	/* remove control characters from the chat message */
-	for (t = from->text; *t; t++)
+	for (t = (unsigned char *)from->text; *t; t++)
 		if (*t < 32 || *t == 127 || *t == 255)
 			*t = '_';
 

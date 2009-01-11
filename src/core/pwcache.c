@@ -28,7 +28,7 @@ local void hash_password(const char *name, const char *pwd,
 	astrncpy(work + NAMELEN, pwd, PWLEN);
 
 	MD5Init(&ctx);
-	MD5Update(&ctx, work, NAMELEN+PWLEN);
+	MD5Update(&ctx, (unsigned char *)work, NAMELEN+PWLEN);
 	MD5Final(out, &ctx);
 }
 

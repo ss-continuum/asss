@@ -177,7 +177,7 @@ local void get_data(void *clos, int offset, byte *buf, int needed)
 	else if (offset == 0 && needed >= 17)
 	{
 		*buf++ = S2C_INCOMINGFILE;
-		strncpy(buf, dd->fname, 16);
+		strncpy((char*)buf, dd->fname, 16);
 		buf += 16;
 		fread(buf, needed - 17, 1, dd->fp);
 	}

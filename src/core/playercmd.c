@@ -145,11 +145,11 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 						de->d_name[0] != '(' &&
 						access(aconf, R_OK) == 0 &&
 						(de->d_name[0] != '#' || seehid) &&
-						check_arena(buf, pos-buf, de->d_name)
+						check_arena((char *)buf, pos-buf, de->d_name)
 				   )
 				{
 					l = strlen(de->d_name) + 1;
-					strncpy(pos, de->d_name, l);
+					strncpy((char *)pos, de->d_name, l);
 					pos += l;
 					*pos++ = 0;
 					*pos++ = 0;
@@ -162,7 +162,7 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 
 	/* send it */
 	if (IS_CHAT(p) || strstr(params, "-t"))
-		translate_arena_packet(p, buf, pos-buf);
+		translate_arena_packet(p, (char *)buf, pos-buf);
 	else if (IS_STANDARD(p))
 		net->SendToOne(p, buf, pos-buf, NET_RELIABLE);
 }

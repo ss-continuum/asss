@@ -903,7 +903,8 @@ local void dump_pk(byte *d, int len)
 
 local void handle_game_packet(ListenData *ld)
 {
-	int len, sinsize, status;
+	int len, status;
+	unsigned int sinsize;
 	struct sockaddr_in sin;
 	Player *p;
 	ConnData *conn;
@@ -1036,7 +1037,8 @@ local void handle_ping_packet(ListenData *ld)
 		int apslen;
 	} sdata = { 0 };
 
-	int len, sinsize;
+	int len;
+	unsigned int sinsize;
 	struct sockaddr_in sin;
 	u32 data[2];
 	ticks_t now;
@@ -1076,7 +1078,7 @@ local void handle_ping_packet(ListenData *ld)
 			if (a->status == ARENA_RUNNING && a->name[0] != '#')
 			{
 				int l = strlen(a->name) + 1;
-				strncpy(pos, a->name, l);
+				strncpy((char *)pos, a->name, l);
 				pos += l;
 				*pos++ = (a->total >> 0) & 0xFF;
 				*pos++ = (a->total >> 8) & 0xFF;
@@ -1158,7 +1160,8 @@ local void handle_ping_packet(ListenData *ld)
 
 local void handle_client_packet(void)
 {
-	int len, sinsize;
+	int len;
+	unsigned int sinsize;
 	struct sockaddr_in sin;
 	Buffer *buf;
 	Link *l;
@@ -1575,7 +1578,7 @@ local void process_lagouts(Player *p, unsigned int gtc, LinkedList *tokill, Link
 	{
 		/* manually create an unreliable chat packet because we won't
 		 * have time to send it properly. */
-		byte pkt[128] = "\x07\x08\x00\x00\x00You have been disconnected because of lag (";
+		char pkt[128] = "\x07\x08\x00\x00\x00You have been disconnected because of lag (";
 		const char *reason;
 
 		if (conn->hitmaxretries)
@@ -1588,7 +1591,7 @@ local void process_lagouts(Player *p, unsigned int gtc, LinkedList *tokill, Link
 		strcat(pkt+5, reason);
 		strcat(pkt+5, ").");
 		pthread_mutex_lock(&conn->olmtx);
-		SendRaw(conn, pkt, strlen(pkt+5)+6);
+		SendRaw(conn, (byte *)pkt, strlen(pkt+5)+6);
 		pthread_mutex_unlock(&conn->olmtx);
 
 		lm->Log(L_INFO, "<net> [%s] [pid=%d] player kicked for %s",

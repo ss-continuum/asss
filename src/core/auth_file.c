@@ -67,7 +67,7 @@ local void hash_password(const char *name, const char *pwd, char
 	astrncpy(msg + 24, pwd, 32);
 
 	MD5Init(&ctx);
-	MD5Update(&ctx, msg, 56);
+	MD5Update(&ctx, (unsigned char *)msg, 56);
 	MD5Final(hash, &ctx);
 
 	for (i = 0; i < PWHASHLEN/2; i++)

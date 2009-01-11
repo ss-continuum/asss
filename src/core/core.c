@@ -101,7 +101,7 @@ local u32 get_checksum(const char *file)
 	while (!feof(f))
 	{
 		int b = fread(buf, 1, sizeof(buf), f);
-		crc = crc32(crc, buf, b);
+		crc = crc32(crc, (unsigned char *)buf, b);
 	}
 	fclose(f);
 	return crc;
@@ -524,7 +524,7 @@ void PLogin(Player *p, byte *opkt, int l)
 		 * while we're at it, remove leading, trailing, and series of
 		 * spaces */
 		{
-			unsigned char c, cc = ' ', *s = lp->name, *l = lp->name;
+			unsigned char c, cc = ' ', *s = (unsigned char *)lp->name, *l = (unsigned char *)lp->name;
 
 			while ((c = *s++))
 				if (c >= 32 && c <= 126 && c != ':')
@@ -805,16 +805,16 @@ void SendLoginResponse(Player *p)
 			if (p->type == T_CONT)
 			{
 				/* send custom rejection text */
-				byte custom[256];
+				char custom[256];
 				custom[0] = S2C_LOGINTEXT;
 				astrncpy(custom+1, auth->customtext, 255);
-				net->SendToOne(p, custom, strlen(custom+1) + 2, NET_RELIABLE);
+				net->SendToOne(p, (byte *)custom, strlen(custom+1) + 2, NET_RELIABLE);
 			}
 			else /* vie doesn't understand that packet */
 				lr.code = AUTH_LOCKEDOUT;
 		}
 
-		net->SendToOne(p, (char*)&lr, sizeof(lr), NET_RELIABLE);
+		net->SendToOne(p, (unsigned char*)&lr, sizeof(lr), NET_RELIABLE);
 	}
 	else if (IS_CHAT(p))
 	{
