@@ -331,7 +331,7 @@ local void ppk(Player *p, byte *pkt, int len)
 }
 
 
-local void arenapkt(Arena *a, byte *pkt, int n, int flags)
+/*local void arenapkt(Arena *a, byte *pkt, int n, int flags)
 {
 	rec_adata *ra = P_ARENA_DATA(a, adkey);
 	struct event_packet *ev;
@@ -361,7 +361,7 @@ local void arenapkt(Arena *a, byte *pkt, int n, int flags)
 	ev->len = (flags & NET_RELIABLE) ? -n : n;
 	memcpy(ev->data, pkt, n);
 	MPAdd(&ra->mpq, ev);
-}
+}*/
 
 
 /* writer thread */
