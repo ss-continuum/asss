@@ -336,7 +336,7 @@ void MyPA(Player *p, int action, Arena *arena)
 
 /* ?bounty command */
 
-local helptext_t bounty_help =
+/*local helptext_t bounty_help =
 	"Targets: Player\n"
 	"Syntax: /?bounty <points>\n"
 	"Set a bounty on another player.";
@@ -348,7 +348,7 @@ local void Cbounty(const char *tc, const char *params, Player *p, const Target *
 		chat->SendMessage(p,"Only valid target for ?bounty is another player.");
 		return;
 	}
-}
+}*/
 
 EXPORT int MM_mark(int action, Imodman *_mm, Arena *arena)
 {
