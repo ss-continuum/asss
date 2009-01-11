@@ -4,6 +4,8 @@
 #ifndef __PACKETS_SIMPLE_H
 #define __PACKETS_SIMPLE_H
 
+#pragma pack(push,1)
+
 /* simple.h - generic packets */
 
 struct SimplePacket
@@ -18,6 +20,7 @@ struct SimplePacketA
 	i16 d[1];
 };
 
+#pragma pack(pop)
 
 #endif
 

@@ -4,6 +4,8 @@
 #ifndef __PACKETS_KILL_H
 #define __PACKETS_KILL_H
 
+#pragma pack(push,1)
+
 struct KillPacket
 {
 	u8 type;
@@ -13,6 +15,8 @@ struct KillPacket
 	i16 bounty;
 	i16 flags;
 };
+
+#pragma pack(pop)
 
 #endif
 

@@ -4,6 +4,8 @@
 #ifndef __PACKETS_BALL_H
 #define __PACKETS_BALL_H
 
+#pragma pack(push,1)
+
 struct BallPacket
 {
 	u8 type; /* 0x2E for s2c, 0x1F for c2s */
@@ -30,6 +32,8 @@ struct C2SGoal
 	i16 x;
 	i16 y;
 };
+
+#pragma pack(pop)
 
 #endif
 

@@ -4,6 +4,8 @@
 #ifndef __PACKETS_FLAGS_H
 #define __PACKETS_FLAGS_H
 
+#pragma pack(push,1)
+
 struct S2CFlagLocation
 {
 	u8 type; /* 0x12 */
@@ -38,6 +40,8 @@ struct S2CFlagDrop
 	u8 type; /* 0x16 */
 	i16 pid;
 };
+
+#pragma pack(pop)
 
 #endif
 

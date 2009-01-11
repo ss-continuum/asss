@@ -4,6 +4,8 @@
 #ifndef __PACKETS_CLIENTSET_H
 #define __PACKETS_CLIENTSET_H
 
+#pragma pack(push,1)
+
 /* structs for packet types and data */
 
 struct WeaponBits /* 4 bytes */
@@ -72,6 +74,7 @@ struct ClientSettings
 	u8 prizeweight_set[28];
 };
 
+#pragma pack(pop)
 
 #endif
 

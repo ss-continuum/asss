@@ -4,8 +4,9 @@
 #ifndef __PACKETS_LOGINRESP_H
 #define __PACKETS_LOGINRESP_H
 
-/* loginresp.h - login repsonse packet */
+#pragma pack(push,1)
 
+/* loginresp.h - login repsonse packet */
 
 struct S2CLoginResponse
 {
@@ -22,6 +23,7 @@ struct S2CLoginResponse
 	u8 blah4[8];
 };
 
+#pragma pack(pop)
 
 #endif
 

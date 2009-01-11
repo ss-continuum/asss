@@ -4,6 +4,8 @@
 #ifndef __PACKETS_BILLING_H
 #define __PACKETS_BILLING_H
 
+#pragma pack(push,1)
+
 #ifdef __GNUC__
 #define PACKED __attribute__((packed))
 #else
@@ -211,6 +213,8 @@ struct B2S_BillingIdentity {
 	u8  Type;
 	u8  IDData[256];
 } PACKED;
+
+#pragma pack(pop)
 
 #endif
 

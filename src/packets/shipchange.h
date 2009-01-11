@@ -4,6 +4,7 @@
 #ifndef __PACKETS_SHIPCHANGE_h
 #define __PACKETS_SHIPCHANGE_h
 
+#pragma pack(push,1)
 
 struct ShipChangePacket
 {
@@ -12,6 +13,8 @@ struct ShipChangePacket
 	i16 pnum;
 	i16 freq;
 };
+
+#pragma pack(pop)
 
 #endif
 

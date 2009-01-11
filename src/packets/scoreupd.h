@@ -4,6 +4,8 @@
 #ifndef __PACKETS_SCOREUPD_H
 #define __PACKETS_SCOREUPD_H
 
+#pragma pack(push,1)
+
 struct ScorePacket
 {
 	u8 type;
@@ -13,6 +15,8 @@ struct ScorePacket
 	i16 kills;
 	i16 deaths;
 };
+
+#pragma pack(pop)
 
 #endif
 

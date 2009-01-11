@@ -4,6 +4,8 @@
 #ifndef __PACKETS_GREEN_H
 #define __PACKETS_GREEN_H
 
+#pragma pack(push,1)
+
 struct GreenPacket
 {
 	u8 type;
@@ -14,6 +16,7 @@ struct GreenPacket
 	i16 pid;
 };
 
+#pragma pack(pop)
 
 #endif
 

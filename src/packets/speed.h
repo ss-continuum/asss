@@ -4,6 +4,8 @@
 #ifndef __PACKETS_SPEED_H
 #define __PACKETS_SPEED_H
 
+#pragma pack(push,1)
+
 struct SpeedStats
 {
 	u8 type, best;
@@ -16,6 +18,8 @@ struct SpeedStats
  * rank is their personal rank this game, with pscore being their score
  * if not enough players, pid's will be -1 with score being 0
  */
+
+#pragma pack(pop)
 
 #endif
 

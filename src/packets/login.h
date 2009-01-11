@@ -4,8 +4,9 @@
 #ifndef __PACKETS_LOGIN_H
 #define __PACKETS_LOGIN_H
 
-/* login.h - player login packet */
+#pragma pack(push,1)
 
+/* login.h - player login packet */
 
 struct LoginPacket
 {
@@ -27,6 +28,7 @@ struct LoginPacket
 #define LEN_LOGINPACKET_VIE (sizeof(struct LoginPacket) - 64)
 #define LEN_LOGINPACKET_CONT sizeof(struct LoginPacket)
 
+#pragma pack(pop)
 
 #endif
 

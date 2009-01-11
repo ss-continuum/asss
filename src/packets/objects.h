@@ -4,6 +4,8 @@
 #ifndef __PACKETS_OBJECTS_H
 #define __PACKETS_OBJECTS_H
 
+#pragma pack(push,1)
+
 struct ToggledObject
 {
 	union
@@ -101,6 +103,8 @@ struct ObjectMove   /* 11 bts */
 		u16 mode :  4;  /* MODE_ constant */
 	} data;
 };
+
+#pragma pack(pop)
 
 #endif
 

@@ -4,6 +4,8 @@
 #ifndef __PACKETS_WATCHDAMAGE_H
 #define __PACKETS_WATCHDAMAGE_H
 
+#pragma pack(push,1)
+
 typedef struct DamageData
 {
 	i16 shooteruid;
@@ -27,6 +29,8 @@ struct C2SWatchDamage
 	u32 tick;
 	DamageData damage[1];
 };
+
+#pragma pack(pop)
 
 #endif
 

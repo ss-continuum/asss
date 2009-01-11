@@ -4,6 +4,7 @@
 #ifndef __PACKETS_BRICK_H
 #define __PACKETS_BRICK_H
 
+#pragma pack(push,1)
 
 struct S2CBrickPacket
 {
@@ -17,6 +18,7 @@ struct S2CBrickPacket
 	u32 starttime;
 };
 
+#pragma pack(pop)
 
 #endif
 

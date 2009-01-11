@@ -8,21 +8,10 @@
 
 #include "asss.h"
 #include "redirect.h"
+#include "packets/redirect.h"
 
 local Iconfig *cfg;
 local Inet *net;
-
-
-struct S2CRedirect
-{
-	u8 type;
-	u32 ip;
-	u16 port;
-	i16 arenatype;     /* as in ?go packet */
-	i8  arenaname[16];
-	u32 loginid;
-};
-
 
 local int RawRedirect(const Target *t, const char *ip, int port,
 		int arenatype, const char *arenaname)

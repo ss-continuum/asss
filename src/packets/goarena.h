@@ -4,6 +4,8 @@
 #ifndef __PACKETS_GOARENA_H
 #define __PACKETS_GOARENA_H
 
+#pragma pack(push,1)
+
 /* goarena.h - the ?go arena change request packet */
 
 struct GoArenaPacket
@@ -21,6 +23,8 @@ struct GoArenaPacket
 
 #define LEN_GOARENAPACKET_VIE (sizeof(struct GoArenaPacket) - 1)
 #define LEN_GOARENAPACKET_CONT sizeof(struct GoArenaPacket)
+
+#pragma pack(pop)
 
 #endif
 

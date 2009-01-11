@@ -18,7 +18,7 @@
 
 #include "asss.h"
 #include "filetrans.h"
-
+#include "packets/requestfile.h"
 
 struct upload_data
 {
@@ -238,12 +238,7 @@ local int RequestFile(Player *p, const char *path,
 		void (*uploaded)(const char *filename, void *clos), void *clos)
 {
 	struct upload_data *ud = PPDATA(p, udkey);
-	struct S2CRequestFile
-	{
-		u8 type;
-		char path[256];
-		char fname[16];
-	} pkt;
+	struct S2CRequestFile pkt;
 
 	if (ud->fp || ud->fname || !IS_STANDARD(p))
 		return MM_FAIL;

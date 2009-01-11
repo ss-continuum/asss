@@ -37,25 +37,7 @@ had not been sent.  we'll have to do that with arena msgs
 #include <string.h>
 
 #include "asss.h"
-
-
-/* packet struct definitions */
-
-struct S2CVoice
-{
-	u8 type;
-	u16 source_id;
-	/* voice data goes here */
-};
-
-struct C2SVoice
-{
-	u8 type;
-	u8 voice_index;
-	u16 target_id;
-	/* voice data goes here */
-};
-
+#include "packets/voice.h"
 
 /* 250 users can each have one 32 KB audio sample */
 

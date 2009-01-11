@@ -2,6 +2,8 @@
 #ifndef __PACKETS_STATS_H
 #define __PACKETS_STATS_H
 
+#pragma pack(push,1)
+
 /* NOTE: the protocol described by this file isn't implemented yet! */
 
 /* this stuff is for the new stats display protocol */
@@ -96,6 +98,8 @@ struct S2CStatUpdate
 		i32 newval;
 	} updates[0];
 };
+
+#pragma pack(pop)
 
 #endif
 

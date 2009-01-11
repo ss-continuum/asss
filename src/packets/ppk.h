@@ -4,8 +4,9 @@
 #ifndef __PACKETS_PPK_H
 #define __PACKETS_PPK_H
 
-/* ppk.h - position and weapons packets */
+#pragma pack(push,1)
 
+/* ppk.h - position and weapons packets */
 
 /* weapon codes */
 #define W_NULL          0
@@ -101,6 +102,7 @@ struct C2SPosition
 	struct ExtraPosData extra;
 };
 
+#pragma pack(pop)
 
 #endif
 

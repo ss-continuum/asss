@@ -4,6 +4,8 @@
 #ifndef __PACKETS_BANNERS_H
 #define __PACKETS_BANNERS_H
 
+#pragma pack(push,1)
+
 /* a single banner */
 typedef struct Banner
 {
@@ -34,5 +36,7 @@ struct C2SBanner
 	u8 type; /* 0x19 */
 	Banner banner;
 };
+
+#pragma pack(pop)
 
 #endif

@@ -4,6 +4,8 @@
 #ifndef __PACKETS_TIMESYNC_H
 #define __PACKETS_TIMESYNC_H
 
+#pragma pack(push,1)
+
 /* timesync.h - time sync packets */
 
 struct TimeSyncS2C
@@ -22,6 +24,8 @@ struct TimeSyncC2S
 	u32 pktsent;
 	u32 pktrecvd;
 };
+
+#pragma pack(pop)
 
 #endif
 

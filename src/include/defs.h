@@ -30,10 +30,6 @@
 #define ASSSVERSION_NUM 0x00010404
 #define BUILDDATE __DATE__ " " __TIME__
 
-
-/* do it upfront so we don't have to worry */
-#pragma pack(1)
-
 #include "util.h"
 
 

@@ -4,6 +4,8 @@
 #ifndef __PACKETS_PDATA_H
 #define __PACKETS_PDATA_H
 
+#pragma pack(push,1)
+
 /** @file
  ** the player data packet */
 
@@ -41,6 +43,7 @@ typedef struct PlayerData
 #define SET_SEND_DAMAGE(pid) /* (p->pkt.miscbits |= F_SEND_DAMAGE) */
 #define UNSET_SEND_DAMAGE(pid) /* (p->pkt.miscbits &= ~F_SEND_DAMAGE) */
 
+#pragma pack(pop)
 
 #endif
 

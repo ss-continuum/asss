@@ -4,6 +4,8 @@
 #ifndef __PACKETS_KOTH_H
 #define __PACKETS_KOTH_H
 
+#pragma pack(push,1)
+
 struct S2CKoth
 {
 	u8 type;
@@ -20,6 +22,8 @@ struct S2CSetKothTimer
 	u8 type;
 	u32 time;
 };
+
+#pragma pack(pop)
 
 #endif
 
