@@ -408,7 +408,7 @@ local void Cversion(const char *tc, const char *params, Player *p, const Target 
 		len = MAX_COMPUTERNAME_LENGTH + 1;
 		GetComputerName(name, &len);
 
-		chat->SendMessage(p, "running on %s %s (version %ld.%ld.%ld), host: %s",
+		chat->SendMessage(p, "running on %s %s (version %d.%d.%d), host: %s",
 			vi.dwPlatformId == VER_PLATFORM_WIN32s ? "Windows 3.11" : 
 				vi.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS ? 
 					(vi.dwMinorVersion == 0 ? "Windows 95" : "Windows 98") :
@@ -863,20 +863,20 @@ local helptext_t netstats_help =
 local void Cnetstats(const char *tc, const char *params, Player *p, const Target *target)
 {
 	ticks_t secs = TICK_DIFF(current_ticks(), startedat) / 100;
-	unsigned long bwin, bwout;
+	unsigned int bwin, bwout;
 	struct net_stats stats;
 
 	net->GetStats(&stats);
 
-	chat->SendMessage(p, "netstats: pings=%lu  pkts sent=%lu  pkts recvd=%lu",
+	chat->SendMessage(p, "netstats: pings=%u  pkts sent=%u  pkts recvd=%u",
 			stats.pcountpings, stats.pktsent, stats.pktrecvd);
 	bwout = (stats.bytesent + stats.pktsent * 28) / secs;
 	bwin = (stats.byterecvd + stats.pktrecvd * 28) / secs;
-	chat->SendMessage(p, "netstats: bw out=%lu  bw in=%lu", bwout, bwin);
-	chat->SendMessage(p, "netstats: buffers used=%lu/%lu (%.1f%%)",
+	chat->SendMessage(p, "netstats: bw out=%u  bw in=%u", bwout, bwin);
+	chat->SendMessage(p, "netstats: buffers used=%u/%u (%.1f%%)",
 			stats.buffersused, stats.buffercount,
 			(double)stats.buffersused/(double)stats.buffercount*100.0);
-	chat->SendMessage(p, "netstats: grouped=%ld/%ld/%ld/%ld/%ld/%ld/%ld/%ld",
+	chat->SendMessage(p, "netstats: grouped=%d/%d/%d/%d/%d/%d/%d/%d",
 			stats.grouped_stats[0],
 			stats.grouped_stats[1],
 			stats.grouped_stats[2],
@@ -885,7 +885,7 @@ local void Cnetstats(const char *tc, const char *params, Player *p, const Target
 			stats.grouped_stats[5],
 			stats.grouped_stats[6],
 			stats.grouped_stats[7]);
-	chat->SendMessage(p, "netstats: pri=%ld/%ld/%ld/%ld/%ld",
+	chat->SendMessage(p, "netstats: pri=%d/%d/%d/%d/%d",
 			stats.pri_stats[0],
 			stats.pri_stats[1],
 			stats.pri_stats[2],
@@ -911,7 +911,7 @@ local void do_common_bw_stuff(Player *p, Player *t, ticks_t tm,
 	}
 	ignoring = game ? (int)(100.0 * game->GetIgnoreWeapons(t)) : 0;
 	chat->SendMessage(p,
-			"%s: avg bw in/out=%ld/%ld  ignoringwpns=%d%%  dropped=%ld",
+			"%s: avg bw in/out=%d/%d  ignoringwpns=%d%%  dropped=%d",
 			prefix, s.byterecvd*100/tm, s.bytesent*100/tm,
 			ignoring, s.pktdropped);
 	chat->SendMessage(p,
@@ -2096,7 +2096,7 @@ local void Cmapinfo(const char *tc, const char *params, Player *p, const Target 
 	chat->SendMessage(p, "regions: %d", regs);
 
 	mapdata->GetMemoryStats(p->arena, &stats);
-	chat->SendMessage(p, "memory: lvl=%ld/%ld  rgn=%ld/%ld",
+	chat->SendMessage(p, "memory: lvl=%d/%d  rgn=%d/%d",
 			stats.lvlbytes, stats.lvlblocks, stats.rgnbytes, stats.rgnblocks);
 }
 

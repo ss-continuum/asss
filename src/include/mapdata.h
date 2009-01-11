@@ -67,8 +67,8 @@ typedef struct Region Region;
 
 struct mapdata_memory_stats_t
 {
-	long lvlbytes, lvlblocks, rgnbytes, rgnblocks;
-	long reserved[8];
+	int lvlbytes, lvlblocks, rgnbytes, rgnblocks;
+	int reserved[8];
 };
 
 

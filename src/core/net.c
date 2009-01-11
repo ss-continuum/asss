@@ -352,7 +352,7 @@ local Inet_client netclientint =
 
 EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 {
-	int i, relthdcount;
+	long i, relthdcount;
 	pthread_t *thd;
 
 	assert(sizeof(global_stats) == 256);

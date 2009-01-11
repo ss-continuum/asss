@@ -55,13 +55,13 @@ typedef void (*ConnectionInitFunc)(struct sockaddr_in *sin, byte *pkt, int len, 
 
 struct net_stats
 {
-	unsigned long pcountpings, pktsent, pktrecvd;
-	unsigned long bytesent, byterecvd;
-	unsigned long buffercount, buffersused;
+	unsigned int pcountpings, pktsent, pktrecvd;
+	unsigned int bytesent, byterecvd;
+	unsigned int buffercount, buffersused;
 #define NET_GROUPED_STATS_LEN 8
-	unsigned long grouped_stats[NET_GROUPED_STATS_LEN];
+	unsigned int grouped_stats[NET_GROUPED_STATS_LEN];
 #define NET_PRI_STATS_LEN 5 /* must match BW_PRIS in bwlimit.h */
-	unsigned long pri_stats[NET_PRI_STATS_LEN];
+	unsigned int pri_stats[NET_PRI_STATS_LEN];
 	byte reserved[176];
 };
 
@@ -70,9 +70,9 @@ struct net_client_stats
 	/* sequence numbers */
 	i32 s2cn, c2sn;
 	/* counts of stuff sent and recvd */
-	unsigned long pktsent, pktrecvd, bytesent, byterecvd;
+	unsigned int pktsent, pktrecvd, bytesent, byterecvd;
 	/* count of s2c packets dropped */
-	unsigned long pktdropped;
+	unsigned int pktdropped;
 	unsigned int unused1;
 	/* encryption type */
 	const char *encname;

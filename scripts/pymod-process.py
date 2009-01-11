@@ -1214,7 +1214,7 @@ def generate_getset_code(tp):
 	getter = """
 local PyObject * %(getname)s(PyObject *obj, void *v)
 {
-	int offset = (int)v;
+	long offset = (long)v;
 	%(ctype)s *ptr = (%(ctype)s*)(((char*)obj)+offset);
 """ % vars()
 	try:
@@ -1231,7 +1231,7 @@ local PyObject * %(getname)s(PyObject *obj, void *v)
 	setter = """
 local int %(setname)s(PyObject *obj, PyObject *newval, void *v)
 {
-	int offset = (int)v;
+	long offset = (long)v;
 	%(ctype)s *ptr = (%(ctype)s*)(((char*)obj)+offset);
 """ % vars()
 	try:

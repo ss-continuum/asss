@@ -784,7 +784,7 @@ local void *playback_thread(void *v)
 	for (;;)
 	{
 		/* try reading a control command */
-		cmd = (int)MPTryRemove(&ra->mpq);
+		cmd = (long)MPTryRemove(&ra->mpq);
 		switch (cmd)
 		{
 			case PC_NULL:

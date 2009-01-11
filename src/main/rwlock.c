@@ -32,6 +32,7 @@
 #include "pthread.h"
 #include "errno.h"
 
+#include "asss.h"
 #include "rwlock.h"
 
 /* #define CHECK_VALID */

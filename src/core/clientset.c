@@ -389,22 +389,22 @@ local void do_mask(
 		overridedata *od2)
 {
 	int i;
-	unsigned long *s = (unsigned long*)src;
-	unsigned long *d = (unsigned long*)dest;
-	unsigned long *o1 = (unsigned long*)od1->bits;
-	unsigned long *m1 = (unsigned long*)od1->mask;
+	unsigned int *s = (unsigned int*)src;
+	unsigned int *d = (unsigned int*)dest;
+	unsigned int *o1 = (unsigned int*)od1->bits;
+	unsigned int *m1 = (unsigned int*)od1->mask;
 
 	if (od2)
 	{
-		unsigned long *o2 = (unsigned long*)od2->bits;
-		unsigned long *m2 = (unsigned long*)od2->mask;
+		unsigned int *o2 = (unsigned int*)od2->bits;
+		unsigned int *m2 = (unsigned int*)od2->mask;
 
-		for (i = 0; i < sizeof(*dest)/sizeof(unsigned long); i++)
+		for (i = 0; i < sizeof(*dest)/sizeof(unsigned int); i++)
 			d[i] = (((s[i] & ~m1[i]) | (o1[i] & m1[i])) & ~m2[i]) | (o2[i] & m2[i]);
 	}
 	else
 	{
-		for (i = 0; i < sizeof(*dest)/sizeof(unsigned long); i++)
+		for (i = 0; i < sizeof(*dest)/sizeof(unsigned int); i++)
 			d[i] = (s[i] & ~m1[i]) | (o1[i] & m1[i]);
 	}
 }
@@ -562,7 +562,7 @@ EXPORT int MM_clientset(int action, Imodman *mm_, Arena *arena)
 		/* do these at least once */
 #define cs (*((struct ClientSettings*)0))
 #define ss (*((struct ShipSettings*)0))
-		assert((sizeof(cs) % sizeof(unsigned long)) == 0);
+		assert((sizeof(cs) % sizeof(uint32_t)) == 0);
 		assert(COUNT(cs.long_set) == COUNT(long_names));
 		assert(COUNT(cs.short_set) == COUNT(short_names));
 		assert(COUNT(cs.byte_set) == COUNT(byte_names));
