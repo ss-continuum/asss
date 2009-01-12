@@ -70,6 +70,8 @@
 
 #include "packets/timesync.h"
 
+#pragma pack(1)
+
 struct sized_send_data
 {
 	void (*request_data)(void *clos, int offset, byte *buf, int needed);

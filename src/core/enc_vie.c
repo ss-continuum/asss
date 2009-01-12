@@ -4,6 +4,8 @@
 #include "asss.h"
 #include "encrypt.h"
 
+#pragma pack(1)
+
 #define BAD_KEY (-1) /* valid keys must be positive */
 
 /* structs */

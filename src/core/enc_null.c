@@ -3,6 +3,7 @@
 
 #include "asss.h"
 
+#pragma pack(1)
 
 /* prototypes */
 
