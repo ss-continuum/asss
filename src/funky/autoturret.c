@@ -151,7 +151,7 @@ static long lhypot (register long dx, register long dy)
 
 #define PI 3.14159265f
 
-unsigned char fileAngle(int x, int y)
+local unsigned char fileAngle(int x, int y)
 {
 	double angle;
 
@@ -162,7 +162,7 @@ unsigned char fileAngle(int x, int y)
 	return (unsigned char)(angle * 40.0 / (2.0 * PI) + 30) % 40;
 }
 
-inline unsigned char fireControl(int x, int y, int x1, int y1, int vx, int vy, int vp)
+local inline unsigned char fireControl(int x, int y, int x1, int y1, int vx, int vy, int vp)
 {
 	int t, guess, err, a, b;
 
@@ -186,7 +186,7 @@ inline unsigned char fireControl(int x, int y, int x1, int y1, int vx, int vy, i
 	return fileAngle(a - x, b - y);
 }
 
-Player *findTurretTarget(struct TurretData *td)
+local Player *findTurretTarget(struct TurretData *td)
 {
 	Player *i, *bp = 0;
 	int bd = 1024 * 16, dist, x, y, x1, y1;
