@@ -225,7 +225,7 @@ local void Csg_info(const char *tc, const char *params, Player *p, const Target 
 			0, 0, 0,
 			0, 0, 0, 0, 0, 0);
 	chat->SendMessage(p,
-			"Bytes/Sec:%lu  LowBandwidth:%d  MessageLogging:%d  ConnectType:%s",
+			"Bytes/Sec:%u  LowBandwidth:%d  MessageLogging:%d  ConnectType:%s",
 			tm ? stats.bytesent / tm : 0, 0, 0, "Unknown");
 }
 

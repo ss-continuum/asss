@@ -190,7 +190,7 @@ local PyObject * cvt_c2p_banner(Banner *b)
 local int cvt_p2c_banner(PyObject *o, Banner **bp)
 {
 	char *buf;
-	int len = -1;
+	long len = -1;
 	PyString_AsStringAndSize(o, &buf, &len);
 	if (len == sizeof(Banner))
 	{
@@ -700,7 +700,7 @@ local void py_newplayer(Player *p, int isnew)
 	else
 	{
 		if (d->obj->ob_refcnt != 1)
-			lm->Log(L_ERROR, "<pymod> there are %d remaining references to a player object!",
+			lm->Log(L_ERROR, "<pymod> there are %ld remaining references to a player object!",
 					d->obj->ob_refcnt);
 
 		/* this stuff would usually be done in dealloc, but I want to
@@ -734,7 +734,7 @@ local void py_aaction(Arena *a, int action)
 	if (action == AA_POSTDESTROY && d->obj)
 	{
 		if (d->obj->ob_refcnt != 1)
-			lm->Log(L_ERROR, "<pymod> there are %d remaining references to an arena object!",
+			lm->Log(L_ERROR, "<pymod> there are %ld remaining references to an arena object!",
 					d->obj->ob_refcnt);
 
 		/* see notes for py_newplayer as to why this is done here. */
@@ -1218,7 +1218,7 @@ local int get_player_data(Player *p, void *data, int len, void *v)
 	struct pypersist_ppd *pyppd = v;
 	PyObject *val, *pkl;
 	const void *pkldata;
-	int pkllen;
+	long pkllen;
 
 	val = PyObject_CallMethod(pyppd->funcs, "get", "(O&)", cvt_c2p_player, p);
 	if (!val)
@@ -1251,7 +1251,7 @@ local int get_player_data(Player *p, void *data, int len, void *v)
 	{
 		Py_DECREF(pkl);
 		lm->Log(L_WARN, "<pymod> persistent data getter returned more "
-				"than %d bytes of data (%d allowed)",
+				"than %ld bytes of data (%d allowed)",
 				pkllen, len);
 		return 0;
 	}
@@ -1260,7 +1260,7 @@ local int get_player_data(Player *p, void *data, int len, void *v)
 
 	Py_DECREF(pkl);
 
-	return pkllen;
+	return (int)pkllen;
 }
 
 local void set_player_data(Player *p, void *data, int len, void *v)
@@ -1344,7 +1344,7 @@ local int get_arena_data(Arena *a, void *data, int len, void *v)
 	struct pypersist_apd *pyapd = v;
 	PyObject *val, *pkl;
 	const void *pkldata;
-	int pkllen;
+	long pkllen;
 
 	val = PyObject_CallMethod(pyapd->funcs, "get", "(O&)", cvt_c2p_arena, a);
 	if (!val)
@@ -1377,7 +1377,7 @@ local int get_arena_data(Arena *a, void *data, int len, void *v)
 	{
 		Py_DECREF(pkl);
 		lm->Log(L_WARN, "<pymod> persistent data getter returned more "
-				"than %d bytes of data (%d allowed)",
+				"than %ld bytes of data (%d allowed)",
 				pkllen, len);
 		return 0;
 	}
@@ -1386,7 +1386,7 @@ local int get_arena_data(Arena *a, void *data, int len, void *v)
 
 	Py_DECREF(pkl);
 
-	return pkllen;
+	return (int)pkllen;
 }
 
 local void set_arena_data(Arena *a, void *data, int len, void *v)
@@ -1655,7 +1655,7 @@ local int unload_py_module(mod_args_t *args)
 
 	if (mod->ob_refcnt != 2)
 	{
-		lm->Log(L_WARN, "<pymod> there are %d remaining references to module %s",
+		lm->Log(L_WARN, "<pymod> there are %ld remaining references to module %s",
 				mod->ob_refcnt, mname);
 		return MM_FAIL;
 	}
