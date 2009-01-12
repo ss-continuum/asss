@@ -1,4 +1,5 @@
 syntax: regexp
 ^src/system.mk
+^src/contenc
 ^bin
 ^build
