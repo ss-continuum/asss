@@ -84,7 +84,7 @@ EXPORT int MM_enc_vie(int action, Imodman *mm, Arena *arena)
 }
 
 
-void ConnInit(struct sockaddr_in *sin, byte *pkt, int len, void *v)
+local void ConnInit(struct sockaddr_in *sin, byte *pkt, int len, void *v)
 {
 	int key;
 	Player *p;
@@ -146,7 +146,7 @@ local void do_init(EncData *ed, int k)
 	}
 }
 
-void Init(Player *p, int k)
+local void Init(Player *p, int k)
 {
 	EncData *ed, **p_ed = PPDATA(p, enckey);
 	
@@ -184,7 +184,7 @@ local int do_enc(EncData *ed, byte *data, int len)
 	return len;
 }
 
-int Encrypt(Player *p, byte *data, int len)
+local int Encrypt(Player *p, byte *data, int len)
 {
 	EncData *ed, **p_ed = PPDATA(p, enckey);
 	pthread_mutex_lock(&mtx);
@@ -194,7 +194,7 @@ int Encrypt(Player *p, byte *data, int len)
 }
 
 
-int do_dec(EncData *ed, byte *data, int len)
+local int do_dec(EncData *ed, byte *data, int len)
 {
 	int work = ed->key, *mytable = (int*)ed->table;
 	int *mydata, loop, until;
@@ -221,7 +221,7 @@ int do_dec(EncData *ed, byte *data, int len)
 	return len;
 }
 
-int Decrypt(Player *p, byte *data, int len)
+local int Decrypt(Player *p, byte *data, int len)
 {
 	EncData *ed, **p_ed = PPDATA(p, enckey);
 	pthread_mutex_lock(&mtx);
@@ -231,7 +231,7 @@ int Decrypt(Player *p, byte *data, int len)
 }
 
 
-void Void(Player *p)
+local void Void(Player *p)
 {
 	EncData *ed, **p_ed = PPDATA(p, enckey);
 	pthread_mutex_lock(&mtx);
@@ -242,14 +242,14 @@ void Void(Player *p)
 }
 
 
-ClientEncryptData * ClientInit(void)
+local ClientEncryptData * ClientInit(void)
 {
 	EncData *ed = amalloc(sizeof(*ed));
 	ed->key = BAD_KEY;
 	return (ClientEncryptData*)ed;
 }
 
-int ClientEncrypt(ClientEncryptData *ced, byte *d, int n)
+local int ClientEncrypt(ClientEncryptData *ced, byte *d, int n)
 {
 	EncData *ed = (EncData*)ced;
 	if (d[1] == 0x01 && d[0] == 0x00)
@@ -265,7 +265,7 @@ int ClientEncrypt(ClientEncryptData *ced, byte *d, int n)
 		return n;
 }
 
-int ClientDecrypt(ClientEncryptData *ced, byte *d, int n)
+local int ClientDecrypt(ClientEncryptData *ced, byte *d, int n)
 {
 	EncData *ed = (EncData*)ced;
 	if (d[1] == 0x02 && d[0] == 0x00)
@@ -284,7 +284,7 @@ int ClientDecrypt(ClientEncryptData *ced, byte *d, int n)
 		return n;
 }
 
-void ClientVoid(ClientEncryptData *ced)
+local void ClientVoid(ClientEncryptData *ced)
 {
 	afree(ced);
 }

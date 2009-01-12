@@ -3,7 +3,7 @@
 
 #include "statcodes.h"
 
-const char *get_stat_name(int st)
+local const char *get_stat_name(int st)
 {
 	switch (st)
 	{
@@ -44,7 +44,7 @@ const char *get_stat_name(int st)
 	return "unknown";
 }
 
-const char *get_interval_name(int interval)
+local const char *get_interval_name(int interval)
 {
 	switch (interval)
 	{
