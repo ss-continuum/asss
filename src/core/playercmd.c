@@ -218,12 +218,13 @@ local helptext_t setfreq_help =
 "Moves the targets to the specified freq.\n"
 "If -f is specified, this command ignores the arena freqman.\n";
 
-local void Csetfreq(const char *tc, const char *params, Player *p, const Target *target)
+local void Csetfreq(const char *tc, const char *params, Player *sender, const Target *target)
 {
 	int use_fm = 1;
 	int freq = 0;
 	int ship = SHIP_SPEC;
 	const char *t = params;
+	char err_buf[200];
 
 	if (!*params)
 		return;
@@ -247,12 +248,21 @@ local void Csetfreq(const char *tc, const char *params, Player *p, const Target 
 			Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
 			if (fm)
 			{
-				fm->FreqChange(p, &ship, &freq);
+				fm->FreqChange(p, ship, freq, err_buf, sizeof(err_buf));
 				mm->ReleaseInterface(fm);
+				if (err_buf[0] != '\0')
+					chat->SendMessage(sender, "%s: %s", p->name, err_buf);
+
+			}
+			else
+			{
+				game->SetFreqAndShip(p, ship, freq);
 			}
 		}
-
-		game->SetFreqAndShip(p, ship, freq);
+		else
+		{
+			game->SetFreqAndShip(p, ship, freq);
+		}
 	}
 	else
 	{
@@ -261,7 +271,7 @@ local void Csetfreq(const char *tc, const char *params, Player *p, const Target 
 
 		pd->TargetToSet(target, &set);
 		for (l = LLGetHead(&set); l; l = l->next)
-			{
+		{
 			Player *p = l->data;
 			ship = p->p_ship;
 
@@ -270,13 +280,21 @@ local void Csetfreq(const char *tc, const char *params, Player *p, const Target 
 				Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
 				if (fm)
 				{
-					fm->FreqChange(p, &ship, &freq);
+					fm->FreqChange(p, ship, freq, err_buf, sizeof(err_buf));
 					mm->ReleaseInterface(fm);
+					if (err_buf[0] != '\0')
+						chat->SendMessage(sender, "%s: %s", p->name, err_buf);
+				}
+				else
+				{
+					game->SetFreqAndShip(p, ship, freq);
 				}
 			}
-
-			game->SetFreqAndShip(p, ship, freq);
+			else
+			{
+				game->SetFreqAndShip(p, ship, freq);
 			}
+		}
 		LLEmpty(&set);
 	}
 }
@@ -289,12 +307,13 @@ local helptext_t setship_help =
 "number from 1 (Warbird) to 8 (Shark), or 9 (Spec).\n"
 "If -f is specified, this command ignores the arena freqman.\n";
 
-local void Csetship(const char *tc, const char *params, Player *p, const Target *target)
+local void Csetship(const char *tc, const char *params, Player *sender, const Target *target)
 {
 	int use_fm = 1;
 	int freq = 0;
 	int ship = SHIP_SPEC;
 	const char *t = params;
+	char err_buf[200];
 
 	if (!*params)
 		return;
@@ -319,12 +338,20 @@ local void Csetship(const char *tc, const char *params, Player *p, const Target 
 			Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
 			if (fm)
 			{
-				fm->ShipChange(p, &ship, &freq);
+				fm->ShipChange(p, ship, freq, err_buf, sizeof(err_buf));
 				mm->ReleaseInterface(fm);
+				if (err_buf[0] != '\0')
+					chat->SendMessage(sender, "%s: %s", p->name, err_buf);
+			}
+			else
+			{
+				game->SetFreqAndShip(p, ship, freq);
 			}
 		}
-
-		game->SetFreqAndShip(p, ship, freq);
+		else
+		{
+			game->SetFreqAndShip(p, ship, freq);
+		}
 	}
 	else
 	{
@@ -333,7 +360,7 @@ local void Csetship(const char *tc, const char *params, Player *p, const Target 
 
 		pd->TargetToSet(target, &set);
 		for (l = LLGetHead(&set); l; l = l->next)
-			{
+		{
 			Player *p = l->data;
 			freq = p->p_freq;
 
@@ -342,13 +369,21 @@ local void Csetship(const char *tc, const char *params, Player *p, const Target 
 				Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
 				if (fm)
 				{
-					fm->ShipChange(p, &ship, &freq);
+					fm->ShipChange(p, ship, freq, err_buf, sizeof(err_buf));
 					mm->ReleaseInterface(fm);
+					if (err_buf[0] != '\0')
+						chat->SendMessage(sender, "%s: %s", p->name, err_buf);
+				}
+				else
+				{
+					game->SetFreqAndShip(p, ship, freq);
 				}
 			}
-
-			game->SetFreqAndShip(p, ship, freq);
+			else
+			{
+				game->SetFreqAndShip(p, ship, freq);
 			}
+		}
 		LLEmpty(&set);
 	}
 }

@@ -886,11 +886,16 @@ local void PSetShip(Player *p, byte *pkt, int len)
 	fm = mm->GetInterface(I_FREQMAN, arena);
 	if (fm)
 	{
-		fm->ShipChange(p, &ship, &freq);
+		char err_buf[200];
+		fm->ShipChange(p, ship, freq, err_buf, sizeof(err_buf));
 		mm->ReleaseInterface(fm);
+		if (chat && err_buf[0] != '\0')
+			chat->SendMessage(p, "%s", err_buf);
 	}
-
-	SetFreqAndShip(p, ship, freq);
+	else
+	{
+		SetFreqAndShip(p, ship, freq);
+	}
 }
 
 
@@ -961,14 +966,19 @@ local void freq_change_request(Player *p, int freq)
 	fm = mm->GetInterface(I_FREQMAN, arena);
 	if (fm)
 	{
-		fm->FreqChange(p, &ship, &freq);
+		char err_buf[200];
+		fm->FreqChange(p, ship, freq, err_buf, sizeof(err_buf));
 		mm->ReleaseInterface(fm);
+		if (chat && err_buf[0] != '\0')
+			chat->SendMessage(p, "%s", err_buf);
 	}
-
-	if (ship == p->p_ship)
-		SetFreq(p, freq);
 	else
-		SetFreqAndShip(p, ship, freq);
+	{
+		if (ship == p->p_ship)
+			SetFreq(p, freq);
+		else
+			SetFreqAndShip(p, ship, freq);
+	}
 }
 
 
