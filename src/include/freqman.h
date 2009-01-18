@@ -76,17 +76,17 @@ typedef struct Ifreqman
 
 	/** called when a player connects and needs to be assigned to a freq.
 	 */
-	void (*Initial)(Player *p, int requested_ship);
+	void (*Initial)(Player *p, int *ship, int *freq);
 
 	/** called when a player requests a ship change.
 	 * ship will initially contain the ship request, and freq will
 	 * contain the player's current freq. */
-	void (*ShipChange)(Player *p, int requested_ship, int freq, char *err_buf, int buf_len);
+	void (*ShipChange)(Player *p, int requested_ship, char *err_buf, int buf_len);
 	
 	/** called when a player requests a freq change.
 	 * ship will initially contain the player's ship, and freq will
 	 * contain the requested freq. */
-	void (*FreqChange)(Player *p, int ship, int freq, char *err_buf, int buf_len);
+	void (*FreqChange)(Player *p, int requested_freq, char *err_buf, int buf_len);
 } Ifreqman;
 
 #endif

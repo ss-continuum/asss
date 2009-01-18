@@ -39,6 +39,8 @@ local int UnregInterface(void *iface, Arena *arena);
 local void *GetInterface(const char *id, Arena *arena);
 local void *GetInterfaceByName(const char *name);
 local void ReleaseInterface(void *iface);
+local void GetAllInterfaces(const char *id, Arena *arena, LinkedList *res);
+local void FreeInterfacesResult(LinkedList *res);
 
 local void RegCallback(const char *, void *, Arena *);
 local void UnregCallback(const char *, void *, Arena *);
@@ -69,12 +71,11 @@ local Imodman mmint =
 	INTERFACE_HEAD_INIT(I_MODMAN, "modman")
 	LoadModule_, UnloadModule, EnumModules,
 	AttachModule, DetachModule,
+	GetModuleInfo, GetModuleLoader, DetachAllFromArena,
 	RegInterface, UnregInterface, GetInterface, GetInterfaceByName, ReleaseInterface,
+	GetAllInterfaces, FreeInterfacesResult,
 	RegCallback, UnregCallback, LookupCallback, FreeLookupResult,
-	NULL, NULL,
 	RegModuleLoader, UnregModuleLoader,
-	GetModuleInfo, GetModuleLoader,
-	DetachAllFromArena,
 	{ DoStage, UnloadAllModules, NoMoreModules }
 };
 
@@ -534,6 +535,41 @@ void ReleaseInterface(void *iface)
 	head->refcount--;
 }
 
+void GetAllInterfaces(const char *id, Arena *arena, LinkedList *res)
+{
+	Link *link;
+
+	pthread_mutex_lock(&intmtx);
+	if (arena == ALLARENAS)
+		HashGetAppend(globalints, id, res);
+	else
+	{
+		char key[MAX_ID_LEN];
+		snprintf(key, sizeof(key), "%p-%s", (void*)arena, id);
+		HashGetAppend(arenaints, key, res);
+		/* get the global ones too */
+		HashGetAppend(globalints, id, res);
+	}
+
+	for (link = LLGetHead(res); link; link = link->next)
+	{
+		InterfaceHead *head = link->data;
+		head->refcount++;
+	}
+	pthread_mutex_unlock(&intmtx);
+}
+
+void FreeInterfacesResult(LinkedList *res)
+{
+	Link *link;
+	for (link = LLGetHead(res); link; link = link->next)
+	{
+		InterfaceHead *head = link->data;
+		assert(head->magic == MODMAN_MAGIC);
+		head->refcount--;
+	}
+	LLEmpty(res);
+}
 
 /* callback stuff */
 

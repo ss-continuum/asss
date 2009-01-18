@@ -221,8 +221,7 @@ local helptext_t setfreq_help =
 local void Csetfreq(const char *tc, const char *params, Player *sender, const Target *target)
 {
 	int use_fm = 1;
-	int freq = 0;
-	int ship = SHIP_SPEC;
+	int freq;
 	const char *t = params;
 	char err_buf[200];
 
@@ -241,14 +240,13 @@ local void Csetfreq(const char *tc, const char *params, Player *sender, const Ta
 	if (target->type == T_PLAYER)
 	{
 		Player *p = target->u.p;
-		ship = p->p_ship;
 
 		if (use_fm)
 		{
 			Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
 			if (fm)
 			{
-				fm->FreqChange(p, ship, freq, err_buf, sizeof(err_buf));
+				fm->FreqChange(p, freq, err_buf, sizeof(err_buf));
 				mm->ReleaseInterface(fm);
 				if (err_buf[0] != '\0')
 					chat->SendMessage(sender, "%s: %s", p->name, err_buf);
@@ -256,12 +254,12 @@ local void Csetfreq(const char *tc, const char *params, Player *sender, const Ta
 			}
 			else
 			{
-				game->SetFreqAndShip(p, ship, freq);
+				game->SetFreq(p, freq);
 			}
 		}
 		else
 		{
-			game->SetFreqAndShip(p, ship, freq);
+			game->SetFreq(p, freq);
 		}
 	}
 	else
@@ -273,26 +271,25 @@ local void Csetfreq(const char *tc, const char *params, Player *sender, const Ta
 		for (l = LLGetHead(&set); l; l = l->next)
 		{
 			Player *p = l->data;
-			ship = p->p_ship;
 
 			if (use_fm)
 			{
 				Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
 				if (fm)
 				{
-					fm->FreqChange(p, ship, freq, err_buf, sizeof(err_buf));
+					fm->FreqChange(p, freq, err_buf, sizeof(err_buf));
 					mm->ReleaseInterface(fm);
 					if (err_buf[0] != '\0')
 						chat->SendMessage(sender, "%s: %s", p->name, err_buf);
 				}
 				else
 				{
-					game->SetFreqAndShip(p, ship, freq);
+					game->SetFreq(p, freq);
 				}
 			}
 			else
 			{
-				game->SetFreqAndShip(p, ship, freq);
+				game->SetFreq(p, freq);
 			}
 		}
 		LLEmpty(&set);
@@ -310,8 +307,7 @@ local helptext_t setship_help =
 local void Csetship(const char *tc, const char *params, Player *sender, const Target *target)
 {
 	int use_fm = 1;
-	int freq = 0;
-	int ship = SHIP_SPEC;
+	int ship;
 	const char *t = params;
 	char err_buf[200];
 
@@ -331,26 +327,25 @@ local void Csetship(const char *tc, const char *params, Player *sender, const Ta
 	if (target->type == T_PLAYER)
 	{
 		Player *p = target->u.p;
-		freq = p->p_freq;
 
 		if (use_fm)
 		{
 			Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
 			if (fm)
 			{
-				fm->ShipChange(p, ship, freq, err_buf, sizeof(err_buf));
+				fm->ShipChange(p, ship, err_buf, sizeof(err_buf));
 				mm->ReleaseInterface(fm);
 				if (err_buf[0] != '\0')
 					chat->SendMessage(sender, "%s: %s", p->name, err_buf);
 			}
 			else
 			{
-				game->SetFreqAndShip(p, ship, freq);
+				game->SetShip(p, ship);
 			}
 		}
 		else
 		{
-			game->SetFreqAndShip(p, ship, freq);
+			game->SetShip(p, ship);
 		}
 	}
 	else
@@ -362,26 +357,25 @@ local void Csetship(const char *tc, const char *params, Player *sender, const Ta
 		for (l = LLGetHead(&set); l; l = l->next)
 		{
 			Player *p = l->data;
-			freq = p->p_freq;
 
 			if (use_fm)
 			{
 				Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
 				if (fm)
 				{
-					fm->ShipChange(p, ship, freq, err_buf, sizeof(err_buf));
+					fm->ShipChange(p, ship, err_buf, sizeof(err_buf));
 					mm->ReleaseInterface(fm);
 					if (err_buf[0] != '\0')
 						chat->SendMessage(sender, "%s: %s", p->name, err_buf);
 				}
 				else
 				{
-					game->SetFreqAndShip(p, ship, freq);
+					game->SetShip(p, ship);
 				}
 			}
 			else
 			{
-				game->SetFreqAndShip(p, ship, freq);
+				game->SetShip(p, ship);
 			}
 		}
 		LLEmpty(&set);

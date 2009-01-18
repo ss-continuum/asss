@@ -121,7 +121,7 @@ typedef int (*ModuleLoaderFunc)(int action, mod_args_t *args, const char *line, 
 
 
 /** this is only used from python */
-#define I_MODMAN "modman-1"
+#define I_MODMAN "modman-2"
 
 /** the module manager interface struct */
 typedef struct Imodman
@@ -170,6 +170,15 @@ typedef struct Imodman
 	int (*DetachModule)(const char *modname, Arena *arena);
 	/* pyint: string, arena -> int */
 
+	/** Gets the extra info for a module. */
+	const char *(*GetModuleInfo)(const char *modname);
+	/* pyint: string -> string */
+
+	/** Gets the name of the loader for a module. */
+	const char *(*GetModuleLoader)(const char *modname);
+
+	/** Detaches all modules from an arena. */
+	void (*DetachAllFromArena)(Arena *arena);
 
 	/* interface stuff */
 
@@ -221,6 +230,15 @@ typedef struct Imodman
 	 */
 	void (*ReleaseInterface)(void *iface);
 
+	/** Returns a list of interface pointers that match the parameters. 
+	 * Use FreeInterfaceResults to empty the list when finished. 
+	 */
+	void (*GetAllInterfaces)(const char *id, Arena *arena, LinkedList *res);
+
+	/** Frees the list of interface pointers returned from a call to 
+	 * GetAllInterfaces.
+	 */
+	void (*FreeInterfacesResult)(LinkedList *res);
 
 	/* callback stuff.
 	 * these manage callback functions. putting this functionality in
@@ -253,12 +271,8 @@ typedef struct Imodman
 	void (*LookupCallback)(const char *id, Arena *arena, LinkedList *res);
 	/** Frees a callback list result from LookupCallback.
 	 * @see DO_CBS
-	 */
+	 */	
 	void (*FreeLookupResult)(LinkedList *res);
-
-	/* dummy slots for binary compatibility */
-	void *dummy_1;
-	void *dummy_2;
 
 	/* module loaders */
 
@@ -266,22 +280,6 @@ typedef struct Imodman
 	void (*RegModuleLoader)(const char *signature, ModuleLoaderFunc func);
 	/** Unregisters a module loader. */
 	void (*UnregModuleLoader)(const char *signature, ModuleLoaderFunc func);
-
-	/* more module stuff */
-
-	/** Gets the extra info for a module.
-	 * This belongs up there with the other module functions, but it was
-	 * added later and goes down here to avoid breaking binary
-	 * compatibility.
-	 */
-	const char *(*GetModuleInfo)(const char *modname);
-	/* pyint: string -> string */
-
-	/** Gets the name of the loader for a module. */
-	const char *(*GetModuleLoader)(const char *modname);
-
-	/** Detaches all modules from an arena. */
-	void (*DetachAllFromArena)(Arena *arena);
 
 	/* these functions should be called only from main.c */
 	struct
