@@ -246,6 +246,7 @@ local void Csetfreq(const char *tc, const char *params, Player *sender, const Ta
 			Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
 			if (fm)
 			{
+				err_buf[0] = '\0';
 				fm->FreqChange(p, freq, err_buf, sizeof(err_buf));
 				mm->ReleaseInterface(fm);
 				if (err_buf[0] != '\0')
@@ -277,6 +278,7 @@ local void Csetfreq(const char *tc, const char *params, Player *sender, const Ta
 				Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
 				if (fm)
 				{
+					err_buf[0] = '\0';
 					fm->FreqChange(p, freq, err_buf, sizeof(err_buf));
 					mm->ReleaseInterface(fm);
 					if (err_buf[0] != '\0')
@@ -333,6 +335,7 @@ local void Csetship(const char *tc, const char *params, Player *sender, const Ta
 			Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
 			if (fm)
 			{
+				err_buf[0] = '\0';
 				fm->ShipChange(p, ship, err_buf, sizeof(err_buf));
 				mm->ReleaseInterface(fm);
 				if (err_buf[0] != '\0')
@@ -363,6 +366,7 @@ local void Csetship(const char *tc, const char *params, Player *sender, const Ta
 				Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
 				if (fm)
 				{
+					err_buf[0] = '\0';
 					fm->ShipChange(p, ship, err_buf, sizeof(err_buf));
 					mm->ReleaseInterface(fm);
 					if (err_buf[0] != '\0')

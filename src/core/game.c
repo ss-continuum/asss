@@ -887,6 +887,7 @@ local void PSetShip(Player *p, byte *pkt, int len)
 	if (fm)
 	{
 		char err_buf[200];
+		err_buf[0] = '\0';
 		fm->ShipChange(p, ship, err_buf, sizeof(err_buf));
 		mm->ReleaseInterface(fm);
 		if (chat && err_buf[0] != '\0')
@@ -966,6 +967,7 @@ local void freq_change_request(Player *p, int freq)
 	if (fm)
 	{
 		char err_buf[200];
+		err_buf[0] = '\0';
 		fm->FreqChange(p, freq, err_buf, sizeof(err_buf));
 		mm->ReleaseInterface(fm);
 		if (chat && err_buf[0] != '\0')
