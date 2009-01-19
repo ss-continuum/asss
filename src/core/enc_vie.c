@@ -4,8 +4,6 @@
 #include "asss.h"
 #include "encrypt.h"
 
-#pragma pack(1)
-
 #define BAD_KEY (-1) /* valid keys must be positive */
 
 /* structs */
@@ -113,12 +111,14 @@ local void ConnInit(struct sockaddr_in *sin, byte *pkt, int len, void *v)
 
 	{
 		/* respond */
+#pragma pack(push, 1)
 		struct
 		{
 			u8 t1, t2;
 			int key;
 		}
 		pkt = { 0x00, 0x02, key };
+#pragma pack(pop)
 		net->ReallyRawSend(sin, (byte*)&pkt, sizeof(pkt), v);
 	}
 
@@ -151,7 +151,7 @@ local void do_init(EncData *ed, int k)
 local void Init(Player *p, int k)
 {
 	EncData *ed, **p_ed = PPDATA(p, enckey);
-	
+
 	pthread_mutex_lock(&mtx);
 	if (!(ed = *p_ed)) ed = *p_ed = amalloc(sizeof(*ed));
 	pthread_mutex_unlock(&mtx);
@@ -164,7 +164,7 @@ local int do_enc(EncData *ed, byte *data, int len)
 {
 	int work = ed->key, *mytable = (int*)ed->table;
 	int loop, until, *mydata;
-	
+
 	if (work == 0 || mytable == NULL) return len;
 
 	if (data[0] == 0)

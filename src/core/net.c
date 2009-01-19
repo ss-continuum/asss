@@ -70,8 +70,6 @@
 
 #include "packets/timesync.h"
 
-#pragma pack(1)
-
 struct sized_send_data
 {
 	void (*request_data)(void *clos, int offset, byte *buf, int needed);
@@ -1971,11 +1969,13 @@ void ProcessReliable(Buffer *buf)
 	else
 	{
 		/* ack and store it */
+#pragma pack(push, 1)
 		struct
 		{
 			u8 t0, t1;
 			i32 seqnum;
 		} ack = { 0x00, 0x04, sn };
+#pragma pack(pop)
 
 		/* add to rel stuff to be processed */
 		int spot = buf->d.rel.seqnum % CFG_INCOMING_BUFFER;
@@ -2665,12 +2665,14 @@ int GetLastPacketTime(Player *p)
 ClientConnection *MakeClientConnection(const char *addr, int port,
 		Iclientconn *icc, Iclientencrypt *ice)
 {
+#pragma pack(push, 1)
 	struct
 	{
 		u8 t1, t2;
 		u32 key;
 		u16 type;
 	} pkt;
+#pragma pack(pop)
 	ClientConnection *cc = amalloc(sizeof(*cc));
 
 	if (!icc || !addr) goto fail;

@@ -3,8 +3,6 @@
 
 #include "asss.h"
 
-#pragma pack(1)
-
 /* prototypes */
 
 local void ConnInit(struct sockaddr_in *sin, byte *pkt, int len, void *v);
@@ -67,12 +65,14 @@ void ConnInit(struct sockaddr_in *sin, byte *pkt, int len, void *v)
 	{
 		/* respond. sending back the key without change means no
 		 * encryption, both to 1.34 and cont */
+#pragma pack(push, 1)
 		struct
 		{
 			u8 t1, t2;
 			int key;
 		}
 		pkt = { 0x00, 0x02, key };
+#pragma pack(pop)
 		net->ReallyRawSend(sin, (byte*)&pkt, sizeof(pkt), v);
 	}
 }
