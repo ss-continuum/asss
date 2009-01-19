@@ -68,7 +68,7 @@ local int is_freq_full(Arena *arena, ConfigHandle ch, int freq, int include_spec
 	if (max == 0)
 		return 0;
 
-	return max >= count_freq(arena, freq, NULL, include_spec);
+	return max <= count_freq(arena, freq, NULL, include_spec);
 }
 
 local int screen_res_allowed(Player *p, ConfigHandle ch, char *err_buf, int buf_len)
