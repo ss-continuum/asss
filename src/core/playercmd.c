@@ -409,8 +409,8 @@ local void Cversion(const char *tc, const char *params, Player *p, const Target 
 		GetComputerName(name, &len);
 
 		chat->SendMessage(p, "running on %s %s (version %d.%d.%d), host: %s",
-			vi.dwPlatformId == VER_PLATFORM_WIN32s ? "Windows 3.11" : 
-				vi.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS ? 
+			vi.dwPlatformId == VER_PLATFORM_WIN32s ? "Windows 3.11" :
+				vi.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS ?
 					(vi.dwMinorVersion == 0 ? "Windows 95" : "Windows 98") :
 				vi.dwPlatformId == VER_PLATFORM_WIN32_NT ? "Windows NT" : "Unknown",
 			vi.szCSDVersion,
@@ -1185,13 +1185,13 @@ local void Cwarn(const char *tc, const char *params, Player *p, const Target *ta
 		LinkedList lst = { &link, &link };
 		if (capman->HasCapability(p, CAP_IS_STAFF))
 		{
-			chat->SendAnyMessage(&lst, MSG_SYSOPWARNING, 
-					SOUND_BEEP1, NULL, "WARNING: %s  -%s", 
+			chat->SendAnyMessage(&lst, MSG_SYSOPWARNING,
+					SOUND_BEEP1, NULL, "WARNING: %s  -%s",
 					params, p->name);
 		}
 		else
 		{
-			chat->SendAnyMessage(&lst, MSG_SYSOPWARNING, 
+			chat->SendAnyMessage(&lst, MSG_SYSOPWARNING,
 					SOUND_BEEP1, NULL, "WARNING: %s",
 					params);
 		}
@@ -1602,8 +1602,8 @@ local void Cflaginfo(const char *tc, const char *params, Player *p, const Target
 			case FI_CARRIED:
 				if (flags[i].carrier)
 					chat->SendMessage(p,
-							"flag %d: carried by %s",
-							i, flags[i].carrier->name);
+							"flag %d: carried by %s, freq %d",
+							i, flags[i].carrier->name, flags[i].carrier->p_freq);
 				break;
 		}
 }
