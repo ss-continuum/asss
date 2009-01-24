@@ -93,6 +93,18 @@ typedef struct Icmdman
 	void (*Command)(const char *typedline, Player *p,
 			const Target *target, int sound);
 	helptext_t (*GetHelpText)(const char *cmdname, Arena *arena);
+
+	/** Prevents a command's parameters from being logged.
+	 * The command should be removed with RemoveUnlogged when the
+	 * command is unregistered.
+	 * @param cmdname the name of the command to not log
+	 */
+	void (*AddUnlogged)(const char *cmdname);
+
+	/** Removes a command added with AddDontLog
+	 * @param cmdname the name of the unlogged command to remove
+	 */
+	void (*RemoveUnlogged)(const char *cmdname);
 } Icmdman;
 
 #endif

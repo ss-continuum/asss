@@ -282,6 +282,8 @@ EXPORT int MM_auth_file(int action, Imodman *mm_, Arena *arena)
 		cmd->AddCommand("local_password", Cpasswd, ALLARENAS, local_password_help);
 		cmd->AddCommand("addallowed", Caddallowed, ALLARENAS, addallowed_help);
 		cmd->AddCommand("set_local_password", Cset_local_password, ALLARENAS, set_local_password_help);
+		cmd->AddUnlogged("passwd");
+		cmd->AddUnlogged("local_password");
 
 		mm->RegCallback(CB_NEWPLAYER, newplayer, ALLARENAS);
 		mm->RegInterface(&myauth, ALLARENAS);
@@ -297,6 +299,8 @@ EXPORT int MM_auth_file(int action, Imodman *mm_, Arena *arena)
 		cmd->RemoveCommand("local_password", Cpasswd, ALLARENAS);
 		cmd->RemoveCommand("addallowed", Caddallowed, ALLARENAS);
 		cmd->RemoveCommand("set_local_password", Cset_local_password, ALLARENAS);
+		cmd->RemoveUnlogged("passwd");
+		cmd->RemoveUnlogged("local_password");
 		cfg->CloseConfigFile(pwdfile);
 		pd->FreePlayerData(pdkey);
 		mm->ReleaseInterface(chat);
