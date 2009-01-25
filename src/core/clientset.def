@@ -869,10 +869,56 @@ static char *ship_byte_names[] =
 /* cfghelp: Soccer:DisableBallKilling, arena, bool, def: 0
  * Whether to disable ball killing in safe zones (Cont .38+) */
 
-/* cfghelp: Spawn:TeamN-X/Y/Radius, arena, int
- * Specify spawn location and radius per team. If only Team0 variables
- * are set, all teams use them, if Team0 and Team1 variables are set,
- * even teams use Team0 and odd teams use Team1. It is possible to set
- * spawn positions for upto 4 teams (Team0-Team3). (Cont .38+) */
+/* cfghelp: Spawn:Team0-Radius, arena, int, def: 0
+ * How large of a circle from the center point freq 0 can start.
+ * (Cont .38+) */
 
-
+/* cfghelp: Spawn:Team0-X, arena, int, def: 0
+ * If set to a value, this is the X coordinate for the center point
+ * where freq 0 will start. (Cont .38+) */
+ 
+/* cfghelp: Spawn:Team0-Y, arena, int, def: 0
+ * If set to a value, this is the Y coordinate for the center point
+ * where freq 0 will start. (Cont .38+) */
+ 
+/* cfghelp: Spawn:Team1-Radius, arena, int, def: 0
+ * How large of a circle from the center point freq 1 can start.
+ * (Cont .38+) */
+ 
+/* cfghelp: Spawn:Team1-X, arena, int, def: 0
+ * If set to a value, this is the X coordinate for the center point
+ * where freq 1 will start. (Cont .38+) */
+ 
+/* cfghelp: Spawn:Team1-Y, arena, int, def: 0
+ * If set to a value, this is the Y coordinate for the center point
+ * where freq 1 will start. (Cont .38+) */
+  
+/* cfghelp: Spawn:Team2-Radius, arena, int, def: 0
+ * How large of a circle from the center point freq 2 can start.
+ * NOTE: if the Team2 settings are 0, Team0 will apply to evens and 
+ * Team1 will apply to odds. (Cont .38+) */
+ 
+/* cfghelp: Spawn:Team2-X, arena, int, def: 0
+ * If set to a value, this is the X coordinate for the center point
+ * where freq 2 will start. NOTE: if the Team2 settings are 0, Team0
+ * will apply to evens and Team1 will apply to odds. (Cont .38+) */
+ 
+/* cfghelp: Spawn:Team2-Y, arena, int, def: 0
+ * If set to a value, this is the Y coordinate for the center point
+ * where freq 2 will start. NOTE: if the Team2 settings are 0, Team0
+ * will apply to evens and Team1 will apply to odds. (Cont .38+) */
+ 
+/* cfghelp: Spawn:Team3-Radius, arena, int, def: 0
+ * How large of a circle from the center point freq 3 can start.
+ * NOTE: Repeats, freq 4 will use Team0's, freq 5 will use Team1's, 
+ * etc. (Cont .38+) */
+ 
+/* cfghelp: Spawn:Team3-X, arena, int, def: 0
+ * If set to a value, this is the X coordinate for the center point
+ * where freq 3 will start. NOTE: Repeats, freq 4 will use Team0's,
+ * freq 5 will use Team1's, etc. (Cont .38+) */
+ 
+/* cfghelp: Spawn:Team3-Y, arena, int, def: 0
+ * If set to a value, this is the Y coordinate for the center point
+ * where freq 3 will start. NOTE: Repeats, freq 4 will use Team0's,
+ * freq 5 will use Team1's, etc. (Cont .38+) */
