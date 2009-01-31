@@ -169,9 +169,6 @@ local inline int dontlog(const char *cmd)
 {
 	void *result = HashGetOne(dontlog_table, cmd);
 	return result == (void*)1;
-	if (!strcasecmp(cmd, "passwd")) return TRUE;
-	if (!strcasecmp(cmd, "local_password")) return TRUE;
-	return FALSE;
 }
 
 
