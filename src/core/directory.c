@@ -23,6 +23,7 @@
 
 
 /* the thing to send */
+#pragma pack(push, 1)
 struct S2DInfo
 {
 	u32 ip;
@@ -36,7 +37,7 @@ struct S2DInfo
 	/* not part of sent data */
 	char connectas[32];
 };
-
+#pragma pack(pop)
 
 
 /* interface pointers */
@@ -59,6 +60,9 @@ local int SendUpdates(void *dummy)
 	Player *p;
 
 	lm->Log(L_DRIVEL, "<directory> sending information to directory servers");
+
+	/* TODO: add some global.conf options for how to calculate population,
+	 * or use the arenaman function. */
 
 	/* figure out player count */
 	pd->Lock();
