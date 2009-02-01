@@ -120,7 +120,7 @@ typedef void (*EditPPKFunc)(Player *p, struct C2SPosition *pos);
 
 /** this callback is called before a position packet is send to an individual player. */
 #define CB_EDITINDIVIDALPPK "editindppk-1"
-typedef void (*EDITPPKIndivdualFunc)(Player *p, Player *t, struct C2SPosition *pos, int *modified, int *extralen);
+typedef void (*EditPPKIndivdualFunc)(Player *p, Player *t, struct C2SPosition *pos, int *modified, int *extralen);
 
 enum { ENERGY_SEE_NONE, ENERGY_SEE_ALL, ENERGY_SEE_TEAM, ENERGY_SEE_SPEC };
 
