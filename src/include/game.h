@@ -118,7 +118,7 @@ typedef void (*AttachFunc)(Player *p, Player *to);
 #define CB_EDITPPK "editppk-1"
 typedef void (*EditPPKFunc)(Player *p, struct C2SPosition *pos);
 
-/** this callback is called before a position packet is send to an indivdual player. */
+/** this callback is called before a position packet is send to an individual player. */
 #define CB_EDITINDIVIDALPPK "editindppk-1"
 typedef void (*EDITPPKIndivdualFunc)(Player *p, Player *t, struct C2SPosition *pos, int *modified, int *extralen);
 
