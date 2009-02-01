@@ -467,8 +467,8 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 					 * packet going to player i */
 					DO_CBS(CB_EDITINDIVIDALPPK,
 							arena,
-							EDITPPKIndivdualFunc,
-							(p, i, pos, &modified, &extralen));
+							EditPPKIndivdualFunc,
+							(p, i, &copy, &modified, &extralen));
 					wpndirty = wpndirty || modified;
 					posdirty = posdirty || modified;
 
@@ -477,7 +477,7 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 						|| copy.bounty & 0xFF00
 						|| p->pid & 0xFF00)
 					{
-						int length = sizeof(struct S2CWeapons) + extralen;
+						int length = sizeof(struct S2CWeapons) - sizeof(struct ExtraPosData) + extralen;
 						if (wpndirty)
 						{
 							wpn.type = S2C_WEAPON;
@@ -510,7 +510,7 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 					}
 					else
 					{
-						int length = sizeof(struct S2CPosition) + extralen;
+						int length = sizeof(struct S2CPosition) - sizeof(struct ExtraPosData) + extralen;
 						if (posdirty)
 						{
 							sendpos.type = S2C_POSITION;
