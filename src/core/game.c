@@ -498,7 +498,7 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 							 * in case they don't match. */
 							wpn.extra.energy = copy.energy;
 
-							wpndirty = 0;
+							wpndirty = modified;
 
 							DoWeaponChecksum(&wpn);
 						}
@@ -529,7 +529,7 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 							 * in case they don't match. */
 							sendpos.extra.energy = copy.energy;
 
-							posdirty = 0;
+							posdirty = modified;
 						}
 
 						net->SendToOne(i, (byte*)&sendpos, length, nflags);
