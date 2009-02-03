@@ -19,6 +19,8 @@ typedef struct
 	pthread_mutex_t mtx;
 	int brickspan, brickmode, countbricksaswalls, bricktime;
 	/*  int        int        boolean             int */
+	int antibrickwarpdistance;
+	int shipradius[8];
 } brickdata;
 
 
@@ -64,6 +66,7 @@ local Iarenaman *aman;
 local Imapdata *mapdata;
 local Imainloop *ml;
 local Iprng *prng;
+local Iplayerdata *pd;
 
 /* big arrays */
 local int brickkey;
@@ -84,7 +87,8 @@ EXPORT int MM_bricks(int action, Imodman *mm_, Arena *arena)
 		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		mapdata = mm->GetInterface(I_MAPDATA, ALLARENAS);
 		prng = mm->GetInterface(I_PRNG, ALLARENAS);
-		if (!net || !cfg || !lm || !aman || !ml || !mapdata || !prng)
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		if (!net || !cfg || !lm || !aman || !ml || !mapdata || !prng || !pd)
 			return MM_FAIL;
 
 		brickkey = aman->AllocateArenaData(sizeof(brickdata));
@@ -125,6 +129,7 @@ EXPORT int MM_bricks(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(mapdata);
 		mm->ReleaseInterface(ml);
 		mm->ReleaseInterface(prng);
+		mm->ReleaseInterface(pd);
 		return MM_OK;
 	}
 	return MM_FAIL;
@@ -146,6 +151,8 @@ void ArenaAction(Arena *arena, int action)
 
 	if (action == AA_CREATE || action == AA_CONFCHANGED)
 	{
+		int i;
+
 		/* cfghelp: Brick:CountBricksAsWalls, arena, bool, def: 1
 		 * Whether bricks snap to the edges of other bricks (as opposed
 		 * to only snapping to walls) */
@@ -164,6 +171,26 @@ void ArenaAction(Arena *arena, int action)
 		 * How long bricks last (in ticks). */
 		bd->bricktime = cfg->GetInt(arena->cfg, "Brick", "BrickTime", 6000) + 10;
 		/* 100 ms added for lag */
+
+		/* cfghelp: Brick:AntibrickwarpDistance, arena, int, def: 0
+		 * Squared smallest distance allowed between players and new bricks
+		 * before new bricks are cancelled to prevent brickwarping.
+		 * 0 disables antibrickwarp feature. */
+		bd->antibrickwarpdistance = cfg->GetInt(arena->cfg, "Brick", "AntibrickwarpDistance", 0);
+
+		bd->shipradius[SHIP_WARBIRD] = cfg->GetInt(arena->cfg, "Warbird", Radius, 15);
+		bd->shipradius[SHIP_JAVELIN] = cfg->GetInt(arena->cfg, "Javelin", Radius, 15);
+		bd->shipradius[SHIP_SPIDER] = cfg->GetInt(arena->cfg, "Spider", Radius, 15);
+		bd->shipradius[SHIP_LEVIATHAN] = cfg->GetInt(arena->cfg, "Leviathan", Radius, 15);
+		bd->shipradius[SHIP_TERRIER] = cfg->GetInt(arena->cfg, "Terrier", Radius, 15);
+		bd->shipradius[SHIP_WEASEL] = cfg->GetInt(arena->cfg, "Weasel", Radius, 15);
+		bd->shipradius[SHIP_LANCASTER] = cfg->GetInt(arena->cfg, "Lancaster", Radius, 15);
+		bd->shipradius[SHIP_SHARK] = cfg->GetInt(arena->cfg, "Shark", Radius, 15);
+		for (i = SHIP_WARBIRD; i <= SHIP_SHARK; ++i)
+		{
+			if (bd->shipradius[i] == 0)
+				bd->shipradius[i] = 15;
+		}
 	}
 	else if (action == AA_DESTROY)
 	{
@@ -306,15 +333,89 @@ void PBrick(Player *p, byte *pkt, int len)
 	else
 	{
 		LinkedList brick_list;
-		Link *link;
+		Link *bricklink;
 
 		LLInit(&brick_list);
 
 		bh->HandleBrick(p, dx, dy, &brick_list);
 
-		for (link = LLGetHead(&brick_list); link; link = link->next)
+		if (bd->antibrickwarpdistance > 0)
 		{
-			Brick *brick = link->data;
+			/* grab the pd lock only once and iterate through players only once
+			 * doing it this way is more important when there is more than one brick
+			 * in the list.
+			 */
+			Link *link;
+			Player *x;
+			int ship;
+			pd->Lock();
+			FOR_EACH_PLAYER(x)
+			{
+				if (x->arena != p->arena)
+					continue;
+				if (x->p_ship == SHIP_SPEC)
+					continue;
+				if (x->p_freq == p->p_freq)
+					continue;
+				ship = x->p_ship;
+
+				FOR_EACH(&brick_list, brick, bricklink)
+				{
+					int x, y, pxa, pya, pxb, pyb;
+					int cancel = 0;
+
+					if (brick->x1 == brick->x2)
+					{
+						//moving vertically
+						x = brick->x1;
+						for (y = brick->y1; y <= brick->y2; ++y)
+						{
+							pxa = (p->position.x - bd->shipradius[ship]) - (x*16+8);
+							pxb = (p->position.x + bd->shipradius[ship]) - (x*16+8);
+							pya = (p->position.y - bd->shipradius[ship]) - (y*16+8);
+							pyb = (p->position.y + bd->shipradius[ship]) - (y*16+8);
+							if ((pxa*pxa+pya*pya) < bd->antibrickwarpdistance)
+							 || (pxb*pxb+pya*pya) < bd->antibrickwarpdistance)
+							 || (pxa*pxa+pyb*pyb) < bd->antibrickwarpdistance)
+							 || (pxb*pxb+pyb*pyb) < bd->antibrickwarpdistance))
+							{
+								cancel = 1;
+								break;
+							}
+						}
+					}
+					else
+					{
+						y = brick->y1;
+						for (x = brick->x1; x <= brick->x2; ++x)
+						{
+							pxa = (p->position.x - bd->shipradius[ship]) - (x*16+8);
+							pxb = (p->position.x + bd->shipradius[ship]) - (x*16+8);
+							pya = (p->position.y - bd->shipradius[ship]) - (y*16+8);
+							pyb = (p->position.y + bd->shipradius[ship]) - (y*16+8);
+							if ((pxa*pxa+pya*pya) < bd->antibrickwarpdistance)
+							 || (pxb*pxb+pya*pya) < bd->antibrickwarpdistance)
+							 || (pxa*pxa+pyb*pyb) < bd->antibrickwarpdistance)
+							 || (pxb*pxb+pyb*pyb) < bd->antibrickwarpdistance))
+							{
+								cancel = 1;
+								break;
+							}
+						}
+					}
+
+					if (cancel)
+					{
+						LLRemove(&brick_list, brick);
+						afree(brick);
+					}
+				}
+			}
+			pd->Unlock();
+		}
+
+		FOR_EACH(&brick_list, brick, bricklink)
+		{
 			drop_brick(arena, p->p_freq, brick->x1, brick->y1, brick->x2, brick->y2);
 			afree(brick);
 		}
@@ -333,12 +434,12 @@ local void HandleBrick(Player *p, int x, int y, LinkedList *bricks)
 	Arena *arena = p->arena;
         brickdata *bd = P_ARENA_DATA(arena, brickkey);
 
-	DO_CBS(CB_DOBRICKMODE, arena, DoBrickModeFunction, (arena, 
-		bd->brickmode, x, y, p->position.rotation, bd->brickspan, 
+	DO_CBS(CB_DOBRICKMODE, arena, DoBrickModeFunction, (arena,
+		bd->brickmode, x, y, p->position.rotation, bd->brickspan,
 		bricks));
 }
 
-local void DoBrickModeCallback(Arena *arena, int brickmode, int dropx, 
+local void DoBrickModeCallback(Arena *arena, int brickmode, int dropx,
 		int dropy, int direction, int length, LinkedList *bricks)
 {
 	/* This code has been moved from mapdata for greater flexibility. It
@@ -347,7 +448,7 @@ local void DoBrickModeCallback(Arena *arena, int brickmode, int dropx,
 	 *
 	 * Though some might say it's less efficient here, brick code really
 	 * should be in the brick module. The few indirections are very minor
-	 * computation wise. 
+	 * computation wise.
 	 * -Dr Brain
 	 */
 
