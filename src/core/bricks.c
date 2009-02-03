@@ -346,18 +346,18 @@ void PBrick(Player *p, byte *pkt, int len)
 			 * in the list.
 			 */
 			Link *link;
-			Player *x;
+			Player *q;
 			int ship;
 			pd->Lock();
-			FOR_EACH_PLAYER(x)
+			FOR_EACH_PLAYER(q)
 			{
-				if (x->arena != p->arena)
+				if (q->arena != p->arena)
 					continue;
-				if (x->p_ship == SHIP_SPEC)
+				if (q->p_ship == SHIP_SPEC)
 					continue;
-				if (x->p_freq == p->p_freq)
+				if (q->p_freq == p->p_freq)
 					continue;
-				ship = x->p_ship;
+				ship = q->p_ship;
 
 				FOR_EACH(&brick_list, brick, bricklink)
 				{
@@ -370,10 +370,10 @@ void PBrick(Player *p, byte *pkt, int len)
 						x = brick->x1;
 						for (y = brick->y1; y <= brick->y2; ++y)
 						{
-							pxa = (p->position.x - bd->shipradius[ship]) - (x*16+8);
-							pxb = (p->position.x + bd->shipradius[ship]) - (x*16+8);
-							pya = (p->position.y - bd->shipradius[ship]) - (y*16+8);
-							pyb = (p->position.y + bd->shipradius[ship]) - (y*16+8);
+							pxa = (q->position.x - bd->shipradius[ship]) - (x*16+8);
+							pxb = (q->position.x + bd->shipradius[ship]) - (x*16+8);
+							pya = (q->position.y - bd->shipradius[ship]) - (y*16+8);
+							pyb = (q->position.y + bd->shipradius[ship]) - (y*16+8);
 							if ((pxa*pxa+pya*pya) < bd->antibrickwarpdistance)
 							 || (pxb*pxb+pya*pya) < bd->antibrickwarpdistance)
 							 || (pxa*pxa+pyb*pyb) < bd->antibrickwarpdistance)
@@ -389,10 +389,10 @@ void PBrick(Player *p, byte *pkt, int len)
 						y = brick->y1;
 						for (x = brick->x1; x <= brick->x2; ++x)
 						{
-							pxa = (p->position.x - bd->shipradius[ship]) - (x*16+8);
-							pxb = (p->position.x + bd->shipradius[ship]) - (x*16+8);
-							pya = (p->position.y - bd->shipradius[ship]) - (y*16+8);
-							pyb = (p->position.y + bd->shipradius[ship]) - (y*16+8);
+							pxa = (q->position.x - bd->shipradius[ship]) - (x*16+8);
+							pxb = (q->position.x + bd->shipradius[ship]) - (x*16+8);
+							pya = (q->position.y - bd->shipradius[ship]) - (y*16+8);
+							pyb = (q->position.y + bd->shipradius[ship]) - (y*16+8);
 							if ((pxa*pxa+pya*pya) < bd->antibrickwarpdistance)
 							 || (pxb*pxb+pya*pya) < bd->antibrickwarpdistance)
 							 || (pxa*pxa+pyb*pyb) < bd->antibrickwarpdistance)
