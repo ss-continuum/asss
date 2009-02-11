@@ -178,14 +178,14 @@ void ArenaAction(Arena *arena, int action)
 		 * 0 disables antibrickwarp feature. */
 		bd->antibrickwarpdistance = cfg->GetInt(arena->cfg, "Brick", "AntibrickwarpDistance", 0);
 
-		bd->shipradius[SHIP_WARBIRD] = cfg->GetInt(arena->cfg, "Warbird", Radius, 15);
-		bd->shipradius[SHIP_JAVELIN] = cfg->GetInt(arena->cfg, "Javelin", Radius, 15);
-		bd->shipradius[SHIP_SPIDER] = cfg->GetInt(arena->cfg, "Spider", Radius, 15);
-		bd->shipradius[SHIP_LEVIATHAN] = cfg->GetInt(arena->cfg, "Leviathan", Radius, 15);
-		bd->shipradius[SHIP_TERRIER] = cfg->GetInt(arena->cfg, "Terrier", Radius, 15);
-		bd->shipradius[SHIP_WEASEL] = cfg->GetInt(arena->cfg, "Weasel", Radius, 15);
-		bd->shipradius[SHIP_LANCASTER] = cfg->GetInt(arena->cfg, "Lancaster", Radius, 15);
-		bd->shipradius[SHIP_SHARK] = cfg->GetInt(arena->cfg, "Shark", Radius, 15);
+		bd->shipradius[SHIP_WARBIRD] = cfg->GetInt(arena->cfg, "Warbird", "Radius", 15);
+		bd->shipradius[SHIP_JAVELIN] = cfg->GetInt(arena->cfg, "Javelin", "Radius", 15);
+		bd->shipradius[SHIP_SPIDER] = cfg->GetInt(arena->cfg, "Spider", "Radius", 15);
+		bd->shipradius[SHIP_LEVIATHAN] = cfg->GetInt(arena->cfg, "Leviathan", "Radius", 15);
+		bd->shipradius[SHIP_TERRIER] = cfg->GetInt(arena->cfg, "Terrier", "Radius", 15);
+		bd->shipradius[SHIP_WEASEL] = cfg->GetInt(arena->cfg, "Weasel", "Radius", 15);
+		bd->shipradius[SHIP_LANCASTER] = cfg->GetInt(arena->cfg, "Lancaster", "Radius", 15);
+		bd->shipradius[SHIP_SHARK] = cfg->GetInt(arena->cfg, "Shark", "Radius", 15);
 		for (i = SHIP_WARBIRD; i <= SHIP_SHARK; ++i)
 		{
 			if (bd->shipradius[i] == 0)
@@ -301,6 +301,7 @@ void SendOldBricks(Player *p)
 
 void PBrick(Player *p, byte *pkt, int len)
 {
+	Brick *brick;
 	Arena *arena = p->arena;
 	brickdata *bd = P_ARENA_DATA(arena, brickkey);
 	int dx, dy;
