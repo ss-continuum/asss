@@ -375,10 +375,10 @@ void PBrick(Player *p, byte *pkt, int len)
 							pxb = (q->position.x + bd->shipradius[ship]) - (x*16+8);
 							pya = (q->position.y - bd->shipradius[ship]) - (y*16+8);
 							pyb = (q->position.y + bd->shipradius[ship]) - (y*16+8);
-							if ((pxa*pxa+pya*pya) < bd->antibrickwarpdistance)
-							 || (pxb*pxb+pya*pya) < bd->antibrickwarpdistance)
-							 || (pxa*pxa+pyb*pyb) < bd->antibrickwarpdistance)
-							 || (pxb*pxb+pyb*pyb) < bd->antibrickwarpdistance))
+							if (((pxa*pxa+pya*pya) < bd->antibrickwarpdistance)
+							 || ((pxb*pxb+pya*pya) < bd->antibrickwarpdistance)
+							 || ((pxa*pxa+pyb*pyb) < bd->antibrickwarpdistance)
+							 || ((pxb*pxb+pyb*pyb) < bd->antibrickwarpdistance))
 							{
 								cancel = 1;
 								break;
@@ -394,10 +394,10 @@ void PBrick(Player *p, byte *pkt, int len)
 							pxb = (q->position.x + bd->shipradius[ship]) - (x*16+8);
 							pya = (q->position.y - bd->shipradius[ship]) - (y*16+8);
 							pyb = (q->position.y + bd->shipradius[ship]) - (y*16+8);
-							if ((pxa*pxa+pya*pya) < bd->antibrickwarpdistance)
+							if (((pxa*pxa+pya*pya) < bd->antibrickwarpdistance)
 							 || (pxb*pxb+pya*pya) < bd->antibrickwarpdistance)
 							 || (pxa*pxa+pyb*pyb) < bd->antibrickwarpdistance)
-							 || (pxb*pxb+pyb*pyb) < bd->antibrickwarpdistance))
+							 || (pxb*pxb+pyb*pyb) < bd->antibrickwarpdistance)))
 							{
 								cancel = 1;
 								break;
