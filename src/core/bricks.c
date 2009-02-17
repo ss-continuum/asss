@@ -294,6 +294,7 @@ void SendOldBricks(Player *p)
 
 void PBrick(Player *p, byte *pkt, int len)
 {
+	Brick *brick;
 	Arena *arena = p->arena;
 	brickdata *bd = P_ARENA_DATA(arena, brickkey);
 	int dx, dy;

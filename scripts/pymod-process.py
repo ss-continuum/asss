@@ -7,6 +7,9 @@ DEFBUFLEN = 1024
 
 # lots of precompiled regular expressions
 
+# include directives
+re_pyinclude = re.compile(r'\s*/\* pyinclude: (.*) \*/')
+
 # constants
 re_pyconst_dir = re.compile(r'\s*/\* pyconst: (.*), "(.*)" \*/')
 
@@ -18,7 +21,7 @@ re_pycb_dir = re.compile(r'/\* pycb: (.*?)(\*/)?$')
 # interfaces
 re_pyint_intdef = re.compile(r'#define (I_[A-Z_0-9]*)')
 re_pyint_typedef = re.compile(r'typedef struct (I[a-z_0-9]*)')
-re_pyint_func = re.compile(r'\t[A-Za-z].*?\(\*([A-Za-z_0-9]*)\)')
+re_pyint_func = re.compile(r'([ ]{4}|\t)[A-Za-z].*?\(\*([A-Za-z_0-9]*)\)')
 re_pyint_dir = re.compile(r'\s*/\* pyint: (.*?)(\*/)?$')
 re_pyint_done = re.compile(r'^}')
 
@@ -153,6 +156,10 @@ class type_gen:
 class type_void(type_gen):
 	def decl(me, s):
 		return 'void ' + s
+	def to_obj(me, s):
+		return 'PyCObject_FromVoidPtr(ptr, NULL)'
+	def from_obj(me, s):
+		return '*(int *)PyCObject_AsVoidPtr(%s)' % s
 
 class type_null(type_gen):
 	def format_char(me):
@@ -400,7 +407,10 @@ def create_c_to_py_func(name, func):
 				inargs.append(typ.parse_converter())
 			except:
 				pass
-			inargs.append(typ.ptr_val() + argname)
+			if isinstance(typ, type_string):
+				inargs.append(argname)
+			else:
+				inargs.append(typ.ptr_val() + argname)
 			try:
 				outargs.append(typ.build_converter())
 			except:
@@ -1214,7 +1224,7 @@ def generate_getset_code(tp):
 	getter = """
 local PyObject * %(getname)s(PyObject *obj, void *v)
 {
-	long offset = (long)v;
+	int offset = (int)v;
 	%(ctype)s *ptr = (%(ctype)s*)(((char*)obj)+offset);
 """ % vars()
 	try:
@@ -1231,9 +1241,18 @@ local PyObject * %(getname)s(PyObject *obj, void *v)
 	setter = """
 local int %(setname)s(PyObject *obj, PyObject *newval, void *v)
 {
-	long offset = (long)v;
+	int offset = (int)v;
 	%(ctype)s *ptr = (%(ctype)s*)(((char*)obj)+offset);
 """ % vars()
+
+	if isinstance(typ,type_void):
+		setter = """
+local int %(setname)s(PyObject *obj, PyObject *newval, void *v)
+{
+	int offset = (int)v;
+	int *ptr = (int*)(((char*)obj)+offset);
+""" % vars()
+
 	try:
 		setter += """\
 	return %s(newval, ptr) ? 0 : -1;
@@ -1433,6 +1452,7 @@ const_file = open(os.path.join(prefix, 'py_constants.inc'), 'w')
 callback_file = open(os.path.join(prefix, 'py_callbacks.inc'), 'w')
 int_file = open(os.path.join(prefix, 'py_interfaces.inc'), 'w')
 type_file = open(os.path.join(prefix, 'py_types.inc'), 'w')
+include_file = open(os.path.join(prefix, 'py_include.inc'), 'w')
 
 warning = """
 /* THIS IS AN AUTOMATICALLY GENERATED FILE */
@@ -1442,6 +1462,7 @@ const_file.write(warning)
 callback_file.write(warning)
 int_file.write(warning)
 type_file.write(warning)
+include_file.write(warning)
 
 type_file.write("""
 typedef char charbuf[%d];
@@ -1469,6 +1490,11 @@ intdirs = []
 lastfunc = ''
 
 for l in lines:
+	# includes
+	m = re_pyinclude.match(l)
+	if m:
+		include_file.write('#include "%s"\n' % m.group(1).strip())
+
 	# constants
 	m = re_pyconst_dir.match(l)
 	if m:
@@ -1496,7 +1522,7 @@ for l in lines:
 		lasttypedef = m.group(1)
 	m = re_pyint_func.match(l)
 	if m:
-		lastfunc = m.group(1)
+		lastfunc = m.group(2)
 	m = re_pyint_dir.match(l)
 	if m:
 		intdirs.append((lastfunc, m.group(1)))
