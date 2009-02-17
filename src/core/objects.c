@@ -22,6 +22,8 @@ local void Mode(const Target *t, int id, int mode);
 
 enum { BROADCAST_NONE, BROADCAST_BOT, BROADCAST_ANY };
 
+#pragma pack(1)
+
 typedef struct podata
 {
 	int brallow;  /* allowed broadcast modes */
