@@ -5,18 +5,6 @@
 /* vi: set ft=c: */
 /* dist: public */
 
-static char *ship_names[] =
-{
-	"Warbird",
-	"Javelin",
-	"Spider",
-	"Leviathan",
-	"Terrier",
-	"Weasel",
-	"Lancaster",
-	"Shark"
-};
-
 static char *long_names[] =
 {
 	/* cfghelp: Bullet:BulletDamageLevel, arena, int

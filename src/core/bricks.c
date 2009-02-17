@@ -178,18 +178,11 @@ void ArenaAction(Arena *arena, int action)
 		 * 0 disables antibrickwarp feature. */
 		bd->antibrickwarpdistance = cfg->GetInt(arena->cfg, "Brick", "AntibrickwarpDistance", 0);
 
-		bd->shipradius[SHIP_WARBIRD] = cfg->GetInt(arena->cfg, "Warbird", Radius, 15);
-		bd->shipradius[SHIP_JAVELIN] = cfg->GetInt(arena->cfg, "Javelin", Radius, 15);
-		bd->shipradius[SHIP_SPIDER] = cfg->GetInt(arena->cfg, "Spider", Radius, 15);
-		bd->shipradius[SHIP_LEVIATHAN] = cfg->GetInt(arena->cfg, "Leviathan", Radius, 15);
-		bd->shipradius[SHIP_TERRIER] = cfg->GetInt(arena->cfg, "Terrier", Radius, 15);
-		bd->shipradius[SHIP_WEASEL] = cfg->GetInt(arena->cfg, "Weasel", Radius, 15);
-		bd->shipradius[SHIP_LANCASTER] = cfg->GetInt(arena->cfg, "Lancaster", Radius, 15);
-		bd->shipradius[SHIP_SHARK] = cfg->GetInt(arena->cfg, "Shark", Radius, 15);
 		for (i = SHIP_WARBIRD; i <= SHIP_SHARK; ++i)
 		{
+			bd->shipradius[i] = cfg->GetInt(arena->cfg, SHIP_NAMES[i], "Radius", 14);
 			if (bd->shipradius[i] == 0)
-				bd->shipradius[i] = 15;
+				bd->shipradius[i] = 14;
 		}
 	}
 	else if (action == AA_DESTROY)
@@ -334,6 +327,7 @@ void PBrick(Player *p, byte *pkt, int len)
 	{
 		LinkedList brick_list;
 		Link *bricklink;
+		Brick *brick;
 
 		LLInit(&brick_list);
 
@@ -374,10 +368,10 @@ void PBrick(Player *p, byte *pkt, int len)
 							pxb = (q->position.x + bd->shipradius[ship]) - (x*16+8);
 							pya = (q->position.y - bd->shipradius[ship]) - (y*16+8);
 							pyb = (q->position.y + bd->shipradius[ship]) - (y*16+8);
-							if ((pxa*pxa+pya*pya) < bd->antibrickwarpdistance)
-							 || (pxb*pxb+pya*pya) < bd->antibrickwarpdistance)
-							 || (pxa*pxa+pyb*pyb) < bd->antibrickwarpdistance)
-							 || (pxb*pxb+pyb*pyb) < bd->antibrickwarpdistance))
+							if (((pxa*pxa+pya*pya) < bd->antibrickwarpdistance)
+							 || ((pxb*pxb+pya*pya) < bd->antibrickwarpdistance)
+							 || ((pxa*pxa+pyb*pyb) < bd->antibrickwarpdistance)
+							 || ((pxb*pxb+pyb*pyb) < bd->antibrickwarpdistance))
 							{
 								cancel = 1;
 								break;
@@ -393,10 +387,10 @@ void PBrick(Player *p, byte *pkt, int len)
 							pxb = (q->position.x + bd->shipradius[ship]) - (x*16+8);
 							pya = (q->position.y - bd->shipradius[ship]) - (y*16+8);
 							pyb = (q->position.y + bd->shipradius[ship]) - (y*16+8);
-							if ((pxa*pxa+pya*pya) < bd->antibrickwarpdistance)
-							 || (pxb*pxb+pya*pya) < bd->antibrickwarpdistance)
-							 || (pxa*pxa+pyb*pyb) < bd->antibrickwarpdistance)
-							 || (pxb*pxb+pyb*pyb) < bd->antibrickwarpdistance))
+							if (((pxa*pxa+pya*pya) < bd->antibrickwarpdistance)
+							 || ((pxb*pxb+pya*pya) < bd->antibrickwarpdistance)
+							 || ((pxa*pxa+pyb*pyb) < bd->antibrickwarpdistance)
+							 || ((pxb*pxb+pyb*pyb) < bd->antibrickwarpdistance))
 							{
 								cancel = 1;
 								break;

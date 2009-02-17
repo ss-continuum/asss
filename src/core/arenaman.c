@@ -932,6 +932,7 @@ local void GetPopulationSummary(int *totalp, int *playingp)
 	FOR_EACH_ARENA(a)
 		a->playing = a->total = 0;
 
+	/* TODO: add some global.conf options for how this is displayed */
 	pd->Lock();
 	FOR_EACH_PLAYER(p)
 		if (p->status == S_PLAYING &&

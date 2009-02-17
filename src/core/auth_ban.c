@@ -178,7 +178,9 @@ EXPORT int MM_auth_ban(int action, Imodman *mm_, Arena *arena)
 
 		cmd->AddCommand("kick", Ckick, ALLARENAS, kick_help);
 		cmd->AddCommand("listmidbans", Clistmidbans, ALLARENAS, listmidbans_help);
+		cmd->AddCommand("listkick", Clistmidbans, ALLARENAS, listmidbans_help);
 		cmd->AddCommand("delmidban", Cdelmidban, ALLARENAS, delmidban_help);
+		cmd->AddCommand("delkick", Cdelmidban, ALLARENAS, delmidban_help);
 
 		mm->RegInterface(&myauth, ALLARENAS);
 		return MM_OK;
@@ -189,7 +191,9 @@ EXPORT int MM_auth_ban(int action, Imodman *mm_, Arena *arena)
 			return MM_FAIL;
 		cmd->RemoveCommand("kick", Ckick, ALLARENAS);
 		cmd->RemoveCommand("listmidbans", Clistmidbans, ALLARENAS);
+		cmd->RemoveCommand("listkick", Clistmidbans, ALLARENAS);
 		cmd->RemoveCommand("delmidban", Cdelmidban, ALLARENAS);
+		cmd->RemoveCommand("delkick", Cdelmidban, ALLARENAS);
 		TrEnum(banroot, tr_enum_afree, NULL);
 		mm->ReleaseInterface(oldauth);
 		mm->ReleaseInterface(capman);
