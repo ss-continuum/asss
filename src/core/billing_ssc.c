@@ -40,6 +40,7 @@ typedef struct pdata
 		char pw[24];
 	} *logindata;
 	char firstused[32];
+	int setpublicscore;
 	struct PlayerScore saved_score;
 } pdata;
 
@@ -246,20 +247,13 @@ local struct Iauth myauth =
 
 local int update_score(Player *p, struct PlayerScore *s)
 {
-	if (p->pkt.killpoints != s->Score ||
-	    p->pkt.flagpoints != s->FlagScore ||
-	    p->pkt.wins != s->Kills ||
-	    p->pkt.losses != s->Deaths ||
-	    p->pkt.flagscarried != s->Flags)
-	{
-		s->Score = p->pkt.killpoints;
-		s->FlagScore = p->pkt.flagpoints;
-		s->Kills = p->pkt.wins;
-		s->Deaths = p->pkt.losses;
-		s->Flags = p->pkt.flagscarried;
-		return 1;
-	}
-	return 0;
+	s->Score = stats->GetStat(p, STAT_KILL_POINTS, INTERVAL_RESET);
+	s->FlagScore = stats->GetStat(p, STAT_FLAG_POINTS, INTERVAL_RESET);
+	s->Kills = stats->GetStat(p, STAT_KILLS, INTERVAL_RESET);
+	s->Deaths = stats->GetStat(p, STAT_DEATHS, INTERVAL_RESET);
+	s->Flags = stats->GetStat(p, STAT_FLAG_PICKUPS, INTERVAL_RESET);
+
+	return 1;
 }
 
 /* catch players logging out */
@@ -304,9 +298,7 @@ local void paction(Player *p, int action, Arena *arena)
 						offsetof(struct S2B_UserLogoff, Score), NET_RELIABLE);
 		}
 	}
-#if 0
-	/* i don't want the biller messing with my stats */
-	else if (action == PA_ENTERARENA && arena->ispublic)
+	else if (action == PA_ENTERARENA && ARENA_IS_PUBLIC(arena))
 	{
 		if (data->setpublicscore)
 		{
@@ -316,17 +308,23 @@ local void paction(Player *p, int action, Arena *arena)
 			stats->SetStat(p, STAT_KILLS,       INTERVAL_RESET, data->saved_score.Kills);
 			stats->SetStat(p, STAT_DEATHS,      INTERVAL_RESET, data->saved_score.Deaths);
 			stats->SetStat(p, STAT_FLAG_PICKUPS,INTERVAL_RESET, data->saved_score.Flags);
-			stats->SendUpdates();
+			stats->SendUpdates(NULL);
 		}
 	}
-#endif
 	else if (action == PA_LEAVEARENA && ARENA_IS_PUBLIC(arena))
 	{
+		struct S2B_UserScore pkt;
+		pkt.Type = S2B_USER_SCORE;
+		pkt.ConnectionID = p->pid;
+
 		data->saved_score.Score = stats->GetStat(p, STAT_KILL_POINTS, INTERVAL_RESET);
 		data->saved_score.FlagScore = stats->GetStat(p, STAT_FLAG_POINTS, INTERVAL_RESET);
 		data->saved_score.Kills = stats->GetStat(p, STAT_KILLS, INTERVAL_RESET);
 		data->saved_score.Deaths = stats->GetStat(p, STAT_DEATHS, INTERVAL_RESET);
 		data->saved_score.Flags = stats->GetStat(p, STAT_FLAG_PICKUPS,INTERVAL_RESET);
+
+		pkt.Score = data->saved_score;
+		netcli->SendPacket(cc, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
 	}
 	pthread_mutex_unlock(&mtx);
 }
@@ -630,15 +628,17 @@ local void process_user_login(const char *data,int len)
 					pkt->FirstLogin.Hour, pkt->FirstLogin.Min,pkt->FirstLogin.Sec);
 		bdata->usage = pkt->SecondsPlayed;
 		bdata->billingid = pkt->UserID;
-#if 0
+
 		if (len == sizeof(*pkt))
 		{
 			bdata->saved_score = pkt->Score;
 			bdata->setpublicscore = TRUE;
 		}
 		else
-#endif
+		{
 			memset(&bdata->saved_score, 0, sizeof(bdata->saved_score));
+			bdata->setpublicscore = FALSE;
+		}
 
 		ad.demodata = (pkt->Result == B2S_LOGIN_ASKDEMOGRAPHICS);
 		ad.code = AUTH_OK;
