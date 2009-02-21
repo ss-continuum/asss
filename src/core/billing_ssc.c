@@ -641,7 +641,7 @@ local void process_user_login(const char *data,int len)
 		}
 
 		ad.demodata = (pkt->Result == B2S_LOGIN_ASKDEMOGRAPHICS);
-		ad.code = AUTH_OK;
+		ad.code = ad.demodata?AUTH_ASKDEMOGRAPHICS:AUTH_OK;
 		ad.authenticated = TRUE;
 		astrncpy(ad.name, (char*)pkt->Name, sizeof(ad.name));
 		astrncpy(ad.sendname, (char*)pkt->Name, sizeof(ad.sendname));
