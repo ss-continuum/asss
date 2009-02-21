@@ -119,7 +119,8 @@ struct S2B_UserDemographics {
 struct S2B_ServerCapabilities {
 	u8  Type;
 	u32 MultiCastChat:1;
-	u32 Unused:31;
+	u32 SupportDemographics:1;
+	u32 Unused:30;
 } PACKED;
 
 /* ====================================================================

@@ -944,7 +944,7 @@ local void process_identity(const char *data, int len)
 
 local void logged_in(void)
 {
-	struct S2B_ServerCapabilities cpkt = {S2B_SERVER_CAPABILITIES,1,0};
+	struct S2B_ServerCapabilities cpkt = {S2B_SERVER_CAPABILITIES,1,1,0};
 
 	chat->SendArenaMessage(ALLARENAS,
 			"Notice: Connection to user database server restored. "
