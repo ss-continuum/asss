@@ -92,6 +92,7 @@ typedef struct Ichat
 	/** Sends a green arena message to a set of players. */
 	void (*SendSetMessage)(LinkedList *set, const char *format, ...)
 		ATTR_FORMAT(printf, 2, 3);
+	/* pyint: playerlist, formatted -> void */
 
 	/** Sends a green arena message plus sound code to a player. */
 	void (*SendSoundMessage)(Player *p, char sound, const char *format, ...)
@@ -101,11 +102,13 @@ typedef struct Ichat
 	/** Sends a green arena message plus sound code to a set of players. */
 	void (*SendSetSoundMessage)(LinkedList *set, char sound, const char *format, ...)
 		ATTR_FORMAT(printf, 3, 4);
+	/* pyint: playerlist, int, formatted -> void */
 
 	/** Sends an arbitrary chat message to a set of players. */
 	void (*SendAnyMessage)(LinkedList *set, char type, char sound,
 			Player *from, const char *format, ...)
 		ATTR_FORMAT(printf, 5, 6);
+	/* pyint: playerlist, int, int, player, formatted -> void */
 
 	/** Sends a green arena message to all players in an arena.
 	 * Use ALLARENAS for areana to send to all players in all arenas. */
