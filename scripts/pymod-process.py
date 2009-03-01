@@ -8,7 +8,7 @@ DEFBUFLEN = 1024
 # lots of precompiled regular expressions
 
 # include directives
-re_pyinclude = re.compile(r'\s*/\* pyinclude: (.*) \*/')
+re_pyinclude = re.compile(r'\s*/\* pyinclude: (.*?)(\*/)?$')
 
 # constants
 re_pyconst_dir = re.compile(r'\s*/\* pyconst: (.*), "(.*)" \*/')
@@ -307,6 +307,15 @@ class type_bufp(type_gen):
 	def conv_to_buf(me, buf, val):
 		raise Exception()
 
+class type_playerlist(type_gen):
+	def format_char(me):
+		return 'O&'
+	def decl(me, s):
+		return 'LinkedList *%s = LLAlloc()' % s
+	def build_converter(me):
+		return 'cvt_c2p_playerlist'
+	def parse_converter(me):
+		return 'cvt_p2c_playerlist'
 
 def get_type(tp):
 	try:
@@ -447,6 +456,8 @@ def create_c_to_py_func(name, func):
 	decls = '\n'.join(decls)
 	extras3 = '\n'.join(extras3)
 	retdecl = rettype.decl('')
+	if isinstance(rettype, type_playerlist):
+		retdecl = "LinkedList *"
 
 	if av_arena:
 		arenaval = av_arena

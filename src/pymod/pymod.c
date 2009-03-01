@@ -33,7 +33,7 @@
 #include "brickwriter.h"
 
 #include "turf/turf_reward.h"
-
+#include "py_include.inc"
 
 #define PYCBPREFIX "PY-"
 #define PYINTPREFIX "PY-"
@@ -59,9 +59,14 @@ typedef struct ArenaObject
 	PyObject *dict;
 } ArenaObject;
 
+typedef struct PlayerListObject
+{
+//blank?
+} PlayerListObject;
+
 local PyTypeObject PlayerType;
 local PyTypeObject ArenaType;
-
+local PyTypeObject PlayerListType;
 
 typedef struct pdata
 {
@@ -190,7 +195,7 @@ local PyObject * cvt_c2p_banner(Banner *b)
 local int cvt_p2c_banner(PyObject *o, Banner **bp)
 {
 	char *buf;
-	long len = -1;
+	int len = -1;
 	PyString_AsStringAndSize(o, &buf, &len);
 	if (len == sizeof(Banner))
 	{
@@ -201,6 +206,57 @@ local int cvt_p2c_banner(PyObject *o, Banner **bp)
 		return FALSE;
 }
 
+local PyObject * cvt_c2p_playerlist(LinkedList *list)
+{
+	PyObject *o;
+	if(list)
+	{
+		o = PyObject_CallObject((PyObject *) &PlayerListType, NULL);
+		Link *link;
+		Player *p;
+
+		FOR_EACH(list, p, link)
+		{
+			if(p)
+			{
+				PyObject *po = cvt_c2p_player(p);
+				Py_XDECREF(po);
+				if(po && po != Py_None)
+				{
+					PyList_Append(o, po);
+				}
+			}
+		}
+	}
+	else
+	{
+		o = Py_None;
+	}
+	return o;
+}
+
+local int cvt_p2c_playerlist(PyObject *o, LinkedList **list)
+{
+	if(o && o->ob_type == &PlayerListType)
+	{
+		int size = PyList_Size(o);
+		for(int i = 0; i < size; i++)
+		{
+			PyObject *obj = PyList_GET_ITEM(o, i);
+			Player *p;
+			if(cvt_p2c_player(obj, &p) && p)
+			{
+				LLAdd(*list, p);
+			}
+		}
+		return TRUE;
+	}
+	else
+	{
+		PyErr_SetString(PyExc_TypeError, "arg isn't a player list object");
+		return FALSE;
+	}
+}
 
 local PyObject * cvt_c2p_target(Target *t)
 {
@@ -209,7 +265,6 @@ local PyObject * cvt_c2p_target(Target *t)
 	 * arenas are represented as themselves. freqs are (arena, freq)
 	 * tuples. the zone is a special string. a list is a python list of
 	 * players. */
-	/* NOTE: lists aren't supported yet. */
 	switch (t->type)
 	{
 		case T_NONE:
@@ -234,7 +289,7 @@ local PyObject * cvt_c2p_target(Target *t)
 			return PyString_FromString("zone");
 
 		case T_LIST:
-			return NULL;
+			return cvt_c2p_playerlist(&t->u.list);
 
 		default:
 			return NULL;
@@ -275,11 +330,13 @@ local int cvt_p2c_target(PyObject *o, Target *t)
 		else
 			return FALSE;
 	}
-#if 0
-	else if (PyList_Check(o))
+	else if (o->ob_type == &PlayerListType)
 	{
+		t->type = T_LIST;
+		LinkedList *list = (LinkedList *)&t->u.list;
+		LLInit(list);
+		return cvt_p2c_playerlist(o, &list);
 	}
-#endif
 	else if (o == Py_None)
 	{
 		t->type = T_NONE;
@@ -635,6 +692,84 @@ local PyTypeObject ArenaType =
 	0,                         /* tp_new */
 };
 
+/* player lists */
+
+local PyObject *mthd_playerlist_append(PyObject *self, PyObject *args)
+{
+	Player *p;
+	if (!PyArg_ParseTuple(args, "O&", cvt_p2c_player, &p)) return NULL;
+
+	PyObject *obj = PyTuple_GetItem(args, 0);
+	PyList_Append((PyObject *)self, obj);
+
+    return Py_None;
+}
+
+local PyObject *mthd_playerlist_insert(PyObject *self, PyObject *args)
+{
+	Player *p;
+	int index;
+	if (!PyArg_ParseTuple(args, "iO&", &index, cvt_p2c_player, &p)) return NULL;
+
+	PyObject *obj = PyTuple_GetItem(args, 1);
+	PyList_Insert((PyObject *)self, index, obj);
+
+    return Py_None;
+}
+
+local PyMethodDef player_list_methods[] =
+{
+	{"append", mthd_playerlist_append, METH_VARARGS,
+		"Appends a player to the list"},
+	{"insert", mthd_playerlist_insert, METH_VARARGS,
+		"Inserts a player into to the list before an index"},
+	{NULL, NULL}
+};
+
+local PyTypeObject PlayerListType =
+{
+	PyObject_HEAD_INIT(NULL)
+	0,                         /*ob_size*/
+	"asss.PlayerList",         /*tp_name*/
+	sizeof(PlayerListObject),  /*tp_basicsize*/
+	0,                         /*tp_itemsize*/
+	0, /*tp_dealloc*/
+	0,                         /*tp_print*/
+	0,                         /*tp_getattr*/
+	0,                         /*tp_setattr*/
+	0,                         /*tp_compare*/
+	0,                         /*tp_repr*/
+	0,                         /*tp_as_number*/
+	0,                         /*tp_as_sequence*/
+	0,                         /*tp_as_mapping*/
+	0,                         /*tp_hash */
+	0,                         /*tp_call*/
+	0,                         /*tp_str*/
+	0,                         /*tp_getattro*/
+	0,                         /*tp_setattro*/
+	0,                         /*tp_as_buffer*/
+	Py_TPFLAGS_DEFAULT |
+      Py_TPFLAGS_BASETYPE,        /*tp_flags*/
+	"Player list object",      /* tp_doc */
+	0,                         /* tp_traverse */
+	0,                         /* tp_clear */
+	0,                         /* tp_richcompare */
+	0,                         /* tp_weaklistoffset */
+	0,                         /* tp_iter */
+	0,                         /* tp_iternext */
+	player_list_methods,       /* tp_methods */
+	0,                         /* tp_members */
+	0,                         /* tp_getset */
+	0,                         /* tp_base */
+	0,                         /* tp_dict */
+	0,                         /* tp_descr_get */
+	0,                         /* tp_descr_set */
+	0,                         /* tp_dictoffset */
+	0, /* tp_init */
+	0,                         /* tp_alloc */
+	0,                         /* tp_new */
+};
+
 
 
 /* associating asss objects with python objects */
@@ -683,7 +818,6 @@ local PyObject * call_gen_py_interface(const char *iid,
 }
 
 /* this is where most of the generated code gets inserted */
-#include "py_include.inc"
 #include "py_types.inc"
 #include "py_callbacks.inc"
 #include "py_interfaces.inc"
@@ -701,7 +835,7 @@ local void py_newplayer(Player *p, int isnew)
 	else
 	{
 		if (d->obj->ob_refcnt != 1)
-			lm->Log(L_ERROR, "<pymod> there are %ld remaining references to a player object!",
+			lm->Log(L_ERROR, "<pymod> there are %d remaining references to a player object!",
 					d->obj->ob_refcnt);
 
 		/* this stuff would usually be done in dealloc, but I want to
@@ -735,7 +869,7 @@ local void py_aaction(Arena *a, int action)
 	if (action == AA_POSTDESTROY && d->obj)
 	{
 		if (d->obj->ob_refcnt != 1)
-			lm->Log(L_ERROR, "<pymod> there are %ld remaining references to an arena object!",
+			lm->Log(L_ERROR, "<pymod> there are %d remaining references to an arena object!",
 					d->obj->ob_refcnt);
 
 		/* see notes for py_newplayer as to why this is done here. */
@@ -1219,7 +1353,7 @@ local int get_player_data(Player *p, void *data, int len, void *v)
 	struct pypersist_ppd *pyppd = v;
 	PyObject *val, *pkl;
 	const void *pkldata;
-	long pkllen;
+	int pkllen;
 
 	val = PyObject_CallMethod(pyppd->funcs, "get", "(O&)", cvt_c2p_player, p);
 	if (!val)
@@ -1252,7 +1386,7 @@ local int get_player_data(Player *p, void *data, int len, void *v)
 	{
 		Py_DECREF(pkl);
 		lm->Log(L_WARN, "<pymod> persistent data getter returned more "
-				"than %ld bytes of data (%d allowed)",
+				"than %d bytes of data (%d allowed)",
 				pkllen, len);
 		return 0;
 	}
@@ -1261,7 +1395,7 @@ local int get_player_data(Player *p, void *data, int len, void *v)
 
 	Py_DECREF(pkl);
 
-	return (int)pkllen;
+	return pkllen;
 }
 
 local void set_player_data(Player *p, void *data, int len, void *v)
@@ -1345,7 +1479,7 @@ local int get_arena_data(Arena *a, void *data, int len, void *v)
 	struct pypersist_apd *pyapd = v;
 	PyObject *val, *pkl;
 	const void *pkldata;
-	long pkllen;
+	int pkllen;
 
 	val = PyObject_CallMethod(pyapd->funcs, "get", "(O&)", cvt_c2p_arena, a);
 	if (!val)
@@ -1378,7 +1512,7 @@ local int get_arena_data(Arena *a, void *data, int len, void *v)
 	{
 		Py_DECREF(pkl);
 		lm->Log(L_WARN, "<pymod> persistent data getter returned more "
-				"than %ld bytes of data (%d allowed)",
+				"than %d bytes of data (%d allowed)",
 				pkllen, len);
 		return 0;
 	}
@@ -1387,7 +1521,7 @@ local int get_arena_data(Arena *a, void *data, int len, void *v)
 
 	Py_DECREF(pkl);
 
-	return (int)pkllen;
+	return pkllen;
 }
 
 local void set_arena_data(Arena *a, void *data, int len, void *v)
@@ -1595,6 +1729,9 @@ local void init_asss_module(void)
 		return;
 	if (PyType_Ready(&ArenaType) < 0)
 		return;
+	PlayerListType.tp_base = &PyList_Type;
+    if (PyType_Ready(&PlayerListType) < 0)
+        return;
 
 	if (ready_generated_types() < 0)
 		return;
@@ -1605,6 +1742,7 @@ local void init_asss_module(void)
 
 	PyModule_AddObject(m, "PlayerType", (PyObject*)&PlayerType);
 	PyModule_AddObject(m, "ArenaType", (PyObject*)&ArenaType);
+	PyModule_AddObject(m, "PlayerListType", (PyObject*)&PlayerListType);
 
 	add_type_objects_to_module(m);
 
@@ -1656,7 +1794,7 @@ local int unload_py_module(mod_args_t *args)
 
 	if (mod->ob_refcnt != 2)
 	{
-		lm->Log(L_WARN, "<pymod> there are %ld remaining references to module %s",
+		lm->Log(L_WARN, "<pymod> there are %d remaining references to module %s",
 				mod->ob_refcnt, mname);
 		return MM_FAIL;
 	}
