@@ -755,7 +755,6 @@ local int ReapArenas(void *q)
 	FOR_EACH_ARENA(a)
 		if (a->status == ARENA_RUNNING || a->status == ARENA_CLOSING)
 		{
-			Link *link;
 			FOR_EACH_PLAYER(p)
 				/* if any player is currently using this arena, it can't
 				 * be reaped. also, if anyone is entering a running
