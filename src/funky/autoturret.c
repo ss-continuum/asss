@@ -28,19 +28,6 @@ local Icmdman *cmd;
 local Igame *game;
 local Ifake *fake;
 
-const char *ship_names[8] =
-{
-	"Warbird",
-	"Javelin",
-	"Spider",
-	"Leviathan",
-	"Terrier",
-	"Weasel",
-	"Lancaster",
-	"Shark"
-};
-
-
 local struct TurretData * new_turret(Player *p, int timeout, int interval,
 		Player *p_for_position)
 {
@@ -260,7 +247,7 @@ local void mlfunc()
 						bp->position.xspeed - td->p->position.xspeed,
 						bp->position.yspeed - td->p->position.yspeed,
 						cfg->GetInt(td->p->arena->cfg,
-							ship_names[(int)bp->p_ship], "BombSpeed", 10));
+							SHIP_NAMES[(int)bp->p_ship], "BombSpeed", 10));
 			pd->Unlock();
 
 			game->FakePosition(td->p, &td->pos, sizeof(td->pos));
@@ -287,7 +274,7 @@ local void mlfunc()
 						bp->position.xspeed - td->p->position.xspeed,
 						bp->position.yspeed - td->p->position.yspeed,
 						cfg->GetInt(td->p->arena->cfg,
-							ship_names[(int)bp->p_ship], "BombSpeed", 10));
+							SHIP_NAMES[(int)bp->p_ship], "BombSpeed", 10));
 			pd->Unlock();
 
 			game->FakePosition(td->p, &td->pos, sizeof(td->pos));

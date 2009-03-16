@@ -195,6 +195,10 @@ int LLSort_StringCompare(const void *a, const void *b);
 #define LLIsEmpty(lst) ((lst)->start == NULL)
 #endif
 
+#define FOR_EACH(list, var, link) \
+	for (link = LLGetHead(list); \
+	link && ((var = link->data, link = link->next) || 1); )
+
 
 /* hashing stuff */
 

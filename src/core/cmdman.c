@@ -23,6 +23,10 @@ local void AddCommand(const char *, CommandFunc, Arena *, helptext_t);
 local void RemoveCommand(const char *, CommandFunc, Arena *);
 local void Command(const char *, Player *, const Target *, int);
 local helptext_t GetHelpText(const char *, Arena *);
+local void AddUnlogged(const char *);
+local void RemoveUnlogged(const char *);
+local void init_dontlog(void);
+local void uninit_dontlog(void);
 
 /* static data */
 local Iplayerdata *pd;
@@ -33,13 +37,15 @@ local Imodman *mm;
 
 local pthread_mutex_t cmdmtx;
 local HashTable *cmds;
+local HashTable *dontlog_table;
 local CommandFunc defaultfunc;
 
 local Icmdman _int =
 {
 	INTERFACE_HEAD_INIT(I_CMDMAN, "cmdman")
 	AddCommand, RemoveCommand,
-	Command, GetHelpText
+	Command, GetHelpText,
+	AddUnlogged, RemoveUnlogged
 };
 
 
@@ -61,6 +67,7 @@ EXPORT int MM_cmdman(int action, Imodman *mm_, Arena *arena)
 		pthread_mutexattr_destroy(&attr);
 
 		cmds = HashAlloc();
+		init_dontlog();
 
 		defaultfunc = NULL;
 
@@ -71,6 +78,7 @@ EXPORT int MM_cmdman(int action, Imodman *mm_, Arena *arena)
 	{
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
+		uninit_dontlog();
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(capman);
@@ -133,22 +141,46 @@ void RemoveCommand(const char *cmd, CommandFunc f, Arena *arena)
 }
 
 
+local void init_dontlog()
+{
+	dontlog_table = HashAlloc();
+
+	/* billing commands that shouldn't be logged */
+	HashAdd(dontlog_table, "chat", (void*)1);
+	HashAdd(dontlog_table, "password", (void*)1);
+	HashAdd(dontlog_table, "squadcreate", (void*)1);
+	HashAdd(dontlog_table, "squadjoin", (void*)1);
+	HashAdd(dontlog_table, "addop", (void*)1);
+	HashAdd(dontlog_table, "adduser", (void*)1);
+	HashAdd(dontlog_table, "changepassword", (void*)1);
+	HashAdd(dontlog_table, "login", (void*)1);
+	HashAdd(dontlog_table, "blogin", (void*)1);
+	HashAdd(dontlog_table, "bpassword", (void*)1);
+}
+
+
+local void uninit_dontlog()
+{
+	HashFree(dontlog_table);
+}
+
 
 local inline int dontlog(const char *cmd)
 {
-	if (!strcasecmp(cmd, "chat")) return TRUE;
-	if (!strcasecmp(cmd, "password")) return TRUE;
-	if (!strcasecmp(cmd, "passwd")) return TRUE;
-	if (!strcasecmp(cmd, "local_password")) return TRUE;
-	if (!strcasecmp(cmd, "squadcreate")) return TRUE;
-	if (!strcasecmp(cmd, "squadjoin")) return TRUE;
-	if (!strcasecmp(cmd, "addop")) return TRUE;
-	if (!strcasecmp(cmd, "adduser")) return TRUE;
-	if (!strcasecmp(cmd, "changepassword")) return TRUE;
-	if (!strcasecmp(cmd, "login")) return TRUE;
-	if (!strcasecmp(cmd, "blogin")) return TRUE;
-	if (!strcasecmp(cmd, "bpassword")) return TRUE;
-	return FALSE;
+	void *result = HashGetOne(dontlog_table, cmd);
+	return result == (void*)1;
+}
+
+
+local void AddUnlogged(const char *cmdname)
+{
+	HashAdd(dontlog_table, cmdname, (void*)1);
+}
+
+
+local void RemoveUnlogged(const char *cmdname)
+{
+	HashRemove(dontlog_table, cmdname, (void*)1);
 }
 
 

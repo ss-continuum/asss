@@ -102,6 +102,12 @@ local void ClearWatch(Player *p, int himtoo)
 local void ModuleWatch(Player *p, int on)
 {
 	watchdata *wd = PPDATA(p, wdkey);
+
+	if (on && WATCHCOUNT(wd) == 0)
+		ToggleWatch(p, 1);
+	else if (!on && WATCHCOUNT(wd) == 1)
+		ToggleWatch(p, 0);
+
 	if (on)
 		wd->modwatch++;
 	else

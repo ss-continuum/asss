@@ -64,17 +64,22 @@ local int timer(void *set_)
 {
 	periodic_settings *set = set_;
 	int totalplayers = 0, freqcount = 0;
+	int include_spec, include_safe;
 	TreapHead *fdata = NULL;
 	freq_data *fd;
 	Player *p;
 	Link *link;
 
+	/* TODO: setup cfghelps for these */
+	include_spec = cfg->GetInt(set->arena->cfg, "Periodic", "IncludeSpectators", 0);
+	include_safe = cfg->GetInt(set->arena->cfg, "Periodic", "IncludeSafeZones", 0);
+
 	/* figure out what freqs we have in this arena, how many players
 	 * each has, and how many flags each owns. */
 	pd->Lock();
 	FOR_EACH_PLAYER(p)
-		if (p->status == S_PLAYING &&
-		    p->arena == set->arena)
+		if (p->status == S_PLAYING && IS_HUMAN(p) &&
+		    p->arena == set->arena && (p->p_ship != SHIP_SPEC || include_spec))
 		{
 			int freq = p->p_freq;
 			fd = (freq_data*)TrGet(fdata, freq);
@@ -113,8 +118,8 @@ local int timer(void *set_)
 			if (IS_STANDARD(p) &&
 			    p->status == S_PLAYING &&
 			    p->arena == set->arena &&
-			    p->p_ship != SHIP_SPEC &&
-			    !(p->position.status & STATUS_SAFEZONE))
+			    (p->p_ship != SHIP_SPEC || include_spec) &&
+			    (!(p->position.status & STATUS_SAFEZONE) || include_safe))
 				if ((fd = (freq_data*)TrGet(fdata, p->p_freq)))
 					stats->IncrementStat(p, STAT_FLAG_POINTS, fd->points);
 		pd->Unlock();

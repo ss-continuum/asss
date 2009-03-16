@@ -119,7 +119,8 @@ struct S2B_UserDemographics {
 struct S2B_ServerCapabilities {
 	u8  Type;
 	u32 MultiCastChat:1;
-	u32 Unused:31;
+	u32 SupportDemographics:1;
+	u32 Unused:30;
 } PACKED;
 
 /* ====================================================================
@@ -139,8 +140,8 @@ struct S2B_ServerCapabilities {
 
 enum {
 	B2S_LOGIN_OK=0,B2S_LOGIN_NEWUSER=1,B2S_LOGIN_INVALIDPW=2,B2S_LOGIN_BANNED=3,
-	B2S_LOGIN_NONEWCONNS=4,B2S_LOGIN_BADUSERNAME=5,B2S_LOGIN_ASKDEMOGRAPHICS=6,
-	B2S_LOGIN_SERVERBUSY=7,B2S_LOGIN_DEMOVERSION=8
+	B2S_LOGIN_NONEWCONNS=4,B2S_LOGIN_BADUSERNAME=5,B2S_LOGIN_DEMOVERSION=6,
+	B2S_LOGIN_SERVERBUSY=7,B2S_LOGIN_ASKDEMOGRAPHICS=8
 };
 
 struct B2S_UserLogin {

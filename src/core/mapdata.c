@@ -17,6 +17,7 @@
 #define METADATA_MAGIC 0x6c766c65
 #define MAX_CHUNK_SIZE (128*1024)
 
+#pragma pack(1)
 
 /* some structs */
 typedef struct chunk
@@ -377,7 +378,7 @@ local int process_map_chunk(const char *key, void *vchunk, void *vlvl)
 		if (!read_chunks(rgn->chunks, chunk->data, chunk->size))
 			lm->Log(L_WARN, "<mapdata> error in lvl while reading region chunks");
 		HashEnum(rgn->chunks, process_region_chunk, rgn);
-		
+
 		if (!lvl->regions)
 			lvl->regions = HashAlloc();
 		if (rgn->name)
@@ -391,7 +392,7 @@ local int process_map_chunk(const char *key, void *vchunk, void *vlvl)
 		else
 			/* all regions must have a name */
 			free_region(rgn);
-	
+
 		afree(chunk);
 		return TRUE;
 	}

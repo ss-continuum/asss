@@ -14,31 +14,31 @@
 
 /* authentication return codes */
 /* pyconst: define int, "AUTH_*" */
-#define AUTH_OK             0x00   /* success */
-#define AUTH_NEWNAME        0x01   /* fail */
-#define AUTH_BADPASSWORD    0x02   /* fail */
-#define AUTH_ARENAFULL      0x03   /* fail */
-#define AUTH_LOCKEDOUT      0x04   /* fail */
-#define AUTH_NOPERMISSION   0x05   /* fail */
-#define AUTH_SPECONLY       0x06   /* success */
-#define AUTH_TOOMANYPOINTS  0x07   /* fail */
-#define AUTH_TOOSLOW        0x08   /* fail */
-#define AUTH_NOPERMISSION2  0x09   /* fail */
-#define AUTH_NONEWCONN      0x0A   /* fail */
-#define AUTH_BADNAME        0x0B   /* fail */
-#define AUTH_OFFENSIVENAME  0x0C   /* fail */
-#define AUTH_NOSCORES       0x0D   /* success */
-#define AUTH_SERVERBUSY     0x0E   /* fail */
-#define AUTH_TOOLOWUSAGE    0x0F   /* fail */
-#define AUTH_NONAME         0x10   /* fail */
-#define AUTH_TOOMANYDEMO    0x11   /* fail */
-#define AUTH_NODEMO         0x12   /* fail */
-#define AUTH_CUSTOMTEXT     0x13   /* fail */      /* contonly */
+#define AUTH_OK              0x00   /* success */
+#define AUTH_NEWNAME         0x01   /* fail */
+#define AUTH_BADPASSWORD     0x02   /* fail */
+#define AUTH_ARENAFULL       0x03   /* fail */
+#define AUTH_LOCKEDOUT       0x04   /* fail */
+#define AUTH_NOPERMISSION    0x05   /* fail */
+#define AUTH_SPECONLY        0x06   /* success */
+#define AUTH_TOOMANYPOINTS   0x07   /* fail */
+#define AUTH_TOOSLOW         0x08   /* fail */
+#define AUTH_NOPERMISSION2   0x09   /* fail */
+#define AUTH_NONEWCONN       0x0A   /* fail */
+#define AUTH_BADNAME         0x0B   /* fail */
+#define AUTH_OFFENSIVENAME   0x0C   /* fail */
+#define AUTH_NOSCORES        0x0D   /* success */
+#define AUTH_SERVERBUSY      0x0E   /* fail */
+#define AUTH_TOOLOWUSAGE     0x0F   /* fail */
+#define AUTH_ASKDEMOGRAPHICS 0x10   /* success */
+#define AUTH_TOOMANYDEMO     0x11   /* fail */
+#define AUTH_NODEMO          0x12   /* fail */
+#define AUTH_CUSTOMTEXT      0x13   /* fail */      /* contonly */
 
 /** which authentication result codes result in the player moving
  ** forward in the login process. */
 #define AUTH_IS_OK(a) \
-	((a) == AUTH_OK || (a) == AUTH_SPECONLY || (a) == AUTH_NOSCORES)
+	((a) == AUTH_OK || (a) == AUTH_SPECONLY || (a) == AUTH_NOSCORES || (a) == AUTH_ASKDEMOGRAPHICS)
 
 
 /** an authentication module must fill in one of these structs to return

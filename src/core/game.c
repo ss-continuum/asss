@@ -96,7 +96,7 @@ DEFINE_FROM_STRING(see_nrg_val, SEE_ENERGY_MAP)
 
 
 
-local void do_checksum(struct S2CWeapons *pkt)
+local void DoWeaponChecksum(struct S2CWeapons *pkt)
 {
 	int i;
 	u8 ck = 0;
@@ -205,9 +205,9 @@ local int run_enter_game_cb(void *clos)
 }
 
 
-local void Pppk(Player *p, byte *pkt, int len)
+local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 {
-	struct C2SPosition *pos = (struct C2SPosition *)pkt;
+	byte *pkt = (byte*)pos;
 	Arena *arena = p->arena;
 	adata *adata = P_ARENA_DATA(arena, adkey);
 	pdata *data = PPDATA(p, pdkey), *idata;
@@ -216,7 +216,11 @@ local void Pppk(Player *p, byte *pkt, int len)
 	Player *i;
 	Link *link;
 	ticks_t gtc = current_ticks();
-	int latency, isnewer, isfake = (p->type == T_FAKE);
+	int latency, isnewer;
+	int modified, wpndirty, posdirty;
+	struct C2SPosition copy;
+	struct S2CWeapons wpn;
+	struct S2CPosition sendpos;
 
 #ifdef CFG_RELAX_LENGTH_CHECKS
 	if (len < 22)
@@ -259,6 +263,49 @@ local void Pppk(Player *p, byte *pkt, int len)
 
 	isnewer = TICK_DIFF(pos->time, data->pos.time) > 0;
 
+	/* lag data */
+	if (lagc && !isfake)
+		lagc->Position(
+				p,
+				TICK_DIFF(gtc, pos->time) * 10,
+				len >= 26 ? pos->extra.s2cping * 10 : -1,
+				data->wpnsent);
+
+	/* only copy if the new one is later */
+	if (isnewer || isfake)
+	{
+		/* FIXME: make this asynchronous? */
+		if (((pos->status ^ data->pos.status) & STATUS_SAFEZONE) && !isfake)
+			DO_CBS(CB_SAFEZONE, arena, SafeZoneFunc, (p, pos->x, pos->y, pos->status & STATUS_SAFEZONE));
+
+		/* copy the whole thing. this will copy the epd, or, if the client
+		 * didn't send any epd, it will copy zeros because the buffer was
+		 * zeroed before data was recvd into it. */
+		memcpy(&data->pos, pkt, sizeof(data->pos));
+
+		/* update position in global player struct.
+		 * only copy x/y if they are nonzero, so we keep track of last
+		 * non-zero position. */
+		if (pos->x != 0 || pos->y != 0)
+		{
+			p->position.x = pos->x;
+			p->position.y = pos->y;
+		}
+		p->position.xspeed = pos->xspeed;
+		p->position.yspeed = pos->yspeed;
+		p->position.rotation = pos->rotation;
+		p->position.bounty = pos->bounty;
+		p->position.status = pos->status;
+		p->position.energy = pos->energy;
+	}
+
+	/* see if this is their first packet */
+	if (p->flags.sent_ppk == 0 && !isfake)
+	{
+		p->flags.sent_ppk = 1;
+		ml->SetTimer(run_enter_game_cb, 0, 0, p, NULL);
+	}
+
 	/* speccers don't get their position sent to anyone */
 	if (p->p_ship != SHIP_SPEC)
 	{
@@ -296,6 +343,9 @@ local void Pppk(Player *p, byte *pkt, int len)
 		 * little special case. */
 		if (!isnewer && !isfake && pos->weapon.type == 0)
 			return;
+
+		/* do the callback to allow other modules to edit the packet */
+		DO_CBS(CB_EDITPPK, arena, EditPPKFunc, (p, pos));
 
 		/* by default, send unreliable droppable packets. weapons get a
 		 * higher priority. */
@@ -341,197 +391,163 @@ local void Pppk(Player *p, byte *pkt, int len)
 			nflags = NET_RELIABLE;
 		}
 
-		if (sendwpn)
-		{
-			int range = wpnrange[pos->weapon.type];
-			struct S2CWeapons wpn = {
-				S2C_WEAPON, pos->rotation, gtc & 0xFFFF, pos->x, pos->yspeed,
-				p->pid, pos->xspeed, 0, pos->status, (u8)latency,
-				pos->y, pos->bounty
-			};
-			wpn.weapon = pos->weapon;
-			wpn.extra = pos->extra;
-			/* move this field from the main packet to the extra data,
-			 * in case they don't match. */
-			wpn.extra.energy = pos->energy;
+		/* ensure that all packets get built before use */
+		modified = 1;
+		wpndirty = 1;
+		posdirty = 1;
 
-			do_checksum(&wpn);
+		pd->Lock();
+		FOR_EACH_PLAYER_P(i, idata, pdkey)
+			if (i->status == S_PLAYING &&
+				IS_STANDARD(i) &&
+				i->arena == arena &&
+				(i != p || p->flags.see_own_posn))
+			{
+				long dist = lhypot(x1 - idata->pos.x, y1 - idata->pos.y);
+				long range;
 
-			pd->Lock();
-			FOR_EACH_PLAYER_P(i, idata, pdkey)
-				if (i->status == S_PLAYING &&
-				    IS_STANDARD(i) &&
-				    i->arena == arena &&
-				    (i != p || p->flags.see_own_posn))
+				/* determine the packet range */
+				if (sendwpn && pos->weapon.type)
+					range = wpnrange[pos->weapon.type];
+				else
+					range = i->xres + i->yres;
+
+				if (
+						dist <= range ||
+						sendtoall ||
+						/* send it always to specers */
+						idata->speccing == p ||
+						/* send it always to turreters */
+						i->p_attached == p->pid ||
+						/* and send some radar packets */
+						( pos->weapon.type == W_NULL &&
+						  dist <= cfg_pospix &&
+						  randnum > ((double)dist / (double)cfg_pospix *
+								(RAND_MAX+1.0))) ||
+						/* bots */
+						i->flags.see_all_posn)
 				{
-					long dist = lhypot(x1 - idata->pos.x, y1 - idata->pos.y);
+					int extralen;
 
-					if (
-							dist <= range ||
-							sendtoall ||
-							/* send it always to specers */
-							idata->speccing == p ||
-							/* send it always to turreters */
-							i->p_attached == p->pid ||
-							/* and send some radar packets */
-							( wpn.weapon.type == W_NULL &&
-							  dist <= cfg_pospix &&
-							  randnum > ((double)dist / (double)cfg_pospix *
-							        (RAND_MAX+1.0))) ||
-							/* bots */
-							i->flags.see_all_posn)
+					const int plainlen = 0;
+					const int nrglen = 2;
+					const int epdlen = sizeof(struct ExtraPosData);
+
+					if (i->p_ship == SHIP_SPEC)
 					{
-						const int plainlen = sizeof(struct S2CWeapons) - sizeof(struct ExtraPosData);
-						const int nrglen = plainlen + 2;
-						const int epdlen = sizeof(struct S2CWeapons);
+						if (idata->pl_epd.seeepd && idata->speccing == p)
+						{
+							if (len >= 32)
+								extralen = epdlen;
+							else
+								extralen = nrglen;
+						}
+						else if (idata->pl_epd.seenrgspec == SEE_ALL ||
+								 (idata->pl_epd.seenrgspec == SEE_TEAM &&
+								  p->p_freq == i->p_freq) ||
+								 (idata->pl_epd.seenrgspec == SEE_SPEC &&
+								  data->speccing == p))
+							extralen = nrglen;
+						else
+							extralen = plainlen;
+					}
+					else if (idata->pl_epd.seenrg == SEE_ALL ||
+							 (idata->pl_epd.seenrg == SEE_TEAM &&
+							  p->p_freq == i->p_freq))
+						extralen = nrglen;
+					else
+						extralen = plainlen;
+
+					if (modified)
+					{
+						memcpy(&copy, pos, sizeof(struct C2SPosition));
+						modified = 0;
+					}
+					/* do the callback to allow other modules to edit the
+					 * packet going to player i */
+					DO_CBS(CB_EDITINDIVIDALPPK,
+							arena,
+							EditPPKIndivdualFunc,
+							(p, i, &copy, &modified, &extralen));
+					wpndirty = wpndirty || modified;
+					posdirty = posdirty || modified;
+
+					if ((!modified && sendwpn)
+						|| copy.weapon.type > 0
+						|| copy.bounty & 0xFF00
+						|| p->pid & 0xFF00)
+					{
+						int length = sizeof(struct S2CWeapons) - sizeof(struct ExtraPosData) + extralen;
+						if (wpndirty)
+						{
+							wpn.type = S2C_WEAPON;
+							wpn.rotation = copy.rotation;
+							wpn.time = gtc & 0xFFFF;
+							wpn.x = copy.x;
+							wpn.yspeed = copy.yspeed;
+							wpn.playerid = p->pid;
+							wpn.xspeed = copy.xspeed;
+							wpn.checksum = 0;
+							wpn.status = copy.status;
+							wpn.c2slatency = (u8)latency;
+							wpn.y = copy.y;
+							wpn.bounty = copy.bounty;
+							wpn.weapon = copy.weapon;
+							wpn.extra = copy.extra;
+							/* move this field from the main packet to the extra data,
+							 * in case they don't match. */
+							wpn.extra.energy = copy.energy;
+
+							wpndirty = modified;
+
+							DoWeaponChecksum(&wpn);
+						}
 
 						if (wpn.weapon.type)
 							idata->wpnsent++;
 
-						if (i->p_ship == SHIP_SPEC)
-						{
-							if (idata->pl_epd.seeepd && idata->speccing == p)
-							{
-								if (len >= 32)
-									net->SendToOne(i, (byte*)&wpn, epdlen, nflags);
-								else
-									net->SendToOne(i, (byte*)&wpn, nrglen, nflags);
-							}
-							else if (idata->pl_epd.seenrgspec == SEE_ALL ||
-							         (idata->pl_epd.seenrgspec == SEE_TEAM &&
-							          p->p_freq == i->p_freq) ||
-							         (idata->pl_epd.seenrgspec == SEE_SPEC &&
-							          data->speccing == p))
-								net->SendToOne(i, (byte*)&wpn, nrglen, nflags);
-							else
-								net->SendToOne(i, (byte*)&wpn, plainlen, nflags);
-						}
-						else if (idata->pl_epd.seenrg == SEE_ALL ||
-						         (idata->pl_epd.seenrg == SEE_TEAM &&
-						          p->p_freq == i->p_freq))
-							net->SendToOne(i, (byte*)&wpn, nrglen, nflags);
-						else
-							net->SendToOne(i, (byte*)&wpn, plainlen, nflags);
+						net->SendToOne(i, (byte*)&wpn, length, nflags);
 					}
-				}
-			pd->Unlock();
-		}
-		else
-		{
-			struct S2CPosition sendpos = {
-				S2C_POSITION, pos->rotation, gtc & 0xFFFF, pos->x, (u8)latency,
-				(u8)pos->bounty, (u8)p->pid, pos->status, pos->yspeed, pos->y, pos->xspeed
-			};
-			sendpos.extra = pos->extra;
-			/* move this field from the main packet to the extra data,
-			 * in case they don't match. */
-			sendpos.extra.energy = pos->energy;
-
-			pd->Lock();
-			FOR_EACH_PLAYER_P(i, idata, pdkey)
-				if (i->status == S_PLAYING &&
-				    IS_STANDARD(i) &&
-				    i->arena == arena &&
-				    (i != p || p->flags.see_own_posn))
-				{
-					long dist = lhypot(x1 - idata->pos.x, y1 - idata->pos.y);
-					int res = i->xres + i->yres;
-
-					if (
-							dist < res ||
-							sendtoall ||
-							/* send it always to specers */
-							idata->speccing == p ||
-							/* send it always to turreters */
-							i->p_attached == p->pid ||
-							/* and send some radar packets */
-							( dist <= cfg_pospix &&
-							  (randnum > ((float)dist / (float)cfg_pospix *
-							              (RAND_MAX+1.0)))) ||
-							/* bots */
-							i->flags.see_all_posn)
+					else
 					{
-						const int plainlen = sizeof(struct S2CPosition) - sizeof(struct ExtraPosData);
-						const int nrglen = plainlen + 2;
-						const int epdlen = sizeof(struct S2CPosition);
-
-						if (i->p_ship == SHIP_SPEC)
+						int length = sizeof(struct S2CPosition) - sizeof(struct ExtraPosData) + extralen;
+						if (posdirty)
 						{
-							if (idata->pl_epd.seeepd && idata->speccing == p)
-							{
-								if (len >= 32)
-									net->SendToOne(i, (byte*)&sendpos, epdlen, nflags);
-								else
-									net->SendToOne(i, (byte*)&sendpos, nrglen, nflags);
-							}
-							else if (idata->pl_epd.seenrgspec == SEE_ALL ||
-							         (idata->pl_epd.seenrgspec == SEE_TEAM &&
-							          p->p_freq == i->p_freq) ||
-							         (idata->pl_epd.seenrgspec == SEE_SPEC &&
-							          data->speccing == p))
-								net->SendToOne(i, (byte*)&sendpos, nrglen, nflags);
-							else
-								net->SendToOne(i, (byte*)&sendpos, plainlen, nflags);
+							sendpos.type = S2C_POSITION;
+							sendpos.rotation = copy.rotation;
+							sendpos.time = gtc & 0xFFFF;
+							sendpos.x = copy.x;
+							sendpos.c2slatency = (u8)latency;
+							sendpos.bounty = (u8)copy.bounty;
+							sendpos.playerid = (u8)p->pid;
+							sendpos.status = copy.status;
+							sendpos.yspeed = copy.yspeed;
+							sendpos.y = copy.y;
+							sendpos.xspeed = copy.xspeed;
+							sendpos.extra = copy.extra;
+							/* move this field from the main packet to the extra data,
+							 * in case they don't match. */
+							sendpos.extra.energy = copy.energy;
+
+							posdirty = modified;
 						}
-						else if (idata->pl_epd.seenrg == SEE_ALL ||
-						         (idata->pl_epd.seenrg == SEE_TEAM &&
-						          p->p_freq == i->p_freq))
-							net->SendToOne(i, (byte*)&sendpos, nrglen, nflags);
-						else
-							net->SendToOne(i, (byte*)&sendpos, plainlen, nflags);
+
+						net->SendToOne(i, (byte*)&sendpos, length, nflags);
 					}
 				}
-			pd->Unlock();
-		}
-	}
-
-	/* lag data */
-	if (lagc && !isfake)
-		lagc->Position(
-				p,
-				TICK_DIFF(gtc, pos->time) * 10,
-				len >= 26 ? pos->extra.s2cping * 10 : -1,
-				data->wpnsent);
-
-	/* only copy if the new one is later */
-	if (isnewer || isfake)
-	{
-		/* FIXME: make this asynchronous? */
-		if (((pos->status ^ data->pos.status) & STATUS_SAFEZONE) && !isfake)
-			DO_CBS(CB_SAFEZONE, arena, SafeZoneFunc, (p, pos->x, pos->y, pos->status & STATUS_SAFEZONE));
-
-		/* copy the whole thing. this will copy the epd, or, if the client
-		 * didn't send any epd, it will copy zeros because the buffer was
-		 * zeroed before data was recvd into it. */
-		memcpy(&data->pos, pkt, sizeof(data->pos));
-
-		/* update position in global player struct.
-		 * only copy x/y if they are nonzero, so we keep track of last
-		 * non-zero position. */
-		if (pos->x != 0 || pos->y != 0)
-		{
-			p->position.x = pos->x;
-			p->position.y = pos->y;
-		}
-		p->position.xspeed = pos->xspeed;
-		p->position.yspeed = pos->yspeed;
-		p->position.rotation = pos->rotation;
-		p->position.bounty = pos->bounty;
-		p->position.status = pos->status;
-		p->position.energy = pos->energy;
-	}
-
-	if (p->flags.sent_ppk == 0 && !isfake)
-	{
-		p->flags.sent_ppk = 1;
-		ml->SetTimer(run_enter_game_cb, 0, 0, p, NULL);
+			}
+		pd->Unlock();
 	}
 }
 
+local void Pppk(Player *p, byte *pkt, int len)
+{
+	handle_ppk(p, (struct C2SPosition *)pkt, len, 0);
+}
 
 local void FakePosition(Player *p, struct C2SPosition *pos, int len)
 {
-	Pppk(p, (byte*)pos, len);
+	handle_ppk(p, pos, len, 1);
 }
 
 
@@ -705,13 +721,13 @@ local void ResetPlayerEnergyViewing(Player *p)
 	int seenrg = SEE_NONE;
 	pdata *data = PPDATA(p, pdkey);
 	adata *ad = P_ARENA_DATA(p->arena, adkey);
-	
+
 	if (ad->all_nrg)  seenrg = ad->all_nrg;
 	if (capman && capman->HasCapability(p, "seenrg"))
 	{
 		seenrg = SEE_ALL;
 	}
-	
+
 	data->pl_epd.seenrg = seenrg;
 }
 
@@ -1042,7 +1058,7 @@ local void PDie(Player *p, byte *pkt, int len)
 	if (p->p_freq == killer->p_freq && cfg->GetInt(arena->cfg, "Prize", "UseTeamkillPrize", 0))
 	{
 		/* cfghelp: Prize:TeamkillPrize, arena, int, def: 0
-		 * The prize # to give for a teamkill, if 
+		 * The prize # to give for a teamkill, if
 		 * Prize:UseTeamkillPrize=1. */
 		green = cfg->GetInt(arena->cfg, "Prize", "TeamkillPrize", 0);
 	}
@@ -1506,7 +1522,8 @@ local Igame _myint =
 	ShipReset,
 	IncrementWeaponPacketCount,
 	SetPlayerEnergyViewing, SetSpectatorEnergyViewing,
-	ResetPlayerEnergyViewing, ResetSpectatorEnergyViewing
+	ResetPlayerEnergyViewing, ResetSpectatorEnergyViewing,
+	DoWeaponChecksum
 };
 
 

@@ -9,6 +9,19 @@
 
 #include "asss.h"
 
+/** instantiation of the SHIP_NAMES array */
+EXPORT const char *SHIP_NAMES[8] =
+{
+		"Warbird",
+		"Javelin",
+		"Spider",
+		"Leviathan",
+		"Terrier",
+		"Weasel",
+		"Lancaster",
+		"Shark"
+};
+
 #define USE_RWLOCK
 #define PID_REUSE_DELAY 10 /* how many seconds before we re-use a pid */
 

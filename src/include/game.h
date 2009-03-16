@@ -114,6 +114,14 @@ typedef void (*GreenFunc)(Player *p, int x, int y, int prize);
 typedef void (*AttachFunc)(Player *p, Player *to);
 /* pycb: player, player */
 
+/** this callback is called before a position packet is sent to all players. */
+#define CB_EDITPPK "editppk-1"
+typedef void (*EditPPKFunc)(Player *p, struct C2SPosition *pos);
+
+/** this callback is called before a position packet is send to an individual player. */
+#define CB_EDITINDIVIDALPPK "editindppk-1"
+typedef void (*EditPPKIndivdualFunc)(Player *p, Player *t, struct C2SPosition *pos, int *modified, int *extralen);
+
 enum { ENERGY_SEE_NONE, ENERGY_SEE_ALL, ENERGY_SEE_TEAM, ENERGY_SEE_SPEC };
 
 /** the game interface id */
@@ -245,6 +253,8 @@ typedef struct Igame
 	void (*SetSpectatorEnergyViewing)(Player *p, int value);
 	void (*ResetPlayerEnergyViewing)(Player *p);
 	void (*ResetSpectatorEnergyViewing)(Player *p);
+
+	void (*DoWeaponChecksum)(struct S2CWeapons *pkt);
 } Igame;
 
 

@@ -10,7 +10,7 @@ endif
 
 
 # rule to generate files
-$(call tobuild, py_constants.inc py_callbacks.inc py_interfaces.inc py_types.inc): \
+$(call tobuild, py_constants.inc py_callbacks.inc py_interfaces.inc py_types.inc py_include.inc): \
 		$(SCRIPTS)/pymod-process.py $(PYMOD_HEADERS)
 	$(PYTHON) $(SCRIPTS)/pymod-process.py $(dir $@) $(PYMOD_HEADERS)
 

@@ -459,11 +459,13 @@ local int RecycleArena(Arena *a)
 	FOR_EACH_PLAYER(p)
 		if (p->arena == a)
 		{
+#pragma pack(push, 1)
 			struct
 			{
 				u8 type;
 				i16 pid;
 			} pkt = { S2C_WHOAMI, p->pid };
+#pragma pack(pop)
 
 			/* send whoami packet so the clients leave the arena */
 			if (IS_STANDARD(p))
@@ -753,7 +755,6 @@ local int ReapArenas(void *q)
 	FOR_EACH_ARENA(a)
 		if (a->status == ARENA_RUNNING || a->status == ARENA_CLOSING)
 		{
-			Link *link;
 			FOR_EACH_PLAYER(p)
 				/* if any player is currently using this arena, it can't
 				 * be reaped. also, if anyone is entering a running
@@ -930,6 +931,7 @@ local void GetPopulationSummary(int *totalp, int *playingp)
 	FOR_EACH_ARENA(a)
 		a->playing = a->total = 0;
 
+	/* TODO: add some global.conf options for how this is displayed */
 	pd->Lock();
 	FOR_EACH_PLAYER(p)
 		if (p->status == S_PLAYING &&

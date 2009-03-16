@@ -497,6 +497,7 @@ local void CloseConfigFile(ConfigHandle ch)
 	removed = LLRemove(&cf->handles, ch);
 	pthread_mutex_unlock(&cf->mutex);
 	assert(removed);
+	afree(ch);
 }
 
 

@@ -511,12 +511,6 @@ void PLogin(Player *p, byte *opkt, int l)
 		 * characters. */
 		lp->name[19] = '\0';
 
-		if (lp->name[0] == '\0')
-		{
-			fail_login_with(p, AUTH_NONAME, "Your player name is blank", "name is blank");
-			return;
-		}
-
 		/* only allow printable characters in names, excluding colon.
 		 * while we're at it, remove leading, trailing, and series of
 		 * spaces */
@@ -744,7 +738,7 @@ local const char *get_auth_code_msg(int code)
 		case AUTH_NOSCORES: return "the server is not recordng scores";
 		case AUTH_SERVERBUSY: return "the server is busy";
 		case AUTH_TOOLOWUSAGE: return "too low usage";
-		case AUTH_NONAME: return "no name sent";
+		case AUTH_ASKDEMOGRAPHICS: return "need demographics";
 		case AUTH_TOOMANYDEMO: return "too many demo players";
 		case AUTH_NODEMO: return "no demo players allowed";
 		default: return "???";
