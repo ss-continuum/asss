@@ -8,7 +8,7 @@ DEFBUFLEN = 1024
 # lots of precompiled regular expressions
 
 # include directives
-re_pyinclude = re.compile(r'\s*/\* pyinclude: (.*?)(\*/)?$')
+re_pyinclude = re.compile(r'\s*/\* pyinclude: (.*) \*/')
 
 # constants
 re_pyconst_dir = re.compile(r'\s*/\* pyconst: (.*), "(.*)" \*/')
