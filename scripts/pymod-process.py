@@ -239,6 +239,10 @@ class type_zstring(type_string):
 	def format_char(me):
 		return 'z'
 
+class type_retstring(type_string):
+	def format_char(me):
+		return 's#'
+
 class type_player(type_gen):
 	def format_char(me):
 		return 'O&'
@@ -344,6 +348,23 @@ def create_c_to_py_func(name, func):
 		retorblank = ''
 		rettype = type_void()
 		defretval = ''
+	elif out.tp == 'retstring':
+		assert not out.flags
+		typ = get_type(out.tp)
+		argname = 'tmp'
+		decls.append('\tconst char *tmp;')
+		decls.append('\tint buflen;')
+		decls.append('\tchar *ret;')
+		outformat.append("s#")
+		outargs.append('&tmp')
+		outargs.append('&buflen')
+		retorblank = 'ret'
+		rettype = typ
+		defretval = 'NULL'
+		extras3.append('\tif(buflen != 0)\n\t{')
+		extras3.append('\t\tbuflen++;')		
+		extras3.append('\t\tret = amalloc(sizeof(char) * buflen);')
+		extras3.append('\t\tastrncpy(ret, tmp, buflen);\n\t}')		
 	else:
 		assert not out.flags
 		typ = get_type(out.tp)
