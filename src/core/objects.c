@@ -902,8 +902,12 @@ void ToggleSet(const Target *t, short *id, char *ons, int size)
 	struct ObjectMove *objm = (struct ObjectMove *)(pkt + 1); \
 	aodata *ad; \
 	lvzdata *node; \
-	if (t->type != T_ARENA) return; \
-	ad = P_ARENA_DATA(t->u.arena, aokey); \
+	if (t->type == T_ARENA) \
+		ad = P_ARENA_DATA(t->u.arena, aokey); \
+	else if (t->type == T_PLAYER) \
+		ad = P_ARENA_DATA(t->u.p->arena, aokey); \
+	else \
+		return; \
 	pkt[0] = S2C_MOVEOBJECT; \
 	MUTEX_LOCK(ad); \
 	if ((node = getDataFromId(&ad->list, id))) \

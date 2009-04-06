@@ -305,7 +305,6 @@ class WZFlagGame:
 			cancarry = sets.carryflags - 1
 
 		if p.flagscarried >= cancarry:
-			lm.LogP(asss.L_MALICIOUS, 'flagcore', p, "tried to pick up too many flags")
 			return
 
 		# assign him the flag

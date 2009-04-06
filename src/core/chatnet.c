@@ -179,9 +179,9 @@ local int do_one_iter(void *dummy)
 	FD_SET(mysock, &readset);
 	max = mysock;
 
+	pd->WriteLock();
 	LOCK();
 
-	pd->Lock();
 	FOR_EACH_PLAYER_P(p, cli, cdkey)
 		if (IS_CHAT(p) &&
 		    p->status >= S_CONNECTED &&
@@ -210,7 +210,6 @@ local int do_one_iter(void *dummy)
 				LLAdd(&toremove, p);
 			}
 		}
-	pd->Unlock();
 
 	/* remove players that disconnected above */
 	for (link = LLGetHead(&toremove); link; link = link->next)
@@ -223,7 +222,6 @@ local int do_one_iter(void *dummy)
 	if (FD_ISSET(mysock, &readset))
 		try_accept(mysock);
 
-	pd->Lock();
 	FOR_EACH_PLAYER_P(p, cli, cdkey)
 		if (IS_CHAT(p) &&
 		    p->status < S_TIMEWAIT &&
@@ -251,8 +249,7 @@ local int do_one_iter(void *dummy)
 			    TICK_DIFF(gtc, cli->lastrecvtime) > 18000)
 				sp_send(cli, "NOOP");
 		}
-	pd->Unlock();
-
+	
 	/* kill players where we read eof above */
 	for (link = LLGetHead(&tokill); link; link = link->next)
 		pd->KickPlayer(link->data);
@@ -267,6 +264,7 @@ local int do_one_iter(void *dummy)
 	LLEmpty(&toproc);
 
 	UNLOCK();
+	pd->WriteUnlock();
 
 	return TRUE;
 }
@@ -367,8 +365,8 @@ local void do_final_shutdown(void)
 	Player *p;
 	sp_conn *cli;
 
-	LOCK();
 	pd->Lock();
+	LOCK();
 	FOR_EACH_PLAYER_P(p, cli, cdkey)
 		if (IS_CHAT(p))
 		{
@@ -378,8 +376,8 @@ local void do_final_shutdown(void)
 			if (cli->socket > 2)
 				closesocket(cli->socket);
 		}
-	pd->Unlock();
 	UNLOCK();
+	pd->Unlock();
 }
 
 

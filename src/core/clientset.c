@@ -27,8 +27,8 @@ typedef struct adata
 {
 	struct ClientSettings cs;
 	overridedata od;
-	/* prizeweight partial sums. 0-27 are used for now, representing
-	 * prizes 1 to 28. */
+	/* prizeweight partial sums. 1-28 are used for now, representing
+	 * prizes 1 to 28. 0 = null prize. */
 	unsigned short pwps[32];
 } adata;
 
@@ -136,11 +136,29 @@ local void load_settings(adata *ad, ConfigHandle conf)
 		cs->short_set[i] = cfg->GetInt(conf, short_names[i], NULL, 0);
 	for (i = 0; i < COUNT(cs->byte_set); i++)
 		cs->byte_set[i] = cfg->GetInt(conf, byte_names[i], NULL, 0);
+
+	ad->pwps[0] = 0;
 	for (i = 0; i < COUNT(cs->prizeweight_set); i++)
 	{
 		cs->prizeweight_set[i] = cfg->GetInt(conf,
 				prizeweight_names[i], NULL, 0);
-		ad->pwps[i] = (total += cs->prizeweight_set[i]);
+		ad->pwps[i+1] = (total += cs->prizeweight_set[i]);
+	}
+
+
+	/* cfghelp: Prize:UseDeathPrizeWeights, arena, bool, def: 0
+	 * Whether to use the DPrizeWeight section for death 
+	 * prizes instead of the PrizeWeight section. */
+	if (cfg->GetInt(conf, "Prize", "UseDeathPrizeWeights", 0))
+	{
+		/* cfghelp: DPrizeWeight:QuickCharge, arena, int
+		 * Likelihood of an empty prize appearing */
+		total = ad->pwps[0] = cfg->GetInt(conf, "DPrizeWeight", "NullPrize", 0);
+		for (i = 0; i < COUNT(cs->prizeweight_set); i++)
+		{
+			ad->pwps[i+1] = (total += cfg->GetInt(conf, 
+					deathprizeweight_names[i], NULL, 0));
+		}
 	}
 
 	/* the funky ones */
@@ -485,7 +503,7 @@ local u32 GetChecksum(Player *p, u32 key)
 local int GetRandomPrize(Arena *arena)
 {
 	adata *ad = P_ARENA_DATA(arena, adkey);
-	int max = ad->pwps[27], r, i = 0, j = 27;
+	int max = ad->pwps[28], r, i = 0, j = 28;
 
 	if (max == 0)
 		return 0;
@@ -503,7 +521,7 @@ local int GetRandomPrize(Arena *arena)
 	}
 
 	/* our indexes are zero-based but prize numbers are one-based */
-	return i + 1;
+	return i;
 }
 
 

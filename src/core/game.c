@@ -518,6 +518,7 @@ local void Pppk(Player *p, byte *pkt, int len)
 		p->position.rotation = pos->rotation;
 		p->position.bounty = pos->bounty;
 		p->position.status = pos->status;
+		p->position.energy = pos->energy;
 	}
 
 	if (p->flags.sent_ppk == 0 && !isfake)
@@ -1001,7 +1002,7 @@ local void PDie(Player *p, byte *pkt, int len)
 {
 	struct SimplePacket *dead = (struct SimplePacket*)pkt;
 	int bty = dead->d2, pts = 0;
-	int flagcount, green = -1;
+	int flagcount, green;
 	Arena *arena = p->arena;
 	Player *killer;
 
@@ -1026,6 +1027,25 @@ local void PDie(Player *p, byte *pkt, int len)
 
 	flagcount = p->pkt.flagscarried;
 
+	/* pick the green */
+	/* cfghelp: Prize:UseTeamkillPrize, arena, int, def: 0
+	 * Whether to use a special prize for teamkills.
+	 * Prize:TeamkillPrize specifies the prize #. */
+	if (p->p_freq == killer->p_freq && cfg->GetInt(arena->cfg, "Prize", "UseTeamkillPrize", 0))
+	{
+		/* cfghelp: Prize:TeamkillPrize, arena, int, def: 0
+		 * The prize # to give for a teamkill, if 
+		 * Prize:UseTeamkillPrize=1. */
+		green = cfg->GetInt(arena->cfg, "Prize", "TeamkillPrize", 0);
+	}
+	else
+	{
+		/* pick a random green */
+		Iclientset *cset = mm->GetInterface(I_CLIENTSET, arena);
+		green = cset ? cset->GetRandomPrize(arena) : 0;
+		mm->ReleaseInterface(cset);
+	}
+
 	/* this will figure out how many points to send in the packet */
 	DO_CBS(CB_KILL, arena, KillFunc,
 			(arena, killer, p, bty, flagcount, &pts, &green));
@@ -1036,14 +1056,6 @@ local void PDie(Player *p, byte *pkt, int len)
 		Istats *stats = mm->GetInterface(I_STATS, arena);
 		if (stats) stats->IncrementStat(killer, STAT_KILL_POINTS, pts);
 		mm->ReleaseInterface(stats);
-	}
-
-	/* pick a random green, if no one else has set one */
-	if (green == -1)
-	{
-		Iclientset *cset = mm->GetInterface(I_CLIENTSET, arena);
-		green = cset ? cset->GetRandomPrize(arena) : 0;
-		mm->ReleaseInterface(cset);
 	}
 
 	notify_kill(killer, p, pts, flagcount, green);

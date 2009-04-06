@@ -155,6 +155,7 @@ struct PlayerPosition
 	int rotation;    /**< rotation value (0-63) */
 	unsigned bounty; /**< current bounty */
 	unsigned status; /**< status bitfield */
+	int energy;      /**< current energy */
 };
 
 /* pyconst: define int, "STATUS_*" */
