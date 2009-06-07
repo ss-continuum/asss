@@ -24,9 +24,15 @@ typedef struct Ibalancer
 	int (*GetPlayerMetric)(Player *p);
 
 	/**
-	 * This can be symmetric, but doesn't have to be. TODO: need more details
+	 * TODO
 	 */
-	int (*GetMaximumDifference)(int big_freq, int small_freq);
+	int (*GetMaxMetric)(Arena *arena, int freq);
+
+	/**
+	 * This must yield the same value when freq1 and freq2 are interchanged.
+	 * TODO
+	 */
+	int (*GetMaximumDifference)(Arena *arena, int freq1, int freq2);
 } Ibalancer;
 
 /** the interface id for Ienforcer */
@@ -52,7 +58,7 @@ typedef struct Ienforcer
 	int (*GetAllowableShips)(Player *p, int ship, int freq, char *err_buf, int buf_len);
 
 	/**
-	 * Returns a boolean indicating whether the player can switch to 
+	 * Returns a boolean indicating whether the player can switch to
 	 * new_freq.
 	 * Only write to err_buf it it's non-null
 	 */
@@ -82,7 +88,7 @@ typedef struct Ifreqman
 	 * ship will initially contain the ship request, and freq will
 	 * contain the player's current freq. */
 	void (*ShipChange)(Player *p, int requested_ship, char *err_buf, int buf_len);
-	
+
 	/** called when a player requests a freq change.
 	 * ship will initially contain the player's ship, and freq will
 	 * contain the requested freq. */
