@@ -412,6 +412,17 @@ typedef struct Iplayerdata
 			link = LLGetHead(&pd->playerlist); \
 			link && ((p = link->data, link = link->next) || 1); )
 
+/** This is similar to FOR_EACH_PLAYER, but only looks at players in the
+ * Arena * a. This macro has all the same needs as FOR_EACH_PLAYER,
+ * namely that it requires a Link * named "link" and an Iplayerdata *
+ * named "pd" in the current scope. Again, you need to call pd->Lock
+ * first.
+ * @see Iplayerdata::Lock
+ * @param p the Player * which will hold successive players
+ * @param a the Arena * within which to find players
+ */
+#define FOR_EACH_PLAYER_IN_ARENA(p, a) FOR_EACH_PLAYER(p) if (p->arena == a)
+
 /** This is a slightly fancier iterating over players macro.
  * It requires a Link * named "link" and an Iplayerdata * named "pd" in
  * the current scope. The body of the loop will be run with the provided
