@@ -202,16 +202,27 @@ int LLSort_StringCompare(const void *a, const void *b);
 
 /* hashing stuff */
 
-/** an opaque type for a hash table.
- * these hash tables support case-insensitive strings as keys. they
+typedef struct HashEntry HashEntry;
+
+/** these hash tables support case-insensitive strings as keys. they
  * support multiple values per key. they're reasonably memory efficient,
  * and auto-resize the table when the number of items passes various
  * thresholds.
  */
-typedef struct HashTable HashTable;
+typedef struct HashTable 
+{
+	int bucketsm1, ents;
+	int maxload; /* percent out of 100 */
+	HashEntry **lists;
+} HashTable;
 
-/** allocate a new hash table. */
+/** allocate a new hash table and initializes it. */
 HashTable * HashAlloc(void);
+/** initializes a hash table. */
+void HashInit(HashTable *table);
+/** frees memory used inside the hashtable and removes all entries.
+ * the table is unusable after this unless you HashInit it again! */
+void HashDeinit(HashTable *table);
 /** frees a hash table and all associated memory. */
 void HashFree(HashTable *table);
 /** inserts a new key, value pair into the table.
