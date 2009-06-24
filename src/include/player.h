@@ -259,7 +259,7 @@ struct Player
 		u32 leave_arena_when_done_waiting : 1;
 		/** if the player's obscenity filter is on */
 		u32 obscenity_filter : 1;
-		/** if the player has died but has not sent any further position packets in play (not respawned) */
+		/** if the player has died but not yet respawned */
 		u32 is_dead : 1;
 		/** fill this up to 32 bits */
 		u32 padding : 19;

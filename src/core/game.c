@@ -208,6 +208,8 @@ local int run_spawn_cb(void *clos)
 {
 	Player *p = (Player *)clos;
 	pd->Lock();
+	/* check is_dead to make sure that someone else hasn't 
+	 * already done the CB_SPAWN call. */
 	if (p->flags.is_dead)
 	{
 		p->flags.is_dead = 0;
@@ -410,19 +412,12 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 
 		pd->Lock();
 
-		/* now that we're in the pd lock we can do this */
-		/* see if this is the first packet since dying (allow half a second tolerance for lag) */
-		/* a reasonably safe assumption is no random packets from before dying will appear 500ms after dying,
-		 * respawn takes about a second regardless, in continuum. */
-		/* and if the death packet was lagged by up to 500ms, this will tolerate that and allow new
-		 * positions close enough to the expected respawn time to officially declare the player alive */
+		/* have to do this check inside pd->Lock(); */
+		/* ignore packets from the first 500ms of death, and accept packets up to 500ms 
+		 * before their expected respawn. */
 		if (p->flags.is_dead && TICK_DIFF(gtc, p->last_death) >= 50 && TICK_DIFF(p->next_respawn, gtc) <= 50)
 		{
-			/* we know they've respawned at this point */
-			/* we will set a timer so any net locks will be released when
-			 * we call CB_SPAWN. we don't unset is_dead yet, if another module executes CB_SPAWN
-			 * before then it'll be okay because they should be detecting is_dead themselves
-			 * and use SPAWN_AFTERDEATH in the circumstances parameter. */
+			/* setup the CB_SPAWN callback to run asynchronously. */
 			ml->SetTimer(run_spawn_cb, 0, 0, p, NULL);
 		}
 
@@ -846,13 +841,13 @@ local void SetFreqAndShip(Player *p, int ship, int freq)
 	DO_CBS(CB_SHIPCHANGE, arena, ShipChangeFunc,
 			(p, ship, freq));
 
-	/* all shipchanges revive the player. */
+	/* now setup for the CB_SPAWN callback. */
 	pd->Lock();
 	if (p->flags.is_dead)
 	{
 		flags |= SPAWN_AFTERDEATH;
 	}
-	/* make sure this flag is unset regardless now. */
+	/* a shipchange will revive a dead player. */
 	p->flags.is_dead = 0;
 	pd->Unlock();
 
@@ -1094,15 +1089,14 @@ local void PDie(Player *p, byte *pkt, int len)
 
 	flagcount = p->pkt.flagscarried;
 
-	/* set this flag so modules can check if the player is in limbo */
+	/* these flags are primarily for the benefit of other modules */
 	pd->Lock();
 	p->flags.is_dead = 1;
-	/* continuum clients take 1 second to die, at the least */
+	/* continuum clients take EnterDelay + 100 ticks to respawn after death */
 	enterdelay = cfg->GetInt(arena->cfg, "Kill", "EnterDelay", 0) + 100;
-	/* setting of 0 or less means respawn in place, it'll take 1 second to respawn */
+	/* setting of 0 or less means respawn in place, with 1 second delay */
 	if (enterdelay <= 0)
 		enterdelay = 100;
-	/* now set these for convenience and also so we can tell when the player has respawned */
 	p->last_death = ct;
 	p->next_respawn = TICK_MAKE(ct + enterdelay);
 	pd->Unlock();
