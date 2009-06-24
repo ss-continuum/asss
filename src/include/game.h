@@ -57,6 +57,29 @@ typedef void (*ShipChangeFunc)(Player *p, int newship, int newfreq);
 /* pycb: player, int, int */
 
 
+/** this callback will be called when the player respawns after dying, or enters the game.
+ * circumstances may overlap. don't use (circumstances == SPAWN_SHIPRESET), use
+ * (circumstances & SPAWN_SHIPRESET). */
+#define CB_SPAWN "spawn"
+/** the type of CB_SPAWN
+ * @param p the player who has spawned
+ */
+typedef void (*SpawnFunc)(Player *p, int circumstances);
+/* pycb: player, int */
+
+/* pyconst: define int, "SPAWN_*" */
+/* the player died and is respawning now */
+#define SPAWN_AFTERDEATH 1
+/* a shipreset or similar functionality was applied on the user */
+#define SPAWN_SHIPRESET 2
+/* a flag victory triggered this spawn */
+#define SPAWN_FLAGVICTORY 4
+/* changing ships triggered this spawn */
+#define SPAWN_SHIPCHANGE 8
+/* this is the first spawn since entering the arena or leaving spec */
+#define SPAWN_INITIAL 16
+
+
 /** this callback called when the game timer expires. */
 #define CB_TIMESUP "timesup"
 /** the type of CB_TIMESUP

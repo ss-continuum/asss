@@ -195,7 +195,7 @@ local void update_regions(Player *p, int x, int y)
 
 local int run_enter_game_cb(void *clos)
 {
-	Player *p = clos;
+	Player *p = (Player *)clos;
 	if (p->status == S_PLAYING)
 		DO_CBS(CB_PLAYERACTION,
 				p->arena,
@@ -204,6 +204,18 @@ local int run_enter_game_cb(void *clos)
 	return FALSE;
 }
 
+local int run_spawn_cb(void *clos)
+{
+	Player *p = (Player *)clos;
+	pd->Lock();
+	if (p->flags.is_dead)
+	{
+		p->flags.is_dead = 0;
+		DO_CBS(CB_SPAWN, p->arena, SpawnFunc, (p, SPAWN_AFTERDEATH));
+	}
+	pd->Unlock();
+	return FALSE;
+}
 
 local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 {
@@ -397,6 +409,23 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 		posdirty = 1;
 
 		pd->Lock();
+
+		/* now that we're in the pd lock we can do this */
+		/* see if this is the first packet since dying (allow half a second tolerance for lag) */
+		/* a reasonably safe assumption is no random packets from before dying will appear 500ms after dying,
+		 * respawn takes about a second regardless, in continuum. */
+		/* and if the death packet was lagged by up to 500ms, this will tolerate that and allow new
+		 * positions close enough to the expected respawn time to officially declare the player alive */
+		if (p->flags.is_dead && TICK_DIFF(gtc, p->last_death) >= 50 && TICK_DIFF(p->next_respawn, gtc) <= 50)
+		{
+			/* we know they've respawned at this point */
+			/* we will set a timer so any net locks will be released when
+			 * we call CB_SPAWN. we don't unset is_dead yet, if another module executes CB_SPAWN
+			 * before then it'll be okay because they should be detecting is_dead themselves
+			 * and use SPAWN_AFTERDEATH in the circumstances parameter. */
+			ml->SetTimer(run_spawn_cb, 0, 0, p, NULL);
+		}
+
 		FOR_EACH_PLAYER_P(i, idata, pdkey)
 			if (i->status == S_PLAYING &&
 				IS_STANDARD(i) &&
@@ -773,6 +802,8 @@ local void SetFreqAndShip(Player *p, int ship, int freq)
 	pdata *data = PPDATA(p, pdkey);
 	struct ShipChangePacket to = { S2C_SHIPCHANGE, ship, p->pid, freq };
 	Arena *arena = p->arena;
+	int oldship = p->p_ship;
+	int flags = SPAWN_SHIPCHANGE;
 
 	if (p->type == T_CHAT && ship != SHIP_SPEC)
 	{
@@ -814,6 +845,24 @@ local void SetFreqAndShip(Player *p, int ship, int freq)
 
 	DO_CBS(CB_SHIPCHANGE, arena, ShipChangeFunc,
 			(p, ship, freq));
+
+	/* all shipchanges revive the player. */
+	pd->Lock();
+	if (p->flags.is_dead)
+	{
+		flags |= SPAWN_AFTERDEATH;
+	}
+	/* make sure this flag is unset regardless now. */
+	p->flags.is_dead = 0;
+	pd->Unlock();
+
+	if (ship != SHIP_SPEC)
+	{
+		/* flags = SPAWN_SHIPCHANGE set at the top of the function */
+		if (oldship == SHIP_SPEC)
+			flags |= SPAWN_INITIAL;
+		DO_CBS(CB_SPAWN, arena, SpawnFunc, (p, flags));
+	}
 
 	lm->LogP(L_DRIVEL, "game", p, "changed ship/freq to ship %d, freq %d",
 			ship, freq);
@@ -1019,8 +1068,10 @@ local void PDie(Player *p, byte *pkt, int len)
 	struct SimplePacket *dead = (struct SimplePacket*)pkt;
 	int bty = dead->d2, pts = 0;
 	int flagcount, green;
+	int enterdelay;
 	Arena *arena = p->arena;
 	Player *killer;
+	ticks_t ct = current_ticks();
 
 	if (len != 5)
 	{
@@ -1042,6 +1093,19 @@ local void PDie(Player *p, byte *pkt, int len)
 	}
 
 	flagcount = p->pkt.flagscarried;
+
+	/* set this flag so modules can check if the player is in limbo */
+	pd->Lock();
+	p->flags.is_dead = 1;
+	/* continuum clients take 1 second to die, at the least */
+	enterdelay = cfg->GetInt(arena->cfg, "Kill", "EnterDelay", 0) + 100;
+	/* setting of 0 or less means respawn in place, it'll take 1 second to respawn */
+	if (enterdelay <= 0)
+		enterdelay = 100;
+	/* now set these for convenience and also so we can tell when the player has respawned */
+	p->last_death = ct;
+	p->next_respawn = TICK_MAKE(ct + enterdelay);
+	pd->Unlock();
 
 	/* pick the green */
 	/* cfghelp: Prize:UseTeamkillPrize, arena, int, def: 0
@@ -1227,6 +1291,12 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 			p->p_freq = arena->specfreq;
 		}
 		p->p_attached = -1;
+		
+		pd->Lock();
+		p->flags.is_dead = 0;
+		p->last_death = 0;
+		p->next_respawn = 0;
+		pd->Unlock();
 	}
 	else if (action == PA_ENTERARENA)
 	{
@@ -1270,6 +1340,13 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 		pthread_mutex_unlock(&specmtx);
 
 		LLEmpty(&data->lastrgnset);
+	}
+	else if (action == PA_ENTERGAME)
+	{
+		if (p->p_ship != SHIP_SPEC)
+		{
+			DO_CBS(CB_SPAWN, arena, SpawnFunc, (p, SPAWN_INITIAL));
+		}
 	}
 }
 
@@ -1443,7 +1520,31 @@ local void SetIgnoreWeapons(Player *p, double proportion)
 local void ShipReset(const Target *target)
 {
 	byte pkt = S2C_SHIPRESET;
+	LinkedList list = LL_INITIALIZER;
+	Link *link;
+	Player *p;
+
 	net->SendToTarget(target, &pkt, 1, NET_RELIABLE);
+
+	pd->Lock();
+
+	pd->TargetToSet(target, &list);
+	FOR_EACH(&list, p, link)
+	{
+		if (p->p_ship == SHIP_SPEC)
+			continue;
+
+		int flags = SPAWN_SHIPRESET;
+		if (p->flags.is_dead)
+		{
+			p->flags.is_dead = 0;
+			flags |= SPAWN_AFTERDEATH;
+		}
+		DO_CBS(CB_SPAWN, p->arena, SpawnFunc, (p, flags));
+	}
+
+	pd->Unlock();
+	LLEmpty(&list);
 }
 
 
@@ -1627,6 +1728,8 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 		if (persist)
 			persist->UnregPlayerPD(&persdata);
+		ml->ClearTimer(run_enter_game_cb, NULL);
+		ml->ClearTimer(run_spawn_cb, NULL);
 		aman->FreeArenaData(adkey);
 		pd->FreePlayerData(pdkey);
 		mm->ReleaseInterface(pd);

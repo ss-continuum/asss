@@ -221,6 +221,11 @@ struct Player
 	const char *connectas;
 	/** a text representation of the client connecting */
 	char clientname[32];
+	/* misc data about the player */
+	/* the server recorded time of the last death */
+	ticks_t last_death;
+	/* when the server expects this player to respawn, is last_death+Kill:EnterDelay */
+	ticks_t next_respawn;
 	/** some extra flags that don't have a better place to go */
 	struct
 	{
@@ -254,9 +259,12 @@ struct Player
 		u32 leave_arena_when_done_waiting : 1;
 		/** if the player's obscenity filter is on */
 		u32 obscenity_filter : 1;
+		/** if the player has died but has not sent any further position packets in play (not respawned) */
+		u32 is_dead : 1;
 		/** fill this up to 32 bits */
-		u32 padding : 20;
+		u32 padding : 19;
 	} flags;
+
 	/** space for private data associated with this player */
 	byte playerextradata[0];
 };
