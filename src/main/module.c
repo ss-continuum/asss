@@ -44,6 +44,12 @@ local void RegCallback(const char *, void *, Arena *);
 local void UnregCallback(const char *, void *, Arena *);
 local void LookupCallback(const char *, Arena *, LinkedList *);
 local void FreeLookupResult(LinkedList *);
+
+local void RegAdviser(void *adv, Arena *arena);
+local void UnregAdviser(void *adv, Arena *arena);
+local void GetAdviserList(const char *id, Arena *arena, LinkedList *list);
+local void ReleaseAdviserList(LinkedList *list);
+
 local void RegModuleLoader(const char *sig, ModuleLoaderFunc func);
 local void UnregModuleLoader(const char *sig, ModuleLoaderFunc func);
 
@@ -54,6 +60,7 @@ local void NoMoreModules(void);
 
 local HashTable *arenacallbacks, *globalcallbacks;
 local HashTable *arenaints, *globalints, *intsbyname;
+local HashTable *arenaadvs, *globaladvs;
 local HashTable *loaders;
 local LinkedList mods;
 local LinkedList attachments;
@@ -62,6 +69,7 @@ local int nomoremods;
 local pthread_mutex_t modmtx;
 local pthread_mutex_t intmtx = PTHREAD_MUTEX_INITIALIZER;
 local pthread_mutex_t cbmtx = PTHREAD_MUTEX_INITIALIZER;
+local pthread_mutex_t advmtx = PTHREAD_MUTEX_INITIALIZER;
 
 
 local Imodman mmint =
@@ -71,7 +79,7 @@ local Imodman mmint =
 	AttachModule, DetachModule,
 	RegInterface, UnregInterface, GetInterface, GetInterfaceByName, ReleaseInterface,
 	RegCallback, UnregCallback, LookupCallback, FreeLookupResult,
-	NULL, NULL,
+	RegAdviser, UnregAdviser, GetAdviserList, ReleaseAdviserList,
 	RegModuleLoader, UnregModuleLoader,
 	GetModuleInfo, GetModuleLoader,
 	DetachAllFromArena,
@@ -99,6 +107,8 @@ Imodman * InitModuleManager(void)
 	arenaints = HashAlloc();
 	globalints = HashAlloc();
 	intsbyname = HashAlloc();
+	arenaadvs = HashAlloc();
+	globaladvs = HashAlloc();
 	loaders = HashAlloc();
 	mmint.head.refcount = 1;
 	nomoremods = 0;
@@ -119,6 +129,8 @@ void DeInitModuleManager(Imodman *mm)
 	HashFree(arenaints);
 	HashFree(globalints);
 	HashFree(intsbyname);
+	HashFree(arenaadvs);
+	HashFree(globaladvs);
 	HashFree(loaders);
 	pthread_mutex_destroy(&modmtx);
 }
@@ -588,5 +600,73 @@ void LookupCallback(const char *id, Arena *arena, LinkedList *ll)
 void FreeLookupResult(LinkedList *lst)
 {
 	LLEmpty(lst);
+}
+
+void RegAdviser(void *adv, Arena *arena) 
+{
+	const char *id;
+	AdviserHead *head = (AdviserHead*)adv;
+
+	assert(adv);
+	assert(head->magic == MODMAN_MAGIC);
+
+	id = head->aid;
+
+	pthread_mutex_lock(&advmtx);
+
+	if (arena == ALLARENAS)
+		HashAdd(globaladvs, id, adv);
+	else
+	{
+		char key[MAX_ID_LEN];
+		snprintf(key, sizeof(key), "%p-%s", (void*)arena, id);
+		HashAdd(arenaadvs, key, adv);
+	}
+
+	pthread_mutex_unlock(&advmtx);
+}
+
+void UnregAdviser(void *adv, Arena *arena)
+{
+	const char *id;
+	AdviserHead *head = (AdviserHead*)adv;
+
+	assert(head->magic == MODMAN_MAGIC);
+
+	id = head->aid;
+
+	pthread_mutex_lock(&advmtx);
+
+	if (arena == ALLARENAS)
+		HashRemove(globaladvs, id, adv);
+	else
+	{
+		char key[MAX_ID_LEN];
+		snprintf(key, sizeof(key), "%p-%s", (void*)arena, id);
+		HashRemove(arenaadvs, key, adv);
+	}
+
+	pthread_mutex_unlock(&advmtx);
+}
+
+void GetAdviserList(const char *id, Arena *arena, LinkedList *list)
+{
+	LLInit(list);
+	pthread_mutex_lock(&advmtx);
+	/* first get global ones */
+	HashGetAppend(globaladvs, id, list);
+	if (arena != ALLARENAS)
+	{
+		char key[MAX_ID_LEN];
+		/* then append local ones */
+		snprintf(key, sizeof(key), "%p-%s", (void*)arena, id);
+		HashGetAppend(arenaadvs, key, list);
+	}
+	pthread_mutex_unlock(&advmtx);
+}
+
+void ReleaseAdviserList(LinkedList *list)
+{
+	LLEmpty(list);
 }
 
