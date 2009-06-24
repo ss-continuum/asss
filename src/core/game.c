@@ -297,6 +297,7 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 		p->position.bounty = pos->bounty;
 		p->position.status = pos->status;
 		p->position.energy = pos->energy;
+		p->position.time = pos->time;
 	}
 
 	/* see if this is their first packet */

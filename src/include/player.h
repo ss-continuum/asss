@@ -156,6 +156,7 @@ struct PlayerPosition
 	unsigned bounty; /**< current bounty */
 	unsigned status; /**< status bitfield */
 	int energy;      /**< current energy */
+	ticks_t time;    /**< time of last position packet */
 };
 
 /* pyconst: define int, "STATUS_*" */
