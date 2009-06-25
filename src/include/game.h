@@ -35,26 +35,17 @@ typedef void (*KillFunc)(Arena *arena, Player *killer, Player *killed,
 #define CB_KILL_POST_NOTIFY "killpostnotify-2"
 
 
-/** this callback is called when a player changes his freq (but stays in
- * the same ship). */
-#define CB_FREQCHANGE "freqchange"
-/** the type of CB_FREQCHANGE
- * @param p the player changing freq
- * @param newfreq the freq he's changing to
+/** this callback is to be called when a player changes ship or freq. */
+#define CB_SHIPFREQCHANGE "shipfreqchange"
+/* the type of CB_SHIPFREQCHANGE
+ * @param p the player changing ship or freq
+ * @param newship the player's new ship number
+ * @param oldship the player's old ship number
+ * @param newfreq the player's new frequency
+ * @param oldfreq the player's old frequency
  */
-typedef void (*FreqChangeFunc)(Player *p, int newfreq);
-/* pycb: player, int */
-
-
-/** this callback is be called when a player changes ship. */
-#define CB_SHIPCHANGE "shipchange"
-/** the type of CB_SHIPCHANGE
- * @param p the player changing ship/freq
- * @param newship the ship he's changing to
- * @param newfreq the freq he's changing to
- */
-typedef void (*ShipChangeFunc)(Player *p, int newship, int newfreq);
-/* pycb: player, int, int */
+typedef void (*ShipFreqChangeFunc)(Player *p, int newship, int oldship, int newfreq, int oldfreq);
+/* pycb: player, int, int, int, int */
 
 
 /** this callback called when the game timer expires. */
@@ -158,7 +149,7 @@ typedef struct Igame
 	 * @param ship the ship to change to
 	 * @param freq the freq to change to
 	 */
-	void (*SetFreqAndShip)(Player *p, int ship, int freq);
+	void (*SetShipAndFreq)(Player *p, int ship, int freq);
 	/* pyint: player, int, int -> void */
 
 	/** Moves a set of playes to a specific location.

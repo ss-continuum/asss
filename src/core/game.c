@@ -769,11 +769,13 @@ local void reset_during_change(Player *p, int success, void *dummy)
 }
 
 
-local void SetFreqAndShip(Player *p, int ship, int freq)
+local void SetShipAndFreq(Player *p, int ship, int freq)
 {
 	pdata *data = PPDATA(p, pdkey);
 	struct ShipChangePacket to = { S2C_SHIPCHANGE, ship, p->pid, freq };
 	Arena *arena = p->arena;
+	int oldship = p->p_ship;
+	int oldfreq = p->p_freq;
 
 	if (p->type == T_CHAT && ship != SHIP_SPEC)
 	{
@@ -813,8 +815,8 @@ local void SetFreqAndShip(Player *p, int ship, int freq)
 		chatnet->SendToArena(arena, NULL, "SHIPFREQCHANGE:%s:%d:%d",
 				p->name, p->p_ship, p->p_freq);
 
-	DO_CBS(CB_SHIPCHANGE, arena, ShipChangeFunc,
-			(p, ship, freq));
+	DO_CBS(CB_SHIPFREQCHANGE, arena, ShipFreqChangeFunc,
+			(p, ship, oldship, freq, oldfreq));
 
 	lm->LogP(L_DRIVEL, "game", p, "changed ship/freq to ship %d, freq %d",
 			ship, freq);
@@ -822,7 +824,7 @@ local void SetFreqAndShip(Player *p, int ship, int freq)
 
 local void SetShip(Player *p, int ship)
 {
-	SetFreqAndShip(p, ship, p->p_freq);
+	SetShipAndFreq(p, ship, p->p_freq);
 }
 
 local void PSetShip(Player *p, byte *pkt, int len)
@@ -907,7 +909,7 @@ local void PSetShip(Player *p, byte *pkt, int len)
 		mm->ReleaseInterface(fm);
 	}
 
-	SetFreqAndShip(p, ship, freq);
+	SetShipAndFreq(p, ship, freq);
 }
 
 
@@ -915,6 +917,7 @@ local void SetFreq(Player *p, int freq)
 {
 	struct SimplePacket to = { S2C_FREQCHANGE, p->pid, freq, -1};
 	Arena *arena = p->arena;
+	int oldfreq = p->p_freq;
 
 	if (freq < 0 || freq > 9999)
 		return;
@@ -942,7 +945,7 @@ local void SetFreq(Player *p, int freq)
 		chatnet->SendToArena(arena, NULL, "SHIPFREQCHANGE:%s:%d:%d",
 				p->name, p->p_ship, p->p_freq);
 
-	DO_CBS(CB_FREQCHANGE, arena, FreqChangeFunc, (p, freq));
+	DO_CBS(CB_SHIPFREQCHANGE, arena, ShipFreqChangeFunc, (p, p->p_ship, p->p_ship, freq, oldfreq));
 
 	lm->LogP(L_DRIVEL, "game", p, "changed freq to %d", freq);
 }
@@ -985,7 +988,7 @@ local void freq_change_request(Player *p, int freq)
 	if (ship == p->p_ship)
 		SetFreq(p, freq);
 	else
-		SetFreqAndShip(p, ship, freq);
+		SetShipAndFreq(p, ship, freq);
 }
 
 
@@ -1095,7 +1098,7 @@ local void PDie(Player *p, byte *pkt, int len)
 		if (data->deathwofiring++ == ad->deathwofiring)
 		{
 			lm->LogP(L_DRIVEL, "game", p, "specced for too many deaths without firing");
-			SetFreqAndShip(p, SHIP_SPEC, arena->specfreq);
+			SetShipAndFreq(p, SHIP_SPEC, arena->specfreq);
 		}
 	}
 
@@ -1368,7 +1371,7 @@ local void lock_work(const Target *target, int nval, int notify, int spec, int t
 		pdata *pdata = PPDATA(p, pdkey);
 
 		if (spec && p->arena && p->p_ship != SHIP_SPEC)
-			SetFreqAndShip(p, SHIP_SPEC, p->arena->specfreq);
+			SetShipAndFreq(p, SHIP_SPEC, p->arena->specfreq);
 
 		if (notify && pdata->lockship != nval && chat)
 			chat->SendMessage(p, nval ?
@@ -1508,7 +1511,7 @@ local PlayerPersistentData persdata =
 local Igame _myint =
 {
 	INTERFACE_HEAD_INIT(I_GAME, "game")
-	SetFreq, SetShip, SetFreqAndShip, WarpTo, GivePrize,
+	SetFreq, SetShip, SetShipAndFreq, WarpTo, GivePrize,
 	Lock, Unlock, LockArena, UnlockArena,
 	FakePosition, FakeKill,
 	GetIgnoreWeapons, SetIgnoreWeapons,
