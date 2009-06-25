@@ -212,6 +212,234 @@ local void Cballcount(const char *tc, const char *params, Player *p, const Targe
 }
 
 
+local helptext_t giveball_help =
+"Targets: player or none\n"
+"Args: [{-f}] [<ballid>]\n"
+"Moves the specified ball to you, or to target player. "
+"If no ball is specified, ball id 0 is assumed.\n"
+"If -f is specified, the ball is forced onto the player and there will be no shot timer, "
+"and if the player is already carrying a ball it will be dropped where they are standing.\n"
+"If -f is not specified, then the ball is simply moved underneath a player for him to pick up, "
+"but any balls already carried are not dropped.\n";
+local void Cgiveball(const char *tc, const char *params, Player *p, const Target *target)
+{
+	if (p->arena)
+	{
+		int force = FALSE;
+		ArenaBallData *abd = balls->GetBallData(p->arena);
+		const char *t = params;
+
+		if (0 == strncmp(t, "-f", 2))
+		{
+			force = TRUE;
+			t += 2;
+			while (isspace(*t)) t++;
+		}
+
+		int bid = atoi(t);
+		if (bid < 0)
+		{
+			chat->SendMessage(p, "Invalid ball ID.");
+		}
+		else if (bid >= abd->ballcount)
+		{
+			chat->SendMessage(p, "Ball %d doesn't exist. Use ?ballcount to add more balls to the arena.", bid);
+		}
+		else
+		{
+			int i;
+			Player *t = (target->type == T_PLAYER) ? (target->u.p) : p;
+
+			if (t->p_ship == SHIP_SPEC)
+			{
+				if (t == p)
+					chat->SendMessage(p, "You are in spec.");
+				else
+					chat->SendMessage(p, "%s is in spec.", t->name);
+			}
+			else if (t->arena != p->arena || t->status != S_PLAYING)
+			{
+				chat->SendMessage(p, "%s is not in this arena.", t->name);
+			}
+			else
+			{
+				struct BallData newbd;
+				newbd.state = BALL_ONMAP;
+				newbd.carrier = 0;
+				newbd.freq = -1;
+				newbd.xspeed = newbd.yspeed = 0;
+				newbd.x = t->position.x;
+				newbd.y = t->position.y;
+				newbd.time = current_ticks();
+
+				if (force)
+				{
+					for (i = 0; i < abd->ballcount; ++i)
+					{
+						struct BallData *bd = abd->balls + i;
+						if (bd->carrier == t && bd->state == BALL_CARRIED)
+						{
+							balls->PlaceBall(p->arena, i, &newbd);	
+						}
+					}
+
+					newbd.state = BALL_CARRIED;
+					newbd.carrier = t;
+					newbd.freq = t->p_freq;
+					newbd.time = 0;
+				}
+				balls->PlaceBall(p->arena, bid, &newbd);
+
+				if (t != p)
+					chat->SendMessage(p, "Gave ball %d to %s.", bid, t->name);
+			}
+		}
+		balls->ReleaseBallData(p->arena);
+	}
+}
+
+
+local helptext_t moveball_help =
+"Targets: none\n"
+"Args: <ballid> <xtile> <ytile>\n"
+"Moves the specified ball to the specified coordinates.\n";
+local void Cmoveball(const char *tc, const char *params, Player *p, const Target *target)
+{
+	if (p->arena)
+	{
+		char *next, *next2;
+		ArenaBallData *abd = balls->GetBallData(p->arena);
+		int bid = strtol(params, &next, 0);
+
+		if (bid < 0 || next == params)
+		{
+			chat->SendMessage(p, "Invalid ball ID.");
+		}
+		else if (bid >= abd->ballcount)
+		{
+			chat->SendMessage(p, "Ball %d doesn't exist. Use ?ballcount to add more balls to the arena.", bid);
+		}
+		else
+		{
+			struct BallData newbd;
+			int x, y;
+			int proceed = TRUE;
+			x = strtol(next, &next2, 0);
+			if (next == next2 || x < 0 || x >= 1024)
+			{
+				chat->SendMessage(p, "Invalid X coordinate.");
+				proceed = FALSE;
+			}
+			else
+			{
+				while (*next2 == ',' || *next2 == ' ') next2++;
+				y = strtol(next2, &next, 0);
+				if (next == next2 || y < 0 || y >= 1024)
+				{
+					chat->SendMessage(p, "Invalid Y coordinate.");
+					proceed = FALSE;
+				}
+			}
+
+			if (proceed)
+			{
+				newbd.state = BALL_ONMAP;
+				newbd.carrier = NULL;
+				newbd.freq = -1;
+				newbd.xspeed = newbd.yspeed = 0;
+				newbd.x = (x << 4) + 8;
+				newbd.y = (y << 4) + 8;
+				newbd.time = current_ticks();
+
+				balls->PlaceBall(p->arena, bid, &newbd);
+				chat->SendMessage(p, "Moved ball %d to (%d,%d)", bid, x, y);
+			}
+		}
+		balls->ReleaseBallData(p->arena);
+	}
+}
+
+
+local helptext_t spawnball_help =
+"Targets: none\n"
+"Args: [<ballid>]\n"
+"Resets the specified existing ball back to its spawn location.\n"
+"If no ball is specified, ball id 0 is assumed.\n";
+local void Cspawnball(const char *tc, const char *params, Player *p, const Target *target)
+{
+	if (p->arena)
+	{
+		int bid = atoi(params);
+		ArenaBallData *abd = balls->GetBallData(p->arena);
+
+		if (bid < 0)
+		{
+			chat->SendMessage(p, "Invalid ball ID.");
+		}
+		else if (bid >= abd->ballcount)
+		{
+			chat->SendMessage(p, "Ball %d doesn't exist. Use ?ballcount to add more balls to the arena.", bid);
+		}
+		else
+		{
+			balls->SpawnBall(p->arena, bid);
+			chat->SendMessage(p, "Respawned ball %d", bid);
+		}
+
+		balls->ReleaseBallData(p->arena);
+	}
+}
+
+
+local helptext_t ballinfo_help =
+"Targets: none\n"
+"Args: none\n"
+"Displays the last known position of balls, as well as the player\n"
+"who is carrying it or who fired it, if applicable.\n";
+local void Cballinfo(const char *tc, const char *params, Player *p, const Target *target)
+{
+	int i;
+
+	if (p->arena)
+	{
+		ArenaBallData *abd = balls->GetBallData(p->arena);
+		for (i = 0; i < abd->ballcount; ++i)
+		{
+			struct BallData *bd = abd->balls + i;
+			unsigned short x = (bd->x >> 4) * 20 / 1024;
+			unsigned short y = (bd->y >> 4) * 20 / 1024;
+
+			switch (bd->state)
+			{
+			case BALL_ONMAP:
+				if (bd->carrier)
+				{
+					chat->SendMessage(p,
+						"ball %d: shot by %s (freq %d) from %c%d (%d,%d)",
+						i, bd->carrier->name, bd->freq, 'A'+x, y+1, bd->x>>4, bd->y>>4);
+				}
+				else
+				{
+					chat->SendMessage(p,
+						"ball %d: on map (freq %d) %s at %c%d (%d,%d)",
+						i, bd->freq, (bd->xspeed||bd->yspeed)?"last seen":"still", 'A'+x, y+1, bd->x>>4, bd->y>>4);
+				}
+				break;
+			case BALL_CARRIED:
+				chat->SendMessage(p,
+					"ball %d: carried by %s (freq %d) at %c%d (%d,%d)",
+					i, bd->carrier->name, bd->freq, 'A'+x, y+1, p->position.x>>4, p->position.y>>4);
+				break;
+			case BALL_WAITING:
+				chat->SendMessage(p, "ball %d: waiting to be respawned", i);
+			default:
+				break;
+			}
+		}
+		balls->ReleaseBallData(p->arena);
+	}
+}
+
 local helptext_t setfreq_help =
 "Targets: player, freq, or arena\n"
 "Args: [{-f}] <freq number>\n"
@@ -2369,6 +2597,10 @@ local const struct interface_info ball_requires[] =
 local const struct cmd_info ball_commands[] =
 {
 	CMD(ballcount)
+	CMD(ballinfo)
+	CMD(giveball)
+	CMD(moveball)
+	CMD(spawnball)
 	END()
 };
 

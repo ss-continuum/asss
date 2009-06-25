@@ -78,7 +78,7 @@ local int abdkey, pbdkey, mtxkey;
 local Iballs _myint =
 {
 	INTERFACE_HEAD_INIT(I_BALLS, "ball-core")
-	SetBallCount, PlaceBall, EndGame,
+	SetBallCount, PlaceBall, EndGame, SpawnBall,
 	GetBallData, ReleaseBallData
 };
 
@@ -210,6 +210,7 @@ void SpawnBall(Arena *arena, int bid)
 	d.state = BALL_ONMAP;
 	d.xspeed = d.yspeed = 0;
 	d.carrier = NULL;
+	d.freq = -1;
 	d.time = current_ticks();
 
 	if (pbd->spawnx[3] && pbd->spawny[3])
@@ -313,6 +314,12 @@ void PlaceBall(Arena *arena, int bid, struct BallData *newpos)
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
 
 	if (!newpos) return;
+
+	/* keep information consistant, freq of -1 for unowned balls, player's freq for owned balls */
+	if (newpos->carrier)
+		newpos->freq = newpos->carrier->p_freq;
+	else
+		newpos->freq = -1;
 
 	LOCK_STATUS(arena);
 	if (bid >= 0 && bid < abd->ballcount)
