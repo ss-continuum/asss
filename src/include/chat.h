@@ -20,6 +20,7 @@
 #define MSG_REMOTEPRIV   7   /**< cross-arena or cross-zone private messages */
 #define MSG_SYSOPWARNING 8   /**< red sysop warning text */
 #define MSG_CHAT         9   /**< chat channel messages */
+#define MSG_FUSCHIA      79  /**< special chat code that displays pink/purple (continuum only) */
 /* the following are for internal use only. they never appear in packets
  * sent over the network. */
 #define MSG_MODCHAT      10  /**< moderator chat messages (internal only) */
