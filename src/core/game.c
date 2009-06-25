@@ -228,13 +228,15 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 	int sendwpn = FALSE, sendtoall = FALSE, x1, y1, nflags;
 	int randnum = prng->Rand();
 	Player *i;
-	Link *link;
+	Link *link, *alink;
 	ticks_t gtc = current_ticks();
 	int latency, isnewer;
 	int modified, wpndirty, posdirty;
 	struct C2SPosition copy;
 	struct S2CWeapons wpn;
 	struct S2CPosition sendpos;
+	LinkedList advisers = LL_INITIALIZER;
+	Appk *ppkadviser;
 
 #ifdef CFG_RELAX_LENGTH_CHECKS
 	if (len < 22)
@@ -359,8 +361,16 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 		if (!isnewer && !isfake && pos->weapon.type == 0)
 			return;
 
-		/* do the callback to allow other modules to edit the packet */
-		DO_CBS(CB_EDITPPK, arena, EditPPKFunc, (p, pos));
+		/* consult the PPK advisers to allow other modules to edit the packet */
+		mm->GetAdviserList(A_PPK, arena, &advisers);
+		FOR_EACH(&advisers, ppkadviser, alink)
+		{
+			if (ppkadviser->EditPPK)
+			{
+				ppkadviser->EditPPK(p, pos);
+			}
+		}
+		/* NOTE: the adviser list is released at the end of the function */
 
 		/* by default, send unreliable droppable packets. weapons get a
 		 * higher priority. */
@@ -488,12 +498,15 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 						memcpy(&copy, pos, sizeof(struct C2SPosition));
 						modified = 0;
 					}
-					/* do the callback to allow other modules to edit the
+					/* consult the ppk advisers to allow other modules to edit the
 					 * packet going to player i */
-					DO_CBS(CB_EDITINDIVIDALPPK,
-							arena,
-							EditPPKIndivdualFunc,
-							(p, i, &copy, &modified, &extralen));
+					FOR_EACH(&advisers, ppkadviser, alink)
+					{
+						if (ppkadviser->EditIndividualPPK)
+						{
+							modified |= ppkadviser->EditIndividualPPK(p, i, &copy, &extralen);
+						}
+					}
 					wpndirty = wpndirty || modified;
 					posdirty = posdirty || modified;
 
@@ -562,6 +575,10 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 				}
 			}
 		pd->Unlock();
+		mm->ReleaseAdviserList(&advisers);
+
+		/* do the position packet callback */
+		DO_CBS(CB_PPK, arena, PPKFunc, (p, pos));
 	}
 }
 

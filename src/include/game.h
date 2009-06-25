@@ -129,15 +129,44 @@ typedef void (*GreenFunc)(Player *p, int x, int y, int prize);
 typedef void (*AttachFunc)(Player *p, Player *to);
 /* pycb: player, player */
 
-/** this callback is called before a position packet is sent to all players. */
-#define CB_EDITPPK "editppk-1"
-typedef void (*EditPPKFunc)(Player *p, struct C2SPosition *pos);
+/** this calllback is called whenever a position packet is handled.
+ * Note that this callback is not called for spectators.*/
+#define CB_PPK "cbppk-1"
+/** the type of CB_PPK
+ * @param p the player that the position packet belongs to
+ * @param pos the position packet
+ */
+typedef void (*PPKFunc)(Player *p, const struct C2SPosition *pos);
 
-/** this callback is called before a position packet is send to an individual player. */
-#define CB_EDITINDIVIDALPPK "editindppk-1"
-typedef void (*EditPPKIndivdualFunc)(Player *p, Player *t, struct C2SPosition *pos, int *modified, int *extralen);
 
 enum { ENERGY_SEE_NONE, ENERGY_SEE_ALL, ENERGY_SEE_TEAM, ENERGY_SEE_SPEC };
+
+
+#define A_PPK "ppk-1"
+
+/** the position packet adviser struct */
+typedef struct Appk
+{
+	ADVISER_HEAD_DECL
+
+	/** Modifies a player's position packet before it is sent out.
+	 * The adviser may edit the packet, but should not rely on
+	 * this function for notification, as other advisers may be
+	 * consulted. Instead the CB_PPK callback should be used for 
+	 * notification.
+	 * @param p the player that the position packet belongs to
+	 * @param pos a pointer to the position packet
+	 */
+	void (*EditPPK)(Player *p, struct C2SPosition *pos);
+	/** Modifies a player's position packet before it is sent to a specific player.
+	 * @param p the player that the position packet belongs to
+	 * @param t the player that the position packet will be sent to
+	 * @param pos a pointer to the position packet
+	 * @param extralen the extra length of the position packet (0 = none, 2 = energy, 10 = epd)
+	 * @return TRUE if this function modified the packet, FALSE otherwise
+	 */
+	int (*EditIndividualPPK)(Player *p, Player *t, struct C2SPosition *pos, int *extralen);
+} Appk;
 
 /** the game interface id */
 #define I_GAME "game-8"
