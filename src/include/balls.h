@@ -57,7 +57,7 @@ typedef struct ArenaBallData
 } ArenaBallData;
 
 
-#define I_BALLS "balls-3"
+#define I_BALLS "balls-4"
 
 typedef struct Iballs
 {
@@ -78,6 +78,10 @@ typedef struct Iballs
 	void (*EndGame)(Arena *arena);
 	/* ends the ball game */
 	/* pyint: arena -> void  */
+
+	void (*SpawnBall)(Arena *arena, int bid);
+	/* respawns the specified ball. no effect on balls that don't exist. */
+	/* pyint: arena, int -> void */
 
 	ArenaBallData * (*GetBallData)(Arena *arena);
 	void (*ReleaseBallData)(Arena *arena);
