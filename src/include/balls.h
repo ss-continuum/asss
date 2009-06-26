@@ -4,6 +4,8 @@
 #ifndef __BALLS_H
 #define __BALLS_H
 
+#define MAXBALLS 8
+
 /* Iballs
  * this module will handle all ball-related network communication.
  */
@@ -38,22 +40,36 @@ typedef void (*GoalFunc)(Arena *arena, Player *p, int bid, int x, int y);
 struct BallData
 {
 	/* pytype: struct, struct BallData, balldata */
-	int state; /* the state of this ball */
-	int x, y, xspeed, yspeed; /* the coordinates of the ball */
-	Player *carrier; /* the player that is carrying or last touched the ball */
-	int freq; /* freq of carrier */
-	ticks_t time; /* the time that the ball was last fired (will be 0 for
-	               * balls being held). for BALL_WAITING, this time is the
-	               * time when the ball will be re-spawned. */
+
+	/* the state of this ball */
+	int state;
+
+	/* the coordinates of the ball */
+	int x, y, xspeed, yspeed; 
+
+	/* the player that is carrying or last touched the ball */
+	Player *carrier;
+
+	/* freq of carrier */
+	int freq;
+
+	/* the time that the ball was last fired (will be 0 for
+	 * balls being held). for BALL_WAITING, this time is the
+	 * time when the ball will be re-spawned. */
+	ticks_t time;
+
+	/* the time the server last got an update on ball data.
+	 * it might differ from the 'time' field due to lag. */
+	ticks_t last_update;
 };
 
 typedef struct ArenaBallData
 {
+	/* the number of balls currently in play. 0 if the arena has no ball game. */
 	int ballcount;
-	/* the number of balls currently in play. 0 if the arena has no ball
-	 * game. */
-	struct BallData *balls;
+
 	/* points to an array of at least ballcount structs */
+	struct BallData *balls;
 } ArenaBallData;
 
 
