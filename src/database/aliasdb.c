@@ -6,7 +6,6 @@
 #include <stdlib.h>
 
 #include "asss.h"
-#include "hz/hz_util.h"
 
 #include "reldb.h"
 
@@ -180,80 +179,46 @@ local void dbcb_alias(int status, db_res *res, void *clos)
 local helptext_t alias_help =
 "Module: aliasdb\n"
 "Targets: player or none\n"
-"Syntax: ?alias [-n=int] [-l=int] [-h=int] [-*] [<name>]\n"
-"Queries the alias database for players matching from the name, ip, or macid of the target.\n"
-"-l sets the minimum for days-since-last-login and -h sets the maximum, defaults are 0 and 30. Using -l without -h implies a range of 30 days.\n"
-"-* is an alias for -l=0 -h=9999 -n=9999.\n"
-"-n sets a limit for the maximum number of records to return, default is 25.";
+"Args: [<name>]\n"
+"Queries the alias database for players matching from the name, ip, or\n"
+"macid of the target. Only works on MySQL 4 or later.\n";
+
 local void Calias(const char *tc, const char *params, Player *p, const Target *target)
 {
 	const char *name = NULL;
-	char buffer[300];
-
-	int daymin = 0;
-	int daymax = 30;
-	int limit = 25;
-	int switchL = getIntParam(params, 'l');
-	int switchH = getIntParam(params, 'h');
-	int switchN = getIntParam(params, 'n');
-	int switchasterisk = getBoolParam(params, '*');
 
 	if (target->type == T_ARENA)
-		name = getParam(params, 0, buffer);
+		name = params;
 	else if (target->type == T_PLAYER)
 		name = target->u.p->name;
 
-	if (!name || !*name || (!isalnum(*name) && (*name != '^')) )
+	if (!name || !*name)
 	{
-		chat->SendMessage(p, "Invalid syntax. See ?help alias.");
+		chat->SendMessage(p, "Invalid syntax. See help for ?alias.");
 		return;
-	}
-
-	if (switchL || switchH)
-	{
-		daymin = switchL;
-		daymax = (switchL <= switchH)?(switchH):(daymin + 30);
-	}
-
-	if (switchN)
-	{
-		limit = switchN;
-	}
-
-	if (switchasterisk)
-	{
-		daymin = 0;
-		daymax = 9999;
-		limit = 9999;
 	}
 
 	p->flags.during_query = 1;
 	db->Query(dbcb_alias, p, 1,
 			"(SELECT 'IPAddr' AS 'Match Type',Alias.name as Name, "
 			"INET_NTOA(Alias.ip) AS 'IP/Mac', "
-			"TO_DAYS(now()) - TO_DAYS(Alias.lastseen) as `days` "
+			"TO_DAYS(now()) - TO_DAYS(Alias.lastseen) as `daysago` "
 			"FROM " TABLE_NAME " AS Source, " TABLE_NAME " AS Alias "
 			"WHERE "
 			"Source.name=? AND "
-			"(TO_DAYS(now()) - TO_DAYS(Alias.lastseen)) <= # AND "
-			"(TO_DAYS(now()) - TO_DAYS(Alias.lastseen)) >= # AND "
-			/*"Alias.name<>Source.name AND "*/
-			"Source.ip=Alias.ip "/*LIMIT # "*/
+			"Source.ip=Alias.ip"
 			") UNION ( "
 			"SELECT 'MacId' AS 'Match Type',Alias.name as Name, "
 			"Alias.macid AS 'IP/Mac', "
-			"TO_DAYS(now()) - TO_DAYS(Alias.lastseen) as `days` "
+			"TO_DAYS(now()) - TO_DAYS(Alias.lastseen) as `daysago` "
 			"FROM " TABLE_NAME " AS Source, " TABLE_NAME " AS Alias "
 			"WHERE "
 			"Source.name=? AND "
-			"(TO_DAYS(now()) - TO_DAYS(Alias.lastseen)) <= # AND "
-			"(TO_DAYS(now()) - TO_DAYS(Alias.lastseen)) >= # AND "
-			/*"Alias.name<>Source.name AND "*/
 			"Source.macid > 400 AND "
 			"Source.macid <> 305419896 AND " /* exclude 0x12345678, used by subchat */
-			"Source.macid=Alias.macid )"/*LIMIT # ) "*/
-			"ORDER BY `days` ASC LIMIT #",
-			name, daymax, daymin, name, daymax, daymin, limit);
+			"Source.macid=Alias.macid ) "
+			"ORDER BY `daysago` ASC LIMIT 150",
+			name, name);
 }
 
 
@@ -265,41 +230,10 @@ local helptext_t qip_help =
 
 local void Cqip(const char *tc, const char *params, Player *p, const Target *target)
 {
-	const char *input = NULL;
-	char buffer[300];
-	int daymin = 0;
-	int daymax = 30;
-	int limit = 25;
-	int switchL = getIntParam(params, 'l');
-	int switchH = getIntParam(params, 'h');
-	int switchN = getIntParam(params, 'n');
-	int switchasterisk = getBoolParam(params, '*');
-
-	input = getParam(params, 0, buffer);
-
 	if (target->type != T_ARENA)
 		return;
 
 	p->flags.during_query = 1;
-
-	if (switchL || switchH)
-	{
-		daymin = switchL;
-		daymax = (switchL <= switchH)?(switchH):(daymin + 30);
-	}
-
-	if (switchN)
-	{
-		limit = switchN;
-	}
-
-	if (switchasterisk)
-	{
-		daymin = 0;
-		daymax = 9999;
-		limit = 9999;
-	}
-
 
 	if (strchr(params, '/'))
 	{
@@ -307,7 +241,7 @@ local void Cqip(const char *tc, const char *params, Player *p, const Target *tar
 		const char *next;
 		unsigned int bits;
 
-		next = delimcpy(baseip, input, sizeof(baseip), '/');
+		next = delimcpy(baseip, params, sizeof(baseip), '/');
 		if (!next) return;
 		bits = atoi(next);
 
@@ -315,26 +249,20 @@ local void Cqip(const char *tc, const char *params, Player *p, const Target *tar
 				"select name, inet_ntoa(ip), macid, to_days(now()) - to_days(lastseen) as daysago "
 				"from " TABLE_NAME " "
 				"where (ip & ((~0) << (32-#))) = (inet_aton(?) & ((~0) << (32-#))) "
-				"AND (TO_DAYS(now()) - TO_DAYS(lastseen)) <= # "
-				"AND (TO_DAYS(now()) - TO_DAYS(lastseen)) >= # "
 				"order by daysago asc "
-				"limit # ",
-				bits, baseip, bits,
-				daymax, daymin, limit);
+				"limit 50 ",
+				bits, baseip, bits);
 	}
-	else if (strchr(input, '%'))
+	else if (strchr(params, '%'))
 	{
 		/* this is going to be a really really slow query... */
 		db->Query(dbcb_nameipmac, p, 1,
 				"select name, inet_ntoa(ip), macid, to_days(now()) - to_days(lastseen) as daysago "
 				"from " TABLE_NAME " "
 				"where inet_ntoa(ip) like ? "
-				"AND (TO_DAYS(now()) - TO_DAYS(lastseen)) <= # "
-				"AND (TO_DAYS(now()) - TO_DAYS(lastseen)) >= # "
 				"order by daysago asc "
-				"limit #",
-				input,
-				daymax, daymin, limit);
+				"limit 50",
+				params);
 	}
 	else /* try exact ip match */
 	{
@@ -342,12 +270,9 @@ local void Cqip(const char *tc, const char *params, Player *p, const Target *tar
 				"select name, inet_ntoa(ip), macid, to_days(now()) - to_days(lastseen) as daysago "
 				"from " TABLE_NAME " "
 				"where ip = inet_aton(?) "
-				"AND (TO_DAYS(now()) - TO_DAYS(lastseen)) <= # "
-				"AND (TO_DAYS(now()) - TO_DAYS(lastseen)) >= # "
 				"order by daysago asc "
-				"limit # ",
-				input,
-				daymax, daymin, limit);
+				"limit 50 ",
+				params);
 	}
 }
 
