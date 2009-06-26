@@ -41,8 +41,7 @@ typedef struct MyBallData
 local void SpawnBall(Arena *arena, int bid);
 local void AABall(Arena *arena, int action);
 local void PABall(Player *p, int action, Arena *arena);
-local void ShipChange(Player *, int, int);
-local void FreqChange(Player *, int);
+local void ShipFreqChange(Player *, int, int, int, int);
 local void BallKill(Arena *, Player *, Player *, int, int, int *, int *);
 
 /* timers */
@@ -108,8 +107,7 @@ EXPORT int MM_balls(int action, Imodman *mm_, Arena *arena)
 
 		mm->RegCallback(CB_ARENAACTION, AABall, ALLARENAS);
 		mm->RegCallback(CB_PLAYERACTION, PABall, ALLARENAS);
-		mm->RegCallback(CB_SHIPCHANGE, ShipChange, ALLARENAS);
-		mm->RegCallback(CB_FREQCHANGE, FreqChange, ALLARENAS);
+		mm->RegCallback(CB_SHIPFREQCHANGE, ShipFreqChange, ALLARENAS);
 		mm->RegCallback(CB_KILL, BallKill, ALLARENAS);
 
 		net->AddPacket(C2S_PICKUPBALL, PPickupBall);
@@ -132,8 +130,7 @@ EXPORT int MM_balls(int action, Imodman *mm_, Arena *arena)
 		net->RemovePacket(C2S_SHOOTBALL, PFireBall);
 		net->RemovePacket(C2S_PICKUPBALL, PPickupBall);
 		mm->UnregCallback(CB_KILL, BallKill, ALLARENAS);
-		mm->UnregCallback(CB_FREQCHANGE, FreqChange, ALLARENAS);
-		mm->UnregCallback(CB_SHIPCHANGE, ShipChange, ALLARENAS);
+		mm->UnregCallback(CB_SHIPFREQCHANGE, ShipFreqChange, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, PABall, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, AABall, ALLARENAS);
 		aman->FreeArenaData(abdkey);
@@ -543,12 +540,7 @@ void PABall(Player *p, int action, Arena *arena)
 		CleanupAfter(arena, p, 1);
 }
 
-void ShipChange(Player *p, int ship, int newfreq)
-{
-	CleanupAfter(p->arena, p, 1);
-}
-
-void FreqChange(Player *p, int newfreq)
+void ShipFreqChange(Player *p, int newship, int oldship, int newfreq, int oldfreq)
 {
 	CleanupAfter(p->arena, p, 1);
 }

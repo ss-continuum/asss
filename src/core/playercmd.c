@@ -480,7 +480,7 @@ local void Csetfreq(const char *tc, const char *params, Player *p, const Target 
 			}
 		}
 
-		game->SetFreqAndShip(p, ship, freq);
+		game->SetShipAndFreq(p, ship, freq);
 	}
 	else
 	{
@@ -503,7 +503,7 @@ local void Csetfreq(const char *tc, const char *params, Player *p, const Target 
 				}
 			}
 
-			game->SetFreqAndShip(p, ship, freq);
+			game->SetShipAndFreq(p, ship, freq);
 			}
 		LLEmpty(&set);
 	}
@@ -552,7 +552,7 @@ local void Csetship(const char *tc, const char *params, Player *p, const Target 
 			}
 		}
 
-		game->SetFreqAndShip(p, ship, freq);
+		game->SetShipAndFreq(p, ship, freq);
 	}
 	else
 	{
@@ -575,7 +575,7 @@ local void Csetship(const char *tc, const char *params, Player *p, const Target 
 				}
 			}
 
-			game->SetFreqAndShip(p, ship, freq);
+			game->SetShipAndFreq(p, ship, freq);
 			}
 		LLEmpty(&set);
 	}
@@ -1543,7 +1543,7 @@ local void Cspecall(const char *tc, const char *params, Player *p, const Target 
 
 	pd->TargetToSet(target, &set);
 	for (l = LLGetHead(&set); l; l = l->next)
-		game->SetFreqAndShip(l->data, SHIP_SPEC, arena->specfreq);
+		game->SetShipAndFreq(l->data, SHIP_SPEC, arena->specfreq);
 	LLEmpty(&set);
 }
 

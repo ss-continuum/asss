@@ -255,9 +255,9 @@ local void paction(Player *p, int action, Arena *arena)
 }
 
 
-local void shipchange(Player *p, int ship, int freq)
+local void shipfreqchange(Player *p, int newship, int oldship, int newfreq, int oldfreq)
 {
-	if (ship == SHIP_SPEC)
+	if (newship == SHIP_SPEC)
 		paction(p, 0, 0);
 }
 
@@ -402,7 +402,7 @@ EXPORT int MM_koth(int action, Imodman *mm_, Arena *arena)
 	{
 		load_settings(arena);
 		mm->RegCallback(CB_PLAYERACTION, paction, arena);
-		mm->RegCallback(CB_SHIPCHANGE, shipchange, arena);
+		mm->RegCallback(CB_SHIPFREQCHANGE, shipfreqchange, arena);
 		mm->RegCallback(CB_KILL, mykill, arena);
 		ml->SetTimer(timer, 500, 500, (void*)arena, arena);
 		return MM_OK;
@@ -412,7 +412,7 @@ EXPORT int MM_koth(int action, Imodman *mm_, Arena *arena)
 		struct koth_arena_data *adata = P_ARENA_DATA(arena, akey);
 		adata->expiretime = 0;
 		mm->UnregCallback(CB_PLAYERACTION, paction, arena);
-		mm->UnregCallback(CB_SHIPCHANGE, shipchange, arena);
+		mm->UnregCallback(CB_SHIPFREQCHANGE, shipfreqchange, arena);
 		mm->UnregCallback(CB_KILL, mykill, arena);
 		ml->ClearTimer(timer, arena);
 		return MM_OK;

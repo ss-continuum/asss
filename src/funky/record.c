@@ -256,6 +256,17 @@ local void cb_freqchange(Player *p, int freq)
 	MPAdd(&ra->mpq, ev);
 }
 
+local void cb_shipfreqchange(Player *p, int newship, int oldship, int newfreq, int oldfreq)
+{
+	if (newship == oldship)
+	{
+		cb_freqchange(p, newfreq);
+	}
+	else
+	{
+		cb_shipchange(p, newship, newfreq);
+	}
+}
 
 local void cb_kill(Arena *a, Player *killer, Player *killed,
 		int bty, int flags, int *pts, int *green)
@@ -478,8 +489,7 @@ local int start_recording(Arena *a, const char *file, const char *recorder, cons
 				MPInit(&ra->mpq);
 
 				mm->RegCallback(CB_PLAYERACTION, cb_paction, a);
-				mm->RegCallback(CB_SHIPCHANGE, cb_shipchange, a);
-				mm->RegCallback(CB_FREQCHANGE, cb_freqchange, a);
+				mm->RegCallback(CB_SHIPFREQCHANGE, cb_shipfreqchange, a);
 				mm->RegCallback(CB_KILL, cb_kill, a);
 				mm->RegCallback(CB_CHATMSG, cb_chat, a);
 				/* net->SetArenaPacketHook(a, arenapkt); */
@@ -536,8 +546,7 @@ local int stop_recording(Arena *a, int suicide)
 			pthread_detach(ra->thd);
 
 		mm->UnregCallback(CB_PLAYERACTION, cb_paction, a);
-		mm->UnregCallback(CB_SHIPCHANGE, cb_shipchange, a);
-		mm->UnregCallback(CB_FREQCHANGE, cb_freqchange, a);
+		mm->UnregCallback(CB_SHIPFREQCHANGE, cb_shipfreqchange, a);
 		mm->UnregCallback(CB_KILL, cb_kill, a);
 		mm->UnregCallback(CB_CHATMSG, cb_chat, a);
 		/* net->SetArenaPacketHook(a, NULL); */
@@ -623,7 +632,7 @@ local void lock_all_spec(Arena *a)
 
 	get_watching_set(&set, a);
 	for (l = LLGetHead(&set); l; l = l->next)
-		game->SetFreqAndShip(l->data, SHIP_SPEC, ra->specfreq);
+		game->SetShipAndFreq(l->data, SHIP_SPEC, ra->specfreq);
 	LLEmpty(&set);
 }
 
@@ -919,7 +928,7 @@ local void *playback_thread(void *v)
 					CHECK(ev.sc.pid)
 					p1 = pidmap[ev.sc.pid];
 					if (p1)
-						game->SetFreqAndShip(p1, ev.sc.newship, ev.sc.newfreq);
+						game->SetShipAndFreq(p1, ev.sc.newship, ev.sc.newfreq);
 					else
 						lm->LogA(L_WARN, "record", a, "no mapping for pid %d",
 								ev.sc.pid);

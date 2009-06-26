@@ -458,15 +458,16 @@ local void newplayer(Player *p, int new)
 	check_consistency();
 }
 
-local void shipchange(Player *p, int newship, int newfreq)
+local void shipfreqchange(Player *p, int newship, int oldship, int newfreq, int oldfreq)
 {
-	cleanup(p, p->arena, CLEANUP_SHIPCHANGE);
-	check_consistency();
-}
-
-local void freqchange(Player *p, int newfreq)
-{
-	cleanup(p, p->arena, CLEANUP_FREQCHANGE);
+	if (newship == oldship)
+	{
+		cleanup(p, p->arena, CLEANUP_FREQCHANGE);
+	}
+	else
+	{
+		cleanup(p, p->arena, CLEANUP_SHIPCHANGE);
+	}
 	check_consistency();
 }
 
@@ -881,8 +882,7 @@ EXPORT int MM_flagcore(int action, Imodman *mm_, Arena *a)
 		mm->RegCallback(CB_PLAYERACTION, paction, ALLARENAS);
 		mm->RegCallback(CB_NEWPLAYER, newplayer, ALLARENAS);
 		mm->RegCallback(CB_ARENAACTION, aaction, ALLARENAS);
-		mm->RegCallback(CB_SHIPCHANGE, shipchange, ALLARENAS);
-		mm->RegCallback(CB_FREQCHANGE, freqchange, ALLARENAS);
+		mm->RegCallback(CB_SHIPFREQCHANGE, shipfreqchange, ALLARENAS);
 		mm->RegCallback(CB_KILL_POST_NOTIFY, mykill, ALLARENAS);
 
 		mm->RegInterface(&flagint, ALLARENAS);
@@ -899,8 +899,7 @@ EXPORT int MM_flagcore(int action, Imodman *mm_, Arena *a)
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
 		mm->UnregCallback(CB_NEWPLAYER, newplayer, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
-		mm->UnregCallback(CB_SHIPCHANGE, shipchange, ALLARENAS);
-		mm->UnregCallback(CB_FREQCHANGE, freqchange, ALLARENAS);
+		mm->UnregCallback(CB_SHIPFREQCHANGE, shipfreqchange, ALLARENAS);
 		mm->UnregCallback(CB_KILL_POST_NOTIFY, mykill, ALLARENAS);
 
 		net->RemovePacket(C2S_PICKUPFLAG, p_flagtouch);
