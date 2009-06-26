@@ -586,14 +586,45 @@ local void CleanupAfter(Arena *arena, Player *p, int neut)
 		if (b->state == BALL_CARRIED &&
 			b->carrier == p)
 		{
-			b->state = BALL_ONMAP;
-			b->x = p->position.x;
-			b->y = p->position.y;
-			b->xspeed = b->yspeed = 0;
-			if (neut) b->carrier = NULL;
-			b->last_update = b->time = current_ticks();
+			LinkedList advisers = LL_INITIALIZER;
+			Aballs *adviser;
+			Link *link;
+			int allow = TRUE;
+			struct BallData defaultbd;
+
+			defaultbd.state = BALL_ONMAP;
+			defaultbd.x = p->position.x;
+			defaultbd.y = p->position.y;
+			defaultbd.xspeed = defaultbd.yspeed = 0;
+			if (neut) defaultbd.carrier = NULL;
+			defaultbd.time = defaultbd.last_update = current_ticks();
+
+			memcpy(b, &defaultbd, sizeof(struct BallData));
+
+			/* run this by advisers to see if they want to make the ball do something weird instead. */
+			mm->GetAdviserList(A_BALLS, arena, &advisers);
+			FOR_EACH(&advisers, adviser, link)
+			{
+				if (adviser->AllowBallFire)
+				{
+					/* the TRUE in the parameter indicates that we are forcing the ball fire because the player left the game */
+					allow = adviser->AllowBallFire(arena, p, i, TRUE, b);
+					if (!allow)
+					{
+						/* we won't call any more advisers, but the ball will still be dropped obviously. */
+						break;
+					}
+				}
+			}
+			mm->ReleaseAdviserList(&advisers);
+
+			if (!allow)
+				memcpy(b, &defaultbd, sizeof(struct BallData));
+
 			send_ball_packet(arena, i);
+
 			/* don't forget fire callbacks */
+
 			DO_CBS(CB_BALLFIRE, arena, BallFireFunc,
 					(arena, p, i));
 		}
@@ -637,6 +668,13 @@ void PPickupBall(Player *p, byte *pkt, int len)
 	int i;
 	struct BallData *bd;
 	struct C2SPickupBall *bp = (struct C2SPickupBall*)pkt;
+	int bid = bp->ballid;
+
+	LinkedList advisers = LL_INITIALIZER;
+	Aballs *adviser;
+	Link *link;
+	int allow = TRUE;
+	struct BallData defaultbd;
 	
 	if (len != sizeof(struct C2SPickupBall))
 	{
@@ -672,7 +710,7 @@ void PPickupBall(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	bd = abd->balls + bp->ballid;
+	bd = abd->balls + bid;
 
 	/* make sure someone else didn't get it first */
 	if (bd->state != BALL_ONMAP)
@@ -698,6 +736,8 @@ void PPickupBall(Player *p, byte *pkt, int len)
 			return;
 		}
 
+	memcpy(&defaultbd, bd, sizeof(struct BallData));
+
 	bd->state = BALL_CARRIED;
 	bd->x = p->position.x;
 	bd->y = p->position.y;
@@ -707,6 +747,22 @@ void PPickupBall(Player *p, byte *pkt, int len)
 	bd->freq = p->p_freq;
 	bd->time = 0;
 	bd->last_update = current_ticks();
+
+	mm->GetAdviserList(A_BALLS, arena, &advisers);
+	FOR_EACH(&advisers, adviser, link)
+	{
+		if (adviser->AllowBallPickup)
+		{
+			allow = adviser->AllowBallPickup(arena, p, bid, bd);
+			if (!allow)
+				break;
+		}
+	}
+	mm->ReleaseAdviserList(&advisers);
+
+	if (!allow)
+		memcpy(bd, &defaultbd, sizeof(struct BallData));
+
 	send_ball_packet(arena, bp->ballid);
 
 	/* now call callbacks */
@@ -730,6 +786,12 @@ void PFireBall(Player *p, byte *pkt, int len)
 	struct BallData *bd;
 	struct BallPacket *fb = (struct BallPacket *)pkt;
 	int bid = fb->ballid;
+
+	LinkedList advisers = LL_INITIALIZER;
+	Aballs *adviser;
+	Link *link;
+	int allow = TRUE;
+	struct BallData defaultbd;
 
 	if (len != sizeof(struct BallPacket))
 	{
@@ -767,6 +829,8 @@ void PFireBall(Player *p, byte *pkt, int len)
 		return;
 	}
 
+	memcpy(&defaultbd, bd, sizeof(struct BallData));
+
 	bd->state = BALL_ONMAP;
 	bd->x = fb->x;
 	bd->y = fb->y;
@@ -775,6 +839,23 @@ void PFireBall(Player *p, byte *pkt, int len)
 	bd->freq = p->p_freq;
 	bd->time = fb->time;
 	bd->last_update = current_ticks();
+
+	mm->GetAdviserList(A_BALLS, arena, &advisers);
+	FOR_EACH(&advisers, adviser, link)
+	{
+		if (adviser->AllowBallFire)
+		{
+			/* the FALSE in the parameter indicates that this is the client controlling the ball firing */
+			allow = adviser->AllowBallFire(arena, p, bid, FALSE, bd);
+			if (!allow)
+				break;
+		}
+	}
+	mm->ReleaseAdviserList(&advisers);
+
+	if (!allow)
+		memcpy(bd, &defaultbd, sizeof(struct BallData));
+
 	send_ball_packet(arena, bid);
 
 	/* finally call callbacks */
@@ -794,6 +875,12 @@ void PGoal(Player *p, byte *pkt, int len)
 	int bid;
 	struct C2SGoal *g = (struct C2SGoal*)pkt;
 	struct BallData *bd;
+
+	LinkedList advisers = LL_INITIALIZER;
+	Aballs *adviser;
+	Link *link;
+	int block = FALSE;
+	struct BallData newbd;
 
 	if (len != sizeof(struct C2SGoal))
 	{
@@ -841,33 +928,64 @@ void PGoal(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	/* do callbacks before spawning */
-	DO_CBS(CB_GOAL, arena, GoalFunc, (arena, p, g->ballid, g->x, g->y));
+	memcpy(&newbd, bd, sizeof(struct BallData));
 
-	/* send ball update */
-	if (bd->state != BALL_ONMAP)
+	mm->GetAdviserList(A_BALLS, arena, &advisers);
+	FOR_EACH(&advisers, adviser, link)
 	{
-		/* don't respawn ball */
+		if (adviser->BlockBallGoal)
+		{
+			int result = adviser->BlockBallGoal(arena, p, bid, g->x, g->y, bd);
+			if (result == TRUE)
+			{
+				block = TRUE;
+				/* at this point, we will allow other modules to redirect the goal's path
+				 * but the goal being blocked is final. */
+			}
+		}
 	}
-	else if (pbd->cfg_respawnTimeAfterGoal == 0)
+	mm->ReleaseAdviserList(&advisers);
+
+	if (block)
 	{
-		/* we don't want a delay */
-		SpawnBall(arena, bid);
+		/* update ball data and transmit it assuming it was changed */
+		/* barring extreme circumstances, using this check should not be a problem. */
+		if (bd->last_update != newbd.last_update)
+		{
+			memcpy(bd, &newbd, sizeof(struct BallData));
+			send_ball_packet(arena, bid);
+		}
 	}
 	else
 	{
-		ticks_t ct = current_ticks();
-		/* phase it, then set it to waiting */
-		PhaseBall(arena, bid);
-		bd->state = BALL_WAITING;
-		bd->carrier = NULL;
-		bd->time = TICK_MAKE(ct + pbd->cfg_respawnTimeAfterGoal);
-		bd->last_update = ct;
+		/* send ball update */
+		if (bd->state != BALL_ONMAP)
+		{
+			/* don't respawn ball */
+		}
+		else if (pbd->cfg_respawnTimeAfterGoal == 0)
+		{
+			/* we don't want a delay */
+			SpawnBall(arena, bid);
+		}
+		else
+		{
+			/* phase it, then set it to waiting */
+			ticks_t ct = current_ticks();
+			PhaseBall(arena, bid);
+			bd->state = BALL_WAITING;
+			bd->carrier = NULL;
+			bd->time = TICK_MAKE(ct + pbd->cfg_respawnTimeAfterGoal);
+			bd->last_update = ct;
+		}
+
+		/* do callbacks after spawning */
+		DO_CBS(CB_GOAL, arena, GoalFunc, (arena, p, g->ballid, g->x, g->y));
+
+		logm->LogP(L_DRIVEL, "balls", p, "goal with ball %d", g->ballid);
 	}
 
 	UNLOCK_STATUS(arena);
-
-	logm->LogP(L_DRIVEL, "balls", p, "goal with ball %d", g->ballid);
 }
 
 

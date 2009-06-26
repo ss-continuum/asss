@@ -105,5 +105,37 @@ typedef struct Iballs
 } Iballs;
 
 
+#define A_BALLS "balls-adv"
+
+typedef struct Aballs
+{
+	ADVISER_HEAD_DECL
+
+	/* called on a pickup request.
+	 * returning FALSE disallows the ballpickup entirely.
+	 * returning TRUE changes the ball state to the data pointed to by newbd.
+	 * by default newbd is the usual state of the player carrying the ball, but other advisers might change this.
+	 */
+	int (*AllowBallPickup)(Arena *a, Player *p, int bid, struct BallData *newbd);
+
+	/* called when a player tries to fire a ball.
+	 * returning FALSE diallows the ball fire, causing the ball to be restuck to the player.
+	 * note that there will be no ball timer using this behavior.
+	 * returning TRUE changes the ball state to the data pointed to by newbd.
+	 * by default newbd is the state of the ball as if no advisers interfered (traveling on the map)
+	 * isForced specifies whether the client is firing the ball or the module is forcing a ball fire.
+	 */
+	int (*AllowBallFire)(Arena *a, Player *p, int bid, int isForced, struct BallData *newbd);
+
+	/* called when a client attempts to score a goal.
+	 * returning TRUE disallows the ball goal. note that continuum will continue sending goal packets
+	 * several times in this case. the ball state may be changed by modifying newbd.
+	 * returning FALSE allows the ball to be scored.
+	 */
+	int (*BlockBallGoal)(Arena *a, Player *p, int bid, int x, int y, struct BallData *newbd);
+
+} Aballs;
+
+
 #endif
 
