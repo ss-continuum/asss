@@ -202,24 +202,22 @@ local void Calias(const char *tc, const char *params, Player *p, const Target *t
 	db->Query(dbcb_alias, p, 1,
 			"(SELECT 'IPAddr' AS 'Match Type',Alias.name as Name, "
 			"INET_NTOA(Alias.ip) AS 'IP/Mac', "
-			"TO_DAYS(now()) - TO_DAYS(Alias.lastseen) as 'days ago' "
+			"TO_DAYS(now()) - TO_DAYS(Alias.lastseen) as `daysago` "
 			"FROM " TABLE_NAME " AS Source, " TABLE_NAME " AS Alias "
 			"WHERE "
 			"Source.name=? AND "
-			"Alias.name<>Source.name AND "
-			"Source.ip=Alias.ip LIMIT 100 "
+			"Source.ip=Alias.ip"
 			") UNION ( "
 			"SELECT 'MacId' AS 'Match Type',Alias.name as Name, "
 			"Alias.macid AS 'IP/Mac', "
-			"TO_DAYS(now()) - TO_DAYS(Alias.lastseen) as 'days ago' "
+			"TO_DAYS(now()) - TO_DAYS(Alias.lastseen) as `daysago` "
 			"FROM " TABLE_NAME " AS Source, " TABLE_NAME " AS Alias "
 			"WHERE "
 			"Source.name=? AND "
-			"Alias.name<>Source.name AND "
 			"Source.macid > 400 AND "
 			"Source.macid <> 305419896 AND " /* exclude 0x12345678, used by subchat */
-			"Source.macid=Alias.macid LIMIT 50 ) "
-			"ORDER BY 'days ago' ASC",
+			"Source.macid=Alias.macid ) "
+			"ORDER BY `daysago` ASC LIMIT 150",
 			name, name);
 }
 

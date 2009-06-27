@@ -4,6 +4,8 @@
 #ifndef __BALLS_H
 #define __BALLS_H
 
+#define MAXBALLS 8
+
 /* Iballs
  * this module will handle all ball-related network communication.
  */
@@ -38,22 +40,36 @@ typedef void (*GoalFunc)(Arena *arena, Player *p, int bid, int x, int y);
 struct BallData
 {
 	/* pytype: struct, struct BallData, balldata */
-	int state; /* the state of this ball */
-	int x, y, xspeed, yspeed; /* the coordinates of the ball */
-	Player *carrier; /* the player that is carrying or last touched the ball */
-	int freq; /* freq of carrier */
-	ticks_t time; /* the time that the ball was last fired (will be 0 for
-	               * balls being held). for BALL_WAITING, this time is the
-	               * time when the ball will be re-spawned. */
+
+	/* the state of this ball */
+	int state;
+
+	/* the coordinates of the ball */
+	int x, y, xspeed, yspeed; 
+
+	/* the player that is carrying or last touched the ball */
+	Player *carrier;
+
+	/* freq of carrier */
+	int freq;
+
+	/* the time that the ball was last fired (will be 0 for
+	 * balls being held). for BALL_WAITING, this time is the
+	 * time when the ball will be re-spawned. */
+	ticks_t time;
+
+	/* the time the server last got an update on ball data.
+	 * it might differ from the 'time' field due to lag. */
+	ticks_t last_update;
 };
 
 typedef struct ArenaBallData
 {
+	/* the number of balls currently in play. 0 if the arena has no ball game. */
 	int ballcount;
-	/* the number of balls currently in play. 0 if the arena has no ball
-	 * game. */
-	struct BallData *balls;
+
 	/* points to an array of at least ballcount structs */
+	struct BallData *balls;
 } ArenaBallData;
 
 
@@ -87,6 +103,38 @@ typedef struct Iballs
 	void (*ReleaseBallData)(Arena *arena);
 	/* always release the ball data when you're done using it */
 } Iballs;
+
+
+#define A_BALLS "balls-adv"
+
+typedef struct Aballs
+{
+	ADVISER_HEAD_DECL
+
+	/* called on a pickup request.
+	 * returning FALSE disallows the ballpickup entirely.
+	 * returning TRUE changes the ball state to the data pointed to by newbd.
+	 * by default newbd is the usual state of the player carrying the ball, but other advisers might change this.
+	 */
+	int (*AllowBallPickup)(Arena *a, Player *p, int bid, struct BallData *newbd);
+
+	/* called when a player tries to fire a ball.
+	 * returning FALSE diallows the ball fire, causing the ball to be restuck to the player.
+	 * note that there will be no ball timer using this behavior.
+	 * returning TRUE changes the ball state to the data pointed to by newbd.
+	 * by default newbd is the state of the ball as if no advisers interfered (traveling on the map)
+	 * isForced specifies whether the client is firing the ball or the module is forcing a ball fire.
+	 */
+	int (*AllowBallFire)(Arena *a, Player *p, int bid, int isForced, struct BallData *newbd);
+
+	/* called when a client attempts to score a goal.
+	 * returning TRUE disallows the ball goal. note that continuum will continue sending goal packets
+	 * several times in this case. the ball state may be changed by modifying newbd.
+	 * returning FALSE allows the ball to be scored.
+	 */
+	int (*BlockBallGoal)(Arena *a, Player *p, int bid, int x, int y, struct BallData *newbd);
+
+} Aballs;
 
 
 #endif
