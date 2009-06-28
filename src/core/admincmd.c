@@ -453,7 +453,7 @@ local void Cbotfeature(const char *tc, const char *params, Player *p, const Targ
 			on = 0;
 		else
 		{
-			chat->SendMessage(p, "Bad syntax");
+			chat->SendMessage(p, "Bad syntax!");
 			continue;
 		}
 
@@ -462,7 +462,7 @@ local void Cbotfeature(const char *tc, const char *params, Player *p, const Targ
 		else if (!strcmp(buf+1, "seeownposn"))
 			p->flags.see_own_posn = on;
 		else
-			chat->SendMessage(p, "Unknown bot feature");
+			chat->SendMessage(p, "Unknown bot feature!");
 	}
 }
 

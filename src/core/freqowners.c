@@ -152,7 +152,7 @@ void Cgiveowner(const char *tc, const char *params, Player *p, const Target *tar
 	else
 	{
 		OWNSFREQ(t) = 1;
-		chat->SendMessage(p, "You have granted ownership to %s", t->name);
+		chat->SendMessage(p, "You have granted ownership to %s.", t->name);
 		chat->SendMessage(t, "%s has granted you ownership of your freq.", p->name);
 	}
 }

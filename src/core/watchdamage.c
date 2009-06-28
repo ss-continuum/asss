@@ -137,7 +137,7 @@ local void Cwatchdamage(const char *tc, const char *params, Player *p, const Tar
 		{
 			/* if sent publicly, turns off all their watches */
 			ClearWatch(p, 0);
-			if (chat) chat->SendMessage(p, "All damage watching turned off");
+			if (chat) chat->SendMessage(p, "All damage watching turned off.");
 		}
 	}
 	else if (target->type == T_PLAYER)
@@ -146,7 +146,7 @@ local void Cwatchdamage(const char *tc, const char *params, Player *p, const Tar
 
 		if (t->type != T_CONT)
 		{
-			if (chat) chat->SendMessage(p, "watchdamage requires %s to use Continuum", t->name);
+			if (chat) chat->SendMessage(p, "Watchdamage requires %s to use Continuum.", t->name);
 			return;
 		}
 
@@ -156,12 +156,12 @@ local void Cwatchdamage(const char *tc, const char *params, Player *p, const Tar
 			if (params[0] == '0')
 			{
 				RemoveWatch(p, t);
-				if (chat) chat->SendMessage(p, "Damage watching on %s turned off", t->name);
+				if (chat) chat->SendMessage(p, "Damage watching on %s turned off.", t->name);
 			}
 			else
 			{
 				AddWatch(p, t);
-				if (chat) chat->SendMessage(p, "Damage watching on %s turned on", t->name);
+				if (chat) chat->SendMessage(p, "Damage watching on %s turned on.", t->name);
 			}
 		}
 		else
@@ -170,10 +170,10 @@ local void Cwatchdamage(const char *tc, const char *params, Player *p, const Tar
 			if (AddWatch(p, t) < 0)
 			{
 				RemoveWatch(p, t);
-				if (chat) chat->SendMessage(p, "Damage watching on %s turned off", t->name);
+				if (chat) chat->SendMessage(p, "Damage watching on %s turned off.", t->name);
 			}
 			else
-				if (chat) chat->SendMessage(p, "Damage watching on %s turned on", t->name);
+				if (chat) chat->SendMessage(p, "Damage watching on %s turned on.", t->name);
 		}
 	}
 }
@@ -209,11 +209,11 @@ local void Cwatchwatchdamage(const char *tc, const char *params, Player *p, cons
 			ON((Player*)l->data)++;
 	}
 
-	chat->SendMessage(p, "wwd: total players reporting damage: %d", tot);
-	chat->SendMessage(p, "wwd: players reporting damage to modules: %d", mw);
+	chat->SendMessage(p, "Total players reporting damage: %d.", tot);
+	chat->SendMessage(p, "Players reporting damage to modules: %d.", mw);
 	FOR_EACH_PLAYER(i)
 		if (ON(i))
-			chat->SendMessage(p, "wwd: %s is watching damage on %d players",
+			chat->SendMessage(p, "%s is watching damage on %d players.",
 					i->name, ON(i));
 
 	pd->Unlock();

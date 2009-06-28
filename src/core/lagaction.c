@@ -90,7 +90,7 @@ local void check_lag(Player *p, laglimits_t *ll)
 	{
 		if (Spec(p, ll, "ping") && chat)
 			chat->SendMessage(p,
-					"You have been specced for excessive ping (%d > %d)",
+					"You have been specced for excessive ping (%d > %d).",
 					avg, ll->ping.tospec);
 		p->flags.no_ship = 1;
 	}
@@ -98,7 +98,7 @@ local void check_lag(Player *p, laglimits_t *ll)
 	{
 		if (Spec(p, ll, "s2c ploss") && chat)
 			chat->SendMessage(p,
-					"You have been specced for excessive S2C packetloss (%.2f > %.2f)",
+					"You have been specced for excessive S2C packetloss (%.2f > %.2f).",
 					100.0 * ploss.s2c, 100.0 * ll->s2closs.tospec);
 		p->flags.no_ship = 1;
 	}
@@ -106,7 +106,7 @@ local void check_lag(Player *p, laglimits_t *ll)
 	{
 		if (Spec(p, ll, "s2cwpn ploss") && chat)
 			chat->SendMessage(p,
-					"You have been specced for excessive S2C weapon packetloss (%.2f > %.2f)",
+					"You have been specced for excessive S2C weapon packetloss (%.2f > %.2f).",
 					100.0 * ploss.s2cwpn, 100.0 * ll->wpnloss.tospec);
 		p->flags.no_ship = 1;
 	}
@@ -114,7 +114,7 @@ local void check_lag(Player *p, laglimits_t *ll)
 	{
 		if (Spec(p, ll, "c2s ploss") && chat)
 			chat->SendMessage(p,
-					"You have been specced for excessive C2S packetloss (%.2f > %.2f)",
+					"You have been specced for excessive C2S packetloss (%.2f > %.2f).",
 					100.0 * ploss.c2s, 100.0 * ll->c2sloss.tospec);
 		p->flags.no_ship = 1;
 	}
@@ -153,7 +153,7 @@ local void check_spike(Player *p, laglimits_t *ll)
 	if (spike > ll->spiketospec)
 		if (Spec(p, ll, "spike") && chat)
 			chat->SendMessage(p,
-					"You have been specced for a %dms spike",
+					"You have been specced for a %dms spike.",
 					spike);
 }
 

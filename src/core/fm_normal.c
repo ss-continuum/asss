@@ -191,7 +191,7 @@ local int screen_res_allowed(Player *p, ConfigHandle ch)
 
 	if (chat)
 		chat->SendMessage(p,
-			"Maximum allowed screen resolution is %dx%d in this arena",
+			"Maximum allowed screen resolution is %dx%d in this arena.",
 			max_x, max_y);
 
 	return 0;

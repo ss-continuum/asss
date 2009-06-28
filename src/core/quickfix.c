@@ -134,7 +134,7 @@ local void Cquickfix(const char *tc, const char *params, Player *p, const Target
 		do_quickfix(p, params[0] ? params : NULL);
 	else
 		chat->SendMessage(p,
-				"You are not authorized to view or change settings in this arena");
+				"You are not authorized to view or change settings in this arena.");
 }
 
 
@@ -154,7 +154,7 @@ local void p_settingchange(Player *p, byte *pkt, int len)
 	if (!capman->HasCapability(p, CAP_CHANGESETTINGS))
 	{
 		chat->SendMessage(p,
-				"You are not authorized to view or change settings in this arena");
+				"You are not authorized to view or change settings in this arena.");
 		return;
 	}
 

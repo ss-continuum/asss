@@ -33,7 +33,7 @@ local void do_cmd_help(Player *p, const char *cmd)
 		}
 	}
 	else
-		chat->SendMessage(p, "Sorry, I don't know anything about ?%s", cmd);
+		chat->SendMessage(p, "Sorry, I don't know anything about ?%s.", cmd);
 }
 
 
@@ -52,7 +52,7 @@ local void do_list_keys(Player *p, const char *sec)
 		chat->SendWrappedText(p, sh->all_key_names);
 	}
 	else
-		chat->SendMessage(p, "I don't know anything about section %s", sec);
+		chat->SendMessage(p, "I don't know anything about section %s.", sec);
 }
 
 local void do_setting_help(Player *p, const char *sec, const char *key)
@@ -76,10 +76,10 @@ local void do_setting_help(Player *p, const char *sec, const char *key)
 			chat->SendWrappedText(p, kh->helptext);
 		}
 		else
-			chat->SendMessage(p, "I don't know anything about key %s", key);
+			chat->SendMessage(p, "I don't know anything about key %s.", key);
 	}
 	else
-		chat->SendMessage(p, "I don't know anything about section %s", sec);
+		chat->SendMessage(p, "I don't know anything about section %s.", sec);
 }
 
 
