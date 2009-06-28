@@ -279,7 +279,7 @@ local void Cgiveball(const char *tc, const char *params, Player *p, const Target
 						struct BallData *bd = abd->balls + i;
 						if (bd->carrier == t && bd->state == BALL_CARRIED)
 						{
-							balls->PlaceBall(p->arena, i, &newbd);	
+							balls->PlaceBall(p->arena, i, &newbd);
 						}
 					}
 
@@ -1229,10 +1229,10 @@ local helptext_t setcm_help =
 "Args: see description\n"
 "Modifies the chat mask for the target player, or if no target, for the\n"
 "current arena. The arguments must all be of the form\n"
-"{(-|+)(pub|pubmacro|freq|nmefreq|priv|chat|modchat|all)} or {-time <seconds>}.\n"
+"{(-|+)(pub|pubmacro|freq|nmefreq|priv|chat|modchat|all)} or {-t <seconds>}.\n"
 "A minus sign and then a word disables that type of chat, and a plus sign\n"
 "enables it. The special type {all} means to apply the plus or minus to\n"
-"all of the above types. {-time} lets you specify a timeout in seconds.\n"
+"all of the above types. {-t} lets you specify a timeout in seconds.\n"
 "The mask will be effective for that time, even across logouts.\n"
 "\n"
 "Examples:\n"
@@ -1295,6 +1295,8 @@ local void Csetcm(const char *tc, const char *params, Player *p, const Target *t
 
 		if (!strncasecmp(c, "time", 4))
 			timeout = strtol(c+4, NULL, 0);
+		else if (!strncasecmp(c, "t", 1))
+			timeout = strtol(c+1, NULL, 0);
 
 		/* change it */
 		if (c[-1] == '+')
@@ -1305,9 +1307,36 @@ local void Csetcm(const char *tc, const char *params, Player *p, const Target *t
 
 	/* and install it back where it came from */
 	if (target->type == T_ARENA)
+	{
 		chat->SetArenaChatMask(target->u.arena, mask);
+		chat->SendMessage(p,
+				"Arena %s: %cpub %cpubmacro %cfreq %cnmefreq %cpriv %cchat %cmodchat",
+				target->u.arena->name,
+				IS_RESTRICTED(mask, MSG_PUB) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_PUBMACRO) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_FREQ) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_NMEFREQ) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_PRIV) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_CHAT) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_MODCHAT) ? '-' : '+'
+				);
+	}
 	else
+	{
 		chat->SetPlayerChatMask(target->u.p, mask, timeout);
+		chat->SendMessage(p,
+				"%s: %cpub %cpubmacro %cfreq %cnmefreq %cpriv %cchat %cmodchat -t %d",
+				target->u.p->name,
+				IS_RESTRICTED(mask, MSG_PUB) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_PUBMACRO) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_FREQ) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_NMEFREQ) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_PRIV) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_CHAT) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_MODCHAT) ? '-' : '+',
+				timeout
+				);
+	}
 }
 
 local helptext_t getcm_help =
@@ -1322,25 +1351,41 @@ local void Cgetcm(const char *tc, const char *params, Player *p, const Target *t
 	chat_mask_t mask;
 
 	if (target->type == T_ARENA)
+	{
 		mask = chat->GetArenaChatMask(target->u.arena);
+		chat->SendMessage(p,
+				"Arena %s: %cpub %cpubmacro %cfreq %cnmefreq %cpriv %cchat %cmodchat",
+				target->u.arena->name,
+				IS_RESTRICTED(mask, MSG_PUB) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_PUBMACRO) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_FREQ) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_NMEFREQ) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_PRIV) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_CHAT) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_MODCHAT) ? '-' : '+'
+				);
+	}
 	else if (target->type == T_PLAYER)
+	{
 		mask = chat->GetPlayerChatMask(target->u.p);
+		chat->SendMessage(p,
+				"%s: %cpub %cpubmacro %cfreq %cnmefreq %cpriv %cchat %cmodchat -t %d",
+				target->u.p->name,
+				IS_RESTRICTED(mask, MSG_PUB) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_PUBMACRO) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_FREQ) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_NMEFREQ) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_PRIV) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_CHAT) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_MODCHAT) ? '-' : '+',
+				chat->GetPlayerChatMaskTime(target->u.p)
+				);
+	}
 	else
 	{
 		chat->SendMessage(p, "getcm: Bad target");
 		return;
 	}
-
-	chat->SendMessage(p,
-			"getcm: %cpub %cpubmacro %cfreq %cnmefreq %cpriv %cchat %cmodchat",
-			IS_RESTRICTED(mask, MSG_PUB) ? '-' : '+',
-			IS_RESTRICTED(mask, MSG_PUBMACRO) ? '-' : '+',
-			IS_RESTRICTED(mask, MSG_FREQ) ? '-' : '+',
-			IS_RESTRICTED(mask, MSG_NMEFREQ) ? '-' : '+',
-			IS_RESTRICTED(mask, MSG_PRIV) ? '-' : '+',
-			IS_RESTRICTED(mask, MSG_CHAT) ? '-' : '+',
-			IS_RESTRICTED(mask, MSG_MODCHAT) ? '-' : '+'
-			);
 }
 
 

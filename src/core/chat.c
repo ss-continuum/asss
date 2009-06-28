@@ -6,6 +6,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <ctype.h>
+#include <math.h>
 
 #include "asss.h"
 #include "persist.h"
@@ -783,6 +784,23 @@ local chat_mask_t GetPlayerChatMask(Player *p)
 	return ret;
 }
 
+local int GetPlayerChatMaskTime(Player *p)
+{
+	struct player_mask_t *pm = PPDATA(p, pmkey);
+	int ret = 0;
+	if (p)
+	{
+		LOCK();
+		expire_mask(p);
+		if (pm->expires)
+		{
+			ret = (int)ceil(difftime(pm->expires, time(NULL)));
+		}
+		UNLOCK();
+	}
+	return ret;
+}
+
 local void SetPlayerChatMask(Player *p, chat_mask_t mask, int timeout)
 {
 	struct player_mask_t *pm = PPDATA(p, pmkey);
@@ -874,8 +892,8 @@ local Ichat _int =
 	SendArenaSoundMessage, SendModMessage,
 	SendRemotePrivMessage,
 	GetArenaChatMask, SetArenaChatMask,
-	GetPlayerChatMask, SetPlayerChatMask,
-	SendWrappedText
+	GetPlayerChatMask, GetPlayerChatMaskTime,
+	SetPlayerChatMask, SendWrappedText
 };
 
 
