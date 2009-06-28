@@ -2054,7 +2054,7 @@ local void Csetjackpot(const char *tc, const char *params, Player *p, const Targ
 	char *next;
 	int new = strtol(params, &next, 0);
 
-	if (next != params)
+	if (next != params && new >= 0)
 	{
 		jackpot->SetJP(p->arena, new);
 		chat->SendMessage(p, "jackpot: %d", jackpot->GetJP(p->arena));
