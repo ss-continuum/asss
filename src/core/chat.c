@@ -314,7 +314,7 @@ local void send_msg_cb(const char *line, void *clos)
 
 local void SendWrappedText(Player *p, const char *text)
 {
-	wrap_text(text, 80, ' ', send_msg_cb, p);
+	wrap_text(text, 78, ' ', send_msg_cb, p);
 }
 
 
