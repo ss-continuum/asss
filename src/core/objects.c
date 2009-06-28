@@ -22,7 +22,7 @@ local void Mode(const Target *t, int id, int mode);
 
 enum { BROADCAST_NONE, BROADCAST_BOT, BROADCAST_ANY };
 
-#pragma pack(1)
+#pragma pack(push, 1)
 
 typedef struct podata
 {
@@ -1002,3 +1002,4 @@ void Mode(const Target *t, int id, int mode)
 	END_EXTENDED(t, id);
 }
 
+#pragma pack(pop)
