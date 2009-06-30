@@ -13,6 +13,7 @@ local void LogFile(const char *);
 local void FlushLog(void);
 local void ReopenLog(void);
 local int flush_timer(void *dummy);
+local int reopen_timer(void *dummy);
 
 local FILE *logfile;
 local pthread_mutex_t logmtx = PTHREAD_MUTEX_INITIALIZER;
@@ -33,6 +34,7 @@ EXPORT int MM_log_file(int action, Imodman *mm, Arena *arenas)
 	if (action == MM_LOAD)
 	{
 		int fp;
+		int nfp;
 
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
@@ -48,9 +50,21 @@ EXPORT int MM_log_file(int action, Imodman *mm, Arena *arenas)
 		/* cfghelp: Log:FileFlushPeriod, global, int, def: 10
 		 * How often to flush the log file to disk (in minutes). */
 		fp = cfg->GetInt(GLOBAL, "Log", "FileFlushPeriod", 10);
-
-		if (fp)
+		if (fp > 0)
 			ml->SetTimer(flush_timer, fp * 60 * 100, fp * 60 * 100, NULL, NULL);
+
+		/* cfghelp: Log:UseDatedLogs, global, bool, def: 0
+		 * Whether to use filenames in the format YYMMDD.log */
+		if (cfg->GetInt(GLOBAL, "Log", "UseDatedLogs", 0))
+		{
+			/* cfghelp: Log:NewFilePeriod, global, int, def: 3
+			 * How often to open a new log file (in days).
+			 * Has no effect when writing to an undated log file.
+			 * If less than 1, the same file will be used until the server restarts. */
+			nfp = cfg->GetInt(GLOBAL, "Log", "NewFilePeriod", 3);
+			if (nfp > 0)
+				ml->SetTimer(reopen_timer, 100 * 60 * 60 * 24 * nfp, 100 * 60 * 60 * 24 * nfp, NULL, NULL);
+		}
 
 		mm->RegInterface(&_lfint, ALLARENAS);
 
@@ -60,10 +74,16 @@ EXPORT int MM_log_file(int action, Imodman *mm, Arena *arenas)
 	{
 		if (mm->UnregInterface(&_lfint, ALLARENAS))
 			return MM_FAIL;
-		if (logfile)
-			fclose(logfile);
+
+		ml->ClearTimer(reopen_timer, NULL);
 		ml->ClearTimer(flush_timer, NULL);
 		mm->UnregCallback(CB_LOGFUNC, LogFile, ALLARENAS);
+
+		pthread_mutex_lock(&logmtx);
+		if (logfile)
+			fclose(logfile);
+		pthread_mutex_unlock(&logmtx);
+
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(ml);
@@ -101,6 +121,11 @@ void FlushLog(void)
 	pthread_mutex_unlock(&logmtx);
 }
 
+int reopen_timer(void *dummy)
+{
+	return TRUE;
+}
+
 int flush_timer(void *dummy)
 {
 	FlushLog();
@@ -109,30 +134,55 @@ int flush_timer(void *dummy)
 
 void ReopenLog(void)
 {
-	const char *ln;
-	char fname[256];
+	int useDatedLogs;
+	char finalName[256];
 
 	pthread_mutex_lock(&logmtx);
 
 	if (logfile)
 		fclose(logfile);
 
-	/* cfghelp: Log:LogFile, global, string, def: asss.log
-	 * The name of the log file. */
-	ln = cfg->GetStr(GLOBAL, "Log", "LogFile");
-	if (!ln) ln = "asss.log";
+	/* cfghelp is in mm_load */
+	useDatedLogs = cfg->GetInt(GLOBAL, "Log", "UseDatedLogs", 0);
 
-	/* if it has a /, treat it as an absolute path. otherwise, prepend
-	 * 'log/' */
-	if (strchr(ln, '/'))
-		astrncpy(fname, ln, sizeof(fname));
+	if (useDatedLogs)
+	{
+		char datedName[64];
+		const char *datedLogPath;
+		time_t currentTime;
+
+		/* cfghelp: Log:DatedLogsPath, global, string, def: log
+		 * If using dated log files, the path to put the files in. */
+		datedLogPath = cfg->GetStr(GLOBAL, "Log", "DatedLogsPath");
+		if (!datedLogPath) datedLogPath = "log";
+
+		time(&currentTime);
+		strftime(datedName, sizeof(datedName), "%Y%m%d", localtime(&currentTime));
+
+		snprintf(finalName, sizeof(finalName), "%s/%s.log", datedLogPath, datedName);
+	}
 	else
-		snprintf(fname, sizeof(fname), "log/%s", ln);
+	{
+		const char *logName;
 
-	logfile = fopen(fname, "a");
+		/* cfghelp: Log:LogFile, global, string, def: asss.log
+		 * The name of the log file.
+		 * Has no effect when using dated log files. */
+		logName = cfg->GetStr(GLOBAL, "Log", "LogFile");
+		if (!logName) logName = "asss.log";
+
+		/* if it has a /, treat it as an absolute path. otherwise, prepend
+		 * 'log/' */
+		if (strchr(logName, '/'))
+			astrncpy(finalName, logName, sizeof(finalName));
+		else
+			snprintf(finalName, sizeof(finalName), "log/%s", logName);
+	}
+
+	logfile = fopen(finalName, "a");
 
 	pthread_mutex_unlock(&logmtx);
 
-	LogFile("I <log_file> opening log file ==================================");
+	LogFile("\nI <log_file> opening log file ==================================\n");
 }
 
