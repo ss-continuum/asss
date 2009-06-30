@@ -208,7 +208,7 @@ local int run_spawn_cb(void *clos)
 {
 	Player *p = (Player *)clos;
 	pd->Lock();
-	/* check is_dead to make sure that someone else hasn't 
+	/* check is_dead to make sure that someone else hasn't
 	 * already done the CB_SPAWN call. */
 	if (p->flags.is_dead)
 	{
@@ -424,7 +424,7 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 		pd->Lock();
 
 		/* have to do this check inside pd->Lock(); */
-		/* ignore packets from the first 500ms of death, and accept packets up to 500ms 
+		/* ignore packets from the first 500ms of death, and accept packets up to 500ms
 		 * before their expected respawn. */
 		if (p->flags.is_dead && TICK_DIFF(gtc, p->last_death) >= 50 && TICK_DIFF(p->next_respawn, gtc) <= 50)
 		{
@@ -696,9 +696,9 @@ local void Cspec(const char *cmd, const char *params, Player *p, const Target *t
 	else if (scnt == 1)
 		chat->SendMessage(p, "1 spectator: %s", SBText(&sb, 2));
 	else if (p == t)
-		chat->SendMessage(p, "No players spectating you.");
+		chat->SendMessage(p, "No players are spectating you.");
 	else
-		chat->SendMessage(p, "No players spectating %s.", t->name);
+		chat->SendMessage(p, "No players are spectating %s.", t->name);
 	SBDestroy(&sb);
 }
 
@@ -1305,7 +1305,7 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 			p->p_freq = arena->specfreq;
 		}
 		p->p_attached = -1;
-		
+
 		pd->Lock();
 		p->flags.is_dead = 0;
 		p->last_death = 0;

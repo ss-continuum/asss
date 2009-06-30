@@ -3,6 +3,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "asss.h"
 
@@ -31,6 +32,33 @@ typedef struct
 
 int tdkey;
 
+local void get_time_string(ticks_t time, char *buf)
+{
+	int mins = time/60/100;
+	int secs = (time/100)%60;
+
+	if (mins)
+	{
+		if (mins == 1)
+		{
+			buf += sprintf(buf, "1 minute and ");
+		}
+		else
+		{
+			buf += sprintf(buf, "%d minutes and ", mins);
+		}
+	}
+
+	if (secs == 1)
+	{
+		sprintf(buf, "1 second");
+	}
+	else
+	{
+		sprintf(buf, "%d seconds", secs);
+	}
+
+}
 
 local int TimerMaster(void *nothing)
 {
@@ -125,25 +153,23 @@ local helptext_t time_help =
 local void Ctime(const char *cmd, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
-	int mins, secs;
 	int tout;
 	timerdata *td = P_ARENA_DATA(arena, tdkey);
+	char time_string[40];
 
 	if (td->enabled)
 	{
 		tout = TICK_DIFF(td->timeout, current_ticks());
-		mins = tout/60/100;
-		secs = (tout/100)%60;
-		chat->SendMessage(p, "Time left: %d minutes %d seconds", mins, secs);
+		get_time_string(tout, time_string);
+		chat->SendMessage(p, "Time left: %s.", time_string);
 	}
 	else if (td->timeout)
 	{
-		 mins = td->timeout/60/100;
-		 secs = (td->timeout/100)%60;
-		 chat->SendMessage(p, "Timer paused at:  %d minutes %d seconds", mins, secs);
+		 get_time_string(td->timeout, time_string);
+		 chat->SendMessage(p, "Timer paused at: %s.", time_string);
 	}
 	else
-		chat->SendMessage(p, "Time left: 0 minutes 0 seconds");
+		chat->SendMessage(p, "Time left: 0 seconds.");
 }
 
 
@@ -207,6 +233,7 @@ local void Cpausetimer(const char *cmd, const char *params, Player *p, const Tar
 {
 	Arena *arena = p->arena;
 	timerdata *td = P_ARENA_DATA(arena, tdkey);
+	char time_string[40];
 
 	if (td->gamelen) return;
 
@@ -214,13 +241,13 @@ local void Cpausetimer(const char *cmd, const char *params, Player *p, const Tar
 	{
 		td->enabled = 0;
 		td->timeout -= current_ticks();
-		chat->SendMessage(p,"Timer paused at:  %d minutes %d seconds",
-							td->timeout/60/100, (td->timeout/100)%60);
+		get_time_string(td->timeout, time_string);
+		chat->SendMessage(p,"Timer paused at: %s.", time_string);
 	}
 	else if (td->timeout)
 	{
-		chat->SendMessage(p,"Timer resumed at: %d minutes %d seconds",
-							td->timeout/60/100, (td->timeout/100)%60);
+		get_time_string(td->timeout, time_string);
+		chat->SendMessage(p,"Timer resumed at: %s", time_string);
 		td->enabled = 1;
 		td->timeout += current_ticks();
 	}

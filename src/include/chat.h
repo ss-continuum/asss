@@ -146,6 +146,10 @@ typedef struct Ichat
 	chat_mask_t (*GetPlayerChatMask)(Player *p);
 	/* pyint: player -> int */
 
+	/** Retrievs the remaining time (in seconds) on the chat mask */
+	int (*GetPlayerChatMaskTime)(Player *p);
+	/* pyint: player -> int */
+
 	/** Sets the chat mask for a player.
 	 * @param p the player whose mask to modify
 	 * @param mask the new chat mask

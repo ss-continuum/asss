@@ -307,13 +307,13 @@ local void mykill(Arena *arena, Player *killer, Player *killed,
 				erdata->crownkills = 0;
 				erdata->deaths = 0;
 				set_crown_time(killer, adata->expiretime);
-				chat->SendMessage(killer, "You earned back a crown");
+				chat->SendMessage(killer, "You earned back a crown.");
 				lm->LogP(L_DRIVEL, "koth", killer, "earned back a crown");
 				DO_CBS(CB_CROWNCHANGE, arena, CrownChangeFunc,
 						(killer, TRUE, KOTH_CAUSE_RECOVERED));
 			}
 			else
-				chat->SendMessage(killer, "%d kill%s left to earn back a crown",
+				chat->SendMessage(killer, "%d kill%s left to earn back a crown.",
 						left, left == 1 ? "" : "s");
 		}
 	}

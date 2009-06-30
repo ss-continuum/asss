@@ -68,7 +68,7 @@ local int cancel_files(Player *p)
 		}
 	}
 	UNLOCK();
-	
+
 	return cancelled;
 }
 
@@ -124,19 +124,19 @@ local void Csendfile(const char *tc, const char *params, Player *p, const Target
 
 	if (!IS_STANDARD(p))
 	{
-		chat->SendMessage(p, "You must be in a game client to offer files");
+		chat->SendMessage(p, "You must be in a game client to offer files.");
 		return;
 	}
 
 	if (!IS_STANDARD(t))
 	{
-		chat->SendMessage(p, "You can only offer files to players in game clients");
+		chat->SendMessage(p, "You can only offer files to players in game clients.");
 		return;
 	}
 
 	if (t == p)
 	{
-		chat->SendMessage(p, "You cannot send files to yourself");
+		chat->SendMessage(p, "You cannot send files to yourself.");
 		return;
 	}
 
@@ -149,19 +149,19 @@ local void Csendfile(const char *tc, const char *params, Player *p, const Target
 
 	if (is_recving(t))
 	{
-		chat->SendMessage(p, "That player is currently receiving a file");
+		chat->SendMessage(p, "That player is currently receiving a file.");
 		return;
 	}
 
 	if (p->p_ship != SHIP_SPEC)
 	{
-		chat->SendMessage(p, "You must be in spectator mode to offer files");
+		chat->SendMessage(p, "You must be in spectator mode to offer files.");
 		return;
 	}
 
 	if (t->p_ship != SHIP_SPEC)
 	{
-		chat->SendMessage(p, "You must offer files to another player in spectator mode");
+		chat->SendMessage(p, "You must offer files to another player in spectator mode.");
 		return;
 	}
 
@@ -187,7 +187,7 @@ local helptext_t cancelfile_help =
 local void Ccancelfile(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (cancel_files(p))
-		chat->SendMessage(p, "Your file offers have been cancelled.");
+		chat->SendMessage(p, "Your file offers have been canceled.");
 }
 
 local helptext_t acceptfile_help =
