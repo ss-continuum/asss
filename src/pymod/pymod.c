@@ -1750,6 +1750,7 @@ local void init_asss_module(void)
 #define STRING(x) PyModule_AddStringConstant(m, #x, x);
 #define PYCALLBACK(x) PyModule_AddStringConstant(m, #x, x);
 #define PYINTERFACE(x) PyModule_AddStringConstant(m, #x, x);
+#define PYADVISER(x) PyModule_AddStringConstant(m, #x, x);
 #define INT(x) PyModule_AddIntConstant(m, #x, x);
 #define ONE(x) PyModule_AddIntConstant(m, #x, 1);
 #include "py_constants.inc"

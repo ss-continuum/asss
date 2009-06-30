@@ -25,6 +25,13 @@ re_pyint_func = re.compile(r'([ ]{4}|\t)[A-Za-z].*?\(\*([A-Za-z_0-9]*)\)')
 re_pyint_dir = re.compile(r'\s*/\* pyint: (.*?)(\*/)?$')
 re_pyint_done = re.compile(r'^}')
 
+# advisers
+re_pyadv_advdef = re.compile(r'#define (A_[A-Z_0-9]*)')
+re_pyadv_typedef = re.compile(r'typedef struct (A[a-z_0-9]*)')
+re_pyadv_func = re.compile(r'([ ]{4}|\t)[A-Za-z].*?\(\*([A-Za-z_0-9]*)\)')
+re_pyadv_dir = re.compile(r'\s*/\* pyadv: (.*?)(\*/)?$')
+re_pyadv_done = re.compile(r'^}')
+
 # types
 re_pytype = re.compile(r'\s*/\* pytype: (.*) \*/')
 
@@ -45,6 +52,9 @@ def const_callback(n):
 
 def const_interface(n):
 	const_file.write('PYINTERFACE(%s)\n' % n);
+	
+def const_adviser(n):
+	const_file.write('PYADVISER(%s)\n' % n);
 
 
 def tokenize_signature(s):
@@ -1118,6 +1128,265 @@ local void deinit_py_interfaces(void)
 }
 """)
 
+# translating advisers asss<->python
+
+def init_pyadv():
+	out = adv_file
+	out.write("""
+/* pyadv declarations */
+
+local void pyadv_generic_dealloc(pyint_generic_adviser_object *self)
+{
+	mm->UnregAdviser(self->adv);/*TODO i -> adv*/
+	PyObject_Del(self);
+}
+
+""")
+
+pyadv_init_code = []
+
+def translate_pyadv(aid, ifstruct, dirs):
+
+	_, allowed = dirs.pop(0)
+	allowed = map(string.strip, allowed.split(','))
+	if 'use' in allowed:
+
+		objstructname = 'pyadv_obj_%s' % aid
+
+		methods = []
+		methoddecls = []
+		members = []
+		memberdecls = []
+
+		for name, thing in dirs:
+			try:
+				tokens = tokenize_signature(thing)
+				func = parse_func(tokens)
+			except:
+				print "couldn't parse '%s'" % thing
+				continue
+
+			dict = create_py_to_c_func(func)
+			mthdname = 'pyadv_method_%s_%s' % (aid, name)
+			dict.update(vars())
+			mthd = """
+%(extracode)s
+local PyObject *
+%(mthdname)s(%(objstructname)s *me, PyObject *args)
+{
+	PyObject *out;
+%(decls)s
+	if (!PyArg_ParseTuple(args, "%(informat)s"%(inargs)s))
+		return NULL;
+%(extras1)s
+	%(asgntoret)sme->i->%(name)s(%(allargs)s);
+%(extras2)s
+	out = Py_BuildValue("%(outformat)s"%(outargs)s);
+%(extras3)s
+	return out;
+}
+""" % dict
+			methods.append(mthd)
+
+			decl = """\
+	{"%(name)s", (PyCFunction)%(mthdname)s, METH_VARARGS, NULL },
+""" % vars()
+			methoddecls.append(decl)
+
+
+		objstructdecl = """
+typedef struct {
+	PyObject_HEAD
+	%(ifstruct)s *i;
+} %(objstructname)s;
+""" % vars()
+		methoddeclname = 'pyadv_%s_methods' % aid
+		methoddeclstart = """
+local PyMethodDef %(methoddeclname)s[] = {
+""" % vars()
+		methoddeclend = """\
+	{NULL}
+};
+""" % vars()
+		memberdeclname = 'pyadv_%s_members' % aid
+		memberdeclstart = """
+local PyMemberDef %(memberdeclname)s[] = {
+""" % vars()
+		memberdeclend = """\
+	{NULL}
+};
+""" % vars()
+		typestructname = 'pyadv_%s_type' % aid
+		typedecl = """
+local PyTypeObject %(typestructname)s = {
+	PyObject_HEAD_INIT(NULL)
+	0,                         /*ob_size*/
+	"asss.%(ifstruct)s",       /*tp_name*/
+	sizeof(%(objstructname)s), /*tp_basicsize*/
+	0,                         /*tp_itemsize*/
+	(destructor)pyadv_generic_dealloc, /*tp_dealloc*/
+	0,                         /*tp_print*/
+	0,                         /*tp_getattr*/
+	0,                         /*tp_setattr*/
+	0,                         /*tp_compare*/
+	0,                         /*tp_repr*/
+	0,                         /*tp_as_number*/
+	0,                         /*tp_as_sequence*/
+	0,                         /*tp_as_mapping*/
+	0,                         /*tp_hash */
+	0,                         /*tp_call*/
+	0,                         /*tp_str*/
+	0,                         /*tp_getattro*/
+	0,                         /*tp_setattro*/
+	0,                         /*tp_as_buffer*/
+	Py_TPFLAGS_DEFAULT,        /*tp_flags*/
+	0,                         /*tp_doc */
+	0,                         /*tp_traverse */
+	0,                         /*tp_clear */
+	0,                         /*tp_richcompare*/
+	0,                         /*tp_weaklistoffset*/
+	0,                         /*tp_iter*/
+	0,                         /*tp_iternext*/
+	%(methoddeclname)s,        /*tp_methods*/
+	%(memberdeclname)s,        /*tp_members*/
+	/* rest are null */
+};
+""" % vars()
+		doinit = """\
+	if (PyType_Ready(&%(typestructname)s) < 0) return;
+	HashReplace(pyadv_advs, %(aid)s, &%(typestructname)s);
+""" % vars()
+		pyadv_init_code.append(doinit)
+
+		adv_file.write('\n/* using adviser %(aid)s from python {{{ */\n' % vars())
+		adv_file.write(objstructdecl)
+		for m in methods:
+			adv_file.write(m)
+		adv_file.write(methoddeclstart)
+		for m in methoddecls:
+			adv_file.write(m)
+		adv_file.write(methoddeclend)
+		for m in members:
+			adv_file.write(m)
+		adv_file.write(memberdeclstart)
+		for m in memberdecls:
+			adv_file.write(m)
+		adv_file.write(memberdeclend)
+		adv_file.write(typedecl)
+		adv_file.write('\n/* }}} */\n')
+
+	if 'impl' in allowed:
+
+		advisname = 'pyadv_adv_%s' % aid
+
+		funcs = []
+		funcnames = []
+		lastout = None
+
+		for name, thing in dirs:
+			try:
+				tokens = tokenize_signature(thing)
+				func = parse_func(tokens)
+			except:
+				print "bad declaration '%s'" % thing
+				continue
+			funcname = 'pyadv_func_%s_%s' % (aid, name)
+			funcdict = create_c_to_py_func('%s::%s' % (aid, name), func)
+			funcdict.update(vars())
+			code = []
+			code.append("""
+local %(retdecl)s %(funcname)s(%(allargs)s)
+{
+	PyObject *args, *out;
+%(decls)s
+	args = Py_BuildValue("(%(informat)s)"%(inargs)s);
+	if (!args)
+	{
+		log_py_exception(L_ERROR, "python error building args for "
+				"function %(name)s in adviser %(aid)s");
+		return %(defretval)s;
+	}
+	out = call_gen_py_adviser(PYADVPREFIX %(aid)s, "%(name)s", args, %(arenaval)s);
+	if (!out)
+	{
+		log_py_exception(L_ERROR, "python error calling "
+				"function %(name)s in adviser %(aid)s");
+		return %(defretval)s;
+	}
+""")
+			if funcdict['outargs']:
+				code.append("""
+	if (!PyArg_ParseTuple(out, "%(outformat)s"%(outargs)s))
+	{
+		Py_DECREF(out);
+		log_py_exception(L_ERROR, "python error unpacking results of "
+				"function %(name)s in adviser %(aid)s");
+		return %(defretval)s;
+	}
+""")
+			else:
+				code.append("""
+	if (out != Py_None)
+	{
+		Py_DECREF(out);
+		log_py_exception(L_ERROR, "adviser func %(name)s didn't return None as expected");
+		return %(defretval)s;
+	}
+""")
+			code.append("""
+%(extras3)s
+	Py_DECREF(out);
+	return %(retorblank)s;
+}
+""")
+			code = ''.join(code) % funcdict
+			funcs.append(code)
+			funcnames.append(funcname)
+
+		funcnames = ',\n\t'.join(funcnames)
+		ifstructdecl = """
+local struct %(ifstruct)s %(advisname)s = {
+	ADVISER_HEAD_INIT(%(aid)s)
+	%(funcnames)s
+};
+
+""" % vars()
+		init = "\tHashReplace(pyadv_impl_ints, PYADVPREFIX %(aid)s, &%(advisname)s);\n" % vars()
+		pyadv_init_code.append(init)
+
+		adv_file.write('\n/* implementing adviser %(aid)s in python {{{ */\n' % vars())
+		for func in funcs:
+			adv_file.write(func)
+		adv_file.write(ifstructdecl)
+		adv_file.write('\n/* }}} */\n')
+
+
+
+def finish_pyadv():
+	out = adv_file
+	out.write("""
+local HashTable *pyadv_advs;
+local HashTable *pyadv_impl_advs;
+
+local void init_py_advisers(void)
+{
+	pyadv_advs = HashAlloc();
+	pyadv_impl_advs = HashAlloc();
+""")
+	for line in pyadv_init_code:
+		out.write(line)
+	out.write("""\
+}
+
+local void deinit_py_advisers(void)
+{
+""")
+	out.write("""\
+	HashFree(pyadv_advs);
+	HashFree(pyadv_impl_advs);
+}
+""")
+
 
 def handle_pyconst_directive(tp, pat):
 	def clear():
@@ -1256,7 +1525,7 @@ def generate_getset_code(tp):
 	getter = """
 local PyObject * %(getname)s(PyObject *obj, void *v)
 {
-	long offset = (long)v;
+	int offset = (int)v;
 	%(ctype)s *ptr = (%(ctype)s*)(((char*)obj)+offset);
 """ % vars()
 	try:
@@ -1273,7 +1542,7 @@ local PyObject * %(getname)s(PyObject *obj, void *v)
 	setter = """
 local int %(setname)s(PyObject *obj, PyObject *newval, void *v)
 {
-	long offset = (long)v;
+	int offset = (int)v;
 	%(ctype)s *ptr = (%(ctype)s*)(((char*)obj)+offset);
 """ % vars()
 
@@ -1281,7 +1550,7 @@ local int %(setname)s(PyObject *obj, PyObject *newval, void *v)
 		setter = """
 local int %(setname)s(PyObject *obj, PyObject *newval, void *v)
 {
-	long offset = (long)v;
+	int offset = (int)v;
 	int *ptr = (int*)(((char*)obj)+offset);
 """ % vars()
 
@@ -1483,6 +1752,7 @@ prefix = sys.argv[1]
 const_file = open(os.path.join(prefix, 'py_constants.inc'), 'w')
 callback_file = open(os.path.join(prefix, 'py_callbacks.inc'), 'w')
 int_file = open(os.path.join(prefix, 'py_interfaces.inc'), 'w')
+adv_file = open(os.path.join(prefix, 'py_advisers.inc'), 'w')
 type_file = open(os.path.join(prefix, 'py_types.inc'), 'w')
 include_file = open(os.path.join(prefix, 'py_include.inc'), 'w')
 
@@ -1514,12 +1784,15 @@ const_int('TRUE')
 const_int('FALSE')
 
 init_pyint()
+init_pyadv()
 
 extra_patterns = []
 
 # now process file
 intdirs = []
+advdirs = []
 lastfunc = ''
+lastadvfunc = ''
 
 for l in lines:
 	# includes
@@ -1564,7 +1837,28 @@ for l in lines:
 			const_interface(lastintdef)
 			translate_pyint(lastintdef, lasttypedef, intdirs)
 			intdirs = []
-
+			
+	# advisers
+	m = re_pyadv_advdef.match(l)
+	if m:
+		lastadvdef = m.group(1)
+		advdirs = []
+	m = re_pyadv_typedef.match(l)
+	if m:
+		lastadvtypedef = m.group(1)
+	m = re_pyadv_func.match(l)
+	if m:
+		lastadvfunc = m.group(2)
+	m = re_pyadv_dir.match(l)
+	if m:
+		advdirs.append((lastadvfunc, m.group(1)))
+	m = re_pyadv_done.match(l)
+	if m:
+		if advdirs:
+			const_adviser(lastadvdef)
+			translate_pyadv(lastadvdef, lastadvtypedef, advdirs)
+			advdirs = []
+	
 	# types
 	m = re_pytype.match(l)
 	if m:
@@ -1579,5 +1873,6 @@ for l in lines:
 
 finish_pycb()
 finish_pyint()
+finish_pyadv()
 finish_pytype()
 
