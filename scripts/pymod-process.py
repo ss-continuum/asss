@@ -8,7 +8,7 @@ DEFBUFLEN = 1024
 # lots of precompiled regular expressions
 
 # include directives
-re_pyinclude = re.compile(r'\s*/\* pyinclude: (.*?)(\*/)?$')
+re_pyinclude = re.compile(r'\s*/\* pyinclude: (.*) \*/')
 
 # constants
 re_pyconst_dir = re.compile(r'\s*/\* pyconst: (.*), "(.*)" \*/')
@@ -239,6 +239,10 @@ class type_zstring(type_string):
 	def format_char(me):
 		return 'z'
 
+class type_retstring(type_string):
+	def format_char(me):
+		return 's#'
+
 class type_player(type_gen):
 	def format_char(me):
 		return 'O&'
@@ -344,6 +348,23 @@ def create_c_to_py_func(name, func):
 		retorblank = ''
 		rettype = type_void()
 		defretval = ''
+	elif out.tp == 'retstring':
+		assert not out.flags
+		typ = get_type(out.tp)
+		argname = 'tmp'
+		decls.append('\tconst char *tmp;')
+		decls.append('\tint buflen;')
+		decls.append('\tchar *ret;')
+		outformat.append("s#")
+		outargs.append('&tmp')
+		outargs.append('&buflen')
+		retorblank = 'ret'
+		rettype = typ
+		defretval = 'NULL'
+		extras3.append('\tif(buflen != 0)\n\t{')
+		extras3.append('\t\tbuflen++;')		
+		extras3.append('\t\tret = amalloc(sizeof(char) * buflen);')
+		extras3.append('\t\tastrncpy(ret, tmp, buflen);\n\t}')		
 	else:
 		assert not out.flags
 		typ = get_type(out.tp)
@@ -1235,7 +1256,7 @@ def generate_getset_code(tp):
 	getter = """
 local PyObject * %(getname)s(PyObject *obj, void *v)
 {
-	int offset = (int)v;
+	long offset = (long)v;
 	%(ctype)s *ptr = (%(ctype)s*)(((char*)obj)+offset);
 """ % vars()
 	try:
@@ -1252,7 +1273,7 @@ local PyObject * %(getname)s(PyObject *obj, void *v)
 	setter = """
 local int %(setname)s(PyObject *obj, PyObject *newval, void *v)
 {
-	int offset = (int)v;
+	long offset = (long)v;
 	%(ctype)s *ptr = (%(ctype)s*)(((char*)obj)+offset);
 """ % vars()
 
@@ -1260,7 +1281,7 @@ local int %(setname)s(PyObject *obj, PyObject *newval, void *v)
 		setter = """
 local int %(setname)s(PyObject *obj, PyObject *newval, void *v)
 {
-	int offset = (int)v;
+	long offset = (long)v;
 	int *ptr = (int*)(((char*)obj)+offset);
 """ % vars()
 

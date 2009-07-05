@@ -23,6 +23,7 @@ local Imainloop *ml;
 local Ilogman *lm;
 local Iarenaman *aman;
 local Iclientset *clientset;
+local Iplayerdata *pd;
 
 local int adkey;
 local override_key_t override_flag_carryflags;
@@ -54,7 +55,6 @@ local void check_consistency(void)
 	adata *ad;
 	Link *link;
 	int i, *count;
-	Iplayerdata *pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 	int pdkey = pd->AllocatePlayerData(sizeof(int));
 
 	LOCK();
@@ -76,7 +76,6 @@ local void check_consistency(void)
 	UNLOCK();
 
 	pd->FreePlayerData(pdkey);
-	mm->ReleaseInterface(pd);
 #endif
 }
 
@@ -459,15 +458,16 @@ local void newplayer(Player *p, int new)
 	check_consistency();
 }
 
-local void shipchange(Player *p, int newship, int newfreq)
+local void shipfreqchange(Player *p, int newship, int oldship, int newfreq, int oldfreq)
 {
-	cleanup(p, p->arena, CLEANUP_SHIPCHANGE);
-	check_consistency();
-}
-
-local void freqchange(Player *p, int newfreq)
-{
-	cleanup(p, p->arena, CLEANUP_FREQCHANGE);
+	if (newship == oldship)
+	{
+		cleanup(p, p->arena, CLEANUP_FREQCHANGE);
+	}
+	else
+	{
+		cleanup(p, p->arena, CLEANUP_SHIPCHANGE);
+	}
 	check_consistency();
 }
 
@@ -741,6 +741,36 @@ local void FlagReset(Arena *a, int freq, int points)
 	check_consistency();
 	UNLOCK();
 
+	/* now that we're outside of the flagcore lock, we can safely perform this check. */
+	if (freq != -1 && ad->carrymode != CARRY_NONE)
+	{
+		/* determine which players have been effectively shipreset by this flag reset,
+		 * update their is_dead flags and invoke CB_SPAWN. */
+		Link *link;
+		Player *p;
+		pd->Lock();
+		FOR_EACH_PLAYER_IN_ARENA(p, a)
+		{
+			int flags;
+
+			if (p->p_freq != freq)
+				continue;
+			if (p->p_ship == SHIP_SPEC)
+				continue;
+
+			flags = SPAWN_FLAGVICTORY | SPAWN_SHIPRESET;
+
+			if (p->flags.is_dead)
+			{
+				p->flags.is_dead = 0;
+				flags |= SPAWN_AFTERDEATH;
+			}
+
+			DO_CBS(CB_SPAWN, a, SpawnFunc, (p, flags));
+		}
+		pd->Unlock();
+	}
+
 	if (endinterval)
 	{
 		/* note that this is being done after the CB_FLAGRESET
@@ -829,8 +859,9 @@ EXPORT int MM_flagcore(int action, Imodman *mm_, Arena *a)
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		clientset = mm->GetInterface(I_CLIENTSET, ALLARENAS);
+		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 
-		if (!net || !ml || !lm || !aman || !clientset)
+		if (!net || !ml || !lm || !aman || !clientset || !pd)
 			return MM_FAIL;
 
 		adkey = aman->AllocateArenaData(sizeof(adata));
@@ -851,8 +882,7 @@ EXPORT int MM_flagcore(int action, Imodman *mm_, Arena *a)
 		mm->RegCallback(CB_PLAYERACTION, paction, ALLARENAS);
 		mm->RegCallback(CB_NEWPLAYER, newplayer, ALLARENAS);
 		mm->RegCallback(CB_ARENAACTION, aaction, ALLARENAS);
-		mm->RegCallback(CB_SHIPCHANGE, shipchange, ALLARENAS);
-		mm->RegCallback(CB_FREQCHANGE, freqchange, ALLARENAS);
+		mm->RegCallback(CB_SHIPFREQCHANGE, shipfreqchange, ALLARENAS);
 		mm->RegCallback(CB_KILL_POST_NOTIFY, mykill, ALLARENAS);
 
 		mm->RegInterface(&flagint, ALLARENAS);
@@ -869,8 +899,7 @@ EXPORT int MM_flagcore(int action, Imodman *mm_, Arena *a)
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
 		mm->UnregCallback(CB_NEWPLAYER, newplayer, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
-		mm->UnregCallback(CB_SHIPCHANGE, shipchange, ALLARENAS);
-		mm->UnregCallback(CB_FREQCHANGE, freqchange, ALLARENAS);
+		mm->UnregCallback(CB_SHIPFREQCHANGE, shipfreqchange, ALLARENAS);
 		mm->UnregCallback(CB_KILL_POST_NOTIFY, mykill, ALLARENAS);
 
 		net->RemovePacket(C2S_PICKUPFLAG, p_flagtouch);
@@ -886,6 +915,7 @@ EXPORT int MM_flagcore(int action, Imodman *mm_, Arena *a)
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(clientset);
+		mm->ReleaseInterface(pd);
 
 		return MM_OK;
 	}

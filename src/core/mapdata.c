@@ -17,7 +17,7 @@
 #define METADATA_MAGIC 0x6c766c65
 #define MAX_CHUNK_SIZE (128*1024)
 
-#pragma pack(1)
+#pragma pack(push, 1)
 
 /* some structs */
 typedef struct chunk
@@ -1006,3 +1006,4 @@ EXPORT int MM_mapdata(int action, Imodman *mm_, Arena *arena)
 	return MM_FAIL;
 }
 
+#pragma pack(pop)

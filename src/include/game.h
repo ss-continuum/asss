@@ -35,26 +35,41 @@ typedef void (*KillFunc)(Arena *arena, Player *killer, Player *killed,
 #define CB_KILL_POST_NOTIFY "killpostnotify-2"
 
 
-/** this callback is called when a player changes his freq (but stays in
- * the same ship). */
-#define CB_FREQCHANGE "freqchange"
-/** the type of CB_FREQCHANGE
- * @param p the player changing freq
- * @param newfreq the freq he's changing to
+/** this callback is to be called when a player changes ship or freq. */
+#define CB_SHIPFREQCHANGE "shipfreqchange"
+/* the type of CB_SHIPFREQCHANGE
+ * @param p the player changing ship or freq
+ * @param newship the player's new ship number
+ * @param oldship the player's old ship number
+ * @param newfreq the player's new frequency
+ * @param oldfreq the player's old frequency
  */
-typedef void (*FreqChangeFunc)(Player *p, int newfreq);
+typedef void (*ShipFreqChangeFunc)(Player *p, int newship, int oldship, int newfreq, int oldfreq);
+/* pycb: player, int, int, int, int */
+
+
+/** this callback will be called when the player respawns after dying, or enters the game.
+ * 'reason' is a bitwise combination of the applicable SPAWN_ values, so use something like
+ * (reason & SPAWN_SHIPRESET) to check, rather than ==. */
+#define CB_SPAWN "spawn"
+/** the type of CB_SPAWN
+ * @param p the player who has spawned
+ * @param reason a bitwise combination of applicable SPAWN_ values
+ */
+typedef void (*SpawnFunc)(Player *p, int reason);
 /* pycb: player, int */
 
-
-/** this callback is be called when a player changes ship. */
-#define CB_SHIPCHANGE "shipchange"
-/** the type of CB_SHIPCHANGE
- * @param p the player changing ship/freq
- * @param newship the ship he's changing to
- * @param newfreq the freq he's changing to
- */
-typedef void (*ShipChangeFunc)(Player *p, int newship, int newfreq);
-/* pycb: player, int, int */
+/* pyconst: define int, "SPAWN_*" */
+/* the player died and is respawning now */
+#define SPAWN_AFTERDEATH 1
+/* a shipreset or similar functionality was applied on the user */
+#define SPAWN_SHIPRESET 2
+/* a flag victory triggered this spawn */
+#define SPAWN_FLAGVICTORY 4
+/* changing ships triggered this spawn */
+#define SPAWN_SHIPCHANGE 8
+/* this is the first spawn since leaving spec, or entering the arena */
+#define SPAWN_INITIAL 16
 
 
 /** this callback called when the game timer expires. */
@@ -114,15 +129,44 @@ typedef void (*GreenFunc)(Player *p, int x, int y, int prize);
 typedef void (*AttachFunc)(Player *p, Player *to);
 /* pycb: player, player */
 
-/** this callback is called before a position packet is sent to all players. */
-#define CB_EDITPPK "editppk-1"
-typedef void (*EditPPKFunc)(Player *p, struct C2SPosition *pos);
+/** this calllback is called whenever a position packet is handled.
+ * Note that this callback is not called for spectators.*/
+#define CB_PPK "cbppk-1"
+/** the type of CB_PPK
+ * @param p the player that the position packet belongs to
+ * @param pos the position packet
+ */
+typedef void (*PPKFunc)(Player *p, const struct C2SPosition *pos);
 
-/** this callback is called before a position packet is send to an individual player. */
-#define CB_EDITINDIVIDALPPK "editindppk-1"
-typedef void (*EditPPKIndivdualFunc)(Player *p, Player *t, struct C2SPosition *pos, int *modified, int *extralen);
 
 enum { ENERGY_SEE_NONE, ENERGY_SEE_ALL, ENERGY_SEE_TEAM, ENERGY_SEE_SPEC };
+
+
+#define A_PPK "ppk-1"
+
+/** the position packet adviser struct */
+typedef struct Appk
+{
+	ADVISER_HEAD_DECL
+
+	/** Modifies a player's position packet before it is sent out.
+	 * The adviser may edit the packet, but should not rely on
+	 * this function for notification, as other advisers may be
+	 * consulted. Instead the CB_PPK callback should be used for 
+	 * notification.
+	 * @param p the player that the position packet belongs to
+	 * @param pos a pointer to the position packet
+	 */
+	void (*EditPPK)(Player *p, struct C2SPosition *pos);
+	/** Modifies a player's position packet before it is sent to a specific player.
+	 * @param p the player that the position packet belongs to
+	 * @param t the player that the position packet will be sent to
+	 * @param pos a pointer to the position packet
+	 * @param extralen the extra length of the position packet (0 = none, 2 = energy, 10 = epd)
+	 * @return TRUE if this function modified the packet, FALSE otherwise
+	 */
+	int (*EditIndividualPPK)(Player *p, Player *t, struct C2SPosition *pos, int *extralen);
+} Appk;
 
 /** the game interface id */
 #define I_GAME "game-8"
@@ -158,7 +202,7 @@ typedef struct Igame
 	 * @param ship the ship to change to
 	 * @param freq the freq to change to
 	 */
-	void (*SetFreqAndShip)(Player *p, int ship, int freq);
+	void (*SetShipAndFreq)(Player *p, int ship, int freq);
 	/* pyint: player, int, int -> void */
 
 	/** Moves a set of playes to a specific location.

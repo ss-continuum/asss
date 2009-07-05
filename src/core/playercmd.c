@@ -212,6 +212,234 @@ local void Cballcount(const char *tc, const char *params, Player *p, const Targe
 }
 
 
+local helptext_t giveball_help =
+"Targets: player or none\n"
+"Args: [{-f}] [<ballid>]\n"
+"Moves the specified ball to you, or to target player. "
+"If no ball is specified, ball id 0 is assumed.\n"
+"If -f is specified, the ball is forced onto the player and there will be no shot timer, "
+"and if the player is already carrying a ball it will be dropped where they are standing.\n"
+"If -f is not specified, then the ball is simply moved underneath a player for him to pick up, "
+"but any balls already carried are not dropped.\n";
+local void Cgiveball(const char *tc, const char *params, Player *p, const Target *target)
+{
+	if (p->arena)
+	{
+		int force = FALSE;
+		ArenaBallData *abd = balls->GetBallData(p->arena);
+		const char *t = params;
+
+		if (0 == strncmp(t, "-f", 2))
+		{
+			force = TRUE;
+			t += 2;
+			while (isspace(*t)) t++;
+		}
+
+		int bid = atoi(t);
+		if (bid < 0)
+		{
+			chat->SendMessage(p, "Invalid ball ID.");
+		}
+		else if (bid >= abd->ballcount)
+		{
+			chat->SendMessage(p, "Ball %d doesn't exist. Use ?ballcount to add more balls to the arena.", bid);
+		}
+		else
+		{
+			int i;
+			Player *t = (target->type == T_PLAYER) ? (target->u.p) : p;
+
+			if (t->p_ship == SHIP_SPEC)
+			{
+				if (t == p)
+					chat->SendMessage(p, "You are in spec.");
+				else
+					chat->SendMessage(p, "%s is in spec.", t->name);
+			}
+			else if (t->arena != p->arena || t->status != S_PLAYING)
+			{
+				chat->SendMessage(p, "%s is not in this arena.", t->name);
+			}
+			else
+			{
+				struct BallData newbd;
+				newbd.state = BALL_ONMAP;
+				newbd.carrier = 0;
+				newbd.freq = -1;
+				newbd.xspeed = newbd.yspeed = 0;
+				newbd.x = t->position.x;
+				newbd.y = t->position.y;
+				newbd.time = current_ticks();
+
+				if (force)
+				{
+					for (i = 0; i < abd->ballcount; ++i)
+					{
+						struct BallData *bd = abd->balls + i;
+						if (bd->carrier == t && bd->state == BALL_CARRIED)
+						{
+							balls->PlaceBall(p->arena, i, &newbd);
+						}
+					}
+
+					newbd.state = BALL_CARRIED;
+					newbd.carrier = t;
+					newbd.freq = t->p_freq;
+					newbd.time = 0;
+				}
+				balls->PlaceBall(p->arena, bid, &newbd);
+
+				if (t != p)
+					chat->SendMessage(p, "Gave ball %d to %s.", bid, t->name);
+			}
+		}
+		balls->ReleaseBallData(p->arena);
+	}
+}
+
+
+local helptext_t moveball_help =
+"Targets: none\n"
+"Args: <ballid> <xtile> <ytile>\n"
+"Moves the specified ball to the specified coordinates.\n";
+local void Cmoveball(const char *tc, const char *params, Player *p, const Target *target)
+{
+	if (p->arena)
+	{
+		char *next, *next2;
+		ArenaBallData *abd = balls->GetBallData(p->arena);
+		int bid = strtol(params, &next, 0);
+
+		if (bid < 0 || next == params)
+		{
+			chat->SendMessage(p, "Invalid ball ID.");
+		}
+		else if (bid >= abd->ballcount)
+		{
+			chat->SendMessage(p, "Ball %d doesn't exist. Use ?ballcount to add more balls to the arena.", bid);
+		}
+		else
+		{
+			struct BallData newbd;
+			int x, y;
+			int proceed = TRUE;
+			x = strtol(next, &next2, 0);
+			if (next == next2 || x < 0 || x >= 1024)
+			{
+				chat->SendMessage(p, "Invalid X coordinate.");
+				proceed = FALSE;
+			}
+			else
+			{
+				while (*next2 == ',' || *next2 == ' ') next2++;
+				y = strtol(next2, &next, 0);
+				if (next == next2 || y < 0 || y >= 1024)
+				{
+					chat->SendMessage(p, "Invalid Y coordinate.");
+					proceed = FALSE;
+				}
+			}
+
+			if (proceed)
+			{
+				newbd.state = BALL_ONMAP;
+				newbd.carrier = NULL;
+				newbd.freq = -1;
+				newbd.xspeed = newbd.yspeed = 0;
+				newbd.x = (x << 4) + 8;
+				newbd.y = (y << 4) + 8;
+				newbd.time = current_ticks();
+
+				balls->PlaceBall(p->arena, bid, &newbd);
+				chat->SendMessage(p, "Moved ball %d to (%d,%d).", bid, x, y);
+			}
+		}
+		balls->ReleaseBallData(p->arena);
+	}
+}
+
+
+local helptext_t spawnball_help =
+"Targets: none\n"
+"Args: [<ballid>]\n"
+"Resets the specified existing ball back to its spawn location.\n"
+"If no ball is specified, ball id 0 is assumed.\n";
+local void Cspawnball(const char *tc, const char *params, Player *p, const Target *target)
+{
+	if (p->arena)
+	{
+		int bid = atoi(params);
+		ArenaBallData *abd = balls->GetBallData(p->arena);
+
+		if (bid < 0)
+		{
+			chat->SendMessage(p, "Invalid ball ID.");
+		}
+		else if (bid >= abd->ballcount)
+		{
+			chat->SendMessage(p, "Ball %d doesn't exist. Use ?ballcount to add more balls to the arena.", bid);
+		}
+		else
+		{
+			balls->SpawnBall(p->arena, bid);
+			chat->SendMessage(p, "Respawned ball %d.", bid);
+		}
+
+		balls->ReleaseBallData(p->arena);
+	}
+}
+
+
+local helptext_t ballinfo_help =
+"Targets: none\n"
+"Args: none\n"
+"Displays the last known position of balls, as well as the player\n"
+"who is carrying it or who fired it, if applicable.\n";
+local void Cballinfo(const char *tc, const char *params, Player *p, const Target *target)
+{
+	int i;
+
+	if (p->arena)
+	{
+		ArenaBallData *abd = balls->GetBallData(p->arena);
+		for (i = 0; i < abd->ballcount; ++i)
+		{
+			struct BallData *bd = abd->balls + i;
+			unsigned short x = (bd->x >> 4) * 20 / 1024;
+			unsigned short y = (bd->y >> 4) * 20 / 1024;
+
+			switch (bd->state)
+			{
+			case BALL_ONMAP:
+				if (bd->carrier)
+				{
+					chat->SendMessage(p,
+						"ball %d: shot by %s (freq %d) from %c%d (%d,%d)",
+						i, bd->carrier->name, bd->freq, 'A'+x, y+1, bd->x>>4, bd->y>>4);
+				}
+				else
+				{
+					chat->SendMessage(p,
+						"ball %d: on map (freq %d) %s at %c%d (%d,%d)",
+						i, bd->freq, (bd->xspeed||bd->yspeed)?"last seen":"still", 'A'+x, y+1, bd->x>>4, bd->y>>4);
+				}
+				break;
+			case BALL_CARRIED:
+				chat->SendMessage(p,
+					"ball %d: carried by %s (freq %d) at %c%d (%d,%d)",
+					i, bd->carrier->name, bd->freq, 'A'+x, y+1, p->position.x>>4, p->position.y>>4);
+				break;
+			case BALL_WAITING:
+				chat->SendMessage(p, "ball %d: waiting to be respawned", i);
+			default:
+				break;
+			}
+		}
+		balls->ReleaseBallData(p->arena);
+	}
+}
+
 local helptext_t setfreq_help =
 "Targets: player, freq, or arena\n"
 "Args: [{-f}] <freq number>\n"
@@ -396,7 +624,14 @@ local void Cowner(const char *tc, const char *params, Player *p, const Target *t
 {
 	const char *owner = cfg->GetStr(p->arena->cfg, "Owner", "Name");
 
-	chat->SendMessage(p, "arena owner: %s", owner ? owner : "(none)");
+	if (owner)
+	{
+		chat->SendMessage(p, "This arena is owned by %s.", owner);
+	}
+	else
+	{
+		chat->SendMessage(p, "This arena has no listed owner.");
+	}
 }
 
 
@@ -408,7 +643,7 @@ local helptext_t zone_help =
 local void Czone(const char *tc, const char *params, Player *p, const Target *target)
 {
 	const char *zone = cfg->GetStr(GLOBAL, "Billing", "ServerName");
-	chat->SendMessage(p, "zone: %s", zone ? zone : "(none)");
+	chat->SendMessage(p, "Zone: %s.", zone ? zone : "(none)");
 }
 
 
@@ -420,13 +655,13 @@ local helptext_t version_help =
 
 local void Cversion(const char *tc, const char *params, Player *p, const Target *target)
 {
-	chat->SendMessage(p, "asss %s built on %s", ASSSVERSION, BUILDDATE);
+	chat->SendMessage(p, "ASSS %s built on %s", ASSSVERSION, BUILDDATE);
 #ifdef CFG_EXTRA_VERSION_INFO
 #ifndef WIN32
 	{
 		struct utsname un;
 		uname(&un);
-		chat->SendMessage(p, "running on %s %s, host: %s, machine: %s",
+		chat->SendMessage(p, "Running on %s %s, host: %s, machine: %s",
 				un.sysname, un.release, un.nodename, un.machine);
 	}
 #else
@@ -441,11 +676,11 @@ local void Cversion(const char *tc, const char *params, Player *p, const Target 
 		len = MAX_COMPUTERNAME_LENGTH + 1;
 		GetComputerName(name, &len);
 
-		chat->SendMessage(p, "running on %s %s (version %d.%d.%d), host: %s",
+		chat->SendMessage(p, "Running on %s %s (version %d.%d.%d), host: %s",
 			vi.dwPlatformId == VER_PLATFORM_WIN32s ? "Windows 3.11" :
 				vi.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS ?
 					(vi.dwMinorVersion == 0 ? "Windows 95" : "Windows 98") :
-				vi.dwPlatformId == VER_PLATFORM_WIN32_NT ? "Windows NT" : "Unknown",
+				vi.dwPlatformId == VER_PLATFORM_WIN32_NT ? "Windows NT" : "Windows",
 			vi.szCSDVersion,
 			vi.dwMajorVersion, vi.dwMinorVersion,
 			vi.dwBuildNumber,
@@ -540,7 +775,7 @@ local void Cmodinfo(const char *tc, const char *params, Player *p, const Target 
 	const char *info = mm->GetModuleInfo(params);
 	const char *loader = mm->GetModuleLoader(params);
 	if (!info && !loader)
-		chat->SendMessage(p, "No information for module '%s'", params);
+		chat->SendMessage(p, "No information available for module '%s'.", params);
 	else
 	{
 		const char *tmp = NULL, *prefix = "Info: ";
@@ -569,9 +804,9 @@ local void Cinsmod(const char *tc, const char *params, Player *p, const Target *
 	int ret;
 	ret = mm->LoadModule(params);
 	if (ret == MM_OK)
-		chat->SendMessage(p, "Module %s loaded successfully", params);
+		chat->SendMessage(p, "Module %s loaded successfully.", params);
 	else
-		chat->SendMessage(p, "Loading module %s failed", params);
+		chat->SendMessage(p, "Loading module %s failed.", params);
 }
 #endif
 
@@ -586,9 +821,9 @@ local void Crmmod(const char *tc, const char *params, Player *p, const Target *t
 	int ret;
 	ret = mm->UnloadModule(params);
 	if (ret == MM_OK)
-		chat->SendMessage(p, "Module %s unloaded successfully", params);
+		chat->SendMessage(p, "Module %s unloaded successfully.", params);
 	else
-		chat->SendMessage(p, "Unloading module %s failed", params);
+		chat->SendMessage(p, "Unloading module %s failed.", params);
 }
 
 
@@ -688,14 +923,14 @@ local helptext_t getgroup_help =
 local void Cgetgroup(const char *tc, const char *params, Player *p, const Target *target)
 {
 	if (target->type == T_PLAYER)
-		chat->SendMessage(p, "%s is in group %s",
+		chat->SendMessage(p, "%s is in group %s.",
 				target->u.p->name,
 				groupman->GetGroup(target->u.p));
 	else if (target->type == T_ARENA)
-		chat->SendMessage(p, "You are in group %s",
+		chat->SendMessage(p, "You are in group %s.",
 				groupman->GetGroup(p));
 	else
-		chat->SendMessage(p, "Bad target");
+		chat->SendMessage(p, "Bad target!");
 }
 
 
@@ -763,17 +998,17 @@ local void Csetgroup(const char *tc, const char *params, Player *p, const Target
 		RemoveCRLF(info);
 
 		groupman->SetPermGroup(t, params, global, info);
-		chat->SendMessage(p, "%s is now in group %s",
+		chat->SendMessage(p, "%s is now in group %s.",
 				t->name, params);
-		chat->SendMessage(t, "You have been assigned to group %s by %s",
+		chat->SendMessage(t, "You have been assigned to group %s by %s.",
 				params, p->name);
 	}
 	else
 	{
 		groupman->SetTempGroup(t, params);
-		chat->SendMessage(p, "%s is now temporarily in group %s",
+		chat->SendMessage(p, "%s is now temporarily in group %s.",
 				t->name, params);
-		chat->SendMessage(t, "You have temporarily been assigned to group %s by %s",
+		chat->SendMessage(t, "You have temporarily been assigned to group %s by %s.",
 				params, p->name);
 	}
 }
@@ -814,7 +1049,7 @@ local void Crmgroup(const char *tc, const char *params, Player *p, const Target 
 		return;
 	}
 
-	chat->SendMessage(p, "%s has been removed from group %s", t->name, grp);
+	chat->SendMessage(p, "%s has been removed from group %s.", t->name, grp);
 	chat->SendMessage(t, "You have been removed group %s.", grp);
 
 	snprintf(info, sizeof(info), "set by %s on ", p->name);
@@ -839,14 +1074,14 @@ local void Cgrplogin(const char *tc, const char *params, Player *p, const Target
 
 	pw = delimcpy(grp, params, MAXGROUPLEN, ' ');
 	if (grp[0] == '\0' || pw == NULL)
-		chat->SendMessage(p, "You must specify a group name and password");
+		chat->SendMessage(p, "You must specify a group name and password.");
 	else if (groupman->CheckGroupPassword(grp, pw))
 	{
 		groupman->SetTempGroup(p, grp);
-		chat->SendMessage(p, "You are now in group %s", grp);
+		chat->SendMessage(p, "You are now in group %s.", grp);
 	}
 	else
-		chat->SendMessage(p, "Bad password for group %s", grp);
+		chat->SendMessage(p, "Bad password for group %s.", grp);
 }
 
 
@@ -1034,10 +1269,10 @@ local helptext_t setcm_help =
 "Args: see description\n"
 "Modifies the chat mask for the target player, or if no target, for the\n"
 "current arena. The arguments must all be of the form\n"
-"{(-|+)(pub|pubmacro|freq|nmefreq|priv|chat|modchat|all)} or {-time <seconds>}.\n"
+"{(-|+)(pub|pubmacro|freq|nmefreq|priv|chat|modchat|all)} or {-t <seconds>}.\n"
 "A minus sign and then a word disables that type of chat, and a plus sign\n"
 "enables it. The special type {all} means to apply the plus or minus to\n"
-"all of the above types. {-time} lets you specify a timeout in seconds.\n"
+"all of the above types. {-t} lets you specify a timeout in seconds.\n"
 "The mask will be effective for that time, even across logouts.\n"
 "\n"
 "Examples:\n"
@@ -1063,7 +1298,7 @@ local void Csetcm(const char *tc, const char *params, Player *p, const Target *t
 		mask = chat->GetPlayerChatMask(target->u.p);
 	else
 	{
-		chat->SendMessage(p, "setcm: Bad target");
+		chat->SendMessage(p, "Bad target!");
 		return;
 	}
 
@@ -1100,6 +1335,8 @@ local void Csetcm(const char *tc, const char *params, Player *p, const Target *t
 
 		if (!strncasecmp(c, "time", 4))
 			timeout = strtol(c+4, NULL, 0);
+		else if (!strncasecmp(c, "t", 1))
+			timeout = strtol(c+1, NULL, 0);
 
 		/* change it */
 		if (c[-1] == '+')
@@ -1110,9 +1347,36 @@ local void Csetcm(const char *tc, const char *params, Player *p, const Target *t
 
 	/* and install it back where it came from */
 	if (target->type == T_ARENA)
+	{
 		chat->SetArenaChatMask(target->u.arena, mask);
+		chat->SendMessage(p,
+				"Arena %s: %cpub %cpubmacro %cfreq %cnmefreq %cpriv %cchat %cmodchat",
+				target->u.arena->name,
+				IS_RESTRICTED(mask, MSG_PUB) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_PUBMACRO) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_FREQ) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_NMEFREQ) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_PRIV) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_CHAT) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_MODCHAT) ? '-' : '+'
+				);
+	}
 	else
+	{
 		chat->SetPlayerChatMask(target->u.p, mask, timeout);
+		chat->SendMessage(p,
+				"%s: %cpub %cpubmacro %cfreq %cnmefreq %cpriv %cchat %cmodchat -t %d",
+				target->u.p->name,
+				IS_RESTRICTED(mask, MSG_PUB) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_PUBMACRO) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_FREQ) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_NMEFREQ) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_PRIV) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_CHAT) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_MODCHAT) ? '-' : '+',
+				timeout
+				);
+	}
 }
 
 local helptext_t getcm_help =
@@ -1127,25 +1391,41 @@ local void Cgetcm(const char *tc, const char *params, Player *p, const Target *t
 	chat_mask_t mask;
 
 	if (target->type == T_ARENA)
+	{
 		mask = chat->GetArenaChatMask(target->u.arena);
+		chat->SendMessage(p,
+				"Arena %s: %cpub %cpubmacro %cfreq %cnmefreq %cpriv %cchat %cmodchat",
+				target->u.arena->name,
+				IS_RESTRICTED(mask, MSG_PUB) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_PUBMACRO) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_FREQ) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_NMEFREQ) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_PRIV) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_CHAT) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_MODCHAT) ? '-' : '+'
+				);
+	}
 	else if (target->type == T_PLAYER)
+	{
 		mask = chat->GetPlayerChatMask(target->u.p);
+		chat->SendMessage(p,
+				"%s: %cpub %cpubmacro %cfreq %cnmefreq %cpriv %cchat %cmodchat -t %d",
+				target->u.p->name,
+				IS_RESTRICTED(mask, MSG_PUB) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_PUBMACRO) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_FREQ) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_NMEFREQ) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_PRIV) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_CHAT) ? '-' : '+',
+				IS_RESTRICTED(mask, MSG_MODCHAT) ? '-' : '+',
+				chat->GetPlayerChatMaskTime(target->u.p)
+				);
+	}
 	else
 	{
-		chat->SendMessage(p, "getcm: Bad target");
+		chat->SendMessage(p, "Bad target!");
 		return;
 	}
-
-	chat->SendMessage(p,
-			"getcm: %cpub %cpubmacro %cfreq %cnmefreq %cpriv %cchat %cmodchat",
-			IS_RESTRICTED(mask, MSG_PUB) ? '-' : '+',
-			IS_RESTRICTED(mask, MSG_PUBMACRO) ? '-' : '+',
-			IS_RESTRICTED(mask, MSG_FREQ) ? '-' : '+',
-			IS_RESTRICTED(mask, MSG_NMEFREQ) ? '-' : '+',
-			IS_RESTRICTED(mask, MSG_PRIV) ? '-' : '+',
-			IS_RESTRICTED(mask, MSG_CHAT) ? '-' : '+',
-			IS_RESTRICTED(mask, MSG_MODCHAT) ? '-' : '+'
-			);
 }
 
 
@@ -1228,7 +1508,7 @@ local void Cwarn(const char *tc, const char *params, Player *p, const Target *ta
 					SOUND_BEEP1, NULL, "WARNING: %s",
 					params);
 		}
-		chat->SendMessage(p, "Player warned");
+		chat->SendMessage(p, "Player warned.");
 	}
 }
 
@@ -1248,7 +1528,7 @@ local void Creply(const char *tc, const char *params, Player *p, const Target *t
 		Link link = { NULL, target->u.p };
 		LinkedList lst = { &link, &link };
 		chat->SendAnyMessage(&lst, MSG_PRIV, 0, p, "%s", params);
-		chat->SendMessage(p, "Private message sent to player");
+		chat->SendMessage(p, "Private message sent to player.");
 	}
 }
 
@@ -1348,7 +1628,7 @@ local void Cspecall(const char *tc, const char *params, Player *p, const Target 
 
 	pd->TargetToSet(target, &set);
 	for (l = LLGetHead(&set); l; l = l->next)
-		game->SetFreqAndShip(l->data, SHIP_SPEC, arena->specfreq);
+		game->SetShipAndFreq(l->data, SHIP_SPEC, arena->specfreq);
 	LLEmpty(&set);
 }
 
@@ -1372,7 +1652,7 @@ local void Cget_generic(const char *tc, const char *params, Player *p, const Tar
 	if (res)
 		chat->SendMessage(p, "%s=%s", params, res);
 	else
-		chat->SendMessage(p, "%s not found", params);
+		chat->SendMessage(p, "%s not found.", params);
 }
 
 local helptext_t seta_help =
@@ -1658,7 +1938,7 @@ local void Cneutflag(const char *tc, const char *params, Player *p, const Target
 	if (next == params ||
 	    (n = flagcore->GetFlags(arena, flagid, &fi, 1)) != 1)
 	{
-		chat->SendMessage(p, "neutflag: bad flag id");
+		chat->SendMessage(p, "Bad flag id!");
 		return;
 	}
 
@@ -1671,7 +1951,7 @@ local void Cneutflag(const char *tc, const char *params, Player *p, const Target
 		flagcore->SetFlags(arena, flagid, &fi, 1);
 	}
 	else
-		chat->SendMessage(p, "neutflag: that flag isn't currently on the map");
+		chat->SendMessage(p, "That flag isn't currently on the map!");
 }
 
 
@@ -1693,20 +1973,20 @@ local void Cmoveflag(const char *tc, const char *params, Player *p, const Target
 	if (next == params ||
 	    (n = flagcore->GetFlags(arena, flagid, &fi, 1)) != 1)
 	{
-		chat->SendMessage(p, "moveflag: bad flag id");
+		chat->SendMessage(p, "Bad flag id!");
 		return;
 	}
 
 	if (fi.state != FI_ONMAP)
 	{
-		chat->SendMessage(p, "moveflag: flag %d isn't on the map", flagid);
+		chat->SendMessage(p, "Flag %d isn't on the map!", flagid);
 		return;
 	}
 
 	fi.freq = strtol(next, &next2, 0);
 	if (next == next2 || fi.freq < 0 || fi.freq > 9999)
 	{
-		chat->SendMessage(p, "moveflag: bad freq");
+		chat->SendMessage(p, "Bad freq!");
 		return;
 	}
 
@@ -1795,12 +2075,12 @@ local void Cjackpot(const char *tc, const char *params, Player *p, const Target 
 	{
 		Arena *arena = aman->FindArena(params, NULL, NULL);
 		if (arena)
-			chat->SendMessage(p, "jackpot in %s: %d", arena->name, jackpot->GetJP(arena));
+			chat->SendMessage(p, "The jackpot in %s is %d.", arena->name, jackpot->GetJP(arena));
 		else
-			chat->SendMessage(p, "arena '%s' doesn't exist", params);
+			chat->SendMessage(p, "Arena '%s' doesn't exist.", params);
 	}
 	else
-		chat->SendMessage(p, "jackpot: %d", jackpot->GetJP(p->arena));
+		chat->SendMessage(p, "The jackpot is %d.", jackpot->GetJP(p->arena));
 }
 
 
@@ -1814,10 +2094,10 @@ local void Csetjackpot(const char *tc, const char *params, Player *p, const Targ
 	char *next;
 	int new = strtol(params, &next, 0);
 
-	if (next != params)
+	if (next != params && new >= 0)
 	{
 		jackpot->SetJP(p->arena, new);
-		chat->SendMessage(p, "jackpot: %d", jackpot->GetJP(p->arena));
+		chat->SendMessage(p, "The jackpot is %d.", jackpot->GetJP(p->arena));
 	}
 	else
 		chat->SendMessage(p, "setjackpot: bad value");
@@ -1833,6 +2113,10 @@ local void Cuptime(const char *tc, const char *params, Player *p, const Target *
 {
 	ticks_t secs = TICK_DIFF(current_ticks(), startedat) / 100;
 	int days, hours, mins;
+	char day_string[20];
+	char hour_string[20];
+	char min_string[20];
+	char sec_string[20];
 
 	days = secs / 86400;
 	secs %= 86400;
@@ -1841,8 +2125,39 @@ local void Cuptime(const char *tc, const char *params, Player *p, const Target *
 	mins = secs / 60;
 	secs %= 60;
 
-	chat->SendMessage(p, "uptime: %d days %d hours %d minutes %d seconds",
-			days, hours, mins, secs);
+	day_string[0] = hour_string[0] = min_string[0] = sec_string[0] = '\0';
+
+	if (days)
+	{
+		if (days == 1)
+			sprintf(day_string, "1 day, ");
+		else
+			sprintf(day_string, "%d days, ", days);
+	}
+	if (hours || days)
+	{
+		if (hours == 1)
+			sprintf(hour_string, "1 hour, ");
+		else
+			sprintf(hour_string, "%d hours, ", hours);
+	}
+	if (mins || hours || days)
+	{
+		if (mins == 1)
+			sprintf(min_string, "1 minute and ");
+		else
+			sprintf(min_string, "%d minutes and ", mins);
+	}
+	if (secs || mins || hours || days)
+	{
+		if (secs == 1)
+			sprintf(sec_string, "1 second.");
+		else
+			sprintf(sec_string, "%d seconds.", secs);
+	}
+
+	chat->SendMessage(p, "This server has been online for %s%s%s%s",
+			day_string, hour_string, min_string, sec_string);
 }
 
 
@@ -2047,7 +2362,7 @@ local void Cscorereset(const char *tc, const char *params, Player *p, const Targ
 		{
 			stats->ScoreReset(p, INTERVAL_RESET);
 			stats->SendUpdates(NULL);
-			chat->SendMessage(p, "Score reset");
+			chat->SendMessage(p, "Your score has been reset.");
 		}
 		else
 			chat->SendMessage(p,
@@ -2057,7 +2372,7 @@ local void Cscorereset(const char *tc, const char *params, Player *p, const Targ
 	{
 		stats->ScoreReset(target->u.p, INTERVAL_RESET);
 		stats->SendUpdates(NULL);
-		chat->SendMessage(p, "Player score reset");
+		chat->SendMessage(p, "Player '%s' has had their score reset.", target->u.p->name);
 	}
 }
 
@@ -2104,7 +2419,7 @@ local void Cmapinfo(const char *tc, const char *params, Player *p, const Target 
 	int regs = 0;
 	int hasfn = mapdata->GetMapFilename(p->arena, fname, sizeof(fname), NULL);
 
-	chat->SendMessage(p, "loaded lvl file from '%s'", hasfn ? fname : "<nowhere>");
+	chat->SendMessage(p, "LVL file loaded from '%s'.", hasfn ? fname : "<nowhere>");
 
 	name = mapdata->GetAttr(p->arena, "NAME");
 	vers = mapdata->GetAttr(p->arena, "VERSION");
@@ -2113,14 +2428,14 @@ local void Cmapinfo(const char *tc, const char *params, Player *p, const Target 
 	prog = mapdata->GetAttr(p->arena, "PROGRAM");
 
 	chat->SendMessage(p,
-			"name: %s  "
-			"version: %s",
+			"name: %s, "
+			"version: %s,",
 			name ? name : "<not set>",
 			vers ? vers : "<not set>");
 	chat->SendMessage(p,
-			"map creator: %s  "
-			"tileset creator: %s  "
-			"program: %s",
+			"map creator: %s, "
+			"tileset creator: %s, "
+			"program: %s,",
 			mapc ? mapc : "<not set>",
 			tsetc ? tsetc : "<not set>",
 			prog ? prog : "<not set>");
@@ -2129,7 +2444,7 @@ local void Cmapinfo(const char *tc, const char *params, Player *p, const Target 
 	chat->SendMessage(p, "regions: %d", regs);
 
 	mapdata->GetMemoryStats(p->arena, &stats);
-	chat->SendMessage(p, "memory: lvl=%d/%d  rgn=%d/%d",
+	chat->SendMessage(p, "memory (bytes/blocks): lvl=%d/%d  region=%d/%d.",
 			stats.lvlbytes, stats.lvlblocks, stats.rgnbytes, stats.rgnblocks);
 }
 
@@ -2238,14 +2553,14 @@ local void Cenablecmdgroup(const char *tc, const char *params, Player *p, const 
 	if (grp)
 	{
 		if (grp->loaded)
-			chat->SendMessage(p, "Command group %s already enabled", params);
+			chat->SendMessage(p, "Command group %s already enabled.", params);
 		else if (load_cmd_group(grp) == MM_OK)
-			chat->SendMessage(p, "Command group %s enabled", params);
+			chat->SendMessage(p, "Command group %s enabled.", params);
 		else
-			chat->SendMessage(p, "Error enabling command group %s", params);
+			chat->SendMessage(p, "Error enabling command group %s.", params);
 	}
 	else
-		chat->SendMessage(p, "Command group %s not found", params);
+		chat->SendMessage(p, "Command group %s not found.", params);
 }
 
 
@@ -2265,13 +2580,13 @@ local void Cdisablecmdgroup(const char *tc, const char *params, Player *p, const
 		if (grp->loaded)
 		{
 			unload_cmd_group(grp);
-			chat->SendMessage(p, "Command group %s disabled", params);
+			chat->SendMessage(p, "Command group %s disabled.", params);
 		}
 		else
-			chat->SendMessage(p, "Command group %s not loaded", params);
+			chat->SendMessage(p, "Command group %s not loaded.", params);
 	}
 	else
-		chat->SendMessage(p, "Command group %s not found", params);
+		chat->SendMessage(p, "Command group %s not found.", params);
 }
 
 
@@ -2402,6 +2717,10 @@ local const struct interface_info ball_requires[] =
 local const struct cmd_info ball_commands[] =
 {
 	CMD(ballcount)
+	CMD(ballinfo)
+	CMD(giveball)
+	CMD(moveball)
+	CMD(spawnball)
 	END()
 };
 

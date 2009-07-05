@@ -408,7 +408,7 @@ local void PMapRequest(Player *p, byte *pkt, int len)
 			(p->p_ship != SHIP_SPEC || p->p_freq != arena->specfreq))
 		{
 			struct Igame *game = mm->GetInterface(I_GAME, ALLARENAS);
-			if (game) game->SetFreqAndShip(p, SHIP_SPEC, arena->specfreq);
+			if (game) game->SetShipAndFreq(p, SHIP_SPEC, arena->specfreq);
 			mm->ReleaseInterface(game);
 		}
 	}

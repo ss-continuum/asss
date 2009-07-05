@@ -15,15 +15,10 @@ local int GetAllowableShips(Player *p, int ship, int freq, char *err_buf, int bu
 	return 0; // allow only spec
 }
 
-local int CanChangeFreq(Player *p, int new_freq, char *err_buf, int buf_len)
+local Aenforcer my_adv =
 {
-	return 1; // don't care about freq
-}
-
-local Ienforcer my_int =
-{
-	INTERFACE_HEAD_INIT(I_ENFORCER, "lockspec")
-	GetAllowableShips, CanChangeFreq
+	ADVISER_HEAD_INIT(A_ENFORCER)
+	GetAllowableShips, NULL
 };
 
 EXPORT int MM_lockspec(int action, Imodman *mm, Arena *arena)
@@ -38,12 +33,12 @@ EXPORT int MM_lockspec(int action, Imodman *mm, Arena *arena)
 	}
 	else if (action == MM_ATTACH)
 	{
-		mm->RegInterface(&my_int, arena);
+		mm->RegAdviser(&my_adv, arena);
 		return MM_OK;
 	}
 	else if (action == MM_DETACH)
 	{
-		mm->UnregInterface(&my_int, arena);
+		mm->UnregAdviser(&my_adv, arena);
 		return MM_OK;
 	}
 	return MM_FAIL;

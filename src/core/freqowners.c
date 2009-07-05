@@ -18,8 +18,7 @@ local helptext_t giveowner_help, freqkick_help, takeownership_help;
 
 /* callbacks */
 local void MyPA(Player *p, int action, Arena *arena);
-local void MyFreqCh(Player *p, int newfreq);
-local void MyShipCh(Player *p, int newship, int newfreq);
+local void MyShipFreqCh(Player *p, int newship, int oldship, int newfreq, int oldfreq);
 
 /* data */
 local int ofkey;
@@ -53,8 +52,7 @@ EXPORT int MM_freqowners(int action, Imodman *mm_, Arena *arena)
 		if (ofkey == -1) return MM_FAIL;
 
 		mm->RegCallback(CB_PLAYERACTION, MyPA, ALLARENAS);
-		mm->RegCallback(CB_FREQCHANGE, MyFreqCh, ALLARENAS);
-		mm->RegCallback(CB_SHIPCHANGE, MyShipCh, ALLARENAS);
+		mm->RegCallback(CB_SHIPFREQCHANGE, MyShipFreqCh, ALLARENAS);
 
 		cmd->AddCommand("giveowner", Cgiveowner, ALLARENAS, giveowner_help);
 		cmd->AddCommand("freqkick", Cfreqkick, ALLARENAS, freqkick_help);
@@ -69,8 +67,7 @@ EXPORT int MM_freqowners(int action, Imodman *mm_, Arena *arena)
 		cmd->RemoveCommand("takeownership", Ctakeownership, ALLARENAS);
 
 		mm->UnregCallback(CB_PLAYERACTION, MyPA, ALLARENAS);
-		mm->UnregCallback(CB_FREQCHANGE, MyFreqCh, ALLARENAS);
-		mm->UnregCallback(CB_SHIPCHANGE, MyShipCh, ALLARENAS);
+		mm->UnregCallback(CB_SHIPFREQCHANGE, MyShipFreqCh, ALLARENAS);
 		pd->FreePlayerData(ofkey);
 		mm->ReleaseInterface(ml);
 		mm->ReleaseInterface(pd);
@@ -127,7 +124,7 @@ local int kick_timer(void *param)
 {
 	Player *t = param;
 	chat->SendMessage(t, "You have been kicked off your freq.");
-	game->SetFreqAndShip(t, SHIP_SPEC, t->arena->specfreq);
+	game->SetShipAndFreq(t, SHIP_SPEC, t->arena->specfreq);
 	return FALSE;
 }
 
@@ -155,7 +152,7 @@ void Cgiveowner(const char *tc, const char *params, Player *p, const Target *tar
 	else
 	{
 		OWNSFREQ(t) = 1;
-		chat->SendMessage(p, "You have granted ownership to %s", t->name);
+		chat->SendMessage(p, "You have granted ownership to %s.", t->name);
 		chat->SendMessage(t, "%s has granted you ownership of your freq.", p->name);
 	}
 }
@@ -235,7 +232,7 @@ void MyPA(Player *p, int action, Arena *arena)
 }
 
 
-void MyFreqCh(Player *p, int newfreq)
+void MyShipFreqCh(Player *p, int newship, int oldship, int newfreq, int oldfreq)
 {
 	Arena *arena = p->arena;
 
@@ -264,11 +261,4 @@ void MyFreqCh(Player *p, int newfreq)
 		}
 	}
 }
-
-
-void MyShipCh(Player *p, int newship, int newfreq)
-{
-	MyFreqCh(p, newfreq);
-}
-
 

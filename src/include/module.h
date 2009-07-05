@@ -57,7 +57,7 @@ enum
 #define MM_OK     0  /**< success */
 #define MM_FAIL   1  /**< failure */
 
-/** the maximum length of a callback or interface id. */
+/** the maximum length of a callback, interface or adviser id. */
 #define MAX_ID_LEN 128
 
 /** all interfaces declarations MUST start with this macro */
@@ -68,7 +68,6 @@ enum
  * @param name a unique name for the implementation of the interface */
 #define INTERFACE_HEAD_INIT(iid, name) { MODMAN_MAGIC, iid, name, 0, 0 },
 
-
 /** this struct appears at the head of each interface implementation declaration.
  * you shouldn't ever use it directly, but it's necessary for the above
  * macros (INTERFACE_HEAD_DECL, INTERFACE_HEAD_INIT). */
@@ -78,6 +77,24 @@ typedef struct InterfaceHead
 	const char *iid, *name;
 	int reserved1, refcount;
 } InterfaceHead;
+
+
+/** all interfaces declarations MUST start with this macro */
+#define ADVISER_HEAD_DECL struct AdviserHead head;
+
+/** and all interface initializers must start with this or the next macro.
+ * @param aid the adviser id of this adviser */
+#define ADVISER_HEAD_INIT(aid) { MODMAN_MAGIC, aid },
+
+/** this struct appears at the head of each adviser implementation declaration.
+ * you shouldn't ever use it directly, but it's necessary for the above
+ * macros (INTERFACE_HEAD_DECL, INTERFACE_HEAD_INIT). */
+typedef struct AdviserHead
+{
+	unsigned long magic;
+	const char *aid;
+} AdviserHead;
+
 
 /** a magic value to distinguish interface pointers */
 #define MODMAN_MAGIC 0x46692017
@@ -121,7 +138,7 @@ typedef int (*ModuleLoaderFunc)(int action, mod_args_t *args, const char *line, 
 
 
 /** this is only used from python */
-#define I_MODMAN "modman-2"
+#define I_MODMAN "modman-1"
 
 /** the module manager interface struct */
 typedef struct Imodman
@@ -170,15 +187,6 @@ typedef struct Imodman
 	int (*DetachModule)(const char *modname, Arena *arena);
 	/* pyint: string, arena -> int */
 
-	/** Gets the extra info for a module. */
-	const char *(*GetModuleInfo)(const char *modname);
-	/* pyint: string -> string */
-
-	/** Gets the name of the loader for a module. */
-	const char *(*GetModuleLoader)(const char *modname);
-
-	/** Detaches all modules from an arena. */
-	void (*DetachAllFromArena)(Arena *arena);
 
 	/* interface stuff */
 
@@ -230,15 +238,6 @@ typedef struct Imodman
 	 */
 	void (*ReleaseInterface)(void *iface);
 
-	/** Returns a list of interface pointers that match the parameters. 
-	 * Use FreeInterfaceResults to empty the list when finished. 
-	 */
-	void (*GetAllInterfaces)(const char *id, Arena *arena, LinkedList *res);
-
-	/** Frees the list of interface pointers returned from a call to 
-	 * GetAllInterfaces.
-	 */
-	void (*FreeInterfacesResult)(LinkedList *res);
 
 	/* callback stuff.
 	 * these manage callback functions. putting this functionality in
@@ -271,8 +270,41 @@ typedef struct Imodman
 	void (*LookupCallback)(const char *id, Arena *arena, LinkedList *res);
 	/** Frees a callback list result from LookupCallback.
 	 * @see DO_CBS
-	 */	
+	 */
 	void (*FreeLookupResult)(LinkedList *res);
+
+	/* adviser stuff */
+
+	/** Registers an adviser for other modules to discover.
+	 * Advisers are a cross between interfaces and callbacks, since they
+	 * are declared in a similar fashion to interfaces, but multiple 
+	 * advisers can be registered by different modules (like callbacks).
+	 * @param adv a pointer to the adviser to register
+	 * @param arena the arena to register the adviser in, or ALLARENAS
+	 */
+	void (*RegAdviser)(void *adv, Arena *arena);
+	/** Unregisters an adviser registered with RegAdviser.
+	 * @param adv the pointer passed to RegAdviser
+	 * @param arena the arena that the adviser was registered in
+	 */
+	void (*UnregAdviser)(void *adv, Arena *arena);
+	/** Populates a LinkedList with currently registered advisers.
+	 * If arena is set, then this will return all advisers registered
+	 * for that arena, along with globally registered advisers. If the
+	 * arena is ALLARENAS, then this will return only globally 
+	 * registered advisers. The list must be passed to ReleaseAdviserList 
+	 * when finished. 
+	 * NOTE: unlike interfaces, advisers may have NULL functions pointers.
+	 * @param id the id of the desired advisers
+	 * @param arena the arena of the desired advisers, or ALLARENAS for
+	 * only globally registered advisers
+	 * @param list the LinkedList to fill with advisers
+	 */
+	void (*GetAdviserList)(const char *id, Arena *arena, LinkedList *list);
+	/** Frees the contents of the list used with GetAdviserList.
+	 * @param list the LinkedList passed to GetAdviserList
+	 */
+	void (*ReleaseAdviserList)(LinkedList *list);
 
 	/* module loaders */
 
@@ -280,6 +312,22 @@ typedef struct Imodman
 	void (*RegModuleLoader)(const char *signature, ModuleLoaderFunc func);
 	/** Unregisters a module loader. */
 	void (*UnregModuleLoader)(const char *signature, ModuleLoaderFunc func);
+
+	/* more module stuff */
+
+	/** Gets the extra info for a module.
+	 * This belongs up there with the other module functions, but it was
+	 * added later and goes down here to avoid breaking binary
+	 * compatibility.
+	 */
+	const char *(*GetModuleInfo)(const char *modname);
+	/* pyint: string -> string */
+
+	/** Gets the name of the loader for a module. */
+	const char *(*GetModuleLoader)(const char *modname);
+
+	/** Detaches all modules from an arena. */
+	void (*DetachAllFromArena)(Arena *arena);
 
 	/* these functions should be called only from main.c */
 	struct
@@ -327,8 +375,6 @@ do {                                         \
 		((type)_a_l->data) args ;            \
 	mm->FreeLookupResult(&_a_lst);           \
 } while (0)
-
-
 
 #endif
 

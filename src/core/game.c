@@ -195,7 +195,7 @@ local void update_regions(Player *p, int x, int y)
 
 local int run_enter_game_cb(void *clos)
 {
-	Player *p = clos;
+	Player *p = (Player *)clos;
 	if (p->status == S_PLAYING)
 		DO_CBS(CB_PLAYERACTION,
 				p->arena,
@@ -204,6 +204,20 @@ local int run_enter_game_cb(void *clos)
 	return FALSE;
 }
 
+local int run_spawn_cb(void *clos)
+{
+	Player *p = (Player *)clos;
+	pd->Lock();
+	/* check is_dead to make sure that someone else hasn't
+	 * already done the CB_SPAWN call. */
+	if (p->flags.is_dead)
+	{
+		p->flags.is_dead = 0;
+		DO_CBS(CB_SPAWN, p->arena, SpawnFunc, (p, SPAWN_AFTERDEATH));
+	}
+	pd->Unlock();
+	return FALSE;
+}
 
 local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 {
@@ -214,13 +228,15 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 	int sendwpn = FALSE, sendtoall = FALSE, x1, y1, nflags;
 	int randnum = prng->Rand();
 	Player *i;
-	Link *link;
+	Link *link, *alink;
 	ticks_t gtc = current_ticks();
 	int latency, isnewer;
 	int modified, wpndirty, posdirty;
 	struct C2SPosition copy;
 	struct S2CWeapons wpn;
 	struct S2CPosition sendpos;
+	LinkedList advisers = LL_INITIALIZER;
+	Appk *ppkadviser;
 
 #ifdef CFG_RELAX_LENGTH_CHECKS
 	if (len < 22)
@@ -297,6 +313,7 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 		p->position.bounty = pos->bounty;
 		p->position.status = pos->status;
 		p->position.energy = pos->energy;
+		p->position.time = pos->time;
 	}
 
 	/* see if this is their first packet */
@@ -344,8 +361,16 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 		if (!isnewer && !isfake && pos->weapon.type == 0)
 			return;
 
-		/* do the callback to allow other modules to edit the packet */
-		DO_CBS(CB_EDITPPK, arena, EditPPKFunc, (p, pos));
+		/* consult the PPK advisers to allow other modules to edit the packet */
+		mm->GetAdviserList(A_PPK, arena, &advisers);
+		FOR_EACH(&advisers, ppkadviser, alink)
+		{
+			if (ppkadviser->EditPPK)
+			{
+				ppkadviser->EditPPK(p, pos);
+			}
+		}
+		/* NOTE: the adviser list is released at the end of the function */
 
 		/* by default, send unreliable droppable packets. weapons get a
 		 * higher priority. */
@@ -397,6 +422,16 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 		posdirty = 1;
 
 		pd->Lock();
+
+		/* have to do this check inside pd->Lock(); */
+		/* ignore packets from the first 500ms of death, and accept packets up to 500ms
+		 * before their expected respawn. */
+		if (p->flags.is_dead && TICK_DIFF(gtc, p->last_death) >= 50 && TICK_DIFF(p->next_respawn, gtc) <= 50)
+		{
+			/* setup the CB_SPAWN callback to run asynchronously. */
+			ml->SetTimer(run_spawn_cb, 0, 0, p, NULL);
+		}
+
 		FOR_EACH_PLAYER_P(i, idata, pdkey)
 			if (i->status == S_PLAYING &&
 				IS_STANDARD(i) &&
@@ -463,12 +498,15 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 						memcpy(&copy, pos, sizeof(struct C2SPosition));
 						modified = 0;
 					}
-					/* do the callback to allow other modules to edit the
+					/* consult the ppk advisers to allow other modules to edit the
 					 * packet going to player i */
-					DO_CBS(CB_EDITINDIVIDALPPK,
-							arena,
-							EditPPKIndivdualFunc,
-							(p, i, &copy, &modified, &extralen));
+					FOR_EACH(&advisers, ppkadviser, alink)
+					{
+						if (ppkadviser->EditIndividualPPK)
+						{
+							modified |= ppkadviser->EditIndividualPPK(p, i, &copy, &extralen);
+						}
+					}
 					wpndirty = wpndirty || modified;
 					posdirty = posdirty || modified;
 
@@ -537,6 +575,10 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 				}
 			}
 		pd->Unlock();
+		mm->ReleaseAdviserList(&advisers);
+
+		/* do the position packet callback */
+		DO_CBS(CB_PPK, arena, PPKFunc, (p, pos));
 	}
 }
 
@@ -654,9 +696,9 @@ local void Cspec(const char *cmd, const char *params, Player *p, const Target *t
 	else if (scnt == 1)
 		chat->SendMessage(p, "1 spectator: %s", SBText(&sb, 2));
 	else if (p == t)
-		chat->SendMessage(p, "No players spectating you.");
+		chat->SendMessage(p, "No players are spectating you.");
 	else
-		chat->SendMessage(p, "No players spectating %s.", t->name);
+		chat->SendMessage(p, "No players are spectating %s.", t->name);
 	SBDestroy(&sb);
 }
 
@@ -768,11 +810,14 @@ local void reset_during_change(Player *p, int success, void *dummy)
 }
 
 
-local void SetFreqAndShip(Player *p, int ship, int freq)
+local void SetShipAndFreq(Player *p, int ship, int freq)
 {
 	pdata *data = PPDATA(p, pdkey);
 	struct ShipChangePacket to = { S2C_SHIPCHANGE, ship, p->pid, freq };
 	Arena *arena = p->arena;
+	int oldship = p->p_ship;
+	int oldfreq = p->p_freq;
+	int flags = SPAWN_SHIPCHANGE;
 
 	if (p->type == T_CHAT && ship != SHIP_SPEC)
 	{
@@ -812,8 +857,26 @@ local void SetFreqAndShip(Player *p, int ship, int freq)
 		chatnet->SendToArena(arena, NULL, "SHIPFREQCHANGE:%s:%d:%d",
 				p->name, p->p_ship, p->p_freq);
 
-	DO_CBS(CB_SHIPCHANGE, arena, ShipChangeFunc,
-			(p, ship, freq));
+	DO_CBS(CB_SHIPFREQCHANGE, arena, ShipFreqChangeFunc,
+			(p, ship, oldship, freq, oldfreq));
+
+	/* now setup for the CB_SPAWN callback. */
+	pd->Lock();
+	if (p->flags.is_dead)
+	{
+		flags |= SPAWN_AFTERDEATH;
+	}
+	/* a shipchange will revive a dead player. */
+	p->flags.is_dead = 0;
+	pd->Unlock();
+
+	if (ship != SHIP_SPEC)
+	{
+		/* flags = SPAWN_SHIPCHANGE set at the top of the function */
+		if (oldship == SHIP_SPEC)
+			flags |= SPAWN_INITIAL;
+		DO_CBS(CB_SPAWN, arena, SpawnFunc, (p, flags));
+	}
 
 	lm->LogP(L_DRIVEL, "game", p, "changed ship/freq to ship %d, freq %d",
 			ship, freq);
@@ -821,7 +884,7 @@ local void SetFreqAndShip(Player *p, int ship, int freq)
 
 local void SetShip(Player *p, int ship)
 {
-	SetFreqAndShip(p, ship, p->p_freq);
+	SetShipAndFreq(p, ship, p->p_freq);
 }
 
 local void PSetShip(Player *p, byte *pkt, int len)
@@ -911,7 +974,7 @@ local void PSetShip(Player *p, byte *pkt, int len)
 	}
 	else
 	{
-		SetFreqAndShip(p, ship, p->p_freq);
+		SetShipAndFreq(p, ship, p->p_freq);
 	}
 }
 
@@ -920,6 +983,7 @@ local void SetFreq(Player *p, int freq)
 {
 	struct SimplePacket to = { S2C_FREQCHANGE, p->pid, freq, -1};
 	Arena *arena = p->arena;
+	int oldfreq = p->p_freq;
 
 	if (freq < 0 || freq > 9999)
 		return;
@@ -947,7 +1011,7 @@ local void SetFreq(Player *p, int freq)
 		chatnet->SendToArena(arena, NULL, "SHIPFREQCHANGE:%s:%d:%d",
 				p->name, p->p_ship, p->p_freq);
 
-	DO_CBS(CB_FREQCHANGE, arena, FreqChangeFunc, (p, freq));
+	DO_CBS(CB_SHIPFREQCHANGE, arena, ShipFreqChangeFunc, (p, p->p_ship, p->p_ship, freq, oldfreq));
 
 	lm->LogP(L_DRIVEL, "game", p, "changed freq to %d", freq);
 }
@@ -1027,8 +1091,10 @@ local void PDie(Player *p, byte *pkt, int len)
 	struct SimplePacket *dead = (struct SimplePacket*)pkt;
 	int bty = dead->d2, pts = 0;
 	int flagcount, green;
+	int enterdelay;
 	Arena *arena = p->arena;
 	Player *killer;
+	ticks_t ct = current_ticks();
 
 	if (len != 5)
 	{
@@ -1050,6 +1116,18 @@ local void PDie(Player *p, byte *pkt, int len)
 	}
 
 	flagcount = p->pkt.flagscarried;
+
+	/* these flags are primarily for the benefit of other modules */
+	pd->Lock();
+	p->flags.is_dead = 1;
+	/* continuum clients take EnterDelay + 100 ticks to respawn after death */
+	enterdelay = cfg->GetInt(arena->cfg, "Kill", "EnterDelay", 0) + 100;
+	/* setting of 0 or less means respawn in place, with 1 second delay */
+	if (enterdelay <= 0)
+		enterdelay = 100;
+	p->last_death = ct;
+	p->next_respawn = TICK_MAKE(ct + enterdelay);
+	pd->Unlock();
 
 	/* pick the green */
 	/* cfghelp: Prize:UseTeamkillPrize, arena, int, def: 0
@@ -1102,7 +1180,7 @@ local void PDie(Player *p, byte *pkt, int len)
 		if (data->deathwofiring++ == ad->deathwofiring)
 		{
 			lm->LogP(L_DRIVEL, "game", p, "specced for too many deaths without firing");
-			SetFreqAndShip(p, SHIP_SPEC, arena->specfreq);
+			SetShipAndFreq(p, SHIP_SPEC, arena->specfreq);
 		}
 	}
 
@@ -1235,6 +1313,12 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 			p->p_freq = arena->specfreq;
 		}
 		p->p_attached = -1;
+
+		pd->Lock();
+		p->flags.is_dead = 0;
+		p->last_death = 0;
+		p->next_respawn = 0;
+		pd->Unlock();
 	}
 	else if (action == PA_ENTERARENA)
 	{
@@ -1278,6 +1362,13 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 		pthread_mutex_unlock(&specmtx);
 
 		LLEmpty(&data->lastrgnset);
+	}
+	else if (action == PA_ENTERGAME)
+	{
+		if (p->p_ship != SHIP_SPEC)
+		{
+			DO_CBS(CB_SPAWN, arena, SpawnFunc, (p, SPAWN_INITIAL));
+		}
 	}
 }
 
@@ -1375,7 +1466,7 @@ local void lock_work(const Target *target, int nval, int notify, int spec, int t
 		pdata *pdata = PPDATA(p, pdkey);
 
 		if (spec && p->arena && p->p_ship != SHIP_SPEC)
-			SetFreqAndShip(p, SHIP_SPEC, p->arena->specfreq);
+			SetShipAndFreq(p, SHIP_SPEC, p->arena->specfreq);
 
 		if (notify && pdata->lockship != nval && chat)
 			chat->SendMessage(p, nval ?
@@ -1451,7 +1542,31 @@ local void SetIgnoreWeapons(Player *p, double proportion)
 local void ShipReset(const Target *target)
 {
 	byte pkt = S2C_SHIPRESET;
+	LinkedList list = LL_INITIALIZER;
+	Link *link;
+	Player *p;
+
 	net->SendToTarget(target, &pkt, 1, NET_RELIABLE);
+
+	pd->Lock();
+
+	pd->TargetToSet(target, &list);
+	FOR_EACH(&list, p, link)
+	{
+		if (p->p_ship == SHIP_SPEC)
+			continue;
+
+		int flags = SPAWN_SHIPRESET;
+		if (p->flags.is_dead)
+		{
+			p->flags.is_dead = 0;
+			flags |= SPAWN_AFTERDEATH;
+		}
+		DO_CBS(CB_SPAWN, p->arena, SpawnFunc, (p, flags));
+	}
+
+	pd->Unlock();
+	LLEmpty(&list);
 }
 
 
@@ -1515,7 +1630,7 @@ local PlayerPersistentData persdata =
 local Igame _myint =
 {
 	INTERFACE_HEAD_INIT(I_GAME, "game")
-	SetFreq, SetShip, SetFreqAndShip, WarpTo, GivePrize,
+	SetFreq, SetShip, SetShipAndFreq, WarpTo, GivePrize,
 	Lock, Unlock, LockArena, UnlockArena,
 	FakePosition, FakeKill,
 	GetIgnoreWeapons, SetIgnoreWeapons,
@@ -1635,6 +1750,8 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 		if (persist)
 			persist->UnregPlayerPD(&persdata);
+		ml->ClearTimer(run_enter_game_cb, NULL);
+		ml->ClearTimer(run_spawn_cb, NULL);
 		aman->FreeArenaData(adkey);
 		pd->FreePlayerData(pdkey);
 		mm->ReleaseInterface(pd);

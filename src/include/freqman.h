@@ -35,20 +35,20 @@ typedef struct Ibalancer
 	int (*GetMaximumDifference)(Arena *arena, int freq1, int freq2);
 } Ibalancer;
 
-/** the interface id for Ienforcer */
-#define I_ENFORCER "enforcer-1"
+/** the adviser id for Aenforcer */
+#define A_ENFORCER "enforcer-1"
 
-/** The interface for the enforcers.
- * These are designed to be implemented by non-core modules and then
+/** The adviser struct for the enforcers.
+ * These are designed to be implemented by non-core modules and
  * registered on a per-arena basis.
  */
-typedef struct Ienforcer
+typedef struct Aenforcer
 {
-	INTERFACE_HEAD_DECL
-	/* pyint: use, impl */
+	ADVISER_HEAD_DECL
+	/* pyadv: use, impl */
 
 	/**
-	 * Return the allowable ships (1 = WB, Shark = 128). 255 = all ships
+	 * Return the allowable ships (1 = Warbird, 128 = Shark, 255 = all ships).
 	 * Return 0 to allow only spectator.
 	 * Fill err_buf only if the returned mask doesn't allow them to change
 	 * to the desired ship
@@ -63,7 +63,7 @@ typedef struct Ienforcer
 	 * Only write to err_buf it it's non-null
 	 */
 	int (*CanChangeFreq)(Player *p, int new_freq, char *err_buf, int buf_len);
-} Ienforcer;
+} Aenforcer;
 
 /** the interface id for Ifreqman */
 #define I_FREQMAN "freqman-2"

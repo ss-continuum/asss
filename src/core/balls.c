@@ -23,26 +23,45 @@
 
 
 /* internal structs */
-typedef struct MyBallData
+typedef struct BallSpawn
 {
+	int x, y, r;
+} BallSpawn;
+
+typedef struct InternalBallData
+{
+	/* array of spawn locations */
+	BallSpawn *spawns;
+
+	/* when we last send ball packets out to the arena. */
+	ticks_t lastSendTime;
+
+	/* number of different spawn locations to use, between 1 and MAXBALLS */
+	int spawnCount;
+
+	/* this is the delay between a goal and the ball respawning. */
+	int cfg_respawnTimeAfterGoal;
+
 	/* these are in centiseconds. the timer event runs with a resolution
 	 * of 50 centiseconds, though, so that's the best resolution you're
 	 * going to get. */
-	int sendtime;
-	ticks_t lastsent;
-	int spawnx[4], spawny[4], spawnr[4];
-	/* this is the delay between a goal and the ball respawning. */
-	int goaldelay;
+	int cfg_sendTime;
+
 	/* this controls whether a death on a goal tile scores or not */
-	int deathgoal;
-} MyBallData;
+	int cfg_deathScoresGoal;
+
+	/* if setballcount has been used, we don't want to override that if the settings change,
+	 * especially since the soccer:ballcount setting might not have been the one that changed. */
+	int ballcountOverridden : 1;
+} InternalBallData;
 
 /* prototypes */
-local void SpawnBall(Arena *arena, int bid);
+local void InitBall(Arena *arena, int bid);
+local void PhaseBall(Arena *arena, int bid);
+local void ChangeBallCount(Arena *arena, int count);
 local void AABall(Arena *arena, int action);
 local void PABall(Player *p, int action, Arena *arena);
-local void ShipChange(Player *, int, int);
-local void FreqChange(Player *, int);
+local void ShipFreqChange(Player *, int, int, int, int);
 local void BallKill(Arena *, Player *, Player *, int, int, int *, int *);
 
 /* timers */
@@ -54,6 +73,7 @@ local void PFireBall(Player *, byte *, int);
 local void PGoal(Player *, byte *, int);
 
 /* interface funcs */
+local void SpawnBall(Arena *arena, int bid);
 local void SetBallCount(Arena *arena, int ballcount);
 local void PlaceBall(Arena *arena, int bid, struct BallData *newpos);
 local void EndGame(Arena *arena);
@@ -78,7 +98,7 @@ local int abdkey, pbdkey, mtxkey;
 local Iballs _myint =
 {
 	INTERFACE_HEAD_INIT(I_BALLS, "ball-core")
-	SetBallCount, PlaceBall, EndGame,
+	SetBallCount, PlaceBall, EndGame, SpawnBall,
 	GetBallData, ReleaseBallData
 };
 
@@ -101,15 +121,14 @@ EXPORT int MM_balls(int action, Imodman *mm_, Arena *arena)
 			return MM_FAIL;
 
 		abdkey = aman->AllocateArenaData(sizeof(ArenaBallData));
-		pbdkey = aman->AllocateArenaData(sizeof(MyBallData));
+		pbdkey = aman->AllocateArenaData(sizeof(InternalBallData));
 		mtxkey = aman->AllocateArenaData(sizeof(pthread_mutex_t));
 		if (abdkey == -1 || pbdkey == -1 || mtxkey == -1)
 			return MM_FAIL;
 
 		mm->RegCallback(CB_ARENAACTION, AABall, ALLARENAS);
 		mm->RegCallback(CB_PLAYERACTION, PABall, ALLARENAS);
-		mm->RegCallback(CB_SHIPCHANGE, ShipChange, ALLARENAS);
-		mm->RegCallback(CB_FREQCHANGE, FreqChange, ALLARENAS);
+		mm->RegCallback(CB_SHIPFREQCHANGE, ShipFreqChange, ALLARENAS);
 		mm->RegCallback(CB_KILL, BallKill, ALLARENAS);
 
 		net->AddPacket(C2S_PICKUPBALL, PPickupBall);
@@ -132,8 +151,7 @@ EXPORT int MM_balls(int action, Imodman *mm_, Arena *arena)
 		net->RemovePacket(C2S_SHOOTBALL, PFireBall);
 		net->RemovePacket(C2S_PICKUPBALL, PPickupBall);
 		mm->UnregCallback(CB_KILL, BallKill, ALLARENAS);
-		mm->UnregCallback(CB_FREQCHANGE, FreqChange, ALLARENAS);
-		mm->UnregCallback(CB_SHIPCHANGE, ShipChange, ALLARENAS);
+		mm->UnregCallback(CB_SHIPFREQCHANGE, ShipFreqChange, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, PABall, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, AABall, ALLARENAS);
 		aman->FreeArenaData(abdkey);
@@ -184,25 +202,33 @@ local void send_ball_packet(Arena *arena, int bid)
 }
 
 
-local void phase_ball(Arena *arena, int bid)
+local void InitBall(Arena *arena, int bid)
 {
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
 	struct BallData *bd = abd->balls + bid;
 
-	LOCK_STATUS(arena);
 	bd->state = BALL_ONMAP;
 	bd->x = bd->y = 30000;
 	bd->xspeed = bd->yspeed = 0;
 	bd->time = (ticks_t)0; /* this is the key for making it phased */
+	bd->last_update = current_ticks();
 	bd->carrier = NULL;
+}
+
+local void PhaseBall(Arena *arena, int bid)
+{
+	LOCK_STATUS(arena);
+
+	InitBall(arena, bid);
 	send_ball_packet(arena, bid);
+
 	UNLOCK_STATUS(arena);
 }
 
 
 void SpawnBall(Arena *arena, int bid)
 {
-	MyBallData *pbd = P_ARENA_DATA(arena, pbdkey);
+	InternalBallData *pbd = P_ARENA_DATA(arena, pbdkey);
 
 	int cx, cy, rad, x, y, idx;
 	struct BallData d;
@@ -210,18 +236,23 @@ void SpawnBall(Arena *arena, int bid)
 	d.state = BALL_ONMAP;
 	d.xspeed = d.yspeed = 0;
 	d.carrier = NULL;
+	d.freq = -1;
 	d.time = current_ticks();
 
-	if (pbd->spawnx[3] && pbd->spawny[3])
-		idx = bid % 4;  /* we have four settings, do mod 4 */
-	else if (pbd->spawnx[1] && pbd->spawny[1])
-		idx = bid % 2;  /* we have two settings, do mod 2 */
+	if (bid < pbd->spawnCount)
+	{
+		/* we have a defined spawn for this ball */
+		idx = bid;
+	}
 	else
-		idx = 0;        /* just one setting, use it */
+	{
+		/* we don't have a specific spawn for this ball, borrow another one */
+		idx = bid % pbd->spawnCount;
+	}
 
-	cx = pbd->spawnx[idx];
-	cy = pbd->spawny[idx];
-	rad = pbd->spawnr[idx];
+	cx = pbd->spawns[idx].x;
+	cy = pbd->spawns[idx].y;
+	rad = pbd->spawns[idx].r;
 
 	/* pick random tile */
 	{
@@ -253,16 +284,24 @@ void SpawnBall(Arena *arena, int bid)
 	PlaceBall(arena, bid, &d);
 }
 
-
 void SetBallCount(Arena *arena, int ballcount)
+{
+	InternalBallData *pbd = P_ARENA_DATA(arena, pbdkey);
+
+	if (ballcount < 0 || ballcount > MAXBALLS)
+		return;
+
+	/* an outside module is changing the state */
+	pbd->ballcountOverridden = TRUE;
+
+	ChangeBallCount(arena, ballcount);
+}
+
+void ChangeBallCount(Arena *arena, int ballcount)
 {
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
 
-	struct BallData *newbd;
 	int oldc, i;
-
-	if (ballcount < 0 || ballcount > 255)
-		return;
 
 	LOCK_STATUS(arena);
 
@@ -280,23 +319,10 @@ void SetBallCount(Arena *arena, int ballcount)
 		/* send it reliably, because clients are never going to see this
 		 * ball ever again. */
 		for (i = ballcount; i < oldc; i++)
-			phase_ball(arena, i);
+			PhaseBall(arena, i);
 	}
 
-	/* do the realloc here so that if we have to phase, we do it before
-	 * cutting down the memory, and if we have to grow, we spawn the
-	 * balls into new memory. */
-	newbd = realloc(abd->balls, ballcount * sizeof(struct BallData));
-	if (!newbd && ballcount > 0)
-	{
-		abd->ballcount = 0;
-		abd->balls = NULL;
-		logm->Log(L_ERROR, "<balls> realloc failed!");
-		UNLOCK_STATUS(arena);
-		return;
-	}
 	abd->ballcount = ballcount;
-	abd->balls = newbd;
 
 	if (ballcount > oldc)
 	{
@@ -313,6 +339,12 @@ void PlaceBall(Arena *arena, int bid, struct BallData *newpos)
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
 
 	if (!newpos) return;
+
+	/* keep information consistant, freq of -1 for unowned balls, player's freq for owned balls */
+	if (newpos->carrier)
+		newpos->freq = newpos->carrier->p_freq;
+	else
+		newpos->freq = -1;
 
 	LOCK_STATUS(arena);
 	if (bid >= 0 && bid < abd->ballcount)
@@ -339,7 +371,7 @@ void EndGame(Arena *arena)
 
 	for (i = 0; i < abd->ballcount; i++)
 	{
-		phase_ball(arena, i);
+		PhaseBall(arena, i);
 		abd->balls[i].state = BALL_WAITING;
 		abd->balls[i].carrier = NULL;
 	}
@@ -378,84 +410,97 @@ void ReleaseBallData(Arena *arena)
 }
 
 
-local void load_ball_settings(Arena *arena, int spawnballs)
+local int load_ball_settings(Arena *arena)
 {
-	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
-	MyBallData *pbd = P_ARENA_DATA(arena, pbdkey);
+	InternalBallData *pbd = P_ARENA_DATA(arena, pbdkey);
 
 	ConfigHandle c = arena->cfg;
-	int bc, i;
+	int newBallCount, i;
+
+	BallSpawn spawn[MAXBALLS];
+	int newSpawnCount = 1;
+
+	LOCK_STATUS(arena);
 
 	/* cfghelp: Soccer:BallCount, arena, int, def: 0
 	 * The number of balls in this arena. */
-	bc = cfg->GetInt(c, "Soccer", "BallCount", 0);
+	newBallCount = cfg->GetInt(c, "Soccer", "BallCount", 0);
 
-	/* and initialize settings for that type */
-	if (bc)
+	/* cfghelp: Soccer:SpawnX, arena, int, range: 0-1023, def: 512
+	 * The X coordinate that the ball spawns at (in tiles). */
+	spawn[0].x = cfg->GetInt(c, "Soccer", "SpawnX", 512);
+	/* cfghelp: Soccer:SpawnY, arena, int, range: 0-1023, def: 512
+	 * The Y coordinate that the ball spawns at (in tiles). */
+	spawn[0].y = cfg->GetInt(c, "Soccer", "SpawnY", 512);
+	/* cfghelp: Soccer:SpawnRadius, arena, int, def: 20
+	 * How far from the spawn center the ball can spawn (in tiles). */
+	spawn[0].r = cfg->GetInt(c, "Soccer", "SpawnRadius", 20);
+
+	for (i = 1; i < MAXBALLS; ++i)
 	{
-		LOCK_STATUS(arena);
-		/* cfghelp: Soccer:SpawnX, arena, int, range: 0-1023, def: 512
-		 * The X coordinate that the ball spawns at (in tiles). */
-		pbd->spawnx[0] = cfg->GetInt(c, "Soccer", "SpawnX", 512);
-		/* cfghelp: Soccer:SpawnY, arena, int, range: 0-1023, def: 512
-		 * The Y coordinate that the ball spawns at (in tiles). */
-		pbd->spawny[0] = cfg->GetInt(c, "Soccer", "SpawnY", 512);
-		/* cfghelp: Soccer:SpawnRadius, arena, int, def: 20
-		 * How far from the spawn center the ball can spawn (in tiles). */
-		pbd->spawnr[0] = cfg->GetInt(c, "Soccer", "SpawnRadius", 20);
-		for (i = 1; i < 4; i++)
-		{
-			/* cfghelp: Soccer:SpawnX/Y/RadiusN, arena, int, def: 0
-			 * The spawn coordinates and radius for balls other than the
-			 * first one. N goes from 1 to 3 (0 is take care of by the
-			 * settings without a number). If only Spawn... is set, all
-			 * balls use it. If Spawn... and Spawn...1 are set, even
-			 * balls use Spawn... and odd use Spawn...1. If all four are
-			 * set, use mod 4. */
-			char xname[] = "SpawnX#";
-			char yname[] = "SpawnY#";
-			char rname[] = "SpawnRadius#";
-			xname[6] = yname[6] = rname[11] = '0' + i;
-			pbd->spawnx[i] = cfg->GetInt(c, "Soccer", xname, 0);
-			pbd->spawny[i] = cfg->GetInt(c, "Soccer", yname, 0);
-			pbd->spawnr[i] = cfg->GetInt(c, "Soccer", rname, 0);
-		}
-		/* cfghelp: Soccer:SendTime, arena, int, range: 100-3000, def: 1000
-		 * How often the server sends ball positions (in ticks). */
-		pbd->sendtime = cfg->GetInt(c, "Soccer", "SendTime", 1000);
-		/* cfghelp: Soccer:GoalDelay, arena, int, def: 0
-		 * How long after a goal before the ball appears (in ticks). */
-		pbd->goaldelay = cfg->GetInt(c, "Soccer", "GoalDelay", 0);
-		/* cfghelp: Soccer:AllowGoalByDeath, arena, bool, def: 0
-		 * Whether a goal is scored if a player dies carrying the ball
-		 * on a goal tile. */
-		pbd->deathgoal = cfg->GetInt(c, "Soccer", "AllowGoalByDeath", 0);
+		/* cfghelp: Soccer:SpawnX/Y/RadiusN, arena, int, def: -1
+		 * The spawn coordinates and radius for balls other than the
+		 * first one. N goes from 1 to 7 (0 is take care of by the
+		 * settings without a number). If there are more balls than
+		 * spawns defined, the latter balls will repeat the first
+		 * spawns in order. For example, with 3 spawns, the fourth
+		 * ball uses the first spawn, the fifth ball uses the second. */
+		char xname[] = "SpawnX#";
+		char yname[] = "SpawnY#";
+		char rname[] = "SpawnRadius#";
+		xname[6] = yname[6] = rname[11] = '0' + i;
 
-		if (spawnballs)
-		{
-			pbd->lastsent = current_ticks();
-			abd->ballcount = bc;
+		spawn[i].x = cfg->GetInt(c, "Soccer", xname, -1);
 
-			/* allocate array for public ball data */
-			abd->balls = amalloc(bc * sizeof(struct BallData));
+		if (spawn[i].x == -1)
+			break;
 
-			for (i = 0; i < bc; i++)
-				SpawnBall(arena, i);
-
-			logm->LogA(L_INFO, "balls", arena, "arena has %d balls", bc);
-		}
-
-		UNLOCK_STATUS(arena);
+		++newSpawnCount;
+		spawn[i].y = cfg->GetInt(c, "Soccer", yname, 512);
+		spawn[i].r = cfg->GetInt(c, "Soccer", rname, 20);
 	}
 
-	/* ball count has changed (settings changed), update pballs */
-	if (abd->ballcount != bc)
-		SetBallCount(arena, bc);
+	if (pbd->spawns)
+	{
+		if (pbd->spawnCount != newSpawnCount)
+		{
+			pbd->spawns = realloc(pbd->spawns, sizeof(BallSpawn) * newSpawnCount);
+			if (!pbd->spawns)
+			{
+				newSpawnCount = 1;
+				pbd->spawns = amalloc(sizeof(BallSpawn));
+			}
+		}
+	}
+	else
+	{
+		pbd->spawns = amalloc(sizeof(BallSpawn) * newSpawnCount);
+	}
+	pbd->spawnCount = newSpawnCount;
+	memcpy(pbd->spawns, spawn, sizeof(BallSpawn) * newSpawnCount);
+
+	/* cfghelp: Soccer:SendTime, arena, int, range: 100-3000, def: 1000
+	 * How often the server sends ball positions (in ticks). */
+	pbd->cfg_sendTime = cfg->GetInt(c, "Soccer", "cfg_sendTime", 1000);
+	/* cfghelp: Soccer:GoalDelay, arena, int, def: 0
+	 * How long after a goal before the ball appears (in ticks). */
+	pbd->cfg_respawnTimeAfterGoal = cfg->GetInt(c, "Soccer", "GoalDelay", 0);
+	/* cfghelp: Soccer:AllowGoalByDeath, arena, bool, def: 0
+	 * Whether a goal is scored if a player dies carrying the ball
+	 * on a goal tile. */
+	pbd->cfg_deathScoresGoal = cfg->GetInt(c, "Soccer", "AllowGoalByDeath", 0);
+
+	UNLOCK_STATUS(arena);
+
+	return newBallCount;
 }
 
 
 void AABall(Arena *arena, int action)
 {
+	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
+	InternalBallData *pbd = P_ARENA_DATA(arena, pbdkey);
+
 	/* create the mutex if necessary */
 	if (action == AA_PRECREATE)
 	{
@@ -467,29 +512,64 @@ void AABall(Arena *arena, int action)
 		pthread_mutexattr_destroy(&attr);
 	}
 
-	LOCK_STATUS(arena);
-	if (action == AA_CREATE || action == AA_DESTROY)
-	{
-		ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
 
-		/* clean up old ball data */
-		if (abd->balls)
-		{
-			afree(abd->balls);
-			abd->balls = NULL;
-		}
-		abd->ballcount = 0;
-	}
+	LOCK_STATUS(arena);
+
 	if (action == AA_CREATE)
 	{
-		/* only if we're creating, load the data */
-		load_ball_settings(arena, 1);
+		int i;
+
+		pbd->spawns = NULL;
+		pbd->lastSendTime = current_ticks();
+		pbd->spawnCount = 0;
+		pbd->ballcountOverridden = FALSE;
+
+		abd->ballcount = load_ball_settings(arena);
+
+		/* allocate array for public ball data */
+		abd->balls = amalloc(MAXBALLS * sizeof(struct BallData));
+
+		for (i = 0; i < MAXBALLS; ++i)
+		{
+			//initialize ball data
+			if (i < abd->ballcount)
+			{
+				SpawnBall(arena, i);
+			}
+			else
+			{
+				InitBall(arena, i);
+			}
+		}
+
+		if (abd->ballcount > 0)
+			logm->LogA(L_DRIVEL, "balls", arena, "%d balls spawned", abd->ballcount);
+	}
+	else if (action == AA_DESTROY)
+	{
+		/* clean up ball data */
+		afree(abd->balls);
+		abd->balls = 0;
+		abd->ballcount = 0;
+
+		/* clean up internal data */
+		afree(pbd->spawns);
+		pbd->spawnCount = 0;
+		pbd->ballcountOverridden = FALSE;
 	}
 	else if (action == AA_CONFCHANGED)
 	{
-		/* reload only settings, don't reset balls */
-		load_ball_settings(arena, 0);
+		int oldBallCount = abd->ballcount;
+		int newBallCount = load_ball_settings(arena);
+
+		/* if the ball count change but it wasn't changed by a module or command,
+		 * allow the new setting to change the ball count. */
+		if (newBallCount != oldBallCount && !pbd->ballcountOverridden)
+		{
+			ChangeBallCount(arena, newBallCount);
+		}
 	}
+
 	UNLOCK_STATUS(arena);
 }
 
@@ -506,14 +586,45 @@ local void CleanupAfter(Arena *arena, Player *p, int neut)
 		if (b->state == BALL_CARRIED &&
 			b->carrier == p)
 		{
-			b->state = BALL_ONMAP;
-			b->x = p->position.x;
-			b->y = p->position.y;
-			b->xspeed = b->yspeed = 0;
-			if (neut) b->carrier = NULL;
-			b->time = current_ticks();
+			LinkedList advisers = LL_INITIALIZER;
+			Aballs *adviser;
+			Link *link;
+			int allow = TRUE;
+			struct BallData defaultbd;
+
+			defaultbd.state = BALL_ONMAP;
+			defaultbd.x = p->position.x;
+			defaultbd.y = p->position.y;
+			defaultbd.xspeed = defaultbd.yspeed = 0;
+			if (neut) defaultbd.carrier = NULL;
+			defaultbd.time = defaultbd.last_update = current_ticks();
+
+			memcpy(b, &defaultbd, sizeof(struct BallData));
+
+			/* run this by advisers to see if they want to make the ball do something weird instead. */
+			mm->GetAdviserList(A_BALLS, arena, &advisers);
+			FOR_EACH(&advisers, adviser, link)
+			{
+				if (adviser->AllowBallFire)
+				{
+					/* the TRUE in the parameter indicates that we are forcing the ball fire because the player left the game */
+					allow = adviser->AllowBallFire(arena, p, i, TRUE, b);
+					if (!allow)
+					{
+						/* we won't call any more advisers, but the ball will still be dropped obviously. */
+						break;
+					}
+				}
+			}
+			mm->ReleaseAdviserList(&advisers);
+
+			if (!allow)
+				memcpy(b, &defaultbd, sizeof(struct BallData));
+
 			send_ball_packet(arena, i);
+
 			/* don't forget fire callbacks */
+
 			DO_CBS(CB_BALLFIRE, arena, BallFireFunc,
 					(arena, p, i));
 		}
@@ -536,12 +647,7 @@ void PABall(Player *p, int action, Arena *arena)
 		CleanupAfter(arena, p, 1);
 }
 
-void ShipChange(Player *p, int ship, int newfreq)
-{
-	CleanupAfter(p->arena, p, 1);
-}
-
-void FreqChange(Player *p, int newfreq)
+void ShipFreqChange(Player *p, int newship, int oldship, int newfreq, int oldfreq)
 {
 	CleanupAfter(p->arena, p, 1);
 }
@@ -549,8 +655,8 @@ void FreqChange(Player *p, int newfreq)
 void BallKill(Arena *arena, Player *killer, Player *killed, int bounty,
 		int flags, int *pts, int *green)
 {
-	MyBallData *pbd = P_ARENA_DATA(arena, pbdkey);
-	CleanupAfter(arena, killed, !pbd->deathgoal);
+	InternalBallData *pbd = P_ARENA_DATA(arena, pbdkey);
+	CleanupAfter(arena, killed, !pbd->cfg_deathScoresGoal);
 }
 
 
@@ -562,6 +668,13 @@ void PPickupBall(Player *p, byte *pkt, int len)
 	int i;
 	struct BallData *bd;
 	struct C2SPickupBall *bp = (struct C2SPickupBall*)pkt;
+	int bid = bp->ballid;
+
+	LinkedList advisers = LL_INITIALIZER;
+	Aballs *adviser;
+	Link *link;
+	int allow = TRUE;
+	struct BallData defaultbd;
 	
 	if (len != sizeof(struct C2SPickupBall))
 	{
@@ -597,7 +710,7 @@ void PPickupBall(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	bd = abd->balls + bp->ballid;
+	bd = abd->balls + bid;
 
 	/* make sure someone else didn't get it first */
 	if (bd->state != BALL_ONMAP)
@@ -623,6 +736,8 @@ void PPickupBall(Player *p, byte *pkt, int len)
 			return;
 		}
 
+	memcpy(&defaultbd, bd, sizeof(struct BallData));
+
 	bd->state = BALL_CARRIED;
 	bd->x = p->position.x;
 	bd->y = p->position.y;
@@ -631,6 +746,23 @@ void PPickupBall(Player *p, byte *pkt, int len)
 	bd->carrier = p;
 	bd->freq = p->p_freq;
 	bd->time = 0;
+	bd->last_update = current_ticks();
+
+	mm->GetAdviserList(A_BALLS, arena, &advisers);
+	FOR_EACH(&advisers, adviser, link)
+	{
+		if (adviser->AllowBallPickup)
+		{
+			allow = adviser->AllowBallPickup(arena, p, bid, bd);
+			if (!allow)
+				break;
+		}
+	}
+	mm->ReleaseAdviserList(&advisers);
+
+	if (!allow)
+		memcpy(bd, &defaultbd, sizeof(struct BallData));
+
 	send_ball_packet(arena, bp->ballid);
 
 	/* now call callbacks */
@@ -654,6 +786,12 @@ void PFireBall(Player *p, byte *pkt, int len)
 	struct BallData *bd;
 	struct BallPacket *fb = (struct BallPacket *)pkt;
 	int bid = fb->ballid;
+
+	LinkedList advisers = LL_INITIALIZER;
+	Aballs *adviser;
+	Link *link;
+	int allow = TRUE;
+	struct BallData defaultbd;
 
 	if (len != sizeof(struct BallPacket))
 	{
@@ -691,6 +829,8 @@ void PFireBall(Player *p, byte *pkt, int len)
 		return;
 	}
 
+	memcpy(&defaultbd, bd, sizeof(struct BallData));
+
 	bd->state = BALL_ONMAP;
 	bd->x = fb->x;
 	bd->y = fb->y;
@@ -698,6 +838,24 @@ void PFireBall(Player *p, byte *pkt, int len)
 	bd->yspeed = fb->yspeed;
 	bd->freq = p->p_freq;
 	bd->time = fb->time;
+	bd->last_update = current_ticks();
+
+	mm->GetAdviserList(A_BALLS, arena, &advisers);
+	FOR_EACH(&advisers, adviser, link)
+	{
+		if (adviser->AllowBallFire)
+		{
+			/* the FALSE in the parameter indicates that this is the client controlling the ball firing */
+			allow = adviser->AllowBallFire(arena, p, bid, FALSE, bd);
+			if (!allow)
+				break;
+		}
+	}
+	mm->ReleaseAdviserList(&advisers);
+
+	if (!allow)
+		memcpy(bd, &defaultbd, sizeof(struct BallData));
+
 	send_ball_packet(arena, bid);
 
 	/* finally call callbacks */
@@ -713,10 +871,16 @@ void PGoal(Player *p, byte *pkt, int len)
 {
 	Arena *arena = p->arena;
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
-	MyBallData *pbd = P_ARENA_DATA(arena, pbdkey);
+	InternalBallData *pbd = P_ARENA_DATA(arena, pbdkey);
 	int bid;
 	struct C2SGoal *g = (struct C2SGoal*)pkt;
 	struct BallData *bd;
+
+	LinkedList advisers = LL_INITIALIZER;
+	Aballs *adviser;
+	Link *link;
+	int block = FALSE;
+	struct BallData newbd;
 
 	if (len != sizeof(struct C2SGoal))
 	{
@@ -764,31 +928,64 @@ void PGoal(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	/* do callbacks before spawning */
-	DO_CBS(CB_GOAL, arena, GoalFunc, (arena, p, g->ballid, g->x, g->y));
+	memcpy(&newbd, bd, sizeof(struct BallData));
 
-	/* send ball update */
-	if (bd->state != BALL_ONMAP)
+	mm->GetAdviserList(A_BALLS, arena, &advisers);
+	FOR_EACH(&advisers, adviser, link)
 	{
-		/* don't respawn ball */
+		if (adviser->BlockBallGoal)
+		{
+			int result = adviser->BlockBallGoal(arena, p, bid, g->x, g->y, bd);
+			if (result == TRUE)
+			{
+				block = TRUE;
+				/* at this point, we will allow other modules to redirect the goal's path
+				 * but the goal being blocked is final. */
+			}
+		}
 	}
-	else if (pbd->goaldelay == 0)
+	mm->ReleaseAdviserList(&advisers);
+
+	if (block)
 	{
-		/* we don't want a delay */
-		SpawnBall(arena, bid);
+		/* update ball data and transmit it assuming it was changed */
+		/* barring extreme circumstances, using this check should not be a problem. */
+		if (bd->last_update != newbd.last_update)
+		{
+			memcpy(bd, &newbd, sizeof(struct BallData));
+			send_ball_packet(arena, bid);
+		}
 	}
 	else
 	{
-		/* phase it, then set it to waiting */
-		phase_ball(arena, bid);
-		bd->state = BALL_WAITING;
-		bd->carrier = NULL;
-		bd->time = TICK_MAKE(current_ticks() + pbd->goaldelay);
+		/* send ball update */
+		if (bd->state != BALL_ONMAP)
+		{
+			/* don't respawn ball */
+		}
+		else if (pbd->cfg_respawnTimeAfterGoal == 0)
+		{
+			/* we don't want a delay */
+			SpawnBall(arena, bid);
+		}
+		else
+		{
+			/* phase it, then set it to waiting */
+			ticks_t ct = current_ticks();
+			PhaseBall(arena, bid);
+			bd->state = BALL_WAITING;
+			bd->carrier = NULL;
+			bd->time = TICK_MAKE(ct + pbd->cfg_respawnTimeAfterGoal);
+			bd->last_update = ct;
+		}
+
+		/* do callbacks after spawning */
+		DO_CBS(CB_GOAL, arena, GoalFunc, (arena, p, g->ballid, g->x, g->y));
+
+		logm->LogP(L_DRIVEL, "balls", p, "goal with ball %d", g->ballid);
 	}
 
 	UNLOCK_STATUS(arena);
-
-	logm->LogP(L_DRIVEL, "balls", p, "goal with ball %d", g->ballid);
 }
 
 
@@ -801,7 +998,7 @@ int BasicBallTimer(void *dummy)
 	FOR_EACH_ARENA(arena)
 	{
 		ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
-		MyBallData *pbd = P_ARENA_DATA(arena, pbdkey);
+		InternalBallData *pbd = P_ARENA_DATA(arena, pbdkey);
 
 		if (arena->status != ARENA_RUNNING)
 			continue;
@@ -812,7 +1009,7 @@ int BasicBallTimer(void *dummy)
 			/* see if we are ready to send packets */
 			ticks_t gtc = current_ticks();
 
-			if ( TICK_DIFF(gtc, pbd->lastsent) > pbd->sendtime)
+			if ( TICK_DIFF(gtc, pbd->lastSendTime) > pbd->cfg_sendTime)
 			{
 				int bid, bc = abd->ballcount;
 				struct BallData *b = abd->balls;
@@ -838,7 +1035,7 @@ int BasicBallTimer(void *dummy)
 						if (TICK_GT(gtc, b->time))
 							SpawnBall(arena, bid);
 					}
-				pbd->lastsent = gtc;
+				pbd->lastSendTime = gtc;
 			}
 		}
 		UNLOCK_STATUS(arena);

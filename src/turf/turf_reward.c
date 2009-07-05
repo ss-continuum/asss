@@ -162,8 +162,7 @@ local ArenaPersistentData persist_tr_owners;
  */
 local void arenaAction(Arena *arena, int action);
 local void flagTag(Arena *arena, Player *p, int fid, int oldteam, int newteam);
-local void freqChange(Player *p, int newfreq);
-local void shipChange(Player *p, int newship, int newfreq);
+local void shipFreqChange(Player *p, int newship, int oldship, int newfreq, int oldfreq);
 local void killEvent(Arena *arena, Player *killer, Player *killed,
 		int bounty, int flags, int *pts, int *green);
 local int turfRewardTimer(void *v);
@@ -373,11 +372,10 @@ EXPORT int MM_turf_reward(int action, Imodman *_mm, Arena *arena)
 	{
 		/* module only attached to an arena if listed in conf */
 		/* create all necessary callbacks */
-		mm->RegCallback(CB_ARENAACTION, arenaAction, arena);
-		mm->RegCallback(CB_TURFTAG,     flagTag,     arena);
-		mm->RegCallback(CB_FREQCHANGE,  freqChange,  arena);
-		mm->RegCallback(CB_SHIPCHANGE,  shipChange,  arena);
-		mm->RegCallback(CB_KILL,        killEvent,   arena);
+		mm->RegCallback(CB_ARENAACTION,    arenaAction,    arena);
+		mm->RegCallback(CB_TURFTAG,        flagTag,        arena);
+		mm->RegCallback(CB_SHIPFREQCHANGE, shipFreqChange, arena);
+		mm->RegCallback(CB_KILL,           killEvent,      arena);
 
 		if( persist )
 			persist->RegArenaPD(&persist_tr_owners);
@@ -387,11 +385,10 @@ EXPORT int MM_turf_reward(int action, Imodman *_mm, Arena *arena)
 	else if( action == MM_DETACH )
 	{
 		/* unregister all the callbacks when detaching arena */
-		mm->UnregCallback(CB_ARENAACTION, arenaAction, arena);
-		mm->UnregCallback(CB_TURFTAG,     flagTag,     arena);
-		mm->UnregCallback(CB_FREQCHANGE,  freqChange,  arena);
-		mm->UnregCallback(CB_SHIPCHANGE,  shipChange,  arena);
-		mm->UnregCallback(CB_KILL,        killEvent,   arena);
+		mm->UnregCallback(CB_ARENAACTION,    arenaAction,    arena);
+		mm->UnregCallback(CB_TURFTAG,        flagTag,        arena);
+		mm->UnregCallback(CB_SHIPFREQCHANGE, shipFreqChange, arena);
+		mm->UnregCallback(CB_KILL,           killEvent,      arena);
 
 		if( persist )
 			persist->UnregArenaPD(&persist_tr_owners);
@@ -2029,26 +2026,7 @@ local TurfPlayer* getTurfPlayerPtr(TurfArena *ta, char *name, TurfTeam *team, in
 }
 
 
-local void freqChange(Player *p, int newfreq)
-{
-	TurfTeam *pTeam = NULL;
-	Arena *arena = p->arena;
-	TurfArena *ta, **p_ta = P_ARENA_DATA(arena, trkey);
-	if (!arena || !*p_ta) return; else ta = *p_ta;
-
-	LOCK_STATUS(arena);
-
-	/* make sure the team exists, create if necessary */
-	pTeam = getTeamPtr(ta, newfreq, 1);
-
-	/* make sure the player exists, create if necessary */
-	getTurfPlayerPtr(ta, p->name, pTeam, 1);
-
-	UNLOCK_STATUS(arena);
-}
-
-
-local void shipChange(Player *p, int newship, int newfreq)
+local void shipFreqChange(Player *p, int newship, int oldship, int newfreq, int oldfreq)
 {
 	TurfTeam *pTeam = NULL;
 	Arena *arena = p->arena;

@@ -70,7 +70,7 @@ local void Ckick(const char *tc, const char *params, Player *p, const Target *ta
 
 	if (target->type != T_PLAYER)
 	{
-		chat->SendMessage(p, "Only valid target is a single player");
+		chat->SendMessage(p, "Only valid target is a single player.");
 		return;
 	}
 

@@ -265,26 +265,29 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq, char *err_buf, 
 {
 	pdata *data = PPDATA(p, pdkey);
 	adata *ad = P_ARENA_DATA(arena, adkey);
-	Ienforcer *enforcer;
-	LinkedList list;
+	Aenforcer *adviser;
+	LinkedList advisers;
 	Link *link;
 	int can_change = 1;
 	int old_freq = p->p_freq;
 
-	LLInit(&list);
+	LLInit(&advisers);
 
-	mm->GetAllInterfaces(I_ENFORCER, arena, &list);
+	mm->GetAdviserList(A_ENFORCER, arena, &advisers);
 
-	FOR_EACH(&list, enforcer, link)
+	FOR_EACH(&advisers, adviser, link)
 	{
-		if (!enforcer->CanChangeFreq(p, new_freq, err_buf, buf_len))
+		if (adviser->CanChangeFreq)
 		{
-			can_change = 0;
-			break;
+			if (!adviser->CanChangeFreq(p, new_freq, err_buf, buf_len))
+			{
+				can_change = 0;
+				break;
+			}
 		}
 	}
 
-	mm->FreeInterfacesResult(&list);
+	mm->ReleaseAdviserList(&advisers);
 
 	if (can_change)
 	{
@@ -431,28 +434,30 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq, char *err_buf, 
 
 local int get_allowable_ships(Arena *arena, Player *p, int ship, int freq, char *err_buf, int buf_len)
 {
-	LinkedList list;
+	LinkedList advisers;
 	Link *link;
+	Aenforcer *adviser;
 	int mask = 255;
 
-	LLInit(&list);
+	LLInit(&advisers);
 
-	mm->GetAllInterfaces(I_ENFORCER, arena, &list);
+	mm->GetAdviserList(A_ENFORCER, arena, &advisers);
 
-	for (link = LLGetHead(&list); link; link = link->next)
+	FOR_EACH(&advisers, adviser, link)
 	{
-		Ienforcer *enforcer = link->data;
-
-		mask &= enforcer->GetAllowableShips(p, ship, freq, err_buf, buf_len);
-
-		if (mask == 0)
+		if (adviser->GetAllowableShips)
 		{
-			/* the player can't use any ships, might as well stop looping */
-			break;
+			mask &= adviser->GetAllowableShips(p, ship, freq, err_buf, buf_len);
+
+			if (mask == 0)
+			{
+				/* the player can't use any ships, might as well stop looping */
+				break;
+			}
 		}
 	}
 
-	mm->FreeInterfacesResult(&list);
+	mm->ReleaseAdviserList(&advisers);
 
 	return mask;
 }
@@ -622,7 +627,7 @@ local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 	if (requested_ship >= SHIP_SPEC)
 	{
 		/* always allow switching to spec */
-		game->SetFreqAndShip(p, SHIP_SPEC, arena->specfreq);
+		game->SetShipAndFreq(p, SHIP_SPEC, arena->specfreq);
 		return;
 	}
 	else if (p->flags.no_ship)
@@ -685,7 +690,7 @@ local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 		}
 	}
 
-	game->SetFreqAndShip(p, requested_ship, freq);
+	game->SetShipAndFreq(p, requested_ship, freq);
 }
 
 local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
@@ -775,7 +780,7 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 				}
 			}
 
-			game->SetFreqAndShip(p, new_ship, requested_freq);
+			game->SetShipAndFreq(p, new_ship, requested_freq);
 		}
 	}
 	else
@@ -786,12 +791,7 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 	// update_freq is called by the ship or freq change callback
 }
 
-local void shipchange(Player *p, int newship, int newfreq)
-{
-	update_freq(p, newfreq);
-}
-
-local void freqchange(Player *p, int newfreq)
+local void shipfreqchange(Player *p, int newship, int oldship, int newfreq, int oldfreq)
 {
 	update_freq(p, newfreq);
 }
@@ -885,15 +885,13 @@ EXPORT int MM_freqman(int action, Imodman *mm_, Arena *arena)
 	{
 		// TODO: init
 		mm->RegInterface(&fm_int, arena);
-		mm->RegCallback(CB_SHIPCHANGE, shipchange, arena);
-		mm->RegCallback(CB_FREQCHANGE, freqchange, arena);
+		mm->RegCallback(CB_SHIPFREQCHANGE, shipfreqchange, arena);
 		return MM_OK;
 	}
 	else if (action == MM_DETACH)
 	{
 		// TODO: deinit
-		mm->UnregCallback(CB_SHIPCHANGE, shipchange, arena);
-		mm->UnregCallback(CB_FREQCHANGE, freqchange, arena);
+		mm->UnregCallback(CB_SHIPFREQCHANGE, shipfreqchange, arena);
 		mm->UnregInterface(&fm_int, arena);
 		return MM_OK;
 	}
