@@ -1,8 +1,6 @@
 
 /* dist: public */
 
-// TODO: make sure the cfghelps are present once and only once
-
 // TODO: integrate the old team size balance setting
 
 #include <string.h>
@@ -17,6 +15,7 @@ typedef struct
 	int freq;
 	int metric_sum;
 	LinkedList players;
+	int is_required;
 } Freq;
 
 typedef struct
@@ -28,6 +27,17 @@ typedef struct
 typedef struct
 {
 	LinkedList freqs;
+
+	int include_spec;
+	int max_freq;
+	int priv_freq_start;
+	int max_priv_size;
+	int max_pub_size;
+	int max_playing;
+	int desired_teams;
+	int max_x_res;
+	int max_y_res;
+	int initial_spec;
 } adata;
 
 local Imodman *mm;
@@ -45,13 +55,93 @@ local pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK() pthread_mutex_lock(&mtx)
 #define UNLOCK() pthread_mutex_unlock(&mtx)
 
-local void update_metric(Player *p)
+/* checks the enforcers for allowable ships */
+local int enforcers_get_allowable_ships(Arena *arena, Player *p, int ship, int freq, char *err_buf, int buf_len)
+{
+	LinkedList advisers;
+	Link *link;
+	Aenforcer *adviser;
+	int mask = 255;
+
+	LLInit(&advisers);
+
+	mm->GetAdviserList(A_ENFORCER, arena, &advisers);
+
+	FOR_EACH(&advisers, adviser, link)
+	{
+		if (adviser->GetAllowableShips)
+		{
+			mask &= adviser->GetAllowableShips(p, ship, freq, err_buf, buf_len);
+
+			if (mask == 0)
+			{
+				/* the player can't use any ships, might as well stop looping */
+				break;
+			}
+		}
+	}
+
+	mm->ReleaseAdviserList(&advisers);
+
+	return mask;
+}
+
+/* checks the enforcers for a freq change */
+local int enforcers_can_change_freq(Arena *arena, Player *p, int new_freq, char *err_buf, int buf_len)
+{
+	Aenforcer *adviser;
+	LinkedList advisers;
+	Link *link;
+	int can_change = 1;
+
+	LLInit(&advisers);
+
+	mm->GetAdviserList(A_ENFORCER, arena, &advisers);
+
+	FOR_EACH(&advisers, adviser, link)
+	{
+		if (adviser->CanChangeFreq)
+		{
+			if (!adviser->CanChangeFreq(p, new_freq, err_buf, buf_len))
+			{
+				can_change = 0;
+				break;
+			}
+		}
+	}
+
+	mm->ReleaseAdviserList(&advisers);
+
+	return can_change;
+}
+
+/* query the balancer to get a new metric for a player */
+local void balancer_update_metric(Player *p)
 {
 	pdata *data = PPDATA(p, pdkey);
 	Ibalancer *balancer = mm->GetInterface(I_BALANCER, p->arena);
 	if (balancer)
 		data->metric = balancer->GetPlayerMetric(p);
 	mm->ReleaseInterface(balancer);
+}
+
+/* query the balancer for the max metric for a freq */
+local int balancer_get_max_metric(Arena *arena, int freq)
+{
+	Ibalancer *balancer = mm->GetInterface(I_BALANCER, arena);
+	int val;
+	if (balancer)
+	{
+		val = balancer->GetMaxMetric(arena, freq);
+		mm->ReleaseInterface(balancer);
+	}
+	else
+	{
+		/* without a balancer, all metrics sum to 0 */
+		val = 1;
+	}
+
+	return val;
 }
 
 local void update_freq(Player *p, int freq)
@@ -72,7 +162,7 @@ local void update_freq(Player *p, int freq)
 		/* they're already on the correct frestq,
 		 * but update their metric while we're here */
 		data->freq->metric_sum -= data->metric;
-		update_metric(p);
+		balancer_update_metric(p);
 		data->freq->metric_sum += data->metric;
 
 		UNLOCK();
@@ -125,7 +215,7 @@ local void update_freq(Player *p, int freq)
 	}
 
 	/* get their new metric */
-	update_metric(p);
+	balancer_update_metric(p);
 	newmetricnum = -1;
 	newfreqnum = -1;
 
@@ -167,131 +257,110 @@ local Freq * get_freq(Arena *arena, int freq)
 	return NULL;
 }
 
-local int count_current_playing(Arena *arena, int include_spec)
+/* count the playing players in the arena */
+local int count_current_playing(Arena *arena)
 {
 	Player *p;
+	adata *ad = P_ARENA_DATA(arena, adkey);
 	Link *link;
 	int playing = 0;
 	pd->Lock();
 	FOR_EACH_PLAYER(p)
 		if (p->status == S_PLAYING && p->arena == arena
-				&& (p->p_ship != SHIP_SPEC || include_spec)
+				&& (p->p_ship != SHIP_SPEC || ad->include_spec)
 				&& IS_HUMAN(p))
 			playing++;
 	pd->Unlock();
 	return playing;
 }
 
-local int count_freq(Arena *arena, int freq, Player *excl, int include_spec)
+/* count the playing players on a freq */
+local int count_freq(Arena *arena, int freq)
 {
 	Player *p;
+	adata *ad = P_ARENA_DATA(arena, adkey);
 	Link *link;
 	int t = 0;
 	pd->Lock();
 	FOR_EACH_PLAYER(p)
-		if (p->arena == arena && p->p_freq == freq && p != excl
-				&& (p->p_ship != SHIP_SPEC || include_spec)
+		if (p->arena == arena && p->p_freq == freq
+				&& (p->p_ship != SHIP_SPEC || ad->include_spec)
 				&& IS_HUMAN(p))
 			t++;
 	pd->Unlock();
 	return t;
 }
 
-local int is_freq_full(Arena *arena, ConfigHandle ch, int freq, int include_spec)
+local int is_freq_full(Arena *arena, int freq)
 {
+	adata *ad = P_ARENA_DATA(arena, adkey);
 	int max;
 
-	/* cfghelp: Team:PrivFreqStart, arena, int, range: 0-9999, def: 100
-	 * Freqs above this value are considered private freqs. */
-	if (freq >= cfg->GetInt(ch, "Team", "PrivFreqStart", 100))
+	if (freq >= ad->priv_freq_start)
 	{
-		/* cfghelp: Team:MaxPerPrivateTeam, arena, int, def: 0
-		 * The maximum number of players on a private freq. Zero means
-		 * no limit. */
-		max = cfg->GetInt(ch, "Team", "MaxPerPrivateTeam", 0);
+		max = ad->max_priv_size;
 	}
 	else
 	{
-		/* cfghelp: Team:MaxPerTeam, arena, int, def: 0
-		 * The maximum number of players on a public freq. Zero means no
-		 * limit. */
-		max = cfg->GetInt(ch, "Team", "MaxPerTeam", 0);
+		max = ad->max_pub_size;
 	}
 
 	if (max == 0)
-		return 0;
-
-	return max <= count_freq(arena, freq, NULL, include_spec);
-}
-
-local int screen_res_allowed(Player *p, ConfigHandle ch, char *err_buf, int buf_len)
-{
-	/* cfghelp: Misc:MaxXres, arena, int, def: 0
-	 * Maximum screen width allowed in the arena. Zero means no limit. */
-	int max_x = cfg->GetInt(ch, "Misc", "MaxXres", 0);
-	/* cfghelp: Misc:MaxYres, arena, int, def: 0
-	 * Maximum screen height allowed in the arena. Zero means no limit. */
-	int max_y = cfg->GetInt(ch, "Misc", "MaxYres", 0);
-
-	if((max_x == 0 || p->xres <= max_x) && (max_y == 0 || p->yres <= max_y))
-		return 1;
-
-	if (err_buf)
-		snprintf(err_buf, buf_len, "Maximum allowed screen resolution is %dx%d in this arena", max_x, max_y);
-
-	return 0;
-}
-
-local int get_max_metric(Arena *arena, int freq)
-{
-	Ibalancer *balancer = mm->GetInterface(I_BALANCER, arena);
-	int val;
-	if (balancer)
 	{
-		val = balancer->GetMaxMetric(arena, freq);
-		mm->ReleaseInterface(balancer);
+		return 0;
 	}
 	else
 	{
-		/* without a balancer, all metrics sum to 0 */
-		val = 1;
+		return max <= count_freq(arena, freq);
 	}
-
-	return val;
 }
 
+local int is_arena_full(Arena *arena)
+{
+	adata *ad = P_ARENA_DATA(arena, adkey);
+	int max = ad->max_playing;
 
+	if (max == 0)
+	{
+		return 0;
+	}
+	else
+	{
+		return max <= count_current_playing(arena);
+	}
+}
+
+local int screen_res_allowed(Player *p, char *err_buf, int buf_len)
+{
+	adata *ad = P_ARENA_DATA(p->arena, adkey);
+	int allowed = 1;
+
+	if (ad->max_x_res != 0 && p->xres > ad->max_x_res)
+		allowed = 0;
+	else if (ad->max_y_res != 0 && p->yres > ad->max_y_res)
+		allowed = 0;
+
+	if (!allowed && err_buf)
+		snprintf(err_buf, buf_len, "Maximum allowed screen resolution is %dx%d in this arena", ad->max_x_res, ad->max_y_res);
+
+	return allowed;
+}
+
+// TODO: this needs major changes
+// I'd like to see is_required implemented to simplify the code for checking if a player can leave
+// an empty pub freq.
 local int can_change_freq(Arena *arena, Player *p, int new_freq, char *err_buf, int buf_len)
 {
 	pdata *data = PPDATA(p, pdkey);
 	adata *ad = P_ARENA_DATA(arena, adkey);
-	Aenforcer *adviser;
-	LinkedList advisers;
 	Link *link;
-	int can_change = 1;
+	int can_change;
 	int old_freq = p->p_freq;
 
-	LLInit(&advisers);
-
-	mm->GetAdviserList(A_ENFORCER, arena, &advisers);
-
-	FOR_EACH(&advisers, adviser, link)
-	{
-		if (adviser->CanChangeFreq)
-		{
-			if (!adviser->CanChangeFreq(p, new_freq, err_buf, buf_len))
-			{
-				can_change = 0;
-				break;
-			}
-		}
-	}
-
-	mm->ReleaseAdviserList(&advisers);
+	can_change = enforcers_can_change_freq(arena, p, new_freq, err_buf, buf_len);
 
 	if (can_change)
 	{
-		int desired_teams = cfg->GetInt(arena->cfg, "Team", "DesiredTeams", 2);
 		Freq *freq = get_freq(arena, new_freq);
 		Freq *old = get_freq(arena, old_freq);
 		int max_metric;
@@ -304,12 +373,12 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq, char *err_buf, 
 		if (old)
 		{
 			old->metric_sum -= data->metric;
-			update_metric(p);
+			balancer_update_metric(p);
 			old->metric_sum += data->metric;
 		}
 		else
 		{
-			update_metric(p);
+			balancer_update_metric(p);
 		}
 
 		if (freq)
@@ -317,7 +386,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq, char *err_buf, 
 			new_freq_metric += freq->metric_sum;
 		}
 
-		if (old && old_freq < desired_teams && old_freq != arena->specfreq)
+		if (old && old_freq < ad->desired_teams && old_freq != arena->specfreq)
 		{
 			old_freq_metric = old->metric_sum - data->metric;
 
@@ -333,7 +402,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq, char *err_buf, 
 		// TODO: check for desired teams
 
 		/* do a special check to see if they're switching to the lowest pub team from spectator */
-		if (can_change && old_freq == arena->specfreq && new_freq < desired_teams)
+		if (can_change && old_freq == arena->specfreq && new_freq < ad->desired_teams)
 		{
 			if (freq)
 			{
@@ -341,7 +410,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq, char *err_buf, 
 				Freq *i;
 				FOR_EACH(&ad->freqs, i, link)
 				{
-					if (i->freq < desired_teams && i->metric_sum < freq->metric_sum)
+					if (i->freq < ad->desired_teams && i->metric_sum < freq->metric_sum)
 					{
 						found = 1;
 						break;
@@ -394,7 +463,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq, char *err_buf, 
 						/* iterate over all pub freqs (not counting old and new) */
 						FOR_EACH(&ad->freqs, i, link)
 						{
-							if (i != old && i != freq && i->freq < desired_teams)
+							if (i != old && i != freq && i->freq < ad->desired_teams)
 							{
 								/* check the new freq vs. i */
 								if (balancer->GetMaximumDifference(arena, new_freq, i->freq) < new_freq_metric - i->metric_sum)
@@ -405,7 +474,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq, char *err_buf, 
 									break;
 								}
 
-								if (old_freq_metric && new_freq < desired_teams)
+								if (old_freq_metric && new_freq < ad->desired_teams)
 								{
 									if (balancer->GetMaximumDifference(arena, old_freq, i->freq) < i->metric_sum - old_freq_metric)
 									{
@@ -432,65 +501,19 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq, char *err_buf, 
 	return can_change;
 }
 
-local int get_allowable_ships(Arena *arena, Player *p, int ship, int freq, char *err_buf, int buf_len)
-{
-	LinkedList advisers;
-	Link *link;
-	Aenforcer *adviser;
-	int mask = 255;
-
-	LLInit(&advisers);
-
-	mm->GetAdviserList(A_ENFORCER, arena, &advisers);
-
-	FOR_EACH(&advisers, adviser, link)
-	{
-		if (adviser->GetAllowableShips)
-		{
-			mask &= adviser->GetAllowableShips(p, ship, freq, err_buf, buf_len);
-
-			if (mask == 0)
-			{
-				/* the player can't use any ships, might as well stop looping */
-				break;
-			}
-		}
-	}
-
-	mm->ReleaseAdviserList(&advisers);
-
-	return mask;
-}
-
 local int find_freq(Arena *arena, Player *p)
 {
 	pdata *data = PPDATA(p, pdkey);
-	int max_freq;
-	int desired_teams;
-	int include_spec;
+	adata *ad = P_ARENA_DATA(arena, adkey);
 	int i;
 	Freq *best_freq = NULL;
-	ConfigHandle ch;
-
-	ch = arena->cfg;
-
-	/* cfghelp: Team:IncludeSpectators, arena, bool, def: 0
-	 * Whether to include spectators when enforcing maximum freq sizes. */
-	include_spec = cfg->GetInt(ch, "Team", "IncludeSpectators", 0);
-
-	/* cfghelp: Team:MaxFrequency, arena, int, range: 1-10000, def: 10000
-	 * One more than the highest frequency allowed. Set this below
-	 * PrivFreqStart to disallow private freqs. */
-	max_freq = cfg->GetInt(ch, "Team", "MaxFrequency", 10000);
-
-	desired_teams = cfg->GetInt(arena->cfg, "Team", "DesiredTeams", 2);
 
 	/* search only within the minimum of desired_teams and max_freq */
-	max_freq = desired_teams < max_freq ? desired_teams : max_freq;
+	int max_freq = ad->desired_teams < ad->max_freq ? ad->desired_teams : ad->max_freq;
 
 	for (i = 0; i < max_freq; i++)
 	{
-		if (!is_freq_full(arena, ch, i, include_spec))
+		if (!is_freq_full(arena, i))
 		{
 			Freq *freq = get_freq(arena, i);
 			if (!freq)
@@ -498,7 +521,7 @@ local int find_freq(Arena *arena, Player *p)
 				/* found an empty freq */
 				return i;
 			}
-			else if (freq->metric_sum <= get_max_metric(arena, i) - data->metric)
+			else if (freq->metric_sum <= balancer_get_max_metric(arena, i) - data->metric)
 			{
 				if (!best_freq)
 				{
@@ -528,37 +551,22 @@ local int find_freq(Arena *arena, Player *p)
 
 local void Initial(Player *p, int *ship, int *freq)
 {
-	lm->LogP(L_DRIVEL, "freqman", p, "Entering Initial");
+	lm->LogP(L_DRIVEL, "freqman", p, "Entering Initial"); // FIXME: remove after debugging
+
 	Arena *arena = p->arena;
+	adata *ad = P_ARENA_DATA(arena, adkey);
 	int f = *freq;
 	int s = *ship;
-	int max_playing, initial_spec, include_spec;
-	ConfigHandle ch;
 
 	if (!arena) return;
 
-	ch = arena->cfg;
-
-	/* cfghelp: General:MaxPlaying, arena, int, def: 100
-	 * This is the most players that will be allowed to play in the arena
-	 * at once. Zero means no limit. */
-	max_playing = cfg->GetInt(ch, "General", "MaxPlaying", 100);
-
-	/* cfghelp: Team:InitialSpec, arena, bool, def: 0
-	 * If players entering the arena are always assigned to spectator mode. */
-	initial_spec = cfg->GetInt(ch, "Team", "InitialSpec", 0);
-
-	include_spec = cfg->GetInt(ch, "Team", "IncludeSpectators", 0);
-
-	if ((max_playing > 0
-			&& max_playing <= count_current_playing(arena, include_spec))
-			|| p->flags.no_ship || !screen_res_allowed(p, ch, NULL, 0)
-			|| initial_spec)
+	if (is_arena_full(arena) || p->flags.no_ship
+			|| !screen_res_allowed(p, NULL, 0) || ad->initial_spec)
 	{
 		s = SHIP_SPEC;
 	}
 
-	update_metric(p);
+	balancer_update_metric(p);
 
 	if (s == SHIP_SPEC)
 	{
@@ -579,7 +587,7 @@ local void Initial(Player *p, int *ship, int *freq)
 		else
 		{
 			/* make sure their ship is legal */
-			mask = get_allowable_ships(arena, p, s, f, NULL, 0);
+			mask = enforcers_get_allowable_ships(arena, p, s, f, NULL, 0);
 			if ((mask & (1 << s)) == 0)
 			{
 				int i;
@@ -611,18 +619,12 @@ local void Initial(Player *p, int *ship, int *freq)
 
 local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 {
-	lm->LogP(L_DRIVEL, "freqman", p, "Entering ShipChange");
+	lm->LogP(L_DRIVEL, "freqman", p, "Entering ShipChange"); // FIXME: remove after debugging.
+
 	Arena *arena = p->arena;
-	int max_playing, include_spec;
-	ConfigHandle ch;
 	int freq = p->p_freq;
 
 	if (!arena) return;
-
-	ch = arena->cfg;
-
-	max_playing = cfg->GetInt(ch, "General", "MaxPlaying", 100);
-	include_spec = cfg->GetInt(ch, "Team", "IncludeSpectators", 0);
 
 	if (requested_ship >= SHIP_SPEC)
 	{
@@ -637,14 +639,13 @@ local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 			snprintf(err_buf, buf_len, "Too much lag to play in this arena.");
 		return;
 	}
-	else if (!screen_res_allowed(p, ch, err_buf, buf_len))
+	else if (!screen_res_allowed(p, err_buf, buf_len))
 	{
 		/* their resolution exceeds the arena limits */
 		/* don't print to err_buf, screen_res_allowed takes care of it */
 		return;
 	}
-	else if (p->p_ship == SHIP_SPEC && max_playing > 0
-			&& count_current_playing(arena, include_spec) >= max_playing)
+	else if (p->p_ship == SHIP_SPEC && is_arena_full(arena))
 	{
 		if (err_buf)
 			snprintf(err_buf, buf_len, "There are too many people playing.");
@@ -654,7 +655,7 @@ local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 	/* make sure their ship is legal */
 	if (requested_ship != SHIP_SPEC)
 	{
-		int mask = get_allowable_ships(arena, p, requested_ship, freq, err_buf, buf_len);
+		int mask = enforcers_get_allowable_ships(arena, p, requested_ship, freq, err_buf, buf_len);
 		if ((mask & (1 << requested_ship)) == 0)
 		{
 			if (mask & (1 << p->p_ship))
@@ -686,28 +687,25 @@ local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 		if (freq == arena->specfreq)
 		{
 			requested_ship = SHIP_SPEC;
-			snprintf(err_buf, buf_len, "All public frequencies are full!");
+			if (err_buf)
+				snprintf(err_buf, buf_len, "All public frequencies are full!");
 		}
 	}
 
 	game->SetShipAndFreq(p, requested_ship, freq);
+
+	/* update_freq is called in the shipfreqchange callback */
 }
 
 local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 {
-	lm->LogP(L_DRIVEL, "freqman", p, "Entering FreqChange");
+	lm->LogP(L_DRIVEL, "freqman", p, "Entering FreqChange"); // FIXME: remove after debugging
+
 	Arena *arena = p->arena;
+	adata *ad = P_ARENA_DATA(arena, adkey);
 	int ship = p->p_ship;
-	int include_spec, max_freq, max_playing;
-	ConfigHandle ch;
 
 	if (!arena) return;
-
-	ch = arena->cfg;
-
-	include_spec = cfg->GetInt(ch, "Team", "IncludeSpectators", 0);
-	max_freq = cfg->GetInt(ch, "Team", "MaxFrequency", 10000);
-	max_playing = cfg->GetInt(ch, "General", "MaxPlaying", 100);
 
 	/* special case: speccer re-entering spec freq */
 	if (ship == SHIP_SPEC && requested_freq == arena->specfreq)
@@ -718,41 +716,42 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 
 	/* check if this change was from the specfreq, and if there are too
 	 * many people playing. */
-	if (include_spec && ship == SHIP_SPEC && max_playing > 0
-			&& p->p_freq == arena->specfreq
-			&& count_current_playing(arena, include_spec) >= max_playing)
+	if (ad->include_spec && ship == SHIP_SPEC && p->p_freq == arena->specfreq
+			&& is_arena_full(arena))
 	{
 		if (err_buf)
 			snprintf(err_buf, buf_len, "There are too many people playing in this arena.");
 		return;
 	}
 
-	if (requested_freq < 0 || requested_freq >= max_freq)
+	if (requested_freq < 0 || requested_freq >= ad->max_freq)
 	{
-		/* he requested a bad freq. */
+		/* they requested a bad freq. */
 		if (ship == SHIP_SPEC && p->p_freq != arena->specfreq)
 		{
 			/* send him back to spec freq */
 			game->SetFreq(p, arena->specfreq);
-			return;
 		}
 		else
 		{
-			snprintf(err_buf, buf_len, "Bad frequency.");
-			return;
+			if (err_buf)
+				snprintf(err_buf, buf_len, "Bad frequency.");
 		}
+
+		return;
 	}
 	else
 	{
 		if (!can_change_freq(arena, p, requested_freq, err_buf, buf_len))
 		{
-			/* enforcers won't let them change */
+			/* balancer or enforcers won't let them change */
 			return;
 		}
 	}
 
 	/* check if there are too many on the freq */
-	if ((ship != SHIP_SPEC || include_spec) && is_freq_full(arena, ch, requested_freq, include_spec))
+	if ((ship != SHIP_SPEC || ad->include_spec)
+			&& is_freq_full(arena, requested_freq))
 	{
 		if (err_buf)
 			snprintf(err_buf, buf_len, "There are too many people on that frequency.");
@@ -762,7 +761,7 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 	/* make sure their ship is legal */
 	if (ship != SHIP_SPEC)
 	{
-		int mask = get_allowable_ships(arena, p, ship, requested_freq, err_buf, buf_len);
+		int mask = enforcers_get_allowable_ships(arena, p, ship, requested_freq, err_buf, buf_len);
 		if (mask & (1 << ship))
 		{
 			game->SetFreq(p, requested_freq);
@@ -788,7 +787,7 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 		game->SetFreq(p, requested_freq);
 	}
 
-	// update_freq is called by the ship or freq change callback
+	/* update_freq is called by the shipfreqchange callback */
 }
 
 local void shipfreqchange(Player *p, int newship, int oldship, int newfreq, int oldfreq)
@@ -820,6 +819,57 @@ local void freq_free_enum(void *ptr)
 	afree(freq);
 }
 
+local void update_config(Arena *arena)
+{
+	adata *ad = P_ARENA_DATA(arena, adkey);
+	ConfigHandle ch = arena->cfg;
+
+	/* cfghelp: Team:IncludeSpectators, arena, bool, def: 0
+	 * Whether to include spectators when enforcing maximum freq sizes. */
+	ad->include_spec = cfg->GetInt(ch, "Team", "IncludeSpectators", 0);
+
+	/* cfghelp: Team:MaxFrequency, arena, int, range: 1-10000, def: 10000
+	 * One more than the highest frequency allowed. Set this below
+	 * PrivFreqStart to disallow private freqs. */
+	ad->max_freq = cfg->GetInt(ch, "Team", "MaxFrequency", 10000);
+
+	/* cfghelp: Team:PrivFreqStart, arena, int, range: 0-9999, def: 100
+	 * Freqs above this value are considered private freqs. */
+	ad->priv_freq_start = cfg->GetInt(ch, "Team", "PrivFreqStart", 100);
+
+	/* cfghelp: Team:MaxPerPrivateTeam, arena, int, def: 0
+	 * The maximum number of players on a private freq. Zero means
+	 * no limit. */
+	ad->max_priv_size = cfg->GetInt(ch, "Team", "MaxPerPrivateTeam", 0);
+
+	/* cfghelp: Team:MaxPerTeam, arena, int, def: 0
+	 * The maximum number of players on a public freq. Zero means no
+	 * limit. */
+	ad->max_pub_size = cfg->GetInt(ch, "Team", "MaxPerTeam", 0);
+
+	/* cfghelp: General:MaxPlaying, arena, int, def: 100
+	 * This is the most players that will be allowed to play in the arena at
+	 * once. Zero means no limit. */
+	ad->max_playing = cfg->GetInt(ch, "General", "MaxPlaying", 100);
+
+	/* cfghelp: Team:DesiredTeams, arena, int, def: 2
+	 * The number of teams that the freq balancer will form as players
+	 * enter. */
+	ad->desired_teams = cfg->GetInt(arena->cfg, "Team", "DesiredTeams", 2);
+
+	/* cfghelp: Misc:MaxXres, arena, int, def: 0
+	 * Maximum screen width allowed in the arena. Zero means no limit. */
+	ad->max_x_res = cfg->GetInt(ch, "Misc", "MaxXres", 0);
+
+	/* cfghelp: Misc:MaxYres, arena, int, def: 0
+	 * Maximum screen height allowed in the arena. Zero means no limit. */
+	ad->max_y_res = cfg->GetInt(ch, "Misc", "MaxYres", 0);
+
+	/* cfghelp: Team:InitialSpec, arena, bool, def: 0
+	 * If players entering the arena are always assigned to spectator mode. */
+	ad->initial_spec = cfg->GetInt(ch, "Team", "InitialSpec", 0);
+}
+
 local void aaction(Arena *arena, int action)
 {
 	adata *ad = P_ARENA_DATA(arena, adkey);
@@ -833,6 +883,11 @@ local void aaction(Arena *arena, int action)
 		LLEnumNC(&ad->freqs, freq_free_enum);
 		LLEmpty(&ad->freqs);
 		UNLOCK();
+	}
+	else if (action == AA_CONFCHANGED)
+	{
+		update_config(arena);
+		// TODO: update freq->is_required and prune freqs
 	}
 }
 
