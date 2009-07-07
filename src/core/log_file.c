@@ -123,6 +123,7 @@ void FlushLog(void)
 
 int reopen_timer(void *dummy)
 {
+	ReopenLog();
 	return TRUE;
 }
 
