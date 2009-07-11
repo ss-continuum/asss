@@ -357,146 +357,145 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq, char *err_buf, 
 	int can_change;
 	int old_freq = p->p_freq;
 
-	can_change = enforcers_can_change_freq(arena, p, new_freq, err_buf, buf_len);
+	/* check the enforcers first */
+	if (!enforcers_can_change_freq(arena, p, new_freq, err_buf, buf_len))
+		return 0;
 
-	if (can_change)
+	Freq *freq = get_freq(arena, new_freq);
+	Freq *old = get_freq(arena, old_freq);
+	int max_metric;
+	int new_freq_metric = data->metric;
+	int old_freq_metric = 0;
+
+	LOCK();
+
+	/* update the player's metric */
+	if (old)
 	{
-		Freq *freq = get_freq(arena, new_freq);
-		Freq *old = get_freq(arena, old_freq);
-		int max_metric;
-		int new_freq_metric = data->metric;
-		int old_freq_metric = 0;
+		old->metric_sum -= data->metric;
+		balancer_update_metric(p);
+		old->metric_sum += data->metric;
+	}
+	else
+	{
+		balancer_update_metric(p);
+	}
 
-		LOCK();
+	if (freq)
+	{
+		new_freq_metric += freq->metric_sum;
+	}
 
-		/* update the player's metric */
-		if (old)
+	if (old && old_freq < ad->desired_teams && old_freq != arena->specfreq)
+	{
+		old_freq_metric = old->metric_sum - data->metric;
+
+		/* check to make sure they're not emptying one of the desired teams */
+		if (LLCount(&old->players) == 1)
 		{
-			old->metric_sum -= data->metric;
-			balancer_update_metric(p);
-			old->metric_sum += data->metric;
+			// FIXME: needs better wording
+			snprintf(err_buf, buf_len, "Your frequency requires at least one player.");
+			can_change = 0;
 		}
-		else
-		{
-			balancer_update_metric(p);
-		}
+	}
 
+	// TODO: check for desired teams
+
+	/* do a special check to see if they're switching to the lowest pub team from spectator */
+	if (can_change && old_freq == arena->specfreq && new_freq < ad->desired_teams)
+	{
 		if (freq)
 		{
-			new_freq_metric += freq->metric_sum;
-		}
-
-		if (old && old_freq < ad->desired_teams && old_freq != arena->specfreq)
-		{
-			old_freq_metric = old->metric_sum - data->metric;
-
-			/* check to make sure they're not emptying one of the desired teams */
-			if (LLCount(&old->players) == 1)
+			int found = 0;
+			Freq *i;
+			FOR_EACH(&ad->freqs, i, link)
 			{
-				// FIXME: needs better wording
-				snprintf(err_buf, buf_len, "Your frequency requires at least one player.");
-				can_change = 0;
-			}
-		}
-
-		// TODO: check for desired teams
-
-		/* do a special check to see if they're switching to the lowest pub team from spectator */
-		if (can_change && old_freq == arena->specfreq && new_freq < ad->desired_teams)
-		{
-			if (freq)
-			{
-				int found = 0;
-				Freq *i;
-				FOR_EACH(&ad->freqs, i, link)
+				if (i->freq < ad->desired_teams && i->metric_sum < freq->metric_sum)
 				{
-					if (i->freq < ad->desired_teams && i->metric_sum < freq->metric_sum)
-					{
-						found = 1;
-						break;
-					}
-				}
-
-				if (!found)
-				{
-					/* any player can always switch to the lowest desired team */
-					/* this may throw off balance, but it should always be allowed */
-					UNLOCK();
-					return 1;
+					found = 1;
+					break;
 				}
 			}
-			else
+
+			if (!found)
 			{
-				/* any player can always switch to an empty desired team */
+				/* any player can always switch to the lowest desired team */
+				/* this may throw off balance, but it should always be allowed */
 				UNLOCK();
 				return 1;
 			}
 		}
-
-		if (can_change)
+		else
 		{
-			Ibalancer *balancer = mm->GetInterface(I_BALANCER, arena);
-			if (balancer)
+			/* any player can always switch to an empty desired team */
+			UNLOCK();
+			return 1;
+		}
+	}
+
+	if (can_change)
+	{
+		Ibalancer *balancer = mm->GetInterface(I_BALANCER, arena);
+		if (balancer)
+		{
+
+
+			/* check the max metric */
+			max_metric = balancer->GetMaxMetric(arena, new_freq);
+			if (freq && max_metric && max_metric < new_freq_metric)
 			{
-
-
-				/* check the max metric */
-				max_metric = balancer->GetMaxMetric(arena, new_freq);
-				if (freq && max_metric && max_metric < new_freq_metric)
+				// FIXME: this needs better wording
+				snprintf(err_buf, buf_len, "Changing to that freq would make them too good.");
+				can_change = 0;
+			}
+			else
+			{
+				if (old_freq_metric && balancer->GetMaximumDifference(arena, new_freq, old_freq) < new_freq_metric - old_freq_metric)
 				{
 					// FIXME: this needs better wording
-					snprintf(err_buf, buf_len, "Changing to that freq would make them too good.");
+					snprintf(err_buf, buf_len, "Changing to that freq would make the teams too uneven.");
 					can_change = 0;
 				}
 				else
 				{
-					if (old_freq_metric && balancer->GetMaximumDifference(arena, new_freq, old_freq) < new_freq_metric - old_freq_metric)
-					{
-						// FIXME: this needs better wording
-						snprintf(err_buf, buf_len, "Changing to that freq would make the teams too uneven.");
-						can_change = 0;
-					}
-					else
-					{
-						Freq *i;
+					Freq *i;
 
-						/* iterate over all pub freqs (not counting old and new) */
-						FOR_EACH(&ad->freqs, i, link)
+					/* iterate over all pub freqs (not counting old and new) */
+					FOR_EACH(&ad->freqs, i, link)
+					{
+						if (i != old && i != freq && i->freq < ad->desired_teams)
 						{
-							if (i != old && i != freq && i->freq < ad->desired_teams)
+							/* check the new freq vs. i */
+							if (balancer->GetMaximumDifference(arena, new_freq, i->freq) < new_freq_metric - i->metric_sum)
 							{
-								/* check the new freq vs. i */
-								if (balancer->GetMaximumDifference(arena, new_freq, i->freq) < new_freq_metric - i->metric_sum)
+								// FIXME: this needs better wording
+								snprintf(err_buf, buf_len, "The players on freq %d wouldn't appreciate that...", i->freq);
+								can_change = 0;
+								break;
+							}
+
+							if (old_freq_metric && new_freq < ad->desired_teams)
+							{
+								if (balancer->GetMaximumDifference(arena, old_freq, i->freq) < i->metric_sum - old_freq_metric)
 								{
 									// FIXME: this needs better wording
-									snprintf(err_buf, buf_len, "The players on freq %d wouldn't appreciate that...", i->freq);
+									snprintf(err_buf, buf_len, "Your team needs you to fend off freq %d", i->freq);
 									can_change = 0;
 									break;
 								}
-
-								if (old_freq_metric && new_freq < ad->desired_teams)
-								{
-									if (balancer->GetMaximumDifference(arena, old_freq, i->freq) < i->metric_sum - old_freq_metric)
-									{
-										// FIXME: this needs better wording
-										snprintf(err_buf, buf_len, "Your team needs you to fend off freq %d", i->freq);
-										can_change = 0;
-										break;
-									}
-								}
 							}
 						}
-
-
 					}
+
+
 				}
-
-				mm->ReleaseInterface(balancer);
 			}
-		}
 
-		UNLOCK();
+			mm->ReleaseInterface(balancer);
+		}
 	}
+
+	UNLOCK();
 
 	return can_change;
 }
