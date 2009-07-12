@@ -68,6 +68,19 @@ enum
 	SHIP_SPEC
 };
 
+/** ship mask values, notably for use with freqman enforcers */
+/* pyconst: define int, "SHIPMASK_*" */
+#define SHIPMASK_NONE 0
+#define SHIPMASK_WARBIRD 1
+#define SHIPMASK_JAVELIN 2
+#define SHIPMASK_SPIDER 4
+#define SHIPMASK_LEVIATHAN 8
+#define SHIPMASK_TERRIER 16
+#define SHIPMASK_WEASEL 32
+#define SHIPMASK_LANCASTER 64
+#define SHIPMASK_SHARK 128
+#define SHIPMASK_ALL 255
+
 
 /** array of ship name strings */
 extern const char *SHIP_NAMES[8];
