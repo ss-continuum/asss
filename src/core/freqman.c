@@ -159,7 +159,7 @@ local void update_freq(Player *p, int freq)
 	if (data->freq && data->freq->freq == freq)
 	{
 		lm->LogP(L_DRIVEL, "freqman", p, "Update_freq to same freq.");
-		/* they're already on the correct frestq,
+		/* they're already on the correct freq,
 		 * but update their metric while we're here */
 		data->freq->metric_sum -= data->metric;
 		balancer_update_metric(p);
@@ -187,6 +187,7 @@ local void update_freq(Player *p, int freq)
 			new_freq = amalloc(sizeof(*new_freq));
 			new_freq->freq = freq;
 			new_freq->metric_sum = 0;
+			new_freq->is_required = (freq < ad->desired_teams);
 			LLInit(&new_freq->players);
 			LLAdd(&ad->freqs, new_freq);
 		}
@@ -206,7 +207,7 @@ local void update_freq(Player *p, int freq)
 		data->freq->metric_sum -= data->metric;
 		LLRemove(&data->freq->players, p);
 
-		if (LLIsEmpty(&data->freq->players))
+		if (LLIsEmpty(&data->freq->players) && !data->freq->is_required)
 		{
 			lm->LogP(L_DRIVEL, "freqman", p, "Freeing freq %d with metric %d", data->freq->freq, data->freq->metric_sum);
 			LLRemove(&ad->freqs, data->freq);
@@ -349,155 +350,145 @@ local int screen_res_allowed(Player *p, char *err_buf, int buf_len)
 // TODO: this needs major changes
 // I'd like to see is_required implemented to simplify the code for checking if a player can leave
 // an empty pub freq.
-local int can_change_freq(Arena *arena, Player *p, int new_freq, char *err_buf, int buf_len)
+local int can_change_freq(Arena *arena, Player *p, int new_freq_number, char *err_buf, int buf_len)
 {
 	pdata *data = PPDATA(p, pdkey);
 	adata *ad = P_ARENA_DATA(arena, adkey);
-	Link *link;
-	int can_change;
-	int old_freq = p->p_freq;
-
-	/* check the enforcers first */
-	if (!enforcers_can_change_freq(arena, p, new_freq, err_buf, buf_len))
-		return 0;
-
-	Freq *freq = get_freq(arena, new_freq);
-	Freq *old = get_freq(arena, old_freq);
-	int max_metric;
+	int old_freq_number = p->p_freq;
+	Freq *new_freq = get_freq(arena, new_freq_number);
+	Freq *old_freq = get_freq(arena, old_freq_number);
 	int new_freq_metric = data->metric;
 	int old_freq_metric = 0;
+	Ibalancer *balancer;
+
+	/* check the enforcers first */
+	if (!enforcers_can_change_freq(arena, p, new_freq_number, err_buf, buf_len))
+		return 0;
 
 	LOCK();
 
-	/* update the player's metric */
-	if (old)
+	/* update the player's metric, and their team's metric sum */
+	if (old_freq)
 	{
-		old->metric_sum -= data->metric;
+		old_freq->metric_sum -= data->metric;
 		balancer_update_metric(p);
-		old->metric_sum += data->metric;
+		old_freq->metric_sum += data->metric;
+		old_freq_metric = old_freq->metric_sum;
 	}
 	else
 	{
 		balancer_update_metric(p);
 	}
 
-	if (freq)
+	/* compute what the new freq's metric will be after the player joins */
+	if (new_freq)
 	{
-		new_freq_metric += freq->metric_sum;
+		new_freq_metric += new_freq->metric_sum;
 	}
 
-	if (old && old_freq < ad->desired_teams && old_freq != arena->specfreq)
+	/* check for various conditions to ensure desired teams are maintained */
+	if (new_freq && new_freq->is_required && LLIsEmpty(&new_freq->players))
 	{
-		old_freq_metric = old->metric_sum - data->metric;
-
-		/* check to make sure they're not emptying one of the desired teams */
-		if (LLCount(&old->players) == 1)
+		/* they're changing to an empty desired team: always allow */
+		UNLOCK();
+		return 1;
+	}
+	else if (!new_freq && new_freq_number < ad->desired_teams)
+	{
+		/* they're creating a desired team: always allow */
+		UNLOCK();
+		return 1;
+	}
+	else
+	{
+		/* check to see if they're emptying a desired team */
+		if (old_freq && old_freq->is_required && LLCount(&old_freq->players) == 1)
 		{
-			// FIXME: needs better wording
+			/* they shouldn't be allowed to leave */
 			snprintf(err_buf, buf_len, "Your frequency requires at least one player.");
-			can_change = 0;
-		}
-	}
-
-	// TODO: check for desired teams
-
-	/* do a special check to see if they're switching to the lowest pub team from spectator */
-	if (can_change && old_freq == arena->specfreq && new_freq < ad->desired_teams)
-	{
-		if (freq)
-		{
-			int found = 0;
-			Freq *i;
-			FOR_EACH(&ad->freqs, i, link)
-			{
-				if (i->freq < ad->desired_teams && i->metric_sum < freq->metric_sum)
-				{
-					found = 1;
-					break;
-				}
-			}
-
-			if (!found)
-			{
-				/* any player can always switch to the lowest desired team */
-				/* this may throw off balance, but it should always be allowed */
-				UNLOCK();
-				return 1;
-			}
+			UNLOCK();
+			return 0;
 		}
 		else
 		{
-			/* any player can always switch to an empty desired team */
-			UNLOCK();
-			return 1;
+			/* see if there are desired teams that need to be filled */
+			Freq *i;
+			Link *link;
+			FOR_EACH(&ad->freqs, i, link)
+			{
+				if (i->is_required && LLIsEmpty(&i->players))
+				{
+					/* they shouldn't be allowed to leave */
+					snprintf(err_buf, buf_len, "Frequency %d needs players first.", i->freq);
+					UNLOCK();
+					return 0;
+				}
+			}
 		}
 	}
 
-	if (can_change)
+	/* now check the balancer */
+	balancer = mm->GetInterface(I_BALANCER, arena);
+	if (balancer)
 	{
-		Ibalancer *balancer = mm->GetInterface(I_BALANCER, arena);
-		if (balancer)
+		/* check the maximum metric requirement first */
+		int max_metric = balancer->GetMaxMetric(arena, new_freq_number);
+		if (max_metric && max_metric < new_freq_metric)
 		{
-
-
-			/* check the max metric */
-			max_metric = balancer->GetMaxMetric(arena, new_freq);
-			if (freq && max_metric && max_metric < new_freq_metric)
+			// FIXME: this needs better wording
+			snprintf(err_buf, buf_len, "Changing to that freq would make them too good.");
+			UNLOCK();
+			return 0;
+		}
+		else
+		{
+			/* check the difference between the freqs */
+			if (old_freq_metric && old_freq_number != arena->specfreq && balancer->GetMaximumDifference(arena, new_freq_number, old_freq_number) < new_freq_metric - old_freq_metric)
 			{
 				// FIXME: this needs better wording
-				snprintf(err_buf, buf_len, "Changing to that freq would make them too good.");
-				can_change = 0;
+				snprintf(err_buf, buf_len, "Changing to that freq would make the teams too uneven.");
+				UNLOCK();
+				return 0;
 			}
 			else
 			{
-				if (old_freq_metric && balancer->GetMaximumDifference(arena, new_freq, old_freq) < new_freq_metric - old_freq_metric)
-				{
-					// FIXME: this needs better wording
-					snprintf(err_buf, buf_len, "Changing to that freq would make the teams too uneven.");
-					can_change = 0;
-				}
-				else
-				{
-					Freq *i;
+				Freq *i;
+				Link *link;
 
-					/* iterate over all pub freqs (not counting old and new) */
-					FOR_EACH(&ad->freqs, i, link)
+				/* iterate over all desired teams (not counting old and new) */
+				FOR_EACH(&ad->freqs, i, link)
+				{
+					if (i != old_freq && i != new_freq && i->is_required)
 					{
-						if (i != old && i != freq && i->freq < ad->desired_teams)
+						/* check the new freq vs. i */
+						if (balancer->GetMaximumDifference(arena, new_freq_number, i->freq) < new_freq_metric - i->metric_sum)
 						{
-							/* check the new freq vs. i */
-							if (balancer->GetMaximumDifference(arena, new_freq, i->freq) < new_freq_metric - i->metric_sum)
+							// FIXME: this needs better wording
+							snprintf(err_buf, buf_len, "The players on freq %d wouldn't appreciate that...", i->freq);
+							UNLOCK();
+							return 0;
+						}
+
+						/* check the old freq vs. i */
+						if (old_freq_metric && old_freq && old_freq->is_required && new_freq && new_freq->is_required)
+						{
+							if (balancer->GetMaximumDifference(arena, old_freq_number, i->freq) < i->metric_sum - old_freq_metric)
 							{
 								// FIXME: this needs better wording
-								snprintf(err_buf, buf_len, "The players on freq %d wouldn't appreciate that...", i->freq);
-								can_change = 0;
-								break;
-							}
-
-							if (old_freq_metric && new_freq < ad->desired_teams)
-							{
-								if (balancer->GetMaximumDifference(arena, old_freq, i->freq) < i->metric_sum - old_freq_metric)
-								{
-									// FIXME: this needs better wording
-									snprintf(err_buf, buf_len, "Your team needs you to fend off freq %d", i->freq);
-									can_change = 0;
-									break;
-								}
+								snprintf(err_buf, buf_len, "Your team needs you to fend off freq %d", i->freq);
+								UNLOCK();
+								return 0;
 							}
 						}
 					}
-
-
 				}
 			}
-
-			mm->ReleaseInterface(balancer);
 		}
+		mm->ReleaseInterface(balancer);
 	}
 
 	UNLOCK();
-
-	return can_change;
+	return 1;
 }
 
 local int find_freq(Arena *arena, Player *p)
@@ -508,9 +499,9 @@ local int find_freq(Arena *arena, Player *p)
 	Freq *best_freq = NULL;
 
 	/* search only within the minimum of desired_teams and max_freq */
-	int max_freq = ad->desired_teams < ad->max_freq ? ad->desired_teams : ad->max_freq;
+	int max = ad->desired_teams < ad->max_freq ? ad->desired_teams : ad->max_freq;
 
-	for (i = 0; i < max_freq; i++)
+	for (i = 0; i < max; i++)
 	{
 		if (!is_freq_full(arena, i))
 		{
@@ -809,15 +800,6 @@ local void paction(Player *p, int action, Arena *arena)
 	}
 }
 
-local void freq_free_enum(void *ptr)
-{
-	Freq *freq = ptr;
-	// FIXME: remove this log entry after testing
-	lm->Log(L_DRIVEL, "<freqman> freeing freq %d, metric=%d with %d players", freq->freq, freq->metric_sum, LLCount(&freq->players));
-	LLEmpty(&freq->players);
-	afree(freq);
-}
-
 local void update_config(Arena *arena)
 {
 	adata *ad = P_ARENA_DATA(arena, adkey);
@@ -869,12 +851,82 @@ local void update_config(Arena *arena)
 	ad->initial_spec = cfg->GetInt(ch, "Team", "InitialSpec", 0);
 }
 
+local void prune_freqs(Arena *arena)
+{
+	LinkedList to_free;
+	Freq *freq;
+	Link *link;
+	int i;
+	adata *ad = P_ARENA_DATA(arena, adkey);
+
+	LLInit(&to_free);
+
+	LOCK();
+
+	/* make a list of frequencies to prune */
+	FOR_EACH(&ad->freqs, freq, link)
+	{
+		if (freq->freq >= ad->desired_teams)
+		{
+			freq->is_required = 0;
+			if (LLIsEmpty(&freq->players))
+			{
+				LLAdd(&to_free, freq);
+			}
+		}
+	}
+	/* and prune them */
+	FOR_EACH(&to_free, freq, link)
+	{
+		LLRemove(&ad->freqs, freq);
+		afree(freq);
+	}
+
+	/* make sure that the required teams exist */
+	for (i = 0; i < ad->desired_teams; i++)
+	{
+		int found = 0;
+		FOR_EACH(&ad->freqs, freq, link)
+		{
+			if (freq->freq == i)
+			{
+				freq->is_required = 1;
+				found = 1;
+				break;
+			}
+		}
+
+		if (!found)
+		{
+			/* create the freq */
+			Freq *new_freq = amalloc(sizeof(*new_freq));
+			new_freq->freq = i;
+			new_freq->metric_sum = 0;
+			new_freq->is_required = 1;
+			LLInit(&new_freq->players);
+			LLAdd(&ad->freqs, new_freq);
+		}
+	}
+	UNLOCK();
+}
+
+local void freq_free_enum(void *ptr)
+{
+	Freq *freq = ptr;
+	// FIXME: remove this log entry after testing
+	lm->Log(L_DRIVEL, "<freqman> freeing freq %d, metric=%d with %d players", freq->freq, freq->metric_sum, LLCount(&freq->players));
+	LLEmpty(&freq->players);
+	afree(freq);
+}
+
 local void aaction(Arena *arena, int action)
 {
 	adata *ad = P_ARENA_DATA(arena, adkey);
 	if (action == AA_CREATE)
 	{
 		LLInit(&ad->freqs);
+		update_config(arena);
+		prune_freqs(arena);
 	}
 	else if (action == AA_DESTROY)
 	{
@@ -886,7 +938,7 @@ local void aaction(Arena *arena, int action)
 	else if (action == AA_CONFCHANGED)
 	{
 		update_config(arena);
-		// TODO: update freq->is_required and prune freqs
+		prune_freqs(arena);
 	}
 }
 

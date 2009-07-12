@@ -72,8 +72,8 @@ typedef struct Aenforcer
  * This interface is the second revision of Ifreqman. This implementation
  * is designed to use the above Ienforcer and Ibalancer. The actual freqman
  * module is implemented as a core module and shouldn't need to be replaced
- * for most frequency tasks. Instead it uses the enforcers and balancers to
- * implement non-core functionality.
+ * for most tasks. Instead it uses the enforcers and balancers to implement
+ * non-core functionality.
  */
 typedef struct Ifreqman
 {
