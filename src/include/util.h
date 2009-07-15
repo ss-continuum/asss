@@ -209,7 +209,7 @@ typedef struct HashEntry HashEntry;
  * and auto-resize the table when the number of items passes various
  * thresholds.
  */
-typedef struct HashTable 
+typedef struct HashTable
 {
 	int bucketsm1, ents;
 	int maxload; /* percent out of 100 */
@@ -251,6 +251,8 @@ void HashGetAppend(HashTable *table, const char *key, LinkedList *ll);
 void *HashGetOne(HashTable *table, const char *key);
 /** calls a function for each key, value pair in the table.
  * the function should return true if that item should be removed. */
+/** returns a list of all unique keys contained in the table. */
+LinkedList *HashGetKeys(HashTable *h);
 void HashEnum(HashTable *table,
 		int (*func)(const char *key, void *val, void *clos),
 		void *clos);
