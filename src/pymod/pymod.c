@@ -95,12 +95,9 @@ local int mods_loaded;
 local PyObject *cPickle;
 local PyObject *sysdict;
 
-#ifdef not_yet
-local pthread_mutex_t pymtx = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t pymtx;
 #define LOCK() pthread_mutex_lock(&pymtx)
 #define UNLOCK() pthread_mutex_unlock(&pymtx)
-#endif
-
 
 /* utility functions */
 
@@ -215,6 +212,7 @@ local PyObject * cvt_c2p_playerlist(LinkedList *list)
 		Link *link;
 		Player *p;
 
+		LOCK();
 		FOR_EACH(list, p, link)
 		{
 			if(p)
@@ -227,6 +225,7 @@ local PyObject * cvt_c2p_playerlist(LinkedList *list)
 				}
 			}
 		}
+		UNLOCK();
 	}
 	else
 	{
@@ -235,11 +234,14 @@ local PyObject * cvt_c2p_playerlist(LinkedList *list)
 	return o;
 }
 
+
+
 local int cvt_p2c_playerlist(PyObject *o, LinkedList **list)
 {
 	if(o && o->ob_type == &PlayerListType)
 	{
 		int size = PyList_Size(o);
+		LOCK();
 		for(int i = 0; i < size; i++)
 		{
 			PyObject *obj = PyList_GET_ITEM(o, i);
@@ -249,6 +251,7 @@ local int cvt_p2c_playerlist(PyObject *o, LinkedList **list)
 				LLAdd(*list, p);
 			}
 		}
+		UNLOCK();
 		return TRUE;
 	}
 	else
@@ -346,7 +349,6 @@ local int cvt_p2c_target(PyObject *o, Target *t)
 		return FALSE;
 }
 
-
 local void close_config_file(void *v)
 {
 	cfg->CloseConfigFile(v);
@@ -374,6 +376,214 @@ local int cvt_p2c_config(PyObject *o, ConfigHandle *chp)
 		PyErr_SetString(PyExc_TypeError, "arg isn't a config handle object");
 		return FALSE;
 	}
+}
+
+local PyObject * cvt_c2p_dict(HashTable *table)
+{
+	PyObject *o;
+	if(table)
+	{
+		o = PyDict_New();
+		const char *key;
+		Link *l, *l2;
+		void *value;
+		CType *type;
+		PyObject *v;
+
+		LinkedList *keys = HashGetKeys(table);
+
+		LOCK();
+		FOR_EACH(keys, key, l)
+		{
+			LinkedList *values = HashGet(table, key);
+			if(values)
+			{
+				LOCK();
+				l2 = LLGetHead(values);
+				if(l2)
+				{
+					type = (CType *)l2->data;
+					l2 = l2->next;
+					if(l2)
+					{
+						value = l2->data;
+
+						switch(*type)
+						{
+							case CT_INTEGER:
+								v = Py_BuildValue("i", *(long *)value);
+								break;
+
+							case CT_FLOAT:
+								v = Py_BuildValue("f", *(double *)value);
+								break;
+
+							case CT_STRING:
+								v = Py_BuildValue("s", value);
+								break;
+
+							case CT_VOID:
+								v = PyCObject_FromVoidPtr(value, NULL);
+								break;
+
+							case CT_ARENA:
+								v = cvt_c2p_arena(value);
+								break;
+
+							case CT_PLAYER:
+								v = cvt_c2p_player(value);
+								break;
+
+							case CT_PLAYERLIST:
+								v = cvt_c2p_playerlist(value);
+								break;
+
+							case CT_TARGET:
+								v = cvt_c2p_target(value);
+								break;
+
+							default:
+								v = Py_None;
+								lm->Log(L_WARN, "Unknown CType given for key %s, using Py_None", key);
+								break;
+						}
+
+						if(v)
+						{
+							PyDict_SetItemString(o, key, v);
+							Py_XDECREF(v);
+						}
+						else
+						{
+							lm->Log(L_ERROR, "Error building value for key %s", key);
+						}
+					}
+					else //skip
+					{
+						lm->Log(L_WARN, "No value given for key %s, skipping", key);
+					}
+				}
+				else //skip
+				{
+					lm->Log(L_WARN, "Null CType given for key %s, skipping", key);
+				}
+				UNLOCK();
+			}
+		}
+		UNLOCK();
+	}
+	else
+	{
+		o = Py_None;
+	}
+	return o;
+}
+
+local int cvt_p2c_dict(PyObject *o, HashTable **table)
+{
+	if(o == Py_None || !PyDict_Check(o))
+	{
+		PyErr_SetString(PyExc_ValueError, "Not a Dictionary object");
+		return FALSE;
+	}
+
+	if(!*table)
+	{
+		PyErr_SetString(PyExc_ValueError, "Null HashTable provided");
+		return FALSE;
+	}
+
+	PyObject *entry, *key, *value;
+	PyObject *items = PyDict_Items(o);
+	CType *type;
+	void *data;
+	const char *k;
+
+	Py_ssize_t len = PyList_GET_SIZE(items);
+	int i, ok = TRUE;
+	for(i = 0; i < len; i++)
+	{
+		entry = PyList_GET_ITEM(items, i);
+		key = PyTuple_GET_ITEM(entry, 0);
+		value = PyTuple_GET_ITEM(entry, 1);
+
+		type = amalloc(sizeof(CType));
+
+		k = PyString_AsString(key);
+		if(!k)
+		{
+			lm->Log(L_WARN, "Error parsing key, skipping");
+			continue;
+		}
+
+		if(PyInt_Check(value))
+		{
+			*type = CT_INTEGER;
+			data = amalloc(sizeof(long));
+			*((long *)data) = PyInt_AsLong(value);
+			ok = !PyErr_Occurred();
+		}
+		else if(PyFloat_Check(value))
+		{
+			*type = CT_FLOAT;
+			data = amalloc(sizeof(double));
+			*((double *)data) = PyFloat_AsDouble(value);
+			ok = !PyErr_Occurred();
+		}
+		else if(PyString_Check(value))
+		{
+			*type = CT_STRING;
+			Py_ssize_t buflen = PyString_Size(value);
+			data = amalloc(sizeof(char) * buflen);
+			char *temp = PyString_AsString(value);
+			astrncpy(data, temp, buflen);
+		}
+		else if(PyCObject_Check(value))
+		{
+			*type = CT_VOID;
+			data = PyCObject_AsVoidPtr(value);
+		}
+		else if (value->ob_type == &ArenaType)
+		{
+			*type = CT_ARENA;
+			data = amalloc(sizeof(Arena));
+			ok = cvt_p2c_arena(value, (Arena**)&data);
+		}
+		else if (value->ob_type == &PlayerType)
+		{
+			*type = CT_PLAYER;
+			data = amalloc(sizeof(Player));
+			ok = cvt_p2c_player(value, (Player**)&data);
+		}
+		else if (value->ob_type == &PlayerListType)
+		{
+			*type = CT_PLAYERLIST;
+			data = LLAlloc();
+			ok = cvt_p2c_playerlist(value, (LinkedList**)&data);
+		}
+
+
+		if(value == Py_None)
+		{
+			*type = CT_VOID;
+			data = NULL;
+		}
+		else if(!data || !ok)
+		{
+			lm->Log(L_WARN, "Error parsing value for key %s, skipping", k);
+			afree(data);
+			afree(type);
+			continue;
+		}
+		//target will appear as one of the above unless its a freq
+
+		LOCK();
+		HashAdd(*table, k, type);
+		HashAdd(*table, k, data);
+		UNLOCK();
+	}
+
+	return TRUE;
 }
 
 
@@ -1887,6 +2097,12 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 		if (pdkey < 0 || adkey < 0)
 			return MM_FAIL;
 
+		pthread_mutexattr_t attr;
+		pthread_mutexattr_init(&attr);
+		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+		pthread_mutex_init(&pymtx, &attr);
+		pthread_mutexattr_destroy(&attr);
+
 #ifdef CHECK_SIGS
 		sigaction(SIGINT, NULL, &sa_before);
 #endif
@@ -1975,6 +2191,8 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 		deinit_py_interfaces();
 		deinit_py_callbacks();
 		Py_Finalize();
+
+		pthread_mutex_destroy(&pymtx);
 
 		/* release our modules */
 		pd->FreePlayerData(pdkey);

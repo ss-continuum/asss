@@ -459,6 +459,18 @@ static const char * NAME(int v) \
 #define CLIP(x, low, high) \
 	do { if ((x) > (high)) (x) = (high); else if ((x) < (low)) (x) = (low); } while (0)
 
+/* type definitions */
+typedef enum CType
+{
+	CT_INTEGER,
+	CT_FLOAT,
+	CT_STRING,
+	CT_VOID,
+	CT_ARENA,
+	CT_PLAYER,
+	CT_PLAYERLIST,
+	CT_TARGET
+} CType;
 
 #endif
 
