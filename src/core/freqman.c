@@ -38,6 +38,7 @@ typedef struct
 	int max_x_res;
 	int max_y_res;
 	int initial_spec;
+	int disallow_team_spectators;
 } adata;
 
 local Imodman *mm;
@@ -612,6 +613,7 @@ local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 	lm->LogP(L_DRIVEL, "freqman", p, "Entering ShipChange"); // FIXME: remove after debugging.
 
 	Arena *arena = p->arena;
+	adata *ad = P_ARENA_DATA(arena, adkey);
 	int freq = p->p_freq;
 
 	if (!arena) return;
@@ -680,6 +682,13 @@ local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 			if (err_buf)
 				snprintf(err_buf, buf_len, "All public frequencies are full!");
 		}
+	}
+
+	if (requested_ship == SHIP_SPEC && ad->disallow_team_spectators)
+	{
+		if (err_buf)
+			snprintf(err_buf, buf_len, "Spectators are not allowed outside of the spectator frequency.");
+		freq = arena->specfreq;
 	}
 
 	game->SetShipAndFreq(p, requested_ship, freq);
@@ -769,12 +778,29 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 				}
 			}
 
-			game->SetShipAndFreq(p, new_ship, requested_freq);
+			if (new_ship == SHIP_SPEC && ad->disallow_team_spectators)
+			{
+				/* an error message is already provided by the enforcers */
+				game->SetShipAndFreq(p, SHIP_SPEC, arena->specfreq);
+			}
+			else
+			{
+				game->SetShipAndFreq(p, new_ship, requested_freq);
+			}
 		}
 	}
 	else
 	{
-		game->SetFreq(p, requested_freq);
+		if (ad->disallow_team_spectators)
+		{
+			if (err_buf)
+				snprintf(err_buf, buf_len, "Spectators are not allowed outside of the spectator frequency.");
+			game->SetFreq(p, arena->specfreq);
+		}
+		else
+		{
+			game->SetFreq(p, requested_freq);
+		}
 	}
 
 	/* update_freq is called by the shipfreqchange callback */
@@ -849,6 +875,9 @@ local void update_config(Arena *arena)
 	/* cfghelp: Team:InitialSpec, arena, bool, def: 0
 	 * If players entering the arena are always assigned to spectator mode. */
 	ad->initial_spec = cfg->GetInt(ch, "Team", "InitialSpec", 0);
+
+	// FIXME: add cfghelp
+	ad->disallow_team_spectators = cfg->GetInt(ch, "Team", "DisallowTeamSpectators", 0);
 }
 
 local void prune_freqs(Arena *arena)
