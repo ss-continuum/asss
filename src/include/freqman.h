@@ -65,6 +65,10 @@ typedef struct Aenforcer
 	int (*CanChangeFreq)(Player *p, int new_freq, char *err_buf, int buf_len);
 } Aenforcer;
 
+/** use this macro to check whether a certain ship is marked in the mask */
+#define SHIPMASK_HAS(ship, mask) ((mask) & (1 << (ship)))
+
+
 /** the interface id for Ifreqman */
 #define I_FREQMAN "freqman-2"
 
