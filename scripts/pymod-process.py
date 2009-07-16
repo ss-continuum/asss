@@ -321,6 +321,16 @@ class type_playerlist(type_gen):
 	def parse_converter(me):
 		return 'cvt_p2c_playerlist'
 
+class type_dict(type_gen):
+	def format_char(me):
+		return 'O&'
+	def decl(me, s):
+		return 'HashTable *%s = HashAlloc()' %s
+	def build_converter(me):
+		return 'cvt_c2p_dict'
+	def parse_converter(me):
+		return 'cvt_p2c_dict'
+
 def get_type(tp):
 	try:
 		cname = 'type_' + tp
@@ -362,9 +372,9 @@ def create_c_to_py_func(name, func):
 		rettype = typ
 		defretval = 'NULL'
 		extras3.append('\tif(buflen != 0)\n\t{')
-		extras3.append('\t\tbuflen++;')		
+		extras3.append('\t\tbuflen++;')
 		extras3.append('\t\tret = amalloc(sizeof(char) * buflen);')
-		extras3.append('\t\tastrncpy(ret, tmp, buflen);\n\t}')		
+		extras3.append('\t\tastrncpy(ret, tmp, buflen);\n\t}')
 	else:
 		assert not out.flags
 		typ = get_type(out.tp)

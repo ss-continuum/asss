@@ -640,8 +640,8 @@ local void process_user_login(const char *data,int len)
 			bdata->setpublicscore = FALSE;
 		}
 
-		ad.demodata = (pkt->Result == B2S_LOGIN_ASKDEMOGRAPHICS);
-		ad.code = (pkt->Result == B2S_LOGIN_ASKDEMOGRAPHICS) ? AUTH_ASKDEMOGRAPHICS : AUTH_OK;
+		ad.demodata = (pkt->Result == B2S_LOGIN_ASKDEMOGRAPHICS || pkt->Result == B2S_LOGIN_DEMOVERSION);
+		ad.code = (pkt->Result == B2S_LOGIN_ASKDEMOGRAPHICS || pkt->Result == B2S_LOGIN_DEMOVERSION) ? AUTH_ASKDEMOGRAPHICS : AUTH_OK;
 		ad.authenticated = TRUE;
 		astrncpy(ad.name, (char*)pkt->Name, sizeof(ad.name));
 		astrncpy(ad.sendname, (char*)pkt->Name, sizeof(ad.sendname));

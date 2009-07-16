@@ -1276,7 +1276,7 @@ local helptext_t setcm_help =
 "The mask will be effective for that time, even across logouts.\n"
 "\n"
 "Examples:\n"
-" * If someone is spamming public macros: {:player:?setcm -pubmacro -time 600}\n"
+" * If someone is spamming public macros: {:player:?setcm -pubmacro -t 600}\n"
 " * To disable all blue messages for this arena: {?setcm -pub -pubmacro}\n"
 " * An equivalent to *shutup: {:player:?setcm -all}\n"
 " * To restore chat to normal: {?setcm +all}\n"
