@@ -713,6 +713,31 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 		return;
 	}
 
+	/* see if we need to put them into a ship */
+	if (ad->disallow_team_spectators && ship == SHIP_SPEC)
+	{
+		if (IS_STANDARD(p))
+		{
+			int mask = enforcers_get_allowable_ships(arena, p, SHIP_SPEC, requested_freq, NULL, 0);
+			int i;
+			for (i = SHIP_WARBIRD; i <= SHIP_SHARK; i++)
+			{
+				if (mask & (1 << i))
+				{
+					ship = i;
+					break;
+				}
+			}
+		}
+
+		if (ship == SHIP_SPEC)
+		{
+			if (err_buf)
+				snprintf(err_buf, buf_len, "Spectators are not allowed outside of the spectator frequency.");
+			return;
+		}
+	}
+
 	/* check if this change was from the specfreq, and if there are too
 	 * many people playing. */
 	if (ad->include_spec && ship == SHIP_SPEC && p->p_freq == arena->specfreq
@@ -763,7 +788,7 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 		int mask = enforcers_get_allowable_ships(arena, p, ship, requested_freq, err_buf, buf_len);
 		if (mask & (1 << ship))
 		{
-			game->SetFreq(p, requested_freq);
+			game->SetShipAndFreq(p, ship, requested_freq);
 		}
 		else
 		{
@@ -791,16 +816,7 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 	}
 	else
 	{
-		if (ad->disallow_team_spectators)
-		{
-			if (err_buf)
-				snprintf(err_buf, buf_len, "Spectators are not allowed outside of the spectator frequency.");
-			game->SetFreq(p, arena->specfreq);
-		}
-		else
-		{
-			game->SetFreq(p, requested_freq);
-		}
+		game->SetShipAndFreq(p, ship, requested_freq);
 	}
 
 	/* update_freq is called by the shipfreqchange callback */
