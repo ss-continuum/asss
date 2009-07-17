@@ -446,12 +446,12 @@ local helptext_t setfreq_help =
 "Moves the targets to the specified freq.\n"
 "If -f is specified, this command ignores the arena freqman.\n";
 
-local void Csetfreq(const char *tc, const char *params, Player *p, const Target *target)
+local void Csetfreq(const char *tc, const char *params, Player *sender, const Target *target)
 {
 	int use_fm = 1;
-	int freq = 0;
-	int ship = SHIP_SPEC;
+	int freq;
 	const char *t = params;
+	char err_buf[200];
 
 	if (!*params)
 		return;
@@ -468,19 +468,28 @@ local void Csetfreq(const char *tc, const char *params, Player *p, const Target 
 	if (target->type == T_PLAYER)
 	{
 		Player *p = target->u.p;
-		ship = p->p_ship;
 
 		if (use_fm)
 		{
 			Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
 			if (fm)
 			{
-				fm->FreqChange(p, &ship, &freq);
+				err_buf[0] = '\0';
+				fm->FreqChange(p, freq, err_buf, sizeof(err_buf));
 				mm->ReleaseInterface(fm);
+				if (err_buf[0] != '\0')
+					chat->SendMessage(sender, "%s: %s", p->name, err_buf);
+
+			}
+			else
+			{
+				game->SetFreq(p, freq);
 			}
 		}
-
-		game->SetShipAndFreq(p, ship, freq);
+		else
+		{
+			game->SetFreq(p, freq);
+		}
 	}
 	else
 	{
@@ -489,22 +498,30 @@ local void Csetfreq(const char *tc, const char *params, Player *p, const Target 
 
 		pd->TargetToSet(target, &set);
 		for (l = LLGetHead(&set); l; l = l->next)
-			{
+		{
 			Player *p = l->data;
-			ship = p->p_ship;
 
 			if (use_fm)
 			{
 				Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
 				if (fm)
 				{
-					fm->FreqChange(p, &ship, &freq);
+					err_buf[0] = '\0';
+					fm->FreqChange(p, freq, err_buf, sizeof(err_buf));
 					mm->ReleaseInterface(fm);
+					if (err_buf[0] != '\0')
+						chat->SendMessage(sender, "%s: %s", p->name, err_buf);
+				}
+				else
+				{
+					game->SetFreq(p, freq);
 				}
 			}
-
-			game->SetShipAndFreq(p, ship, freq);
+			else
+			{
+				game->SetFreq(p, freq);
 			}
+		}
 		LLEmpty(&set);
 	}
 }
@@ -517,12 +534,12 @@ local helptext_t setship_help =
 "number from 1 (Warbird) to 8 (Shark), or 9 (Spec).\n"
 "If -f is specified, this command ignores the arena freqman.\n";
 
-local void Csetship(const char *tc, const char *params, Player *p, const Target *target)
+local void Csetship(const char *tc, const char *params, Player *sender, const Target *target)
 {
 	int use_fm = 1;
-	int freq = 0;
-	int ship = SHIP_SPEC;
+	int ship;
 	const char *t = params;
+	char err_buf[200];
 
 	if (!*params)
 		return;
@@ -540,19 +557,27 @@ local void Csetship(const char *tc, const char *params, Player *p, const Target 
 	if (target->type == T_PLAYER)
 	{
 		Player *p = target->u.p;
-		freq = p->p_freq;
 
 		if (use_fm)
 		{
 			Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
 			if (fm)
 			{
-				fm->ShipChange(p, &ship, &freq);
+				err_buf[0] = '\0';
+				fm->ShipChange(p, ship, err_buf, sizeof(err_buf));
 				mm->ReleaseInterface(fm);
+				if (err_buf[0] != '\0')
+					chat->SendMessage(sender, "%s: %s", p->name, err_buf);
+			}
+			else
+			{
+				game->SetShip(p, ship);
 			}
 		}
-
-		game->SetShipAndFreq(p, ship, freq);
+		else
+		{
+			game->SetShip(p, ship);
+		}
 	}
 	else
 	{
@@ -561,22 +586,30 @@ local void Csetship(const char *tc, const char *params, Player *p, const Target 
 
 		pd->TargetToSet(target, &set);
 		for (l = LLGetHead(&set); l; l = l->next)
-			{
+		{
 			Player *p = l->data;
-			freq = p->p_freq;
 
 			if (use_fm)
 			{
 				Ifreqman *fm = mm->GetInterface(I_FREQMAN, p->arena);
 				if (fm)
 				{
-					fm->ShipChange(p, &ship, &freq);
+					err_buf[0] = '\0';
+					fm->ShipChange(p, ship, err_buf, sizeof(err_buf));
 					mm->ReleaseInterface(fm);
+					if (err_buf[0] != '\0')
+						chat->SendMessage(sender, "%s: %s", p->name, err_buf);
+				}
+				else
+				{
+					game->SetShip(p, ship);
 				}
 			}
-
-			game->SetShipAndFreq(p, ship, freq);
+			else
+			{
+				game->SetShip(p, ship);
 			}
+		}
 		LLEmpty(&set);
 	}
 }
@@ -1243,7 +1276,7 @@ local helptext_t setcm_help =
 "The mask will be effective for that time, even across logouts.\n"
 "\n"
 "Examples:\n"
-" * If someone is spamming public macros: {:player:?setcm -pubmacro -time 600}\n"
+" * If someone is spamming public macros: {:player:?setcm -pubmacro -t 600}\n"
 " * To disable all blue messages for this arena: {?setcm -pub -pubmacro}\n"
 " * An equivalent to *shutup: {:player:?setcm -all}\n"
 " * To restore chat to normal: {?setcm +all}\n"

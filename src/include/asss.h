@@ -41,4 +41,5 @@
 #include "bricks.h"
 #include "mapdata.h"
 #include "objects.h"
+#include "freqman.h"
 

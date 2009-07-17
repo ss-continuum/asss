@@ -25,9 +25,9 @@
 #endif
 
 /** a version number, represented as a string */
-#define ASSSVERSION "1.4.4"
+#define ASSSVERSION "1.5.0alpha2"
 /** a version number, represented as an integer */
-#define ASSSVERSION_NUM 0x00010404
+#define ASSSVERSION_NUM 0x000104ff
 #define BUILDDATE __DATE__ " " __TIME__
 
 #include "util.h"
@@ -67,6 +67,19 @@ enum
 	SHIP_SHARK,
 	SHIP_SPEC
 };
+
+/** ship mask values, notably for use with freqman enforcers */
+/* pyconst: define int, "SHIPMASK_*" */
+#define SHIPMASK_NONE 0
+#define SHIPMASK_WARBIRD 1
+#define SHIPMASK_JAVELIN 2
+#define SHIPMASK_SPIDER 4
+#define SHIPMASK_LEVIATHAN 8
+#define SHIPMASK_TERRIER 16
+#define SHIPMASK_WEASEL 32
+#define SHIPMASK_LANCASTER 64
+#define SHIPMASK_SHARK 128
+#define SHIPMASK_ALL 255
 
 
 /** array of ship name strings */

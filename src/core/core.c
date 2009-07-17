@@ -366,20 +366,17 @@ int process_player_states(void *v)
 				if (player->p_ship == -1 || player->p_freq == -1)
 				{
 					Ifreqman *fm = mm->GetInterface(I_FREQMAN, player->arena);
-					int freq, ship;
-
-					ship = player->p_ship = requested_ship;
-					freq = player->p_freq = 0;
+					int freq = 0;
 
 					/* if this arena has a manager, use it */
 					if (fm)
 					{
-						fm->InitialFreq(player, &ship, &freq);
+						fm->Initial(player, &requested_ship, &freq);
 						mm->ReleaseInterface(fm);
 					}
 
 					/* set the results back */
-					player->p_ship = ship;
+					player->p_ship = requested_ship;
 					player->p_freq = freq;
 				}
 				/* then, sync scores */
