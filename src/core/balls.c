@@ -307,6 +307,8 @@ void ChangeBallCount(Arena *arena, int ballcount)
 
 	oldc = abd->ballcount;
 
+	DO_CBS(CB_BALLCOUNTCHANGE, arena, BallCountChangeFunc, (arena, ballcount, oldc));
+
 	if (ballcount < oldc)
 	{
 		/* we have to remove some balls. there is no clean way to do

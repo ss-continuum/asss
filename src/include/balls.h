@@ -20,6 +20,10 @@ typedef enum
 	BALL_WAITING  /* the ball is waiting to be spawned again */
 } ballstate_t;
 
+/* called when the number of balls changes */
+#define CB_BALLCOUNTCHANGE "ballcountchange"
+typedef void (*BallCountChangeFunc)(Arena *arena, int newcount, int oldcount);
+/* pycb: arena, int, int */
 
 /* called when a player picks up a ball */
 #define CB_BALLPICKUP "ballpickup"
