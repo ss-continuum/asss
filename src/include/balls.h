@@ -72,8 +72,11 @@ typedef struct ArenaBallData
 	/* the number of balls currently in play. 0 if the arena has no ball game. */
 	int ballcount;
 
-	/* points to an array of at least ballcount structs */
+	/* points to an array of ball states. */
 	struct BallData *balls;
+
+	/* points to an array of previous ball states. */
+	struct BallData *previous;
 } ArenaBallData;
 
 

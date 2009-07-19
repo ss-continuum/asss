@@ -351,7 +351,8 @@ void PlaceBall(Arena *arena, int bid, struct BallData *newpos)
 	LOCK_STATUS(arena);
 	if (bid >= 0 && bid < abd->ballcount)
 	{
-		abd->balls[bid] = *newpos;
+		memcpy(abd->previous + bid, abd->balls + bid, sizeof(struct BallData));
+		memcpy(abd->balls + bid, newpos, sizeof(struct BallData));
 		send_ball_packet(arena, bid);
 	}
 	UNLOCK_STATUS(arena);
@@ -530,6 +531,7 @@ void AABall(Arena *arena, int action)
 
 		/* allocate array for public ball data */
 		abd->balls = amalloc(MAXBALLS * sizeof(struct BallData));
+		abd->previous = amalloc(MAXBALLS * sizeof(struct BallData));
 
 		for (i = 0; i < MAXBALLS; ++i)
 		{
@@ -542,6 +544,8 @@ void AABall(Arena *arena, int action)
 			{
 				InitBall(arena, i);
 			}
+			/* initialize the "previous" array with the initial state */
+			memcpy(abd->previous + i, abd->balls + i, sizeof(struct BallData));
 		}
 
 		if (abd->ballcount > 0)
@@ -551,6 +555,7 @@ void AABall(Arena *arena, int action)
 	{
 		/* clean up ball data */
 		afree(abd->balls);
+		afree(abd->previous);
 		abd->balls = 0;
 		abd->ballcount = 0;
 
@@ -582,9 +587,10 @@ local void CleanupAfter(Arena *arena, Player *p, int neut)
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
 	int i;
 	struct BallData *b = abd->balls;
+	struct BallData *prev = abd->previous;
 
 	LOCK_STATUS(arena);
-	for (i = 0; i < abd->ballcount; i++, b++)
+	for (i = 0; i < abd->ballcount; i++, b++, prev++)
 		if (b->state == BALL_CARRIED &&
 			b->carrier == p)
 		{
@@ -601,6 +607,7 @@ local void CleanupAfter(Arena *arena, Player *p, int neut)
 			if (neut) defaultbd.carrier = NULL;
 			defaultbd.time = defaultbd.last_update = current_ticks();
 
+			memcpy(prev, b, sizeof(struct BallData));
 			memcpy(b, &defaultbd, sizeof(struct BallData));
 
 			/* run this by advisers to see if they want to make the ball do something weird instead. */
@@ -764,6 +771,8 @@ void PPickupBall(Player *p, byte *pkt, int len)
 
 	if (!allow)
 		memcpy(bd, &defaultbd, sizeof(struct BallData));
+	else
+		memcpy(abd->previous + bid, &defaultbd, sizeof(struct BallData));
 
 	send_ball_packet(arena, bp->ballid);
 
@@ -857,6 +866,8 @@ void PFireBall(Player *p, byte *pkt, int len)
 
 	if (!allow)
 		memcpy(bd, &defaultbd, sizeof(struct BallData));
+	else
+		memcpy(abd->previous + bid, &defaultbd, sizeof(struct BallData));
 
 	send_ball_packet(arena, bid);
 
@@ -954,12 +965,15 @@ void PGoal(Player *p, byte *pkt, int len)
 		/* barring extreme circumstances, using this check should not be a problem. */
 		if (bd->last_update != newbd.last_update)
 		{
+			memcpy(abd->previous + bid, bd, sizeof(struct BallData));
 			memcpy(bd, &newbd, sizeof(struct BallData));
 			send_ball_packet(arena, bid);
 		}
 	}
 	else
 	{
+		memcpy(abd->previous + bid, bd, sizeof(struct BallData));
+
 		/* send ball update */
 		if (bd->state != BALL_ONMAP)
 		{
