@@ -5,6 +5,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -608,17 +609,24 @@ local void get_watching_set(LinkedList *set, Arena *arena)
 
 /* locking humans to spec */
 
-local void freqman(Player *p, int *ship, int *freq)
+local int GetAllowableShips(Player *p, int ship, int freq, char *err_buf, int buf_len)
 {
-	rec_adata *ra = P_ARENA_DATA(p->arena, adkey);
-	*ship = SHIP_SPEC;
-	*freq = ra->specfreq;
+	if (err_buf)
+		snprintf(err_buf, buf_len, "Ships are disabled for playback.");
+	return 0;
 }
 
-local struct Ifreqman lockspecfm =
+local int CanChangeFreq(Player *p, int new_freq, char *err_buf, int buf_len)
 {
-	INTERFACE_HEAD_INIT(I_FREQMAN, "fm-lock-spec")
-	freqman, freqman, freqman
+	if (err_buf)
+		snprintf(err_buf, buf_len, "Teams are locked for playback.");
+	return 0;
+}
+
+local struct Aenforcer lockspec =
+{
+	ADVISER_HEAD_INIT(A_ENFORCER)
+	GetAllowableShips, CanChangeFreq
 };
 
 
@@ -628,7 +636,7 @@ local void lock_all_spec(Arena *a)
 	LinkedList set = LL_INITIALIZER;
 	Link *l;
 
-	mm->RegInterface(&lockspecfm, a);
+	mm->RegAdviser(&lockspec, a);
 
 	get_watching_set(&set, a);
 	for (l = LLGetHead(&set); l; l = l->next)
@@ -638,7 +646,7 @@ local void lock_all_spec(Arena *a)
 
 local void unlock_all_spec(Arena *a)
 {
-	mm->UnregInterface(&lockspecfm, a);
+	mm->UnregAdviser(&lockspec, a);
 }
 
 

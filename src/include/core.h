@@ -101,7 +101,7 @@ typedef void (*PlayerActionFunc)(Player *p, int action, Arena *arena);
 
 
 /** the interface id for Ifreqman */
-#define I_FREQMAN "freqman-1"
+/*#define I_FREQMAN "freqman-1"*/
 
 /** the interface struct for Ifreqman.
  * this interface is designed to be implemented by a non-core module,
@@ -117,30 +117,30 @@ typedef void (*PlayerActionFunc)(Player *p, int action, Arena *arena);
  *     *ship = p->p_ship; *freq = p->p_freq;
  * @endcode
  */
-typedef struct Ifreqman
+/*typedef struct Ifreqman
 {
 	INTERFACE_HEAD_DECL
-	/* pyint: use, impl */
+	/ * pyint: use, impl * /
 
 
-	/** called when a player connects and needs to be assigned to a freq.
+	/ ** called when a player connects and needs to be assigned to a freq.
 	 * ship will initially contain the requested ship, and freq will
-	 * contain -1. */
+	 * contain -1. * /
 	void (*InitialFreq)(Player *p, int *ship, int *freq);
-	/* pyint: player, int inout, int inout -> void */
+	/ * pyint: player, int inout, int inout -> void * /
 
-	/** called when a player requests a ship change.
+	/ ** called when a player requests a ship change.
 	 * ship will initially contain the ship request, and freq will
-	 * contain the player's current freq. */
+	 * contain the player's current freq. * /
 	void (*ShipChange)(Player *p, int *ship, int *freq);
-	/* pyint: player, int inout, int inout -> void */
+	/ * pyint: player, int inout, int inout -> void * /
 
-	/** called when a player requests a freq change.
+	/ ** called when a player requests a freq change.
 	 * ship will initially contain the player's ship, and freq will
-	 * contain the requested freq. */
+	 * contain the requested freq. * /
 	void (*FreqChange)(Player *p, int *ship, int *freq);
-	/* pyint: player, int inout, int inout -> void */
-} Ifreqman;
+	/ * pyint: player, int inout, int inout -> void * /
+} Ifreqman;*/
 
 
 /** the interface id for Iauth */
