@@ -25,9 +25,9 @@
 #endif
 
 /** a version number, represented as a string */
-#define ASSSVERSION "1.4.4"
+#define ASSSVERSION "1.5.0alpha2"
 /** a version number, represented as an integer */
-#define ASSSVERSION_NUM 0x00010404
+#define ASSSVERSION_NUM 0x000104ff
 #define BUILDDATE __DATE__ " " __TIME__
 
 #include "util.h"

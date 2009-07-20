@@ -351,6 +351,8 @@ void PBrick(Player *p, byte *pkt, int len)
 					continue;
 				if (q->p_freq == p->p_freq)
 					continue;
+				if (q->flags.is_dead)
+					continue;
 				ship = q->p_ship;
 
 				FOR_EACH(&brick_list, brick, bricklink)
