@@ -13,6 +13,7 @@ INTERNAL_MODULES = \
 	cfghelp filetrans quickfix \
 	freqowners arenaperm auth_prefix fake chatnet \
 	ap_multipub sendfile auth_ban auth_file obscene \
+	enf_shipchange \
 	deadlock $(unixsignal)
 
 # generated file for mapdata
