@@ -969,12 +969,14 @@ local void aaction(Arena *arena, int action)
 	adata *ad = P_ARENA_DATA(arena, adkey);
 	if (action == AA_CREATE)
 	{
+		// TODO: init
 		LLInit(&ad->freqs);
 		update_config(arena);
 		prune_freqs(arena);
 	}
 	else if (action == AA_DESTROY)
 	{
+		// TODO: deinit
 		LOCK();
 		LLEnumNC(&ad->freqs, freq_free_enum);
 		LLEmpty(&ad->freqs);
@@ -1011,16 +1013,20 @@ EXPORT int MM_freqman(int action, Imodman *mm_, Arena *arena)
 
 		mm->RegCallback(CB_PLAYERACTION, paction, ALLARENAS);
 		mm->RegCallback(CB_ARENAACTION, aaction, ALLARENAS);
+		mm->RegCallback(CB_SHIPFREQCHANGE, shipfreqchange, ALLARENAS);
+
+		mm->RegInterface(&fm_int, ALLARENAS);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (fm_int.head.refcount)
+		if (mm->UnregInterface(&fm_int, ALLARENAS))
 			return MM_FAIL;
 
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
+		mm->UnregCallback(CB_SHIPFREQCHANGE, shipfreqchange, ALLARENAS);
 
 		aman->FreeArenaData(adkey);
 		pd->FreePlayerData(pdkey);
@@ -1030,20 +1036,6 @@ EXPORT int MM_freqman(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(game);
-		return MM_OK;
-	}
-	else if (action == MM_ATTACH)
-	{
-		// TODO: init
-		mm->RegInterface(&fm_int, arena);
-		mm->RegCallback(CB_SHIPFREQCHANGE, shipfreqchange, arena);
-		return MM_OK;
-	}
-	else if (action == MM_DETACH)
-	{
-		// TODO: deinit
-		mm->UnregCallback(CB_SHIPFREQCHANGE, shipfreqchange, arena);
-		mm->UnregInterface(&fm_int, arena);
 		return MM_OK;
 	}
 	return MM_FAIL;
