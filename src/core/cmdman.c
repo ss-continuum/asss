@@ -156,6 +156,8 @@ local void init_dontlog()
 	HashAdd(dontlog_table, "login", (void*)1);
 	HashAdd(dontlog_table, "blogin", (void*)1);
 	HashAdd(dontlog_table, "bpassword", (void*)1);
+	HashAdd(dontlog_table, "squadpassword", (void*)1);
+	HashAdd(dontlog_table, "message", (void*)1);
 }
 
 
