@@ -30,6 +30,33 @@
 #define ASSSVERSION_NUM 0x000104ff
 #define BUILDDATE __DATE__ " " __TIME__
 
+
+/** a useful typedef */
+typedef unsigned char byte;
+
+
+/* platform-specific stuff */
+
+#if (defined(_WIN32) || defined(__WIN32__) || defined(__NT__)) && !defined(WIN32)
+#define WIN32 /* for Borland and Watcom */
+#endif
+
+#ifndef WIN32
+/** this macro should expand to whatever is necessary to make the
+ ** compiler export a function definition from a shared library. */
+#define EXPORT
+#define TRUE (1)
+#define FALSE (0)
+/** a little macro for win32 compatibility */
+#define closesocket(a) close(a)
+#define O_BINARY 0
+#else
+#include "win32compat.h"
+#endif
+
+
+#include "sizes.h"
+
 #include "util.h"
 
 
@@ -68,6 +95,7 @@ enum
 	SHIP_SPEC
 };
 
+
 /** ship mask values, notably for use with freqman enforcers */
 /* pyconst: define int, "SHIPMASK_*" */
 #define SHIPMASK_NONE 0
@@ -80,6 +108,15 @@ enum
 #define SHIPMASK_LANCASTER 64
 #define SHIPMASK_SHARK 128
 #define SHIPMASK_ALL 255
+
+/** used to create a ship mask from a ship */
+#define SHIPMASK(ship) (1 << ship)
+
+/** use this macro to check whether a certain ship is marked in the mask */
+#define SHIPMASK_HAS(ship, mask) ((mask) & (1 << (ship)))
+
+/* type to hold shipmasks. The width may change for future clients. */
+typedef u32 shipmask_t;
 
 
 /** array of ship name strings */
@@ -189,32 +226,6 @@ typedef struct
 	} u;
 } Target;
 
-
-/** a useful typedef */
-typedef unsigned char byte;
-
-
-/* platform-specific stuff */
-
-#if (defined(_WIN32) || defined(__WIN32__) || defined(__NT__)) && !defined(WIN32)
-#define WIN32 /* for Borland and Watcom */
-#endif
-
-#ifndef WIN32
-/** this macro should expand to whatever is necessary to make the
- ** compiler export a function definition from a shared library. */
-#define EXPORT
-#define TRUE (1)
-#define FALSE (0)
-/** a little macro for win32 compatibility */
-#define closesocket(a) close(a)
-#define O_BINARY 0
-#else
-#include "win32compat.h"
-#endif
-
-
-#include "sizes.h"
 
 #include "packets/types.h"
 
