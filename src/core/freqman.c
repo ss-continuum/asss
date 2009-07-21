@@ -57,12 +57,12 @@ local pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 #define UNLOCK() pthread_mutex_unlock(&mtx)
 
 /* checks the enforcers for allowable ships */
-local int enforcers_get_allowable_ships(Arena *arena, Player *p, int ship, int freq, char *err_buf, int buf_len)
+local shipmask_t enforcers_get_allowable_ships(Arena *arena, Player *p, int ship, int freq, char *err_buf, int buf_len)
 {
 	LinkedList advisers;
 	Link *link;
 	Aenforcer *adviser;
-	int mask = 255;
+	shipmask_t mask = SHIPMASK_ALL;
 
 	LLInit(&advisers);
 
@@ -566,7 +566,7 @@ local void Initial(Player *p, int *ship, int *freq)
 	}
 	else
 	{
-		int mask;
+		shipmask_t mask;
 
 		/* find an initial freq using the balancer and enforcers*/
 		f = find_freq(arena, p);
@@ -647,7 +647,7 @@ local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 	/* make sure their ship is legal */
 	if (requested_ship != SHIP_SPEC)
 	{
-		int mask = enforcers_get_allowable_ships(arena, p, requested_ship, freq, err_buf, buf_len);
+		shipmask_t mask = enforcers_get_allowable_ships(arena, p, requested_ship, freq, err_buf, buf_len);
 		if ((mask & (1 << requested_ship)) == 0)
 		{
 			if (mask & (1 << p->p_ship))
@@ -718,7 +718,7 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 	{
 		if (IS_STANDARD(p))
 		{
-			int mask = enforcers_get_allowable_ships(arena, p, SHIP_SPEC, requested_freq, NULL, 0);
+			shipmask_t mask = enforcers_get_allowable_ships(arena, p, SHIP_SPEC, requested_freq, NULL, 0);
 			int i;
 			for (i = SHIP_WARBIRD; i <= SHIP_SHARK; i++)
 			{
@@ -785,7 +785,7 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 	/* make sure their ship is legal */
 	if (ship != SHIP_SPEC)
 	{
-		int mask = enforcers_get_allowable_ships(arena, p, ship, requested_freq, err_buf, buf_len);
+		shipmask_t mask = enforcers_get_allowable_ships(arena, p, ship, requested_freq, err_buf, buf_len);
 		if (mask & (1 << ship))
 		{
 			game->SetShipAndFreq(p, ship, requested_freq);
