@@ -32,8 +32,6 @@ typedef struct
 	u32 wpnsent;
 	int ignoreweapons, deathwofiring;
 
-	struct { int changes; ticks_t lastcheck; } changes;
-
 	/* epd/energy stuff */
 	int epd_queries;
 	struct { byte seenrg, seenrgspec, seeepd, pad1; } pl_epd;
@@ -78,7 +76,7 @@ local Ipersist *persist;
 local int adkey, pdkey;
 
 local int cfg_bulletpix, cfg_wpnpix, cfg_pospix;
-local int cfg_sendanti, cfg_changelimit;
+local int cfg_sendanti;
 local int wpnrange[WEAPONCOUNT]; /* there are 5 bits in the weapon type */
 local pthread_mutex_t specmtx = PTHREAD_MUTEX_INITIALIZER;
 local pthread_mutex_t freqshipmtx = PTHREAD_MUTEX_INITIALIZER;
@@ -893,7 +891,6 @@ local void PSetShip(Player *p, byte *pkt, int len)
 	Arena *arena = p->arena;
 	int ship = pkt[1];
 	Ifreqman *fm;
-	int d;
 
 	if (len != 2)
 	{
@@ -928,22 +925,6 @@ local void PSetShip(Player *p, byte *pkt, int len)
 		pthread_mutex_unlock(&freqshipmtx);
 		return;
 	}
-
-	/* exponential decay by 1/2 every 10 seconds */
-	d = TICK_DIFF(current_ticks(), data->changes.lastcheck) / 1000;
-	data->changes.changes >>= d;
-	data->changes.lastcheck = TICK_MAKE(data->changes.lastcheck + d * 1000);
-	if (data->changes.changes > cfg_changelimit && cfg_changelimit > 0)
-	{
-		lm->LogP(L_INFO, "game", p, "too many ship changes");
-		/* disable for at least 30 seconds */
-		data->changes.changes |= (cfg_changelimit<<3);
-		if (chat)
-			chat->SendMessage(p, "You're changing ships too often, disabling for 30 seconds.");
-		pthread_mutex_unlock(&freqshipmtx);
-		return;
-	}
-	data->changes.changes++;
 
 	/* do this bit while holding the mutex. it's ok to check the flag
 	 * afterwards, though. */
@@ -1299,10 +1280,7 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 		 * position packets look like they're in the future. also set a
 		 * bunch of other timers to now. */
 		memset(&data->pos, 0, sizeof(data->pos));
-		data->pos.time =
-			data->lastrgncheck =
-			data->changes.lastcheck =
-			current_ticks();
+		data->pos.time = data->lastrgncheck = current_ticks();
 
 		LLInit(&data->lastrgnset);
 
@@ -1688,10 +1666,6 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		cfg_sendanti = cfg->GetInt(GLOBAL, "Net", "AntiwarpSendPercent", 5);
 		/* convert to a percentage of RAND_MAX */
 		cfg_sendanti = RAND_MAX / 100 * cfg_sendanti;
-		/* cfghelp: General:ShipChangeLimit, global, int, def: 10
-		 * The number of ship changes in a short time (about 10 seconds)
-		 * before ship changing is disabled (for about 30 seconds). */
-		cfg_changelimit = cfg->GetInt(GLOBAL, "General", "ShipChangeLimit", 10);
 
 		for (i = 0; i < WEAPONCOUNT; i++)
 			wpnrange[i] = cfg_wpnpix;
