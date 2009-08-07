@@ -143,6 +143,8 @@ typedef struct Imapdata
 #define RCT_NOANTIWARP      MAKE_CHUNK_TYPE(rNAW)
 #define RCT_NOWEAPONS       MAKE_CHUNK_TYPE(rNWP)
 #define RCT_NOFLAGS         MAKE_CHUNK_TYPE(rNFL)
+#define RCT_NORECVANTI      MAKE_CHUNK_TYPE(rNRA)
+#define RCT_NORECVWEPS       MAKE_CHUNK_TYPE(rNRW)
 
 	/** finds the region with a particular name.
 	 * @param arena the arena that contains the map we want to look for
@@ -213,7 +215,7 @@ typedef struct Imapdata
 	void (*EnumLVZFiles)(Arena *arena,
 			void (*func)(const char *fn, int optional, void *clos),
 			void *clos);
-	
+
 	/** sets x and y to random coordinates within the specified region
 	 * or -1 if there's an error.
 	 * @param rgn the Region to find a random point within
