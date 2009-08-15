@@ -450,9 +450,14 @@ def create_c_to_py_func(name, func):
 			# this is both incoming and outgoing
 			argname += '_inout'
 			vargname = argname + '_v'
-			decls.append('\t%s;' % (typ.buf_decl(vargname)))
-			informat.append(typ.format_char())
-			outformat.append(typ.format_char())
+			if arg.tp == 'string':
+				decls.append('\t%s;' % (typ.decl(vargname)))
+				decls.append('\tint len_%s;' % vargname)
+				outformat.append('s#')
+			else:
+				decls.append('\t%s;' % (typ.buf_decl(vargname)))
+				outformat.append(typ.format_char())
+			informat.append(typ.format_char())			
 			try:
 				inargs.append(typ.parse_converter())
 			except:
@@ -467,10 +472,11 @@ def create_c_to_py_func(name, func):
 				pass
 			outargs.append('&%s' % vargname)
 			allargs.append(typ.ptr_decl(argname))
+			if arg.tp == 'string':
+				outargs.append('&len_%s' % vargname)
+				extras3.append('\tif(++len_%s < buflen) buflen = len_%s;' % (vargname, vargname))
 			extras3.append(typ.conv_to_buf(argname, vargname))
 
-			if arg.tp == 'string':
-				print "warning: %s: string inout args are probably broken" % name
 
 		elif 'buflen' in opts:
 			# this arg is a buffer length
