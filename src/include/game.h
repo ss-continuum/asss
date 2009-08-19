@@ -152,7 +152,7 @@ typedef struct Appk
 	/** Modifies a player's position packet before it is sent out.
 	 * The adviser may edit the packet, but should not rely on
 	 * this function for notification, as other advisers may be
-	 * consulted. Instead the CB_PPK callback should be used for 
+	 * consulted. Instead the CB_PPK callback should be used for
 	 * notification.
 	 * @param p the player that the position packet belongs to
 	 * @param pos a pointer to the position packet
@@ -299,6 +299,17 @@ typedef struct Igame
 	void (*ResetSpectatorEnergyViewing)(Player *p);
 
 	void (*DoWeaponChecksum)(struct S2CWeapons *pkt);
+
+	/**
+	 * Checks if a player is antiwarped and optionally gives a list of
+	 * the antiwarping players. Don't forget to empty the list afterwards.
+	 * The list pointer may be NULL.
+	 *
+	 * @param p the player to check
+	 * @param players a list to fill with antiwarping players
+	 * @return TRUE if antiwarped, FALSE otherwise
+	 */
+	int (*IsAntiwarped)(Player *p, LinkedList *players);
 } Igame;
 
 

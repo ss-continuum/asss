@@ -38,7 +38,7 @@ typedef struct
 	/*            enum    enum        bool              */
 
 	/* some flags */
-	byte lockship, rgnnoanti, rgnnoweapons, pad2;
+	byte lockship, rgnnoanti, rgnnoweapons, rgnnorecvanti, rgnnorecvweps; // TODO: the last two still need code in Pppk
 	time_t expires; /* when the lock expires, or 0 for session-long lock */
 	ticks_t lastrgncheck; /* when we last updated the region-based flags */
 	LinkedList lastrgnset;
@@ -142,6 +142,10 @@ local void ppk_region_cb(void *clos, Region *rgn)
 		params->data->rgnnoanti = 1;
 	if (mapdata->RegionChunk(rgn, RCT_NOWEAPONS, NULL, NULL))
 		params->data->rgnnoweapons = 1;
+	if (mapdata->RegionChunk(rgn, RCT_NORECVANTI, NULL, NULL))
+		params->data->rgnnorecvanti = 1;
+	if (mapdata->RegionChunk(rgn, RCT_NORECVWEPS, NULL, NULL))
+		params->data->rgnnorecvweps = 1;
 }
 
 local void do_region_callback(Player *p, Region *rgn, int x, int y, int entering)
@@ -155,7 +159,8 @@ local void update_regions(Player *p, int x, int y)
 	Link *ol, *nl;
 	struct region_cb_params params = { PPDATA(p, pdkey), LL_INITIALIZER };
 
-	params.data->rgnnoanti = params.data->rgnnoweapons = 0;
+	params.data->rgnnoanti = params.data->rgnnorecvanti = 0;
+	params.data->rgnnoweapons = params.data->rgnnorecvweps = 0;
 
 	mapdata->EnumContaining(p->arena, x, y, ppk_region_cb, &params);
 
@@ -590,6 +595,46 @@ local void FakePosition(Player *p, struct C2SPosition *pos, int len)
 	handle_ppk(p, pos, len, 1);
 }
 
+local int IsAntiwarped(Player *p, LinkedList *players)
+{
+	pdata *data = PPDATA(p, pdkey);
+	pdata *idata;
+	Player *i;
+	Link *link;
+	int antiwarped = 0;
+
+	if (!data->rgnnorecvanti)
+	{
+		pd->Lock();
+		FOR_EACH_PLAYER_P(i, idata, pdkey)
+		{
+			if(i->arena == p->arena && i->p_freq != p->p_freq && i->p_ship != SHIP_SPEC
+					&& (i->position.status & STATUS_ANTIWARP) && !idata->rgnnoanti)
+			{
+				int xdelta = (i->position.x - p->position.x);
+				int ydelta = (i->position.y - p->position.y);
+				int distSquared = (xdelta * xdelta + ydelta * ydelta);
+				int antiwarpRange = cfg->GetInt(p->arena->cfg, "Toggle", "AntiwarpPixels", 1);
+
+				if (distSquared < antiwarpRange * antiwarpRange)
+				{
+					antiwarped = 1;
+					if (players)
+					{
+						LLAdd(players, i);
+					}
+					else
+					{
+						break;
+					}
+				}
+			}
+		}
+		pd->Unlock();
+	}
+
+	return antiwarped;
+}
 
 /* call with specmtx locked */
 local void clear_speccing(pdata *data)
@@ -1616,7 +1661,7 @@ local Igame _myint =
 	IncrementWeaponPacketCount,
 	SetPlayerEnergyViewing, SetSpectatorEnergyViewing,
 	ResetPlayerEnergyViewing, ResetSpectatorEnergyViewing,
-	DoWeaponChecksum
+	DoWeaponChecksum, IsAntiwarped
 };
 
 
