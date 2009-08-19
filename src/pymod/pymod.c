@@ -1,4 +1,4 @@
-
+#define Py_ssize_t long
 /* dist: public */
 
 #include <signal.h>

@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #include "asss.h"
 
@@ -45,9 +46,9 @@ local void Authenticate(Player *p, struct LoginPacket *lp, int lplen,
 		{
 			AuthData data = { 0, AUTH_CUSTOMTEXT, 0 };
 			if (!bn->reason[0])
-				snprintf(data.customtext, sizeof(data.customtext), "You have been temporarily kicked. You may log in again in %im%is.", (bn->expire-now)/60, (bn->expire-now)%60);
+				snprintf(data.customtext, sizeof(data.customtext), "You have been temporarily kicked. You may log in again in %ldm%lds.", (bn->expire-now)/60, (bn->expire-now)%60);
 			else
-				snprintf(data.customtext, sizeof(data.customtext), "You have been temporarily kicked for %s. You may log in again in %im%is.", bn->reason, (bn->expire-now)/60, (bn->expire-now)%60);
+				snprintf(data.customtext, sizeof(data.customtext), "You have been temporarily kicked for %s. You may log in again in %ldm%lds.", bn->reason, (bn->expire-now)/60, (bn->expire-now)%60);
 			bn->count++;
 			if (lm) lm->Log(L_INFO, "<auth_ban> player [%s] tried to log in"
 					" (try %d), banned for %ld more minutes",
@@ -75,7 +76,7 @@ local helptext_t kick_help =
 "Messages appear to users on timeout as \"You have been temporarily kicked for <MESSAGE>.\"\n";
 local void Ckick(const char *tc, const char *params, Player *p, const Target *target)
 {
-	const char *message = params;
+	char *message = (char *)params;
 	const char *parsedParams = params;
 	int timeout = 0;
 	Player *t = target->u.p;
@@ -178,7 +179,7 @@ local helptext_t listmidbans_help =
 "Module: auth_ban\n"
 "Targets: none\n"
 "Args: none\n"
-"Lists the current kicks (machine-id bans) in effect.\n"
+"Lists the current kicks (machine-id bans) in effect.\n";
 local void Clistmidbans(const char *tc, const char *params, Player *p, const Target *target)
 {
 	StringBuffer sb;

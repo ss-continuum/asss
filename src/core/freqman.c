@@ -500,7 +500,7 @@ local int find_freq(Arena *arena, Player *p)
 	Freq *best_freq = NULL;
 
 	/* search only within the minimum of desired_teams and max_freq */
-	int max = ad->desired_teams < ad->max_freq ? ad->desired_teams : ad->max_freq;
+	int max = ad->desired_teams ? (ad->desired_teams < ad->max_freq ? ad->desired_teams : ad->max_freq) : ad->max_freq;
 
 	for (i = 0; i < max; i++)
 	{

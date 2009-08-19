@@ -2,6 +2,7 @@
 /* dist: public */
 
 #include "asss.h"
+#include <stdio.h>
 
 local Iconfig *cfg;
 local Ilogman *lm;
