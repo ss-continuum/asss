@@ -587,7 +587,7 @@ void AABall(Arena *arena, int action)
 }
 
 
-local void CleanupAfter(Arena *arena, Player *p, int neut)
+local void CleanupAfter(Arena *arena, Player *p, int neut, int leaving)
 {
 	/* make sure that if someone leaves, his ball drops */
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
@@ -597,8 +597,14 @@ local void CleanupAfter(Arena *arena, Player *p, int neut)
 
 	LOCK_STATUS(arena);
 	for (i = 0; i < abd->ballcount; i++, b++, prev++)
-		if (b->state == BALL_CARRIED &&
-			b->carrier == p)
+	{
+		if (leaving && prev->carrier == p)
+		{
+			/* prevent stale pointer from appearing in historical data. */
+			prev->carrier = NULL;
+		}
+
+		if (b->state == BALL_CARRIED && b->carrier == p)
 		{
 			LinkedList advisers = LL_INITIALIZER;
 			Aballs *adviser;
@@ -651,6 +657,7 @@ local void CleanupAfter(Arena *arena, Player *p, int neut)
 			b->carrier = NULL;
 			send_ball_packet(arena, i);
 		}
+	}
 	UNLOCK_STATUS(arena);
 }
 
@@ -659,19 +666,19 @@ void PABall(Player *p, int action, Arena *arena)
 	/* if he's entering arena, the timer event will send him the ball
 	 * info. */
 	if (action == PA_LEAVEARENA)
-		CleanupAfter(arena, p, 1);
+		CleanupAfter(arena, p, 1, 1);
 }
 
 void ShipFreqChange(Player *p, int newship, int oldship, int newfreq, int oldfreq)
 {
-	CleanupAfter(p->arena, p, 1);
+	CleanupAfter(p->arena, p, 1, 0);
 }
 
 void BallKill(Arena *arena, Player *killer, Player *killed, int bounty,
 		int flags, int *pts, int *green)
 {
 	InternalBallData *pbd = P_ARENA_DATA(arena, pbdkey);
-	CleanupAfter(arena, killed, !pbd->cfg_deathScoresGoal);
+	CleanupAfter(arena, killed, !pbd->cfg_deathScoresGoal, 0);
 }
 
 
