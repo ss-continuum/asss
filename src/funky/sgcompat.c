@@ -59,7 +59,7 @@ local void setup_aliases(void)
 	ALIAS("?setlevel",    "putmap");
 	ALIAS("*listban",     "listmidbans");
 	ALIAS("*removeban",   "delmidban");
-	ALIAS("*kill",        "kick");
+	ALIAS("*kill",        "kick -m");
 	ALIAS("*log",         "lastlog");
 	ALIAS("*zone",        "az");
 	ALIAS("*flags",       "flaginfo");

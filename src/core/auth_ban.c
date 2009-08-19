@@ -7,12 +7,16 @@
 
 #include "asss.h"
 
+#define KICKER_FIELD_LEN 24
+#define REASON_FIELD_LEN 64
 
 typedef struct
 {
 	TreapHead head;
 	int count;
 	time_t expire;
+	char kicker[KICKER_FIELD_LEN];
+	char reason[REASON_FIELD_LEN];
 } ban_node_t;
 
 local Imodman *mm;
@@ -39,7 +43,11 @@ local void Authenticate(Player *p, struct LoginPacket *lp, int lplen,
 		time_t now = time(NULL);
 		if (now < bn->expire)
 		{
-			AuthData data = { 0, AUTH_LOCKEDOUT, 0 };
+			AuthData data = { 0, AUTH_CUSTOMTEXT, 0 };
+			if (!bn->reason[0])
+				snprintf(data.customtext, sizeof(data.customtext), "You have been temporarily kicked. You may log in again in %im%is.", (bn->expire-now)/60, (bn->expire-now)%60);
+			else
+				snprintf(data.customtext, sizeof(data.customtext), "You have been temporarily kicked for %s. You may log in again in %im%is.", bn->reason, (bn->expire-now)/60, (bn->expire-now)%60);
 			bn->count++;
 			if (lm) lm->Log(L_INFO, "<auth_ban> player [%s] tried to log in"
 					" (try %d), banned for %ld more minutes",
@@ -61,16 +69,20 @@ local void Authenticate(Player *p, struct LoginPacket *lp, int lplen,
 local helptext_t kick_help =
 "Module: auth_ban\n"
 "Targets: player\n"
-"Args: [<timeout>]\n"
-"Kicks the player off of the server, with an optional timeout (in minutes).\n";
-
+"Args: [-s seconds | -t seconds | -m minutes | seconds] [message]\n"
+"Kicks the player off of the server, with an optional timeout. (-s number, -t number, or number for seconds, -m number for minutes.)\n"
+"For kicks with a timeout, you may provide a message to be displayed to the user.\n"
+"Messages appear to users on timeout as \"You have been temporarily kicked for <MESSAGE>.\"\n";
 local void Ckick(const char *tc, const char *params, Player *p, const Target *target)
 {
+	const char *message = params;
+	const char *parsedParams = params;
+	int timeout = 0;
 	Player *t = target->u.p;
 
 	if (target->type != T_PLAYER)
 	{
-		chat->SendMessage(p, "Only valid target is a single player.");
+		chat->SendMessage(p, "This command only operates when targeting one specific player.");
 		return;
 	}
 
@@ -87,17 +99,50 @@ local void Ckick(const char *tc, const char *params, Player *p, const Target *ta
 	/* try timeout stuff while the player still exists */
 	if (IS_STANDARD(t))
 	{
-		int mins = strtol(params, NULL, 0);
-		if (mins)
+		if (!strncmp(parsedParams, "-t", 2) || !strncmp(parsedParams, "-s", 2))
+		{
+			parsedParams += 2;
+			while (isspace(*parsedParams)) ++parsedParams;
+			timeout = strtol(parsedParams, &message, 0);
+		}
+		else if (!strncmp(parsedParams, "-m", 2))
+		{
+			parsedParams += 2;
+			while (isspace(*parsedParams)) ++parsedParams;
+			timeout = 60 * strtol(parsedParams, &message, 0);
+		}
+		else
+		{
+			timeout = strtol(parsedParams, &message, 0);
+		}
+
+		if (timeout > 0)
 		{
 			ban_node_t *bn = amalloc(sizeof(*bn));
 			bn->head.key = (int)t->macid;
 			bn->count = 0;
-			bn->expire = time(NULL) + mins * 60;
+			bn->expire = time(NULL) + timeout;
+
+			astrncpy(bn->kicker, p->name, sizeof(bn->kicker));
+			astrncpy(bn->reason, message, sizeof(bn->reason));
+
 			pthread_mutex_lock(&banmtx);
 			TrPut(&banroot, (TreapHead*)bn);
 			pthread_mutex_unlock(&banmtx);
 		}
+
+		if (timeout > 119)
+			chat->SendMessage(p, "Kicked '%s' for %i minutes and %i second(s).", t->name, timeout/60, timeout%60);
+		else if (timeout > 59)
+			chat->SendMessage(p, "Kicked '%s' for 1 minute and %i second(s).", t->name, timeout%60);
+		else if (timeout > 1)
+			chat->SendMessage(p, "Kicked '%s' for %i seconds.", t->name, timeout%60);
+		else
+			chat->SendMessage(p, "Kicked '%s'.", t->name);
+	}
+	else
+	{
+		chat->SendMessage(p, "Kicked '%s'.", t->name);
 	}
 
 	pd->KickPlayer(t);
@@ -106,21 +151,34 @@ local void Ckick(const char *tc, const char *params, Player *p, const Target *ta
 
 local void add_mid_ban(TreapHead *node, void *clos)
 {
+	time_t ct = time(0);
 	ban_node_t *ban = (ban_node_t*)node;
 	StringBuffer *sb = clos;
 	if (ban->expire)
-		SBPrintf(sb, ", %u (%ld min. left)",
-				(unsigned)ban->head.key, (ban->expire - time(NULL) + 30) / 60);
+	{
+		int dif = ban->expire - ct;
+		if (dif > 0)
+		{
+			SBPrintf(sb, ", %u by %s (%s) (%im%is left)",
+					(unsigned)ban->head.key, ban->kicker, ban->reason, dif / 60, dif % 60);
+		}
+		else
+		{
+			SBPrintf(sb, ", %u by %s (%s) (kick has expired)",
+					(unsigned)ban->head.key, ban->kicker, ban->reason);
+		}
+	}
 	else
+	{
 		SBPrintf(sb, ", %u", (unsigned)ban->head.key);
+	}
 }
 
 local helptext_t listmidbans_help =
 "Module: auth_ban\n"
 "Targets: none\n"
 "Args: none\n"
-"Lists the current machine id bans in effect.\n";
-
+"Lists the current kicks (machine-id bans) in effect.\n"
 local void Clistmidbans(const char *tc, const char *params, Player *p, const Target *target)
 {
 	StringBuffer sb;
@@ -181,6 +239,7 @@ EXPORT int MM_auth_ban(int action, Imodman *mm_, Arena *arena)
 		cmd->AddCommand("listkick", Clistmidbans, ALLARENAS, listmidbans_help);
 		cmd->AddCommand("delmidban", Cdelmidban, ALLARENAS, delmidban_help);
 		cmd->AddCommand("delkick", Cdelmidban, ALLARENAS, delmidban_help);
+		cmd->AddCommand("liftkick", Cdelmidban, ALLARENAS, delmidban_help);
 
 		mm->RegInterface(&myauth, ALLARENAS);
 		return MM_OK;
@@ -194,6 +253,7 @@ EXPORT int MM_auth_ban(int action, Imodman *mm_, Arena *arena)
 		cmd->RemoveCommand("listkick", Clistmidbans, ALLARENAS);
 		cmd->RemoveCommand("delmidban", Cdelmidban, ALLARENAS);
 		cmd->RemoveCommand("delkick", Cdelmidban, ALLARENAS);
+		cmd->RemoveCommand("liftkick", Cdelmidban, ALLARENAS);
 		TrEnum(banroot, tr_enum_afree, NULL);
 		mm->ReleaseInterface(oldauth);
 		mm->ReleaseInterface(capman);
