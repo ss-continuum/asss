@@ -124,6 +124,9 @@ local void Ckick(const char *tc, const char *params, Player *p, const Target *ta
 			bn->count = 0;
 			bn->expire = time(NULL) + timeout;
 
+			//remove leading spaces in the message
+			while (isspace(*message)) ++message;
+
 			astrncpy(bn->kicker, p->name, sizeof(bn->kicker));
 			astrncpy(bn->reason, message, sizeof(bn->reason));
 
