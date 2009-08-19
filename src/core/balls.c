@@ -43,7 +43,7 @@ typedef struct InternalBallData
 	int cfg_respawnTimeAfterGoal;
 
 	/* these are in centiseconds. the timer event runs with a resolution
-	 * of 50 centiseconds, though, so that's the best resolution you're
+	 * of 25 centiseconds, though, so that's the best resolution you're
 	 * going to get. */
 	int cfg_sendTime;
 
@@ -136,7 +136,7 @@ EXPORT int MM_balls(int action, Imodman *mm_, Arena *arena)
 		net->AddPacket(C2S_GOAL, PGoal);
 
 		/* timers */
-		ml->SetTimer(BasicBallTimer, 300, 50, NULL, NULL);
+		ml->SetTimer(BasicBallTimer, 300, 25, NULL, NULL);
 
 		mm->RegInterface(&_myint, ALLARENAS);
 
@@ -482,12 +482,18 @@ local int load_ball_settings(Arena *arena)
 	pbd->spawnCount = newSpawnCount;
 	memcpy(pbd->spawns, spawn, sizeof(BallSpawn) * newSpawnCount);
 
-	/* cfghelp: Soccer:SendTime, arena, int, range: 100-3000, def: 1000
+	/* cfghelp: Soccer:SendTime, arena, int, range: 25-500, def: 100
 	 * How often the server sends ball positions (in ticks). */
-	pbd->cfg_sendTime = cfg->GetInt(c, "Soccer", "cfg_sendTime", 1000);
+	pbd->cfg_sendTime = cfg->GetInt(c, "Soccer", "SendTime", 100);
+	if (pbd->cfg_sendTime < 25)
+		pbd->cfg_sendTime = 25;
+	else if (pbd->cfg_sendTime > 500)
+		pbd->cfg_sendTime = 500;
+
 	/* cfghelp: Soccer:GoalDelay, arena, int, def: 0
 	 * How long after a goal before the ball appears (in ticks). */
 	pbd->cfg_respawnTimeAfterGoal = cfg->GetInt(c, "Soccer", "GoalDelay", 0);
+
 	/* cfghelp: Soccer:AllowGoalByDeath, arena, bool, def: 0
 	 * Whether a goal is scored if a player dies carrying the ball
 	 * on a goal tile. */
