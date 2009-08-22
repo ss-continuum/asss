@@ -5,7 +5,7 @@
 
 #include "asss.h"
 
-local int GetAllowableShips(Player *p, int ship, int freq, char *err_buf, int buf_len)
+local shipmask_t GetAllowableShips(Player *p, int ship, int freq, char *err_buf, int buf_len)
 {
 	if (err_buf)
 	{

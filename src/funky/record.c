@@ -609,7 +609,7 @@ local void get_watching_set(LinkedList *set, Arena *arena)
 
 /* locking humans to spec */
 
-local int GetAllowableShips(Player *p, int ship, int freq, char *err_buf, int buf_len)
+local shipmask_t GetAllowableShips(Player *p, int ship, int freq, char *err_buf, int buf_len)
 {
 	if (err_buf)
 		snprintf(err_buf, buf_len, "Ships are disabled for playback.");
