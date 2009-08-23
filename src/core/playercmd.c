@@ -186,6 +186,17 @@ local void Cshutdown(const char *tc, const char *params, Player *p, const Target
 	ml->Quit(code);
 }
 
+local helptext_t recycle_help =
+"Targets: none\n"
+"Args: none\n"
+"Immediately shuts down the server, exiting with {EXIT_RECYCLE}. The "
+"{run-asss} script, if it is being used, will notice {EXIT_RECYCLE} "
+"and restart the server.\n";
+
+local void Crecycle(const char *tc, const char *params, Player *p, const Target *target)
+{
+	ml->Quit(EXIT_RECYCLE);
+}
 
 local helptext_t ballcount_help =
 "Targets: none\n"
@@ -2617,6 +2628,7 @@ local const struct cmd_info core_commands[] =
 	CMD(disablecmdgroup)
 	CMD(arena)
 	CMD(shutdown)
+	CMD(recycle)
 	CMD(owner)
 	CMD(zone)
 	CMD(version)
