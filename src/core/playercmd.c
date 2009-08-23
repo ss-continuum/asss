@@ -462,6 +462,9 @@ local void Csetfreq(const char *tc, const char *params, Player *sender, const Ta
 		t += 2;
 		while (isspace(*t)) t++;
 	}
+	
+	if (use_fm && capman->HasCapability(sender, CAP_FORCE_SHIPFREQCHANGE))
+		use_fm = 0;
 
 	freq = atoi(t);
 
@@ -550,6 +553,9 @@ local void Csetship(const char *tc, const char *params, Player *sender, const Ta
 		t += 2;
 		while (isspace(*t)) t++;
 	}
+	
+	if (use_fm && capman->HasCapability(sender, CAP_FORCE_SHIPFREQCHANGE))
+		use_fm = 0;
 
 	ship = (atoi(t) - 1) % (SHIP_SPEC + 1);
 	ship = abs(ship);
