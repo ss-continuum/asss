@@ -600,6 +600,10 @@ local void handle_chat(Player *p, const char *msg, int sound)
 {
 	if (ok(p, MSG_CHAT))
 	{
+		/* fix for broken clients */
+		if (*msg == ';')
+			msg++;
+
 		/* msg should look like "text" or "#;text" */
 		DO_CBS(CB_CHATMSG, ALLARENAS, ChatMsgFunc, (p, MSG_CHAT, sound, NULL, -1, msg));
 #ifdef CFG_LOG_PRIVATE
