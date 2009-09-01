@@ -71,8 +71,8 @@
 
 /* number of lines to hold in memory for ?lastlog, and the number of
  * characters of each line to store. */
-#define CFG_LAST_LINES 512
-#define CFG_LAST_LENGTH 75
+#define CFG_LAST_LINES 640
+#define CFG_LAST_LENGTH 192
 
 
 /* relax checks on certain packet lengths. only useful for debugging. */
