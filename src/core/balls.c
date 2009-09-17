@@ -447,20 +447,36 @@ local int load_ball_settings(Arena *arena)
 		 * settings without a number). If there are more balls than
 		 * spawns defined, the latter balls will repeat the first
 		 * spawns in order. For example, with 3 spawns, the fourth
-		 * ball uses the first spawn, the fifth ball uses the second. */
+		 * ball uses the first spawn, the fifth ball uses the second.
+		 * If only part of a spawn is undefined, that part will default to the first spawn's setting. */
 		char xname[] = "SpawnX#";
 		char yname[] = "SpawnY#";
 		char rname[] = "SpawnRadius#";
 		xname[6] = yname[6] = rname[11] = '0' + i;
 
 		spawn[i].x = cfg->GetInt(c, "Soccer", xname, -1);
-
-		if (spawn[i].x == -1)
+		spawn[i].y = cfg->GetInt(c, "Soccer", yname, -1);
+		
+		if (spawn[i].x == -1 && spawn[i].y == -1)
+		{
 			break;
-
+		}
+		
 		++newSpawnCount;
-		spawn[i].y = cfg->GetInt(c, "Soccer", yname, 512);
-		spawn[i].r = cfg->GetInt(c, "Soccer", rname, 20);
+		if (spawn[i].x == -1)
+		{
+			spawn[i].x = spawn[0].x;
+		}
+		else if (spawn[i].y == -1)
+		{
+			spawn[i].y = spawn[0].y;
+		}
+
+		spawn[i].r = cfg->GetInt(c, "Soccer", rname, -1);
+		if (spawn[i].r == -1)
+		{
+			spawn[i].r = spawn[0].r;
+		}
 	}
 
 	if (pbd->spawns)
