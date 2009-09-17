@@ -72,6 +72,9 @@ local void PPickupBall(Player *, byte *, int);
 local void PFireBall(Player *, byte *, int);
 local void PGoal(Player *, byte *, int);
 
+/* handler functions */
+local void HandleGoal(Arena *, Player *, int bid, int goalX, int goalY);
+
 /* interface funcs */
 local void SpawnBall(Arena *arena, int bid);
 local void SetBallCount(Arena *arena, int ballcount);
@@ -656,14 +659,25 @@ local void CleanupAfter(Arena *arena, Player *p, int neut, int leaving)
 			mm->ReleaseAdviserList(&advisers);
 
 			if (!allow)
+			{
 				memcpy(b, &defaultbd, sizeof(struct BallData));
+			}
 
 			send_ball_packet(arena, i);
 
-			/* don't forget fire callbacks */
+			/* don't forget fire callbacks. even if advisers disallowed it the ball is stil leaving the player like it or not, so we must fire
+			 * the callback. */
 
 			DO_CBS(CB_BALLFIRE, arena, BallFireFunc,
 					(arena, p, i));
+			
+			if (!neut && b->carrier != NULL && mapdata->GetTile(arena, b->x/16, b->y/16) == TILE_GOAL)
+			{
+				/* dropped an unneuted ball on a goal tile. let's not wait for the goal packet, otherwise a pickup packet may intercept it,
+				 * which might be okay if it didn't boil down to who has a better connection. */
+				logm->LogP(L_DRIVEL, "balls", p, "fired ball on top of goal tile");
+				HandleGoal(arena, b->carrier, i, b->x/16, b->y/16);
+			}
 		}
 		else if (neut && b->carrier == p)
 		{
@@ -799,22 +813,26 @@ void PPickupBall(Player *p, byte *pkt, int len)
 	mm->ReleaseAdviserList(&advisers);
 
 	if (!allow)
+	{
 		memcpy(bd, &defaultbd, sizeof(struct BallData));
+		send_ball_packet(arena, bp->ballid);
+	}
 	else
+	{
 		memcpy(abd->previous + bid, &defaultbd, sizeof(struct BallData));
-
-	send_ball_packet(arena, bp->ballid);
-
-	/* now call callbacks */
-	DO_CBS(CB_BALLPICKUP, arena, BallPickupFunc,
-			(arena, p, bp->ballid));
+		send_ball_packet(arena, bp->ballid);
+		
+		/* now call callbacks */
+		DO_CBS(CB_BALLPICKUP, arena, BallPickupFunc,
+				(arena, p, bp->ballid));
+				
+		logm->Log(L_DRIVEL, "<balls> {%s} [%s] player picked up ball %d",
+				arena->name,
+				p->name,
+				bp->ballid);
+	}
 
 	UNLOCK_STATUS(arena);
-
-	logm->Log(L_DRIVEL, "<balls> {%s} [%s] player picked up ball %d",
-			arena->name,
-			p->name,
-			bp->ballid);
 }
 
 
@@ -894,35 +912,38 @@ void PFireBall(Player *p, byte *pkt, int len)
 	mm->ReleaseAdviserList(&advisers);
 
 	if (!allow)
+	{
 		memcpy(bd, &defaultbd, sizeof(struct BallData));
+		send_ball_packet(arena, bid);
+	}
 	else
+	{
 		memcpy(abd->previous + bid, &defaultbd, sizeof(struct BallData));
-
-	send_ball_packet(arena, bid);
-
-	/* finally call callbacks */
-	DO_CBS(CB_BALLFIRE, arena, BallFireFunc, (arena, p, bid));
+		send_ball_packet(arena, bid);
+		
+		/* finally call callbacks */
+		DO_CBS(CB_BALLFIRE, arena, BallFireFunc, (arena, p, bid));
+		logm->LogP(L_DRIVEL, "balls", p, "player fired ball %d", bid);
+		
+		if (bd->carrier != NULL && mapdata->GetTile(arena, bd->x/16, bd->y/16) == TILE_GOAL)
+		{
+			/* dropped an unneuted ball on a goal tile. let's not wait for the goal packet, otherwise a pickup packet may intercept it,
+			 * which might be okay if it didn't boil down to who has a better connection. */
+			logm->LogP(L_DRIVEL, "balls", p, "fired ball on top of goal tile");
+			HandleGoal(arena, bd->carrier, bid, bd->x/16, bd->y/16);
+		}
+	}
 
 	UNLOCK_STATUS(arena);
-
-	logm->LogP(L_DRIVEL, "balls", p, "player fired ball %d", bid);
 }
-
 
 void PGoal(Player *p, byte *pkt, int len)
 {
 	Arena *arena = p->arena;
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
-	InternalBallData *pbd = P_ARENA_DATA(arena, pbdkey);
 	int bid;
 	struct C2SGoal *g = (struct C2SGoal*)pkt;
 	struct BallData *bd;
-
-	LinkedList advisers = LL_INITIALIZER;
-	Aballs *adviser;
-	Link *link;
-	int block = FALSE;
-	struct BallData newbd;
 
 	if (len != sizeof(struct C2SGoal))
 	{
@@ -970,6 +991,25 @@ void PGoal(Player *p, byte *pkt, int len)
 		return;
 	}
 
+	HandleGoal(arena, p, bid, g->x, g->y);
+	
+	UNLOCK_STATUS(arena);
+}
+
+void HandleGoal(Arena *arena, Player *p, int bid, int goalX, int goalY)
+{
+	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
+	struct BallData *bd = abd->balls + bid;
+	InternalBallData *pbd = P_ARENA_DATA(arena, pbdkey);
+	
+	LinkedList advisers = LL_INITIALIZER;
+	Aballs *adviser;
+	Link *link;
+	int block = FALSE;
+	struct BallData newbd;
+	
+	LOCK_STATUS(arena);
+	
 	memcpy(&newbd, bd, sizeof(struct BallData));
 
 	mm->GetAdviserList(A_BALLS, arena, &advisers);
@@ -977,7 +1017,7 @@ void PGoal(Player *p, byte *pkt, int len)
 	{
 		if (adviser->BlockBallGoal)
 		{
-			int result = adviser->BlockBallGoal(arena, p, bid, g->x, g->y, bd);
+			int result = adviser->BlockBallGoal(arena, p, bid, goalX, goalY, bd);
 			if (result == TRUE)
 			{
 				block = TRUE;
@@ -1025,9 +1065,9 @@ void PGoal(Player *p, byte *pkt, int len)
 		}
 
 		/* do callbacks after spawning */
-		DO_CBS(CB_GOAL, arena, GoalFunc, (arena, p, g->ballid, g->x, g->y));
+		DO_CBS(CB_GOAL, arena, GoalFunc, (arena, p, bid, goalX, goalY));
 
-		logm->LogP(L_DRIVEL, "balls", p, "goal with ball %d", g->ballid);
+		logm->LogP(L_DRIVEL, "balls", p, "goal with ball %d", bid);
 	}
 
 	UNLOCK_STATUS(arena);
