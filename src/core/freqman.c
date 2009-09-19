@@ -37,6 +37,7 @@ typedef struct
 	int desired_teams;
 	int max_x_res;
 	int max_y_res;
+	int max_res_area;
 	int initial_spec;
 	int disallow_team_spectators;
 } adata;
@@ -335,17 +336,22 @@ local int is_arena_full(Arena *arena)
 local int screen_res_allowed(Player *p, char *err_buf, int buf_len)
 {
 	adata *ad = P_ARENA_DATA(p->arena, adkey);
-	int allowed = 1;
 
-	if (ad->max_x_res != 0 && p->xres > ad->max_x_res)
-		allowed = 0;
-	else if (ad->max_y_res != 0 && p->yres > ad->max_y_res)
-		allowed = 0;
+	if ((ad->max_x_res != 0 && p->xres > ad->max_x_res)
+		|| (ad->max_y_res != 0 && p->yres > ad->max_y_res))
+	{
+		if (err_buf)	
+			snprintf(err_buf, buf_len, "Maximum allowed screen resolution is %dx%d in this arena", ad->max_x_res, ad->max_y_res);
+		return 0;
+	}
+	else if (ad->max_res_area != 0 && p->xres * p->yres > ad->max_res_area)
+	{
+		if (err_buf)
+			snprintf(err_buf, buf_len, "Maximum allowed screen area is %d in this arena", ad->max_res_area);
+		return 0;
+	}
 
-	if (!allowed && err_buf)
-		snprintf(err_buf, buf_len, "Maximum allowed screen resolution is %dx%d in this arena", ad->max_x_res, ad->max_y_res);
-
-	return allowed;
+	return 1;
 }
 
 // TODO: this needs major changes
@@ -887,6 +893,10 @@ local void update_config(Arena *arena)
 	/* cfghelp: Misc:MaxYres, arena, int, def: 0
 	 * Maximum screen height allowed in the arena. Zero means no limit. */
 	ad->max_y_res = cfg->GetInt(ch, "Misc", "MaxYres", 0);
+
+	/* cfghelp: Misc:MaxResArea, arena, int, def: 0
+	 * Maximum screen area (x*y) allowed in the arena, Zero means no limit. */
+	ad->max_res_area = cfg->GetInt(ch, "Misc", "MaxResArea", 0);
 
 	/* cfghelp: Team:InitialSpec, arena, bool, def: 0
 	 * If players entering the arena are always assigned to spectator mode. */
