@@ -635,7 +635,10 @@ local void CleanupAfter(Arena *arena, Player *p, int neut, int leaving)
 			defaultbd.x = p->position.x;
 			defaultbd.y = p->position.y;
 			defaultbd.xspeed = defaultbd.yspeed = 0;
-			if (neut) defaultbd.carrier = NULL;
+			if (neut || leaving)
+				defaultbd.carrier = NULL;
+			else
+				defaultbd.carrier = p;
 			defaultbd.time = defaultbd.last_update = current_ticks();
 
 			memcpy(prev, b, sizeof(struct BallData));
