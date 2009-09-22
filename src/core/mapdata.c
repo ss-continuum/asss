@@ -558,15 +558,52 @@ local void EnumLVZFiles(Arena *arena,
 {
 	char lvzname[256], fname[256];
 	int count = 0;
-	const char *tmp = NULL;
-	const char *lvzs = cfg->GetStr(arena->cfg, "General", "LevelFiles");
-	if (!lvzs) lvzs = cfg->GetStr(arena->cfg, "Misc", "LevelFiles");
-	while (strsplit(lvzs, ",: ", lvzname, sizeof(lvzname), &tmp) &&
-	       ++count <= MAX_LVZ_FILES)
+	int i;
+
+	/* cfghelp: General:ExtraLevelFilesKeys, arena, int, range: 0-15, def: 0
+	 * How many extra keys (LevelFiles1, LevelFiles2, etc.) to use to generate the final arena LVZ list. */
+	int keyCount = 1 + cfg->GetInt(arena->cfg, "General", "ExtraLevelFilesKeys", 0);
+	if (keyCount > MAX_LVZ_FILES)
+		keyCount = MAX_LVZ_FILES;
+	else if (keyCount < 1)
+		keyCount = 1;
+
+	for (i = 0; i < keyCount; ++i)
 	{
-		char *real = lvzname[0] == '+' ? lvzname+1 : lvzname;
-		if (GetMapFilename(arena, fname, sizeof(fname), real))
-			func(fname, lvzname[0] == '+', clos);
+		const char *tmp = NULL;
+		const char *lvzs;
+
+		if (i == 0)
+		{
+			/* cfghelp: General:LevelFiles, arena, string
+			 * The main LVZ list for the arena. */
+			lvzs = cfg->GetStr(arena->cfg, "General", "LevelFiles");
+			if (!lvzs)
+			{
+				lvzs = cfg->GetStr(arena->cfg, "Misc", "LevelFiles");
+				if (lvzs)
+					lm->LogA(L_WARN, "mapdata", arena, "Misc:LevelFiles is being used for the arena LVZ list. It is recommended to use General:LevelFiles instead");
+			}
+		}
+		else
+		{
+			char keyName[16];
+			snprintf(keyName, sizeof(keyName), "LevelFiles%i", i);
+			lvzs = cfg->GetStr(arena->cfg, "General", keyName);
+		}
+
+		if (count >= MAX_LVZ_FILES)
+			break;
+		if (!lvzs)
+			continue;
+
+		while (strsplit(lvzs, ",: ", lvzname, sizeof(lvzname), &tmp) &&
+		       ++count <= MAX_LVZ_FILES)
+		{
+			char *real = lvzname[0] == '+' ? lvzname+1 : lvzname;
+			if (GetMapFilename(arena, fname, sizeof(fname), real))
+				func(fname, lvzname[0] == '+', clos);
+		}
 	}
 }
 

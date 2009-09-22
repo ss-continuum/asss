@@ -647,12 +647,6 @@ local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 			snprintf(err_buf, buf_len, "There are too many people playing.");
 		return;
 	}
-	else if (p->p_ship == SHIP_SPEC && !ad->include_spec && is_freq_full(arena, freq))
-	{
-		if (err_buf)
-			snprintf(err_buf, buf_len, "There are too many people on your frequency.");
-		return;
-	}
 
 	/* they're coming out of specfreq, give 'em a new freq */
 	if (freq == arena->specfreq && p->p_ship == SHIP_SPEC)
@@ -666,6 +660,12 @@ local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 				snprintf(err_buf, buf_len, "No frequencies are available!");
 			return;
 		}
+	}
+	else if (p->p_ship == SHIP_SPEC && !ad->include_spec && is_freq_full(arena, freq))
+	{
+		if (err_buf)
+			snprintf(err_buf, buf_len, "There are too many people on your frequency.");
+		return;
 	}
 
 	/* make sure their ship is legal */

@@ -12,6 +12,7 @@ INTERNAL_MODULES = \
 	directory billing billing_ssc pwcache \
 	cfghelp filetrans quickfix \
 	freqowners arenaperm auth_prefix fake chatnet \
+	enf_legalship enf_shipcount \
 	ap_multipub sendfile auth_ban auth_file obscene \
 	enf_shipchange \
 	deadlock $(unixsignal)
