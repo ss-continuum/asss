@@ -459,7 +459,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq_number, char *er
 				Freq *i;
 				Link *link;
 
-				/* iterate over all desired teams (not counting old and new) */
+				/* iterate over all required teams (not counting old and new) */
 				FOR_EACH(&ad->freqs, i, link)
 				{
 					if (i != old_freq && i != new_freq && i->is_required)
@@ -953,7 +953,7 @@ local void prune_freqs(Arena *arena)
 	/* make a list of frequencies to prune */
 	FOR_EACH(&ad->freqs, freq, link)
 	{
-		if (freq->freq >= ad->desired_teams)
+		if (freq->freq >= ad->required_teams)
 		{
 			freq->is_required = 0;
 			if (LLIsEmpty(&freq->players))
@@ -970,7 +970,7 @@ local void prune_freqs(Arena *arena)
 	}
 
 	/* make sure that the required teams exist */
-	for (i = 0; i < ad->desired_teams; i++)
+	for (i = 0; i < ad->required_teams; i++)
 	{
 		int found = 0;
 		FOR_EACH(&ad->freqs, freq, link)
