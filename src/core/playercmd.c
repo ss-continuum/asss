@@ -870,6 +870,18 @@ local void Cattmod(const char *tc, const char *params, Player *p, const Target *
 	}
 }
 
+local helptext_t detmod_help = 
+"Targets: none\n"
+"Args: <module name>\n"
+"Detaches the module from the arena.\n";
+
+local void Cdetmod(const char *tc, const char *params, Player *p, const Target *target)
+{
+	if (mm->DetachModule(params, p->arena) == MM_OK)
+		chat->SendMessage(p, "Module %s detached.", params);
+	else
+		chat->SendMessage(p, "Detaching module %s failed.", params);
+}
 
 local helptext_t find_help =
 "Targets: none\n"
@@ -2640,6 +2652,7 @@ local const struct cmd_info core_commands[] =
 #endif
 	CMD(rmmod)
 	CMD(attmod)
+	CMD(detmod)
 	CMD(info)
 	CMD(a)
 	CMD(aa)

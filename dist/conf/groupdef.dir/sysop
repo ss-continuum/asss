@@ -11,6 +11,7 @@ prefix_$$
 prefix_@
 
 cmd_shutdown
+cmd_recycle
 cmd_netstats
 cmd_lastlog
 privcmd_lastlog
@@ -20,6 +21,7 @@ cmd_modinfo
 cmd_insmod
 cmd_rmmod
 cmd_attmod
+cmd_detmod
 
 cmd_setscore
 cmd_resetgame
