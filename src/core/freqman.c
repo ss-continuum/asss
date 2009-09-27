@@ -540,6 +540,37 @@ local int find_freq(Arena *arena, Player *p)
 	}
 	else
 	{
+		/* couldn't find something on desired teams, search beyond */
+		while (i < ad->max_freq)
+		{
+			if (!is_freq_full(arena, i))
+			{
+				Freq *freq = get_freq(arena, i);
+				if (enforcers_can_change_freq(arena, p, i, NULL, 0))
+				{
+					if (!freq)
+					{
+						/* empty freq */
+						return i;
+					}
+					else if (freq->metric_sum <= balancer_get_max_metric(arena, i) - data->metric)
+					{
+						/* has room */
+						return i;
+					}
+				}
+				else
+				{
+					if (!freq)
+					{
+						/* enforcers rejected an empty freq, abort */
+						break;
+					}
+				}
+			}
+		}
+
+		/* couldn't find anything beyond, return spec freq */
 		return arena->specfreq;
 	}
 }
