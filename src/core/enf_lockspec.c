@@ -21,7 +21,7 @@ local Aenforcer my_adv =
 	GetAllowableShips, NULL
 };
 
-EXPORT int MM_lockspec(int action, Imodman *mm, Arena *arena)
+EXPORT int MM_enf_lockspec(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{

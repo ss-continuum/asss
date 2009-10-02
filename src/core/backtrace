@@ -7,7 +7,8 @@ TYPE=$3
 TMP=gdbcmds.$$.tmp
 DATE=$(date +%Y%m%d)
 
-exec >log/$DATE-$TYPE-$PID.bt 2>&1
+mkdir -p bt
+exec >bt/$DATE-$TYPE-$PID.bt 2>&1
 
 echo >$TMP '
 set height 0

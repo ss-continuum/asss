@@ -168,7 +168,8 @@ typedef struct Igroupman
 #define CAP_IS_STAFF              "isstaff"
 /** if a player can sees all non-group-default players even if they lack isstaff */
 #define CAP_SEE_ALL_STAFF         "seeallstaff"
-
+/** if a player always forces a change with setship or setfreq instead of going by the arena freqman */
+#define CAP_FORCE_SHIPFREQCHANGE  "forceshipfreqchange"
 
 #endif
 

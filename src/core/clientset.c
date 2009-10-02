@@ -83,7 +83,7 @@ local void load_settings(adata *ad, ConfigHandle conf)
 		struct WeaponBits wb;
 		struct MiscBitfield misc;
 		struct ShipSettings *ss = cs->ships + i;
-		const char *shipname = SHIP_NAMES[i];
+		const char *shipname = cfg->SHIP_NAMES[i];
 
 		/* basic stuff */
 		for (j = 0; j < COUNT(ss->long_set); j++)
@@ -189,7 +189,7 @@ local override_key_t GetOverrideKey(const char *section, const char *key)
 
 	/* do ships */
 	for (i = 0; i < 8; i++)
-		if (strcasecmp(SHIP_NAMES[i], section) == 0)
+		if (strcasecmp(cfg->SHIP_NAMES[i], section) == 0)
 		{
 			/* basic stuff */
 			for (j = 0; j < COUNT(ship_long_names); j++)

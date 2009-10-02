@@ -202,6 +202,9 @@ typedef struct Iconfig
 	void (*ForceReload)(const char *pathname,
 			void (*callback)(const char *pathname, void *clos), void *clos);
 	/* pyint: string, (string, clos -> void), clos -> void */
+
+	/** The names of the 8 ships, for use with config sections */
+	const char * SHIP_NAMES[8];
 } Iconfig;
 
 

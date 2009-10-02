@@ -8,9 +8,7 @@
  *
  * initial ; or / for comments.
  *
- * macros are _not_ expanded automatically. use $macro, $(macro), or
- * ${macro} to get their values. macro names are case-insensitive.
- * macros can't take arguments.
+ * macros are no longer expanded.
  */
 
 

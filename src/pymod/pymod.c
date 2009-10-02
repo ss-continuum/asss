@@ -1,4 +1,4 @@
-#define Py_ssize_t long
+
 /* dist: public */
 
 #include <signal.h>
@@ -9,6 +9,12 @@
 #undef _POSIX_C_SOURCE
 #include "Python.h"
 #include "structmember.h"
+
+/* add define for Py_ssize_t on versions before Python2.5 */
+#if PY_VERSION_HEX < 0x02050000
+#include <unistd.h>
+typedef ssize_t         Py_ssize_t;
+#endif 
 
 #include "asss.h"
 

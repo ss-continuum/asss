@@ -247,7 +247,7 @@ local void mlfunc()
 						bp->position.xspeed - td->p->position.xspeed,
 						bp->position.yspeed - td->p->position.yspeed,
 						cfg->GetInt(td->p->arena->cfg,
-							SHIP_NAMES[(int)td->p->p_ship], "BombSpeed", 10));
+							cfg->SHIP_NAMES[(int)td->p->p_ship], "BombSpeed", 10));
 			pd->Unlock();
 
 			game->FakePosition(td->p, &td->pos, sizeof(td->pos));
@@ -274,7 +274,7 @@ local void mlfunc()
 						bp->position.xspeed - td->p->position.xspeed,
 						bp->position.yspeed - td->p->position.yspeed,
 						cfg->GetInt(td->p->arena->cfg,
-							SHIP_NAMES[(int)td->p->p_ship], "BombSpeed", 10));
+							cfg->SHIP_NAMES[(int)td->p->p_ship], "BombSpeed", 10));
 			pd->Unlock();
 
 			game->FakePosition(td->p, &td->pos, sizeof(td->pos));

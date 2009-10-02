@@ -119,10 +119,6 @@ enum
 typedef u32 shipmask_t;
 
 
-/** array of ship name strings */
-extern const char *SHIP_NAMES[8];
-
-
 /** sound constants */
 enum
 {

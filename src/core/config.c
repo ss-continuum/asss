@@ -639,7 +639,17 @@ local Iconfig _int =
 	GetStr, GetInt, SetStr, SetInt,
 	OpenConfigFile, CloseConfigFile, ReloadConfigFile,
 	AddRef,
-	FlushDirtyValues, CheckModifiedFiles, ForceReload
+	FlushDirtyValues, CheckModifiedFiles, ForceReload,
+	{
+		"Warbird",
+		"Javelin",
+		"Spider",
+		"Leviathan",
+		"Terrier",
+		"Weasel",
+		"Lancaster",
+		"Shark"
+	}
 };
 
 

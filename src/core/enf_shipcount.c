@@ -34,7 +34,7 @@ local shipmask_t GetAllowableShips(Player *p, int ship, int freq, char *err_buf,
 	{
 		/* cfghelp: All:LimitPerTeam, arena, int, def: -1, mod: enf_shipcount
 		 * The maximum number of this ship on any given frequency. -1 means no limit. */
-		int limit = cfg->GetInt(p->arena->cfg, SHIP_NAMES[i], "LimitPerTeam", -1);
+		int limit = cfg->GetInt(p->arena->cfg, cfg->SHIP_NAMES[i], "LimitPerTeam", -1);
 
 		if (limit == -1)
 		{

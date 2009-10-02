@@ -19,10 +19,12 @@ typedef struct periodic_settings
 	Arena *arena;
 	int delay;
 	int minplayers;
+	int sendzero;
 	Iperiodicpoints *pp;
 	/* only for duration of timer: */
 	int totalplayers;
 	byte *pkt;
+	int pktfreqs;
 } periodic_settings;
 
 
@@ -49,11 +51,15 @@ local void reward_enum(TreapHead *node, void *clos)
 			set->totalplayers,
 			fd->flags);
 
-	/* enter in packet */
-	*(set->pkt++) = (freq>>0) & 0xff;
-	*(set->pkt++) = (freq>>8) & 0xff;
-	*(set->pkt++) = (points>>0) & 0xff;
-	*(set->pkt++) = (points>>8) & 0xff;
+	if (points || set->sendzero)
+	{
+		/* enter in packet */
+		*(set->pkt++) = (freq>>0) & 0xff;
+		*(set->pkt++) = (freq>>8) & 0xff;
+		*(set->pkt++) = (points>>0) & 0xff;
+		*(set->pkt++) = (points>>8) & 0xff;
+		set->pktfreqs++;
+	}
 
 	/* set in fd */
 	fd->points = points;
@@ -104,11 +110,12 @@ local int timer(void *set_)
 
 		pkt[0] = S2C_PERIODICREWARD;
 		set->pkt = pkt + 1;
+		set->pktfreqs = 0;
 
 		/* now calculate points for each freq, filling in packet as we go */
 		TrEnum(fdata, reward_enum, set);
 
-		net->SendToArena(set->arena, NULL, pkt, freqcount*4+1, NET_RELIABLE);
+		net->SendToArena(set->arena, NULL, pkt, set->pktfreqs*4+1, NET_RELIABLE);
 		afree(pkt);
 		set->pkt = NULL; /* just to be safe */
 
@@ -174,6 +181,10 @@ local void aaction(Arena *arena, int action)
 			 * The minimum players necessary in the arena to give out
 			 * periodic rewards. */
 			set->minplayers = cfg->GetInt(arena->cfg, "Periodic", "RewardMinimumPlayers", 0);
+			/* cfghelp: Periodic:SendZeroRewards, arena, int, def: 1
+			 * Whether frequencies with zero points will still get
+			 * a reward notification during the ding. */
+			set->sendzero = cfg->GetInt(arena->cfg, "Periodic", "SendZeroRewards", 1);
 			set->pp = pp;
 			ml->SetTimer(timer, delay, delay, set, arena);
 			mm->ReleaseInterface(pp);

@@ -7,7 +7,7 @@ INTERNAL_MODULES = \
 	bw_default bw_nolimit freqman \
 	log_file log_console log_sysop log_staff \
 	game game_timer chat flagcore balls \
-	banners bricks objects messages koth lockspec \
+	banners bricks objects messages koth enf_lockspec \
 	cmdman playercmd admincmd watchdamage buy help notify \
 	directory billing billing_ssc pwcache \
 	cfghelp filetrans quickfix \

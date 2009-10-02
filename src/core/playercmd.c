@@ -186,6 +186,17 @@ local void Cshutdown(const char *tc, const char *params, Player *p, const Target
 	ml->Quit(code);
 }
 
+local helptext_t recycle_help =
+"Targets: none\n"
+"Args: none\n"
+"Immediately shuts down the server, exiting with {EXIT_RECYCLE}. The "
+"{run-asss} script, if it is being used, will notice {EXIT_RECYCLE} "
+"and restart the server.\n";
+
+local void Crecycle(const char *tc, const char *params, Player *p, const Target *target)
+{
+	ml->Quit(EXIT_RECYCLE);
+}
 
 local helptext_t ballcount_help =
 "Targets: none\n"
@@ -462,6 +473,9 @@ local void Csetfreq(const char *tc, const char *params, Player *sender, const Ta
 		t += 2;
 		while (isspace(*t)) t++;
 	}
+	
+	if (use_fm && capman->HasCapability(sender, CAP_FORCE_SHIPFREQCHANGE))
+		use_fm = 0;
 
 	freq = atoi(t);
 
@@ -550,6 +564,9 @@ local void Csetship(const char *tc, const char *params, Player *sender, const Ta
 		t += 2;
 		while (isspace(*t)) t++;
 	}
+	
+	if (use_fm && capman->HasCapability(sender, CAP_FORCE_SHIPFREQCHANGE))
+		use_fm = 0;
 
 	ship = (atoi(t) - 1) % (SHIP_SPEC + 1);
 	ship = abs(ship);
@@ -853,6 +870,18 @@ local void Cattmod(const char *tc, const char *params, Player *p, const Target *
 	}
 }
 
+local helptext_t detmod_help = 
+"Targets: none\n"
+"Args: <module name>\n"
+"Detaches the module from the arena.\n";
+
+local void Cdetmod(const char *tc, const char *params, Player *p, const Target *target)
+{
+	if (mm->DetachModule(params, p->arena) == MM_OK)
+		chat->SendMessage(p, "Module %s detached.", params);
+	else
+		chat->SendMessage(p, "Detaching module %s failed.", params);
+}
 
 local helptext_t find_help =
 "Targets: none\n"
@@ -2611,6 +2640,7 @@ local const struct cmd_info core_commands[] =
 	CMD(disablecmdgroup)
 	CMD(arena)
 	CMD(shutdown)
+	CMD(recycle)
 	CMD(owner)
 	CMD(zone)
 	CMD(version)
@@ -2622,6 +2652,7 @@ local const struct cmd_info core_commands[] =
 #endif
 	CMD(rmmod)
 	CMD(attmod)
+	CMD(detmod)
 	CMD(info)
 	CMD(a)
 	CMD(aa)
