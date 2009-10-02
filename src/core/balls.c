@@ -752,7 +752,7 @@ void PPickupBall(Player *p, byte *pkt, int len)
 	/* this player is too lagged to have a ball */
 	if (p->flags.no_flags_balls)
 	{
-		logm->LogP(L_INFO, "balls", p, "too lagged to pick up ball %d", bp->ballid);
+		logm->LogP(L_DRIVEL, "balls", p, "too lagged to pick up ball %d", bp->ballid);
 		return;
 	}
 
@@ -829,7 +829,7 @@ void PPickupBall(Player *p, byte *pkt, int len)
 		DO_CBS(CB_BALLPICKUP, arena, BallPickupFunc,
 				(arena, p, bp->ballid));
 				
-		logm->Log(L_DRIVEL, "<balls> {%s} [%s] player picked up ball %d",
+		logm->Log(L_INFO, "<balls> {%s} [%s] player picked up ball %d",
 				arena->name,
 				p->name,
 				bp->ballid);
@@ -926,7 +926,7 @@ void PFireBall(Player *p, byte *pkt, int len)
 		
 		/* finally call callbacks */
 		DO_CBS(CB_BALLFIRE, arena, BallFireFunc, (arena, p, bid));
-		logm->LogP(L_DRIVEL, "balls", p, "player fired ball %d", bid);
+		logm->LogP(L_INFO, "balls", p, "player fired ball %d", bid);
 		
 		if (bd->carrier != NULL && mapdata->GetTile(arena, bd->x/16, bd->y/16) == TILE_GOAL)
 		{
@@ -1070,7 +1070,7 @@ void HandleGoal(Arena *arena, Player *p, int bid, int goalX, int goalY)
 		/* do callbacks after spawning */
 		DO_CBS(CB_GOAL, arena, GoalFunc, (arena, p, bid, goalX, goalY));
 
-		logm->LogP(L_DRIVEL, "balls", p, "goal with ball %d", bid);
+		logm->LogP(L_INFO, "balls", p, "goal with ball %d at (%i, %i)", bid, goalX, goalY);
 	}
 
 	UNLOCK_STATUS(arena);
