@@ -921,7 +921,7 @@ local void SetShipAndFreq(Player *p, int ship, int freq)
 		DO_CBS(CB_SPAWN, arena, SpawnFunc, (p, flags));
 	}
 
-	lm->LogP(L_DRIVEL, "game", p, "changed ship/freq to ship %d, freq %d",
+	lm->LogP(L_INFO, "game", p, "changed ship/freq to ship %d, freq %d",
 			ship, freq);
 }
 
@@ -1039,7 +1039,7 @@ local void SetFreq(Player *p, int freq)
 
 	DO_CBS(CB_SHIPFREQCHANGE, arena, ShipFreqChangeFunc, (p, p->p_ship, p->p_ship, freq, oldfreq));
 
-	lm->LogP(L_DRIVEL, "game", p, "changed freq to %d", freq);
+	lm->LogP(L_INFO, "game", p, "changed freq to %d", freq);
 }
 
 
@@ -1191,7 +1191,7 @@ local void PDie(Player *p, byte *pkt, int len)
 	DO_CBS(CB_KILL_POST_NOTIFY, arena, KillFunc,
 			(arena, killer, p, bty, flagcount, &pts, &green));
 
-	lm->Log(L_DRIVEL, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d,pts=%d)",
+	lm->Log(L_INFO, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d,pts=%d)",
 			arena->name,
 			p->name,
 			killer->name,
@@ -1205,7 +1205,7 @@ local void PDie(Player *p, byte *pkt, int len)
 		adata *ad = P_ARENA_DATA(arena, adkey);
 		if (data->deathwofiring++ == ad->deathwofiring)
 		{
-			lm->LogP(L_DRIVEL, "game", p, "specced for too many deaths without firing");
+			lm->LogP(L_INFO, "game", p, "specced for too many deaths without firing");
 			SetShipAndFreq(p, SHIP_SPEC, arena->specfreq);
 		}
 	}
