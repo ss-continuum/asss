@@ -65,6 +65,9 @@ local int CanChangeFreq(Player *p, int new_freq, char *err_buf, int buf_len)
 
 	if (flagcore->IsWinning(p->arena, new_freq))
 	{
+	
+		if (err_buf)
+			snprintf(err_buf, buf_len, "Freq %d has all of the flags.", new_freq);
 		return FALSE;
 	}
 
@@ -122,6 +125,7 @@ local void clear_timeouts(Arena *arena)
 
 	LOCK();
 	HashEnum(&adata->timeouts, hash_enum_afree, NULL);
+	HashDeinit(&adata->timeouts);
 	UNLOCK();
 }
 
@@ -162,6 +166,10 @@ EXPORT int MM_enf_flagwin(int action, Imodman *mm_, Arena *arena)
 	}
 	else if (action == MM_ATTACH)
 	{
+		adata *adata = P_ARENA_DATA(arena, adkey);
+
+		HashInit(&adata->timeouts);
+
 		mm->RegAdviser(&myadv, arena);
 		mm->RegCallback(CB_SHIPFREQCHANGE, shipfreqchange, arena);
 		mm->RegCallback(CB_PLAYERACTION, paction, arena);
