@@ -14,7 +14,7 @@ INTERNAL_MODULES = \
 	freqowners arenaperm auth_prefix fake chatnet \
 	enf_legalship enf_shipcount \
 	ap_multipub sendfile auth_ban auth_file obscene \
-	enf_shipchange \
+	enf_shipchange enf_flagwin \
 	deadlock $(unixsignal)
 
 # generated file for mapdata
