@@ -30,7 +30,7 @@
 
 
 /** the interface id for Icapman */
-#define I_CAPMAN "capman-3"
+#define I_CAPMAN "capman-4"
 
 /** the interface struct for Icapman */
 typedef struct Icapman
@@ -84,7 +84,7 @@ typedef struct Icapman
 
 
 /** the interface id for Igroupman */
-#define I_GROUPMAN "groupman-2"
+#define I_GROUPMAN "groupman-3"
 
 /** the interface struct for Igroupman.
  * you probably shouldn't use this.

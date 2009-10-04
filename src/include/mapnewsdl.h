@@ -4,7 +4,7 @@
 #ifndef __MAPNEWSDL_H
 #define __MAPNEWSDL_H
 
-#define I_MAPNEWSDL "mapnewsdl-1"
+#define I_MAPNEWSDL "mapnewsdl-2"
 
 typedef struct Imapnewsdl
 {

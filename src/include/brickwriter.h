@@ -4,7 +4,7 @@
 #ifndef __BRICKWRITER_H
 #define __BRICKWRITER_H
 
-#define I_BRICKWRITER "brickwriter-1"
+#define I_BRICKWRITER "brickwriter-2"
 
 typedef struct Ibrickwriter
 {

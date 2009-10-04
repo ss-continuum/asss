@@ -13,7 +13,7 @@
  */
 
 
-#define I_JACKPOT "jackpot-2"
+#define I_JACKPOT "jackpot-3"
 
 typedef struct Ijackpot
 {

@@ -46,7 +46,7 @@ struct TimeSyncHistory
 };
 
 
-#define I_LAGQUERY "lagquery-2"
+#define I_LAGQUERY "lagquery-3"
 
 typedef struct Ilagquery
 {
@@ -108,7 +108,7 @@ struct TimeSyncData
 };
 
 
-#define I_LAGCOLLECT "lagcollect-3"
+#define I_LAGCOLLECT "lagcollect-4"
 
 typedef struct Ilagcollect
 {

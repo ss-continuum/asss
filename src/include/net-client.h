@@ -18,7 +18,7 @@ typedef struct Iclientconn
 } Iclientconn;
 
 
-#define I_NET_CLIENT "net-client-1"
+#define I_NET_CLIENT "net-client-2"
 
 typedef struct Inet_client
 {

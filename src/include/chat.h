@@ -65,7 +65,7 @@ typedef unsigned short chat_mask_t;
 
 
 /** the interface id for Ichat */
-#define I_CHAT "chat-6"
+#define I_CHAT "chat-7"
 
 /** the interface struct for Ichat.
  * most of these functions take a printf-style format string plus

@@ -94,7 +94,7 @@ typedef void (*EndIntervalFunc)(void);
 /* pycb: void */
 
 
-#define I_PERSIST "persist-6"
+#define I_PERSIST "persist-7"
 
 typedef struct Ipersist
 {

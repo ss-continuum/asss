@@ -144,7 +144,7 @@ typedef void (*PlayerActionFunc)(Player *p, int action, Arena *arena);
 
 
 /** the interface id for Iauth */
-#define I_AUTH "auth-1"
+#define I_AUTH "auth-2"
 
 /** the interface struct for Iauth.
  * the core module will call this when a player attempts to connect to

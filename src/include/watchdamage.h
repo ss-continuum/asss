@@ -11,7 +11,7 @@
 typedef void (*PlayerDamage)(Arena *arena, Player *p, struct S2CWatchDamage *damage, int count);
 
 
-#define I_WATCHDAMAGE "watchdamage-1"
+#define I_WATCHDAMAGE "watchdamage-2"
 
 typedef struct Iwatchdamage
 {
