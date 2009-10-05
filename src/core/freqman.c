@@ -568,6 +568,8 @@ local int find_freq(Arena *arena, Player *p)
 					}
 				}
 			}
+
+			i++;
 		}
 
 		/* couldn't find anything beyond, return spec freq */
