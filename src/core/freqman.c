@@ -579,8 +579,6 @@ local int find_freq(Arena *arena, Player *p)
 
 local void Initial(Player *p, int *ship, int *freq)
 {
-	lm->LogP(L_DRIVEL, "freqman", p, "Entering Initial"); // FIXME: remove after debugging
-
 	Arena *arena = p->arena;
 	adata *ad = P_ARENA_DATA(arena, adkey);
 	int f = *freq;
@@ -647,8 +645,6 @@ local void Initial(Player *p, int *ship, int *freq)
 
 local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 {
-	lm->LogP(L_DRIVEL, "freqman", p, "Entering ShipChange"); // FIXME: remove after debugging.
-
 	Arena *arena = p->arena;
 	adata *ad = P_ARENA_DATA(arena, adkey);
 	int freq = p->p_freq;
@@ -742,8 +738,6 @@ local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 
 local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 {
-	lm->LogP(L_DRIVEL, "freqman", p, "Entering FreqChange"); // FIXME: remove after debugging
-
 	Arena *arena = p->arena;
 	adata *ad = P_ARENA_DATA(arena, adkey);
 	int ship = p->p_ship;
@@ -1032,9 +1026,7 @@ local void prune_freqs(Arena *arena)
 
 local void freq_free_enum(void *ptr)
 {
-	Freq *freq = ptr;
-	// FIXME: remove this log entry after testing
-	lm->Log(L_DRIVEL, "<freqman> freeing freq %d, metric=%d with %d players", freq->freq, freq->metric_sum, LLCount(&freq->players));
+	Freq *freq = (Freq*)ptr;
 	LLEmpty(&freq->players);
 	afree(freq);
 }
