@@ -439,8 +439,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq_number, char *er
 		int max_metric = balancer->GetMaxMetric(arena, new_freq_number);
 		if (max_metric && max_metric < new_freq_metric)
 		{
-			// FIXME: this needs better wording
-			snprintf(err_buf, buf_len, "Changing to that freq would make them too good.");
+			snprintf(err_buf, buf_len, "Changing to that frequency would make the teams too uneven.");
 			UNLOCK();
 			return 0;
 		}
@@ -449,8 +448,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq_number, char *er
 			/* check the difference between the freqs */
 			if (old_freq_metric && old_freq_number != arena->specfreq && balancer->GetMaximumDifference(arena, new_freq_number, old_freq_number) < new_freq_metric - old_freq_metric)
 			{
-				// FIXME: this needs better wording
-				snprintf(err_buf, buf_len, "Changing to that freq would make the teams too uneven.");
+				snprintf(err_buf, buf_len, "Changing to that frequency would make the teams too uneven.");
 				UNLOCK();
 				return 0;
 			}
@@ -467,8 +465,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq_number, char *er
 						/* check the new freq vs. i */
 						if (balancer->GetMaximumDifference(arena, new_freq_number, i->freq) < new_freq_metric - i->metric_sum)
 						{
-							// FIXME: this needs better wording
-							snprintf(err_buf, buf_len, "The players on freq %d wouldn't appreciate that...", i->freq);
+							snprintf(err_buf, buf_len, "Changing to that frequency would make the teams too uneven.");
 							UNLOCK();
 							return 0;
 						}
@@ -478,8 +475,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq_number, char *er
 						{
 							if (balancer->GetMaximumDifference(arena, old_freq_number, i->freq) < i->metric_sum - old_freq_metric)
 							{
-								// FIXME: this needs better wording
-								snprintf(err_buf, buf_len, "Your team needs you to fend off freq %d", i->freq);
+								snprintf(err_buf, buf_len, "Changing to that frequency would make the teams too uneven.");
 								UNLOCK();
 								return 0;
 							}
