@@ -162,7 +162,6 @@ local void update_freq(Player *p, int freq)
 
 	if (data->freq && data->freq->freq == freq)
 	{
-		lm->LogP(L_DRIVEL, "freqman", p, "Update_freq to same freq.");
 		/* they're already on the correct freq,
 		 * but update their metric while we're here */
 		data->freq->metric_sum -= data->metric;
@@ -213,7 +212,6 @@ local void update_freq(Player *p, int freq)
 
 		if (LLIsEmpty(&data->freq->players) && !data->freq->is_required)
 		{
-			lm->LogP(L_DRIVEL, "freqman", p, "Freeing freq %d with metric %d", data->freq->freq, data->freq->metric_sum);
 			LLRemove(&ad->freqs, data->freq);
 			afree(data->freq);
 		}
@@ -232,8 +230,6 @@ local void update_freq(Player *p, int freq)
 		newfreqnum = new_freq->freq;
 		newmetricnum = new_freq->metric_sum;
 	}
-
-	lm->LogP(L_DRIVEL, "freqman", p, "Old Freq=%d, New Freq=%d, Old Metric=%d, New Metric=%d", oldfreqnum, newfreqnum, oldmetricnum, newmetricnum);
 
 	data->freq = new_freq;
 
