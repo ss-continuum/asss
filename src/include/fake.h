@@ -5,7 +5,7 @@
 #define __FAKE_H
 
 
-#define I_FAKE "fake-1"
+#define I_FAKE "fake-2"
 
 typedef struct Ifake
 {

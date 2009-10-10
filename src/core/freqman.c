@@ -162,7 +162,6 @@ local void update_freq(Player *p, int freq)
 
 	if (data->freq && data->freq->freq == freq)
 	{
-		lm->LogP(L_DRIVEL, "freqman", p, "Update_freq to same freq.");
 		/* they're already on the correct freq,
 		 * but update their metric while we're here */
 		data->freq->metric_sum -= data->metric;
@@ -213,7 +212,6 @@ local void update_freq(Player *p, int freq)
 
 		if (LLIsEmpty(&data->freq->players) && !data->freq->is_required)
 		{
-			lm->LogP(L_DRIVEL, "freqman", p, "Freeing freq %d with metric %d", data->freq->freq, data->freq->metric_sum);
 			LLRemove(&ad->freqs, data->freq);
 			afree(data->freq);
 		}
@@ -232,8 +230,6 @@ local void update_freq(Player *p, int freq)
 		newfreqnum = new_freq->freq;
 		newmetricnum = new_freq->metric_sum;
 	}
-
-	lm->LogP(L_DRIVEL, "freqman", p, "Old Freq=%d, New Freq=%d, Old Metric=%d, New Metric=%d", oldfreqnum, newfreqnum, oldmetricnum, newmetricnum);
 
 	data->freq = new_freq;
 
@@ -439,8 +435,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq_number, char *er
 		int max_metric = balancer->GetMaxMetric(arena, new_freq_number);
 		if (max_metric && max_metric < new_freq_metric)
 		{
-			// FIXME: this needs better wording
-			snprintf(err_buf, buf_len, "Changing to that freq would make them too good.");
+			snprintf(err_buf, buf_len, "Changing to that frequency would make the teams too uneven.");
 			UNLOCK();
 			return 0;
 		}
@@ -449,8 +444,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq_number, char *er
 			/* check the difference between the freqs */
 			if (old_freq_metric && old_freq_number != arena->specfreq && balancer->GetMaximumDifference(arena, new_freq_number, old_freq_number) < new_freq_metric - old_freq_metric)
 			{
-				// FIXME: this needs better wording
-				snprintf(err_buf, buf_len, "Changing to that freq would make the teams too uneven.");
+				snprintf(err_buf, buf_len, "Changing to that frequency would make the teams too uneven.");
 				UNLOCK();
 				return 0;
 			}
@@ -467,8 +461,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq_number, char *er
 						/* check the new freq vs. i */
 						if (balancer->GetMaximumDifference(arena, new_freq_number, i->freq) < new_freq_metric - i->metric_sum)
 						{
-							// FIXME: this needs better wording
-							snprintf(err_buf, buf_len, "The players on freq %d wouldn't appreciate that...", i->freq);
+							snprintf(err_buf, buf_len, "Changing to that frequency would make the teams too uneven.");
 							UNLOCK();
 							return 0;
 						}
@@ -478,8 +471,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq_number, char *er
 						{
 							if (balancer->GetMaximumDifference(arena, old_freq_number, i->freq) < i->metric_sum - old_freq_metric)
 							{
-								// FIXME: this needs better wording
-								snprintf(err_buf, buf_len, "Your team needs you to fend off freq %d", i->freq);
+								snprintf(err_buf, buf_len, "Changing to that frequency would make the teams too uneven.");
 								UNLOCK();
 								return 0;
 							}
@@ -568,6 +560,8 @@ local int find_freq(Arena *arena, Player *p)
 					}
 				}
 			}
+
+			i++;
 		}
 
 		/* couldn't find anything beyond, return spec freq */
@@ -577,8 +571,6 @@ local int find_freq(Arena *arena, Player *p)
 
 local void Initial(Player *p, int *ship, int *freq)
 {
-	lm->LogP(L_DRIVEL, "freqman", p, "Entering Initial"); // FIXME: remove after debugging
-
 	Arena *arena = p->arena;
 	adata *ad = P_ARENA_DATA(arena, adkey);
 	int f = *freq;
@@ -645,8 +637,6 @@ local void Initial(Player *p, int *ship, int *freq)
 
 local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 {
-	lm->LogP(L_DRIVEL, "freqman", p, "Entering ShipChange"); // FIXME: remove after debugging.
-
 	Arena *arena = p->arena;
 	adata *ad = P_ARENA_DATA(arena, adkey);
 	int freq = p->p_freq;
@@ -740,8 +730,6 @@ local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 
 local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 {
-	lm->LogP(L_DRIVEL, "freqman", p, "Entering FreqChange"); // FIXME: remove after debugging
-
 	Arena *arena = p->arena;
 	adata *ad = P_ARENA_DATA(arena, adkey);
 	int ship = p->p_ship;
@@ -1030,9 +1018,7 @@ local void prune_freqs(Arena *arena)
 
 local void freq_free_enum(void *ptr)
 {
-	Freq *freq = ptr;
-	// FIXME: remove this log entry after testing
-	lm->Log(L_DRIVEL, "<freqman> freeing freq %d, metric=%d with %d players", freq->freq, freq->metric_sum, LLCount(&freq->players));
+	Freq *freq = (Freq*)ptr;
 	LLEmpty(&freq->players);
 	afree(freq);
 }

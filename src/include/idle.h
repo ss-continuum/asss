@@ -6,7 +6,7 @@
 
 /* keeps track of idle time for players */
 
-#define I_IDLE "idle-1"
+#define I_IDLE "idle-2"
 
 typedef struct Iidle
 {

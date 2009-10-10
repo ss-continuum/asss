@@ -18,7 +18,7 @@ struct section_help
 };
 
 
-#define I_CFGHELP "cfghelp-1"
+#define I_CFGHELP "cfghelp-2"
 
 typedef struct Icfghelp
 {

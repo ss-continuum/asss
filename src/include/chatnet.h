@@ -19,7 +19,7 @@ struct chat_client_stats
 };
 
 
-#define I_CHATNET "chatnet-2"
+#define I_CHATNET "chatnet-3"
 
 typedef struct Ichatnet
 {

@@ -5,7 +5,7 @@
 #define __PERIODIC_H
 
 
-#define I_PERIODIC_POINTS "periodic-points"
+#define I_PERIODIC_POINTS "periodic-points-1"
 
 typedef struct Iperiodicpoints
 {

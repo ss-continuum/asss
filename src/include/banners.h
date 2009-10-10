@@ -12,7 +12,7 @@ typedef void (*SetBannerFunc)(Player *p, Banner *banner);
 /* pycb: player, banner */
 
 
-#define I_BANNERS "banners-2"
+#define I_BANNERS "banners-3"
 
 typedef struct Ibanners
 {

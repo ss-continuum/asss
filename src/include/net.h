@@ -88,7 +88,7 @@ struct net_client_stats
 #include "encrypt.h"
 
 
-#define I_NET "net-9"
+#define I_NET "net-10"
 
 typedef struct Inet
 {

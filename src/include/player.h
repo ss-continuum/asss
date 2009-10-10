@@ -283,7 +283,7 @@ typedef void (*NewPlayerFunc)(Player *p, int isnew);
 
 
 /** the interface id for playerdata */
-#define I_PLAYERDATA "playerdata-7st"
+#define I_PLAYERDATA "playerdata-8"
 
 /** the playerdata interface struct */
 typedef struct Iplayerdata

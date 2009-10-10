@@ -786,6 +786,18 @@ local void FlagReset(Arena *a, int freq, int points)
 }
 
 
+local int CountFlags(Arena *a)
+{
+	int count = 0;
+	adata *ad = P_ARENA_DATA(a, adkey);
+	LOCK();
+	if (AD_OK(ad))
+		count = ad->count;
+	UNLOCK();
+	return count;
+}
+
+
 local int CountFreqFlags(Arena *a, int freq)
 {
 	int i, count = 0;
@@ -812,6 +824,21 @@ local int CountPlayerFlags(Player *p)
 	count = p->pkt.flagscarried;
 	UNLOCK();
 	return count;
+}
+
+
+local int IsWinning(Arena *a, int freq)
+{
+	// TODO: this needs to be passed on to ad->game instead
+	int flags = CountFlags(a);
+	if (flags && flags == CountFreqFlags(a, freq))
+	{
+		return TRUE;
+	}
+	else
+	{
+		return FALSE;
+	}
 }
 
 
@@ -842,7 +869,7 @@ local Iflagcore flagint =
 {
 	INTERFACE_HEAD_INIT(I_FLAGCORE, "flagcore")
 	GetFlags, SetFlags, FlagReset,
-	CountFreqFlags, CountPlayerFlags,
+	CountFlags, CountFreqFlags, CountPlayerFlags, IsWinning,
 	SetCarryMode, ReserveFlags
 };
 

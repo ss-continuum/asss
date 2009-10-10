@@ -5,7 +5,7 @@
 #define __FILETRANS_H
 
 
-#define I_FILETRANS "filetrans-2"
+#define I_FILETRANS "filetrans-3"
 
 typedef struct Ifiletrans
 {

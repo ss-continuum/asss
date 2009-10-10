@@ -14,7 +14,7 @@
 #include "statcodes.h"
 
 
-#define I_STATS "stats-3"
+#define I_STATS "stats-4"
 
 typedef struct Istats
 {

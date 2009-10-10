@@ -5,7 +5,7 @@
 #define __FREQMAN_H
 
 /** the interface id for Ibalancer */
-#define I_BALANCER "balancer-1"
+#define I_BALANCER "balancer-2"
 
 /** The interface struct for Ibalancer.
  * This struct is designed to be unique per arena (unlike enforcer).

@@ -25,7 +25,7 @@ typedef struct Brick
 	int x1, y1, x2, y2;
 } Brick;
 
-#define I_BRICKS "bricks-1"
+#define I_BRICKS "bricks-2"
 
 typedef struct Ibricks
 {
@@ -36,7 +36,7 @@ typedef struct Ibricks
 	/* pyint: arena, int, int, int, int, int -> void */
 } Ibricks;
 
-#define I_BRICK_HANDLER "bh-1"
+#define I_BRICK_HANDLER "bh-2"
 
 typedef struct Ibrickhandler
 {

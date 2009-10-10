@@ -49,7 +49,7 @@ typedef void (*KothPlayerWinEndFunc)(Arena *a);
 /* pycb: arena */
 
 
-#define I_POINTS_KOTH "points-koth-1"
+#define I_POINTS_KOTH "points-koth-2"
 
 typedef struct Ipoints_koth
 {

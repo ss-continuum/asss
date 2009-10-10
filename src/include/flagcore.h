@@ -80,7 +80,7 @@ typedef void (*FlagResetFunc)(Arena *a, int freq, int points);
 /* run when the flag game is reset (either a win or a forced reset) */
 
 
-#define I_FLAGCORE "flagcore-2"
+#define I_FLAGCORE "flagcore-4"
 
 typedef struct Iflagcore
 {
@@ -95,8 +95,10 @@ typedef struct Iflagcore
 	/* pyint: arena, int, int -> void */
 
 	/* convenience: */
+	int (*CountFlags)(Arena *a);
 	int (*CountFreqFlags)(Arena *a, int freq);
 	int (*CountPlayerFlags)(Player *p);
+	int (*IsWinning)(Arena *a, int freq);
 
 	/* used during initialization: */
 
@@ -107,7 +109,7 @@ typedef struct Iflagcore
 } Iflagcore;
 
 
-#define I_FLAGGAME "flaggame-1"
+#define I_FLAGGAME "flaggame-2"
 
 typedef struct Iflaggame
 {

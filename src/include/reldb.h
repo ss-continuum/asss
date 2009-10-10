@@ -13,7 +13,7 @@ typedef struct db_row db_row;
 typedef void (*query_callback)(int status, db_res *res, void *clos);
 
 
-#define I_RELDB "reldb-2"
+#define I_RELDB "reldb-3"
 
 typedef struct Ireldb
 {

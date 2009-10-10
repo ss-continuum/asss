@@ -50,7 +50,7 @@ typedef void (*LogFunc)(const char *line);
 
 
 /** the Ilogman interface id */
-#define I_LOGMAN "logman-1"
+#define I_LOGMAN "logman-2"
 
 /** the Ilogman interface struct */
 typedef struct Ilogman

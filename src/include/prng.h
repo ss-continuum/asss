@@ -10,7 +10,7 @@
  */
 
 /** the Iprng interface id */
-#define I_PRNG "prng-1"
+#define I_PRNG "prng-2"
 
 /** the Iprng interface struct */
 typedef struct Iprng
