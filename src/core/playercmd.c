@@ -177,7 +177,8 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 		int newPacketLen = (pos - buf) + 2 + nameLen;
 
 		/* stop throwing things into the S2C_ARENA packet, but continue if we're looking for a chat-based output */
-		if (!cutoff && newPacketLen > MAXPACKET)
+		/* subtract 6 to account for reliable packet overhead */
+		if (!cutoff && newPacketLen > (MAXPACKET-6))
 		{
 			if (chatBasedOutput)
 				cutoff = pos-buf;
@@ -218,7 +219,7 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 				int nameLen = strlen(de->d_name) + 1;
 				int newPacketLen = (pos - buf) + 2 + nameLen;
 
-				if (!cutoff && newPacketLen > MAXPACKET)
+				if (!cutoff && newPacketLen > (MAXPACKET-6))
 				{
 					if (chatBasedOutput)
 						cutoff = pos-buf;
