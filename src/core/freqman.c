@@ -16,6 +16,7 @@ typedef struct
 	int metric_sum;
 	LinkedList players;
 	int is_required;
+	int is_balanced_against;
 } Freq;
 
 typedef struct
@@ -41,6 +42,8 @@ typedef struct
 	int max_res_area;
 	int initial_spec;
 	int disallow_team_spectators;
+	int is_balanced_against_start;
+	int is_balanced_against_end;
 } adata;
 
 local Imodman *mm;
@@ -191,6 +194,7 @@ local void update_freq(Player *p, int freq)
 			new_freq->freq = freq;
 			new_freq->metric_sum = 0;
 			new_freq->is_required = (freq < ad->required_teams);
+			new_freq->is_balanced_against = (ad->is_balanced_against_start <= freq && freq < ad->is_balanced_against_end);
 			LLInit(&new_freq->players);
 			LLAdd(&ad->freqs, new_freq);
 		}
@@ -333,7 +337,7 @@ local int screen_res_allowed(Player *p, char *err_buf, int buf_len)
 	if ((ad->max_x_res != 0 && p->xres > ad->max_x_res)
 		|| (ad->max_y_res != 0 && p->yres > ad->max_y_res))
 	{
-		if (err_buf)	
+		if (err_buf)
 			snprintf(err_buf, buf_len, "Maximum allowed screen resolution is %dx%d in this arena", ad->max_x_res, ad->max_y_res);
 		return 0;
 	}
@@ -373,7 +377,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq_number, char *er
 		old_freq->metric_sum -= data->metric;
 		balancer_update_metric(p);
 		old_freq->metric_sum += data->metric;
-		old_freq_metric = old_freq->metric_sum;
+		old_freq_metric = old_freq->metric_sum - data->metric;
 	}
 	else
 	{
@@ -456,7 +460,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq_number, char *er
 				/* iterate over all required teams (not counting old and new) */
 				FOR_EACH(&ad->freqs, i, link)
 				{
-					if (i != old_freq && i != new_freq && i->is_required)
+					if (i != old_freq && i != new_freq && i->is_balanced_against)
 					{
 						/* check the new freq vs. i */
 						if (balancer->GetMaximumDifference(arena, new_freq_number, i->freq) < new_freq_metric - i->metric_sum)
@@ -467,7 +471,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq_number, char *er
 						}
 
 						/* check the old freq vs. i */
-						if (old_freq_metric && old_freq && old_freq->is_required && new_freq && new_freq->is_required)
+						if (old_freq_metric && old_freq && old_freq->is_balanced_against && new_freq && new_freq->is_balanced_against)
 						{
 							if (balancer->GetMaximumDifference(arena, old_freq_number, i->freq) < i->metric_sum - old_freq_metric)
 							{
@@ -753,7 +757,7 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 	/* see if we need to put them into a ship */
 	if (ad->disallow_team_spectators && ship == SHIP_SPEC)
 	{
-		
+
 		if (p->flags.no_ship)
 		{
 			/* too much lag to get in a ship */
@@ -793,7 +797,7 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 
 	/* check if this change was from the specfreq, and if there are too
 	 * many people playing. */
-	if (p->p_ship == SHIP_SPEC && p->p_freq == arena->specfreq 
+	if (p->p_ship == SHIP_SPEC && p->p_freq == arena->specfreq
 			&& ad->include_spec && is_arena_full(arena))
 	{
 		if (err_buf)
@@ -935,6 +939,18 @@ local void update_config(Arena *arena)
 	 * The number of teams that the freq manager will require to exist. */
 	ad->required_teams = cfg->GetInt(arena->cfg, "Team", "RequriedTeams", 0);
 
+	/* cfghelp: Team:BalancedAgainstStart, arena, int, def: 0
+	 * Freqs >= BalancedAgainstStart and < BalancedAgainstEnd will be
+	 * checked for balance even when players are not changing to or from
+	 * these freqs. */
+	ad->is_balanced_against_start = cfg->GetInt(arena->cfg, "Team", "BalancedAgainstStart", 0);
+
+	/* cfghelp: Team:BalancedAgainstEnd, arena, int, def: 0
+	 * Freqs >= BalancedAgainstStart and < BalancedAgainstEnd will be
+	 * checked for balance even when players are not changing to or from
+	 * these freqs. */
+	ad->is_balanced_against_end = cfg->GetInt(arena->cfg, "Team", "BalancedAgainstEnd", 0);
+
 	/* cfghelp: Misc:MaxXres, arena, int, def: 0
 	 * Maximum screen width allowed in the arena. Zero means no limit. */
 	ad->max_x_res = cfg->GetInt(ch, "Misc", "MaxXres", 0);
@@ -952,7 +968,7 @@ local void update_config(Arena *arena)
 	ad->initial_spec = cfg->GetInt(ch, "Team", "InitialSpec", 0);
 
 	/* cfghelp: Team:DisallowTeamSpectators, arena, bool, def: 0
-	 * If players are allowed to spectate outside of the spectator 
+	 * If players are allowed to spectate outside of the spectator
 	 * frequency. */
 	ad->disallow_team_spectators = cfg->GetInt(ch, "Team", "DisallowTeamSpectators", 0);
 }
