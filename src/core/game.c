@@ -52,6 +52,7 @@ typedef struct
 	int initlockship, initspec;
 	int deathwofiring;
 	int regionchecktime;
+	int nosafeanti;
 } adata;
 
 
@@ -398,6 +399,14 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 		     pos->weapon.alternate)
 			sendtoall = TRUE;
 
+		/* disable antiwarp if they're in a safe and nosafeanti is on */
+		if ((pos->status & STATUS_ANTIWARP) &&
+		     (pos->status & STATUS_SAFEZONE) &&
+		     adata->nosafeanti)
+		{
+			pos->status &= ~STATUS_ANTIWARP;
+		}
+
 		/* send some percent of antiwarp positions to everyone */
 		if ( pos->weapon.type == 0 &&
 		     (pos->status & STATUS_ANTIWARP) &&
@@ -598,6 +607,7 @@ local void FakePosition(Player *p, struct C2SPosition *pos, int len)
 local int IsAntiwarped(Player *p, LinkedList *players)
 {
 	pdata *data = PPDATA(p, pdkey);
+	adata *adata = P_ARENA_DATA(p->arena, adkey);
 	pdata *idata;
 	Player *i;
 	Link *link;
@@ -608,8 +618,9 @@ local int IsAntiwarped(Player *p, LinkedList *players)
 		pd->Lock();
 		FOR_EACH_PLAYER_P(i, idata, pdkey)
 		{
-			if(i->arena == p->arena && i->p_freq != p->p_freq && i->p_ship != SHIP_SPEC
-					&& (i->position.status & STATUS_ANTIWARP) && !idata->rgnnoanti)
+			if (i->arena == p->arena && i->p_freq != p->p_freq && i->p_ship != SHIP_SPEC
+					&& (i->position.status & STATUS_ANTIWARP) && !idata->rgnnoanti
+					&& (!(i->position.status & STATUS_SAFEZONE) || !adata->nosafeanti))
 			{
 				int xdelta = (i->position.x - p->position.x);
 				int ydelta = (i->position.y - p->position.y);
@@ -921,7 +932,7 @@ local void SetShipAndFreq(Player *p, int ship, int freq)
 		DO_CBS(CB_SPAWN, arena, SpawnFunc, (p, flags));
 	}
 
-	lm->LogP(L_DRIVEL, "game", p, "changed ship/freq to ship %d, freq %d",
+	lm->LogP(L_INFO, "game", p, "changed ship/freq to ship %d, freq %d",
 			ship, freq);
 }
 
@@ -1039,7 +1050,7 @@ local void SetFreq(Player *p, int freq)
 
 	DO_CBS(CB_SHIPFREQCHANGE, arena, ShipFreqChangeFunc, (p, p->p_ship, p->p_ship, freq, oldfreq));
 
-	lm->LogP(L_DRIVEL, "game", p, "changed freq to %d", freq);
+	lm->LogP(L_INFO, "game", p, "changed freq to %d", freq);
 }
 
 
@@ -1191,7 +1202,7 @@ local void PDie(Player *p, byte *pkt, int len)
 	DO_CBS(CB_KILL_POST_NOTIFY, arena, KillFunc,
 			(arena, killer, p, bty, flagcount, &pts, &green));
 
-	lm->Log(L_DRIVEL, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d,pts=%d)",
+	lm->Log(L_INFO, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d,pts=%d)",
 			arena->name,
 			p->name,
 			killer->name,
@@ -1205,7 +1216,7 @@ local void PDie(Player *p, byte *pkt, int len)
 		adata *ad = P_ARENA_DATA(arena, adkey);
 		if (data->deathwofiring++ == ad->deathwofiring)
 		{
-			lm->LogP(L_DRIVEL, "game", p, "specced for too many deaths without firing");
+			lm->LogP(L_INFO, "game", p, "specced for too many deaths without firing");
 			SetShipAndFreq(p, SHIP_SPEC, arena->specfreq);
 		}
 	}
@@ -1453,6 +1464,11 @@ local void ArenaAction(Arena *arena, int action)
 		 * before being placed in spectator mode. */
 		ad->deathwofiring =
 			cfg->GetInt(arena->cfg, "Security", "MaxDeathWithoutFiring", 5);
+
+		/* cfghelp: Misc:NoSafeAntiwarp, arena, int, def: 0
+		 * Disables antiwarp on players in safe zones. */
+		ad->nosafeanti = 
+			cfg->GetInt(arena->cfg, "Misc", "NoSafeAntiwarp", 0);
 
 		/* cfghelp: Prize:DontShareThor, arena, bool, def: 0
 		 * Whether Thor greens don't go to the whole team. */

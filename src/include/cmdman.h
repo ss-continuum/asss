@@ -58,7 +58,7 @@ typedef void (*CommandFunc)(const char *command, const char *params,
 typedef const char *helptext_t;
 
 /** the interface id for Icmdman */
-#define I_CMDMAN "cmdman-9"
+#define I_CMDMAN "cmdman-10"
 
 /** the interface struct for Icmdman */
 typedef struct Icmdman

@@ -63,7 +63,7 @@ typedef void (*GlobalConfigChangedFunc)(void);
 
 
 /** the config interface id */
-#define I_CONFIG "config-3"
+#define I_CONFIG "config-4"
 
 /** the config interface struct */
 typedef struct Iconfig

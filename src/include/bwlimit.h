@@ -17,7 +17,7 @@ enum
 
 typedef struct BWLimit BWLimit;
 
-#define I_BWLIMIT "bwlimit-2"
+#define I_BWLIMIT "bwlimit-3"
 
 typedef struct Ibwlimit
 {

@@ -80,7 +80,7 @@ typedef struct ArenaBallData
 } ArenaBallData;
 
 
-#define I_BALLS "balls-4"
+#define I_BALLS "balls-5"
 
 typedef struct Iballs
 {

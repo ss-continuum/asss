@@ -4,7 +4,7 @@
 #ifndef __REDIRECT_H
 #define __REDIRECT_H
 
-#define I_REDIRECT "redirect-1"
+#define I_REDIRECT "redirect-2"
 
 typedef struct Iredirect
 {

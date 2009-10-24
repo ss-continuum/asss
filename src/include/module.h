@@ -138,7 +138,7 @@ typedef int (*ModuleLoaderFunc)(int action, mod_args_t *args, const char *line, 
 
 
 /** this is only used from python */
-#define I_MODMAN "modman-1"
+#define I_MODMAN "modman-2"
 
 /** the module manager interface struct */
 typedef struct Imodman

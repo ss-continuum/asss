@@ -4,7 +4,7 @@
 #ifndef __PWCACHE_H
 #define __PWCACHE_H
 
-#define I_PWCACHE "pwcache-1"
+#define I_PWCACHE "pwcache-2"
 
 enum PWCacheResult
 {

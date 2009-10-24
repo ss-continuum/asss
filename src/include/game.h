@@ -169,7 +169,7 @@ typedef struct Appk
 } Appk;
 
 /** the game interface id */
-#define I_GAME "game-8"
+#define I_GAME "game-9"
 
 /** the game interface struct */
 typedef struct Igame

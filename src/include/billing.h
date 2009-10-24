@@ -12,7 +12,7 @@ typedef enum
 	BILLING_UP = 2
 } billing_state_t;
 
-#define I_BILLING "billing"
+#define I_BILLING "billing-1"
 
 typedef struct Ibilling
 {

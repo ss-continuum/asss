@@ -5,7 +5,7 @@
 #define __LOG_FILE_H
 
 
-#define I_LOG_FILE "log_file-1"
+#define I_LOG_FILE "log_file-2"
 
 typedef struct Ilog_file
 {

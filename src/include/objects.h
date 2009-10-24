@@ -8,7 +8,7 @@
  * this module will handle all object-related packets
  */
 
-#define I_OBJECTS "objects-2"
+#define I_OBJECTS "objects-3"
 
 typedef struct Iobjects
 {

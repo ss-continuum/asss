@@ -36,7 +36,7 @@ typedef void (*MainLoopFunc)(void);
 
 
 /** the interface id for Imainloop */
-#define I_MAINLOOP "mainloop-2"
+#define I_MAINLOOP "mainloop-3"
 
 /** the interface struct for Imainloop */
 typedef struct Imainloop

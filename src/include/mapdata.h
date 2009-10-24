@@ -73,7 +73,7 @@ struct mapdata_memory_stats_t
 
 
 /** interface id for Imapdata */
-#define I_MAPDATA "mapdata-8"
+#define I_MAPDATA "mapdata-9"
 
 /** interface struct for Imapdata
  * you should use this to figure out what's going on in the map in a

@@ -4,7 +4,7 @@
 #ifndef __OBSCENE_H
 #define __OBSCENE_H
 
-#define I_OBSCENE "obscene-1"
+#define I_OBSCENE "obscene-2"
 
 typedef struct Iobscene
 {
