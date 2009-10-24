@@ -26,7 +26,7 @@ local shipmask_t GetAllowableShips(Player *p, int ship, int freq, char *err_buf,
 			continue;
 		if (x == p)
 			continue;
-		++count[p->p_ship];
+		++count[x->p_ship];
 	}
 	pd->Unlock();
 
