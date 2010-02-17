@@ -25,7 +25,6 @@ local shipmask_t GetAllowableShips(Player *p, int ship, int freq, char *err_buf,
 {
 	pdata *data = PPDATA(p, pdkey);
 	int shipchangeinterval, antiwarp_non_flagger, antiwarp_flagger;
-	int d;
 
 	/* cfghelp: Misc:ShipChangeInterval, arena, int, def: 500
 	 * The allowable interval between player ship changes, in ticks. */
@@ -41,12 +40,10 @@ local shipmask_t GetAllowableShips(Player *p, int ship, int freq, char *err_buf,
 	 * while antiwarped. */
 	antiwarp_flagger = cfg->GetInt(p->arena->cfg, "Misc", "AntiwarpFlagShipChange", 0);
 	
-	d = TICK_DIFF(current_ticks(), data->last_change);
-
-	if (d < shipchangeinterval && shipchangeinterval > 0)
+	if (data->last_change + shipchangeinterval > current_ticks() && shipchangeinterval > 0)
 	{
 		if (err_buf)
-			snprintf(err_buf, buf_len, "You're changing ships too often, please wait.");
+			snprintf(err_buf, buf_len, "You've changed ship too recently. Please wait.");
 		if (p->p_ship != SHIP_SPEC)
 			return SHIPMASK(p->p_ship);
 		else
@@ -74,6 +71,8 @@ local shipmask_t GetAllowableShips(Player *p, int ship, int freq, char *err_buf,
 				snprintf(err_buf, buf_len, "You are antiwarped!");
 			if (p->p_ship != SHIP_SPEC)
 				return SHIPMASK(p->p_ship);
+			else
+				return SHIPMASK_NONE;
 		}
 	}
 
