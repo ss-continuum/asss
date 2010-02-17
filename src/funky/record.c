@@ -451,10 +451,25 @@ local int start_recording(Arena *a, const char *file, const char *recorder, cons
 	int ok = FALSE, fd;
 	int cmtlen = comments ? strlen(comments) + 1 : 0;
 
+	char fullpath[256];
+	
+	mkdir("recordings", 0755);
+
+	/* append file to fullpath if the base is not recordings/
+		else set fullpath to file (for backwards compatibility with ?rec play recordings/blah ) */
+	if (!strncmp("recordings/", file, sizeof("recordings/")-1))
+	{
+		astrncpy(fullpath, file, sizeof(fullpath));
+	}
+	else
+	{
+		snprintf(fullpath, sizeof(fullpath), "recordings/%s", file);
+	}
+
 	LOCK(a);
 	if (ra->state == s_none)
 	{
-		fd = open(file, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
+		fd = open(fullpath, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
 		if (fd != -1)
 		{
 			/* leave the header wrong until we finish it properly in
@@ -516,7 +531,7 @@ local int start_recording(Arena *a, const char *file, const char *recorder, cons
 				close(fd);
 		}
 		else
-			lm->LogA(L_INFO, "record", a, "can't open '%s' for writing", file);
+			lm->LogA(L_INFO, "record", a, "can't open '%s' for writing", fullpath);
 	}
 	else
 		lm->LogA(L_INFO, "record", a, "tried to %s game, but state wasn't none",
@@ -1047,10 +1062,23 @@ local int start_playback(Arena *a, const char *file)
 	rec_adata *ra = P_ARENA_DATA(a, adkey);
 	int ok = FALSE, fd;
 
+	char fullpath[256];
+	
+	/* append file to fullpath if the base is not recordings/
+		else set fullpath to file (for backwards compatibility with ?rec play recordings/blah ) */
+	if (!strncmp("recordings/", file, sizeof("recordings/")-1))
+	{
+		astrncpy(fullpath, file, sizeof(fullpath));
+	}
+	else
+	{
+		snprintf(fullpath, sizeof(fullpath), "recordings/%s", file);
+	}
+
 	LOCK(a);
 	if (ra->state == s_none)
 	{
-		fd = open(file, O_RDONLY | O_BINARY);
+		fd = open(fullpath, O_RDONLY | O_BINARY);
 		if (fd != -1)
 		{
 			struct file_header header;
@@ -1107,7 +1135,7 @@ local int start_playback(Arena *a, const char *file)
 				close(fd);
 		}
 		else
-			lm->LogA(L_INFO, "record", a, "can't open game file '%s'", file);
+			lm->LogA(L_INFO, "record", a, "can't open game file '%s'", fullpath);
 	}
 	else
 		lm->LogA(L_INFO, "record", a, "tried to %s game, but state wasn't none",
