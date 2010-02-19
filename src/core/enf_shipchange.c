@@ -42,7 +42,7 @@ local shipmask_t GetAllowableShips(Player *p, int ship, int freq, char *err_buf,
 	
 	if (data->last_change + shipchangeinterval > current_ticks() && shipchangeinterval > 0)
 	{
-		if (err_buf)
+		if (err_buf && ship != p->p_ship)
 			snprintf(err_buf, buf_len, "You've changed ship too recently. Please wait.");
 		if (p->p_ship != SHIP_SPEC)
 			return SHIPMASK(p->p_ship);
@@ -67,7 +67,7 @@ local shipmask_t GetAllowableShips(Player *p, int ship, int freq, char *err_buf,
 
 		if ((flags && antiwarp_flagger) || (!flags && antiwarp_non_flagger))
 		{
-			if (err_buf)
+			if (err_buf && ship != p->p_ship)
 				snprintf(err_buf, buf_len, "You are antiwarped!");
 			if (p->p_ship != SHIP_SPEC)
 				return SHIPMASK(p->p_ship);
@@ -82,7 +82,7 @@ local shipmask_t GetAllowableShips(Player *p, int ship, int freq, char *err_buf,
 local void ship_change_cb(Player *p, int newship, int oldship, int newfreq, int oldfreq)
 {
 	pdata *data = PPDATA(p, pdkey);
-	if (newship != oldship)
+	if (newship != oldship && newship != SHIP_SPEC)
 	{
 		data->last_change = current_ticks();
 	}
