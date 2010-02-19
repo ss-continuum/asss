@@ -23,7 +23,7 @@ local int RawRedirect(const Target *t, const char *ip, int port,
 		return FALSE;
 
 	pkt.type = S2C_REDIRECT;
-	pkt.ip = addr.s_addr;
+	pkt.ip = ntohl(addr.s_addr);
 	pkt.port = port;
 	pkt.arenatype = (i16)arenatype;
 	strncpy(pkt.arenaname, arenaname ? arenaname : "", sizeof(pkt.arenaname));

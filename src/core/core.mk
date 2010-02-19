@@ -15,7 +15,7 @@ INTERNAL_MODULES = \
 	enf_legalship enf_shipcount \
 	ap_multipub sendfile auth_ban auth_file obscene \
 	enf_shipchange enf_flagwin \
-	deadlock $(unixsignal)
+	deadlock redirect $(unixsignal)
 
 # generated file for mapdata
 $(call tobuild, sparse.inc): $(builddir) $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py

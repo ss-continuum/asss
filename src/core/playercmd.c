@@ -48,23 +48,87 @@ local Imodman *mm;
 static ticks_t startedat;
 
 
+struct arena_list_piece
+{
+	const char *name;
+	int count : 31;
+	unsigned current : 1;
+};
+
+local int sort_arena_list(const void *_a, const void *_b)
+{
+	const struct arena_list_piece *a = (struct arena_list_piece *)_a;
+	const struct arena_list_piece *b = (struct arena_list_piece *)_b;
+	if (a->count)
+	{
+		if (!b->count)
+			return TRUE;
+	}
+	else
+	{
+		if (b->count)
+			return FALSE;
+	}
+
+	if (a->name[0] == '#')
+	{
+		if (b->name[0] != '#')
+			return FALSE;
+	}
+	else
+	{
+		if (b->name[0] == '#')
+			return TRUE;
+	}
+
+	if (a->count > b->count)
+		return TRUE;
+	else if (b->count > a->count)
+		return FALSE;
+
+	return strcmp(a->name, b->name) < 0;
+}
 
 local void translate_arena_packet(Player *p, char *pkt, int len)
 {
+	Link *link;
+	LinkedList arenas = LL_INITIALIZER;
+	struct arena_list_piece *piece;
+
 	const char *pos = pkt + 1;
 
 	chat->SendMessage(p, "Available arenas:");
 	while (pos-pkt < len)
 	{
+		struct arena_list_piece *newPiece = alloca(sizeof(*piece));
+
 		const char *next = pos + strlen(pos) + 3;
 		int count = ((byte)next[-1] << 8) | (byte)next[-2];
 		/* manually two's complement. yuck. */
 		if (count & 0x8000)
-			chat->SendMessage(p, "  %-16s %3d (current)", pos, (count ^ 0xffff) + 1);
+		{
+			newPiece->current = 1;
+			newPiece->count = (count ^ 0xffff) + 1;
+		}
 		else
-			chat->SendMessage(p, "  %-16s %3d", pos, count);
+		{
+			newPiece->current = 0;
+			newPiece->count = count;
+		}
+		newPiece->name = pos;
+		LLAdd(&arenas, newPiece);
+
 		pos = next;
 	}
+	LLSort(&arenas, sort_arena_list);
+	FOR_EACH(&arenas, piece, link)
+	{
+		if (piece->current)
+			chat->SendMessage(p, "  %-16s %3d (current)", piece->name, piece->count);
+		else
+			chat->SendMessage(p, "  %-16s %3d", piece->name, piece->count);
+	}
+	LLEmpty(&arenas);
 }
 
 /* returns 0 if found, 1 if not */
@@ -91,11 +155,13 @@ local helptext_t arena_help =
 
 local void Carena(const char *tc, const char *params, Player *p, const Target *target)
 {
-	byte buf[MAXPACKET];
+	byte buf[1024];
 	byte *pos = buf;
 	int l, seehid;
 	Arena *a;
 	Link *link;
+	int cutoff = 0;
+	int chatBasedOutput = (IS_CHAT(p) || strstr(params, "-t"));
 
 	*pos++ = S2C_ARENA;
 
@@ -107,7 +173,21 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 	seehid = capman && capman->HasCapability(p, CAP_SEEPRIVARENA);
 	FOR_EACH_ARENA(a)
 	{
-		if ((pos-buf) > 480) break;
+		int nameLen = strlen(a->name) + 1;
+		int newPacketLen = (pos - buf) + 2 + nameLen;
+
+		/* stop throwing things into the S2C_ARENA packet, but continue if we're looking for a chat-based output */
+		/* subtract 6 to account for reliable packet overhead */
+		if (!cutoff && newPacketLen > (MAXPACKET-6))
+		{
+			if (chatBasedOutput)
+				cutoff = pos-buf;
+			else
+				break;
+		}
+		/* regardless of the type of output, don't buffer overrun */
+		if (newPacketLen > sizeof(buf))
+			break;
 
 		if (a->status == ARENA_RUNNING &&
 		    ( a->name[0] != '#' || seehid || p->arena == a ))
@@ -116,9 +196,8 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 			/* signify current arena */
 			if (p->arena == a)
 				count = -count;
-			l = strlen(a->name) + 1;
-			memcpy(pos, a->name, l);
-			pos += l;
+			memcpy(pos, a->name, nameLen);
+			pos += nameLen;
 			*pos++ = (count >> 0) & 0xFF;
 			*pos++ = (count >> 8) & 0xFF;
 		}
@@ -137,11 +216,24 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 			struct dirent *de;
 			while ((de = readdir(dir)))
 			{
+				int nameLen = strlen(de->d_name) + 1;
+				int newPacketLen = (pos - buf) + 2 + nameLen;
+
+				if (!cutoff && newPacketLen > (MAXPACKET-6))
+				{
+					if (chatBasedOutput)
+						cutoff = pos-buf;
+					else
+						break;
+				}
+
+				if (newPacketLen > sizeof(buf))
+					break;
+
 				/* every arena must have an arena.conf. this filters out
 				 * ., .., CVS, etc. */
 				snprintf(aconf, sizeof(aconf), "arenas/%s/arena.conf", de->d_name);
 				if (
-						(pos-buf+strlen(de->d_name)) < 480 &&
 						de->d_name[0] != '(' &&
 						access(aconf, R_OK) == 0 &&
 						(de->d_name[0] != '#' || seehid) &&
@@ -161,10 +253,10 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 #endif
 
 	/* send it */
-	if (IS_CHAT(p) || strstr(params, "-t"))
+	if (chatBasedOutput)
 		translate_arena_packet(p, (char *)buf, pos-buf);
 	else if (IS_STANDARD(p))
-		net->SendToOne(p, buf, pos-buf, NET_RELIABLE);
+		net->SendToOne(p, buf, (cutoff?cutoff:(pos-buf)), NET_RELIABLE);
 }
 
 
