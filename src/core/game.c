@@ -647,6 +647,23 @@ local int IsAntiwarped(Player *p, LinkedList *players)
 	return antiwarped;
 }
 
+int RegionPacketEditor(Player *p, Player *t, struct C2SPosition *pos, int *extralen)
+{
+	int modified = 0;
+	pdata *data = PPDATA(t, pdkey);
+	if (data->rgnnorecvanti && (pos->status & STATUS_ANTIWARP))
+	{
+		pos->status &= ~STATUS_ANTIWARP;
+		modified = 1;
+	}
+	if (data->rgnnorecvweps && pos->weapon.type)
+	{
+		pos->weapon.type = 0;
+		modified = 1;
+	}
+	return modified;
+}
+
 /* call with specmtx locked */
 local void clear_speccing(pdata *data)
 {
@@ -1664,7 +1681,11 @@ local PlayerPersistentData persdata =
 	get_data, set_data, clear_data
 };
 
-
+local Appk _region_ppk_adv = 
+{
+	ADVISER_HEAD_INIT(A_PPK)
+	NULL, RegionPacketEditor
+};
 
 local Igame _myint =
 {
@@ -1757,6 +1778,7 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 			cmd->AddCommand("energy", Cenergy, ALLARENAS, energy_help);
 		}
 
+		mm->RegAdviser(&_region_ppk_adv, ALLARENAS);
 		mm->RegInterface(&_myint, ALLARENAS);
 
 		return MM_OK;
@@ -1765,6 +1787,7 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 	{
 		if (mm->UnregInterface(&_myint, ALLARENAS))
 			return MM_FAIL;
+		mm->UnregAdviser(&_region_ppk_adv, ALLARENAS);
 		if (chatnet)
 			chatnet->RemoveHandler("CHANGEFREQ", MChangeFreq);
 		if (cmd)

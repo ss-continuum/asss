@@ -9,47 +9,83 @@
 
 typedef struct pdata
 {
-	int changes;
-	ticks_t lastcheck;
+	ticks_t last_change;
 } pdata;
 
 local Imodman *mm;
 local Ilogman *lm;
 local Iconfig *cfg;
 local Iplayerdata *pd;
+local Igame *game;
+local Iflagcore *flagcore;
 
 local int pdkey;
 
 local shipmask_t GetAllowableShips(Player *p, int ship, int freq, char *err_buf, int buf_len)
 {
 	pdata *data = PPDATA(p, pdkey);
-	int shipchangelimit;
-	int d;
+	int shipchangeinterval, antiwarp_non_flagger, antiwarp_flagger;
 
-	/* cfghelp: General:ShipChangeLimit, global, int, def: 10
-	 * The number of ship changes in a short time (about 10 seconds)
-	 * before ship changing is disabled (for about 30 seconds). */
-	shipchangelimit = cfg->GetInt(GLOBAL, "General", "ShipChangeLimit", 10);
+	/* cfghelp: Misc:ShipChangeInterval, arena, int, def: 500
+	 * The allowable interval between player ship changes, in ticks. */
+	shipchangeinterval = cfg->GetInt(p->arena->cfg, "Misc", "ShipChangeInterval", 500);
 
-	/* exponential decay by 1/2 every 10 seconds */
-	d = TICK_DIFF(current_ticks(), data->lastcheck) / 1000;
-	data->changes >>= d;
-	data->lastcheck = TICK_MAKE(data->lastcheck + d * 1000);
-	if (data->changes > shipchangelimit && shipchangelimit > 0)
+	/* cfghelp: Misc:AntiwarpShipChange, arena, int, def, 0
+	 * prevents players without flags from changing ships 
+	 * while antiwarped. */
+	antiwarp_non_flagger = cfg->GetInt(p->arena->cfg, "Misc", "AntiwarpShipChange", 0);
+
+	/* cfghelp: Misc:AntiwarpFlagShipChange, arena, int, def, 0
+	 * prevents players with flags from changing ships
+	 * while antiwarped. */
+	antiwarp_flagger = cfg->GetInt(p->arena->cfg, "Misc", "AntiwarpFlagShipChange", 0);
+	
+	if (data->last_change + shipchangeinterval > current_ticks() && shipchangeinterval > 0)
 	{
-		lm->LogP(L_INFO, "game", p, "too many ship changes");
-		/* disable for at least 30 seconds */
-		data->changes |= (shipchangelimit<<3);
-		if (err_buf)
-			snprintf(err_buf, buf_len, "You're changing ships too often, disabling for 30 seconds.");
+		if (err_buf && ship != p->p_ship)
+			snprintf(err_buf, buf_len, "You've changed ship too recently. Please wait.");
 		if (p->p_ship != SHIP_SPEC)
 			return SHIPMASK(p->p_ship);
 		else
 			return SHIPMASK_NONE;
 	}
-	data->changes++;
+
+	if (p->p_ship != SHIP_SPEC
+			&& (antiwarp_non_flagger || antiwarp_flagger)
+			&& game->IsAntiwarped(p, NULL))
+	{
+		int flags;
+
+		if (flagcore)
+		{
+			flags = flagcore->CountPlayerFlags(p);
+		}
+		else
+		{
+			flags = 0;
+		}
+
+		if ((flags && antiwarp_flagger) || (!flags && antiwarp_non_flagger))
+		{
+			if (err_buf && ship != p->p_ship)
+				snprintf(err_buf, buf_len, "You are antiwarped!");
+			if (p->p_ship != SHIP_SPEC)
+				return SHIPMASK(p->p_ship);
+			else
+				return SHIPMASK_NONE;
+		}
+	}
 
 	return SHIPMASK_ALL;
+}
+
+local void ship_change_cb(Player *p, int newship, int oldship, int newfreq, int oldfreq)
+{
+	pdata *data = PPDATA(p, pdkey);
+	if (newship != oldship && newship != SHIP_SPEC)
+	{
+		data->last_change = current_ticks();
+	}
 }
 
 local Aenforcer myadv =
@@ -66,8 +102,10 @@ EXPORT int MM_enf_shipchange(int action, Imodman *mm_, Arena *arena)
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
+		game = mm->GetInterface(I_GAME, ALLARENAS);
+		flagcore = mm->GetInterface(I_FLAGCORE, ALLARENAS);
 
-		if (!lm || !cfg || !pd) return MM_FAIL;
+		if (!lm || !cfg || !pd || !game) return MM_FAIL;
 
 		pdkey = pd->AllocatePlayerData(sizeof(pdata));
 		if (pdkey == -1) return MM_FAIL;
@@ -81,19 +119,24 @@ EXPORT int MM_enf_shipchange(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(lm);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(pd);
+		mm->ReleaseInterface(game);
+		mm->ReleaseInterface(flagcore);
 		return MM_OK;
 	}
 	else if (action == MM_ATTACH)
 	{
 		mm->RegAdviser(&myadv, arena);
+		mm->RegCallback(CB_SHIPFREQCHANGE, ship_change_cb, arena);
 
 		return MM_OK;
 	}
 	else if (action == MM_DETACH)
 	{
+		mm->UnregCallback(CB_SHIPFREQCHANGE, ship_change_cb, arena);
 		mm->UnregAdviser(&myadv, arena);
 
 		return MM_OK;
 	}
 	return MM_FAIL;
 }
+

@@ -318,7 +318,7 @@ local int is_arena_full(Arena *arena)
 		pd->Lock();
 		FOR_EACH_PLAYER(i)
 			if (i->status == S_PLAYING && i->arena == arena
-					&& (i->p_ship != SHIP_SPEC || ad->include_spec)
+					&& i->p_ship != SHIP_SPEC
 					&& IS_HUMAN(i))
 			{
 				playing++;
@@ -491,7 +491,7 @@ local int can_change_freq(Arena *arena, Player *p, int new_freq_number, char *er
 	return 1;
 }
 
-local int find_freq(Arena *arena, Player *p)
+local int find_freq(Arena *arena, Player *p, char *err_buf, int buf_len)
 {
 	pdata *data = PPDATA(p, pdkey);
 	adata *ad = P_ARENA_DATA(arena, adkey);
@@ -509,6 +509,11 @@ local int find_freq(Arena *arena, Player *p)
 				if (!freq)
 				{
 					/* found an empty freq */
+					if (err_buf && buf_len)
+					{
+						/* clear any error messages */
+						err_buf[0] = '\0';
+					}
 					return i;
 				}
 				else if (freq->metric_sum <= balancer_get_max_metric(arena, i) - data->metric)
@@ -532,6 +537,11 @@ local int find_freq(Arena *arena, Player *p)
 
 	if (best_freq)
 	{
+		if (err_buf && buf_len)
+		{
+			/* clear any error messages */
+			err_buf[0] = '\0';
+		}
 		return best_freq->freq;
 	}
 	else
@@ -547,11 +557,21 @@ local int find_freq(Arena *arena, Player *p)
 					if (!freq)
 					{
 						/* empty freq */
+						if (err_buf && buf_len)
+						{
+							/* clear any error messages */
+							err_buf[0] = '\0';
+						}
 						return i;
 					}
 					else if (freq->metric_sum <= balancer_get_max_metric(arena, i) - data->metric)
 					{
 						/* has room */
+						if (err_buf && buf_len)
+						{
+							/* clear any error messages */
+							err_buf[0] = '\0';
+						}
 						return i;
 					}
 				}
@@ -600,7 +620,7 @@ local void Initial(Player *p, int *ship, int *freq)
 		shipmask_t mask;
 
 		/* find an initial freq using the balancer and enforcers*/
-		f = find_freq(arena, p);
+		f = find_freq(arena, p, NULL, 0);
 
 		if (f == arena->specfreq)
 		{
@@ -647,6 +667,12 @@ local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 
 	if (!arena) return;
 
+	/* setup the err_buf so we know if an enforcer wrote a message */
+	if (err_buf && buf_len)
+	{
+		err_buf[0] = '\0';
+	}
+
 	if (requested_ship >= SHIP_SPEC)
 	{
 		/* always allow switching to spec */
@@ -676,7 +702,7 @@ local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 	/* they're coming out of specfreq, give 'em a new freq */
 	if (freq == arena->specfreq && p->p_ship == SHIP_SPEC)
 	{
-		freq = find_freq(arena, p);
+		freq = find_freq(arena, p, err_buf, buf_len);
 
 		if (freq == arena->specfreq)
 		{
@@ -722,7 +748,7 @@ local void ShipChange(Player *p, int requested_ship, char *err_buf, int buf_len)
 
 	if (requested_ship == SHIP_SPEC && ad->disallow_team_spectators)
 	{
-		if (err_buf)
+		if (err_buf && err_buf[0] == '\0')
 			snprintf(err_buf, buf_len, "Spectators are not allowed outside of the spectator frequency.");
 		freq = arena->specfreq;
 	}
@@ -789,16 +815,15 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 
 		if (ship == SHIP_SPEC)
 		{
-			if (err_buf && *err_buf != '\0')
+			if (err_buf && err_buf == '\0')
 				snprintf(err_buf, buf_len, "Spectators are not allowed outside of the spectator frequency.");
 			return;
 		}
 	}
 
-	/* check if this change was from the specfreq, and if there are too
+	/* check if this change was from the spec, and if there are too
 	 * many people playing. */
-	if (p->p_ship == SHIP_SPEC && p->p_freq == arena->specfreq
-			&& ad->include_spec && is_arena_full(arena))
+	if (p->p_ship == SHIP_SPEC && is_arena_full(arena))
 	{
 		if (err_buf)
 			snprintf(err_buf, buf_len, "There are too many people playing in this arena.");
