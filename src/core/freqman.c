@@ -125,10 +125,23 @@ local int enforcers_can_change_freq(Arena *arena, Player *p, int new_freq, char 
 local void balancer_update_metric(Player *p)
 {
 	pdata *data = PPDATA(p, pdkey);
-	Ibalancer *balancer = mm->GetInterface(I_BALANCER, p->arena);
-	if (balancer)
-		data->metric = balancer->GetPlayerMetric(p);
-	mm->ReleaseInterface(balancer);
+	if (IS_HUMAN(p))
+	{
+		Ibalancer *balancer = mm->GetInterface(I_BALANCER, p->arena);
+		if (balancer)
+		{
+			data->metric = balancer->GetPlayerMetric(p);
+		}
+		else
+		{
+			data->metric = 0;
+		}
+		mm->ReleaseInterface(balancer);
+	}
+	else
+	{
+		data->metric = 0;
+	}
 }
 
 /* query the balancer for the max metric for a freq */
@@ -815,7 +828,7 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 
 		if (ship == SHIP_SPEC)
 		{
-			if (err_buf && err_buf == '\0')
+			if (err_buf && *err_buf == '\0')
 				snprintf(err_buf, buf_len, "Spectators are not allowed outside of the spectator frequency.");
 			return;
 		}
@@ -823,7 +836,7 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 
 	/* check if this change was from the spec, and if there are too
 	 * many people playing. */
-	if (p->p_ship == SHIP_SPEC && is_arena_full(arena))
+	if (p->p_ship == SHIP_SPEC && ship != SHIP_SPEC && is_arena_full(arena))
 	{
 		if (err_buf)
 			snprintf(err_buf, buf_len, "There are too many people playing in this arena.");
