@@ -516,7 +516,7 @@ local int find_freq(Arena *arena, Player *p, char *err_buf, int buf_len)
 	{
 		if (!is_freq_full(arena, i))
 		{
-			if (enforcers_can_change_freq(arena, p, i, NULL, 0))
+			if (enforcers_can_change_freq(arena, p, i, err_buf, buf_len))
 			{
 				Freq *freq = get_freq(arena, i);
 				if (!freq)
@@ -565,7 +565,7 @@ local int find_freq(Arena *arena, Player *p, char *err_buf, int buf_len)
 			if (!is_freq_full(arena, i))
 			{
 				Freq *freq = get_freq(arena, i);
-				if (enforcers_can_change_freq(arena, p, i, NULL, 0))
+				if (enforcers_can_change_freq(arena, p, i, err_buf, buf_len))
 				{
 					if (!freq)
 					{
