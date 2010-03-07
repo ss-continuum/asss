@@ -150,6 +150,7 @@ typedef struct upload_t
 	int unzip;
 	const char *setting;
 	char serverpath[1];
+	Arena *arena;
 } upload_t;
 
 
@@ -213,14 +214,21 @@ local void uploaded(const char *fname, void *clos)
 			chat->SendMessage(u->p, "File received: %s", u->serverpath);
 			if (u->setting && cfg)
 			{
-				char info[128];
-				time_t tm = time(NULL);
-				snprintf(info, 100, "set by %s with ?putmap on ", u->p->name);
-				ctime_r(&tm, info + strlen(info));
-				RemoveCRLF(info);
-				cfg->SetStr(u->p->arena->cfg, u->setting, NULL,
-						u->serverpath, info, TRUE);
-				chat->SendMessage(u->p, "Set %s=%s", u->setting, u->serverpath);
+				if (u->p->arena && u->p->arena == u->arena)
+				{
+					char info[128];
+					time_t tm = time(NULL);
+					snprintf(info, 100, "set by %s with ?putmap on ", u->p->name);
+					ctime_r(&tm, info + strlen(info));
+					RemoveCRLF(info);
+					cfg->SetStr(u->p->arena->cfg, u->setting, NULL,
+							u->serverpath, info, TRUE);
+					chat->SendMessage(u->p, "Set %s=%s", u->setting, u->serverpath);
+				}
+				else
+				{
+					chat->SendMessage(u->p, "Changed arenas! Aborting map upload!");
+				}
 			}
 		}
 	}
@@ -336,6 +344,7 @@ local void Cputmap(const char *tc, const char *params, Player *p, const Target *
 	u->p = p;
 	u->unzip = 0;
 	u->setting = "General:Map";
+	u->arena = p->arena;
 	strcpy(u->serverpath, serverpath);
 
 	filetrans->RequestFile(p, params, uploaded, u);
