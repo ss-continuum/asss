@@ -22,6 +22,7 @@
 #include "fake.h"
 #include "clientset.h"
 
+#pragma pack(1)
 
 /* recorded game file format */
 enum
