@@ -1150,14 +1150,7 @@ local void Crmgroup(const char *tc, const char *params, Player *p, const Target 
 	const char *grp;
 	time_t tm = time(NULL);
 
-	if (!*params) return;
 	if (target->type != T_PLAYER) return;
-
-	while (*params && strchr(params, ' '))
-	{
-		params = strchr(params, ' ') + 1;
-	}
-	if (!*params) return;
 
 	grp = groupman->GetGroup(t);
 	snprintf(cap, sizeof(cap), "higher_than_%s", grp);
