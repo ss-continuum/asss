@@ -149,8 +149,8 @@ typedef struct upload_t
 	Player *p;
 	int unzip;
 	const char *setting;
-	char serverpath[1];
 	Arena *arena;
+	char serverpath[1];
 } upload_t;
 
 
