@@ -163,6 +163,31 @@ local int balancer_get_max_metric(Arena *arena, int freq)
 	return val;
 }
 
+local void sanity_check(Player *p, int freq)
+{
+#if 0 // HZ-only sanity testing for bug #79
+	pdata *data = PPDATA(p, pdkey);
+	if (data->freq)
+	{
+		Player *i;
+		Link *link;
+		int metric_sum = data->freq->metric_sum;
+		int player_count = 0;
+		pd->Lock();
+		FOR_EACH_PLAYER(i)
+			if (i->arena == p->arena && i->p_freq == data->freq->freq && IS_HUMAN(i))
+			{
+				player_count++;
+			}
+		pd->Unlock();
+		if (metric_sum != player_count)
+		{
+			lm->LogP(L_DRIVEL, "freqman", p, "Failed metric check on freq %d (%d != %d, called on %d)", data->freq->freq, metric_sum, player_count, freq);
+		}
+	}
+#endif
+}
+
 /* update the balancer metrics on a freq */
 local void update_freq(Player *p, int freq)
 {
@@ -183,7 +208,7 @@ local void update_freq(Player *p, int freq)
 		data->freq->metric_sum -= data->metric;
 		balancer_update_metric(p);
 		data->freq->metric_sum += data->metric;
-
+		sanity_check(p, freq);
 		UNLOCK();
 		return;
 	}
@@ -250,6 +275,7 @@ local void update_freq(Player *p, int freq)
 
 	data->freq = new_freq;
 
+	sanity_check(p, freq);
 	UNLOCK();
 }
 
