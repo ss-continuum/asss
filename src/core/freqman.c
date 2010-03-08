@@ -813,7 +813,7 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 
 		if (IS_STANDARD(p))
 		{
-			shipmask_t mask = enforcers_get_allowable_ships(arena, p, SHIP_SPEC, requested_freq, NULL, 0);
+			shipmask_t mask = enforcers_get_allowable_ships(arena, p, SHIP_SPEC, requested_freq, err_buf, buf_len);
 			int i;
 			for (i = SHIP_WARBIRD; i <= SHIP_SHARK; i++)
 			{
