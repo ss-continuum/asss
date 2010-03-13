@@ -31,9 +31,13 @@ typedef struct Iclientset
 
 	void (*ArenaOverride)(Arena *arena, override_key_t key, i32 val);
 	void (*ArenaUnoverride)(Arena *arena, override_key_t key);
+	int (*GetArenaOverride)(Arena *arena, override_key_t key, int *value);
+	int (*GetArenaValue)(Arena *arena, override_key_t key);
 
 	void (*PlayerOverride)(Player *p, override_key_t key, i32 val);
 	void (*PlayerUnoverride)(Player *p, override_key_t key);
+	int (*GetPlayerOverride)(Player *p, override_key_t key, int *value);
+	int (*GetPlayerValue)(Player *p, override_key_t key);
 } Iclientset;
 
 

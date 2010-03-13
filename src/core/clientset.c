@@ -35,6 +35,7 @@ typedef struct adata
 typedef struct pdata
 {
 	overridedata *od;
+	struct ClientSettings *cs;
 } pdata;
 
 /* global data */
@@ -172,7 +173,8 @@ local void load_settings(adata *ad, ConfigHandle conf)
 
 local override_key_t GetOverrideKey(const char *section, const char *key)
 {
-#define MAKE_KEY(field, len) ((offsetof(struct ClientSettings, field)) << 3 | ((len) << 16))
+#define MAKE_UNSIGNED_KEY(field, len) ((offsetof(struct ClientSettings, field)) << 3 | ((len) << 16))
+#define MAKE_SIGNED_KEY(field, len) (MAKE_UNSIGNED_KEY(field, len) | 0x80000000u) 
 #define MAKE_BKEY(field, off, len) ((((offsetof(struct ClientSettings, field)) << 3) + (off)) | ((len) << 16))
 	char fullkey[MAXSECTIONLEN+MAXKEYLEN];
 	int i, j;
@@ -183,7 +185,7 @@ local override_key_t GetOverrideKey(const char *section, const char *key)
 		for (i = 0; i < COUNT(prizeweight_names); i++)
 			/* HACK: that +12 there is kind of sneaky */
 			if (strcasecmp(prizeweight_names[i]+12, key) == 0)
-				return MAKE_KEY(prizeweight_set[i], 8);
+				return MAKE_UNSIGNED_KEY(prizeweight_set[i], 8);
 		return 0;
 	}
 
@@ -194,13 +196,13 @@ local override_key_t GetOverrideKey(const char *section, const char *key)
 			/* basic stuff */
 			for (j = 0; j < COUNT(ship_long_names); j++)
 				if (strcasecmp(ship_long_names[j], key) == 0)
-					return MAKE_KEY(ships[i].long_set[j], 32);
+					return MAKE_SIGNED_KEY(ships[i].long_set[j], 32);
 			for (j = 0; j < COUNT(ship_short_names); j++)
 				if (strcasecmp(ship_short_names[j], key) == 0)
-					return MAKE_KEY(ships[i].short_set[j], 16);
+					return MAKE_SIGNED_KEY(ships[i].short_set[j], 16);
 			for (j = 0; j < COUNT(ship_byte_names); j++)
 				if (strcasecmp(ship_byte_names[j], key) == 0)
-					return MAKE_KEY(ships[i].byte_set[j], 8);
+					return MAKE_SIGNED_KEY(ships[i].byte_set[j], 8);
 
 #define DO(field, x, off, len) \
 			if (strcasecmp(#x, key) == 0) \
@@ -252,13 +254,13 @@ local override_key_t GetOverrideKey(const char *section, const char *key)
 	/* do rest of settings */
 	for (i = 0; i < COUNT(long_names); i++)
 		if (strcasecmp(long_names[i], fullkey) == 0)
-			return MAKE_KEY(long_set[i], 32);
+			return MAKE_SIGNED_KEY(long_set[i], 32);
 	for (i = 0; i < COUNT(short_names); i++)
 		if (strcasecmp(short_names[i], fullkey) == 0)
-			return MAKE_KEY(short_set[i], 16);
+			return MAKE_SIGNED_KEY(short_set[i], 16);
 	for (i = 0; i < COUNT(byte_names); i++)
 		if (strcasecmp(byte_names[i], fullkey) == 0)
-			return MAKE_KEY(byte_set[i], 8);
+			return MAKE_SIGNED_KEY(byte_set[i], 8);
 
 #define DO(k, s, off, len) \
 	if (strcasecmp(#k ":" #s, fullkey) == 0) \
@@ -274,18 +276,19 @@ local override_key_t GetOverrideKey(const char *section, const char *key)
 #undef DO
 
 	return 0;
-#undef MAKE_KEY
+#undef MAKE_UNSIGNED_KEY
+#undef MAKE_SIGNED_KEY
 #undef MAKE_BKEY
 }
 
 
-/* override keys are two small integers stuffed into an unsigned 32-bit
- * integer. the upper 16 bits are the length in bits, and the lower 16
- * are the offset in bits */
+/* override keys are three small integers stuffed into an unsigned 32-bit
+ * integer. the upper bit indicates signed/unsigned, the next 15 are the
+ * length in bits, and the lower 16 are the offset in bits */
 /* call with lock held */
 local void override_work(overridedata *od, override_key_t key, i32 val, int set)
 {
-	int len = (key >> 16) & 0xffffu;
+	int len = (key >> 16) & 0x7fffu;
 	int offset = key & 0xffffu;
 
 	/* don't override type byte */
@@ -302,7 +305,7 @@ local void override_work(overridedata *od, override_key_t key, i32 val, int set)
 		if (set)
 		{
 			((u32*)od->bits)[wordoff] &= ~mask;
-			((u32*)od->bits)[wordoff] |= val << bitoff;
+			((u32*)od->bits)[wordoff] |= (val << bitoff) & mask;
 			((u32*)od->mask)[wordoff] |= mask;
 		}
 		else
@@ -360,7 +363,6 @@ local void ArenaUnoverride(Arena *arena, override_key_t key)
 	UNLOCK();
 }
 
-
 local void PlayerOverride(Player *p, override_key_t key, i32 val)
 {
 	pdata *data = PPDATA(p, pdkey);
@@ -380,6 +382,132 @@ local void PlayerUnoverride(Player *p, override_key_t key)
 	UNLOCK();
 }
 
+/* call with lock held */
+local int get_override(overridedata *od, override_key_t key, int *val)
+{
+	int is_signed = (key & 0x80000000u);
+	int len = (key >> 16) & 0x7fffu;
+	int offset = key & 0xffffu;
+
+	if (len <= 32 && ((offset & 31) + len) <= 32)
+	{
+		/* easier case: a bunch of bits that fit within a word boundary */
+		int wordoff = offset >> 5;
+		int bitoff = offset & 31;
+		u32 mask = (0xffffffffu >> (32 - len)) << bitoff;
+
+		if ((((u32*)od->mask)[wordoff] & mask) == mask)
+		{
+			u32 value = (((u32*)od->bits)[wordoff] & mask) >> bitoff;
+			if (is_signed && (value & (1 << (len - 1))))
+			{
+				value |= (0xffffffffu << len); // do sign extension
+			}
+			*val = (int)value;
+			return 1;
+		}
+		else
+		{
+			return 0;
+		}
+	}
+	else
+	{
+		lm->Log(L_WARN, "<clientset> illegal override key: %x", key);
+		return 0;
+	}
+}
+
+local int GetArenaOverride(Arena *arena, override_key_t key, int *value)
+{
+	int return_value;
+	adata *ad = P_ARENA_DATA(arena, adkey);
+	LOCK();
+	return_value = get_override(&ad->od, key, value);
+	UNLOCK();
+	return return_value;
+}
+
+local int GetPlayerOverride(Player *p, override_key_t key, int *value)
+{
+	int return_value;
+	pdata *data = PPDATA(p, pdkey);
+	LOCK();
+	if (data->od)
+	{
+		return_value = get_override(data->od, key, value);
+	}
+	else
+	{
+		return_value = 0;
+	}
+	UNLOCK();
+	return return_value;
+}
+
+/* call with lock held */
+local int get_cs_value(struct ClientSettings *cs, override_key_t key)
+{
+	int is_signed = (key & 0x80000000u);
+	int len = (key >> 16) & 0x7fffu;
+	int offset = key & 0xffffu;
+
+	if (len <= 32 && ((offset & 31) + len) <= 32)
+	{
+		/* easier case: a bunch of bits that fit within a word boundary */
+		int wordoff = offset >> 5;
+		int bitoff = offset & 31;
+		u32 mask = (0xffffffffu >> (32 - len)) << bitoff;
+
+		u32 value = (((u32*)cs)[wordoff] & mask) >> bitoff;
+		if (is_signed && (value & (1 << (len - 1))))
+		{
+			value |= (0xffffffffu << len); // do sign extension
+		}
+		return (int)value;
+	}
+	else
+	{
+		lm->Log(L_WARN, "<clientset> illegal override key: %x", key);
+		return 0;
+	}
+}
+
+local int GetArenaValue(Arena *arena, override_key_t key)
+{
+	int value;
+	adata *ad = P_ARENA_DATA(arena, adkey);
+	
+	LOCK();
+	
+	value = get_cs_value(&ad->cs, key);
+	
+	UNLOCK();
+	
+	return value;
+}
+
+local int GetPlayerValue(Player *p, override_key_t key)
+{
+	int value;
+	pdata *data = PPDATA(p, pdkey);
+
+	LOCK();
+
+	if (data->cs)
+	{
+		value = get_cs_value(data->cs, key);
+	}
+	else
+	{
+		/* player hasn't been sent a settings packet */
+		value = 0;
+	}
+
+	UNLOCK();
+
+	return value;
+}
 
 /* call with lock held */
 local void do_mask(
@@ -413,11 +541,14 @@ local void do_mask(
 /* call with lock held */
 local void send_one_settings(Player *p, adata *ad)
 {
-	struct ClientSettings tosend;
 	pdata *data = PPDATA(p, pdkey);
-	do_mask(&tosend, &ad->cs, &ad->od, data->od);
-	if (tosend.bit_set.type == S2C_SETTINGS)
-		net->SendToOne(p, (byte*)&tosend, sizeof(tosend), NET_RELIABLE);
+	if (!data->cs)
+	{
+		data->cs = amalloc(sizeof(struct ClientSettings));
+	}
+	do_mask(data->cs, &ad->cs, &ad->od, data->od);
+	if (data->cs->bit_set.type == S2C_SETTINGS)
+		net->SendToOne(p, (byte*)data->cs, sizeof(struct ClientSettings), NET_RELIABLE);
 }
 
 
@@ -432,9 +563,16 @@ local void aaction(Arena *arena, int action)
 	else if (action == AA_CONFCHANGED)
 	{
 		struct ClientSettings old;
+
+		/** cfghelp: Misc:SendUpdatedSettings, arena, bool, def: 1
+		 * Whether to send updates to players when the arena
+		 * settings change.
+		 */
+		int send_updated = cfg->GetInt(arena->cfg, "Misc", "SendUpdatedSettings", 1);
+
 		memcpy(&old, &ad->cs, SIZE);
 		load_settings(ad, arena->cfg);
-		if (memcmp(&old, &ad->cs, SIZE) != 0)
+		if (send_updated && memcmp(&old, &ad->cs, SIZE) != 0)
 		{
 			Player *p;
 			Link *link;
@@ -463,6 +601,8 @@ local void paction(Player *p, int action, Arena *arena)
 		pdata *data = PPDATA(p, pdkey);
 		afree(data->od);
 		data->od = NULL;
+		afree(data->cs);
+		data->cs = NULL;
 	}
 }
 
@@ -482,8 +622,7 @@ local u32 GetChecksum(Player *p, u32 key)
 {
 	adata *ad = P_ARENA_DATA(p->arena, adkey);
 	pdata *data = PPDATA(p, pdkey);
-	struct ClientSettings tochecksum;
-	u32 *bits = (u32*)&tochecksum;
+	u32 *bits;
 	u32 csum = 0;
 	int i;
 
@@ -491,9 +630,17 @@ local u32 GetChecksum(Player *p, u32 key)
 		return -1;
 
 	LOCK();
-	do_mask(&tochecksum, &ad->cs, &ad->od, data->od);
+
+	if (!data->cs)
+	{
+		data->cs = amalloc(sizeof(struct ClientSettings));
+	}
+	bits = (u32*)(data->cs);
+
+	do_mask(data->cs, &ad->cs, &ad->od, data->od);
 	for (i = 0; i < (SIZE/sizeof(u32)); i++, bits++)
 		csum += (*bits ^ key);
+
 	UNLOCK();
 
 	return csum;
@@ -530,8 +677,8 @@ local Iclientset csint =
 	INTERFACE_HEAD_INIT(I_CLIENTSET, "clientset")
 	SendClientSettings, GetChecksum, GetRandomPrize,
 	GetOverrideKey,
-	ArenaOverride, ArenaUnoverride,
-	PlayerOverride, PlayerUnoverride,
+	ArenaOverride, ArenaUnoverride, GetArenaOverride, GetArenaValue,
+	PlayerOverride, PlayerUnoverride, GetPlayerOverride, GetPlayerValue,
 };
 
 
