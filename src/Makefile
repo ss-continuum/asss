@@ -79,8 +79,20 @@ endef
 DLS :=
 BINS :=
 
+# custom callbacks. must not have spaces in them due to the limitations of foreach.
+# append a callback via CALLBACKS := $(CALLBACKS) function,param,param
+CALLBACKS :=
+
 # this grabs all the makefile fragments in our subdirectories
 include */*.mk
+
+# allow some fancy .mk files to execute things now that all .mk files have been included.
+define executecb
+$$(eval $$(call $(1)))
+endef
+
+
+$(foreach cb,$(CALLBACKS),$(eval $(call executecb,$(cb))))
 
 
 # some of our phony targets
