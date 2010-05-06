@@ -35,6 +35,12 @@ struct Arena
 	/** how many players total are in this arena.
 	 * call GetPopulationSummary to update this. */
 	int total;
+	/** whether this arena should not be destroyed when
+	 * there are no players inside it. */
+	int keep_alive : 1;
+
+	int _reserved : 31;
+
 	/** space for private data associated with this arena */
 	byte arenaextradata[0];
 };
