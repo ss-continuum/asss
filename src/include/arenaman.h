@@ -120,7 +120,7 @@ enum
 
 
 /** the interface id for arenaman */
-#define I_ARENAMAN "arenaman-8"
+#define I_ARENAMAN "arenaman-9"
 
 /** the arenaman interface struct */
 typedef struct Iarenaman
