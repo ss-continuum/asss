@@ -86,6 +86,8 @@ local void handle_sigsegv(int sig)
 
 	if (sig == SIGSEGV)
 		write(2, "Seg fault, backtrace:\n", 22);
+	else if (sig == SIGFPE)
+		write(2, "FP exception, backtrace:\n", 25);
 	else
 		write(2, "Deadlock, backtrace:\n", 21);
 
@@ -98,6 +100,8 @@ local void handle_sigsegv(int sig)
 
 	if (sig == SIGSEGV)
 		type = "segv";
+	else if (sig == SIGFPE)
+		type = "fpe";
 	else
 		type = "abrt";
 
@@ -106,6 +110,8 @@ local void handle_sigsegv(int sig)
 	
 	if (sig == SIGSEGV)
 		write(2, "Segmentation fault (backtrace dumped)\n", 38);
+	else if (sig == SIGFPE)
+		write(2, "FP exception (backtrace dumped)\n", 32);
 	else
 		write(2, "Deadlock (backtrace dumped)\n", 28);
 #endif
@@ -148,6 +154,7 @@ local void init_signals(void)
 #ifdef CFG_HANDLE_SEGV
 	sa.sa_handler = handle_sigsegv;
 	sigaction(SIGSEGV, &sa, NULL);
+	sigaction(SIGFPE, &sa, NULL);
 	sigaction(SIGABRT, &sa, NULL);
 #endif
 }
@@ -166,6 +173,7 @@ local void deinit_signals(void)
 	sigaction(SIGUSR1, &sa, NULL);
 	sigaction(SIGUSR2, &sa, NULL);
 	sigaction(SIGSEGV, &sa, NULL);
+	sigaction(SIGFPE, &sa, NULL);
 	sigaction(SIGABRT, &sa, NULL);
 }
 
