@@ -1,8 +1,9 @@
 
 /* dist: public */
 
-#include "asss.h"
 #include <stdio.h>
+
+#include "asss.h"
 
 local Iconfig *cfg;
 
