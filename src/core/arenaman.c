@@ -48,7 +48,8 @@ local int perarenaspace;
 
 typedef struct {
 	int holds;
-	int resurrect;
+	i16 resurrect;
+	i16 reap;
 } adata;
 local int adkey;
 
@@ -225,7 +226,7 @@ local int ProcessArenaStates(void *dummy)
 
 
 /* call with write lock held */
-local Arena * create_arena(const char *name)
+local Arena * create_arena(const char *name, int permanent)
 {
 	char *t;
 	Arena *a;
@@ -244,6 +245,7 @@ local Arena * create_arena(const char *name)
 
 	a->status = ARENA_DO_INIT0;
 	a->cfg = NULL;
+	a->keep_alive = permanent ? 1 : 0;
 	ad->holds = 0;
 	ad->resurrect = FALSE;
 
@@ -567,7 +569,8 @@ local void complete_go(Player *p, const char *reqname, int ship,
 
 	if (a == NULL)
 	{
-		a = create_arena(name);
+		/* create a non-permanent arena */
+		a = create_arena(name, FALSE);
 		if (a == NULL)
 		{
 			/* if it fails, dump in first available */
@@ -751,36 +754,57 @@ local int ReapArenas(void *q)
 	Player *p;
 
 	RDLOCK();
+	
 	pd->Lock();
+	
 	FOR_EACH_ARENA(a)
+	{
+		adata *ad = P_ARENA_DATA(a, adkey);
 		if (a->status == ARENA_RUNNING || a->status == ARENA_CLOSING)
+			ad->reap = TRUE;
+		else
+			ad->reap = FALSE;
+	}
+	
+	FOR_EACH_PLAYER(p)
+	{		
+		if (p->arena)
 		{
-			Link *link; //necessary for FOR_EACH_PLAYER to have its own link, or FOR_EACH_ARENA fails.
-			FOR_EACH_PLAYER(p)
-				/* if any player is currently using this arena, it can't
-				 * be reaped. also, if anyone is entering a running
-				 * arena, don't reap that. */
-				if (p->arena == a ||
-				    (p->newarena == a && a->status == ARENA_RUNNING))
-					goto skip;
-				/* we do allow reaping of a closing arena that someone
-				 * wants to re-enter, but we first make sure that it
-				 * will reappear. */
-				else if (p->newarena == a)
-				{
-					adata *ad = P_ARENA_DATA(a, adkey);
-					ad->resurrect = TRUE;
-				}
-
+			adata *ad = P_ARENA_DATA(p->arena, adkey);
+			ad->reap = FALSE;
+		}
+		
+		if (p->newarena && p->arena != p->newarena)
+		{
+			adata *ad = P_ARENA_DATA(p->newarena, adkey);
+			if (p->newarena->status == ARENA_CLOSING)
+			{
+				ad->resurrect = TRUE;
+			}
+			else
+			{
+				ad->reap = FALSE;
+			}
+		}
+	}
+	
+	FOR_EACH_ARENA(a)
+	{
+		adata *ad = P_ARENA_DATA(a, adkey);
+		
+		if (ad->reap && (a->status == ARENA_CLOSING || !a->keep_alive))
+		{
 			lm->Log(L_DRIVEL, "<arenaman> {%s} arena being %s", a->name,
 					a->status == ARENA_RUNNING ? "destroyed" : "recycled");
 
 			/* set its status so that the arena processor will do
 			 * appropriate things */
 			a->status = ARENA_DO_WRITE_DATA;
-skip: ;
 		}
+	}
+	
 	pd->Unlock();
+	
 	RDUNLOCK();
 
 	return TRUE;
@@ -1012,7 +1036,27 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 	}
 	else if (action == MM_POSTLOAD)
 	{
+		const char *permanentArenas;
 		persist = mm->GetInterface(I_PERSIST, ALLARENAS);
+		
+		/* cfghelp: Arenas:PermanentArenas, global, string
+		 * A list of the names of arenas to permanently set up
+		 * when asss is started up. */
+		permanentArenas = cfg->GetStr(GLOBAL, "Arenas", "PermanentArenas");
+		if (permanentArenas)
+		{
+			int totalCreated = 0;
+			char buffer[20];
+			const char *tmp = NULL;
+			while (strsplit(permanentArenas, ", \t\n", buffer, sizeof(buffer), &tmp))
+			{
+				++totalCreated;
+				lm->Log(L_INFO, "<arenaman> creating permanent arena '%s'", buffer);
+				/* create the arena and  keep it alive. */
+				create_arena(buffer, TRUE);
+			}
+			lm->Log(L_INFO, "<arenaman> created %i permanent arena(s)", totalCreated);
+		}
 	}
 	else if (action == MM_PREUNLOAD)
 	{
