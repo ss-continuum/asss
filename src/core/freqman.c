@@ -955,7 +955,7 @@ local int metric_update_timer(void *clos)
 	FOR_EACH_PLAYER(i)
 	{
 		pdata *data = PPDATA(i, pdkey);
-		if (!p->arena || !balancer || !IS_HUMAN(i))
+		if (!i->arena || !balancer || !IS_HUMAN(i))
 		{
 			data->metric = 0;
 		}
