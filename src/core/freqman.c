@@ -52,6 +52,7 @@ local Iarenaman *aman;
 local Iconfig *cfg;
 local Ilogman *lm;
 local Igame *game;
+local Imainloop *ml;
 
 local int pdkey;
 local int adkey;
@@ -944,6 +945,7 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 local int metric_update_timer(void *clos)
 {
 	Arena *arena = (Arena *)clos;
+	adata *ad = P_ARENA_DATA(arena, adkey);
 	Ibalancer *balancer = mm->GetInterface(I_BALANCER, arena);
 	Player *i;
 	Link *link;
@@ -959,7 +961,7 @@ local int metric_update_timer(void *clos)
 		}
 		else
 		{
-			data->metric = balancer->GetPlayerMetric(p);
+			data->metric = balancer->GetPlayerMetric(i);
 		}
 	}
 	pd->Unlock();
@@ -1186,7 +1188,8 @@ EXPORT int MM_freqman(int action, Imodman *mm_, Arena *arena)
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		game = mm->GetInterface(I_GAME, ALLARENAS);
-		if (!lm || !pd || !aman || !cfg || !game)
+		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
+		if (!lm || !pd || !aman || !cfg || !game || !ml)
 			return MM_FAIL;
 
 		adkey = aman->AllocateArenaData(sizeof(adata));
@@ -1217,6 +1220,7 @@ EXPORT int MM_freqman(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(game);
+		mm->ReleaseInterface(ml);
 		return MM_OK;
 	}
 	return MM_FAIL;
