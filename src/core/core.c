@@ -767,11 +767,13 @@ void SendLoginResponse(Player *p)
 
 		if (p->type == T_CONT)
 		{
+#pragma pack(push, 1)
 			struct {
 				u8 type;
 				u16 contversion;
 				u32 checksum;
 			} pkt = { S2C_CONTVERSION, CVERSION_CONT, contchecksum };
+#pragma pack(pop)
 			net->SendToOne(p, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
 
 			lr.exechecksum = contchecksum;
