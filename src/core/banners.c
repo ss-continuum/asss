@@ -46,7 +46,7 @@ local int CheckBanner(Player *p)
 }
 
 
-local void check_and_send_banner(Player *p, int callothers)
+local void check_and_send_banner(Player *p, int callothers, int from_player)
 {
 	bdata *bd = PPDATA(p, bdkey);
 
@@ -78,12 +78,12 @@ local void check_and_send_banner(Player *p, int callothers)
 			DO_CBS(CB_SET_BANNER,
 					p->arena,
 					SetBannerFunc,
-					(p, &bd->banner));
+					(p, &bd->banner, from_player));
 	}
 }
 
 
-local void SetBanner(Player *p, Banner *bnr, int frombiller)
+local void SetBanner(Player *p, Banner *bnr)
 {
 	bdata *bd = PPDATA(p, bdkey);
 
@@ -96,11 +96,28 @@ local void SetBanner(Player *p, Banner *bnr, int frombiller)
 	 * status at 1. we'll check it when he enters the arena.
 	 * if he is playing, though, do the check and send now. */
 	if (p->status == S_PLAYING)
-		check_and_send_banner(p, !frombiller);
+		check_and_send_banner(p, TRUE, FALSE);
 
 	UNLOCK();
 }
 
+local void SetBannerFromPlayer(Player *p, Banner *bnr)
+{
+	bdata *bd = PPDATA(p, bdkey);
+
+	LOCK();
+
+	bd->banner = *bnr;
+	bd->status = 1;
+
+	/* if he's not in the playing state yet, just hold the banner and
+	 * status at 1. we'll check it when he enters the arena.
+	 * if he is playing, though, do the check and send now. */
+	if (p->status == S_PLAYING)
+		check_and_send_banner(p, TRUE, TRUE);
+
+	UNLOCK();
+}
 
 local void PBanner(Player *p, byte *pkt, int len)
 {
@@ -145,7 +162,7 @@ local void paction(Player *p, int action, Arena *arena)
 
 		/* first check permissions on a stored banner from the biller
 		 * and send it to the arena. */
-		check_and_send_banner(p, FALSE);
+		check_and_send_banner(p, FALSE, FALSE);
 
 		/* then send everyone's banner to him */
 		pd->Lock();
@@ -168,7 +185,7 @@ local void paction(Player *p, int action, Arena *arena)
 local Ibanners myint =
 {
 	INTERFACE_HEAD_INIT(I_BANNERS, "banners")
-	SetBanner
+	SetBanner, SetBannerFromPlayer
 };
 
 

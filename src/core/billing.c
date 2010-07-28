@@ -260,21 +260,24 @@ local void onchatmsg(Player *p, int type, int sound, Player *target, int freq, c
 	pthread_mutex_unlock(&mtx);
 }
 
-local void setbanner(Player *p, Banner *banner)
+local void setbanner(Player *p, Banner *banner, int from_player)
 {
-	pdata *data = PPDATA(p, pdkey);
-
-	pthread_mutex_lock(&mtx);
-	if (data->knowntobiller)
+	if (from_player)
 	{
-		char buf[24 + sizeof(banner->data) * 2], *t;
-		snprintf(buf, 24, "BNR:%d:", p->pid);
-		t = buf + strlen(buf);
-		memtohex(t, banner->data, sizeof(banner->data));
-		t[sizeof(banner->data) * 2] = '\0';
-		sp_send(&conn, buf);
+		pdata *data = PPDATA(p, pdkey);
+
+		pthread_mutex_lock(&mtx);
+		if (data->knowntobiller)
+		{
+			char buf[24 + sizeof(banner->data) * 2], *t;
+			snprintf(buf, 24, "BNR:%d:", p->pid);
+			t = buf + strlen(buf);
+			memtohex(t, banner->data, sizeof(banner->data));
+			t[sizeof(banner->data) * 2] = '\0';
+			sp_send(&conn, buf);
+		}
+		pthread_mutex_unlock(&mtx);
 	}
-	pthread_mutex_unlock(&mtx);
 }
 
 local void pdemographics(Player *p, byte *pkt, int len)
@@ -605,7 +608,7 @@ local void process_bnr(const char *line)
 	if (p)
 	{
 		if (hextomem(banner.data, t, sizeof(banner.data)))
-			bnr->SetBanner(p, &banner, TRUE);
+			bnr->SetBanner(p, &banner);
 		else
 			lm->Log(L_WARN, "<billing> biller sent bad banner string "
 					"for pid %s", pidstr);
