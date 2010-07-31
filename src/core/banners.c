@@ -145,7 +145,7 @@ local void PBanner(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	SetBanner(p, &b->banner, FALSE);
+	SetBannerFromPlayer(p, &b->banner);
 	if (lm) lm->LogP(L_DRIVEL, "banners", p, "set banner");
 }
 
