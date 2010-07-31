@@ -72,7 +72,7 @@ local Iredirect reint =
 	AliasRedirect, RawRedirect, ArenaRequest
 };
 
-EXPORT const char info_redirect[] = CORE_MOD_INFO("redirect")
+EXPORT const char info_redirect[] = CORE_MOD_INFO("redirect");
 
 EXPORT int MM_redirect(int action, Imodman *mm, Arena *arena)
 {

@@ -16,7 +16,7 @@ local Ichat *chat;
 local Icapman *capman;
 local Ilogman *lm;
 
-EXPORT const char info_arenaperm[] = CORE_MOD_INFO("arenaperm")
+EXPORT const char info_arenaperm[] = CORE_MOD_INFO("arenaperm");
 
 EXPORT int MM_arenaperm(int action, Imodman *mm_, Arena *arena)
 {

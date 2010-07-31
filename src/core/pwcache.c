@@ -90,7 +90,7 @@ local Ipwcache pwint =
 	Set, Check
 };
 
-EXPORT const char info_pwcache[] = CORE_MOD_INFO("pwcache")
+EXPORT const char info_pwcache[] = CORE_MOD_INFO("pwcache");
 
 EXPORT int MM_pwcache(int action, Imodman *mm, Arena *arena)
 {

@@ -28,7 +28,7 @@ local Ilog_file _lfint =
 	FlushLog, ReopenLog
 };
 
-EXPORT const char info_log_file[] = CORE_MOD_INFO("log_file")
+EXPORT const char info_log_file[] = CORE_MOD_INFO("log_file");
 
 EXPORT int MM_log_file(int action, Imodman *mm, Arena *arenas)
 {

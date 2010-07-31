@@ -16,7 +16,7 @@ local Imodman *mm;
 local Iplayerdata *pd;
 local Iconfig *cfg;
 
-EXPORT const char info_points_flag[] = CORE_MOD_INFO("points_flag")
+EXPORT const char info_points_flag[] = CORE_MOD_INFO("points_flag");
 
 EXPORT int MM_points_flag(int action, Imodman *mm_, Arena *arena)
 {

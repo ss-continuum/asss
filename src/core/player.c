@@ -347,7 +347,7 @@ local Iplayerdata pdint =
 	Lock, WriteLock, Unlock, WriteUnlock
 };
 
-EXPORT const char info_playerdata[] = CORE_MOD_INFO("playerdata")
+EXPORT const char info_playerdata[] = CORE_MOD_INFO("playerdata");
 
 EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 {

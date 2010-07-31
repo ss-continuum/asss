@@ -120,7 +120,7 @@ local u32 get_u32(const char *file, int offset)
 	return buf;
 }
 
-EXPORT const char info_core[] = CORE_MOD_INFO("core")
+EXPORT const char info_core[] = CORE_MOD_INFO("core");
 
 EXPORT int MM_core(int action, Imodman *mm_, Arena *arena)
 {

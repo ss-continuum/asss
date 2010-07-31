@@ -192,7 +192,7 @@ local void aaction(Arena *arena, int action)
 	}
 }
 
-EXPORT const char info_periodic[] = CORE_MOD_INFO("periodic")
+EXPORT const char info_periodic[] = CORE_MOD_INFO("periodic");
 
 EXPORT int MM_periodic(int action, Imodman *mm_, Arena *arena)
 {

@@ -91,7 +91,7 @@ local Iarenaplace myint =
 	Place
 };
 
-EXPORT const char info_ap_multipub[] = CORE_MOD_INFO("ap_multipub")
+EXPORT const char info_ap_multipub[] = CORE_MOD_INFO("ap_multipub");
 
 EXPORT int MM_ap_multipub(int action, Imodman *mm, Arena *arena)
 {

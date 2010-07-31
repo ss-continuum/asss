@@ -462,7 +462,7 @@ local Imapnewsdl _int =
 	SendMapFilename, GetNewsChecksum
 };
 
-EXPORT const char info_mapnewsdl[] = CORE_MOD_INFO("mapnewsdl")
+EXPORT const char info_mapnewsdl[] = CORE_MOD_INFO("mapnewsdl");
 
 EXPORT int MM_mapnewsdl(int action, Imodman *mm_, Arena *arena)
 {

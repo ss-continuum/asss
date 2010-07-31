@@ -21,7 +21,7 @@ local Aenforcer my_adv =
 	GetAllowableShips, NULL
 };
 
-EXPORT const char info_enf_lockspec[] = CORE_MOD_INFO("enf_lockspec")
+EXPORT const char info_enf_lockspec[] = CORE_MOD_INFO("enf_lockspec");
 
 EXPORT int MM_enf_lockspec(int action, Imodman *mm, Arena *arena)
 {

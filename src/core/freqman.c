@@ -1178,7 +1178,7 @@ local Ifreqman fm_int =
 	Initial, ShipChange, FreqChange
 };
 
-EXPORT const char info_freqman[] = CORE_MOD_INFO("freqman")
+EXPORT const char info_freqman[] = CORE_MOD_INFO("freqman");
 
 EXPORT int MM_freqman(int action, Imodman *mm_, Arena *arena)
 {

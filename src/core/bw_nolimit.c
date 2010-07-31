@@ -42,7 +42,7 @@ local struct Ibwlimit bwint =
 	GetCanBufferPackets, GetInfo
 };
 
-EXPORT const char info_bw_nolimit[] = CORE_MOD_INFO("bw_nolimit")
+EXPORT const char info_bw_nolimit[] = CORE_MOD_INFO("bw_nolimit");
 
 EXPORT int MM_bw_nolimit(int action, Imodman *mm, Arena *arena)
 {

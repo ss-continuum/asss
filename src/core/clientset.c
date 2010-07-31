@@ -681,7 +681,7 @@ local Iclientset csint =
 	PlayerOverride, PlayerUnoverride, GetPlayerOverride, GetPlayerValue,
 };
 
-EXPORT const char info_clientset[] = CORE_MOD_INFO("clientset")
+EXPORT const char info_clientset[] = CORE_MOD_INFO("clientset");
 
 EXPORT int MM_clientset(int action, Imodman *mm_, Arena *arena)
 {

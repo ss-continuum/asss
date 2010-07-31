@@ -133,7 +133,7 @@ local void aaction(Arena *arena, int action)
 	}
 }
 
-EXPORT const char info_messages[] = CORE_MOD_INFO("messages")
+EXPORT const char info_messages[] = CORE_MOD_INFO("messages");
 
 EXPORT int MM_messages(int action, Imodman *mm, Arena *arena)
 {

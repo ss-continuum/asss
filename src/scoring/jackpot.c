@@ -126,7 +126,7 @@ local Ijackpot jpint =
 	ResetJP, AddJP, GetJP, SetJP
 };
 
-EXPORT const char info_jackpot[] = CORE_MOD_INFO("jackpot")
+EXPORT const char info_jackpot[] = CORE_MOD_INFO("jackpot");
 
 EXPORT int MM_jackpot(int action, Imodman *mm_, Arena *arena)
 {

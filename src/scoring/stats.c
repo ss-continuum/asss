@@ -488,7 +488,7 @@ local Istats _myint =
 	ScoreReset
 };
 
-EXPORT const char info_stats[] = CORE_MOD_INFO("stats")
+EXPORT const char info_stats[] = CORE_MOD_INFO("stats");
 
 EXPORT int MM_stats(int action, Imodman *mm_, Arena *arena)
 {

@@ -253,7 +253,7 @@ local void Cpausetimer(const char *cmd, const char *params, Player *p, const Tar
 	}
 }
 
-EXPORT const char info_game_timer[] = CORE_MOD_INFO("game_timer")
+EXPORT const char info_game_timer[] = CORE_MOD_INFO("game_timer");
 
 EXPORT int MM_game_timer(int action, Imodman *mm_, Arena *arena)
 {

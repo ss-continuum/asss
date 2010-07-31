@@ -331,7 +331,7 @@ local Iprng prngint =
 
 /*** Module action pump ***/
 
-EXPORT const char info_prng[] = CORE_MOD_INFO("prng")
+EXPORT const char info_prng[] = CORE_MOD_INFO("prng");
 
 EXPORT int MM_prng(int action, Imodman *mm, Arena *arena)
 {

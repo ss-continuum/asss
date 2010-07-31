@@ -66,7 +66,7 @@ local void unregister_commands()
 	LLEmpty(&notify_commands);
 }
 
-EXPORT const char info_notify[] = CORE_MOD_INFO("notify")
+EXPORT const char info_notify[] = CORE_MOD_INFO("notify");
 
 EXPORT int MM_notify(int action, Imodman *mm, Arena *arena)
 {

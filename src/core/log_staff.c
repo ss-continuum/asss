@@ -64,7 +64,7 @@ local void init_commands(void)
 	pthread_mutex_unlock(&mtx);
 }
 
-EXPORT const char info_log_staff[] = CORE_MOD_INFO("log_staff")
+EXPORT const char info_log_staff[] = CORE_MOD_INFO("log_staff");
 
 EXPORT int MM_log_staff(int action, Imodman *mm, Arena *arena)
 {

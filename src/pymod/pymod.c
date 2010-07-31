@@ -2078,7 +2078,7 @@ local int pyloader(int action, mod_args_t *args, const char *line, Arena *arena)
 	}
 }
 
-EXPORT const char info_pymod[] = CORE_MOD_INFO("pymod")
+EXPORT const char info_pymod[] = CORE_MOD_INFO("pymod");
 
 EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 {

@@ -12,7 +12,7 @@ local void ConnInit(struct sockaddr_in *sin, byte *pkt, int len, void *v);
 
 local Inet *net;
 
-EXPORT const char info_enc_null[] = CORE_MOD_INFO("enc_null")
+EXPORT const char info_enc_null[] = CORE_MOD_INFO("enc_null");
 
 EXPORT int MM_enc_null(int action, Imodman *mm, Arena *arena)
 {

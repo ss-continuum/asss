@@ -54,7 +54,7 @@ local Ibrickwriter bwint =
 	BrickWrite
 };
 
-EXPORT const char info_brickwriter[] = CORE_MOD_INFO("brickwriter")
+EXPORT const char info_brickwriter[] = CORE_MOD_INFO("brickwriter");
 
 EXPORT int MM_brickwriter(int action, Imodman *mm, Arena *arena)
 {

@@ -13,7 +13,7 @@ local void LogConsole(char *s)
 		puts(s);
 }
 
-EXPORT const char info_log_console[] = CORE_MOD_INFO("log_console")
+EXPORT const char info_log_console[] = CORE_MOD_INFO("log_console");
 
 EXPORT int MM_log_console(int action, Imodman *mm, Arena *arena)
 {

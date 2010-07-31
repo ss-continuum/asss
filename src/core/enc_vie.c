@@ -51,7 +51,7 @@ local Iclientencrypt iclienc =
 	ClientInit, ClientEncrypt, ClientDecrypt, ClientVoid
 };
 
-EXPORT const char info_enc_vie[] = CORE_MOD_INFO("enc_vie")
+EXPORT const char info_enc_vie[] = CORE_MOD_INFO("enc_vie");
 
 EXPORT int MM_enc_vie(int action, Imodman *mm, Arena *arena)
 {

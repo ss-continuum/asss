@@ -283,7 +283,7 @@ local void mlfunc()
 	pthread_mutex_unlock(&turret_mtx);
 }
 
-EXPORT const char info_autoturret[] = CORE_MOD_INFO("autoturret")
+EXPORT const char info_autoturret[] = CORE_MOD_INFO("autoturret");
 
 EXPORT int MM_autoturret(int action, Imodman *mm_, Arena *arena)
 {

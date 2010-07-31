@@ -109,7 +109,7 @@ local Ifake _int =
 	CreateFakePlayer, EndFaked
 };
 
-EXPORT const char info_fake[] = CORE_MOD_INFO("fake")
+EXPORT const char info_fake[] = CORE_MOD_INFO("fake");
 
 EXPORT int MM_fake(int action, Imodman *mm_, Arena *arena)
 {

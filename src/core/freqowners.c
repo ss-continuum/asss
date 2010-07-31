@@ -33,7 +33,7 @@ local Iconfig *cfg;
 local Ichat *chat;
 local Imodman *mm;
 
-EXPORT const char info_freqowners[] = CORE_MOD_INFO("freqowners")
+EXPORT const char info_freqowners[] = CORE_MOD_INFO("freqowners");
 
 EXPORT int MM_freqowners(int action, Imodman *mm_, Arena *arena)
 {

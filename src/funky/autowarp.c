@@ -41,7 +41,7 @@ local void region_cb(Player *p, Region *rgn, int x, int y, int entering)
 	}
 }
 
-EXPORT const char info_autowarp[] = CORE_MOD_INFO("autowarp")
+EXPORT const char info_autowarp[] = CORE_MOD_INFO("autowarp");
 
 EXPORT int MM_autowarp(int action, Imodman *mm, Arena *arena)
 {

@@ -1240,7 +1240,7 @@ local Ibilling billingint =
 	GetStatus, GetIdentity
 };
 
-EXPORT const char info_biling_ssc[] = CORE_MOD_INFO("billing_ssc")
+EXPORT const char info_biling_ssc[] = CORE_MOD_INFO("billing_ssc");
 
 EXPORT int MM_billing_ssc(int action, Imodman *mm_, Arena *arena)
 {

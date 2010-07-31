@@ -16,7 +16,7 @@ local Iarenaman *aman;
 local Iconfig *cfg;
 local Iflagcore *flagcore;
 
-EXPORT const char info_points_kill[] = CORE_MOD_INFO("points_kill")
+EXPORT const char info_points_kill[] = CORE_MOD_INFO("points_kill");
 
 EXPORT int MM_points_kill(int action, Imodman *mm_, Arena *arena)
 {

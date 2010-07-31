@@ -380,7 +380,7 @@ local void Cobjlist(const char *cmd, const char *params, Player *p, const Target
 	SBDestroy(&sb);
 }
 
-EXPORT const char info_objects[] = CORE_MOD_INFO("objects")
+EXPORT const char info_objects[] = CORE_MOD_INFO("objects");
 
 EXPORT int MM_objects(int action, Imodman *mm_, Arena *arena)
 {

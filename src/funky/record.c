@@ -1302,7 +1302,7 @@ local void cb_aaction(Arena *a, int action)
 	}
 }
 
-EXPORT const char info_record[] = CORE_MOD_INFO("record")
+EXPORT const char info_record[] = CORE_MOD_INFO("record");
 
 EXPORT int MM_record(int action, Imodman *mm_, Arena *arena)
 {

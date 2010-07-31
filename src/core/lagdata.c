@@ -304,7 +304,7 @@ local Ilagquery lqint =
 	DoPHistogram, DoRHistogram
 };
 
-EXPORT const char info_lagdata[] = CORE_MOD_INFO("lagdata")
+EXPORT const char info_lagdata[] = CORE_MOD_INFO("lagdata");
 
 EXPORT int MM_lagdata(int action, Imodman *mm, Arena *arena)
 {
