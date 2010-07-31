@@ -27,6 +27,8 @@ local Iperiodicpoints myint =
 	getpoints
 };
 
+EXPORT const char info_points_periodic[] = CORE_MOD_INFO("points_periodic")
+
 EXPORT int MM_points_periodic(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)

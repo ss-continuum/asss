@@ -33,6 +33,7 @@ local Ilogman logint =
 	Log, LogA, LogP, FilterLog
 };
 
+EXPORT const char info_logman[] = CORE_MOD_INFO("logman")
 
 EXPORT int MM_logman(int action, Imodman *mm_, Arena *arena)
 {

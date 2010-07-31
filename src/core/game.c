@@ -1701,6 +1701,7 @@ local Igame _myint =
 	DoWeaponChecksum, IsAntiwarped
 };
 
+EXPORT const char info_game[] = CORE_MOD_INFO("game")
 
 EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 {

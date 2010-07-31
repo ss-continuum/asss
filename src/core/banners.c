@@ -188,6 +188,7 @@ local Ibanners myint =
 	SetBanner, SetBannerFromPlayer
 };
 
+EXPORT const char info_banners[] = CORE_MOD_INFO("banners")
 
 EXPORT int MM_banners(int action, Imodman *mm_, Arena *arena)
 {

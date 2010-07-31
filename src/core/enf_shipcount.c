@@ -68,6 +68,8 @@ local Aenforcer enforceradv =
 	GetAllowableShips, NULL
 };
 
+EXPORT const char info_enf_shipcount[] = CORE_MOD_INFO("enf_shipcount")
+
 EXPORT int MM_enf_shipcount(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)

@@ -105,7 +105,7 @@ local Iballs _myint =
 	GetBallData, ReleaseBallData
 };
 
-
+EXPORT const char info_balls[] = CORE_MOD_INFO("balls")
 
 EXPORT int MM_balls(int action, Imodman *mm_, Arena *arena)
 {

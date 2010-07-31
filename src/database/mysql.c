@@ -285,6 +285,7 @@ local Ireldb my_int =
 	EscapeString
 };
 
+EXPORT const char info_mysql[] = CORE_MOD_INFO("mysql")
 
 EXPORT int MM_mysql(int action, Imodman *mm, Arena *arena)
 {

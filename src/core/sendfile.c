@@ -226,6 +226,7 @@ local void paction(Player *p, int action, Arena *arena)
 		cancel_files(p);
 }
 
+EXPORT const char info_sendfile[] = CORE_MOD_INFO("sendfile")
 
 EXPORT int MM_sendfile(int action, Imodman *mm, Arena *arena)
 {

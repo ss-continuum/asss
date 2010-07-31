@@ -269,6 +269,7 @@ local Iwatchdamage _int =
 	AddWatch, RemoveWatch, ClearWatch, ModuleWatch, WatchCount
 };
 
+EXPORT const char info_watchdamage[] = CORE_MOD_INFO("watchdamage")
 
 EXPORT int MM_watchdamage(int action, Imodman *mm_, Arena *arena)
 {

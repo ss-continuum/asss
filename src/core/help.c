@@ -125,6 +125,8 @@ local void Chelp(const char *tc, const char *params, Player *p, const Target *ta
 		do_cmd_help(p, params);
 }
 
+EXPORT const char info_help[] = CORE_MOD_INFO("help")
+
 EXPORT int MM_help(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)

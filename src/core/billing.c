@@ -1090,7 +1090,7 @@ local int do_one_iter(void *v)
 	return TRUE;
 }
 
-
+EXPORT const char info_billing[] = CORE_MOD_INFO("billing")
 
 EXPORT int MM_billing(int action, Imodman *mm_, Arena *arena)
 {

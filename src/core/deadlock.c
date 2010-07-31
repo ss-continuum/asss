@@ -42,6 +42,8 @@ local void increment(void)
 	counter++;
 }
 
+EXPORT const char info_deadlock[] = CORE_MOD_INFO("deadlock")
+
 EXPORT int MM_deadlock(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)

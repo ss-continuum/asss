@@ -67,6 +67,7 @@ local Iauth myauth =
 	Authenticate
 };
 
+EXPORT const char info_auth_prefix[] = CORE_MOD_INFO("auth_prefix")
 
 EXPORT int MM_auth_prefix(int action, Imodman *mm_, Arena *arena)
 {

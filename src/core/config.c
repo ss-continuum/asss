@@ -652,6 +652,7 @@ local Iconfig _int =
 	}
 };
 
+EXPORT const char info_config[] = CORE_MOD_INFO("config")
 
 EXPORT int MM_config(int action, Imodman *mm_, Arena *arena)
 {

@@ -349,7 +349,7 @@ local void Cresetkoth(const char *cmd, const char *params, Player *p, const Targ
 	UNLOCK();
 }
 
-
+EXPORT const char info_koth[] = CORE_MOD_INFO("koth")
 
 EXPORT int MM_koth(int action, Imodman *mm_, Arena *arena)
 {

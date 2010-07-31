@@ -308,6 +308,7 @@ local Ifiletrans _int =
 	GetWorkingDirectory, SetWorkingDirectory
 };
 
+EXPORT const char info_filetrans[] = CORE_MOD_INFO("filetrans")
 
 EXPORT int MM_filetrans(int action, Imodman *mm_, Arena *arena)
 {

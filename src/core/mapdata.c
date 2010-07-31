@@ -1002,6 +1002,7 @@ local Imapdata mapdataint =
 	EnumLVZFiles, FindRandomPoint
 };
 
+EXPORT const char info_mapdata[] = CORE_MOD_INFO("mapdata")
 
 EXPORT int MM_mapdata(int action, Imodman *mm_, Arena *arena)
 {

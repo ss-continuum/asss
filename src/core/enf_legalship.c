@@ -70,6 +70,8 @@ local Aenforcer enforceradv =
 	GetAllowableShips, NULL
 };
 
+EXPORT const char info_enf_legalship[] = CORE_MOD_INFO("enf_legalship")
+
 EXPORT int MM_enf_legalship(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)

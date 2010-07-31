@@ -135,6 +135,8 @@ local Aenforcer myadv =
 	NULL, CanChangeFreq
 };
 
+EXPORT const char info_enf_flagwin[] = CORE_MOD_INFO("enf_flagwin")
+
 EXPORT int MM_enf_flagwin(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)

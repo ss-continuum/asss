@@ -383,7 +383,7 @@ local void Clast(const char *tc, const char *params, Player *p, const Target *ta
 			"from " TABLE_NAME " order by secsago asc limit 10");
 }
 
-
+EXPORT const char info_aliasdb[] = CORE_MOD_INFO("aliasdb")
 
 EXPORT int MM_aliasdb(int action, Imodman *mm_, Arena *arena)
 {

@@ -2939,7 +2939,7 @@ struct cmd_group *find_group(const char *name)
 	return NULL;
 }
 
-
+EXPORT const char info_playercmd[] = CORE_MOD_INFO("playercmd")
 
 EXPORT int MM_playercmd(int action, Imodman *mm_, Arena *arena)
 {

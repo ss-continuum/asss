@@ -217,7 +217,7 @@ local void deinit_all(void)
 	LLEmpty(&packets);
 }
 
-
+EXPORT const char info_directory[] = CORE_MOD_INFO("directory")
 
 EXPORT int MM_directory(int action, Imodman *mm_, Arena *arena)
 {

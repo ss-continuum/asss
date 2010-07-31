@@ -30,6 +30,8 @@
 #define ASSSVERSION_NUM 0x00010500
 #define BUILDDATE __DATE__ " " __TIME__
 
+#define CORE_MOD_INFO(module) (module " (" ASSSVERSION ", " BUILDDATE ")")
+
 
 /** a useful typedef */
 typedef unsigned char byte;

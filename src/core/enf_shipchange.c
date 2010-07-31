@@ -94,6 +94,8 @@ local Aenforcer myadv =
 	GetAllowableShips, NULL
 };
 
+EXPORT const char info_enf_shipchange[] = CORE_MOD_INFO("enf_shipchange")
+
 EXPORT int MM_enf_shipchange(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)

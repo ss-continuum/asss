@@ -44,6 +44,8 @@ local Iidle myint =
 	GetIdle, ResetIdle
 };
 
+EXPORT const char info_idle[] = CORE_MOD_INFO("idle")
+
 EXPORT int MM_idle(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)

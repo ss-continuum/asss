@@ -36,6 +36,7 @@ local Ichat *chat;
 local Icapman *capman;
 local Icmdman *cmd;
 
+EXPORT const char info_log_sysop[] = CORE_MOD_INFO("log_sysop")
 
 EXPORT int MM_log_sysop(int action, Imodman *mm, Arena *arena)
 {

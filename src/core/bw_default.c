@@ -138,6 +138,8 @@ local struct Ibwlimit bwint =
 	GetCanBufferPackets, GetInfo
 };
 
+EXPORT const char info_bw_default[] = CORE_MOD_INFO("bw_default")
+
 EXPORT int MM_bw_default(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)
