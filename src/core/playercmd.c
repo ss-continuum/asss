@@ -785,7 +785,7 @@ local void Cversion(const char *tc, const char *params, Player *p, const Target 
 		len = MAX_COMPUTERNAME_LENGTH + 1;
 		GetComputerName(name, &len);
 
-		chat->SendMessage(p, "Running on %s %s (version %d.%d.%d), host: %s",
+		chat->SendMessage(p, "Running on %s %s (version %ld.%ld.%ld), host: %s",
 			vi.dwPlatformId == VER_PLATFORM_WIN32s ? "Windows 3.11" :
 				vi.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS ?
 					(vi.dwMinorVersion == 0 ? "Windows 95" : "Windows 98") :

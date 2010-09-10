@@ -36,7 +36,7 @@
 #define snprintf _snprintf
 #define vsnprintf _vsnprintf
 #endif
-#define usleep(x) Sleep((x)/1000)
+//#define usleep(x) Sleep((x)/1000)
 #define sleep(x) Sleep((x)*1000)
 #define mkdir(a,b) _mkdir(a)
 #ifndef alloca
