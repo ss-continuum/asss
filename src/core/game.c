@@ -55,6 +55,14 @@ typedef struct
 	int nosafeanti;
 } adata;
 
+typedef struct safezone_closure_t
+{
+	Arena *arena;
+	Player *p;
+	int x;
+	int y;
+	int entering;
+} safezone_closure_t;
 
 /* global data */
 
@@ -208,6 +216,17 @@ local int run_enter_game_cb(void *clos)
 	return FALSE;
 }
 
+local int run_safezone_cb(void *clos)
+{
+	safezone_closure_t *closure = (safezone_closure_t *)clos;
+
+	DO_CBS(CB_SAFEZONE, closure->arena, SafeZoneFunc, (closure->p, closure->x, closure->y, closure->entering));
+
+	afree(closure);
+
+	return FALSE;
+}
+
 local int run_spawn_cb(void *clos)
 {
 	Player *p = (Player *)clos;
@@ -294,9 +313,17 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 	/* only copy if the new one is later */
 	if (isnewer || isfake)
 	{
-		/* FIXME: make this asynchronous? */
+		/* call the safety zone callback asynchronously */
 		if (((pos->status ^ data->pos.status) & STATUS_SAFEZONE) && !isfake)
-			DO_CBS(CB_SAFEZONE, arena, SafeZoneFunc, (p, pos->x, pos->y, pos->status & STATUS_SAFEZONE));
+		{
+			safezone_closure_t *closure = amalloc(sizeof(*closure));
+			closure->arena = arena;
+			closure->p = p;
+			closure->x = pos->x;
+			closure->y = pos->y;
+			closure->entering = pos->status & STATUS_SAFEZONE;
+			ml->SetTimer(run_safezone_cb, 0, 0, closure, NULL);
+		}
 
 		/* copy the whole thing. this will copy the epd, or, if the client
 		 * didn't send any epd, it will copy zeros because the buffer was
