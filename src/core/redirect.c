@@ -1,8 +1,10 @@
 
 /* dist: public */
 
+#ifndef WIN32
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#endif
 #include <string.h>
 #include <stdlib.h>
 
@@ -26,7 +28,7 @@ local int RawRedirect(const Target *t, const char *ip, int port,
 	pkt.ip = ntohl(addr.s_addr);
 	pkt.port = port;
 	pkt.arenatype = (i16)arenatype;
-	strncpy(pkt.arenaname, arenaname ? arenaname : "", sizeof(pkt.arenaname));
+	strncpy((char*)pkt.arenaname, arenaname ? arenaname : "", sizeof(pkt.arenaname));
 	pkt.loginid = 0;
 
 	net->SendToTarget(t, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);

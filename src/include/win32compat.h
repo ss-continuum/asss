@@ -12,6 +12,7 @@
 #include <windef.h>
 #include <wincon.h>
 #include <direct.h>
+#include <unistd.h>
 
 #define EXPORT __declspec(dllexport)
 
@@ -75,7 +76,7 @@ DIR *opendir(const char *path);
 struct dirent *readdir(DIR *dir);
 void closedir(DIR *dir);
 
-int inet_aton(char *cp, struct in_addr *pin);
+int inet_aton(const char *cp, struct in_addr *pin);
 
 #endif
 

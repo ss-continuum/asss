@@ -79,7 +79,7 @@ void closedir(DIR *dir)
 }
 
 
-int inet_aton(char *cp, struct in_addr *pin)
+int inet_aton(const char *cp, struct in_addr *pin)
 {
 	unsigned long rc;
 	rc = inet_addr(cp);
