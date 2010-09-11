@@ -43,9 +43,6 @@ ifeq ($(findstring MINGW,$(SYS_NAME)),MINGW)
 
 # set up paths to point to windeps
 WINDEPS := ../windeps
-
-INSTALL := $(WINDEPS)/install.exe
-PYTHON := $(WINDEPS)/python.exe
 symlink_bins := no
 
 include $(WINDEPS)/system-windeps.mk
@@ -60,7 +57,7 @@ SO = dll
 W32COMPAT = win32compat
 EXTRA_INCLUDE_DIRS = -I$(WINDEPS)
 EXTRA_INSTALL_FILES = $(WINDEPS)/zlib1.dll $(WINDEPS)/pthreadGC2.dll \
-	$(WINDEPS)/python24.dll $(WINDEPS)/libdb4.dll
+	$(WINDEPS)/libdb4.dll
 
 SYS_NAME := ok
 endif
