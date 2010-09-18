@@ -169,6 +169,8 @@ local Imainloop _int =
 	RunInThread
 };
 
+EXPORT const char info_mainloop[] = CORE_MOD_INFO("mainloop");
+
 EXPORT int MM_mainloop(int action, Imodman *mm_, Arena *arena)
 {
 	int i;

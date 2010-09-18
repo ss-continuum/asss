@@ -991,6 +991,8 @@ local Iarenaman myint =
 	Hold, Unhold
 };
 
+EXPORT const char info_arenaman[] = CORE_MOD_INFO("arenaman");
+
 EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 {
 	if (action == MM_LOAD)

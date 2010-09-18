@@ -74,6 +74,7 @@ local int brickkey;
 
 DEFINE_FROM_STRING(brickmode_val, BRICK_MODE_MAP)
 
+EXPORT const char info_bricks[] = CORE_MOD_INFO("bricks");
 
 EXPORT int MM_bricks(int action, Imodman *mm_, Arena *arena)
 {

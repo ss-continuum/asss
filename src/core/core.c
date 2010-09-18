@@ -120,6 +120,7 @@ local u32 get_u32(const char *file, int offset)
 	return buf;
 }
 
+EXPORT const char info_core[] = CORE_MOD_INFO("core");
 
 EXPORT int MM_core(int action, Imodman *mm_, Arena *arena)
 {
@@ -767,11 +768,13 @@ void SendLoginResponse(Player *p)
 
 		if (p->type == T_CONT)
 		{
+#pragma pack(push, 1)
 			struct {
 				u8 type;
 				u16 contversion;
 				u32 checksum;
 			} pkt = { S2C_CONTVERSION, CVERSION_CONT, contchecksum };
+#pragma pack(pop)
 			net->SendToOne(p, (byte*)&pkt, sizeof(pkt), NET_RELIABLE);
 
 			lr.exechecksum = contchecksum;

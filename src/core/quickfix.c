@@ -200,6 +200,7 @@ local void p_settingchange(Player *p, byte *pkt, int len)
 	}
 }
 
+EXPORT const char info_quickfix[] = CORE_MOD_INFO("quickfix");
 
 EXPORT int MM_quickfix(int action, Imodman *mm, Arena *arena)
 {

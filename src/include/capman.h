@@ -148,6 +148,8 @@ typedef struct Igroupman
 #define CAP_SEEPRIVARENA          "seeprivarena"
 /** if a player can see private freqs */
 #define CAP_SEEPRIVFREQ           "seeprivfreq"
+/** if a security warnings are suppressed for the player */
+#define CAP_SUPRESS_SECURITY      "supresssecurity"
 /** if a player can stay connected despite security checksum failures */
 #define CAP_BYPASS_SECURITY       "bypasssecurity"
 /** if a client can send object change broadcast packets (as some bots

@@ -250,6 +250,7 @@ local void Csg_lag(const char *tc, const char *params, Player *p, const Target *
 
 #undef AVG_PING
 
+EXPORT const char info_sgcompat[] = CORE_MOD_INFO("sgcompat");
 
 EXPORT int MM_sgcompat(int action, Imodman *mm, Arena *arena)
 {

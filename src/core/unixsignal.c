@@ -199,6 +199,7 @@ local int check_pid_file(const char *fn)
 	return FALSE;
 }
 
+EXPORT const char info_unixsignal[] = CORE_MOD_INFO("unixsignal");
 
 EXPORT int MM_unixsignal(int action, Imodman *mm_, Arena *arena)
 {

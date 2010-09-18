@@ -2009,6 +2009,8 @@ local int unload_py_module(mod_args_t *args)
 	PyObject *mod = args->privdata;
 	char *mname = PyModule_GetName(mod);
 
+	lm->Log(L_SYNC | L_INFO, "<pymod> unloading python module '%s'", args->name);
+
 	if (mod->ob_refcnt != 2)
 	{
 		lm->Log(L_WARN, "<pymod> there are %lu remaining references to module %s",
@@ -2078,6 +2080,7 @@ local int pyloader(int action, mod_args_t *args, const char *line, Arena *arena)
 	}
 }
 
+EXPORT const char info_pymod[] = CORE_MOD_INFO("pymod");
 
 EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 {

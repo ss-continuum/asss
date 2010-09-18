@@ -258,6 +258,7 @@ local Iauth myauth =
 	authenticate
 };
 
+EXPORT const char info_auth_file[] = CORE_MOD_INFO("auth_file");
 
 EXPORT int MM_auth_file(int action, Imodman *mm_, Arena *arena)
 {

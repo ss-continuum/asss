@@ -1,8 +1,9 @@
 
 /* dist: public */
 
-#include "asss.h"
 #include <stdio.h>
+
+#include "asss.h"
 
 local Iconfig *cfg;
 local Ilogman *lm;
@@ -66,6 +67,8 @@ local Aenforcer enforceradv =
 	ADVISER_HEAD_INIT(A_ENFORCER)
 	GetAllowableShips, NULL
 };
+
+EXPORT const char info_enf_shipcount[] = CORE_MOD_INFO("enf_shipcount");
 
 EXPORT int MM_enf_shipcount(int action, Imodman *mm, Arena *arena)
 {

@@ -14,6 +14,9 @@ privcmd_info
 privcmd_sg_info
 privcmd_sg_einfo
 privcmd_sg_tinfo
+privcmd_sg_where
+privcmd_sg_listmod
+privcmd_sg_lag
 
 cmd_aa
 cmd_az

@@ -233,6 +233,7 @@ local Igroupman grpint =
 	CheckGroupPassword
 };
 
+EXPORT const char info_capman[] = CORE_MOD_INFO("capman");
 
 EXPORT int MM_capman(int action, Imodman *mm_, Arena *arena)
 {

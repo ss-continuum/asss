@@ -873,6 +873,8 @@ local Iflagcore flagint =
 	SetCarryMode, ReserveFlags
 };
 
+EXPORT const char info_flagcore[] = CORE_MOD_INFO("flagcore");
+
 EXPORT int MM_flagcore(int action, Imodman *mm_, Arena *a)
 {
 	if (action == MM_LOAD)

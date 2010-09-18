@@ -35,6 +35,8 @@ local Icfghelp cfghelpint =
 	find_sec, find_key
 };
 
+EXPORT const char info_cfghelp[] = CORE_MOD_INFO("cfghelp");
+
 EXPORT int MM_cfghelp(int action, Imodman *mm, Arena *arena)
 {
 	if (action == MM_LOAD)

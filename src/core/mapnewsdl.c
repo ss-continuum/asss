@@ -327,15 +327,29 @@ local void ArenaAction(Arena *arena, int action)
 local struct MapDownloadData *get_map(Arena *arena, int lvznum, int wantopt)
 {
 	LinkedList *dls = P_ARENA_DATA(arena, dlkey);
-	Link *l;
-	int idx;
 
-	/* find the right spot */
-	for (idx = lvznum, l = LLGetHead(dls); idx && l; l = l->next)
-		if (!((struct MapDownloadData*)(l->data))->optional || wantopt)
-			idx--;
+	struct MapDownloadData *data;
+	struct MapDownloadData *result = NULL;
+	int i = 0;
+	Link *link;
+	FOR_EACH(dls, data, link)
+	{
+		/* skip over optional downloads if they're not wanted */
+		if (data->optional && !wantopt)
+			continue;
 
-	return l ? l->data : NULL;
+		if (i == lvznum)
+		{
+			result = data;
+			break;
+		}
+		
+		/* note that only downloads that the client gets count towards the
+		 * lvznum (we broke out of this loop earlier if this download was
+		 * optional and they didn't want it anyway) */
+		++i;
+	}
+	return result;
 }
 
 
@@ -462,6 +476,7 @@ local Imapnewsdl _int =
 	SendMapFilename, GetNewsChecksum
 };
 
+EXPORT const char info_mapnewsdl[] = CORE_MOD_INFO("mapnewsdl");
 
 EXPORT int MM_mapnewsdl(int action, Imodman *mm_, Arena *arena)
 {

@@ -267,6 +267,7 @@ local void arenaaction(Arena *arena, int action)
 	}
 }
 
+EXPORT const char info_lagaction[] = CORE_MOD_INFO("lagaction");
 
 EXPORT int MM_lagaction(int action, Imodman *mm, Arena *arena)
 {

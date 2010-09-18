@@ -124,6 +124,7 @@ local void mygoal(Arena *arena, Player *p, int bid, int x, int y)
 	stats->IncrementStat(p, STAT_BALL_GOALS, 1);
 }
 
+EXPORT const char info_basicstats[] = CORE_MOD_INFO("basicstats");
 
 EXPORT int MM_basicstats(int action, Imodman *mm, Arena *arena)
 {

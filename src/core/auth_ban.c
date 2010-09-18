@@ -222,6 +222,7 @@ local Iauth myauth =
 	Authenticate
 };
 
+EXPORT const char info_auth_ban[] = CORE_MOD_INFO("auth_ban");
 
 EXPORT int MM_auth_ban(int action, Imodman *mm_, Arena *arena)
 {

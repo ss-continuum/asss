@@ -900,6 +900,7 @@ local Ichat _int =
 	SetPlayerChatMask, SendWrappedText
 };
 
+EXPORT const char info_chat[] = CORE_MOD_INFO("chat");
 
 EXPORT int MM_chat(int action, Imodman *mm_, Arena *arena)
 {

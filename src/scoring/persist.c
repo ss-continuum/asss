@@ -984,6 +984,7 @@ local Ipersist _myint =
 	GetGeneric, PutGeneric
 };
 
+EXPORT const char info_persist[] = CORE_MOD_INFO("persist");
 
 EXPORT int MM_persist(int action, Imodman *mm_, Arena *arena)
 {

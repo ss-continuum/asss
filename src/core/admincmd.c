@@ -475,7 +475,7 @@ local void Cbotfeature(const char *tc, const char *params, Player *p, const Targ
 	}
 }
 
-
+EXPORT const char info_admincmd[] = CORE_MOD_INFO("admincmd");
 
 EXPORT int MM_admincmd(int action, Imodman *mm_, Arena *arena)
 {

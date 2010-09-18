@@ -389,6 +389,7 @@ local Ichatnet _int =
 	GetClientStats
 };
 
+EXPORT const char info_chatnet[] = CORE_MOD_INFO("chatnet");
 
 EXPORT int MM_chatnet(int action, Imodman *mm_, Arena *a)
 {

@@ -31,14 +31,6 @@ typedef struct c_mod_data_t
 
 local Imodman *mm;
 
-
-local int load_c_module(const char *spec_, mod_args_t *args)
-{
-	char buf[PATH_MAX], spec[PATH_MAX], *modname, *filename, *path;
-	int ret;
-	c_mod_data_t *cmd;
-	Ilogman *lm = NULL;
-
 #define LOG0(lev, fmt) \
 	if (lm) lm->Log(L_SYNC | lev, fmt); \
 	else fprintf(stderr, "%c " fmt "\n", lev);
@@ -48,6 +40,13 @@ local int load_c_module(const char *spec_, mod_args_t *args)
 #define LOG2(lev, fmt, a1, a2) \
 	if (lm) lm->Log(L_SYNC | lev, fmt, a1, a2); \
 	else fprintf(stderr, "%c " fmt "\n", lev, a1, a2);
+
+local int load_c_module(const char *spec_, mod_args_t *args)
+{
+	char buf[PATH_MAX], spec[PATH_MAX], *modname, *filename, *path;
+	int ret;
+	c_mod_data_t *cmd;
+	Ilogman *lm = NULL;
 
 	/* make copy of specifier */
 	astrncpy(spec, spec_, sizeof(spec));
@@ -196,16 +195,19 @@ die:
 	if (lm)
 		mm->ReleaseInterface(lm);
 	return MM_FAIL;
-
-#undef LOG0
-#undef LOG1
-#undef LOG2
 }
 
 
 local int unload_c_module(mod_args_t *args)
 {
+	Ilogman *lm = NULL;
 	c_mod_data_t *cmd = args->privdata;
+
+	lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
+	LOG1(L_INFO, "<cmod> unloading C module '%s'", args->name);
+	if (lm)
+		mm->ReleaseInterface(lm);
+
 	if (cmd->main)
 		if ((cmd->main)(MM_UNLOAD, mm, ALLARENAS) == MM_FAIL)
 			return MM_FAIL;

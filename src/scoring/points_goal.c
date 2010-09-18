@@ -83,6 +83,7 @@ local Ichat *chat;
 local Icmdman *cmd;
 local Istats *stats;
 
+EXPORT const char info_points_goal[] = CORE_MOD_INFO("points_goal");
 
 EXPORT int MM_points_goal(int action, Imodman *mm_, Arena *arena)
 {

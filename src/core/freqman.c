@@ -52,6 +52,7 @@ local Iarenaman *aman;
 local Iconfig *cfg;
 local Ilogman *lm;
 local Igame *game;
+local Imainloop *ml;
 
 local int pdkey;
 local int adkey;
@@ -941,6 +942,47 @@ local void FreqChange(Player *p, int requested_freq, char *err_buf, int buf_len)
 	/* update_freq is called by the shipfreqchange callback */
 }
 
+local int metric_update_timer(void *clos)
+{
+	Arena *arena = (Arena *)clos;
+	adata *ad = P_ARENA_DATA(arena, adkey);
+	Ibalancer *balancer = mm->GetInterface(I_BALANCER, arena);
+	Player *i;
+	Link *link;
+	Freq *freq;
+
+	pd->Lock();
+	FOR_EACH_PLAYER(i)
+	{
+		pdata *data = PPDATA(i, pdkey);
+		if (!i->arena || !balancer || !IS_HUMAN(i))
+		{
+			data->metric = 0;
+		}
+		else
+		{
+			data->metric = balancer->GetPlayerMetric(i);
+		}
+	}
+	pd->Unlock();
+	mm->ReleaseInterface(balancer);
+
+	LOCK();
+	FOR_EACH(&ad->freqs, freq, link)
+	{
+		Link *player_link;
+		freq->metric_sum = 0;
+		FOR_EACH(&freq->players, i, player_link)
+		{
+			pdata *data = PPDATA(i, pdkey);
+			freq->metric_sum += data->metric;
+		}
+	}
+	UNLOCK();
+	
+	return TRUE;
+}
+
 local void shipfreqchange(Player *p, int newship, int oldship, int newfreq, int oldfreq)
 {
 	update_freq(p, newfreq);
@@ -1112,11 +1154,13 @@ local void aaction(Arena *arena, int action)
 		LLInit(&ad->freqs);
 		update_config(arena);
 		prune_freqs(arena);
+		ml->SetTimer(metric_update_timer, 6000, 6000, arena, arena);
 	}
 	else if (action == AA_DESTROY)
 	{
 		// TODO: deinit
 		LOCK();
+		ml->ClearTimer(metric_update_timer, arena);
 		LLEnumNC(&ad->freqs, freq_free_enum);
 		LLEmpty(&ad->freqs);
 		UNLOCK();
@@ -1134,6 +1178,8 @@ local Ifreqman fm_int =
 	Initial, ShipChange, FreqChange
 };
 
+EXPORT const char info_freqman[] = CORE_MOD_INFO("freqman");
+
 EXPORT int MM_freqman(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
@@ -1144,7 +1190,8 @@ EXPORT int MM_freqman(int action, Imodman *mm_, Arena *arena)
 		aman = mm->GetInterface(I_ARENAMAN, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		game = mm->GetInterface(I_GAME, ALLARENAS);
-		if (!lm || !pd || !aman || !cfg || !game)
+		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
+		if (!lm || !pd || !aman || !cfg || !game || !ml)
 			return MM_FAIL;
 
 		adkey = aman->AllocateArenaData(sizeof(adata));
@@ -1175,6 +1222,7 @@ EXPORT int MM_freqman(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cfg);
 		mm->ReleaseInterface(game);
+		mm->ReleaseInterface(ml);
 		return MM_OK;
 	}
 	return MM_FAIL;

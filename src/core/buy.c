@@ -181,6 +181,7 @@ local void Cbuy(const char *tc, const char *params, Player *p, const Target *tar
 	}
 }
 
+EXPORT const char info_buy[] = CORE_MOD_INFO("buy");
 
 EXPORT int MM_buy(int action, Imodman *mm, Arena *arena)
 {

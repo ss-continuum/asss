@@ -1,8 +1,9 @@
 
 /* dist: public */
 
-#include "asss.h"
 #include <stdio.h>
+
+#include "asss.h"
 
 local Iconfig *cfg;
 
@@ -68,6 +69,8 @@ local Aenforcer enforceradv =
 	ADVISER_HEAD_INIT(A_ENFORCER)
 	GetAllowableShips, NULL
 };
+
+EXPORT const char info_enf_legalship[] = CORE_MOD_INFO("enf_legalship");
 
 EXPORT int MM_enf_legalship(int action, Imodman *mm, Arena *arena)
 {

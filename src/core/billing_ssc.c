@@ -651,7 +651,7 @@ local void process_user_login(const char *data,int len)
 		{
 			Ibanners *bnr = mm->GetInterface(I_BANNERS, ALLARENAS);
 			if (bnr)
-				bnr->SetBanner(p, (Banner*)pkt->Banner, TRUE);
+				bnr->SetBanner(p, (Banner*)pkt->Banner);
 			mm->ReleaseInterface(bnr);
 		}
 
@@ -1172,34 +1172,37 @@ local void PDemographics(Player *p, byte *opkt, int l)
 }
 
 
-local void setbanner(Player *p, Banner *banner)
+local void setbanner(Player *p, Banner *banner, int from_player)
 {
-	static ticks_t lastbsend = 0;
-
-	pdata *data = PPDATA(p, pdkey);
-	ticks_t now;
-
-	pthread_mutex_lock(&mtx);
-
-	now = current_ticks();
-	if (lastbsend == 0)
-		lastbsend = TICK_MAKE(now - 1000);
-
-	/* only allow 1 banner every .2 seconds to get to biller. any more
-	 * get dropped. */
-	if (data->knowntobiller && TICK_DIFF(now, lastbsend) > 20)
+	if (from_player)
 	{
-		struct S2B_UserBanner bpkt;
+		static ticks_t lastbsend = 0;
 
-		bpkt.Type = S2B_USER_BANNER;
-		bpkt.ConnectionID = p->pid;
-		memcpy(bpkt.Data, banner, sizeof(bpkt.Data));
-		netcli->SendPacket(cc, (byte*)&bpkt, sizeof(bpkt), NET_RELIABLE);
+		pdata *data = PPDATA(p, pdkey);
+		ticks_t now;
 
-		lastbsend = now;
+		pthread_mutex_lock(&mtx);
+
+		now = current_ticks();
+		if (lastbsend == 0)
+			lastbsend = TICK_MAKE(now - 1000);
+
+		/* only allow 1 banner every .2 seconds to get to biller. any more
+		 * get dropped. */
+		if (data->knowntobiller && TICK_DIFF(now, lastbsend) > 20)
+		{
+			struct S2B_UserBanner bpkt;
+
+			bpkt.Type = S2B_USER_BANNER;
+			bpkt.ConnectionID = p->pid;
+			memcpy(bpkt.Data, banner, sizeof(bpkt.Data));
+			netcli->SendPacket(cc, (byte*)&bpkt, sizeof(bpkt), NET_RELIABLE);
+
+			lastbsend = now;
+		}
+
+		pthread_mutex_unlock(&mtx);
 	}
-
-	pthread_mutex_unlock(&mtx);
 }
 
 
@@ -1237,7 +1240,7 @@ local Ibilling billingint =
 	GetStatus, GetIdentity
 };
 
-
+EXPORT const char info_biling_ssc[] = CORE_MOD_INFO("billing_ssc");
 
 EXPORT int MM_billing_ssc(int action, Imodman *mm_, Arena *arena)
 {

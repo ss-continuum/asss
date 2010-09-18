@@ -134,6 +134,7 @@ local Iobscene obsceneint =
 	Filter
 };
 
+EXPORT const char info_obscene[] = CORE_MOD_INFO("obscene");
 
 EXPORT int MM_obscene(int action, Imodman *mm_, Arena *arena)
 {

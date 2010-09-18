@@ -345,7 +345,7 @@ local Inet_client netclientint =
 	DropClientConnection
 };
 
-
+EXPORT const char info_net[] = CORE_MOD_INFO("net");
 
 /* start of functions */
 

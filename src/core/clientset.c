@@ -202,7 +202,7 @@ local override_key_t GetOverrideKey(const char *section, const char *key)
 					return MAKE_SIGNED_KEY(ships[i].short_set[j], 16);
 			for (j = 0; j < COUNT(ship_byte_names); j++)
 				if (strcasecmp(ship_byte_names[j], key) == 0)
-					return MAKE_SIGNED_KEY(ships[i].byte_set[j], 8);
+					return MAKE_UNSIGNED_KEY(ships[i].byte_set[j], 8);
 
 #define DO(field, x, off, len) \
 			if (strcasecmp(#x, key) == 0) \
@@ -260,7 +260,7 @@ local override_key_t GetOverrideKey(const char *section, const char *key)
 			return MAKE_SIGNED_KEY(short_set[i], 16);
 	for (i = 0; i < COUNT(byte_names); i++)
 		if (strcasecmp(byte_names[i], fullkey) == 0)
-			return MAKE_SIGNED_KEY(byte_set[i], 8);
+			return MAKE_UNSIGNED_KEY(byte_set[i], 8);
 
 #define DO(k, s, off, len) \
 	if (strcasecmp(#k ":" #s, fullkey) == 0) \
@@ -681,6 +681,7 @@ local Iclientset csint =
 	PlayerOverride, PlayerUnoverride, GetPlayerOverride, GetPlayerValue,
 };
 
+EXPORT const char info_clientset[] = CORE_MOD_INFO("clientset");
 
 EXPORT int MM_clientset(int action, Imodman *mm_, Arena *arena)
 {

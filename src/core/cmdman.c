@@ -48,6 +48,7 @@ local Icmdman _int =
 	AddUnlogged, RemoveUnlogged
 };
 
+EXPORT const char info_cmdman[] = CORE_MOD_INFO("cmdman");
 
 EXPORT int MM_cmdman(int action, Imodman *mm_, Arena *arena)
 {
