@@ -39,6 +39,8 @@ local int UnregInterface(void *iface, Arena *arena);
 local void *GetInterface(const char *id, Arena *arena);
 local void *GetInterfaceByName(const char *name);
 local void ReleaseInterface(void *iface);
+local void *GetArenaInterface(const char *id, Arena *arena);
+local void ReleaseArenaInterface(void *iface, Arena *arena);
 
 local void RegCallback(const char *, void *, Arena *);
 local void UnregCallback(const char *, void *, Arena *);
@@ -78,12 +80,14 @@ local Imodman mmint =
 	LoadModule_, UnloadModule, EnumModules,
 	AttachModule, DetachModule,
 	RegInterface, UnregInterface, GetInterface, GetInterfaceByName, ReleaseInterface,
+	GetArenaInterface, ReleaseArenaInterface,
 	RegCallback, UnregCallback, LookupCallback, FreeLookupResult,
 	RegAdviser, UnregAdviser, GetAdviserList, ReleaseAdviserList,
 	RegModuleLoader, UnregModuleLoader,
 	GetModuleInfo, GetModuleLoader,
 	DetachAllFromArena,
-	{ DoStage, UnloadAllModules, NoMoreModules }
+	{ DoStage, UnloadAllModules, NoMoreModules },
+	{ NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL },
 };
 
 
@@ -110,7 +114,7 @@ Imodman * InitModuleManager(void)
 	arenaadvs = HashAlloc();
 	globaladvs = HashAlloc();
 	loaders = HashAlloc();
-	mmint.head.refcount = 1;
+	mmint.head.global_refcount = 1;
 	nomoremods = 0;
 	/* for the benefit of python: */
 	RegInterface(&mmint, ALLARENAS);
@@ -121,7 +125,7 @@ void DeInitModuleManager(Imodman *mm)
 {
 	if (LLGetHead(&mods))
 		fprintf(stderr, "All modules not unloaded!!!\n");
-	if (mm && mm->head.refcount > 1)
+	if (mm && mm->head.global_refcount > 1)
 		fprintf(stderr, "There are remaining references to the module manager!!!\n");
 	LLEmpty(&mods);
 	HashFree(arenacallbacks);
@@ -454,11 +458,21 @@ void RegInterface(void *iface, Arena *arena)
 	/* use HashAddFront so that newer interfaces override older ones.
 	 * slightly evil, relying on implementation details of hash tables. */
 	HashAddFront(intsbyname, head->name, iface);
+
 	if (arena == ALLARENAS)
 		HashAddFront(globalints, id, iface);
 	else
 	{
 		char key[MAX_ID_LEN];
+		
+		if (!head->arena_refcounts)
+			head->arena_refcounts = HashAlloc();
+
+		/* increment this so we know to free head->arena_refcounts only when
+		 * this interface is not registered anywhere anymore on an arena scope.
+		 */
+		++head->arena_registrations;
+
 		snprintf(key, sizeof(key), "%p-%s", (void*)arena, id);
 		HashAddFront(arenaints, key, iface);
 	}
@@ -468,6 +482,7 @@ void RegInterface(void *iface, Arena *arena)
 
 int UnregInterface(void *iface, Arena *arena)
 {
+	char key[MAX_ID_LEN];
 	const char *id;
 	InterfaceHead *head = (InterfaceHead*)iface;
 
@@ -479,22 +494,47 @@ int UnregInterface(void *iface, Arena *arena)
 	 * responsibility of checking that nobody is using this interface
 	 * anymore, on the assumption that modules will call this as they
 	 * unload, and abort the unload if someone still needs them. we do
-	 * this with a simple refcount. but when registering per-arena
-	 * interfaces, we aren't unloading when we unregister, so this check
-	 * is counterproductive. */
-	if (arena == NULL && head->refcount > 0)
-		return head->refcount;
+	 * this with a simple refcount.
+	 */
+	 
+	/* this doesn't make a lot of sense with arena interfaces unless you use the
+	 * new interface functions GetArenaInterface and ReleaseArenaInterface,
+	 * which will also modify a reference count for the arena.
+	 * if you don't, the old behavior will still be applied and the programmer
+	 * accepts responsibility of that behavior. */
+	if (arena == ALLARENAS && head->global_refcount > 0)
+		return head->global_refcount;
 
 	pthread_mutex_lock(&intmtx);
 
+	if (arena != ALLARENAS)
+	{
+		snprintf(key, sizeof(key), "%p-%s", (void*)arena, arena->name);
+		long arena_refcount = (long)HashGetOne(head->arena_refcounts, key);
+		if (arena_refcount > 0)
+		{
+			pthread_mutex_unlock(&intmtx);
+			return arena_refcount;
+		}
+	}
+	
 	HashRemove(intsbyname, head->name, iface);
 	if (arena == ALLARENAS)
+	{
 		HashRemove(globalints, id, iface);
+	}
 	else
 	{
-		char key[MAX_ID_LEN];
 		snprintf(key, sizeof(key), "%p-%s", (void*)arena, id);
 		HashRemove(arenaints, key, iface);
+		/* we incremented this when registering, now decrement it
+		 * and check to see if we should also free up the arena_refcounts
+		 * HashTable. */
+		if (--head->arena_registrations <= 0)
+		{
+			HashFree(head->arena_refcounts);
+			head->arena_refcounts = NULL;
+		}
 	}
 
 	pthread_mutex_unlock(&intmtx);
@@ -521,31 +561,95 @@ void * GetInterface(const char *id, Arena *arena)
 	}
 	pthread_mutex_unlock(&intmtx);
 	if (head)
-		head->refcount++;
+		++head->global_refcount;
 	return head;
+
 }
 
 
 void * GetInterfaceByName(const char *name)
 {
 	InterfaceHead *head;
+
 	pthread_mutex_lock(&intmtx);
 	head = HashGetOne(intsbyname, name);
-	pthread_mutex_unlock(&intmtx);
+	
 	if (head)
-		head->refcount++;
+		++head->global_refcount;
+
+	pthread_mutex_unlock(&intmtx);
+
 	return head;
 }
 
 
 void ReleaseInterface(void *iface)
 {
+	/* this function should no longer be used with arena interfaces, however
+	 * it is kept for backwards compatibility. */
 	InterfaceHead *head = (InterfaceHead*)iface;
 	if (!iface) return;
 	assert(head->magic == MODMAN_MAGIC);
-	head->refcount--;
+	--head->global_refcount;
 }
 
+void * GetArenaInterface(const char *id, Arena *arena)
+{
+	char key[MAX_ID_LEN];
+	InterfaceHead *head;
+	
+	if (!arena)
+		return NULL;
+
+	snprintf(key, sizeof(key), "%p-%s", (void*)arena, id);
+
+	pthread_mutex_lock(&intmtx);
+
+	head = HashGetOne(arenaints, key);
+	/* if the arena doesn't have it, fall back to a global one */
+	if (!head)
+		head = HashGetOne(globalints, id);
+	
+	if (head)
+	{
+		long arena_refcount;
+		snprintf(key, sizeof(key), "%p-%s", (void *)arena, arena->name);
+
+		arena_refcount = (long)HashGetOne(head->arena_refcounts, key);
+		++arena_refcount;
+		
+		++head->global_refcount;
+		HashReplace(head->arena_refcounts, key, (void *)arena_refcount);
+	}
+	
+	pthread_mutex_unlock(&intmtx);
+
+	return head;
+}
+
+void ReleaseArenaInterface(void *iface, Arena *arena)
+{
+	long arena_refcount;
+	char key[MAX_ID_LEN];
+	InterfaceHead *head = (InterfaceHead*)iface;
+	if (!iface) return;
+	assert(head->magic == MODMAN_MAGIC);
+	
+	snprintf(key, sizeof(key), "%p-%s", (void *)arena, arena->name);
+
+	pthread_mutex_lock(&intmtx);
+	
+	arena_refcount = (long)HashGetOne(head->arena_refcounts, key);
+	--arena_refcount;
+	
+	if (arena_refcount > 0)
+		HashReplace(head->arena_refcounts, key, (void *)arena_refcount);
+	else
+		HashRemoveAny(head->arena_refcounts, key);
+	--head->global_refcount;
+
+	pthread_mutex_unlock(&intmtx);
+}
 
 /* callback stuff */
 
