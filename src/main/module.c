@@ -30,7 +30,7 @@ local int UnloadModule(const char *);
 local void EnumModules(void (*)(const char *, const char *, void *), void *, Arena *);
 local int AttachModule(const char *, Arena *);
 local int DetachModule(const char *, Arena *);
-local void DetachAllFromArena(Arena *);
+local int DetachAllFromArena(Arena *);
 local const char *GetModuleInfo(const char *);
 local const char *GetModuleLoader(const char *);
 
@@ -397,8 +397,9 @@ int DetachModule(const char *name, Arena *arena)
 	return ret;
 }
 
-void DetachAllFromArena(Arena *arena)
+int DetachAllFromArena(Arena *arena)
 {
+	int result = MM_OK;
 	Link *l, *next;
 	pthread_mutex_lock(&modmtx);
 	/* TODO: this is inefficient */
@@ -408,12 +409,23 @@ void DetachAllFromArena(Arena *arena)
 		next = l->next;
 		if (ad->arena == arena)
 		{
-			ad->mod->loader(MM_DETACH, &ad->mod->args, NULL, arena);
+			if (ad->mod->loader(MM_DETACH, &ad->mod->args, NULL, arena) == MM_FAIL)
+			{
+				Ilogman *lm = GetInterface(I_LOGMAN, ALLARENAS);
+				if (lm)
+				{
+					lm->LogA(L_ERROR, "module", arena, "failed to detach '%s' while detaching all modules", ad->mod->args.name);
+					ReleaseInterface(lm);
+				}
+				result = MM_FAIL;
+				break;
+			}
 			LLRemove(&attachments, ad);
 			afree(ad);
 		}
 	}
 	pthread_mutex_unlock(&modmtx);
+	return result;
 }
 
 const char * GetModuleInfo(const char *name)

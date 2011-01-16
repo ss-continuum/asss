@@ -337,8 +337,10 @@ typedef struct Imodman
 	/** Gets the name of the loader for a module. */
 	const char *(*GetModuleLoader)(const char *modname);
 
-	/** Detaches all modules from an arena. */
-	void (*DetachAllFromArena)(Arena *arena);
+	/** Detaches modules in reverse order, until one fails.
+	 * Returns MM_OK if all modules detached okay, returns MM_FAIL if any
+	 * module failed to detach. */
+	int (*DetachAllFromArena)(Arena *arena);
 	
 	/* these functions should be called only from main.c */
 	struct
