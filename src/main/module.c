@@ -615,7 +615,18 @@ void * GetArenaInterface(const char *id, Arena *arena)
 		long arena_refcount;
 		snprintf(key, sizeof(key), "%p-%s", (void *)arena, arena->name);
 
-		arena_refcount = (long)HashGetOne(head->arena_refcounts, key);
+		if (head->arena_refcounts != NULL)
+		{
+			/* the hash table for arena_refcounts will be undefined until an
+			 * arena interface is registered or the interface is obtained once
+			 * from this function, so it cannot be checked blindly */
+			arena_refcount = (long)HashGetOne(head->arena_refcounts, key);
+		}
+		else
+		{
+			arena_refcount = 0;
+			head->arena_refcounts = HashAlloc();
+		}
 		++arena_refcount;
 		
 		++head->global_refcount;
@@ -646,7 +657,15 @@ void ReleaseArenaInterface(void *iface, Arena *arena)
 		HashReplace(head->arena_refcounts, key, (void *)arena_refcount);
 	else
 		HashRemoveAny(head->arena_refcounts, key);
-	--head->global_refcount;
+
+	if (--head->global_refcount <= 0)
+	{
+		if (head->arena_refcounts != NULL && head->arena_registrations == 0)
+		{
+			HashFree(head->arena_refcounts);
+			head->arena_refcounts = NULL;
+		}
+	}
 
 	pthread_mutex_unlock(&intmtx);
 }
