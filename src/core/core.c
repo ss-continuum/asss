@@ -349,8 +349,8 @@ int process_player_states(void *v)
 
 			case S_SEND_LOGIN_RESPONSE:
 				SendLoginResponse(player);
-				lm->Log(L_INFO, "<core> [%s] [pid=%d] player logged in",
-						player->name, player->pid);
+				lm->Log(L_INFO, "<core> [%s] [pid=%d] player logged in from ip=%s macid=%i",
+						player->name, player->pid, player->ipaddr, player->macid);
 				break;
 
 			case S_DO_FREQ_AND_ARENA_SYNC:
