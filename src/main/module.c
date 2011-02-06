@@ -161,9 +161,9 @@ local void UnregModuleLoader(const char *sig, ModuleLoaderFunc func)
 local ModuleData *get_module_by_name(const char *name)
 {
 	Link *l;
-	for (l = LLGetHead(&mods); l; l = l->next)
+	ModuleData *mod;
+	FOR_EACH(&mods, mod, l)
 	{
-		ModuleData *mod = (ModuleData*)(l->data);
 		if (!strcasecmp(mod->args.name, name))
 			return mod;
 	}
@@ -228,17 +228,16 @@ local int LoadModule_(const char *spec)
 /* call with modmtx held */
 local int unload_by_ptr(ModuleData *mod)
 {
-	Link *l, *next;
+	Link *l;
+	AttachData *ad;
 	int ret;
 
 	/* detach this module from all arenas it's attached to.
 	 * TODO: this is inefficient.
 	 * TODO: if a module unload fails, it will be detached from all
 	 * arenas, but still loaded. */
-	for (l = LLGetHead(&attachments); l; l = next)
+	FOR_EACH(&attachments, ad, l)
 	{
-		AttachData *ad = l->data;
-		next = l->next;
 		if (ad->mod == mod)
 		{
 			mod->loader(MM_DETACH, &mod->args, NULL, ad->arena);
@@ -291,10 +290,10 @@ local void recursive_unload(Link *l)
 void DoStage(int stage)
 {
 	Link *l;
+	ModuleData *mod;
 	pthread_mutex_lock(&modmtx);
-	for (l = LLGetHead(&mods); l; l = l->next)
+	FOR_EACH(&mods, mod, l)
 	{
-		ModuleData *mod = l->data;
 		mod->loader(stage, &mod->args, NULL, NULL);
 	}
 	pthread_mutex_unlock(&modmtx);
@@ -320,32 +319,36 @@ void EnumModules(void (*func)(const char *, const char *, void *),
 		void *clos, Arena *filter)
 {
 	Link *l;
+	ModuleData *mod;
+	AttachData *ad;
 	pthread_mutex_lock(&modmtx);
 	/* TODO: this returns modules in load order for no filter, and
 	 * reverse-attach order for a filter. possibly change to use load
 	 * order for both cases. */
 	if (filter == NULL)
-		for (l = LLGetHead(&mods); l; l = l->next)
+	{
+		FOR_EACH(&mods, mod, l)
 		{
-			ModuleData *mod = l->data;
 			func(mod->args.name, mod->args.info, clos);
 		}
+	}
 	else
-		for (l = LLGetHead(&attachments); l; l = l->next)
+	{
+		FOR_EACH(&attachments, ad, l)
 		{
-			AttachData *ad = l->data;
 			if (ad->arena == filter)
 				func(ad->mod->args.name, ad->mod->args.info, clos);
 		}
+	}
 	pthread_mutex_unlock(&modmtx);
 }
 
 local int is_attached(ModuleData *mod, Arena *arena, int remove)
 {
 	Link *l;
-	for (l = LLGetHead(&attachments); l; l = l->next)
+	AttachData *ad;
+	FOR_EACH(&attachments, ad, l)
 	{
-		AttachData *ad = l->data;
 		if (ad->mod == mod && ad->arena == arena)
 		{
 			if (remove)
@@ -400,13 +403,12 @@ int DetachModule(const char *name, Arena *arena)
 int DetachAllFromArena(Arena *arena)
 {
 	int result = MM_OK;
-	Link *l, *next;
+	Link *l;
+	AttachData *ad;
 	pthread_mutex_lock(&modmtx);
 	/* TODO: this is inefficient */
-	for (l = LLGetHead(&attachments); l; l = next)
+	FOR_EACH(&attachments, ad, l)
 	{
-		AttachData *ad = l->data;
-		next = l->next;
 		if (ad->arena == arena)
 		{
 			if (ad->mod->loader(MM_DETACH, &ad->mod->args, NULL, arena) == MM_FAIL)
@@ -414,14 +416,16 @@ int DetachAllFromArena(Arena *arena)
 				Ilogman *lm = GetInterface(I_LOGMAN, ALLARENAS);
 				if (lm)
 				{
-					lm->LogA(L_ERROR, "module", arena, "failed to detach '%s' while detaching all modules", ad->mod->args.name);
+					lm->LogA(L_ERROR, "module", arena, "failed to detach '%s' while detaching modules", ad->mod->args.name);
 					ReleaseInterface(lm);
 				}
 				result = MM_FAIL;
-				break;
 			}
-			LLRemove(&attachments, ad);
-			afree(ad);
+			else
+			{
+				LLRemove(&attachments, ad);
+				afree(ad);
+			}
 		}
 	}
 	pthread_mutex_unlock(&modmtx);
@@ -476,7 +480,7 @@ void RegInterface(void *iface, Arena *arena)
 	else
 	{
 		char key[MAX_ID_LEN];
-		
+
 		if (!head->arena_refcounts)
 			head->arena_refcounts = HashAlloc();
 
@@ -508,7 +512,7 @@ int UnregInterface(void *iface, Arena *arena)
 	 * unload, and abort the unload if someone still needs them. we do
 	 * this with a simple refcount.
 	 */
-	 
+
 	/* this doesn't make a lot of sense with arena interfaces unless you use the
 	 * new interface functions GetArenaInterface and ReleaseArenaInterface,
 	 * which will also modify a reference count for the arena.
@@ -529,7 +533,7 @@ int UnregInterface(void *iface, Arena *arena)
 			return arena_refcount;
 		}
 	}
-	
+
 	HashRemove(intsbyname, head->name, iface);
 	if (arena == ALLARENAS)
 	{
@@ -539,14 +543,15 @@ int UnregInterface(void *iface, Arena *arena)
 	{
 		snprintf(key, sizeof(key), "%p-%s", (void*)arena, id);
 		HashRemove(arenaints, key, iface);
-		/* we incremented this when registering, now decrement it
-		 * and check to see if we should also free up the arena_refcounts
-		 * HashTable. */
-		if (--head->arena_registrations <= 0)
-		{
-			HashFree(head->arena_refcounts);
-			head->arena_refcounts = NULL;
-		}
+		/* we incremented this when registering, now decrement it */
+		--head->arena_registrations;
+	}
+
+	/* check to see if we should free up the arena_refcounts HashTable. */
+	if (head->arena_refcounts != NULL && head->arena_registrations <= 0)
+	{
+		HashFree(head->arena_refcounts);
+		head->arena_refcounts = NULL;
 	}
 
 	pthread_mutex_unlock(&intmtx);
@@ -585,7 +590,7 @@ void * GetInterfaceByName(const char *name)
 
 	pthread_mutex_lock(&intmtx);
 	head = HashGetOne(intsbyname, name);
-	
+
 	if (head)
 		++head->global_refcount;
 
@@ -609,7 +614,7 @@ void * GetArenaInterface(const char *id, Arena *arena)
 {
 	char key[MAX_ID_LEN];
 	InterfaceHead *head;
-	
+
 	if (!arena)
 		return NULL;
 
@@ -621,7 +626,7 @@ void * GetArenaInterface(const char *id, Arena *arena)
 	/* if the arena doesn't have it, fall back to a global one */
 	if (!head)
 		head = HashGetOne(globalints, id);
-	
+
 	if (head)
 	{
 		long arena_refcount;
@@ -640,11 +645,11 @@ void * GetArenaInterface(const char *id, Arena *arena)
 			head->arena_refcounts = HashAlloc();
 		}
 		++arena_refcount;
-		
+
 		++head->global_refcount;
 		HashReplace(head->arena_refcounts, key, (void *)arena_refcount);
 	}
-	
+
 	pthread_mutex_unlock(&intmtx);
 
 	return head;
@@ -657,27 +662,20 @@ void ReleaseArenaInterface(void *iface, Arena *arena)
 	InterfaceHead *head = (InterfaceHead*)iface;
 	if (!iface) return;
 	assert(head->magic == MODMAN_MAGIC);
-	
+
 	snprintf(key, sizeof(key), "%p-%s", (void *)arena, arena->name);
 
 	pthread_mutex_lock(&intmtx);
-	
+
 	arena_refcount = (long)HashGetOne(head->arena_refcounts, key);
 	--arena_refcount;
-	
+
 	if (arena_refcount > 0)
 		HashReplace(head->arena_refcounts, key, (void *)arena_refcount);
 	else
 		HashRemoveAny(head->arena_refcounts, key);
 
-	if (--head->global_refcount <= 0)
-	{
-		if (head->arena_refcounts != NULL && head->arena_registrations == 0)
-		{
-			HashFree(head->arena_refcounts);
-			head->arena_refcounts = NULL;
-		}
-	}
+	--head->global_refcount;
 
 	pthread_mutex_unlock(&intmtx);
 }
@@ -737,7 +735,7 @@ void FreeLookupResult(LinkedList *lst)
 	LLEmpty(lst);
 }
 
-void RegAdviser(void *adv, Arena *arena) 
+void RegAdviser(void *adv, Arena *arena)
 {
 	const char *id;
 	AdviserHead *head = (AdviserHead*)adv;
