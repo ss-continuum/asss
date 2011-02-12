@@ -1258,7 +1258,7 @@ local void destroy_interface(void *v)
 
 	/* we haven't been properly maintaining this refcount, so zero it
 	 * here so that the module manager won't complain. */
-	i->head.refcount = 0;
+	i->head.global_refcount = 0;
 	mm->UnregInterface(i, i->arena);
 
 	if (i->real_interface)
@@ -1306,8 +1306,7 @@ local PyObject *mthd_reg_interface(PyObject *self, PyObject *args)
 	newint->head.magic = MODMAN_MAGIC;
 	newint->head.iid = astrdup(pyiid);
 	newint->head.name = "__unused__";
-	newint->head.reserved1 = 0;
-	newint->head.refcount = 0;
+	newint->head.global_refcount = 0;
 	newint->py_int_magic = PY_INT_MAGIC;
 	newint->real_interface = realint;
 	newint->arena = arena;

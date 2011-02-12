@@ -96,7 +96,7 @@ local void ConnInit(struct sockaddr_in *sin, byte *pkt, int len, void *v)
 		return;
 
 	/* ok, it fits. get connection. */
-	ienc.head.refcount++;
+	++ienc.head.global_refcount;
 	p = net->NewConnection(T_VIE, sin, &ienc, v);
 
 	if (!p)

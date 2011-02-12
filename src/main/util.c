@@ -836,6 +836,32 @@ void HashRemove(HashTable *h, const char *s, const void *p)
 	}
 }
 
+void HashRemoveAny(HashTable *h, const char *s)
+{
+	int slot;
+	HashEntry *l, *prev = NULL;
+
+	slot = hash_string(s) & h->bucketsm1;
+	l = h->lists[slot];
+
+	while (l)
+	{
+		if (!strcasecmp(s, l->key))
+		{
+			if (prev)
+				prev->next = l->next;
+			else /* removing first item */
+				h->lists[slot] = l->next;
+			afree(l);
+			h->ents--;
+			check_rehash(h);
+			return;
+		}
+		prev = l;
+		l = l->next;
+	}
+}
+
 LinkedList * HashGet(HashTable *h, const char *s)
 {
 	LinkedList *res = LLAlloc();

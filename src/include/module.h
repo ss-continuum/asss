@@ -66,7 +66,7 @@ enum
 /** and all interface initializers must start with this or the next macro.
  * @param iid the interface id of this interface
  * @param name a unique name for the implementation of the interface */
-#define INTERFACE_HEAD_INIT(iid, name) { MODMAN_MAGIC, iid, name, 0, 0 },
+#define INTERFACE_HEAD_INIT(iid, name) { MODMAN_MAGIC, iid, name, NULL, 0, 0, {0, 0, 0, 0} },
 
 /** this struct appears at the head of each interface implementation declaration.
  * you shouldn't ever use it directly, but it's necessary for the above
@@ -75,7 +75,10 @@ typedef struct InterfaceHead
 {
 	unsigned long magic;
 	const char *iid, *name;
-	int reserved1, refcount;
+	HashTable *arena_refcounts;
+	int global_refcount;
+	int arena_registrations;
+	long _reserved[4];
 } InterfaceHead;
 
 
@@ -97,7 +100,7 @@ typedef struct AdviserHead
 
 
 /** a magic value to distinguish interface pointers */
-#define MODMAN_MAGIC 0x46692017
+#define MODMAN_MAGIC 0x46692018
 
 
 typedef struct mod_args_t
@@ -138,7 +141,7 @@ typedef int (*ModuleLoaderFunc)(int action, mod_args_t *args, const char *line, 
 
 
 /** this is only used from python */
-#define I_MODMAN "modman-2"
+#define I_MODMAN "modman-3"
 
 /** the module manager interface struct */
 typedef struct Imodman
@@ -238,6 +241,14 @@ typedef struct Imodman
 	 */
 	void (*ReleaseInterface)(void *iface);
 
+	/** Retrieves an interface pointer for an arena. Increments the reference
+	 * count for the interface on the arena, unlike GetInterface, which will
+	 * only increment the global reference count. */
+	void * (*GetArenaInterface)(const char *id, Arena *arena);
+
+	/** Releases an arena interface. Properly releases the arena reference
+	 * count, unlike ReleaseInterface. */
+	void (*ReleaseArenaInterface)(void *iface, Arena *arena);
 
 	/* callback stuff.
 	 * these manage callback functions. putting this functionality in
@@ -326,9 +337,11 @@ typedef struct Imodman
 	/** Gets the name of the loader for a module. */
 	const char *(*GetModuleLoader)(const char *modname);
 
-	/** Detaches all modules from an arena. */
-	void (*DetachAllFromArena)(Arena *arena);
-
+	/** Detaches modules in reverse order, until one fails.
+	 * Returns MM_OK if all modules detached okay, returns MM_FAIL if any
+	 * module failed to detach. */
+	int (*DetachAllFromArena)(Arena *arena);
+	
 	/* these functions should be called only from main.c */
 	struct
 	{
@@ -336,6 +349,8 @@ typedef struct Imodman
 		void (*UnloadAllModules)(void);
 		void (*NoMoreModules)(void);
 	} frommain;
+	
+	void *_reserved[8];
 } Imodman;
 
 
