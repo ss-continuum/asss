@@ -43,30 +43,30 @@ REALPATH := readlink -f
 
 # change this to the directory of your bdb 4.x install.
 # freebsd users probably want /usr/local for all of the _HOME variables.
-DB_HOME = /opt/db-4.0.14
+DB_HOME = /usr
 # these probably won't have to change:
 DB_INC = $(DB_HOME)/include
 DB_LIB = $(DB_HOME)/lib
 DB_CFLAGS = -I$(DB_INC)
 ifneq ($(link_db_statically),yes)
-# you might have to change -ldb-4 to -ldb4 in the next line:
-DB_LDFLAGS = -L$(DB_LIB) -Wl,-rpath,$(DB_LIB) -ldb-4
+# you might have to change -ldb-4.8 to -ldb4 or -ldb-4 in the next line:
+DB_LDFLAGS = -L$(DB_LIB) -Wl,-rpath,$(DB_LIB) -ldb-4.8
 else
 DB_LDFLAGS = $(DB_LIB)/libdb.a
 endif
 
 # change this to the directory of your mysql install.
-MYSQL_HOME = /opt/mysql
+MYSQL_HOME = /usr
 # these probably won't have to change
-MYSQL_INC = $(MYSQL_HOME)/include
-MYSQL_LIB = $(MYSQL_HOME)/lib
+MYSQL_INC = $(MYSQL_HOME)/include/mysql
+MYSQL_LIB = $(MYSQL_HOME)/lib/mysql
 MYSQL_CFLAGS = -I$(MYSQL_INC)
 MYSQL_LDFLAGS = -L$(MYSQL_LIB) -Wl,-rpath,$(MYSQL_LIB) -lmysqlclient_r
 
-# change this to the location of your python 2.2 or higher install.
+# change this to the location of your python 2.5 or higher install.
 PYTHON_HOME = /usr
 # change this to the major/minor version number of your python install.
-PYTHON_VERSION = 2.4
+PYTHON_VERSION = 2.7
 # these probably won't have to change
 PYTHON_INC = $(PYTHON_HOME)/include/python$(PYTHON_VERSION)
 PYTHON_LIB = $(PYTHON_HOME)/lib/python$(PYTHON_VERSION)
