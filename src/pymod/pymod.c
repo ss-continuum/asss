@@ -7,6 +7,9 @@
 
 /* nasty hack to avoid warning when using python versions 2.4 and above */
 #undef _POSIX_C_SOURCE
+
+/* another nasty hack */
+#undef _XOPEN_SOURCE
 #include "Python.h"
 #include "structmember.h"
 
@@ -384,7 +387,8 @@ local int cvt_p2c_config(PyObject *o, ConfigHandle *chp)
 	}
 }
 
-local PyObject * cvt_c2p_dict(HashTable *table)
+/* these two functions are unused */
+/*local PyObject * cvt_c2p_dict(HashTable *table)
 {
 	PyObject *o;
 	if(table)
@@ -590,7 +594,7 @@ local int cvt_p2c_dict(PyObject *o, HashTable **table)
 	}
 
 	return TRUE;
-}
+}*/
 
 
 /* defining the asss module */

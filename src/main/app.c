@@ -222,7 +222,7 @@ static void update_processing(APPContext *ctx)
 	ctx->processing = 1;
 	while (i)
 	{
-		if (i->cond == i->where)
+		if ((int)i->cond == (int)i->where)
 			ctx->processing = 0;
 		i = i->prev;
 	}
