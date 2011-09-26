@@ -296,6 +296,7 @@ void Command(const char *line, Player *p, const Target *target, int sound)
 	else if (allowed(p, cmd, prefix, remarena))
 	{
 		Link *l;
+		log_command(p, target, cmd, line);
 		for (l = LLGetHead(&lst); l; l = l->next)
 		{
 			cmddata_t *data = l->data;
@@ -304,7 +305,6 @@ void Command(const char *line, Player *p, const Target *target, int sound)
 			else if (data->func)
 				data->func(cmd, line, p, target);
 		}
-		log_command(p, target, cmd, line);
 	}
 #ifdef CFG_LOG_ALL_COMMAND_DENIALS
 	else
