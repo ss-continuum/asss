@@ -45,7 +45,7 @@
 
 
 /** other modules should manipulate config files through ConfigHandles. */
-typedef struct ConfigHandle *ConfigHandle;
+typedef struct ConfigHandle_ *ConfigHandle;
 
 /** use this special ConfigHandle to refer to the global config file. */
 #define GLOBAL ((ConfigHandle)(-3))

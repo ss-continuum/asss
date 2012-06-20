@@ -41,7 +41,7 @@ typedef struct ConfigFile
 	char *filename, *arena, *name;
 } ConfigFile;
 
-struct ConfigHandle
+struct ConfigHandle_
 {
 	ConfigFile *file;
 	ConfigChangedFunc func;
