@@ -87,7 +87,7 @@ typedef struct InterfaceHead
 
 /** and all interface initializers must start with this or the next macro.
  * @param aid the adviser id of this adviser */
-#define ADVISER_HEAD_INIT(aid) { MODMAN_MAGIC, aid },
+#define ADVISER_HEAD_INIT(aid) { ADVISER_MAGIC, aid },
 
 /** this struct appears at the head of each adviser implementation declaration.
  * you shouldn't ever use it directly, but it's necessary for the above
@@ -98,6 +98,8 @@ typedef struct AdviserHead
 	const char *aid;
 } AdviserHead;
 
+/** a magic value to distinguish adviser pointers */
+#define ADVISER_MAGIC 0xADB15345
 
 /** a magic value to distinguish interface pointers */
 #define MODMAN_MAGIC 0x46692018

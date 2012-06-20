@@ -2,7 +2,7 @@
 #define ___dummy \
 : /*
 set -e
-gcc -g -DNOTHREAD -I../src ../src/app.c ../src/util.c app.c -o app -lpthread
+gcc -g -DNOTHREAD -I../src/include ../src/main/app.c ../src/main/util.c app.c -o app -lpthread
 ./app /dev/stdin
 exit
 */
@@ -29,14 +29,14 @@ int main(int argc, char *argv[])
 	APPContext *ctx;
 	char buf[1024];
 
-	ctx = InitContext(finder, err, "");
+	ctx = APPInitContext(finder, err, "");
 	for (i = 1; i < argc; i++)
-		AddFile(ctx, argv[i]);
+		APPAddFile(ctx, argv[i]);
 
-	while (GetLine(ctx, buf, 1024))
+	while (APPGetLine(ctx, buf, 1024))
 		puts(buf);
 
-	FreeContext(ctx);
+	APPFreeContext(ctx);
 }
 
 

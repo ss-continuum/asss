@@ -1,17 +1,29 @@
 
 /* 2>/dev/null
-gcc -I../src -o rip ripsettings.c
+gcc -I../src -I../src/include -o ripsettings ripsettings.c
 exit # */
 
 /* this program doesn't exist */
 
 #include <stdio.h>
-#include "packets/sizes.h"
+#include "asss.h"
 typedef unsigned char byte;
 #include "packets/clientset.h"
-#include "clientset.def"
+#include "core/clientset.def"
 
 #define COUNT(x) (sizeof(x)/sizeof(x[0]))
+
+char *ship_names[8] = 
+{
+	"Warbird",
+	"Javelin",
+	"Spider",
+	"Leviathan",
+	"Terrier",
+	"Weasel",
+	"Lancaster",
+	"Shark"
+};
 
 int main()
 {

@@ -1,13 +1,13 @@
 
 /* 2>/dev/null
-gcc -o test mpqueue.c ../src/util.c -lpthread
+gcc -I../src/include -I../src -o mpqueue mpqueue.c ../src/main/util.c -lpthread
 exit # */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
 
-#include "../src/util.h"
+#include "util.h"
 
 
 

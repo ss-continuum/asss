@@ -1082,7 +1082,7 @@ void TrEnum(TreapHead *root, void (*func)(TreapHead *node, void *clos), void *cl
 	{
 		TreapHead *t;
 		TrEnum(root->left, func, clos);
-		/* save right child now because func might free it */
+		/* save right child now because func might free root */
 		t = root->right;
 		func(root, clos);
 		TrEnum(t, func, clos);

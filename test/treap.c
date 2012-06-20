@@ -1,10 +1,10 @@
 
 /* 2>/dev/null
-gcc -g -I ../src -o treap treap.c ../src/util.c -lpthread
+gcc -g -I ../src/include -I ../src -o treap treap.c ../src/main/util.c -lpthread
 exit # */
 
 #include <stdlib.h>
-
+#include <stdio.h>
 #include "util.h"
 
 
@@ -98,7 +98,7 @@ void getdel(int n)
 
 int main(int argc, char *argv[])
 {
-	srand(GTC());
+	srand(current_ticks());
 
 	avgdepth(10000, 50);
 

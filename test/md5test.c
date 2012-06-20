@@ -2,7 +2,7 @@
 #define ___dummy \
 : /*
 set -e
-gcc -I../src ../src/md5.c md5test.c -o md5test -lz
+gcc -I../src/include ../src/main/md5.c md5test.c -o md5test -lz
 ./md5test
 exit
 */

@@ -1,10 +1,11 @@
 
 /* 2>/dev/null
-gcc -DNOTREAP -I ../src -o bench bench.c ../src/util.c -lpthread
+gcc -DNOTREAP -I ../src/include -I ../src -o bench bench.c ../src/main/util.c -lpthread
 exit # */
 
-#include "util.h"
 
+#include "util.h"
+#include <stdio.h>
 
 typedef struct TreapHead
 {
@@ -243,7 +244,7 @@ void add_t(TreapHead **t, const char *val)
 void test1(int hsize, int trials)
 {
 	TreapHead *t = NULL;
-	HashTable *h = HashAlloc(hsize);
+	HashTable *h = HashAlloc();
 	const char **w = words;
 	unsigned int st, end, trial;
 
@@ -323,7 +324,7 @@ void test1(int hsize, int trials)
 
 int main(int argc, char *argv[])
 {
-	srand(GTC());
+	srand(current_ticks());
 	test1(251, 5000);
 }
 
