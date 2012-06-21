@@ -787,7 +787,7 @@ void HashAddFront(HashTable *h, const char *s, const void *p)
 void HashReplace(HashTable *h, const char *s, const void *p)
 {
 	int slot;
-	HashEntry *l, *last;
+	HashEntry *l;
 
 	slot = hash_string(s) & h->bucketsm1;
 	l = h->lists[slot];
@@ -802,7 +802,6 @@ void HashReplace(HashTable *h, const char *s, const void *p)
 			/* no need to modify h->ents */
 			return;
 		}
-		last = l;
 		l = l->next;
 	}
 
