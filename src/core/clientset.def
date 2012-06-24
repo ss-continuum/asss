@@ -113,7 +113,8 @@ static char *short_names[] =
 	 * How bouncy the walls are (16 = no speed loss) */
 	"Misc:BounceFactor",
 	/* cfghelp: Radar:MapZoomFactor, arena, int
-	 * A number representing how far you can see on radar */
+	 * A number representing how much the map is zoomed out for radar.
+	 * (48 = whole map on radar, 49+ = effectively disable radar) */
 	"Radar:MapZoomFactor",
 	/* cfghelp: Kill:MaxBonus, arena, int
 	 * FIXME: fill this in */

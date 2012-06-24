@@ -168,6 +168,11 @@ local void load_settings(adata *ad, ConfigHandle conf)
 	cs->long_set[10] *= 1000; /* BurstDamageLevel */
 	cs->long_set[11] *= 1000; /* BulletDamageUpgrade */
 	cs->long_set[16] *= 1000; /* InactiveShrapDamage */
+
+	/* Radar:MapZoomFactor of 0 will crash Continuum. Set it to 1 at least */
+	assert(!strcasecmp("Radar:MapZoomFactor", short_names[11]));
+	if (0 == cs->short_set[11])
+		cs->short_set[11] = 1;
 }
 
 
