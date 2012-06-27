@@ -102,7 +102,7 @@ local int pdkey, adkey;
 local int mods_loaded;
 
 local PyObject *cPickle;
-local PyObject *sysdict;
+local PyObject *log_code;
 
 pthread_mutex_t pymtx;
 #define LOCK() pthread_mutex_lock(&pymtx)
@@ -110,22 +110,47 @@ pthread_mutex_t pymtx;
 
 /* utility functions */
 
+/* FIXME: do error checking */
 local void log_py_exception(char lev, const char *msg)
 {
-	if (PyErr_Occurred())
-	{
-		if (msg)
-			lm->Log(lev, "<pymod> %s", msg);
-		/* FIXME: this only goes to stderr */
-		PyErr_Print();
+	PyObject *result, *e, *v, *tb, *args;
+	char *line;
+	Py_ssize_t str_size;
+	int i;
 
-		/* this is pretty disgusting. sorry, but it seems to be
-		 * necessary when using PyErr_Print to avoid leaking objects. */
-		PyDict_DelItemString(sysdict, "last_type");
-		PyDict_DelItemString(sysdict, "last_value");
-		PyDict_DelItemString(sysdict, "last_traceback");
-		PyErr_Clear();
+	if (!PyErr_Occurred())
+		return;
+
+	if (msg)
+		lm->Log(lev, "<pymod> EXC: MSG: %s", msg);
+
+        /* fetching also clears the error */
+	PyErr_Fetch(&e, &v, &tb);
+	PyErr_NormalizeException(&e, &v, &tb);
+	args = Py_BuildValue("(OOO)", e, v, tb);
+	result = PyObject_CallObject(log_code, args);
+
+	Py_DECREF(e);
+	Py_XDECREF(v);
+	Py_XDECREF(tb);
+	Py_DECREF(args);
+
+	if (!result) return;
+
+	line = PyString_AsString(result);
+	str_size = PyString_Size(result);
+	i = 0;
+	while (i < str_size)
+	{
+		int k = strlen(line) + 1;
+
+		lm->Log(lev, "<pymod> EXC: %s", line);
+
+		i += k;
+		line += k;
 	}
+
+	Py_DECREF(result);
 }
 
 
@@ -2146,10 +2171,23 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 		init_py_commands();
 		/* extra init stuff */
 		{
-			PyObject *sys = PyImport_ImportModule("sys");
-			sysdict = PyModule_GetDict(sys);
-			Py_INCREF(sysdict);
-			Py_DECREF(sys);
+			/* FIXME error checking */
+			PyObject *py_main;
+			const char *runstring =
+				"import traceback" "\n"
+				"def asss_format_exception(e, v, tb): " "\n\t"
+				"lines = traceback.format_exception(e, v, tb)" "\n\t"
+				"lines = [line.rstrip('\\n') for line in lines]" "\n\t"
+				"return '\\0'.join(lines).replace('\\n', '\\0')"
+				;
+
+			py_main = PyImport_AddModule("__main__");
+
+			PyRun_SimpleString(runstring);
+			if (PyErr_Occurred()) PyErr_PrintEx(0);
+
+			log_code = PyObject_GetAttrString(py_main, "asss_format_exception");
+
 			if (persist)
 			{
 				cPickle = PyImport_ImportModule("cPickle");
@@ -2197,7 +2235,7 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 		aman->Unlock();
 
 		/* close down python */
-		Py_XDECREF(sysdict);
+		Py_XDECREF(log_code);
 		Py_XDECREF(cPickle);
 		mainloop->ClearTimer(pytmr_timer, NULL);
 		deinit_py_commands();
