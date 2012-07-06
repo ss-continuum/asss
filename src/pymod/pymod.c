@@ -127,7 +127,12 @@ local void log_py_exception(char lev, const char *msg)
         /* fetching also clears the error */
 	PyErr_Fetch(&e, &v, &tb);
 	PyErr_NormalizeException(&e, &v, &tb);
-	args = Py_BuildValue("(OOO)", e, v, tb);
+
+	if (!v || !tb)
+		args = Py_BuildValue("(O)", e);
+	else
+		args = Py_BuildValue("(OOO)", e, v, tb);
+
 	result = PyObject_CallObject(log_code, args);
 
 	Py_DECREF(e);
@@ -2175,7 +2180,7 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 			PyObject *py_main;
 			const char *runstring =
 				"import traceback" "\n"
-				"def asss_format_exception(e, v, tb): " "\n\t"
+				"def asss_format_exception(e, v=None, tb=None): " "\n\t"
 				"lines = traceback.format_exception(e, v, tb)" "\n\t"
 				"lines = [line.rstrip('\\n') for line in lines]" "\n\t"
 				"return '\\0'.join(lines).replace('\\n', '\\0')"
