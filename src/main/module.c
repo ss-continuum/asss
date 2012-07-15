@@ -197,6 +197,7 @@ local int LoadModule_(const char *spec)
 	/* check if already loaded */
 	if (get_module_by_name(t))
 	{
+		pthread_mutex_unlock(&modmtx);
 		fprintf(stderr, "E <module> tried to load '%s' twice\n", t);
 		return MM_FAIL;
 	}
