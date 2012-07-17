@@ -124,14 +124,15 @@ void LogA(char level, const char *mod, Arena *a, const char *format, ...)
 		async = 0;
 	}
 
-	len = snprintf(buf, 1024, "%c <%s> {%s} ",
+	len = snprintf(buf, 256, "%c <%s> {%s} ",
 			level,
 			mod,
 			a ? a->name : "(bad arena)");
-	assert(len < 1024);
+	if (len > 255)
+		len = 255;
 
 	va_start(argptr, format);
-	len = vsnprintf(buf + len, 1024 - len, format, argptr);
+	len += vsnprintf(buf + len, 1024 - len, format, argptr);
 	va_end(argptr);
 
 	if (len > 0)
@@ -157,7 +158,7 @@ void LogP(char level, const char *mod, Player *p, const char *format, ...)
 	}
 
 	if (!p)
-		len = snprintf(buf, 1024, "%c <%s> [(bad player)] ",
+		len = snprintf(buf, 256, "%c <%s> [(bad player)] ",
 				level,
 				mod);
 	else
@@ -172,22 +173,23 @@ void LogP(char level, const char *mod, Player *p, const char *format, ...)
 
 		arena = p->arena;
 		if (arena)
-			len = snprintf(buf, 1024, "%c <%s> {%s} [%s] ",
+			len = snprintf(buf, 256, "%c <%s> {%s} [%s] ",
 					level,
 					mod,
 					arena->name,
 					name);
 		else
-			len = snprintf(buf, 1024, "%c <%s> [%s] ",
+			len = snprintf(buf, 256, "%c <%s> [%s] ",
 					level,
 					mod,
 					name);
 	}
 
-	assert(len < 1024);
+	if (len > 255)
+		len = 255;
 
 	va_start(argptr, format);
-	len = vsnprintf(buf + len, 1024 - len, format, argptr);
+	len += vsnprintf(buf + len, 1024 - len, format, argptr);
 	va_end(argptr);
 
 	if (len > 0)

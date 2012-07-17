@@ -441,12 +441,24 @@ local void rewrite_chat_command(Player *p, const char *line, struct S2B_UserComm
 			continue;
 
 		if (localchats && findchat(chatname, localchats))
-			d += snprintf(d, 32, "$l$%s|", localprefix ? localprefix : "");
+		{
+			int len = snprintf(d, 32, "$l$%s|", localprefix ? localprefix : "");
+			if (len > 31)
+				len = 31;
+			d += len;
+		}
 
+		/* FIXME: is this broken when a staffchat == a localchat ? 
+		 * (Even if it is, that shouldn't happen.) */
 		if (staffchats && capman &&
 			capman->HasCapability(p, CAP_SENDMODCHAT) &&
 			findchat(chatname, staffchats))
-			d += snprintf(d, 32, "$s$%s|", staffprefix ? staffprefix : "");
+		{
+			int len = snprintf(d, 32, "$s$%s|", staffprefix ? staffprefix : "");
+			if (len > 31)
+				len = 31;
+			d += len;
+		}
 
 		strcpy(d, origchatname);
 		d = strchr(d, 0);

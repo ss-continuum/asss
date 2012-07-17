@@ -33,10 +33,6 @@
 #ifndef NAME_MAX
 #define NAME_MAX 256
 #endif
-#ifndef snprintf
-#define snprintf _snprintf
-#define vsnprintf _vsnprintf
-#endif
 //#define usleep(x) Sleep((x)/1000)
 #define sleep(x) Sleep((x)*1000)
 #define mkdir(a,b) _mkdir(a)

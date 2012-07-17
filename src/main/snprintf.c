@@ -192,7 +192,7 @@
  * causing this portable version of snprintf to be called portable_snprintf
  * (and portable_vsnprintf).
  */
-#define HAVE_SNPRINTF
+/* #define HAVE_SNPRINTF */
 
 /* Define PREFER_PORTABLE_SNPRINTF if your system does have snprintf and
  * vsnprintf but you would prefer to use the portable routine(s) instead.
@@ -202,7 +202,7 @@
  * Defining this macro is only useful if HAVE_SNPRINTF is also defined,
  * but does does no harm if defined nevertheless.
  */
-#define PREFER_PORTABLE_SNPRINTF
+/* #define PREFER_PORTABLE_SNPRINTF */
 
 /* Define SNPRINTF_LONGLONG_SUPPORT if you want to support
  * data type (long long int) and length modifier 'll' (e.g. %lld).
