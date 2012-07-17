@@ -1,5 +1,0 @@
-#!/bin/sh
-[ -d scripts ] || { echo "run from the mt root" ; exit ; }
-alias ul="ssh root@asss 'cat > web/files/changelog.txt ; echo done'"
-#alias ul="ncftpput -v -u asssweb -p `cat asssweb.yi.org-password` -c asssweb.yi.org www/changelog.txt"
-time python scripts/mymtclog.py | ul

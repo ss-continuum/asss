@@ -1,7 +1,0 @@
-#!/bin/sh
-set -e
-cd src
-doxygen >/dev/null 2>/dev/null
-cd ../doc
-tar cz doxygen | ssh asss 'cd web ; tar xzv'
-#ncftpput -v -u asssweb -p `cat ../asssweb.yi.org-password` -R asssweb.yi.org www doxygen
