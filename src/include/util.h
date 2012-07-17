@@ -12,6 +12,9 @@
 /* include for size_t */
 #include <stddef.h>
 
+/* portable versions of [v]snprintf */
+#include "snprintf.h"
+
 #ifndef ATTR_FORMAT
 #define ATTR_FORMAT(a,b,c)
 #endif
