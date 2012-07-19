@@ -24,7 +24,7 @@
 #include "util.h"
 #include "defs.h"
 
-#include "snprintf.c"
+
 
 struct HashEntry
 {
