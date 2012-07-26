@@ -1110,12 +1110,15 @@ local int start_playback(Arena *a, const char *file)
 
 				if (ra->gzf)
 				{
+					struct tm _tm;
 					/* FIXME: if (flags) flags->DisableFlags(a, TRUE); */
 					if (balls) balls->SetBallCount(a, 0);
 
 					/* tell people about the game */
 					chat->SendArenaMessage(a, "Starting game playback: %s", file);
-					ctime_r(&header.recorded, date);
+
+					alocaltime_r(&header.recorded, &_tm);
+					strftime(date, sizeof(date), "%a %b %d %T %Y", &_tm);
 					chat->SendArenaMessage(a, "Game recorded in arena %s by %s on %s",
 							header.arenaname, header.recorder, date);
 

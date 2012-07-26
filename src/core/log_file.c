@@ -101,11 +101,14 @@ void LogFile(const char *s)
 		pthread_mutex_lock(&logmtx);
 		if (logfile)
 		{
-			time_t t1;
+			struct tm _tm;
+			time_t t;
 			char t3[128];
 
-			time(&t1);
-			strftime(t3, sizeof(t3), CFG_TIMEFORMAT, localtime(&t1));
+			time(&t);
+			alocaltime_r(&t, &_tm);
+
+			strftime(t3, sizeof(t3), CFG_TIMEFORMAT, &_tm);
 			fputs(t3, logfile);
 			fputs(" ", logfile);
 			fputs(s, logfile);

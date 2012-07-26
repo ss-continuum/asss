@@ -1111,12 +1111,15 @@ local void Csetgroup(const char *tc, const char *params, Player *p, const Target
 
 	if (perm)
 	{
-		time_t tm = time(NULL);
+		time_t _time;
+		struct tm _tm;
 		char info[128];
 
+		time(&_time);
+		alocaltime_r(&_time, &_tm);
 		snprintf(info, sizeof(info), "set by %s on ", p->name);
-		ctime_r(&tm, info + strlen(info));
-		RemoveCRLF(info);
+		strftime(info + strlen(info), sizeof(info) - strlen(info),
+				"%a %b %d %T %Y", &_tm);
 
 		groupman->SetPermGroup(t, params, global, info);
 		chat->SendMessage(p, "%s is now in group %s.",
@@ -1148,7 +1151,8 @@ local void Crmgroup(const char *tc, const char *params, Player *p, const Target 
 	Player *t = target->u.p;
 	char cap[MAXGROUPLEN+16], info[128];
 	const char *grp;
-	time_t tm = time(NULL);
+	struct tm _tm;
+	time_t _time;
 
 	if (target->type != T_PLAYER) return;
 
@@ -1166,9 +1170,12 @@ local void Crmgroup(const char *tc, const char *params, Player *p, const Target 
 	chat->SendMessage(p, "%s has been removed from group %s.", t->name, grp);
 	chat->SendMessage(t, "You have been removed group %s.", grp);
 
+	time(&_time);
+	alocaltime_r(&_time, &_tm);
+
 	snprintf(info, sizeof(info), "set by %s on ", p->name);
-	ctime_r(&tm, info + strlen(info));
-	RemoveCRLF(info);
+	strftime(info + strlen(info), sizeof(info) - strlen(info),
+			"%a %b %d %T %Y", &_tm);
 
 	/* groupman keeps track of the source of the group, so we just have
 	 * to call this. */
@@ -1786,14 +1793,17 @@ local helptext_t setg_help =
 local void Cset_generic(const char *tc, const char *params, Player *p, const Target *target)
 {
 	ConfigHandle ch = strcasecmp(tc, "seta") == 0 ? p->arena->cfg : GLOBAL;
-	time_t tm = time(NULL);
+	time_t _time;
+	struct tm _tm;
 	char info[128], key[MAXSECTIONLEN+MAXKEYLEN+2], *k = key;
 	const char *t = params;
 	int perm = TRUE, colons = 0;
 
+	time(&_time);
+	alocaltime_r(&_time, &_tm);
 	snprintf(info, sizeof(info), "set by %s on ", p->name);
-	ctime_r(&tm, info + strlen(info));
-	RemoveCRLF(info);
+	strftime(info + strlen(info), sizeof(info) - strlen(info),
+			"%a %b %d %T %Y", &_tm);
 
 	if (strncmp(t, "-t", 2) == 0)
 	{
