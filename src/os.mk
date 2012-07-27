@@ -49,7 +49,7 @@ include $(WINDEPS)/system-windeps.mk
 
 run_dlltool = yes
 PTHREAD_LIB = -L$(WINDEPS) -lpthreadGC2 -lwsock32
-ZLIB_LIB = -L$(WINDEPS) -lzdll
+ZLIB_LIB = -L$(WINDEPS) -lzlib1
 SO_LDFLAGS = $(call tobuild,import.imp) $(PTHREAD_LIB)
 EXPORT_SYMBOLS = $(call tobuild,export.exp)
 EXE = .exe
@@ -57,7 +57,7 @@ SO = dll
 W32COMPAT = win32compat
 EXTRA_INCLUDE_DIRS = -I$(WINDEPS)
 EXTRA_INSTALL_FILES = $(WINDEPS)/zlib1.dll $(WINDEPS)/pthreadGC2.dll \
-	$(WINDEPS)/libdb4.dll
+	$(WINDEPS)/libdb-4.8.dll
 
 SYS_NAME := ok
 endif
