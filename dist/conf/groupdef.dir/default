@@ -73,3 +73,12 @@ cmd_packetloss
 cmd_zone
 cmd_find
 
+; new idle commands
+cmd_notavailable
+cmd_nav
+cmd_available
+cmd_av
+cmd_idles
+cmd_actives
+cmd_specactives
+

@@ -6,7 +6,7 @@
 
 /* keeps track of idle time for players */
 
-#define I_IDLE "idle-2"
+#define I_IDLE "idle-2-hz"
 
 typedef struct Iidle
 {
@@ -16,6 +16,8 @@ typedef struct Iidle
 	/* pyint: player -> int */
 	void (*ResetIdle)(Player *p);
 	/* pyint: player -> void */
+	int (*isAvailable)(Player *p);
+	/* pyint: player -> int */
 } Iidle;
 
 #endif
