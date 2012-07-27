@@ -170,7 +170,7 @@ local void p_settingchange(Player *p, byte *pkt, int len)
 	alocaltime_r(&t, &_tm);
 	snprintf(info, 100, "set by %s with ?quickfix on ", p->name);
 	strftime(info + strlen(info), sizeof(info) - strlen(info),
-			"%a %b %d %T %Y", &_tm);
+			"%a %b %d %H:%M:%S %Y", &_tm);
 
 	while ((pos-(char*)pkt) < len)
 	{

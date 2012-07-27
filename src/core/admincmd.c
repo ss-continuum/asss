@@ -225,7 +225,7 @@ local void uploaded(const char *fname, void *clos)
 
 					snprintf(info, 100, "set by %s with ?putmap on ", u->p->name);
 					strftime(info + strlen(info), sizeof(info) - strlen(info),
-							"%a %b %d %T %Y", &_tm);
+							"%a %b %d %H:%M:%S %Y", &_tm);
 					cfg->SetStr(u->p->arena->cfg, u->setting, NULL,
 							u->serverpath, info, TRUE);
 					chat->SendMessage(u->p, "Set %s=%s", u->setting, u->serverpath);

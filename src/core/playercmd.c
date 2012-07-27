@@ -1119,7 +1119,7 @@ local void Csetgroup(const char *tc, const char *params, Player *p, const Target
 		alocaltime_r(&_time, &_tm);
 		snprintf(info, sizeof(info), "set by %s on ", p->name);
 		strftime(info + strlen(info), sizeof(info) - strlen(info),
-				"%a %b %d %T %Y", &_tm);
+				"%a %b %d %H:%M:%S %Y", &_tm);
 
 		groupman->SetPermGroup(t, params, global, info);
 		chat->SendMessage(p, "%s is now in group %s.",
@@ -1175,7 +1175,7 @@ local void Crmgroup(const char *tc, const char *params, Player *p, const Target 
 
 	snprintf(info, sizeof(info), "set by %s on ", p->name);
 	strftime(info + strlen(info), sizeof(info) - strlen(info),
-			"%a %b %d %T %Y", &_tm);
+			"%a %b %d %H:%M:%S %Y", &_tm);
 
 	/* groupman keeps track of the source of the group, so we just have
 	 * to call this. */
@@ -1803,7 +1803,7 @@ local void Cset_generic(const char *tc, const char *params, Player *p, const Tar
 	alocaltime_r(&_time, &_tm);
 	snprintf(info, sizeof(info), "set by %s on ", p->name);
 	strftime(info + strlen(info), sizeof(info) - strlen(info),
-			"%a %b %d %T %Y", &_tm);
+			"%a %b %d %H:%M:%S %Y", &_tm);
 
 	if (strncmp(t, "-t", 2) == 0)
 	{
