@@ -1780,6 +1780,8 @@ void * RelThread(void *dummy)
 
 		pthread_mutex_unlock(&conn->relmtx);
 	}
+
+	return 0; // should never reach this point.
 }
 
 

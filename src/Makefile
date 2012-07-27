@@ -101,8 +101,10 @@ install: $(BINDIR)/.stamp install2
 install2: $(BINS) $(DLS)
 ifeq ($(symlink_bins),yes)
 	$(LN) -sf $(foreach f,$^ $(wildcard */*.py) $(EXTRA_INSTALL_FILES),$(shell $(REALPATH) $(f))) $(BINDIR)
+	@echo "Finished symlinking."
 else
 	$(INSTALL) $^ $(wildcard */*.py) $(EXTRA_INSTALL_FILES) $(BINDIR)
+	@echo "Finished installing."
 endif
 
 clean:
@@ -123,7 +125,7 @@ $(call tobuild, deps.mk) deps: $(builddir) # */*.c */*.h
 	$(PYTHON) $(SCRIPTS)/makedeps.py $(STD_CFLAGS) $(DB_CFLAGS) $(MYSQL_CFLAGS) $(PYTHON_CFLAGS) \
 		*/*.c -P '$$(BUILDDIR)/' -o $(call tobuild, deps.mk)
 
-include $(call tobuild, deps.mk)
+-include $(call tobuild, deps.mk)
 
 
 .PHONY: clean install install2 all deps

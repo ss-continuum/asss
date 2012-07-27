@@ -128,7 +128,7 @@ local void SendMapFilename(Player *p)
 	dls = P_ARENA_DATA(arena, dlkey);
 	if (LLIsEmpty(dls))
 	{
-		lm->LogA(L_WARN, "<mapnewsdl>", arena, "missing map data");
+		lm->LogA(L_WARN, "mapnewsdl", arena, "missing map data");
 		return;
 	}
 

@@ -837,7 +837,7 @@ local void flagTag(Arena *arena, Player *p, int fid, int oldfreq, int freq)
 {
 	TurfArena *ta, **p_ta = P_ARENA_DATA(arena, trkey);
 	int r_freq=-1, r_dings, r_weight, r_pid, r_rec, r_tc, /* flag recover data */
-	    l_freq=-1, l_dings, l_weight, l_pid, l_rec, l_tc; /* flag lost data */
+	    l_freq=-1, l_dings, l_weight, l_rec, l_tc; /* flag lost data */
 	TurfFlag *pTF   = NULL;  /* pointer to turf flag that was tagged */
 	TurfFlagPrevious *oPtr  = NULL; /* pointer to node of linked list holding */
 	                                /* previous owners */
@@ -1006,7 +1006,7 @@ local void flagTag(Arena *arena, Player *p, int fid, int oldfreq, int freq)
 		/* this flag was lost, meaning it was also stolen */
 		DO_CBS(CB_TURFSTEAL, arena, TurfStealFunc, (arena, p, fid));
 		DO_CBS(CB_TURFLOST, arena, TurfLostFunc,
-			(arena, fid, l_pid, l_freq, l_dings, l_weight, l_rec));
+			(arena, fid, 0, l_freq, l_dings, l_weight, l_rec));
 	}
 }
 

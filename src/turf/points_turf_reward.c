@@ -72,7 +72,7 @@ EXPORT int MM_points_turf_reward(int action, Imodman *mm, Arena *arena)
 	}
 	else if (action == MM_UNLOAD)
 	{
-		if (myint.head.refcount)
+		if (myint.head.global_refcount)
 			return MM_FAIL;
 		mm->ReleaseInterface(playerdata);
 		mm->ReleaseInterface(logman);

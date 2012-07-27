@@ -12,6 +12,7 @@
 #include "clientset.h"
 #include "persist.h"
 #include "redirect.h"
+#include "log_file.h"
 
 #include "packets/goarena.h"
 
@@ -197,23 +198,50 @@ local int ProcessArenaStates(void *dummy)
 				break;
 
 			case ARENA_DO_DESTROY2:
-				mm->DetachAllFromArena(a);
-				cfg->CloseConfigFile(a->cfg);
-				a->cfg = NULL;
-				DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_POSTDESTROY));
-
-				if (ad->resurrect)
+				if (mm->DetachAllFromArena(a) == MM_OK)
 				{
-					/* clear all private data on recycle, so it looks to
-					 * modules like it was just created. */
-					memset(a->arenaextradata, 0, perarenaspace);
-					ad->resurrect = FALSE;
-					a->status = ARENA_DO_INIT0;
+					cfg->CloseConfigFile(a->cfg);
+					a->cfg = NULL;
+					DO_CBS(CB_ARENAACTION, a, ArenaActionFunc, (a, AA_POSTDESTROY));
+
+					if (ad->resurrect)
+					{
+						/* clear all private data on recycle, so it looks to
+						 * modules like it was just created. */
+						memset(a->arenaextradata, 0, perarenaspace);
+						ad->resurrect = FALSE;
+						a->status = ARENA_DO_INIT0;
+					}
+					else
+					{
+						LLRemove(&aman->arenalist, a);
+						afree(a);
+					}
 				}
 				else
 				{
-					LLRemove(&aman->arenalist, a);
-					afree(a);
+					Ilog_file *lf = mm->GetInterface(I_LOG_FILE, ALLARENAS);
+					char tempName[sizeof(a->name)];
+					lm->LogA(L_ERROR, "arenaman", a, "failed to detach modules from arena, arena will not be destroyed. check for correct interface releasing.");
+
+					astrncpy(tempName, a->name, sizeof(tempName));
+					if (a->name[0] == '#')
+						snprintf(a->name, sizeof(a->name), "#foopriv%s", tempName+1);
+					else
+						snprintf(a->name, sizeof(a->name), "#foo%s", tempName);
+
+					lm->LogA(L_ERROR, "arenaman", a, "WARNING: the server is no longer in a stable state because of this error. your modules need to be fixed.");
+						
+					if (lf)
+					{
+						lf->FlushLog();
+						mm->ReleaseInterface(lf);
+					}
+					
+					ad->resurrect = FALSE;
+					ad->reap = FALSE;
+					a->keep_alive = 1;
+					a->status = ARENA_RUNNING;
 				}
 
 				break;

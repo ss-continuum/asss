@@ -19,6 +19,7 @@
 #define W_BURST         7
 #define W_THOR          8
 #define W_WORMHOLE      0 /* used in watchdamage packet only */
+#define W_SHRAPNEL     15 /* used in watchdamage packet only */
 
 struct Weapons /* 2 bytes */
 {

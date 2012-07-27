@@ -10,7 +10,7 @@ re_inc = re.compile(r'\s*#include\s+"([^"]+)"\s*')
 def warn(fn, alreadydone={}):
 	if not alreadydone.has_key(fn):
 		alreadydone[fn] = 1
-		print >>sys.stderr, 'makedeps: warning: "%s" not found' % fn
+		# print >>sys.stderr, 'makedeps: warning: "%s" not found' % fn
 
 
 def search(base, paths):
@@ -89,14 +89,16 @@ def main():
 			else:
 				arg = arg[2:]
 			if os.path.isabs(arg):
-				print >>sys.stderr, "makedeps: ignoring option: -I%s" % arg
+				pass
+				# print >>sys.stderr, "makedeps: ignoring option: -I%s" % arg
 			else:
 				paths.append(arg)
 		elif arg.startswith('-P'):
 			prefix = args[i]
 			i += 1
 		elif arg.startswith('-'):
-			print >>sys.stderr, "makedeps: ignoring option: %s" % arg
+			pass
+			# print >>sys.stderr, "makedeps: ignoring option: %s" % arg
 		else:
 			for f in glob.glob(arg):
 				files.append(f)
