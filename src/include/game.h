@@ -35,6 +35,21 @@ typedef void (*KillFunc)(Arena *arena, Player *killer, Player *killed,
 #define CB_KILL_POST_NOTIFY "killpostnotify-2"
 
 
+/** this callback is to be called when a player changes ship or freq.
+ * intended for internal or core use only. no recursive shipchanges should
+ * happen as a result of this callback. */
+#define CB_PRESHIPFREQCHANGE "preshipfreqchange"
+/* the type of CB_PRESHIPFREQCHANGE
+ * @param p the player changing ship or freq
+ * @param newship the player's new ship number
+ * @param oldship the player's old ship number
+ * @param newfreq the player's new frequency
+ * @param oldfreq the player's old frequency
+ */
+typedef void (*PreShipFreqChangeFunc)(Player *p, int newship, int oldship, int newfreq, int oldfreq);
+/* pycb: player, int, int, int, int */
+
+
 /** this callback is to be called when a player changes ship or freq. */
 #define CB_SHIPFREQCHANGE "shipfreqchange"
 /* the type of CB_SHIPFREQCHANGE

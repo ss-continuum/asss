@@ -955,6 +955,8 @@ local void SetShipAndFreq(Player *p, int ship, int freq)
 		chatnet->SendToArena(arena, NULL, "SHIPFREQCHANGE:%s:%d:%d",
 				p->name, p->p_ship, p->p_freq);
 
+	DO_CBS(CB_PRESHIPFREQCHANGE, arena, PreShipFreqChangeFunc,
+			(p, ship, oldship, freq, oldfreq));
 	DO_CBS(CB_SHIPFREQCHANGE, arena, ShipFreqChangeFunc,
 			(p, ship, oldship, freq, oldfreq));
 
@@ -1092,6 +1094,7 @@ local void SetFreq(Player *p, int freq)
 		chatnet->SendToArena(arena, NULL, "SHIPFREQCHANGE:%s:%d:%d",
 				p->name, p->p_ship, p->p_freq);
 
+	DO_CBS(CB_PRESHIPFREQCHANGE, arena, PreShipFreqChangeFunc, (p, p->p_ship, p->p_ship, freq, oldfreq));
 	DO_CBS(CB_SHIPFREQCHANGE, arena, ShipFreqChangeFunc, (p, p->p_ship, p->p_ship, freq, oldfreq));
 
 	lm->LogP(L_INFO, "game", p, "changed freq to %d", freq);

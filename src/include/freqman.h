@@ -62,7 +62,23 @@ typedef struct Aenforcer
 	 * new_freq.
 	 * Only write to err_buf it it's non-null
 	 */
-	int (*CanChangeFreq)(Player *p, int new_freq, char *err_buf, int buf_len);
+	int (*CanChangeToFreq)(Player *p, int new_freq, char *err_buf, int buf_len);
+	
+	/**
+	 * Returns a boolean indicating whether the player may enter the game at all
+	 * This is called before the frequency they are landing on is decided, so
+	 * p->p_freq should not be checked. Is only called if the player is in
+	 * spectator mode.
+	 * Only write to err_buf it it's non-null
+	 */
+	int (*CanEnterGame)(Player *p, char *err_buf, int buf_len);
+
+	/**
+	 * Returns a boolean indicating whether the player can change from his
+	 * current ship/freq or not.
+	 * Only write to err_buf if it's non-null
+	 */
+	 int (*IsUnlocked)(Player *p, char *err_buf, int buf_len);
 } Aenforcer;
 
 /** the interface id for Ifreqman */
