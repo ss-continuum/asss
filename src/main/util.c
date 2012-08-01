@@ -24,6 +24,9 @@
 #include "util.h"
 #include "defs.h"
 
+#ifdef USING_MSVC
+#include "snprintf.c"
+#endif
 
 
 struct HashEntry

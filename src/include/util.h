@@ -20,6 +20,18 @@
 #define ATTR_MALLOC()
 #endif
 
+#ifdef USING_MSVC
+#include <stdarg.h>
+#define vsnprintf rpl_vsnprintf
+#define snprintf rpl_snprintf
+#define vasprintf rpl_vasprintf
+#define asprintf rpl_asprintf
+int rpl_vsnprintf(char *, size_t, const char *, va_list);
+int rpl_snprintf(char *, size_t, const char *, ...);
+int rpl_vasprintf(char **, const char *, va_list);
+int rpl_asprintf(char **, const char *, ...);
+#endif
+
 /** represents a time, either absolute or relative.
  * ticks are 31 bits in size. the value is stored in the lower 31 bits
  * of an unsigned int. don't do arithmatic on these directly, use the
