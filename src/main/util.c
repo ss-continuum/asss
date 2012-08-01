@@ -24,6 +24,9 @@
 #include "util.h"
 #include "defs.h"
 
+#ifdef USING_MSVC
+#include "snprintf.c"
+#endif
 
 
 struct HashEntry
@@ -1213,18 +1216,9 @@ void SBPrintf(StringBuffer *sb, const char *fmt, ...)
 	int len, used, needed;
 
 	/* figure out how long the result is */
-#ifdef BROKEN_VSNPRINTF
-	char buf[1024];
-
-	va_start(args, fmt);
-	vsnprintf(buf, 1024, fmt, args);
-	va_end(args);
-	len = strlen(buf);
-#else
 	va_start(args, fmt);
 	len = vsnprintf(NULL, 0, fmt, args);
 	va_end(args);
-#endif
 
 	/* figure out if we need to reallocate */
 	used = sb->end - sb->start;
@@ -1248,13 +1242,10 @@ void SBPrintf(StringBuffer *sb, const char *fmt, ...)
 	}
 
 	/* now print */
-#ifdef BROKEN_VSNPRINTF
-	memcpy(sb->end, buf, len+1);
-#else
 	va_start(args, fmt);
 	vsnprintf(sb->end, len+1, fmt, args);
 	va_end(args);
-#endif
+
 	sb->end += len;
 }
 

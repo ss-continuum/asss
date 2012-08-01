@@ -152,6 +152,8 @@ local void v_send_msg(LinkedList *set, char type, char sound, Player *from, cons
 	struct ChatPacket *cp = (struct ChatPacket*)_buf;
 
 	size = vsnprintf(cp->text, 250, str, ap) + 6;
+	if (size > 256)
+		size = 256;
 
 	if (type == MSG_MODCHAT)
 		type = MSG_SYSOPWARNING;
@@ -294,6 +296,8 @@ local void SendRemotePrivMessage(LinkedList *set, int sound,
 	if (squad)
 	{
 		size = snprintf(cp->text, 250, "(#%s)(%s)>%s", squad, sender, msg) + 6;
+		if (size > 256)
+			size = 256;
 		if (net) net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
 		if (chatnet)
 			chatnet->SendToSet(set, "MSG:SQUAD:%s:%s:%s", squad, sender, msg);
@@ -301,6 +305,8 @@ local void SendRemotePrivMessage(LinkedList *set, int sound,
 	else
 	{
 		size = snprintf(cp->text, 250, "(%s)>%s", sender, msg) + 6;
+		if (size > 256)
+			size = 256;
 		if (net) net->SendToSet(set, (byte*)cp, size, NET_RELIABLE);
 		if (chatnet)
 			chatnet->SendToSet(set, "MSG:PRIV:%s:%s", sender, msg);

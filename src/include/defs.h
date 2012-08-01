@@ -39,6 +39,33 @@ typedef unsigned char byte;
 
 /* platform-specific stuff */
 
+#if defined(_MSC_VER)
+#define USING_MSVC 1
+
+#define HAVE_STDARG_H 1
+#define HAVE_STDDEF_H 1
+/* #define HAVE_STDINT_H 1 */
+#define HAVE_STDLIB_H 1
+/* #define HAVE_INTTYPES_H 1 */
+#define HAVE_LOCALE_H 1
+#define HAVE_LOCALECONV 1
+#define HAVE_LCONV_DECIMAL_POINT 1
+#define HAVE_LCONV_THOUSANDS_SEP 1
+#define HAVE_LONG_DOUBLE 1
+/*
+#define HAVE_LONG_LONG_INT 1
+#define HAVE_UNSIGNED_LONG_LONG_INT 1
+#define HAVE_INTMAX_T 1
+#define HAVE_UINTMAX_T 1
+#define HAVE_UINTPTR_T 1
+#define HAVE_PTRDIFF_T 1
+*/
+/* 
+#define HAVE_VA_COPY 1
+#define HAVE___VA_COPY 1
+*/
+#endif
+
 #if (defined(_WIN32) || defined(__WIN32__) || defined(__NT__)) && !defined(WIN32)
 #define WIN32 /* for Borland and Watcom */
 #endif
