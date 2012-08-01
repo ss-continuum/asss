@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #ifndef WIN32
 #include <sys/types.h>
@@ -250,6 +251,9 @@ int main(int argc, char *argv[])
 
 	/* seed random number generators */
 	srand(current_ticks());
+
+	/* set the timezone for the crt */
+	tzset();
 
 	ProcessArgs(argc, argv);
 

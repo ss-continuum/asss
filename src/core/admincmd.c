@@ -217,10 +217,15 @@ local void uploaded(const char *fname, void *clos)
 				if (u->p->arena && u->p->arena == u->arena)
 				{
 					char info[128];
-					time_t tm = time(NULL);
+					time_t t;
+					struct tm _tm;
+
+					time(&t);
+					alocaltime_r(&t, &_tm);
+
 					snprintf(info, 100, "set by %s with ?putmap on ", u->p->name);
-					ctime_r(&tm, info + strlen(info));
-					RemoveCRLF(info);
+					strftime(info + strlen(info), sizeof(info) - strlen(info),
+							"%a %b %d %H:%M:%S %Y", &_tm);
 					cfg->SetStr(u->p->arena->cfg, u->setting, NULL,
 							u->serverpath, info, TRUE);
 					chat->SendMessage(u->p, "Set %s=%s", u->setting, u->serverpath);

@@ -73,6 +73,18 @@ void fullsleep(long millis)
 #endif
 }
 
+void alocaltime_r(time_t *t, struct tm *_tm)
+{
+#ifndef WIN32
+	localtime_r(t, _tm);
+#else
+	struct tm *now;
+	/* thread-safe in msvcrt (which mingw links with) */
+	now = localtime(t);
+	memcpy(_tm, now, sizeof(struct tm));
+#endif
+}
+
 
 char *RemoveCRLF(char *p)
 {

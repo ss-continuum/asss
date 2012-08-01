@@ -199,11 +199,14 @@ local void Caddallowed(const char *tc, const char *params, Player *p, const Targ
 		else
 		{
 			char buf[128];
-			time_t tm = time(NULL);
+			time_t _time;
+			struct tm _tm;
 
+			time(&_time);
+			alocaltime_r(&_time, &_tm);
 			snprintf(buf, sizeof(buf), "added by %s on ", p->name);
-			ctime_r(&tm, buf + strlen(buf));
-			RemoveCRLF(buf);
+			strftime(buf + strlen(buf), sizeof(buf) - strlen(buf),
+					"%a %b %d %H:%M:%S %Y", &_tm);
 
 			cfg->SetStr(pwdfile, "users", params, "any", buf, TRUE);
 			chat->SendMessage(p, "Added %s to the allowed player list.", params);
@@ -237,11 +240,15 @@ local void Cset_local_password(const char *tc, const char *params, Player *p, co
 		else
 		{
 			char buf[128];
-			time_t tm = time(NULL);
+			time_t _time;
+			struct tm _tm;
+
+			time(&_time);
+			alocaltime_r(&_time, &_tm);
 
 			snprintf(buf, sizeof(buf), "added by %s on ", p->name);
-			ctime_r(&tm, buf + strlen(buf));
-			RemoveCRLF(buf);
+			strftime(buf + strlen(buf), sizeof(buf) - strlen(buf),
+					"%a %b %d %H:%M:%S %Y", &_tm);
 
 			cfg->SetStr(pwdfile, "users", t->name, pdata->pwhash, buf, TRUE);
 			chat->SendMessage(p, "Set local password for %s.", t->name);

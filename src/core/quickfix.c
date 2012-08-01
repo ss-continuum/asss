@@ -142,7 +142,8 @@ local void p_settingchange(Player *p, byte *pkt, int len)
 {
 	Arena *arena;
 	ConfigHandle ch;
-	time_t tm = time(NULL);
+	time_t t;
+	struct tm _tm;
 	const char *pos = (const char*)pkt + 1;
 	char sec[MAXSECTIONLEN], key[MAXKEYLEN], info[128];
 	int permanent = TRUE;
@@ -165,9 +166,11 @@ local void p_settingchange(Player *p, byte *pkt, int len)
 		return; \
 	}
 
+	time(&t);
+	alocaltime_r(&t, &_tm);
 	snprintf(info, 100, "set by %s with ?quickfix on ", p->name);
-	ctime_r(&tm, info + strlen(info));
-	RemoveCRLF(info);
+	strftime(info + strlen(info), sizeof(info) - strlen(info),
+			"%a %b %d %H:%M:%S %Y", &_tm);
 
 	while ((pos-(char*)pkt) < len)
 	{

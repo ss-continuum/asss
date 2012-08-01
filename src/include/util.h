@@ -11,6 +11,7 @@
 
 /* include for size_t */
 #include <stddef.h>
+#include <time.h>
 
 #ifndef ATTR_FORMAT
 #define ATTR_FORMAT(a,b,c)
@@ -44,6 +45,9 @@ ticks_t current_millis(void);
 
 /** sleep for this many milliseconds, accurately. */
 void fullsleep(long millis);
+
+/** portable localtime_r wrapper */
+void alocaltime_r(time_t *t, struct tm *_tm);
 
 /** strips a trailing CR or LF off the end of a string. this modifies
  ** the string, and returns it. */

@@ -2,7 +2,7 @@
 # like gcc -MM, but stupider, in python, and with a prefix feature.
 # dist: public
 
-import sys, os, glob, re
+import sys, os, glob, re, posixpath as path
 
 re_inc = re.compile(r'\s*#include\s+"([^"]+)"\s*')
 
@@ -15,18 +15,18 @@ def warn(fn, alreadydone={}):
 
 def search(base, paths):
 	for p in paths:
-		fn = os.path.join(p, base)
+		fn = path.join(p, base)
 		if os.access(fn, os.F_OK):
 			return fn
 
 
 def format_deps(out, fn, paths, prefix):
-	root, _ = os.path.splitext(os.path.basename(fn))
+	root, _ = path.splitext(path.basename(fn))
 	ofn = prefix + root + '.o'
 	deps = {}
 
 	def find_deps(fn, deps):
-		dir, base = os.path.split(fn)
+		dir, base = path.split(fn)
 
 		try:
 			lines = file(fn).readlines()
@@ -88,7 +88,7 @@ def main():
 				i += 1
 			else:
 				arg = arg[2:]
-			if os.path.isabs(arg):
+			if path.isabs(arg):
 				pass
 				# print >>sys.stderr, "makedeps: ignoring option: -I%s" % arg
 			else:
