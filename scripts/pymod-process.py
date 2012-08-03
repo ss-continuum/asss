@@ -1789,7 +1789,7 @@ typedef char charbuf[%d];
 lines = []
 for pat in sys.argv[2:]:
 	for f in glob.glob(pat):
-		lines.extend(open(f).readlines())
+		lines.extend(map(lambda l: l.rstrip("\r\n"), open(f).readlines()))
 
 # default constants
 const_string('ASSSVERSION')
