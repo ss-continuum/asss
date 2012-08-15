@@ -42,7 +42,7 @@ local void Initial(Player *p, int *ship, int *freq);
 local void ShipChange(Player *p, int workingShip, char *err_buf, int buf_len);
 local void FreqChange(Player *p, int requestedFreqnum, char *err_buf, int buf_len);
 local int default_GetPlayerMetric(Player *p);
-local int defaut_GetMaxMetric(Arena *arena, int freqnum);
+local int default_GetMaxMetric(Arena *arena, int freqnum);
 local int default_GetMaximumDifference(Arena *arena, int freqnum1, int freqnum2);
 local int CanChangeToFreq(Player *p, int freqnum, char *err_buf, int buf_len);
 local int CanEnterGame(Player *p, char *err_buf, int buf_len);
@@ -68,7 +68,7 @@ local Ibalancer default_balancer_interface =
 {
 	INTERFACE_HEAD_INIT(I_BALANCER, "default-balancer")
 	default_GetPlayerMetric,
-	defaut_GetMaxMetric,
+	default_GetMaxMetric,
 	default_GetMaximumDifference,
 };
 local Aenforcer aenforcer_adviser =
@@ -798,7 +798,7 @@ int default_GetPlayerMetric(Player *p)
 		return 0;
 }
 
-int defaut_GetMaxMetric(Arena *arena, int freqnum)
+int default_GetMaxMetric(Arena *arena, int freqnum)
 {
 	int result = 0;
 	arenadata *ad = arena ? P_ARENA_DATA(arena, arenaDataKey) : NULL;
