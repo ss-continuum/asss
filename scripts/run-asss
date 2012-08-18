@@ -65,7 +65,7 @@ while $CONTINUE; do
   echo "opening log file ==================================" >> $STDERRLOG
   echo "`date '+%Y.%m.%d %H:%M:%S'`" >> $STDERRLOG
   $ASSS $CHROOT 3>&1 1>&2 2>&3 | tee -a $STDERRLOG
-  EXIT=$?
+  EXIT=${PIPESTATUS[0]}
 
   [ -e core ] && mv core core-`date +%m%d%H%M`
 
