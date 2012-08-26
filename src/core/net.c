@@ -839,12 +839,21 @@ int InitSockets(void)
 		lm->Log(L_ERROR, "<net> can't create socket for client connections");
 	else
 	{
+		unsigned short bind_port = 0;
+
 		if (set_nonblock(clientsock) < 0)
 			lm->Log(L_WARN, "<net> can't make socket nonblocking");
 
 		memset(&sin, 0, sizeof(sin));
 		sin.sin_family = AF_INET;
-		sin.sin_port = htons(0);
+
+		/* cfghelp: Net:InternalClientPort, global, string
+		 * The bind port for the internal client socket (used to
+		 * communicate with biller and dirserver).
+		 */
+		bind_port = (unsigned short)cfg->GetInt(GLOBAL, "Net", "InternalClientPort", 0);
+
+		sin.sin_port = htons(bind_port);
 		sin.sin_addr.s_addr = INADDR_ANY;
 		if (bind(clientsock, (struct sockaddr*)&sin, sizeof(sin)) == -1)
 			lm->Log(L_ERROR, "<net> can't bind socket for client connections");
