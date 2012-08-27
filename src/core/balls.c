@@ -760,7 +760,7 @@ void PPickupBall(Player *p, byte *pkt, int len)
 
 	if (bp->ballid >= abd->ballcount)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "tried to pick up a nonexistent ball");
+		logm->LogP(L_WARN, "balls", p, "state sync problem: tried to pick up a nonexistent ball");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -876,7 +876,7 @@ void PFireBall(Player *p, byte *pkt, int len)
 
 	if (bid < 0 || bid >= abd->ballcount)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "tried to fire up a nonexistent ball");
+		logm->LogP(L_WARN, "balls", p, "state sync problem: tried to fire up a nonexistent ball");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -966,7 +966,7 @@ void PGoal(Player *p, byte *pkt, int len)
 
 	if (bid < 0 || bid >= abd->ballcount)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "sent a goal for a nonexistent ball");
+		logm->LogP(L_WARN, "balls", p, "state sync problem: sent a goal for a nonexistent ball");
 		UNLOCK_STATUS(arena);
 		return;
 	}
@@ -989,7 +989,7 @@ void PGoal(Player *p, byte *pkt, int len)
 
 	if (p != bd->carrier)
 	{
-		logm->LogP(L_MALICIOUS, "balls", p, "sent goal for ball he didn't fire");
+		logm->LogP(L_WARN, "balls", p, "state sync problem: sent goal for ball he didn't fire");
 		UNLOCK_STATUS(arena);
 		return;
 	}
