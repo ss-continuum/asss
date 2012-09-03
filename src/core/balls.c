@@ -1020,7 +1020,7 @@ void HandleGoal(Arena *arena, Player *p, int bid, int goalX, int goalY)
 	{
 		if (adviser->BlockBallGoal)
 		{
-			int result = adviser->BlockBallGoal(arena, p, bid, goalX, goalY, bd);
+			int result = adviser->BlockBallGoal(arena, p, bid, goalX, goalY, &newbd);
 			if (result == TRUE)
 			{
 				block = TRUE;
