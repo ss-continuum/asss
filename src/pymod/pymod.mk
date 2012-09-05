@@ -16,6 +16,9 @@ $(call tobuild, py_constants.inc py_callbacks.inc py_interfaces.inc py_types.inc
 
 # special options for pymod.o
 $(call tobuild, pymod.o): CFLAGS += $(PYTHON_CFLAGS)
+ifneq ($(GCC_WITH_CPYCHECKER),)
+$(call tobuild, pymod.o): CC := $(GCC_WITH_CPYCHECKER) -std=gnu99 -pipe --maxtrans 2048
+endif
 
 # dist: public
 

@@ -110,7 +110,35 @@ pthread_mutex_t pymtx;
 
 /* utility functions */
 
-/* FIXME: do error checking */
+local void init_log_py_code(void)
+{
+	PyObject *py_main;
+	const char *runstring =
+		"import traceback" "\n"
+		"def asss_format_exception(e, v=None, tb=None): " "\n\t"
+		"lines = traceback.format_exception(e, v, tb)" "\n\t"
+		"lines = [line.rstrip('\\n') for line in lines]" "\n\t"
+		"return '\\0'.join(lines).replace('\\n', '\\0')"
+		;
+
+	log_code = NULL;
+
+	py_main = PyImport_AddModule("__main__");
+
+	if (NULL == py_main)
+	{
+		lm->Log(L_ERROR, "<pymod> initialization of log code failed. "
+				"error msgs will be limited (check stderr)");
+		return;
+	}
+
+	PyRun_SimpleString(runstring);
+	if (PyErr_Occurred()) PyErr_PrintEx(0);
+
+	log_code = PyObject_GetAttrString(py_main, "asss_format_exception");
+	if (PyErr_Occurred()) PyErr_PrintEx(0);
+}
+
 local void log_py_exception(char lev, const char *msg)
 {
 	PyObject *result, *e, *v, *tb, *args;
@@ -124,16 +152,48 @@ local void log_py_exception(char lev, const char *msg)
 	if (msg)
 		lm->Log(lev, "<pymod> EXC: MSG: %s", msg);
 
-        /* fetching also clears the error */
+	if (NULL == log_code)
+	{
+		PyErr_PrintEx(0);
+		return;
+	}
+
+	/* fetching also clears the error */
 	PyErr_Fetch(&e, &v, &tb);
 	PyErr_NormalizeException(&e, &v, &tb);
 
-	if (!v || !tb)
-		args = Py_BuildValue("(O)", e);
-	else
+	if (v && tb)
+	{
 		args = Py_BuildValue("(OOO)", e, v, tb);
+		result = PyObject_CallObject(log_code, args);
+	}
+	else
+	{
+		PyObject *kw_args = PyDict_New();
+		int kw_fail = 0;
 
-	result = PyObject_CallObject(log_code, args);
+		if (!kw_args) return;
+
+		args = Py_BuildValue("(O)", e);
+
+		if (v)
+		{
+			if (-1 == PyDict_SetItemString(kw_args, "v", v))
+				kw_fail = 1;
+		}
+		if (tb)
+		{
+			if (-1 == PyDict_SetItemString(kw_args, "tb", tb))
+				kw_fail = 1;
+		}
+
+		if (kw_fail)
+			result = PyObject_CallObject(log_code, args);
+		else
+			result = PyObject_Call(log_code, args, kw_args);
+
+		Py_DECREF(kw_args);
+	}
 
 	Py_DECREF(e);
 	Py_XDECREF(v);
@@ -322,6 +382,9 @@ local PyObject * cvt_c2p_target(Target *t)
 		case T_FREQ:
 		{
 			PyObject *obj = PyTuple_New(2);
+			if (NULL == obj)
+				return NULL;
+
 			PyTuple_SET_ITEM(obj, 0, cvt_c2p_arena(t->u.freq.arena));
 			PyTuple_SET_ITEM(obj, 1, PyInt_FromLong(t->u.freq.freq));
 			return obj;
@@ -334,6 +397,9 @@ local PyObject * cvt_c2p_target(Target *t)
 			return cvt_c2p_playerlist(&t->u.list);
 
 		default:
+			PyErr_SetString(PyExc_ValueError,
+					"type tag for target is unknown. "
+					"You probably need to re(compile|load) pymod.so");
 			return NULL;
 	}
 }
@@ -952,7 +1018,7 @@ local PyObject *mthd_playerlist_append(PyObject *self, PyObject *args)
 	PyObject *obj = PyTuple_GetItem(args, 0);
 	PyList_Append((PyObject *)self, obj);
 
-    return Py_None;
+	Py_RETURN_NONE;
 }
 
 local PyObject *mthd_playerlist_insert(PyObject *self, PyObject *args)
@@ -964,7 +1030,7 @@ local PyObject *mthd_playerlist_insert(PyObject *self, PyObject *args)
 	PyObject *obj = PyTuple_GetItem(args, 1);
 	PyList_Insert((PyObject *)self, index, obj);
 
-    return Py_None;
+	Py_RETURN_NONE;
 }
 
 local PyMethodDef player_list_methods[] =
@@ -983,7 +1049,7 @@ local PyTypeObject PlayerListType =
 	"asss.PlayerList",         /*tp_name*/
 	sizeof(PlayerListObject),  /*tp_basicsize*/
 	0,                         /*tp_itemsize*/
-	0, /*tp_dealloc*/
+	0,                         /*tp_dealloc*/
 	0,                         /*tp_print*/
 	0,                         /*tp_getattr*/
 	0,                         /*tp_setattr*/
@@ -999,7 +1065,7 @@ local PyTypeObject PlayerListType =
 	0,                         /*tp_setattro*/
 	0,                         /*tp_as_buffer*/
 	Py_TPFLAGS_DEFAULT |
-      Py_TPFLAGS_BASETYPE,        /*tp_flags*/
+	Py_TPFLAGS_BASETYPE,       /*tp_flags*/
 	"Player list object",      /* tp_doc */
 	0,                         /* tp_traverse */
 	0,                         /* tp_clear */
@@ -1015,7 +1081,7 @@ local PyTypeObject PlayerListType =
 	0,                         /* tp_descr_get */
 	0,                         /* tp_descr_set */
 	0,                         /* tp_dictoffset */
-	0, /* tp_init */
+	0,                         /* tp_init */
 	0,                         /* tp_alloc */
 	0,                         /* tp_new */
 };
@@ -1038,6 +1104,10 @@ typedef struct {
 	PyObject *funcs;
 } pyint_generic_interface;
 
+local PyObject * call_gen_py_interface(const char *iid,
+		const char *method, PyObject *args, Arena *arena)
+/* steals ref to *args */
+CPYCHECKER_STEALS_REFERENCE_TO_ARG(3);
 
 local PyObject * call_gen_py_interface(const char *iid,
 		const char *method, PyObject *args, Arena *arena)
@@ -1060,6 +1130,11 @@ local PyObject * call_gen_py_interface(const char *iid,
 		else
 			PyErr_SetString(PyExc_ValueError, "stale interface object");
 	}
+	else
+	{
+		PyErr_SetString(PyExc_ValueError, "interface invalid or not found");
+	}
+
 	/* do this in common code instead of repeating it for each stub. */
 	Py_DECREF(args);
 	/* the refcount on a python interface struct is meaningless, so
@@ -1079,8 +1154,15 @@ local void py_newplayer(Player *p, int isnew)
 	if (isnew)
 	{
 		d->obj = PyObject_New(PlayerObject, &PlayerType);
-		d->obj->p = p;
-		d->obj->dict = PyDict_New();
+		if (NULL == d->obj)
+		{
+			log_py_exception(L_ERROR, "PyObject_New failed in py_newplayer");
+		}
+		else
+		{
+			d->obj->p = p;
+			d->obj->dict = PyDict_New();
+		}
 	}
 	else
 	{
@@ -1112,8 +1194,15 @@ local void py_aaction(Arena *a, int action)
 	if (action == AA_PRECREATE)
 	{
 		d->obj = PyObject_New(ArenaObject, &ArenaType);
-		d->obj->a = a;
-		d->obj->dict = PyDict_New();
+		if (NULL == d->obj)
+		{
+			log_py_exception(L_ERROR, "PyObject_New failed in pa_aaction");
+		}
+		else
+		{
+			d->obj->a = a;
+			d->obj->dict = PyDict_New();
+		}
 	}
 
 	if (action == AA_POSTDESTROY && d->obj)
@@ -1226,7 +1315,6 @@ local PyObject *mthd_call_callback(PyObject *self, PyObject *args)
 			}
 		}
 
-		Py_DECREF(args);
 		mm->FreeLookupResult(&cbs);
 
 		ret = Py_BuildValue("");
@@ -1256,7 +1344,10 @@ local PyObject *mthd_get_interface(PyObject *self, PyObject *args)
 		if (i)
 		{
 			o = PyObject_New(pyint_generic_interface_object, typeo);
-			o->i = i;
+
+			if (o)
+				o->i = i;
+
 			return (PyObject*)o;
 		}
 		else
@@ -1522,6 +1613,12 @@ local PyObject *mthd_set_timer(PyObject *self, PyObject *args)
 
 local int persistent_data_common(PyObject *args,
 		int *key, int *interval, int *scope, PyObject **funcs)
+/* technically not always true. Callers should
+ * if(!persistent_data_common(...)) return NULL; */
+CPYCHECKER_SETS_EXCEPTION;
+
+local int persistent_data_common(PyObject *args,
+		int *key, int *interval, int *scope, PyObject **funcs)
 {
 	const char *attrs[] = { "get", "set", "clear", NULL };
 	int i;
@@ -1662,6 +1759,7 @@ local void set_player_data(Player *p, void *data, int len, void *v)
 	}
 
 	ret = PyObject_CallMethod(pyppd->funcs, "set", "(O&O)", cvt_c2p_player, p, val);
+	Py_DECREF(val);
 	Py_XDECREF(ret);
 	if (!ret)
 		log_py_exception(L_ERROR, "error in persistent data setter");
@@ -1788,6 +1886,7 @@ local void set_arena_data(Arena *a, void *data, int len, void *v)
 	}
 
 	ret = PyObject_CallMethod(pyapd->funcs, "set", "(O&O)", cvt_c2p_arena, a, val);
+	Py_DECREF(val);
 	Py_XDECREF(ret);
 	if (!ret)
 		log_py_exception(L_ERROR, "error in persistent data setter");
@@ -1979,8 +2078,8 @@ local void init_asss_module(void)
 	if (PyType_Ready(&ArenaType) < 0)
 		return;
 	PlayerListType.tp_base = &PyList_Type;
-    if (PyType_Ready(&PlayerListType) < 0)
-        return;
+	if (PyType_Ready(&PlayerListType) < 0)
+		return;
 
 	if (ready_generated_types() < 0)
 		return;
@@ -1989,6 +2088,9 @@ local void init_asss_module(void)
 	if (m == NULL)
 		return;
 
+        Py_INCREF(&PlayerType);
+        Py_INCREF(&ArenaType);
+        Py_INCREF(&PlayerListType);
 	PyModule_AddObject(m, "PlayerType", (PyObject*)&PlayerType);
 	PyModule_AddObject(m, "ArenaType", (PyObject*)&ArenaType);
 	PyModule_AddObject(m, "PlayerListType", (PyObject*)&PlayerListType);
@@ -2174,31 +2276,14 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 		init_py_callbacks();
 		init_py_interfaces();
 		init_py_commands();
+		init_log_py_code();
 		/* extra init stuff */
+
+		if (persist)
 		{
-			/* FIXME error checking */
-			PyObject *py_main;
-			const char *runstring =
-				"import traceback" "\n"
-				"def asss_format_exception(e, v=None, tb=None): " "\n\t"
-				"lines = traceback.format_exception(e, v, tb)" "\n\t"
-				"lines = [line.rstrip('\\n') for line in lines]" "\n\t"
-				"return '\\0'.join(lines).replace('\\n', '\\0')"
-				;
-
-			py_main = PyImport_AddModule("__main__");
-
-			PyRun_SimpleString(runstring);
-			if (PyErr_Occurred()) PyErr_PrintEx(0);
-
-			log_code = PyObject_GetAttrString(py_main, "asss_format_exception");
-
-			if (persist)
-			{
-				cPickle = PyImport_ImportModule("cPickle");
-				if (!cPickle)
-					log_py_exception(L_ERROR, "can't import cPickle");
-			}
+			cPickle = PyImport_ImportModule("cPickle");
+			if (!cPickle)
+				log_py_exception(L_ERROR, "can't import cPickle");
 		}
 
 		pd->Lock();

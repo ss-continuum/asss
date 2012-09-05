@@ -1682,7 +1682,9 @@ local PyObject * cvt_c2p_%(name)s(void *p)
 	else
 	{
 		struct %(objtype)s *o = PyObject_New(%(objtype)s, &%(typeobj)s);
-		o->data = *(%(ctype)s*)p;
+		if (o)
+			o->data = *(%(ctype)s*)p;
+
 		return (PyObject*)o;
 	}
 }
@@ -1757,6 +1759,7 @@ local void add_type_objects_to_module(PyObject *m)
 {
 """)
 	for n, t in pytype_objects:
+		type_file.write('\tPy_INCREF(&%s);\n' % (t))
 		type_file.write('\tPyModule_AddObject(m, "%s", (PyObject*)&%s);\n' % (n, t))
 	type_file.write("""
 }
