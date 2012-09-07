@@ -3,7 +3,7 @@
 import os
 
 # get deps
-cmd = "cd ../src ; grep '^local I.*\*' *.c | sed 's/\.c:local I/:/' | cut -d' ' -f1"
+cmd = "cd ../src ; grep '^local I.*\*' */*.c | sed 's/\.c:local I/:/' | cut -d' ' -f1"
 file = os.popen(cmd)
 depdata = map(lambda l: l.strip().split(':'), file.readlines())
 

@@ -5,7 +5,7 @@
 # arpc generates stubs for remote invocation of functions in asss
 # modules.
 
-SRCDIR = '/home/d/src/asss/src'
+SRCDIR = '../src/include'
 
 import re
 
