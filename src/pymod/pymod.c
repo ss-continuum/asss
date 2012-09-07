@@ -2088,9 +2088,9 @@ local void init_asss_module(void)
 	if (m == NULL)
 		return;
 
-        Py_INCREF(&PlayerType);
-        Py_INCREF(&ArenaType);
-        Py_INCREF(&PlayerListType);
+	Py_INCREF(&PlayerType);
+	Py_INCREF(&ArenaType);
+	Py_INCREF(&PlayerListType);
 	PyModule_AddObject(m, "PlayerType", (PyObject*)&PlayerType);
 	PyModule_AddObject(m, "ArenaType", (PyObject*)&ArenaType);
 	PyModule_AddObject(m, "PlayerListType", (PyObject*)&PlayerListType);
