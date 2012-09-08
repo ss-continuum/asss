@@ -158,7 +158,7 @@ void LogP(char level, const char *mod, Player *p, const char *format, ...)
 	}
 
 	if (!p)
-		len = snprintf(buf, 256, "%c <%s> [(bad player)] ",
+		len = snprintf(buf, 256, "%c <%s> [(null player)] ",
 				level,
 				mod);
 	else
