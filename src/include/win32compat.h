@@ -73,6 +73,7 @@ struct dirent *readdir(DIR *dir);
 void closedir(DIR *dir);
 
 int inet_aton(const char *cp, struct in_addr *pin);
+const char* inet_ntop(int af, const void* src, char* dst, int cnt);
 
 #endif
 

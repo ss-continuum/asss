@@ -196,13 +196,15 @@ local void init_servers(void)
 			struct hostent *ent = gethostbyname(name);
 			if (ent && ent->h_length == sizeof(sin->sin_addr))
 			{
+				char ipbuf[INET_ADDRSTRLEN];
 				sin = amalloc(sizeof(*sin));
 				sin->sin_family = AF_INET;
 				sin->sin_port = htons(port);
 				memcpy(&sin->sin_addr, ent->h_addr, sizeof(sin->sin_addr));
 				LLAdd(&servers, sin);
+				inet_ntop(AF_INET, &(sin->sin_addr), ipbuf, INET_ADDRSTRLEN);
 				lm->Log(L_INFO, "<directory> using '%s' at %s as a directory server",
-						ent->h_name, inet_ntoa(sin->sin_addr));
+						ent->h_name, ipbuf);
 			}
 		}
 	}

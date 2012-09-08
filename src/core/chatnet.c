@@ -89,6 +89,7 @@ local Player * try_accept(int s)
 {
 	Player *p;
 	sp_conn *cli;
+	char ipbuf[INET_ADDRSTRLEN];
 
 	int a;
 	socklen_t sinsize;
@@ -121,7 +122,8 @@ local Player * try_accept(int s)
 	cli->inbuf = NULL;
 	LLInit(&cli->outbufs);
 
-	astrncpy(p->ipaddr, inet_ntoa(sin.sin_addr), sizeof(p->ipaddr));
+	inet_ntop(AF_INET, &sin.sin_addr, ipbuf, INET_ADDRSTRLEN);
+	astrncpy(p->ipaddr, ipbuf, sizeof(p->ipaddr));
 	astrncpy(p->clientname, "<unknown chat client>", sizeof(p->clientname));
 
 	pd->WriteLock();
@@ -129,7 +131,7 @@ local Player * try_accept(int s)
 	pd->WriteUnlock();
 
 	lm->Log(L_DRIVEL, "<chatnet> [pid=%d] new connection from %s:%i",
-			p->pid, inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
+			p->pid, ipbuf, ntohs(sin.sin_port));
 
 	return p;
 }
@@ -351,10 +353,11 @@ local void SendToArena(Arena *arena, Player *except, const char *line, ...)
 
 local void GetClientStats(Player *p, struct chat_client_stats *stats)
 {
+	char ipbuf[INET_ADDRSTRLEN];
 	sp_conn *cli = PPDATA(p, cdkey);
 	if (!stats || !p) return;
-	/* RACE: inet_ntoa is not thread-safe */
-	astrncpy(stats->ipaddr, inet_ntoa(cli->sin.sin_addr), sizeof(stats->ipaddr));
+	inet_ntop(AF_INET, &(cli->sin.sin_addr), ipbuf, INET_ADDRSTRLEN);
+	astrncpy(stats->ipaddr, ipbuf, sizeof(stats->ipaddr));
 	stats->port = cli->sin.sin_port;
 }
 

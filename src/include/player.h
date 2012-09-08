@@ -216,7 +216,10 @@ struct Player
 	u32 macid, permid;
 	/** a text representation of the ip address the player is connecting
 	 ** from. */
-	char ipaddr[16];
+#ifndef INET_ADDRSTRLEN
+#define INET_ADDRSTRLEN 16
+#endif
+	char ipaddr[INET_ADDRSTRLEN];
 	/** if the player has connected through a port that sets a default
 	 ** arena, that will be stored here. */
 	const char *connectas;

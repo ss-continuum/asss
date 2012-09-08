@@ -733,6 +733,7 @@ int InitSockets(void)
 		ListenData *ld;
 		char secname[] = "Listen#";
 		const char *bindaddr, *connectas;
+		char ipbuf[INET_ADDRSTRLEN];
 
 		secname[6] = i ? i+'0' : 0;
 
@@ -773,8 +774,9 @@ int InitSockets(void)
 
 		if (bind(ld->gamesock, (struct sockaddr *) &sin, sizeof(sin)) == -1)
 		{
+			inet_ntop(AF_INET, &sin.sin_addr, ipbuf, INET_ADDRSTRLEN);
 			lm->Log(L_ERROR, "<net> can't bind socket to %s:%d for Listen%d",
-					inet_ntoa(sin.sin_addr), port, i);
+					ipbuf, port, i);
 			closesocket(ld->gamesock);
 			afree(ld);
 			continue;
@@ -796,8 +798,9 @@ int InitSockets(void)
 
 		if (bind(ld->pingsock, (struct sockaddr *) &sin, sizeof(sin)) == -1)
 		{
+			inet_ntop(AF_INET, &sin.sin_addr, ipbuf, INET_ADDRSTRLEN);
 			lm->Log(L_ERROR, "<net> can't bind socket to %s:%d for Listen%d",
-					inet_ntoa(sin.sin_addr), port+1, i);
+					ipbuf, port+1, i);
 			closesocket(ld->gamesock);
 			closesocket(ld->pingsock);
 			afree(ld);
@@ -829,8 +832,9 @@ int InitSockets(void)
 		if (connectas)
 			HashAdd(listenmap, connectas, ld);
 
+		inet_ntop(AF_INET, &sin.sin_addr, ipbuf, INET_ADDRSTRLEN);
 		lm->Log(L_DRIVEL, "<net> listening on %s:%d (%d)",
-				inet_ntoa(sin.sin_addr), port, i);
+				ipbuf, port, i);
 	}
 
 	/* now grab a socket for the client connections */
@@ -1174,6 +1178,7 @@ local void handle_client_packet(void)
 	struct sockaddr_in sin;
 	Buffer *buf;
 	Link *l;
+	char ipbuf[INET_ADDRSTRLEN];
 
 	buf = GetBuffer();
 	sinsize = sizeof(sin);
@@ -1234,9 +1239,10 @@ local void handle_client_packet(void)
 	pthread_mutex_unlock(&ccmtx);
 
 	FreeBuffer(buf);
+	inet_ntop(AF_INET, &sin.sin_addr, ipbuf, INET_ADDRSTRLEN);
 	lm->Log(L_WARN, "<net> got data on client port "
 			"not from any known connection: %s:%d",
-			inet_ntoa(sin.sin_addr), ntohs(sin.sin_port));
+			ipbuf, ntohs(sin.sin_port));
 }
 
 
@@ -1852,6 +1858,7 @@ Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v
 	Player *p;
 	ConnData *conn;
 	ListenData *ld = v_ld;
+	char ipbuf[INET_ADDRSTRLEN];
 
 	/* certain ports might allow only one or another client */
 	if ((type == T_VIE && !ld->allowvie) ||
@@ -1892,8 +1899,8 @@ Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v
 	p->connectas = ld->connectas;
 
 	/* set ip address in player struct */
-	/* RACE: inet_ntoa is not thread-safe */
-	astrncpy(p->ipaddr, inet_ntoa(sin->sin_addr), sizeof(p->ipaddr));
+	inet_ntop(AF_INET, &(sin->sin_addr), ipbuf, INET_ADDRSTRLEN);
+	astrncpy(p->ipaddr, ipbuf, sizeof(p->ipaddr));
 
 	if (type == T_VIE)
 		astrncpy(p->clientname, "<ss/vie client>", sizeof(p->clientname));
@@ -1922,8 +1929,11 @@ Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v
 	pd->WriteUnlock();
 
 	if (sin)
+	{
+		inet_ntop(AF_INET, &(sin->sin_addr), ipbuf, INET_ADDRSTRLEN);
 		lm->Log(L_DRIVEL,"<net> [pid=%d] new connection from %s:%i",
-				p->pid, inet_ntoa(sin->sin_addr), ntohs(sin->sin_port));
+				p->pid, ipbuf, ntohs(sin->sin_port));
+	}
 	else
 		lm->Log(L_DRIVEL,"<net> [pid=%d] new internal connection", p->pid);
 
@@ -2643,6 +2653,7 @@ void GetStats(struct net_stats *stats)
 void GetClientStats(Player *p, struct net_client_stats *stats)
 {
 	ConnData *conn = PPDATA(p, connkey);
+	char ipbuf[INET_ADDRSTRLEN];
 
 	if (!stats || !p) return;
 
@@ -2657,8 +2668,9 @@ void GetClientStats(Player *p, struct net_client_stats *stats)
 	else
 		stats->encname = "none";
 	stats->unused1 = 0;
-	/* RACE: inet_ntoa is not thread-safe */
-	astrncpy(stats->ipaddr, inet_ntoa(conn->sin.sin_addr), sizeof(stats->ipaddr));
+
+	inet_ntop(AF_INET, &conn->sin.sin_addr, ipbuf, INET_ADDRSTRLEN);
+	astrncpy(stats->ipaddr, ipbuf, sizeof(stats->ipaddr));
 	stats->port = conn->sin.sin_port;
 	memset(stats->bwlimitinfo, 0, sizeof(stats->bwlimitinfo));
 	bwlimit->GetInfo(conn->bw, stats->bwlimitinfo, sizeof(stats->bwlimitinfo));
