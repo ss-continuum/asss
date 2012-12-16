@@ -6,7 +6,7 @@
 
 /* prototypes */
 
-local void MyKillFunc(Arena *, Player *, Player *, int, int, int *, int *);
+local void MyKillPoints(Arena *, Player *, Player *, int, int, int *);
 
 /* global data */
 
@@ -15,6 +15,14 @@ local Iplayerdata *pd;
 local Iarenaman *aman;
 local Iconfig *cfg;
 local Iflagcore *flagcore;
+
+static Akill killadv = 
+{
+	ADVISER_HEAD_INIT(A_KILL)
+	
+	MyKillPoints,
+	NULL,
+};
 
 EXPORT const char info_points_kill[] = CORE_MOD_INFO("points_kill");
 
@@ -40,20 +48,19 @@ EXPORT int MM_points_kill(int action, Imodman *mm_, Arena *arena)
 	}
 	else if (action == MM_ATTACH)
 	{
-		mm->RegCallback(CB_KILL, MyKillFunc, arena);
+		mm->RegAdviser(&killadv, arena);
 		return MM_OK;
 	}
 	else if (action == MM_DETACH)
 	{
-		mm->UnregCallback(CB_KILL, MyKillFunc, arena);
+		mm->UnregAdviser(&killadv, arena);
 		return MM_OK;
 	}
 	return MM_FAIL;
 }
 
 
-void MyKillFunc(Arena *arena, Player *killer, Player *killed,
-		int bounty, int transflags, int *totalpts, int *green)
+local int MyKillPoints(Arena *arena, Player *killer, Player *killed, int bounty, int transflags)
 {
 	int tk, fixedreward, pts;
 
@@ -104,6 +111,6 @@ void MyKillFunc(Arena *arena, Player *killer, Player *killed,
 	    !cfg->GetInt(arena->cfg, "Misc", "TeamKillPoints", 0))
 		pts = 0;
 
-	*totalpts += pts;
+	return pts;
 }
 

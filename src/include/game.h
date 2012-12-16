@@ -21,19 +21,67 @@
  * @param bounty the number displayed in the kill message (not
  * necessarily equal to the killed->position.bounty)
  * @param flags the number of flags the killed player was carrying
- * @param pts a pointer to the total number of points this kill will be
- * worth. callbacks can do "*pts += x" to add points.
- * @param green a pointer to the kill green that will be placed for this
- * death
+ * @param pts a pointer to the total number of points this kill was worth.
+ * NOTE: pts should not be altered. Use the kill adviser for changing 
+ * the points from a kill.
+ * @param green a pointer to the the kill green that was placed for this death.
+ * NOTE: green should not be altered. Use the killgreen interface for selecting 
+ * the kill green.
  */
 typedef void (*KillFunc)(Arena *arena, Player *killer, Player *killed,
 		int bounty, int flags, int *pts, int *green);
 /* pycb: arena, player, player, int, int, int inout, int inout */
 
-/** this is called when a kill occurs, after the kill notification has
- ** been sent to clients. in general, you shouldn't need to use this. */
-#define CB_KILL_POST_NOTIFY "killpostnotify-2"
 
+#define I_KILL_GREEN "kill-green-1"
+
+/** implement this interface to determine greens given out to players after death */
+typedef struct Ikillgreen
+{
+	INTERFACE_HEAD_DECL
+	/* pyint: use */
+	
+	/** This function should return the green to be used in the kill packet
+	 * @param arena the arena the kill took place in
+	 * @param killer the player who made the kill
+	 * @param killed the player who got killed
+	 * @param bounty the number displayed in the kill message
+	 * @param flags the number of flags the killed player was carrying
+	 * @param pts The total number of points this kill was worth
+	 * @param green The default kill green
+	 */
+	int (*KillGreen)(Arena *arena, Player *killer, Player *killed, int bounty, int flags, int pts, int green);
+	/* pyint: arena, player, player, int, int, int, int -> int */
+} Ikillgreen;
+
+#define A_KILL "kill-2"
+typedef struct Akill
+{
+	ADVISER_HEAD_DECL
+
+	/** Modifies the amount of points a player will receive for making a kill.
+	 * This function should return the number of points to be added to the total
+	 *
+	 * @param arena the arena the kill took place in
+	 * @param killer the player who made the kill
+	 * @param killed the player who got killed
+	 * @param bounty the number displayed in the kill message 
+	 * @param flags the number of flags the killed player was carrying
+	 */
+	int (*KillPoints)(Arena *arena, Player *killer, Player *killed, int bounty, int flags);
+
+	/** Modifies a player's death packet before it is sent out.
+	 *  killer may be set to NULL to drop the death packet
+	 *  Make sure the killer is in the same arena.
+	 *
+	 * @param arena the arena the kill took place in
+	 * @param killer the player who made the kill
+	 * @param killed the player who got killed
+	 * @param bounty the number displayed in the kill message
+	 */
+	void (*EditDeath)(Arena *arena, Player **killer, Player **killed, int *bounty);
+	
+} Akill;
 
 /** this callback is to be called when a player changes ship or freq.
  * intended for internal or core use only. no recursive shipchanges should

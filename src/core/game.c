@@ -260,6 +260,7 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 	struct S2CPosition sendpos;
 	LinkedList advisers = LL_INITIALIZER;
 	Appk *ppkadviser;
+	int drop;
 
 #ifdef CFG_RELAX_LENGTH_CHECKS
 	if (len < 22)
@@ -399,6 +400,13 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 			if (ppkadviser->EditPPK)
 			{
 				ppkadviser->EditPPK(p, pos);
+				
+				// allow advisers to drop the position packet
+				if (pos->x == -1 && pos->y == -1)
+				{
+					mm->ReleaseAdviserList(&advisers);
+					return;
+				}
 			}
 		}
 		/* NOTE: the adviser list is released at the end of the function */
@@ -537,6 +545,8 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 						memcpy(&copy, pos, sizeof(struct C2SPosition));
 						modified = 0;
 					}
+					drop = 0;
+					
 					/* consult the ppk advisers to allow other modules to edit the
 					 * packet going to player i */
 					FOR_EACH(&advisers, ppkadviser, alink)
@@ -544,72 +554,82 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 						if (ppkadviser->EditIndividualPPK)
 						{
 							modified |= ppkadviser->EditIndividualPPK(p, i, &copy, &extralen);
+							
+							// allow advisers to drop the packet
+							if (copy.x == -1 && copy.y == -1) 
+							{
+								drop = 1;
+								break;
+							}
 						}
 					}
 					wpndirty = wpndirty || modified;
 					posdirty = posdirty || modified;
 
-					if ((!modified && sendwpn)
-						|| copy.weapon.type > 0
-						|| copy.bounty & 0xFF00
-						|| p->pid & 0xFF00)
+					if (!drop)
 					{
-						int length = sizeof(struct S2CWeapons) - sizeof(struct ExtraPosData) + extralen;
-						if (wpndirty)
+						if ((!modified && sendwpn)
+							|| copy.weapon.type > 0
+							|| copy.bounty & 0xFF00
+							|| p->pid & 0xFF00)
 						{
-							wpn.type = S2C_WEAPON;
-							wpn.rotation = copy.rotation;
-							wpn.time = gtc & 0xFFFF;
-							wpn.x = copy.x;
-							wpn.yspeed = copy.yspeed;
-							wpn.playerid = p->pid;
-							wpn.xspeed = copy.xspeed;
-							wpn.checksum = 0;
-							wpn.status = copy.status;
-							wpn.c2slatency = (u8)latency;
-							wpn.y = copy.y;
-							wpn.bounty = copy.bounty;
-							wpn.weapon = copy.weapon;
-							wpn.extra = copy.extra;
-							/* move this field from the main packet to the extra data,
-							 * in case they don't match. */
-							wpn.extra.energy = copy.energy;
-
-							wpndirty = modified;
-
-							DoWeaponChecksum(&wpn);
+							int length = sizeof(struct S2CWeapons) - sizeof(struct ExtraPosData) + extralen;
+							if (wpndirty)
+							{
+								wpn.type = S2C_WEAPON;
+								wpn.rotation = copy.rotation;
+								wpn.time = gtc & 0xFFFF;
+								wpn.x = copy.x;
+								wpn.yspeed = copy.yspeed;
+								wpn.playerid = p->pid;
+								wpn.xspeed = copy.xspeed;
+								wpn.checksum = 0;
+								wpn.status = copy.status;
+								wpn.c2slatency = (u8)latency;
+								wpn.y = copy.y;
+								wpn.bounty = copy.bounty;
+								wpn.weapon = copy.weapon;
+								wpn.extra = copy.extra;
+								/* move this field from the main packet to the extra data,
+								 * in case they don't match. */
+								wpn.extra.energy = copy.energy;
+	
+								wpndirty = modified;
+	
+								DoWeaponChecksum(&wpn);
+							}
+	
+							if (wpn.weapon.type)
+								idata->wpnsent++;
+	
+							net->SendToOne(i, (byte*)&wpn, length, nflags);
 						}
-
-						if (wpn.weapon.type)
-							idata->wpnsent++;
-
-						net->SendToOne(i, (byte*)&wpn, length, nflags);
-					}
-					else
-					{
-						int length = sizeof(struct S2CPosition) - sizeof(struct ExtraPosData) + extralen;
-						if (posdirty)
+						else
 						{
-							sendpos.type = S2C_POSITION;
-							sendpos.rotation = copy.rotation;
-							sendpos.time = gtc & 0xFFFF;
-							sendpos.x = copy.x;
-							sendpos.c2slatency = (u8)latency;
-							sendpos.bounty = (u8)copy.bounty;
-							sendpos.playerid = (u8)p->pid;
-							sendpos.status = copy.status;
-							sendpos.yspeed = copy.yspeed;
-							sendpos.y = copy.y;
-							sendpos.xspeed = copy.xspeed;
-							sendpos.extra = copy.extra;
-							/* move this field from the main packet to the extra data,
-							 * in case they don't match. */
-							sendpos.extra.energy = copy.energy;
-
-							posdirty = modified;
+							int length = sizeof(struct S2CPosition) - sizeof(struct ExtraPosData) + extralen;
+							if (posdirty)
+							{
+								sendpos.type = S2C_POSITION;
+								sendpos.rotation = copy.rotation;
+								sendpos.time = gtc & 0xFFFF;
+								sendpos.x = copy.x;
+								sendpos.c2slatency = (u8)latency;
+								sendpos.bounty = (u8)copy.bounty;
+								sendpos.playerid = (u8)p->pid;
+								sendpos.status = copy.status;
+								sendpos.yspeed = copy.yspeed;
+								sendpos.y = copy.y;
+								sendpos.xspeed = copy.xspeed;
+								sendpos.extra = copy.extra;
+								/* move this field from the main packet to the extra data,
+								 * in case they don't match. */
+								sendpos.extra.energy = copy.energy;
+	
+								posdirty = modified;
+							}
+	
+							net->SendToOne(i, (byte*)&sendpos, length, nflags);
 						}
-
-						net->SendToOne(i, (byte*)&sendpos, length, nflags);
 					}
 				}
 			}
@@ -1178,6 +1198,10 @@ local void PDie(Player *p, byte *pkt, int len)
 	int enterdelay;
 	Arena *arena = p->arena;
 	Player *killer;
+	LinkedList advisers = LL_INITIALIZER;
+	Link *alink;
+	Akill *killAdviser;
+	Ikillgreen *killgreen;
 	ticks_t ct = current_ticks();
 
 	if (len != 5)
@@ -1213,6 +1237,37 @@ local void PDie(Player *p, byte *pkt, int len)
 	p->next_respawn = TICK_MAKE(ct + enterdelay);
 	pd->Unlock();
 
+	/* Consult the advisers after setting the above flags, the flags reflect the real state of the player */
+	mm->GetAdviserList(A_KILL, arena, &advisers);
+	FOR_EACH(&advisers, killAdviser, alink)
+	{
+		if (killAdviser->EditDeath)
+		{
+			killAdviser->EditDeath(arena, &killer, &p, &bty);
+			
+			if (!p || !killer) // The advisor wants to drop the kill packet
+			{
+				mm->ReleaseAdviserList(&advisers);
+				return;
+			}
+			
+			if (p->status != S_PLAYING || p->arena != arena)
+			{
+				lm->LogP(L_ERROR, "game", p, "An A_KILL adviser set killed to a bad player");
+				mm->ReleaseAdviserList(&advisers);
+				return;
+			}
+			
+			if (killer->status != S_PLAYING || killer->arena != arena)
+			{
+				lm->LogP(L_ERROR, "game", p, "An A_KILL adviser set killer to a bad player");
+				mm->ReleaseAdviserList(&advisers);
+				return;
+			}
+		}
+	}
+
+
 	/* pick the green */
 	/* cfghelp: Prize:UseTeamkillPrize, arena, int, def: 0
 	 * Whether to use a special prize for teamkills.
@@ -1233,9 +1288,22 @@ local void PDie(Player *p, byte *pkt, int len)
 	}
 
 	/* this will figure out how many points to send in the packet */
-	DO_CBS(CB_KILL, arena, KillFunc,
-			(arena, killer, p, bty, flagcount, &pts, &green));
-
+	FOR_EACH(&advisers, killAdviser, alink)
+	{
+		if (killAdviser->KillPoints)
+		{
+			pts += killAdviser->KillPoints(arena, killer, p, bty, flagcount);
+		}
+	}
+	
+	/* allow a module to modify the green sent in the packet */
+	killgreen = mm->GetInterface(I_KILL_GREEN, arena);
+	if (killgreen)
+	{
+		green = killgreen->KillGreen(arena, killer, p, bty, flagcount, pts, green);
+	}
+	mm->ReleaseInterface(killgreen);
+	
 	/* record the kill points on our side */
 	if (pts)
 	{
@@ -1246,8 +1314,8 @@ local void PDie(Player *p, byte *pkt, int len)
 
 	notify_kill(killer, p, pts, flagcount, green);
 
-	DO_CBS(CB_KILL_POST_NOTIFY, arena, KillFunc,
-			(arena, killer, p, bty, flagcount, &pts, &green));
+	DO_CBS(CB_KILL, arena, KillFunc,
+	                (arena, killer, p, bty, flagcount, &pts, &green));
 
 	lm->Log(L_INFO, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d,pts=%d)",
 			arena->name,
@@ -1270,6 +1338,8 @@ local void PDie(Player *p, byte *pkt, int len)
 
 	/* reset this so we can accurately check deaths without firing */
 	p->flags.sent_wpn = 0;
+
+	mm->ReleaseAdviserList(&advisers);
 }
 
 local void FakeKill(Player *killer, Player *killed, int pts, int flags)
