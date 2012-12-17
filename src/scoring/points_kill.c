@@ -6,7 +6,7 @@
 
 /* prototypes */
 
-local void MyKillPoints(Arena *, Player *, Player *, int, int, int *);
+local int MyKillPoints(Arena *, Player *, Player *, int, int);
 
 /* global data */
 
