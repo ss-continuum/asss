@@ -172,6 +172,7 @@ typedef struct Igroupman
 #define CAP_SEE_ALL_STAFF         "seeallstaff"
 /** if a player always forces a change with setship or setfreq instead of going by the arena freqman */
 #define CAP_FORCE_SHIPFREQCHANGE  "forceshipfreqchange"
-
+/** if a player is excluded from the population count (useful for bots) */
+#define CAP_EXCLUDE_POPULATION    "excludepopulation"
 #endif
 
