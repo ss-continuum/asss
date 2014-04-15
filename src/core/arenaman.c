@@ -980,6 +980,7 @@ local void GetPopulationSummary(int *totalp, int *playingp)
 	Arena *a;
 	Player *p;
 	int total = 0, playing = 0;
+	Icapman *capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 
 	FOR_EACH_ARENA(a)
 		a->playing = a->total = 0;
@@ -989,7 +990,8 @@ local void GetPopulationSummary(int *totalp, int *playingp)
 	FOR_EACH_PLAYER(p)
 		if (p->status == S_PLAYING &&
 		    p->type != T_FAKE &&
-		    p->arena)
+		    p->arena &&
+		    (!capman || !capman->HasCapability(p, CAP_EXCLUDE_POPULATION)))
 		{
 			total++;
 			p->arena->total++;
@@ -1003,6 +1005,8 @@ local void GetPopulationSummary(int *totalp, int *playingp)
 
 	if (totalp) *totalp = total;
 	if (playingp) *playingp = playing;
+	
+	mm->ReleaseInterface(capman);
 }
 
 
