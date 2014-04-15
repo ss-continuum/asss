@@ -108,6 +108,47 @@ pthread_mutex_t pymtx;
 #define LOCK() pthread_mutex_lock(&pymtx)
 #define UNLOCK() pthread_mutex_unlock(&pymtx)
 
+// Python threading
+local pthread_t main_thread; // the thread that initialized python
+local long long gil_main_lock_count = 0;
+local PyThreadState *gil_main_threadstate = NULL;
+#define NEEDS_GIL PyGILState_STATE gstate; int gil_main_lock
+// ALL Python API calls must be within this lock
+// (Recursive calls are okay)
+// Locking order: GI_LOCK first, after that LOCK() or aman/pd->Lock()
+#define GI_LOCK() do { \
+	if (pthread_equal(main_thread, pthread_self())) \
+	{ \
+		++gil_main_lock_count; \
+		if (gil_main_lock_count == 1) \
+		{ \
+			PyEval_RestoreThread(gil_main_threadstate); \
+			gil_main_threadstate = NULL; \
+		} \
+		gil_main_lock = 1; \
+	} \
+	else \
+	{ \
+		gstate = PyGILState_Ensure(); \
+		gil_main_lock = 0; \
+	} \
+} while (0)
+
+#define GI_UNLOCK() do { \
+	if (gil_main_lock) \
+	{ \
+		--gil_main_lock_count; \
+		if (gil_main_lock_count == 0) \
+		{ \
+			gil_main_threadstate = PyEval_SaveThread(); \
+		} \
+	} \
+	else \
+	{ \
+		PyGILState_Release(gstate); \
+	} \
+} while (0)
+
 /* utility functions */
 
 local void init_log_py_code(void)
@@ -1150,7 +1191,10 @@ local PyObject * call_gen_py_interface(const char *iid,
 
 local void py_newplayer(Player *p, int isnew)
 {
+	NEEDS_GIL;
 	pdata *d = PPDATA(p, pdkey);
+	
+	GI_LOCK();
 	if (isnew)
 	{
 		d->obj = PyObject_New(PlayerObject, &PlayerType);
@@ -1184,12 +1228,16 @@ local void py_newplayer(Player *p, int isnew)
 		Py_DECREF(d->obj);
 		d->obj = NULL;
 	}
+	GI_UNLOCK();
 }
 
 
 local void py_aaction(Arena *a, int action)
 {
+	NEEDS_GIL;
 	adata *d = P_ARENA_DATA(a, adkey);
+	
+	GI_LOCK();
 
 	if (action == AA_PRECREATE)
 	{
@@ -1220,6 +1268,8 @@ local void py_aaction(Arena *a, int action)
 		Py_DECREF(d->obj);
 		d->obj = NULL;
 	}
+	
+	GI_UNLOCK();
 }
 
 
@@ -1464,9 +1514,12 @@ local void deinit_py_commands(void)
 
 local void pycmd_command(const char *tc, const char *params, Player *p, const Target *t)
 {
+	NEEDS_GIL;
 	PyObject *args;
 	LinkedList cmds = LL_INITIALIZER;
 	Link *l;
+	
+	GI_LOCK();
 
 	args = Py_BuildValue("ssO&O&",
 			tc,
@@ -1491,6 +1544,8 @@ local void pycmd_command(const char *tc, const char *params, Player *p, const Ta
 		}
 		Py_DECREF(args);
 	}
+	
+	GI_UNLOCK();
 }
 
 struct pycmd_ticket
@@ -1554,19 +1609,24 @@ local PyObject *mthd_add_command(PyObject *self, PyObject *args)
 
 local int pytmr_timer(void *v)
 {
+	NEEDS_GIL;
 	PyObject *func = v, *ret;
 	int goagain;
 
+	GI_LOCK();
+	
 	ret = PyObject_CallFunction(func, NULL);
 	if (!ret)
 	{
 		log_py_exception(L_ERROR, "error in python timer function");
+		GI_UNLOCK();
 		return FALSE;
 	}
 
 	goagain = ret == Py_None || PyObject_IsTrue(ret);
 	Py_DECREF(ret);
 
+	GI_UNLOCK();
 	return goagain;
 }
 
@@ -1696,20 +1756,24 @@ struct pypersist_ppd
 
 local int get_player_data(Player *p, void *data, int len, void *v)
 {
+	NEEDS_GIL;
 	struct pypersist_ppd *pyppd = v;
 	PyObject *val, *pkl;
 	const void *pkldata;
 	Py_ssize_t pkllen;
 
+	GI_LOCK();
 	val = PyObject_CallMethod(pyppd->funcs, "get", "(O&)", cvt_c2p_player, p);
 	if (!val)
 	{
 		log_py_exception(L_ERROR, "error in persistent data getter");
+		GI_UNLOCK();
 		return 0;
 	}
 	else if (val == Py_None)
 	{
 		Py_DECREF(val);
+		GI_UNLOCK();
 		return 0;
 	}
 
@@ -1718,6 +1782,7 @@ local int get_player_data(Player *p, void *data, int len, void *v)
 	if (!pkl)
 	{
 		log_py_exception(L_ERROR, "error pickling persistent data");
+		GI_UNLOCK();
 		return 0;
 	}
 
@@ -1725,6 +1790,7 @@ local int get_player_data(Player *p, void *data, int len, void *v)
 	{
 		Py_DECREF(pkl);
 		lm->Log(L_ERROR, "<pymod> pickle result isn't buffer");
+		GI_UNLOCK();
 		return 0;
 	}
 
@@ -1734,6 +1800,7 @@ local int get_player_data(Player *p, void *data, int len, void *v)
 		lm->Log(L_WARN, "<pymod> persistent data getter returned more "
 				"than %lu bytes of data (%d allowed)",
 				(unsigned long)pkllen, len);
+		GI_UNLOCK();
 		return 0;
 	}
 
@@ -1741,13 +1808,17 @@ local int get_player_data(Player *p, void *data, int len, void *v)
 
 	Py_DECREF(pkl);
 
+	GI_UNLOCK();
 	return pkllen;
 }
 
 local void set_player_data(Player *p, void *data, int len, void *v)
 {
+	NEEDS_GIL;
 	struct pypersist_ppd *pyppd = v;
 	PyObject *buf, *val, *ret;
+
+	GI_LOCK();
 
 	buf = PyString_FromStringAndSize(data, len);
 	val = PyObject_CallMethod(cPickle, "loads", "(O)", buf);
@@ -1755,6 +1826,7 @@ local void set_player_data(Player *p, void *data, int len, void *v)
 	if (!val)
 	{
 		log_py_exception(L_ERROR, "can't unpickle persistent data");
+		GI_UNLOCK();
 		return;
 	}
 
@@ -1763,17 +1835,22 @@ local void set_player_data(Player *p, void *data, int len, void *v)
 	Py_XDECREF(ret);
 	if (!ret)
 		log_py_exception(L_ERROR, "error in persistent data setter");
+	
+	GI_UNLOCK();
 }
 
 local void clear_player_data(Player *p, void *v)
 {
+	NEEDS_GIL;
 	struct pypersist_ppd *pyppd = v;
 	PyObject *ret;
 
+	GI_LOCK();
 	ret = PyObject_CallMethod(pyppd->funcs, "clear", "(O&)", cvt_c2p_player, p);
 	Py_XDECREF(ret);
 	if (!ret)
 		log_py_exception(L_ERROR, "error in persistent data clearer");
+	GI_UNLOCK();
 }
 
 
@@ -1823,20 +1900,25 @@ struct pypersist_apd
 
 local int get_arena_data(Arena *a, void *data, int len, void *v)
 {
+	NEEDS_GIL;
 	struct pypersist_apd *pyapd = v;
 	PyObject *val, *pkl;
 	const void *pkldata;
 	Py_ssize_t pkllen;
 
+	GI_LOCK();
+
 	val = PyObject_CallMethod(pyapd->funcs, "get", "(O&)", cvt_c2p_arena, a);
 	if (!val)
 	{
 		log_py_exception(L_ERROR, "error in persistent data getter");
+		GI_UNLOCK();
 		return 0;
 	}
 	else if (val == Py_None)
 	{
 		Py_DECREF(val);
+		GI_UNLOCK();
 		return 0;
 	}
 
@@ -1845,6 +1927,7 @@ local int get_arena_data(Arena *a, void *data, int len, void *v)
 	if (!pkl)
 	{
 		log_py_exception(L_ERROR, "error pickling persistent data");
+		GI_UNLOCK();
 		return 0;
 	}
 
@@ -1852,6 +1935,7 @@ local int get_arena_data(Arena *a, void *data, int len, void *v)
 	{
 		Py_DECREF(pkl);
 		lm->Log(L_ERROR, "<pymod> pickle result isn't buffer");
+		GI_UNLOCK();
 		return 0;
 	}
 
@@ -1861,6 +1945,7 @@ local int get_arena_data(Arena *a, void *data, int len, void *v)
 		lm->Log(L_WARN, "<pymod> persistent data getter returned more "
 				"than %lu bytes of data (%d allowed)",
 				(unsigned long)pkllen, len);
+		GI_UNLOCK();
 		return 0;
 	}
 
@@ -1868,20 +1953,24 @@ local int get_arena_data(Arena *a, void *data, int len, void *v)
 
 	Py_DECREF(pkl);
 
+	GI_UNLOCK();
 	return pkllen;
 }
 
 local void set_arena_data(Arena *a, void *data, int len, void *v)
 {
+	NEEDS_GIL;
 	struct pypersist_apd *pyapd = v;
 	PyObject *buf, *val, *ret;
 
+	GI_LOCK();
 	buf = PyString_FromStringAndSize(data, len);
 	val = PyObject_CallMethod(cPickle, "loads", "(O)", buf);
 	Py_XDECREF(buf);
 	if (!val)
 	{
 		log_py_exception(L_ERROR, "can't unpickle persistent data");
+		GI_UNLOCK();
 		return;
 	}
 
@@ -1890,17 +1979,21 @@ local void set_arena_data(Arena *a, void *data, int len, void *v)
 	Py_XDECREF(ret);
 	if (!ret)
 		log_py_exception(L_ERROR, "error in persistent data setter");
+	GI_UNLOCK();
 }
 
 local void clear_arena_data(Arena *a, void *v)
 {
+	NEEDS_GIL;
 	struct pypersist_apd *pyapd = v;
 	PyObject *ret;
 
+	GI_LOCK();
 	ret = PyObject_CallMethod(pyapd->funcs, "clear", "(O&)", cvt_c2p_arena, a);
 	Py_XDECREF(ret);
 	if (!ret)
 		log_py_exception(L_ERROR, "error in persistent data clearer");
+	GI_UNLOCK();
 }
 
 
@@ -2190,27 +2283,45 @@ local int call_maybe_with_arena(PyObject *mod, const char *funcname, Arena *a)
 
 local int pyloader(int action, mod_args_t *args, const char *line, Arena *arena)
 {
+	NEEDS_GIL;
+	int r;
+	
+	GI_LOCK();
+	
 	switch (action)
 	{
 		case MM_LOAD:
-			return load_py_module(args, line);
+			r = load_py_module(args, line);
+			GI_UNLOCK();
+			return r;
 
 		case MM_UNLOAD:
-			return unload_py_module(args);
+			r = unload_py_module(args);
+			GI_UNLOCK();
+			return r;
 
 		case MM_ATTACH:
-			return call_maybe_with_arena(args->privdata, "mm_attach", arena);
+			r = call_maybe_with_arena(args->privdata, "mm_attach", arena);
+			GI_UNLOCK();
+			return r;
 
 		case MM_DETACH:
-			return call_maybe_with_arena(args->privdata, "mm_detach", arena);
+			r = call_maybe_with_arena(args->privdata, "mm_detach", arena);
+			GI_UNLOCK();
+			return r;
 
 		case MM_POSTLOAD:
-			return call_maybe_with_arena(args->privdata, "mm_postload", NULL);
+			r = call_maybe_with_arena(args->privdata, "mm_postload", NULL);
+			GI_UNLOCK();
+			return r;
 
 		case MM_PREUNLOAD:
-			return call_maybe_with_arena(args->privdata, "mm_preunload", NULL);
+			r = call_maybe_with_arena(args->privdata, "mm_preunload", NULL);
+			GI_UNLOCK();
+			return r;
 
 		default:
+			GI_UNLOCK();
 			return MM_FAIL;
 	}
 }
@@ -2219,6 +2330,7 @@ EXPORT const char info_pymod[] = CORE_MOD_INFO("pymod");
 
 EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 {
+	NEEDS_GIL;
 	Player *p;
 	Link *link;
 #ifdef CHECK_SIGS
@@ -2226,6 +2338,7 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 #endif
 	if (action == MM_LOAD)
 	{
+		main_thread = pthread_self();
 		/* grab some modules */
 		mm = mm_;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
@@ -2253,6 +2366,11 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 #endif
 		/* start up python */
 		Py_Initialize();
+		// Python might be called by multiple threads, 
+		// set up the global interpreter lock 
+		PyEval_InitThreads();
+		++gil_main_lock_count; // PyEval_InitThreads locks
+		gil_main_lock = 1;
 #ifdef CHECK_SIGS
 		/* if python changed this, reset it */
 		sigaction(SIGINT, &sa_before, NULL);
@@ -2271,6 +2389,7 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 				PyRun_SimpleString(code);
 			}
 		}
+		
 		/* add our module */
 		init_asss_module();
 		init_py_callbacks();
@@ -2302,6 +2421,7 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 
 		mods_loaded = 0;
 
+		GI_UNLOCK();
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
@@ -2309,6 +2429,8 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 		/* check that there are no more python modules loaded */
 		if (mods_loaded)
 			return MM_FAIL;
+
+		GI_LOCK();
 
 		mm->UnregModuleLoader("py", pyloader);
 
