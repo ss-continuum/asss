@@ -276,6 +276,9 @@ local int connkey;
 local Player * clienthash[CFG_HASHSIZE];
 local pthread_mutex_t hashmtx;
 
+#define POPMODE_TOTAL 1
+#define POPMODE_PLAYING 2
+
 local struct
 {
 	int droptimeout, maxoutlist;
@@ -289,6 +292,8 @@ local struct
 	int overhead;
 	/* how often to refresh the ping packet data */
 	int pingrefreshtime;
+	/* display total or playing in simple ping responses? */
+	int simplepingpopulationmode;
 } config;
 
 local volatile struct net_stats global_stats;
@@ -389,6 +394,12 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		relthdcount = cfg->GetInt(GLOBAL, "Net", "ReliableThreads", 1);
 		config.overhead = cfg->GetInt(GLOBAL, "Net", "PerPacketOverhead", 28);
 		config.pingrefreshtime = cfg->GetInt(GLOBAL, "Net", "PingDataRefreshTime", 200);
+		/* cfghelp: Net:SimplePingPopulationMode, global, int, def: 1
+		 * Display what value in the simple ping reponse (used by continuum)?
+		 * 1 = display total player count (default);
+		 * 2 = display playing count (in ships);
+		 * 3 = alternate between 1 and 2 */
+		config.simplepingpopulationmode = cfg->GetInt(GLOBAL, "Net", "SimplePingPopulationMode", 1);
 
 		/* get the sockets */
 		if (InitSockets())
@@ -1122,14 +1133,48 @@ local void handle_ping_packet(ListenData *ld)
 	if (len == 4 && (ld->connectas == NULL || ld->connectas[0] == '\0'))
 	{
 		data[1] = data[0];
-		data[0] = sdata.global.total;
+		data[0] = 0;
+		
+		if (config.simplepingpopulationmode & POPMODE_TOTAL)
+		{
+			if (config.simplepingpopulationmode & POPMODE_PLAYING)
+			{
+				data[0] = data[1] % 1000 < 500 ? sdata.global.total : sdata.global.playing;
+			}
+			else
+			{
+				data[0] = sdata.global.total;
+			}
+		}
+		else if (config.simplepingpopulationmode & POPMODE_PLAYING)
+		{
+			data[0] = sdata.global.playing;
+		}
+		
 		sendto(ld->pingsock, (char*)data, 8, 0,
 				(struct sockaddr*)&sin, sinsize);
 	}
 	else if (len == 4)
 	{
 		data[1] = data[0];
-		data[0] = ld->total;
+		data[0] = 0;
+		
+		if (config.simplepingpopulationmode & POPMODE_TOTAL)
+		{
+			if (config.simplepingpopulationmode & POPMODE_PLAYING)
+			{
+				data[0] = data[1] % 1000 < 500 ? ld->total : ld->playing;
+			}
+			else
+			{
+				data[0] = ld->total;
+			}
+		}
+		else if (config.simplepingpopulationmode & POPMODE_PLAYING)
+		{
+			data[0] = ld->playing;
+		}
+		
 		sendto(ld->pingsock, (char*)data, 8, 0,
 				(struct sockaddr*)&sin, sinsize);
 	}
