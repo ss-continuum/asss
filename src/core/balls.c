@@ -145,7 +145,7 @@ EXPORT int MM_balls(int action, Imodman *mm_, Arena *arena)
 		mm->RegCallback(CB_ARENAACTION, AABall, ALLARENAS);
 		mm->RegCallback(CB_PLAYERACTION, PABall, ALLARENAS);
 		mm->RegCallback(CB_SHIPFREQCHANGE, ShipFreqChange, ALLARENAS);
-		mm->RegCallback(CB_KILL_POST_NOTIFY, BallKill, ALLARENAS);
+		mm->RegCallback(CB_KILL, BallKill, ALLARENAS);
 
 		net->AddPacket(C2S_PICKUPBALL, PPickupBall);
 		net->AddPacket(C2S_SHOOTBALL, PFireBall);
@@ -166,7 +166,7 @@ EXPORT int MM_balls(int action, Imodman *mm_, Arena *arena)
 		net->RemovePacket(C2S_GOAL, PGoal);
 		net->RemovePacket(C2S_SHOOTBALL, PFireBall);
 		net->RemovePacket(C2S_PICKUPBALL, PPickupBall);
-		mm->UnregCallback(CB_KILL_POST_NOTIFY, BallKill, ALLARENAS);
+		mm->UnregCallback(CB_KILL, BallKill, ALLARENAS);
 		mm->UnregCallback(CB_SHIPFREQCHANGE, ShipFreqChange, ALLARENAS);
 		mm->UnregCallback(CB_PLAYERACTION, PABall, ALLARENAS);
 		mm->UnregCallback(CB_ARENAACTION, AABall, ALLARENAS);
