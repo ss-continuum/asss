@@ -19,13 +19,16 @@ struct chat_client_stats
 };
 
 
-#define I_CHATNET "chatnet-3"
+#define I_CHATNET "chatnet-4"
 
 typedef struct Ichatnet
 {
 	INTERFACE_HEAD_DECL
+	/* pyint: use */
 
 	void (*AddHandler)(const char *type, MessageFunc func);
+	void (*CallHandler)(Player *p, const char *type, const char *line);
+	/* pyint: player, string, zstring -> void */
 	void (*RemoveHandler)(const char *type, MessageFunc func);
 
 	void (*SendToOne)(Player *p, const char *line, ...)
