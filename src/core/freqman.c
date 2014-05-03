@@ -12,6 +12,7 @@ typedef struct Freq
 	LinkedList players;
 	int freqnum;
 	int is_required;
+	int is_remembered;
 	int is_balanced_against;
 } Freq;
 
@@ -86,6 +87,7 @@ typedef struct arenadata
 	LinkedList freqs;
 	int cfg_numberOfFrequencies;
 	int cfg_requiredTeams;
+	int cfg_rememberedTeams;
 	int cfg_desiredTeams;
 	int cfg_firstPrivateFreq;
 	int cfg_firstBalancedFreq;
@@ -116,6 +118,7 @@ void refresh_freq(Arena *arena, Freq *freq)
 	/* call with lock held */
 	arenadata *ad = arena ? P_ARENA_DATA(arena, arenaDataKey) : NULL;
 	freq->is_required = (freq->freqnum < ad->cfg_requiredTeams);
+	freq->is_remembered = (freq->freqnum < ad->cfg_rememberedTeams);
 	freq->is_balanced_against = (ad->cfg_firstBalancedFreq <= freq->freqnum && freq->freqnum < ad->cfg_lastBalancedFreq);
 }
 
@@ -163,7 +166,7 @@ void prune_freqs(Arena *arena)
 	
 	FOR_EACH(&ad->freqs, freq, link)
 	{
-		if (freq->freqnum >= ad->cfg_requiredTeams)
+		if (freq->freqnum >= ad->cfg_rememberedTeams)
 		{
 			freq->is_required = 0;
 			if (LLIsEmpty(&freq->players))
@@ -176,7 +179,7 @@ void prune_freqs(Arena *arena)
 	}
 
 	/* now make sure that the required teams exist */
-	for (i = 0; i < ad->cfg_requiredTeams; ++i)
+	for (i = 0; i < ad->cfg_rememberedTeams; ++i)
 	{
 		freq = get_freq(arena, i);
 
@@ -247,7 +250,7 @@ void remove_player_from_freq(Arena *arena, Player *p, Freq *freq)
 	pdat->freq = NULL;
 	
 	/* possibly disband the freq altogether, if it's not required */
-	if (!freq->is_required && LLCount(&freq->players) == 0)
+	if (!freq->is_remembered && LLCount(&freq->players) == 0)
 	{
 		arenadata *ad = arena ? P_ARENA_DATA(arena, arenaDataKey) : NULL;
 		afree(freq);
@@ -791,30 +794,22 @@ void FreqChange(Player *p, int requestedFreqnum, char *err_buf, int buf_len)
 
 int default_GetPlayerMetric(Player *p)
 {
-	arenadata *ad = p->arena ? P_ARENA_DATA(p->arena, arenaDataKey) : NULL;
-	if (ad->cfg_defaultBalancer_forceEvenTeams)
-		return 1;
-	else
-		return 0;
+	return 1;
 }
 
 int default_GetMaxMetric(Arena *arena, int freqnum)
 {
-	int result = 0;
-	arenadata *ad = arena ? P_ARENA_DATA(arena, arenaDataKey) : NULL;
-	
-	if (ad->cfg_defaultBalancer_forceEvenTeams)
-		result = max_freq_size(arena, freqnum);
-	
-	if (result <= 0)
-		result = 1;
-	return result;
+	return max_freq_size(arena, freqnum);
 }
 
 int default_GetMaximumDifference(Arena *arena, int freqnum1, int freqnum2)
 {
 	arenadata *ad = arena ? P_ARENA_DATA(arena, arenaDataKey) : NULL;
-	return ad->cfg_defaultBalancer_maxDifference;
+
+	if (ad->cfg_defaultBalancer_forceEvenTeams)
+		return ad->cfg_defaultBalancer_maxDifference;
+	else
+		return INT_MAX;
 }
 
 int CanChangeToFreq(Player *p, int freqnum, char *err_buf, int buf_len)
@@ -1170,6 +1165,14 @@ void update_config(Arena *arena)
 	ad->cfg_requiredTeams = cfg->GetInt(arena->cfg, "Team", "RequriedTeams", 0);
 	if (ad->cfg_requiredTeams < 0 || ad->cfg_requiredTeams > ad->cfg_numberOfFrequencies)
 		ad->cfg_requiredTeams = 0;
+
+	/* cfghelp: Team:RequiredTeams, arena, int, def: 0
+	 * The number of teams that the freq manager will keep in memory. Must be at least as high as RequiredTeams. */
+	ad->cfg_rememberedTeams = cfg->GetInt(arena->cfg, "Team", "RememeberedTeams", 0);
+	if (ad->cfg_rememberedTeams < 0 || ad->cfg_rememberedTeams > ad->cfg_numberOfFrequencies)
+		ad->cfg_rememberedTeams = 0;
+	else if (ad->cfg_rememberedTeams < ad->cfg_requiredTeams)
+		ad->cfg_rememberedTeams = ad->cfg_requiredTeams;
 
 	/* cfghelp: Team:PrivFreqStart, arena, int, range: 0-9999, def: 100
 	 * Freqs above this value are considered private freqs. */

@@ -10,6 +10,7 @@
  */
 
 #include <stddef.h>
+#include <limits.h>
 
 #undef ATTR_FORMAT
 #undef ATTR_MALLOC
