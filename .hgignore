@@ -5,16 +5,3 @@ syntax: regexp
 ^build
 ^doc/doxygen
 ^windeps
-\.orig\..*$
-\.orig$
-\.chg\..*$
-\.rej$
-\.conflict\~$
-^conf
-^clients
-^bt
-^maps
-^scrty
-^scrty1
-^data
-^arenas
