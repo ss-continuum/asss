@@ -10,8 +10,6 @@ syntax: regexp
 \.chg\..*$
 \.rej$
 \.conflict\~$
-^src/nbproject
-^nbproject
 ^conf
 ^clients
 ^bt
