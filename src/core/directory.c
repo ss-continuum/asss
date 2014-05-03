@@ -58,6 +58,7 @@ local int SendUpdates(void *dummy)
 	int n, count = 0;
 	Link *link, *l, *k;
 	Player *p;
+	Icapman *capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 
 	lm->Log(L_DRIVEL, "<directory> sending information to directory servers");
 
@@ -67,7 +68,9 @@ local int SendUpdates(void *dummy)
 	/* figure out player count */
 	pd->Lock();
 	FOR_EACH_PLAYER(p)
-		if (p->status == S_PLAYING && p->type != T_FAKE)
+		if (p->status == S_PLAYING && 
+		p->type != T_FAKE &&
+		(!capman || !capman->HasCapability(p, CAP_EXCLUDE_POPULATION)))
 			count++;
 	pd->Unlock();
 
@@ -90,6 +93,7 @@ local int SendUpdates(void *dummy)
 					sizeof(struct sockaddr_in));
 	}
 
+	mm->ReleaseInterface(capman);
 	return TRUE;
 }
 
