@@ -1,4 +1,3 @@
-
 /* dist: public */
 
 #include <stdlib.h>
@@ -19,6 +18,9 @@ local void Image(const Target *t, int id, int image);
 local void Layer(const Target *t, int id, int layer);
 local void Timer(const Target *t, int id, int time);
 local void Mode(const Target *t, int id, int mode);
+local void Reset(Arena *arena, int id);
+local int InfoDefault(Arena *arena, int id, int *off, int *image, int *layer, int *mode, int *mapobj, int *x, int *y, int *rx, int *ry);
+local int InfoCurrent(Arena *arena, int id, int *off, int *image, int *layer, int *mode, int *mapobj, int *x, int *y, int *rx, int *ry);
 
 enum { BROADCAST_NONE, BROADCAST_BOT, BROADCAST_ANY };
 
@@ -55,6 +57,8 @@ local int aokey;
 /* utility functions */
 local lvzdata *getDataFromId(LinkedList *list, u16 object_id);
 local void ReadLVZFile(Arena *a, byte *file, int flen, int opt);
+local int SanitizeLVZMapCoord (int coord);
+local union ObjectChange CalculateChange(struct ObjectData *left, struct ObjectData *right);
 
 /* callbacks */
 local void PBroadcast(Player *p, byte *pkt, int len);
@@ -85,7 +89,10 @@ local Iobjects _myint =
 	Image,
 	Layer,
 	Timer,
-	Mode
+	Mode,
+	Reset,
+	InfoDefault,
+	InfoCurrent
 };
 
 
@@ -122,8 +129,8 @@ local void Cobjset(const char *cmd, const char *params, Player *p, const Target 
 {
 	int l = strlen(params) + 1;
 	const char *c = params;
-	short *objs = alloca(l * sizeof(short));
-	char *ons = alloca(l * sizeof(char));
+	short objs[l];
+	char ons[l];
 
 	l = 0;
 	for (;;)
@@ -517,7 +524,7 @@ void PBroadcast(Player *p, byte *pkt, int len)
 						int changing = 0;
 
 						/* hack: map_x = scrn_x|rela_x */
-						if (objm[i].change_xy &&
+						if (objm[i].change.xy &&
 						    (objm[i].data.map_x != node->defaults.map_x ||
 						     objm[i].data.map_y != node->defaults.map_y))
 						{
@@ -525,22 +532,22 @@ void PBroadcast(Player *p, byte *pkt, int len)
 							node->current.map_x = objm[i].data.map_x;
 							node->current.map_y = objm[i].data.map_y;
 						}
-						if (objm[i].change_image && (objm[i].data.image != node->defaults.image))
+						if (objm[i].change.image && (objm[i].data.image != node->defaults.image))
 						{
 							changing = 1;
 							node->current.image = objm[i].data.image;
 						}
-						if (objm[i].change_layer && (objm[i].data.layer != node->defaults.layer))
+						if (objm[i].change.layer && (objm[i].data.layer != node->defaults.layer))
 						{
 							changing = 1;
 							node->current.layer = objm[i].data.layer;
 						}
-						if (objm[i].change_mode && (objm[i].data.mode != node->defaults.mode))
+						if (objm[i].change.mode && (objm[i].data.mode != node->defaults.mode))
 						{
 							changing = 1;
 							node->current.mode = objm[i].data.mode;
 						}
-						if (objm[i].change_time && (objm[i].data.time != node->defaults.time))
+						if (objm[i].change.time && (objm[i].data.time != node->defaults.time))
 						{
 							changing = 1;
 							node->current.time = objm[i].data.time;
@@ -794,6 +801,47 @@ void ReadLVZFile(Arena *a, byte *file, int flen, int opt)
 	}
 }
 
+local int SanitizeLVZMapCoord(int coord)
+{
+	//Makes sure the position LVZ is within the map
+	if (coord < 0)
+		return 0;
+
+	if (coord > 16383)  //1024 * 16 - 1 = 16383
+		return 16383;
+
+	return coord;
+}
+
+local union ObjectChange CalculateChange(struct ObjectData *left, struct ObjectData *right)
+{
+	union ObjectChange ret;
+	ret.value = 0;
+	
+	if ((left->map_x != right->map_x ||
+	     left->map_y != right->map_y))
+	{
+		ret.xy = 1;
+	}
+	if (left->image != right->image)
+	{
+		ret.image = 1;
+	}
+	if (left->layer != right->layer)
+	{
+		ret.layer = 1;
+	}
+	if (left->time != right->time)
+	{
+		ret.time = 1;
+	}
+	if (left->mode != right->mode)
+	{
+		ret.mode = 1;
+	}
+	
+	return ret; // by value
+}
 
 /* interface functions */
 
@@ -801,8 +849,9 @@ void SendState(Player *p)
 {
 	aodata *ad = P_ARENA_DATA(p->arena, aokey);
 	u32 t = 0, e = 0;
-	byte *toggle = alloca(1 + 2 * ad->tog_diffs);
-	byte *extra = alloca(1 + 11 * ad->ext_diffs);
+	byte toggle[1 + 2 * ad->tog_diffs];
+	byte extra[1 + 11 * ad->ext_diffs];
+	
 	Link *l;
 
 	toggle[0] = S2C_TOGGLEOBJ;
@@ -814,18 +863,24 @@ void SendState(Player *p)
 	{
 		lvzdata *data = l->data;
 
+		union ObjectChange change = CalculateChange(&data->defaults, &data->current);
 		/* check for changes in data */
-		if (memcmp(&data->defaults, &data->current, 10))
+		if (change.value)
 		{
-			extra[1 + 11*e] = 255; /* hack: everything "changed" */
+			extra[1 + 11*e] = change.value;
 			memcpy(extra + 2 + 11*e++, &data->current, 10);
 		}
 
 		if (data->off == 0)
+		{
 			*(u16*)(toggle+1+2*t++) = data->defaults.id;
-
-		if (t >= ad->tog_diffs && e >= ad->ext_diffs)
+		}
+		
+		if (t >= ad->tog_diffs || e >= ad->ext_diffs)
+		{
+			lm->LogP(L_ERROR, "objects", p, "SendState: invalid arena state, not enough memory has been allocated");
 			break;
+		}
 	}
 
 	MUTEX_UNLOCK(ad);
@@ -866,7 +921,7 @@ void Toggle(const Target *t, int id, int on)
 void ToggleSet(const Target *t, short *id, char *ons, int size)
 {
 	int pktlen = 1 + 2 * size;
-	byte *pkt = alloca(pktlen);
+	byte pkt[pktlen];
 
 	pkt[0] = S2C_TOGGLEOBJ;
 
@@ -941,12 +996,12 @@ void Move(const Target *t, int id, int x, int y, int rx, int ry)
 	BEGIN_EXTENDED(t, id);
 
 	*(u8*)objm = 0;
-	objm->change_xy = 1;
+	objm->change.xy = 1;
 
 	if ((objm->data.mapobj = node->defaults.mapobj))
 	{
-		objm->data.map_x = x;
-		objm->data.map_y = y;
+		objm->data.map_x = SanitizeLVZMapCoord(x);
+		objm->data.map_y = SanitizeLVZMapCoord(y);
 	}
 	else
 	{
@@ -964,7 +1019,7 @@ void Image(const Target *t, int id, int image)
 	BEGIN_EXTENDED(t, id);
 
 	*(u8*)objm = 0;
-	objm->change_image = 1;
+	objm->change.image = 1;
 	objm->data.image = image;
 
 	END_EXTENDED(t, id);
@@ -975,7 +1030,7 @@ void Layer(const Target *t, int id, int layer)
 	BEGIN_EXTENDED(t, id);
 
 	*(u8*)objm = 0;
-	objm->change_layer = 1;
+	objm->change.layer = 1;
 	objm->data.layer = layer;
 
 	END_EXTENDED(t, id);
@@ -986,7 +1041,7 @@ void Timer(const Target *t, int id, int time)
 	BEGIN_EXTENDED(t, id);
 
 	*(u8*)objm = 0;
-	objm->change_time = 1;
+	objm->change.time = 1;
 	objm->data.time = time;
 
 	END_EXTENDED(t, id);
@@ -997,10 +1052,93 @@ void Mode(const Target *t, int id, int mode)
 	BEGIN_EXTENDED(t, id);
 
 	*(u8*)objm = 0;
-	objm->change_mode = 1;
+	objm->change.mode = 1;
 	objm->data.mode = mode;
 
 	END_EXTENDED(t, id);
 }
 
+local void Reset(Arena *arena, int id)
+{
+	aodata *ad = P_ARENA_DATA(arena, aokey);
+	MUTEX_LOCK(ad);
+	lvzdata *node = getDataFromId(&ad->list, id);
+
+	memcpy(&node->current, &node->defaults, sizeof(struct ObjectData));
+
+	MUTEX_UNLOCK(ad);
+
+	Target tgt;
+	tgt.type = T_ARENA;
+	tgt.u.arena = arena;
+	Toggle(&tgt, id, 0);
+}
+
+local int InfoDefault(Arena *arena, int id, int *off, int *image, int *layer, int *mode, int *mapobj, int *x, int *y, int *rx, int *ry)
+{
+	aodata *ad = P_ARENA_DATA(arena, aokey);
+	MUTEX_LOCK(ad);
+	lvzdata *node = getDataFromId(&ad->list, id);
+
+	if (!node)
+	{
+		MUTEX_UNLOCK(ad);
+		return 0;
+	}
+
+	if (off) *off = (int) node->off;
+	if (image) *image = (int) node->defaults.image;
+	if (layer) *layer = (int) node->defaults.layer;
+	if (mode) *mode = (int) node->defaults.mode;
+	if (mapobj) *mapobj = (int) node->defaults.mapobj;
+
+	if (node->defaults.mapobj)
+	{
+		if (x) *x = (int) node->defaults.map_x;
+		if (y) *y = (int) node->defaults.map_y;
+	}
+	else
+	{
+		if (x) *x = (int) node->defaults.scrn_x;
+		if (y) *y = (int) node->defaults.scrn_y;
+		if (rx) *rx = (int) node->defaults.rela_x;
+		if (ry) *ry = (int) node->defaults.rela_y;
+	}
+	MUTEX_UNLOCK(ad);
+	return 1;
+}
+
+local int InfoCurrent(Arena *arena, int id, int *off, int *image, int *layer, int *mode, int *mapobj, int *x, int *y, int *rx, int *ry)
+{
+	aodata *ad = P_ARENA_DATA(arena, aokey);
+	MUTEX_LOCK(ad);
+	lvzdata *node = getDataFromId(&ad->list, id);
+
+	if (!node)
+	{
+		MUTEX_UNLOCK(ad);
+		return 0;
+	}
+
+	if (off) *off = (int) node->off;
+	if (image) *image = (int) node->current.image;
+	if (layer) *layer = (int) node->current.layer;
+	if (mode) *mode = (int) node->current.mode;
+	if (mapobj) *mapobj = (int) node->current.mapobj;
+
+	if (node->current.mapobj)
+	{
+		if (x) *x = (int) node->current.map_x;
+		if (y) *y = (int) node->current.map_y;
+	}
+	else
+	{
+		if (x) *x = (int) node->current.scrn_x;
+		if (y) *y = (int) node->current.scrn_y;
+		if (rx) *rx = (int) node->current.rela_x;
+		if (ry) *ry = (int) node->current.rela_y;
+	}
+	MUTEX_UNLOCK(ad);
+    return 1;
+}
 #pragma pack(pop)

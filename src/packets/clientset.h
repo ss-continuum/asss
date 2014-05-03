@@ -44,7 +44,7 @@ struct ShipSettings /* 144 bytes */
 };
 
 
-struct ClientSettings
+struct ClientSettings /* 1428 bytes */
 {
 	struct /* 4 bytes */
 	{

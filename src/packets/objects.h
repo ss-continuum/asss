@@ -68,15 +68,25 @@ enum
 struct ObjectMove   /* 11 bts */
 {
 	/* what properties are changed by this packet */
-	u8 change_xy    :  1;
-	u8 change_image :  1;
-	u8 change_layer :  1;
-	u8 change_time  :  1;
-	u8 change_mode  :  1;
-	u8 reserved     :  3;
+	union ObjectChange /* 1 byte */
+	{
+		struct
+		{
+			u8 xy    :  1;
+			u8 image :  1;
+			u8 layer :  1;
+			u8 time  :  1;
+			u8 mode  :  1;
+			u8 reserved : 3;
+		};
+		struct
+		{
+			u8 value;
+		};
+	} change;
 
 	/* same as file format */
-	struct ObjectData   /* 10 bts */
+	struct ObjectData   /* 10 bytes */
 	{
 		u16 mapobj  :  1;   /* screen/map object */
 		u16 id      : 15;   /* object id */
