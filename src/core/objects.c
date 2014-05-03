@@ -862,23 +862,29 @@ void SendState(Player *p)
 	for (l = LLGetHead(&ad->list); l; l = l->next)
 	{
 		lvzdata *data = l->data;
-		
-		if (t >= ad->tog_diffs || e >= ad->ext_diffs)
-		{
-			lm->LogP(L_ERROR, "objects", p, "SendState: invalid arena state, not enough memory has been allocated");
-			break;
-		}
 
 		union ObjectChange change = CalculateChange(&data->defaults, &data->current);
 		/* check for changes in data */
 		if (change.value)
 		{
+			if (e >= ad->ext_diffs)
+			{
+				lm->LogP(L_ERROR, "objects", p, "SendState: invalid arena state (ext_diffs), not enough memory has been allocated");
+				break;
+			}
+			
 			extra[1 + 11*e] = change.value;
 			memcpy(extra + 2 + 11*e++, &data->current, 10);
 		}
 
 		if (data->off == 0)
 		{
+			if (t >= ad->tog_diffs)
+			{
+				lm->LogP(L_ERROR, "objects", p, "SendState: invalid arena state (tog_diffs), not enough memory has been allocated");
+				break;
+			}
+		
 			*(u16*)(toggle+1+2*t++) = data->defaults.id;
 		}
 	}
