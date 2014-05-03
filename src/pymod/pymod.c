@@ -722,6 +722,19 @@ local PyObject *Player_get_status(PyObject *obj, void *v)
 	return PyInt_FromLong(p->status);
 }
 
+local PyObject *Player_set_status(PyObject *obj, PyObject *value)
+{
+        GET_AND_CHECK_PLAYER(p)
+	int status = PyInt_AsLong(value);
+	pd->WriteLock();
+	p->status = status;
+	pd->WriteUnlock();
+
+	log_py_exception(L_ERROR, "Player_set_status exception");
+
+	return NULL;
+}
+
 local PyObject *Player_get_type(PyObject *obj, void *v)
 {
 	GET_AND_CHECK_PLAYER(p)
@@ -802,6 +815,19 @@ local PyObject *Player_get_ipaddr(PyObject *obj, void *v)
 	return PyString_FromString(p->ipaddr);
 }
 
+local PyObject *Player_set_ipaddr(PyObject *obj, PyObject *value)
+{
+        GET_AND_CHECK_PLAYER(p)
+        char *ipaddr  = PyString_AsString(value);
+        pd->WriteLock();
+        astrncpy(p->ipaddr, ipaddr, sizeof(p->ipaddr));
+        pd->WriteUnlock();
+
+        log_py_exception(L_ERROR, "Player_set_ipaddr exception");
+
+        return NULL;
+}
+
 local PyObject *Player_get_connectas(PyObject *obj, void *v)
 {
 	GET_AND_CHECK_PLAYER(p)
@@ -829,8 +855,9 @@ local PyObject *Player_get_flagscarried(PyObject *obj, void *v)
 local PyGetSetDef Player_getseters[] =
 {
 #define SIMPLE_GETTER(n, doc) { #n, Player_get_ ## n, NULL, doc, NULL },
+#define SIMPLE_GETSET(n, doc) { #n, (getter)Player_get_ ## n, (setter)Player_set_ ## n, doc, NULL },
 	SIMPLE_GETTER(pid, "player id")
-	SIMPLE_GETTER(status, "current status")
+	SIMPLE_GETSET(status, "current status")
 	SIMPLE_GETTER(type, "client type (e.g., cont, 1.34, chat)")
 	SIMPLE_GETTER(arena, "current arena")
 	SIMPLE_GETTER(name, "player name")
@@ -841,11 +868,12 @@ local PyGetSetDef Player_getseters[] =
 	SIMPLE_GETTER(onfor, "seconds since login")
 	SIMPLE_GETTER(position, "current position, returns tuple (x, y, v_x, v_y, rotation, bounty, status)")
 	SIMPLE_GETTER(macid, "machine id")
-	SIMPLE_GETTER(ipaddr, "client ip address")
+	SIMPLE_GETSET(ipaddr, "client ip address")
 	SIMPLE_GETTER(connectas, "which virtual server the client connected to")
 	SIMPLE_GETTER(authenticated, "whether the client has been authenticated")
 	SIMPLE_GETTER(flagscarried, "how many flags the player is carrying")
 #undef SIMPLE_GETTER
+#undef SIMPLE_GETSET
 	{NULL}
 };
 

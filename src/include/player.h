@@ -301,6 +301,7 @@ typedef struct Iplayerdata
 	 * @return the newly allocated player struct
 	 */
 	Player * (*NewPlayer)(int type);
+	/* pyint: int -> player */
 
 	/** Frees memory associated with a player.
 	 * This is called by the network modules when a connection has

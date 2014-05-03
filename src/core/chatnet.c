@@ -279,6 +279,12 @@ local void AddHandler(const char *type, MessageFunc f)
 	UNLOCK();
 }
 
+local void CallHandler(Player *p, const char *type, const char *line)
+{
+	MessageFunc func = (MessageFunc)HashGetOne(handlers, type);
+        func(p, line);
+}
+
 local void RemoveHandler(const char *type, MessageFunc f)
 {
 	LOCK();
@@ -387,7 +393,7 @@ local void do_final_shutdown(void)
 local Ichatnet _int =
 {
 	INTERFACE_HEAD_INIT(I_CHATNET, "net-chat")
-	AddHandler, RemoveHandler,
+	AddHandler, CallHandler, RemoveHandler,
 	SendToOne, SendToArena, SendToSet,
 	GetClientStats
 };
