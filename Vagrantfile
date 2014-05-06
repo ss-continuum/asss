@@ -10,8 +10,8 @@
 #
 
 Vagrant.configure("2") do |config|
-	config.vm.box = "javiercaride/trusty64"
-	config.vm.box_url = "https://vagrantcloud.com/javiercaride/trusty64/version/1/provider/virtualbox.box"
+	config.vm.box = "ubuntu/trusty64"
+	config.vm.box_url = "http://cloud-images.ubuntu.com/vagrant/trusty/current/trusty-server-cloudimg-amd64-vagrant-disk1.box"
 	config.vm.network :forwarded_port, guest: 5000, host: 5000, protocol: "udp"
 	config.vm.network :forwarded_port, guest: 5000, host: 5000, protocol: "tcp"
 	config.vm.network :forwarded_port, guest: 5001, host: 5001, protocol: "udp"
