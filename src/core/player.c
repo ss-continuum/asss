@@ -365,6 +365,22 @@ local Iplayerdata pdint =
 	Lock, WriteLock, Unlock, WriteUnlock
 };
 
+struct Iplayerdata_old
+{
+	INTERFACE_HEAD_DECL
+	void *funcs[12];
+};
+
+local struct Iplayerdata_old pdint_old =
+{
+	INTERFACE_HEAD_INIT("playerdata-8", "playerdata")
+	{ NewPlayer, FreePlayer, KickPlayer,
+	PidToPlayer, FindPlayer,
+	TargetToSet,
+	AllocatePlayerData, FreePlayerData,
+	Lock, WriteLock, Unlock, WriteUnlock }
+};
+
 EXPORT const char info_playerdata[] = CORE_MOD_INFO("playerdata");
 
 EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
@@ -412,12 +428,16 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 
 		/* register interface */
 		mm->RegInterface(&pdint, ALLARENAS);
+		mm->RegInterface(&pdint_old, ALLARENAS);
 
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)
 	{
 		if (mm->UnregInterface(&pdint, ALLARENAS))
+			return MM_FAIL;
+		
+		if (mm->UnregInterface(&pdint_old, ALLARENAS))
 			return MM_FAIL;
 
 		pthread_mutexattr_destroy(&recmtxattr);

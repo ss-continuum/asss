@@ -1041,6 +1041,24 @@ local Iarenaman myint =
 	Hold, Unhold
 };
 
+struct Iarenaman_old
+{
+	INTERFACE_HEAD_DECL
+	void *funcs[12];
+};
+
+local struct Iarenaman_old myint_old =
+{
+	INTERFACE_HEAD_INIT("arenaman-9", "arenaman")
+	{ SendArenaResponse, LeaveArena,
+	RecycleArena,
+	SendToArena, FindArena,
+	GetPopulationSummary,
+	AllocateArenaData, FreeArenaData,
+	Lock, Unlock,
+	Hold, Unhold }
+};
+
 EXPORT const char info_arenaman[] = CORE_MOD_INFO("arenaman");
 
 EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
@@ -1084,6 +1102,7 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 		ml->SetTimer(ReapArenas, 170, 170, NULL, NULL);
 
 		mm->RegInterface(&myint, ALLARENAS);
+		mm->RegInterface(&myint_old, ALLARENAS);
 		return MM_OK;
 	}
 	else if (action == MM_POSTLOAD)
@@ -1117,6 +1136,8 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 	else if (action == MM_UNLOAD)
 	{
 		if (mm->UnregInterface(&myint, ALLARENAS))
+			return MM_FAIL;
+		if (mm->UnregInterface(&myint_old, ALLARENAS))
 			return MM_FAIL;
 
 		if (net)
