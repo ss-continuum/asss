@@ -212,6 +212,24 @@ local Player * FindPlayer(const char *name)
 	return NULL;
 }
 
+local int IsValidPointer(Player *r)
+{
+	Link *link;
+	Player *p;
+
+	RDLOCK();
+	FOR_EACH_PLAYER(p)
+	{
+		if (p == r)
+		{
+			RULOCK();
+			return TRUE;
+		}
+	}
+	RULOCK();
+	return FALSE;
+}
+
 
 local inline int matches(const Target *t, Player *p)
 {
@@ -341,7 +359,7 @@ local Iplayerdata pdint =
 {
 	INTERFACE_HEAD_INIT(I_PLAYERDATA, "playerdata")
 	NewPlayer, FreePlayer, KickPlayer,
-	PidToPlayer, FindPlayer,
+	PidToPlayer, FindPlayer, IsValidPointer,
 	TargetToSet,
 	AllocatePlayerData, FreePlayerData,
 	Lock, WriteLock, Unlock, WriteUnlock

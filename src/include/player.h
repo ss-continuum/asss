@@ -286,7 +286,7 @@ typedef void (*NewPlayerFunc)(Player *p, int isnew);
 
 
 /** the interface id for playerdata */
-#define I_PLAYERDATA "playerdata-8"
+#define I_PLAYERDATA "playerdata-9"
 
 /** the playerdata interface struct */
 typedef struct Iplayerdata
@@ -335,6 +335,13 @@ typedef struct Iplayerdata
 	 */
 	Player * (*FindPlayer)(const char *name);
 	/* pyint: string -> player */
+	
+	/** Is the given player still valid?.
+	 * Use this method to prevent use-after-free when using players 
+	 * in things like callbacks.	
+	 * @return TRUE if the given pointer is still a valid player.
+	 */
+	int (*IsValidPointer)(Player *p);
 
 	/** Converts a Target to a specific list of players.
 	 * The players represented by the target will be added to the given

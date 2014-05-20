@@ -120,7 +120,7 @@ enum
 
 
 /** the interface id for arenaman */
-#define I_ARENAMAN "arenaman-9"
+#define I_ARENAMAN "arenaman-10"
 
 /** the arenaman interface struct */
 typedef struct Iarenaman
@@ -160,6 +160,13 @@ typedef struct Iarenaman
 	 * and the number of non-spec players in the arena. */
 	Arena * (*FindArena)(const char *name, int *totalcount, int *playing);
 	/* pyint: string, int out, int out -> arena */
+	
+	/** Is the given arena still valid?.
+	 * Use this method to prevent use-after-free when using arenas 
+	 * in things like callbacks.
+	 * @return TRUE if the given pointer is still a valid arena.
+	 */
+	int (*IsValidPointer)(Arena *a);
 
 	/** This counts the number of players in the server and in each
 	 ** arena.

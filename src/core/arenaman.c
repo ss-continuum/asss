@@ -853,6 +853,23 @@ local Arena * FindArena(const char *name, int *totalp, int *playingp)
 	return arena;
 }
 
+local int IsValidPointer(Arena *b)
+{
+	Link *link;
+	Arena *a;
+	
+	RDLOCK();
+	FOR_EACH_ARENA(a)
+	{
+		if (a == b)
+		{
+			RDUNLOCK();
+			return TRUE;
+		}
+	}
+	RDUNLOCK();
+	return FALSE;
+}
 
 local LinkedList blocks;
 struct block
@@ -1017,6 +1034,7 @@ local Iarenaman myint =
 	SendArenaResponse, LeaveArena,
 	RecycleArena,
 	SendToArena, FindArena,
+	IsValidPointer,
 	GetPopulationSummary,
 	AllocateArenaData, FreeArenaData,
 	Lock, Unlock,
