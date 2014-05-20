@@ -157,10 +157,43 @@ local void ppk_region_cb(void *clos, Region *rgn)
 		params->data->rgnnorecvweps = 1;
 }
 
+struct RegionCallbackDTO
+{
+	Player *p;
+	Arena *a;
+	Region *rgn;
+	int x;
+	int y;
+	int entering;
+};
+
+local int do_real_region_callback(void *param)
+{
+	struct RegionCallbackDTO *dto = (struct RegionCallbackDTO *) param;
+	
+	// do not fire the callback if the player changed arena
+	// (or if the arena no longer exists, which would mean
+	//  the region will have been freed)
+	if (pd->IsValidPointer(dto->p) && dto->a == dto->p->arena)
+	{
+		DO_CBS(CB_REGION, dto->a, RegionFunc, (dto->p, dto->rgn, dto->x, dto->y, dto->entering));
+	}
+	
+	afree(dto);
+	return FALSE; // stop timer
+}
+
 local void do_region_callback(Player *p, Region *rgn, int x, int y, int entering)
 {
-	/* FIXME: make this asynchronous? */
-	DO_CBS(CB_REGION, p->arena, RegionFunc, (p, rgn, x, y, entering));
+	struct RegionCallbackDTO *dto = amalloc(sizeof(struct RegionCallbackDTO));
+	dto->p = p;
+	dto->a = p->arena;
+	dto->rgn = rgn;
+	dto->x = x;
+	dto->y = y;
+	dto->entering = entering;
+	
+	ml->SetTimer(do_real_region_callback, 0, 0, dto, dto);
 }
 
 local void update_regions(Player *p, int x, int y)
