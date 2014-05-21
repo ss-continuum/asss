@@ -55,15 +55,6 @@ typedef struct
 	int nosafeanti;
 } adata;
 
-typedef struct safezone_closure_t
-{
-	Arena *arena;
-	Player *p;
-	int x;
-	int y;
-	int entering;
-} safezone_closure_t;
-
 /* global data */
 
 local Iplayerdata *pd;
@@ -249,13 +240,25 @@ local int run_enter_game_cb(void *clos)
 	return FALSE;
 }
 
+struct SafeZoneDTO
+{
+	Arena *arena;
+	Player *p;
+	int x;
+	int y;
+	int entering;
+};
+
 local int run_safezone_cb(void *clos)
 {
-	safezone_closure_t *closure = (safezone_closure_t *)clos;
+	struct SafeZoneDTO *dto = (struct SafeZoneDTO *)clos;
+	
+	if (pd->IsValidPointer(dto->p) && aman->IsValidPointer(dto->arena))
+	{
+		DO_CBS(CB_SAFEZONE, dto->arena, SafeZoneFunc, (dto->p, dto->x, dto->y, dto->entering));
+	}
 
-	DO_CBS(CB_SAFEZONE, closure->arena, SafeZoneFunc, (closure->p, closure->x, closure->y, closure->entering));
-
-	afree(closure);
+	afree(dto);
 
 	return FALSE;
 }
@@ -350,13 +353,13 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 		/* call the safety zone callback asynchronously */
 		if (((pos->status ^ data->pos.status) & STATUS_SAFEZONE) && !isfake)
 		{
-			safezone_closure_t *closure = amalloc(sizeof(*closure));
-			closure->arena = arena;
-			closure->p = p;
-			closure->x = pos->x;
-			closure->y = pos->y;
-			closure->entering = pos->status & STATUS_SAFEZONE;
-			ml->SetTimer(run_safezone_cb, 0, 0, closure, NULL);
+			struct SafeZoneDTO *dto = amalloc(sizeof(struct SafeZoneDTO));
+			dto->arena = arena;
+			dto->p = p;
+			dto->x = pos->x;
+			dto->y = pos->y;
+			dto->entering = pos->status & STATUS_SAFEZONE;
+			ml->SetTimer(run_safezone_cb, 0, 0, dto, NULL);
 		}
 
 		/* copy the whole thing. this will copy the epd, or, if the client
