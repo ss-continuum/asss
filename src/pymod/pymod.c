@@ -2399,6 +2399,7 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 		PyEval_InitThreads();
 		++gil_main_lock_count; // PyEval_InitThreads locks
 		gil_main_lock = 1;
+		gstate = 0;
 #ifdef CHECK_SIGS
 		/* if python changed this, reset it */
 		sigaction(SIGINT, &sa_before, NULL);

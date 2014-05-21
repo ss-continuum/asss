@@ -836,7 +836,7 @@ local void clearFlagsData(Arena *arena, int init)
 local void flagTag(Arena *arena, Player *p, int fid, int oldfreq, int freq)
 {
 	TurfArena *ta, **p_ta = P_ARENA_DATA(arena, trkey);
-	int r_freq=-1, r_dings, r_weight, r_pid, r_rec, r_tc, /* flag recover data */
+	int r_freq=-1, r_dings, r_weight, r_pid, r_rec/*, r_tc*/, /* flag recover data */
 	    l_freq=-1, l_dings, l_weight, l_rec, l_tc; /* flag lost data */
 	TurfFlag *pTF   = NULL;  /* pointer to turf flag that was tagged */
 	TurfFlagPrevious *oPtr  = NULL; /* pointer to node of linked list holding */
@@ -966,7 +966,7 @@ local void flagTag(Arena *arena, Player *p, int fid, int oldfreq, int freq)
 			r_dings  = pTF->dings  = oPtr->dings;
 			r_weight = pTF->weight = oPtr->weight;
 			r_rec    = pTF->recovered = oPtr->recovered + 1;
-			r_tc     = pTF->tagTC     = oPtr->tagTC;
+			/*r_tc     = */pTF->tagTC     = oPtr->tagTC;
 
 			/* remove node from linked list */
 			LLRemove(&pTF->old, oPtr);

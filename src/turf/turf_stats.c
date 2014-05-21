@@ -359,7 +359,7 @@ local void ADisplay(Arena *arena, int histNum)
 	for(l = LLGetHead(&tsd->teams); l; l = l->next)
 	{
 		int freq, numFlags, numPlayers;
-		unsigned int tags, steals, recoveries, lost, numPoints;
+		unsigned int /*tags, steals, recoveries, lost,*/ numPoints;
 		long int numWeights;
 		double percentFlags, percentWeights, perCapita, percent;
 		pFreq = l->data;
@@ -370,10 +370,10 @@ local void ADisplay(Arena *arena, int histNum)
 		percentFlags   = pFreq->percentFlags;
 		numWeights     = pFreq->numWeights;
 		percentWeights = pFreq->percentWeights;
-		tags           = pFreq->tags;
+		/*tags           = pFreq->tags;
 		steals         = pFreq->steals;
 		recoveries     = pFreq->recoveries;
-		lost           = pFreq->lost;
+		lost           = pFreq->lost;*/
 		numPlayers     = pFreq->numPlayers;
 		perCapita      = pFreq->perCapitaWeights;
 		percent        = pFreq->percent;
@@ -436,7 +436,7 @@ local void PDisplay(Arena *arena, Player *pid, int histNum)
 	for(l = LLGetHead(&tsd->teams) ; l ; l=l->next)
 	{
 		int freq, numFlags, numPlayers;
-		unsigned int tags, steals, recoveries, lost, numPoints;
+		unsigned int /*tags, steals, recoveries, lost,*/ numPoints;
 		long int numWeights;
 		double percentFlags, percentWeights, perCapita, percent;
 		pFreq = l->data;
@@ -447,10 +447,10 @@ local void PDisplay(Arena *arena, Player *pid, int histNum)
 		percentFlags   = pFreq->percentFlags;
 		numWeights     = pFreq->numWeights;
 		percentWeights = pFreq->percentWeights;
-		tags           = pFreq->tags;
+		/*tags           = pFreq->tags;
 		steals         = pFreq->steals;
 		recoveries     = pFreq->recoveries;
-		lost           = pFreq->lost;
+		lost           = pFreq->lost;*/
 		numPlayers     = pFreq->numPlayers;
 		perCapita      = pFreq->perCapitaWeights;
 		percent        = pFreq->percent;

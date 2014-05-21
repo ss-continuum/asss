@@ -166,7 +166,7 @@ local int do_one_iter(void *dummy)
 	Player *p;
 	sp_conn *cli;
 	Link *link;
-	int max, ret;
+	int max;
 	ticks_t gtc = current_ticks();
 	fd_set readset, writeset;
 	struct timeval tv = { 0, 0 };
@@ -218,7 +218,7 @@ local int do_one_iter(void *dummy)
 		pd->FreePlayer(link->data);
 	LLEmpty(&toremove);
 
-	ret = select(max + 1, &readset, &writeset, NULL, &tv);
+	select(max + 1, &readset, &writeset, NULL, &tv);
 
 	/* new connections? */
 	if (FD_ISSET(mysock, &readset))

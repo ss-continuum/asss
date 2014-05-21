@@ -100,7 +100,6 @@ local void close_db(void *v)
 local void * work_thread(void *dummy)
 {
 	struct db_cmd *cmd;
-	ticks_t tickcnt;
 
 	mydb = mysql_init(NULL);
 
@@ -126,7 +125,6 @@ local void * work_thread(void *dummy)
 	}
 
 	connected = 1;
-	tickcnt = current_millis();
 
 	/* now serve requests */
 	for (;;)
@@ -144,8 +142,6 @@ local void * work_thread(void *dummy)
 			}
 			else
 				if (lm) lm->Log(L_INFO, "<mysql> Attempt to re-establish database connection failed.");
-
-			tickcnt = current_millis();
 		}
 
 		switch (cmd->type)
