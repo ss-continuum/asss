@@ -63,7 +63,9 @@ enum
 
 
 /** this callback is called when an arena is created or destroyed, or
- ** some configuration value for the arena changes. */
+ * some configuration value for the arena changes.
+ * @threading called from main  
+ */
 #define CB_ARENAACTION "arenaaction"
 /** the type of CB_ARENAACTION callbacks.
  * @param a the arena that something is happening to

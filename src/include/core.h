@@ -87,6 +87,7 @@ enum
 /** this callback is called at several important points, including when
  ** players connect, disconnect, enter and leave arenas.
  * most basic per-player [de]initialization should happen here.
+ * @threading called from main 
  */
 #define CB_PLAYERACTION "playeraction"
 /** the type of the CB_PLAYERACTION callback.

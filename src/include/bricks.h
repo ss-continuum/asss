@@ -15,6 +15,7 @@
 
 DEFINE_ENUM(BRICK_MODE_MAP)
 
+/** @threading called from any */
 #define CB_DOBRICKMODE "dobrickmode"
 
 typedef void (*DoBrickModeFunction)(Arena *arena, int brickmode, int dropx,

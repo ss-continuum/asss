@@ -6,9 +6,11 @@
 
 #include "packets/banners.h"
 
+/** called when the player sets a new banner
+ * @threading called from any 
+ */ 
 #define CB_SET_BANNER "setbanner"
 typedef void (*SetBannerFunc)(Player *p, Banner *banner, int from_player);
-/* called when the player sets a new banner */
 /* pycb: player, banner, int */
 
 

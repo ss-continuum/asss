@@ -49,6 +49,7 @@ typedef void (*SizedPacketFunc)
 
 typedef void (*RelCallback)(Player *p, int success, void *clos);
 
+/** @threading called from net */
 #define CB_CONNINIT "conninit"
 typedef void (*ConnectionInitFunc)(struct sockaddr_in *sin, byte *pkt, int len, void *v);
 

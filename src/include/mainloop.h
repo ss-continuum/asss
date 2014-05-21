@@ -14,20 +14,25 @@
  * @param param is a closure argument
  * @return true if the timer wants to continue running, false if it
  * wants to be cancelled
+ * @threading called from main 
  */
 typedef int (*TimerFunc)(void *param);
 
 /** timer cleanup functions must be of this type.
  * @param param the same closure argument that gets passed to the timer
  * function
+ * @threading called from main  
  */
 typedef void (*CleanupFunc)(void *param);
 
-/** threadpool work functions must be of this type. */
+/** threadpool work functions must be of this type.
+ * @threading called from worker  
+ */
 typedef void (*WorkFunc)(void *param);
 
 /** this callback is called once per iteration of the main loop.
  * probably a few hundred times per second.
+ * @threading called from main  
  */
 #define CB_MAINLOOP "mainloop"
 /** the type of CB_MAINLOOP callbacks */

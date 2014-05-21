@@ -24,15 +24,18 @@ struct Iturfrewardpoints;
 
 /* turf_reward specific callbacks */
 
-/* note CB_TURFTAG in fg_turf.h */
-
+/** note CB_TURFTAG in fg_turf.h
+ * @threading called from any 
+ */
 #define CB_TURFSTEAL "turfsteal"
 typedef void (*TurfStealFunc)(Arena *arena, Player *p, int fid);
 /* pycb: arena, player, int */
 
 /* called when a flag is 'recovered' (note: CB_TURFTAG will still be called)
  * possible use would be to have a module that manipulates lvz objects telling
- * player that the flag tagged was recovered */
+ * player that the flag tagged was recovered 
+ * @threading called from any
+ */
 #define CB_TURFRECOVER "turfrecover"
 typedef void (*TurfRecoverFunc)(Arena *arena, int fid, int pid, int freq,
 	int dings, int weight, int recovered);
@@ -40,7 +43,9 @@ typedef void (*TurfRecoverFunc)(Arena *arena, int fid, int pid, int freq,
 
 /* called when a flag is 'lost' (note: CB_TURFTAG will still be called) possible
  * use would be to have a module that manipulates lvz objects telling players
- * that a flag was lost */
+ * that a flag was lost
+ * @threading called from any  
+ */
 #define CB_TURFLOST "turflost"
 typedef void (*TurfLostFunc)(Arena *arena, int fid, int pid, int freq,
 	int dings, int weight, int recovered);
@@ -49,7 +54,9 @@ typedef void (*TurfLostFunc)(Arena *arena, int fid, int pid, int freq,
 /* A special callback!! - the turf_arena data is LOCKED when this is called
  * This is called AFTER players are awarded points (good time for history stuff
  * and/or stats output).  Any function registering with this callback must not
- * require a long processing time. */
+ * require a long processing time.
+ * @threading called from any  
+ */
 #define CB_TURFPOSTREWARD "turfpostreward"
 typedef void (*TurfPostRewardFunc)(Arena *arena, struct TurfArena *ta);
 

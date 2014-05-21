@@ -59,7 +59,7 @@ typedef enum persist_scope_t
 } persist_scope_t;
 
 
-
+/** @threading called from persist */
 typedef struct PlayerPersistentData
 {
 	int key, interval;
@@ -70,6 +70,7 @@ typedef struct PlayerPersistentData
 	void *clos;
 } PlayerPersistentData;
 
+/** @threading called from persist */
 typedef struct ArenaPersistentData
 {
 	int key, interval;
@@ -87,8 +88,10 @@ typedef struct ArenaPersistentData
  */
 
 
-/* this will be called after any interval is ended; it will probably be
- * preceeded by a lot of ClearData calls. */
+/** this will be called after any interval is ended; it will probably be
+ * preceeded by a lot of ClearData calls.
+ * @threading called from persist  
+ */
 #define CB_INTERVAL_ENDED "endinterval"
 typedef void (*EndIntervalFunc)(void);
 /* pycb: void */

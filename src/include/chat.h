@@ -29,7 +29,9 @@
 
 
 /** this callback is called when most types of chat messages pass
- ** through the server. */
+ * through the server.
+ * @threading called from net  
+ */
 #define CB_CHATMSG "chatmsg"
 /** the type of CB_CHATMSG callbacks.
  * @param p the player initiating the chat message
@@ -46,7 +48,9 @@ typedef void (*ChatMsgFunc)(Player *p, int type, int sound, Player *target,
 /* pycb: player, int, int, player, int, string */
 
 
-/* this isn't for general use */
+/* this isn't for general use
+ * @threading called from net 
+ */
 #define CB_REWRITECOMMAND "rewritecommand"
 typedef void (*CommandRewriterFunc)(int initial, char *buf, int len);
 

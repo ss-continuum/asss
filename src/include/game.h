@@ -12,7 +12,9 @@
  * packet routing, and prizes.
  */
 
-/** this callback is be called whenever a kill occurs */
+/** this callback is be called whenever a kill occurs
+ * @threading called from net 
+ */
 #define CB_KILL "kill-2"
 /** the type of CB_KILL.
  * @param arena the arena the kill took place in
@@ -85,7 +87,9 @@ typedef struct Akill
 
 /** this callback is to be called when a player changes ship or freq.
  * intended for internal or core use only. no recursive shipchanges should
- * happen as a result of this callback. */
+ * happen as a result of this callback.
+ * @threading called from any  
+ */
 #define CB_PRESHIPFREQCHANGE "preshipfreqchange"
 /* the type of CB_PRESHIPFREQCHANGE
  * @param p the player changing ship or freq
@@ -98,7 +102,9 @@ typedef void (*PreShipFreqChangeFunc)(Player *p, int newship, int oldship, int n
 /* pycb: player, int, int, int, int */
 
 
-/** this callback is to be called when a player changes ship or freq. */
+/** this callback is to be called when a player changes ship or freq.
+ * @threading called from any 
+ */
 #define CB_SHIPFREQCHANGE "shipfreqchange"
 /* the type of CB_SHIPFREQCHANGE
  * @param p the player changing ship or freq
@@ -113,7 +119,9 @@ typedef void (*ShipFreqChangeFunc)(Player *p, int newship, int oldship, int newf
 
 /** this callback will be called when the player respawns after dying, or enters the game.
  * 'reason' is a bitwise combination of the applicable SPAWN_ values, so use something like
- * (reason & SPAWN_SHIPRESET) to check, rather than ==. */
+ * (reason & SPAWN_SHIPRESET) to check, rather than ==.
+ * @threading called from main
+ */
 #define CB_SPAWN "spawn"
 /** the type of CB_SPAWN
  * @param p the player who has spawned
@@ -135,7 +143,9 @@ typedef void (*SpawnFunc)(Player *p, int reason);
 #define SPAWN_INITIAL 16
 
 
-/** this callback called when the game timer expires. */
+/** this callback called when the game timer expires.
+ * @threading called from main 
+ */
 #define CB_TIMESUP "timesup"
 /** the type of CB_TIMESUP
  * @param arena the arena whose timer is ending
@@ -145,8 +155,8 @@ typedef void (*GameTimerFunc)(Arena *arena);
 
 
 /** this callback is called when someone enters or leaves a safe zone.
- * be careful about what you do in here; this runs in the unreliable
- * packet handler thread (for now). */
+ * @threading called from main
+ */
 #define CB_SAFEZONE "safezone"
 /** the type of CB_SAFEZONE
  * @param p the player entering/leaving the safe zone
@@ -158,7 +168,9 @@ typedef void (*SafeZoneFunc)(Player *p, int x, int y, int entering);
 /* pycb: player, int, int, int */
 
 
-/** this callback is called when someone enters or leaves a region. */
+/** this callback is called when someone enters or leaves a region.
+ * @threading called from main 
+ */
 #define CB_REGION "region-1"
 /** the type of CB_REGION
  * @param p the player entering/leaving the region
@@ -171,7 +183,9 @@ typedef void (*RegionFunc)(Player *p, Region *rgn, int x, int y, int entering);
 /* NOTYETpycb: player, void, int, int, int */
 
 
-/** this callback is called whenever someone picks up a green. */
+/** this callback is called whenever someone picks up a green.
+ * @threading called from net 
+ */
 #define CB_GREEN "green-1"
 /** the type of CB_GREEN
  * @param p the player who picked up the green
@@ -183,7 +197,9 @@ typedef void (*GreenFunc)(Player *p, int x, int y, int prize);
 /* pycb: player, int, int, int */
 
 
-/** this callback is called whenever someone attaches or detaches. */
+/** this callback is called whenever someone attaches or detaches. 
+ * @threading called from net 
+ */
 #define CB_ATTACH "attach-1"
 /** the type of CB_ATTACH
  * @param p the player who is attaching or detaching
@@ -193,7 +209,9 @@ typedef void (*AttachFunc)(Player *p, Player *to);
 /* pycb: player, player */
 
 /** this calllback is called whenever a position packet is handled.
- * Note that this callback is not called for spectators.*/
+ * Note that this callback is not called for spectators.
+ * @threading called from net 
+ */
 #define CB_PPK "cbppk-1"
 /** the type of CB_PPK
  * @param p the player that the position packet belongs to
@@ -207,7 +225,9 @@ enum { ENERGY_SEE_NONE, ENERGY_SEE_ALL, ENERGY_SEE_TEAM, ENERGY_SEE_SPEC };
 
 #define A_PPK "ppk-1"
 
-/** the position packet adviser struct */
+/** the position packet adviser struct 
+ * @threading called from net
+ */
 typedef struct Appk
 {
 	ADVISER_HEAD_DECL

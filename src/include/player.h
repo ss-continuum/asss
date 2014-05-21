@@ -275,8 +275,10 @@ struct Player
 
 
 /** this callback is called whenever a Player struct is allocated or
- ** deallocated. in general you probably want to use CB_PLAYERACTION
- ** instead of this callback for general initialization tasks. */
+ * deallocated. in general you probably want to use CB_PLAYERACTION
+ * instead of this callback for general initialization tasks.
+ * @threading called from any   
+ */
 #define CB_NEWPLAYER "newplayer"
 /** the type of CB_NEWPLAYER
  * @param p the player struct being allocated/deallocated

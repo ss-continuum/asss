@@ -42,7 +42,9 @@
 
 /** this callback is called for each log line.
  * log handlers should register to receive these events, and then do
- * something with each line. */
+ * something with each line.
+ * @threading called from any  
+ */
 #define CB_LOGFUNC "log"
 /** the type of log handlers. */
 typedef void (*LogFunc)(const char *line);
