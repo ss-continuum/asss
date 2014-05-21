@@ -98,7 +98,7 @@ local ArenaPersistentData persistdata =
 
 
 local void mykill(Arena *arena, int killer, int killed,
-		int bounty, int flags, int *pts, int *green)
+		int bounty, int flags, int pts, int green)
 {
 	jpdata *jpd = P_ARENA_DATA(arena, jpkey);
 	LOCK();

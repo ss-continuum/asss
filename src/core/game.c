@@ -1226,6 +1226,34 @@ local void notify_kill(Player *killer, Player *killed, int bty, int flags, int g
 				killer->name, killed->name, bty, flags);
 }
 
+struct KillCallbackDTO
+{
+	Arena *arena;
+	Player *killer;
+	Player *killed;
+	int bounty;
+	int flags;
+	int pts;
+	int green;
+};
+
+local int do_real_kill_callback(void *param)
+{
+	struct KillCallbackDTO *dto = (struct KillCallbackDTO *) param;
+	
+	if (aman->IsValidPointer(dto->arena) 
+	    && pd->IsValidPointer(dto->killer) 
+	    && pd->IsValidPointer(dto->killed))
+	{
+		DO_CBS(CB_KILL, dto->arena, KillFunc,
+	                (dto->arena, dto->killer, dto->killed, dto->bounty, dto->flags, dto->pts, dto->green));
+	}
+	
+	afree(dto);
+	return FALSE; // stop timer
+}
+
+
 local void PDie(Player *p, byte *pkt, int len)
 {
 	struct SimplePacket *dead = (struct SimplePacket*)pkt;
@@ -1350,8 +1378,16 @@ local void PDie(Player *p, byte *pkt, int len)
 
 	notify_kill(killer, p, pts, flagcount, green);
 
-	DO_CBS(CB_KILL, arena, KillFunc,
-	                (arena, killer, p, bty, flagcount, &pts, &green));
+	struct KillCallbackDTO *kill_dto = amalloc(sizeof(struct KillCallbackDTO));
+	kill_dto->arena = arena;
+	kill_dto->killer = killer;
+	kill_dto->killed = p;
+	kill_dto->bounty = bty;
+	kill_dto->flags = flagcount;
+	kill_dto->pts = pts;
+	kill_dto->green = green;
+
+	ml->SetTimer(do_real_kill_callback, 0, 0, kill_dto, kill_dto);
 
 	lm->Log(L_INFO, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d,pts=%d)",
 			arena->name,

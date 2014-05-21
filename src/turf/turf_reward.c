@@ -164,7 +164,7 @@ local void arenaAction(Arena *arena, int action);
 local void flagTag(Arena *arena, Player *p, int fid, int oldteam, int newteam);
 local void shipFreqChange(Player *p, int newship, int oldship, int newfreq, int oldfreq);
 local void killEvent(Arena *arena, Player *killer, Player *killed,
-		int bounty, int flags, int *pts, int *green);
+		int bounty, int flags, int pts, int green);
 local int turfRewardTimer(void *v);
 
 
@@ -2046,7 +2046,7 @@ local void shipFreqChange(Player *p, int newship, int oldship, int newfreq, int 
 
 
 local void killEvent(Arena *arena, Player *killer, Player *killed,
-		int bounty, int flags, int *pts, int *green)
+		int bounty, int flags, int pts, int green)
 {
 	TurfTeam *pTeam = NULL;
 	TurfPlayer *pPlayer = NULL;

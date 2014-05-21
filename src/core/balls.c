@@ -75,7 +75,7 @@ local void ChangeBallCount(Arena *arena, int count);
 local void AABall(Arena *arena, int action);
 local void PABall(Player *p, int action, Arena *arena);
 local void ShipFreqChange(Player *, int, int, int, int);
-local void BallKill(Arena *, Player *, Player *, int, int, int *, int *);
+local void BallKill(Arena *, Player *, Player *, int, int, int, int);
 
 /* timers */
 local int BasicBallTimer(void *);
@@ -758,7 +758,7 @@ void ShipFreqChange(Player *p, int newship, int oldship, int newfreq, int oldfre
 }
 
 void BallKill(Arena *arena, Player *killer, Player *killed, int bounty,
-		int flags, int *pts, int *green)
+		int flags, int pts, int green)
 {
 	InternalBallData *pbd = P_ARENA_DATA(arena, pbdkey);
 	CleanupAfter(arena, killed, killer, !pbd->cfg_deathScoresGoal, 0);

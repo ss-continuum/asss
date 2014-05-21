@@ -271,7 +271,7 @@ local void cb_shipfreqchange(Player *p, int newship, int oldship, int newfreq, i
 }
 
 local void cb_kill(Arena *a, Player *killer, Player *killed,
-		int bty, int flags, int *pts, int *green)
+		int bty, int flags, int pts, int green)
 {
 	rec_adata *ra = P_ARENA_DATA(a, adkey);
 	struct event_kill *ev = amalloc(sizeof(*ev));
@@ -280,7 +280,7 @@ local void cb_kill(Arena *a, Player *killer, Player *killed,
 	ev->head.type = EV_KILL;
 	ev->killer = killer->pid;
 	ev->killed = killed->pid;
-	ev->pts = *pts; /* FIXME: this is only accurate if this is the last callback to get called */
+	ev->pts = pts;
 	ev->flags = flags;
 	MPAdd(&ra->mpq, ev);
 }

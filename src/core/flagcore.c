@@ -472,7 +472,7 @@ local void shipfreqchange(Player *p, int newship, int oldship, int newfreq, int 
 }
 
 local void mykill(Arena *a, Player *killer, Player *killed,
-		int bty, int flags, int *pts, int *green)
+		int bty, int flags, int pts, int green)
 {
 	int cancarry, i, overflow = FALSE;
 	adata *ad = P_ARENA_DATA(a, adkey);

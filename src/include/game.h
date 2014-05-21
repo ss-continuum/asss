@@ -13,9 +13,9 @@
  */
 
 /** this callback is be called whenever a kill occurs
- * @threading called from net 
+ * @threading called from main 
  */
-#define CB_KILL "kill-2"
+#define CB_KILL "kill-3"
 /** the type of CB_KILL.
  * @param arena the arena the kill took place in
  * @param killer the player who made the kill
@@ -31,8 +31,8 @@
  * the kill green.
  */
 typedef void (*KillFunc)(Arena *arena, Player *killer, Player *killed,
-		int bounty, int flags, int *pts, int *green);
-/* pycb: arena, player, player, int, int, int inout, int inout */
+		int bounty, int flags, int pts, int green);
+/* pycb: arena, player, player, int, int, int, int */
 
 
 #define I_KILL_GREEN "kill-green-1"
