@@ -26,7 +26,7 @@ sudo apt-get install build-essential python2.7 python2.7-dev python2.7-dbg libdb
 CentOS 6:
 ```
 sudo yum groupinstall "Development Tools"
-sudo yum install python-libs python-devel python-debuginfo b4-devel mysql-libs mysql-devel gdb mercurial
+sudo yum install python-libs python-devel python-debuginfo db4-devel mysql-libs mysql-devel gdb mercurial
 ```
 
 ## Installing on GNU/Linux
