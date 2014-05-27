@@ -88,7 +88,7 @@ typedef struct Akill
 /** this callback is to be called when a player changes ship or freq.
  * intended for internal or core use only. no recursive shipchanges should
  * happen as a result of this callback.
- * @threading called from any  
+ * @threading called from any 
  */
 #define CB_PRESHIPFREQCHANGE "preshipfreqchange"
 /* the type of CB_PRESHIPFREQCHANGE
@@ -103,7 +103,7 @@ typedef void (*PreShipFreqChangeFunc)(Player *p, int newship, int oldship, int n
 
 
 /** this callback is to be called when a player changes ship or freq.
- * @threading called from any 
+ * @threading called from main
  */
 #define CB_SHIPFREQCHANGE "shipfreqchange"
 /* the type of CB_SHIPFREQCHANGE
