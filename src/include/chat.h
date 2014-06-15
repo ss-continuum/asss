@@ -30,7 +30,7 @@
 
 /** this callback is called when most types of chat messages pass
  * through the server.
- * @threading called from net  
+ * @threading called from main
  */
 #define CB_CHATMSG "chatmsg"
 /** the type of CB_CHATMSG callbacks.
