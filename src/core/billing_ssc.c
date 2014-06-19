@@ -690,7 +690,7 @@ local void process_user_login(const char *data,int len)
 		else
 			ad.code = AUTH_NOPERMISSION;
 		ad.authenticated = FALSE;
-		lm->LogP(L_INFO, "billing_ssc", p, "player rejected (%d / )", pkt->Result, ad.code);
+		lm->LogP(L_INFO, "billing_ssc", p, "player rejected (%d / %d)", pkt->Result, ad.code);
 	}
 	bdata->logindata->done(p, &ad);
 	afree(bdata->logindata);
