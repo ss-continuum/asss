@@ -25,6 +25,7 @@ someone = any
 #include <stdio.h>
 
 #include "asss.h"
+#include "billing.h"
 
 #include "md5.h"
 
@@ -144,6 +145,53 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 	done(p, &ad);
 }
 
+local void fallback_check(Player *p, const char *lpname, const char *lppass,
+                         void (*done)(void *clos, enum BillingFallbackResult result), void *clos)
+{
+	pdata *pdata = PPDATA(p, pdkey);
+	const char *line;
+	char name[32];
+	char pass[32];
+	
+	astrncpy(name, lpname, sizeof(name));
+	delimcpy(pass, lppass, sizeof(pass), '*');
+	hash_password(name, pass, pdata->pwhash);
+	pdata->set = TRUE;
+	
+	line = cfg->GetStr(pwdfile, "users", name);
+
+	if (line)
+	{
+		if (!strcmp(line, "lock"))
+		{
+			done(clos, BILLING_FALLBACK_MISMATCH);
+			return;
+		}
+		
+		if (!strcmp(line, "any"))
+		{
+			done(clos, BILLING_FALLBACK_MATCH);
+			return;
+		}
+		
+		if (strcmp(pdata->pwhash, line))
+		{
+			done(clos, BILLING_FALLBACK_MISMATCH);
+			return;
+		}
+		
+		done(clos, BILLING_FALLBACK_MATCH);
+		return;
+	}
+	
+	int allow = cfg->GetInt(pwdfile, "General", "AllowUnknown", TRUE);
+
+	if (allow)
+		done(clos, BILLING_FALLBACK_NOT_FOUND);
+	else
+		done(clos, BILLING_FALLBACK_MISMATCH);
+
+}
 
 local helptext_t local_password_help =
 "Module: auth_file\n"
@@ -257,12 +305,16 @@ local void Cset_local_password(const char *tc, const char *params, Player *p, co
 	}
 }
 
-
-
 local Iauth myauth =
 {
 	INTERFACE_HEAD_INIT(I_AUTH, "auth-file")
 	authenticate
+};
+
+local Ibillingfallback myfallback = 
+{
+	INTERFACE_HEAD_INIT(I_BILLING_FALLBACK, "auth-file-billing-fallback")
+	fallback_check
 };
 
 EXPORT const char info_auth_file[] = CORE_MOD_INFO("auth_file");
@@ -295,6 +347,7 @@ EXPORT int MM_auth_file(int action, Imodman *mm_, Arena *arena)
 
 		mm->RegCallback(CB_NEWPLAYER, newplayer, ALLARENAS);
 		mm->RegInterface(&myauth, ALLARENAS);
+		mm->RegInterface(&myfallback, ALLARENAS);
 
 		return MM_OK;
 	}
@@ -302,6 +355,10 @@ EXPORT int MM_auth_file(int action, Imodman *mm_, Arena *arena)
 	{
 		if (mm->UnregInterface(&myauth, ALLARENAS))
 			return MM_FAIL;
+		
+		if (mm->UnregInterface(&myfallback, ALLARENAS))
+			return MM_FAIL;
+		
 		mm->UnregCallback(CB_NEWPLAYER, newplayer, ALLARENAS);
 		cmd->RemoveCommand("passwd", Cpasswd, ALLARENAS);
 		cmd->RemoveCommand("local_password", Cpasswd, ALLARENAS);
@@ -319,5 +376,4 @@ EXPORT int MM_auth_file(int action, Imodman *mm_, Arena *arena)
 	}
 	return MM_FAIL;
 }
-
 

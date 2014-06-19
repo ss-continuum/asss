@@ -9,7 +9,7 @@ INTERNAL_MODULES = \
 	game game_timer chat flagcore balls \
 	banners bricks objects messages koth enf_lockspec \
 	cmdman playercmd admincmd watchdamage buy help notify \
-	directory billing billing_ssc pwcache \
+	directory billing billing_ssc \
 	cfghelp filetrans quickfix \
 	freqowners arenaperm auth_prefix fake chatnet \
 	enf_legalship enf_shipcount \

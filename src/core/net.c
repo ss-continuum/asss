@@ -1139,7 +1139,7 @@ local void handle_ping_packet(ListenData *ld)
 		{
 			if (config.simplepingpopulationmode & POPMODE_PLAYING)
 			{
-				data[0] = data[1] % 1000 < 500 ? sdata.global.total : sdata.global.playing;
+				data[0] = data[1] % 600 < 300 ? sdata.global.total : sdata.global.playing;
 			}
 			else
 			{
