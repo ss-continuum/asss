@@ -57,8 +57,17 @@ typedef void (*CommandFunc)(const char *command, const char *params,
  ** the command manager. */
 typedef const char *helptext_t;
 
+typedef struct {
+	const char *name;
+	Arena *arena;
+	helptext_t helptext;
+	int can_arena;
+	int can_priv;
+	int can_rpriv;
+} CommandInfo;
+
 /** the interface id for Icmdman */
-#define I_CMDMAN "cmdman-10"
+#define I_CMDMAN "cmdman-11"
 
 /** the interface struct for Icmdman */
 typedef struct Icmdman
@@ -105,6 +114,25 @@ typedef struct Icmdman
 	 * @param cmdname the name of the unlogged command to remove
 	 */
 	void (*RemoveUnlogged)(const char *cmdname);
+	
+	/** Get a list of registered commands.
+	 * @param arena if set, also return commands registered to the given arena,
+	 *              otherwise only return global commands.
+	 * @param p if set the can_ fields are set using capman
+	 * @param filterGlobal if TRUE, do not return any globally registered commands.
+	 * @param filterNoAccess if TRUE, do not return any commands wherein all the can_ 
+	 *                       are FALSE
+	 * @return A linked list of CommandInfo structs, call FreeGetCommands() when you
+	 *         are done.
+	 */
+	LinkedList* (*GetCommands)(Arena *arena, Player *p, int filterGlobal, int filterNoAccess);
+	
+	/** Free the return value of GetCommands()
+	 * @param player if not null, only return commands that are valid
+	 *               for the arena the player is in and also fill in the can_* attributes.
+	 * @return A linked list of CommandInfo structs
+	 */
+	void (*FreeGetCommands)(LinkedList *list);
 } Icmdman;
 
 #endif

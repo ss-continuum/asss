@@ -27,6 +27,8 @@ local void AddUnlogged(const char *);
 local void RemoveUnlogged(const char *);
 local void init_dontlog(void);
 local void uninit_dontlog(void);
+local LinkedList* GetCommands(Arena *arena, Player *p, int filterGlobal, int filterNoAccess);
+local void FreeGetCommands(LinkedList *list);
 
 /* static data */
 local Iplayerdata *pd;
@@ -45,7 +47,8 @@ local Icmdman _int =
 	INTERFACE_HEAD_INIT(I_CMDMAN, "cmdman")
 	AddCommand, RemoveCommand,
 	Command, GetHelpText,
-	AddUnlogged, RemoveUnlogged
+	AddUnlogged, RemoveUnlogged,
+	GetCommands, FreeGetCommands
 };
 
 EXPORT const char info_cmdman[] = CORE_MOD_INFO("cmdman");
@@ -336,3 +339,71 @@ helptext_t GetHelpText(const char *cmd, Arena *a)
 	return ret;
 }
 
+struct GetCommandsDTO
+{
+	LinkedList *list;
+	Arena *arena;
+	Player *p;
+	int filterGlobal;
+	int filterNoAccess;
+};
+
+local int GetCommandsEnum(const char *cmd, void *val, void *clos)
+{
+	struct GetCommandsDTO *dto = clos;
+	cmddata_t *data = val;
+	CommandInfo *info = NULL;
+	int can_arena = FALSE;
+	int can_priv = FALSE;
+	int can_rpriv = FALSE;
+	
+	if (data->arena && data->arena != dto->arena)
+	{
+		return FALSE;
+	}
+	
+	if (!data->arena && dto->filterGlobal)
+	{
+		return FALSE;
+	}
+	
+	if (dto->p)
+	{		
+		can_arena = allowed(dto->p, cmd, "cmd", NULL);
+		can_priv  = allowed(dto->p, cmd, "privcmd", NULL);
+		can_rpriv = allowed(dto->p, cmd, "rprivcmd", NULL);
+	}
+	
+	if (dto->filterNoAccess && !can_arena && !can_priv && !can_rpriv)
+	{
+		return FALSE;
+	}
+	
+	info = amalloc(sizeof(CommandInfo));
+	info->name      = cmd;
+	info->arena     = data->arena;
+	info->helptext  = data->helptext;
+	info->can_arena = can_arena;
+	info->can_priv  = can_priv;
+	info->can_rpriv = can_rpriv;
+	LLAdd(dto->list, info);
+	
+	return FALSE;
+}
+
+local LinkedList* GetCommands(Arena *arena, Player *p, int filterGlobal, int filterNoAccess)
+{
+	LinkedList *list = LLAlloc();
+	struct GetCommandsDTO dto = {list, arena, p, filterGlobal, filterNoAccess};
+	
+	pthread_mutex_lock(&cmdmtx);
+	HashEnum(cmds, GetCommandsEnum, &dto);
+	pthread_mutex_unlock(&cmdmtx);
+	return list;
+}
+
+local void FreeGetCommands(LinkedList *list)
+{
+	LLEnum(list, afree);
+	LLFree(list);
+}
