@@ -515,7 +515,7 @@ local int start_recording(Arena *a, const char *file, const char *recorder, cons
 				/* FIXME: clientset->Reconfigure(a); */
 
 				ra->started = current_ticks();
-				ra->fname = astrdup(file);
+				ra->fname = astrdup(fullpath);
 
 				chat->SendArenaMessage(a, "Starting game recording");
 
