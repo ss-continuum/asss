@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <arpa/inet.h>
 #endif
 
 #include "zlib.h"
@@ -44,6 +45,7 @@ typedef struct
 /* packet funcs */
 local void PLogin(Player *, byte *, int);
 local void MLogin(Player *, const char *);
+local void ProxyIP(Player *, const char *);
 
 local void AuthDone(Player *, AuthData *);
 local void player_sync_done(Player *);
@@ -149,7 +151,10 @@ EXPORT int MM_core(int action, Imodman *mm_, Arena *arena)
 			net->AddPacket(C2S_CONTLOGIN, PLogin);
 		}
 		if (chatnet)
+		{
 			chatnet->AddHandler("LOGIN", MLogin);
+			chatnet->AddHandler("PROXYIP", ProxyIP);
+		}
 
 		ml->SetTimer(process_player_states, 10, 10, NULL, NULL);
 
@@ -188,7 +193,10 @@ EXPORT int MM_core(int action, Imodman *mm_, Arena *arena)
 			net->RemovePacket(C2S_CONTLOGIN, PLogin);
 		}
 		if (chatnet)
+		{
 			chatnet->RemoveHandler("LOGIN", MLogin);
+			chatnet->RemoveHandler("PROXYIP", ProxyIP);
+		}
 		pd->FreePlayerData(pdkey);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);
@@ -568,6 +576,30 @@ void PLogin(Player *p, byte *opkt, int l)
 	}
 }
 
+void ProxyIP(Player *p, const char *line)
+{
+	struct sockaddr_in sa;
+
+	if (p->status != S_CONNECTED)
+	{
+		lm->Log(L_MALICIOUS, "<core> [pid=%d] ProxyIP: request from wrong stage: %d", p->pid, p->status);
+		return;
+	}
+	
+	if (strcmp(p->ipaddr, "127.0.0.1")) {
+		lm->Log(L_MALICIOUS, "<core> [pid=%d] ProxyIP: request not from localhost.", p->pid);
+		return;
+	}
+	
+	if (!inet_pton(AF_INET, line, &(sa.sin_addr)))
+	{
+		lm->Log(L_MALICIOUS, "<core> [pid=%d] ProxyIP: bad IP received: %s", p->pid, line);
+		return;
+	}	
+	
+	astrncpy(p->ipaddr, line, sizeof(p->ipaddr));
+	lm->Log(L_DRIVEL, "<core> [pid=%d] ProxyIP: new IP: %s", p->pid, p->ipaddr);
+}
 
 void MLogin(Player *p, const char *line)
 {
