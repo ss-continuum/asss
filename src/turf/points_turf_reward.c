@@ -58,7 +58,7 @@ local struct Iturfrewardpoints myint =
 
 
 EXPORT const char info_points_turf_reward[]
-	= "v2.2 by GiGaKiLLeR <gigamon@hotmail.com>";
+	= CORE_MOD_INFO("v2.2 by GiGaKiLLeR <gigamon@hotmail.com>");
 
 EXPORT int MM_points_turf_reward(int action, Imodman *mm, Arena *arena)
 {

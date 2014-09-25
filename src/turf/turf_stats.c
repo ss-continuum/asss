@@ -98,7 +98,7 @@ local void clearHistory(Arena *arena);
 local void ADisplay(Arena *arena, int histNum);
 local void PDisplay(Arena *arena, Player *pid, int histNum);
 
-EXPORT const char info_turf_stats[] = "v0.2.4 by GiGaKiLLeR <gigamon@hotmail.com>";
+EXPORT const char info_turf_stats[] = CORE_MOD_INFO("turf_stats v0.2.4 by GiGaKiLLeR <gigamon@hotmail.com>");
 
 EXPORT int MM_turf_stats(int action, Imodman *_mm, Arena *arena)
 {

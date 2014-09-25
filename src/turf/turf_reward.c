@@ -285,7 +285,7 @@ DEFINE_FROM_STRING(tr_recovery_val, TR_RECOVERY_MAP)
 
 
 EXPORT const char info_turf_reward[]
-	= "v0.5.6 by GiGaKiLLeR <gigamon@hotmail.com>";
+	= CORE_MOD_INFO("v0.5.6 by GiGaKiLLeR <gigamon@hotmail.com>");
 
 
 /* the actual entrypoint into this module */
