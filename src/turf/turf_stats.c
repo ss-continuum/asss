@@ -150,6 +150,19 @@ EXPORT int MM_turf_stats(int action, Imodman *_mm, Arena *arena)
 		/* create all necessary callbacks */
 		mm->RegCallback(CB_ARENAACTION, arenaAction, arena);
 		mm->RegCallback(CB_TURFPOSTREWARD, postReward, arena);
+		
+		
+		if (arena->status > ARENA_WAIT_HOLDS0)
+		{
+			// ?attmod
+			arenaAction(arena, AA_PRECREATE);
+		}
+		
+		if (arena->status > ARENA_WAIT_HOLDS1)
+		{
+			arenaAction(arena, AA_CREATE);
+		}
+		
 		return MM_OK;
 	}
 	else if (action == MM_DETACH)
@@ -157,6 +170,18 @@ EXPORT int MM_turf_stats(int action, Imodman *_mm, Arena *arena)
 		/* unregister all the callbacks */
 		mm->UnregCallback(CB_ARENAACTION, arenaAction, arena);
 		mm->UnregCallback(CB_TURFPOSTREWARD, postReward, arena);
+		
+		if (arena->status < ARENA_WAIT_HOLDS2)
+		{
+			// ?detmod
+			arenaAction(arena, AA_DESTROY);
+		}
+		
+		if (arena->status < ARENA_DO_DESTROY2)
+		{
+			arenaAction(arena, AA_POSTDESTROY);
+		}
+		
 		return MM_OK;
 	}
 	return MM_FAIL;
@@ -174,8 +199,10 @@ local void arenaAction(Arena *arena, int action)
 		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 		pthread_mutex_init((pthread_mutex_t*)P_ARENA_DATA(arena, mtxkey), &attr);
 		pthread_mutexattr_destroy(&attr);
+		return;
 	}
-	else if (action == AA_PRECREATE)
+	
+	if (action == AA_CREATE)
 	{
 		ts = amalloc(sizeof(TurfStats));
 		*p_ts = ts;
