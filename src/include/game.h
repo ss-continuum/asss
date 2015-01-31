@@ -167,6 +167,21 @@ typedef void (*GameTimerFunc)(Arena *arena);
 typedef void (*SafeZoneFunc)(Player *p, int x, int y, int entering);
 /* pycb: player, int, int, int */
 
+/** this callback is called when someone warps. this player event is estimated 
+ * by looking at changes in his position and STATUS_FLASH. this behaviour can 
+ * be fine tuning by the arena setting Misc:WarpTresholdDelta
+ * @threading called from main
+ */
+#define CB_WARP "warp"
+/** the type of CB_WARP
+ * @param p the player that has warped
+ * @param oldX 
+ * @param oldY
+ * @param newX
+ * @param newY 
+ */
+typedef void (*WarpFunc)(Player *p, int oldX, int oldY, int newX, int newY);
+/* pycb: player, int, int, int, int */
 
 /** this callback is called when someone enters or leaves a region.
  * @threading called from main 

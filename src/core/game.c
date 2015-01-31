@@ -42,6 +42,7 @@ typedef struct
 	time_t expires; /* when the lock expires, or 0 for session-long lock */
 	ticks_t lastrgncheck; /* when we last updated the region-based flags */
 	LinkedList lastrgnset;
+	int ppklastship;
 } pdata;
 
 typedef struct
@@ -53,6 +54,7 @@ typedef struct
 	int deathwofiring;
 	int regionchecktime;
 	int nosafeanti;
+	long warptresholddelta;
 } adata;
 
 /* global data */
@@ -121,6 +123,16 @@ struct ShipFreqChangeDTO
 	int oldship;
 	int newfreq;
 	int oldfreq;
+};
+
+struct WarpDTO
+{
+	Arena *a;
+	Player *p;
+	int oldX;
+	int oldY;
+	int newX;
+	int newY;
 };
 
 struct KillCallbackDTO
@@ -261,6 +273,34 @@ local void do_shipfreqchange_cb(Player *p, int newship, int oldship, int newfreq
 	dto->oldfreq = oldfreq;
 	
 	ml->SetTimer(run_shipfreqchange_cb, 0, 0, dto, NULL);
+}
+
+local int run_warp_cb(void *param)
+{
+	struct WarpDTO *dto = (struct WarpDTO *) param;
+	
+	if (pd->IsValidPointer(dto->p) && aman->IsValidPointer(dto->a))
+	{
+		DO_CBS(CB_WARP, dto->a, WarpFunc,
+			(dto->p, dto->oldX, dto->oldY, dto->newX, dto->newY));
+	}
+	
+	afree(dto);
+	return FALSE; // stop timer
+}
+
+local void do_warp_cb(Player *p, int oldX, int oldY, int newX, int newY)
+{
+	struct WarpDTO *dto = amalloc(sizeof(struct WarpDTO));
+	
+	dto->a = p->arena;
+	dto->p = p;
+	dto->oldX = oldX;
+	dto->oldY = oldY;
+	dto->newX = newX;
+	dto->newY = newY;
+	
+	ml->SetTimer(run_warp_cb, 0, 0, dto, NULL);
 }
 
 local int run_kill_cb(void *param)
@@ -446,6 +486,23 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 			dto->y = pos->y;
 			dto->entering = pos->status & STATUS_SAFEZONE;
 			ml->SetTimer(run_safezone_cb, 0, 0, dto, NULL);
+		}
+		
+		if (((pos->status ^ data->pos.status) & STATUS_FLASH) && 
+		    !isfake && 
+		    p->p_ship != SHIP_SPEC &&
+		    p->p_ship == data->ppklastship &&
+		    p->flags.sent_ppk && 
+		    !p->flags.is_dead &&
+		    adata->warptresholddelta > 0)
+		{
+			long dx = data->pos.x - pos->x;
+			long dy = data->pos.y - pos->y;
+			
+			if (dx*dx + dy*dy >= adata->warptresholddelta)
+			{
+				do_warp_cb(p, data->pos.x, data->pos.y, pos->x, pos->y);
+			}
 		}
 
 		/* copy the whole thing. this will copy the epd, or, if the client
@@ -762,6 +819,8 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 		/* do the position packet callback */
 		DO_CBS(CB_PPK, arena, PPKFunc, (p, pos));
 	}
+	
+	data->ppklastship = p->p_ship;
 }
 
 local void Pppk(Player *p, byte *pkt, int len)
@@ -1599,6 +1658,8 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 			p->p_freq = arena->specfreq;
 		}
 		p->p_attached = -1;
+		
+		data->ppklastship = -1; 
 
 		pd->Lock();
 		p->flags.is_dead = 0;
@@ -1722,6 +1783,13 @@ local void ArenaAction(Arena *arena, int action)
 		ad->nosafeanti = 
 			cfg->GetInt(arena->cfg, "Misc", "NoSafeAntiwarp", 0);
 
+		/* cfghelp: Misc:WarpTresholdDelta, arena, int, def: 320
+		 * The amount of change in a players position that is considered a warp
+		 * (only while he is flashing). value is in pixels */
+		ad->warptresholddelta = 
+			cfg->GetInt(arena->cfg, "Misc", "WarpTresholdDelta", 320);
+		ad->warptresholddelta = ad->warptresholddelta * ad->warptresholddelta;
+		
 		/* cfghelp: Prize:DontShareThor, arena, bool, def: 0
 		 * Whether Thor greens don't go to the whole team. */
 		if (cfg->GetInt(arena->cfg, "Prize", "DontShareThor", 0))
