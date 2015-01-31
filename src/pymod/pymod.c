@@ -283,11 +283,16 @@ local int cvt_p2c_player(PyObject *o, Player **pp)
 	else if (o->ob_type == &PlayerType)
 	{
 		*pp = ((PlayerObject*)o)->p;
+		if (!*pp)
+		{
+			PyErr_SetString(PyExc_ValueError, "stale player object (cvt_p2c_player)");
+			return FALSE;
+		}
 		return TRUE;
 	}
 	else
 	{
-		PyErr_SetString(PyExc_TypeError, "arg isn't a player object");
+		PyErr_SetString(PyExc_TypeError, "arg isn't a player object (cvt_p2c_player)");
 		return FALSE;
 	}
 }
@@ -314,11 +319,16 @@ local int cvt_p2c_arena(PyObject *o, Arena **ap)
 	else if (o->ob_type == &ArenaType)
 	{
 		*ap = ((ArenaObject*)o)->a;
+		if (!*ap)
+		{
+			PyErr_SetString(PyExc_ValueError, "stale arena object (cvt_p2c_arena)");
+			return FALSE;
+		}
 		return TRUE;
 	}
 	else
 	{
-		PyErr_SetString(PyExc_TypeError, "arg isn't a arena object");
+		PyErr_SetString(PyExc_TypeError, "arg isn't a arena object (cvt_p2c_arena)");
 		return FALSE;
 	}
 }
