@@ -13,7 +13,7 @@ typedef struct Ifiletrans
 	/* pyint: use */
 
 	int (*SendFile)(Player *p, const char *path, const char *fname, int delafter);
-	/* pyint: player, string, string, int -> int */
+	/* pyint: player_not_none, string, string, int -> int */
 
 	/* uploaded will get called when the file is done being uploaded.
 	 * filename will be the name of the uploaded file. if filename == NULL,
@@ -22,7 +22,7 @@ typedef struct Ifiletrans
 	 * up anything immediately, as uploaded won't be called. */
 	int (*RequestFile)(Player *p, const char *path,
 			void (*uploaded)(const char *filename, void *clos), void *clos);
-	/* pyint: player, string, (zstring, clos -> void) dynamic failval MM_FAIL, clos -> int */
+	/* pyint: player_not_none, string, (zstring, clos -> void) dynamic failval MM_FAIL, clos -> int */
 
 	void (*GetWorkingDirectory)(Player *p, char *dest, int destlen);
 	void (*SetWorkingDirectory)(Player *p, const char *path);

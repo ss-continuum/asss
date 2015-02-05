@@ -99,20 +99,20 @@ typedef struct Iballs
 	/* sets the number of balls in the arena. if the new count is higher
 	 * than the current one, new balls are spawned. if it's lower, the
 	 * dead balls are "phased" in the upper left corner. */
-	/* pyint: arena, int -> void  */
+	/* pyint: arena_not_none, int -> void  */
 
 	void (*PlaceBall)(Arena *arena, int bid, struct BallData *newpos);
 	/* sets the parameters of the ball to those in the given BallData
 	 * struct */
-	/* pyint: arena, int, balldata -> void */
+	/* pyint: arena_not_none, int, balldata -> void */
 
 	void (*EndGame)(Arena *arena);
 	/* ends the ball game */
-	/* pyint: arena -> void  */
+	/* pyint: arena_not_none -> void  */
 
 	void (*SpawnBall)(Arena *arena, int bid);
 	/* respawns the specified ball. no effect on balls that don't exist. */
-	/* pyint: arena, int -> void */
+	/* pyint: arena_not_none, int -> void */
 
 	ArenaBallData * (*GetBallData)(Arena *arena);
 	void (*ReleaseBallData)(Arena *arena);

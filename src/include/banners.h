@@ -22,11 +22,11 @@ typedef struct Ibanners
 	/* pyint: use */
 	void (*SetBanner)(Player *p, Banner *banner);
 	/* sets banner. NULL to remove. */
-	/* pyint: player, banner -> void */
+	/* pyint: player_not_none, banner -> void */
 	void (*SetBannerFromPlayer)(Player *p, Banner *banner);
 	/* sets banner. NULL to remove. Changes will be sent 
 	 * on to the billing server. */
-	/* pyint: player, banner -> void */
+	/* pyint: player_not_none, banner -> void */
 } Ibanners;
 
 #endif

@@ -53,7 +53,7 @@ typedef struct Ikillgreen
 	 * @param green The default kill green
 	 */
 	int (*KillGreen)(Arena *arena, Player *killer, Player *killed, int bounty, int flags, int pts, int green);
-	/* pyint: arena, player, player, int, int, int, int -> int */
+	/* pyint: arena_not_none, player_not_none, player_not_none, int, int, int, int -> int */
 } Ikillgreen;
 
 #define A_KILL "kill-2"
@@ -282,7 +282,7 @@ typedef struct Igame
 	 * @param freq the freq to change to
 	 */
 	void (*SetFreq)(Player *p, int freq);
-	/* pyint: player, int -> void */
+	/* pyint: player_not_none, int -> void */
 
 	/** Changes a player's ship.
 	 * This is an unconditional change; it doesn't go through the freq
@@ -291,7 +291,7 @@ typedef struct Igame
 	 * @param ship the freq to change to
 	 */
 	void (*SetShip)(Player *p, int ship);
-	/* pyint: player, int -> void */
+	/* pyint: player_not_none, int -> void */
 
 	/** Changes a player's ship and freq together.
 	 * This is an unconditional change; it doesn't go through the freq
@@ -301,7 +301,7 @@ typedef struct Igame
 	 * @param freq the freq to change to
 	 */
 	void (*SetShipAndFreq)(Player *p, int ship, int freq);
-	/* pyint: player, int, int -> void */
+	/* pyint: player_not_none, int, int -> void */
 
 	/** Moves a set of playes to a specific location.
 	 * This uses the Continuum warp feature, so it causes the little
@@ -365,7 +365,7 @@ typedef struct Igame
 	 * locking them
 	 */
 	void (*LockArena)(Arena *a, int notify, int onlyarenastate, int initial, int spec);
-	/* pyint: arena, int, int, int, int -> void */
+	/* pyint: arena_not_none, int, int, int, int -> void */
 
 	/** Undoes the effect of LockArena by changing the arena lock state
 	 ** and unlocking current players.
@@ -375,7 +375,7 @@ typedef struct Igame
 	 * @param onlyarenastate whether to apply changes to the default
 	 */
 	void (*UnlockArena)(Arena *a, int notify, int onlyarenastate);
-	/* pyint: arena, int, int -> void */
+	/* pyint: arena_not_none, int, int -> void */
 
 	void (*FakePosition)(Player *p, struct C2SPosition *pos, int len);
 	void (*FakeKill)(Player *killer, Player *killed, int pts, int flags);

@@ -96,7 +96,7 @@ typedef struct Imapdata
 	 * the result. false if it failed.
 	 */
 	int (*GetMapFilename)(Arena *arena, char *buf, int buflen, const char *mapname);
-	/* pyint: arena, string out, int buflen, zstring -> int */
+	/* pyint: arena_not_none, string out, int buflen, zstring -> int */
 
 	/** gets the named attribute for the arena's map.
 	 * @param arena the arena whose map we care about.
@@ -104,19 +104,19 @@ typedef struct Imapdata
 	 * @return the key's value, or NULL if not present
 	 */
 	const char * (*GetAttr)(Arena *arena, const char *key);
-	/* pyint: arena, string -> string */
+	/* pyint: arena_not_none, string -> string */
 
 	/** like RegionChunk, but for the map itself. */
 	int (*MapChunk)(Arena *arena, u32 ctype, const void **datap, int *sizep);
-	/* pyint: arena, int, bufp out, int buflen out -> void */
+	/* pyint: arena_not_none, int, bufp out, int buflen out -> void */
 
 	/** returns the number of flags on the map in this arena. */
 	int (*GetFlagCount)(Arena *arena);
-	/* pyint: arena -> int */
+	/* pyint: arena_not_none -> int */
 
 	/** returns the contents of a single tile of the map. */
 	enum map_tile_t (*GetTile)(Arena *arena, int x, int y);
-	/* pyint: arena, int, int -> int */
+	/* pyint: arena_not_none, int, int -> int */
 
 	/* the following three functions are in this module because of
 	 * efficiency concerns. */
@@ -124,7 +124,7 @@ typedef struct Imapdata
 	/** finds the tile nearest to the given tile that is appropriate for
 	 ** placing a flag. */
 	void (*FindEmptyTileNear)(Arena *arena, int *x, int *y);
-	/* pyint: arena, int inout, int inout -> void */
+	/* pyint: arena_not_none, int inout, int inout -> void */
 
 	u32 (*GetChecksum)(Arena *arena, u32 key);
 
@@ -154,7 +154,7 @@ typedef struct Imapdata
 	 * @return a handle for the specified region, or NULL if not found.
 	 */
 	Region * (*FindRegionByName)(Arena *arena, const char *name);
-	/* pyint: arena, string -> region */
+	/* pyint: arena_not_none, string -> region */
 
 	/** gets the name of a region.
 	 * @param region a region handle.
@@ -200,7 +200,7 @@ typedef struct Imapdata
 	 */
 	void (*EnumContaining)(Arena *arena, int x, int y,
 			void (*cb)(void *clos, Region *rgn), void *clos);
-	/* pyint: arena, int, int, (clos, region -> void), clos -> void */
+	/* pyint: arena_not_none, int, int, (clos, region -> void), clos -> void */
 
 	/** finds some region containing the given point.
 	 * @param arena the arena whose map we're dealing with.
@@ -210,7 +210,7 @@ typedef struct Imapdata
 	 * isn't contained in any region.
 	 */
 	Region * (*GetOneContaining)(Arena *arena, int x, int y);
-	/* pyint: arena, int, int -> region */
+	/* pyint: arena_not_none, int, int -> region */
 
 	void (*EnumLVZFiles)(Arena *arena,
 			void (*func)(const char *fn, int optional, void *clos),

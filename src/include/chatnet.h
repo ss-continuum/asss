@@ -28,7 +28,7 @@ typedef struct Ichatnet
 
 	void (*AddHandler)(const char *type, MessageFunc func);
 	void (*CallHandler)(Player *p, const char *type, const char *line);
-	/* pyint: player, string, zstring -> void */
+	/* pyint: player_not_none, string, zstring -> void */
 	void (*RemoveHandler)(const char *type, MessageFunc func);
 
 	void (*SendToOne)(Player *p, const char *line, ...)

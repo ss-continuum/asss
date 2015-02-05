@@ -13,11 +13,11 @@ typedef struct Iidle
 	INTERFACE_HEAD_DECL
 	/* pyint: use */
 	int (*GetIdle)(Player *p);
-	/* pyint: player -> int */
+	/* pyint: player_not_none -> int */
 	void (*ResetIdle)(Player *p);
-	/* pyint: player -> void */
+	/* pyint: player_not_none -> void */
 	int (*isAvailable)(Player *p);
-	/* pyint: player -> int */
+	/* pyint: player_not_none -> int */
 } Iidle;
 
 #endif

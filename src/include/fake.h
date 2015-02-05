@@ -13,7 +13,7 @@ typedef struct Ifake
 	/* pyint: use */
 
 	Player * (*CreateFakePlayer)(const char *name, Arena *arena, int ship, int freq);
-	/* pyint: string, arena, int, int -> player */
+	/* pyint: string, arena_not_none, int, int -> player */
 	int (*EndFaked)(Player *p);
 	/* pyint: player -> int */
 } Ifake;

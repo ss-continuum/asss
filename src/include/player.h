@@ -303,7 +303,7 @@ typedef struct Iplayerdata
 	 * @return the newly allocated player struct
 	 */
 	Player * (*NewPlayer)(int type);
-	/* pyint: int -> player */
+	/* pyint: int -> player_not_none */
 
 	/** Frees memory associated with a player.
 	 * This is called by the network modules when a connection has
@@ -320,7 +320,7 @@ typedef struct Iplayerdata
 	 * @param p the player to kick
 	 */
 	void (*KickPlayer)(Player *p);
-	/* pyint: player -> void */
+	/* pyint: player_not_none -> void */
 
 
 	/** Finds the player with the given pid.

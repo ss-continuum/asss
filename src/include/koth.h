@@ -75,7 +75,7 @@ typedef struct Ipoints_koth
 			Arena *arena,
 			int totalplaying,
 			int winners);
-	/* pyint: arena, int, int -> int */
+	/* pyint: arena_not_none, int, int -> int */
 } Ipoints_koth;
 
 #endif

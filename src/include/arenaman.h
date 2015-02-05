@@ -142,7 +142,7 @@ typedef struct Iarenaman
 	/** Recycles an arena by suspending all the players, unloading and
 	 ** reloading the arena, and then letting the players back in. */
 	int (*RecycleArena)(Arena *a);
-	/* pyint: arena -> int */
+	/* pyint: arena_not_none -> int */
 
 	/** Moves a player into a specific arena.
 	 * Works on Continuum clients only.
@@ -152,7 +152,7 @@ typedef struct Iarenaman
 	 * @param spawny the y coord he should spawn at, or 0 for default
 	 */
 	void (*SendToArena)(Player *p, const char *aname, int spawnx, int spawny);
-	/* pyint: player, string, int, int -> void */
+	/* pyint: player_not_none, string, int, int -> void */
 
 	/** This is a multi-purpose function for locating and counting
 	 ** arenas.
@@ -214,13 +214,13 @@ typedef struct Iarenaman
 	 * AA_CREATE and AA_DESTROY actions.
 	 */
 	void (*Hold)(Arena *a);
-	/* pyint: arena -> void */
+	/* pyint: arena_not_none -> void */
 	/** Removes a "hold" on an arena.
 	 * This must be called exactly once for each time Hold is called. It
 	 * may be called from any thread.
 	 */
 	void (*Unhold)(Arena *a);
-	/* pyint: arena -> void */
+	/* pyint: arena_not_none -> void */
 
 	/** This is a list of all the arenas the server knows about.
 	 * Don't forget the lock. You shouldn't use this directly, but use
@@ -298,7 +298,7 @@ typedef struct Iarenaplace
 	 * @return true if name was filled in, false on any error
 	 */
 	int (*Place)(char *name, int namelen, int *spawnx, int *spawny, Player *p);
-	/* pyint: string out, int buflen, int out, int out, player -> int */
+	/* pyint: string out, int buflen, int out, int out, player_not_none -> int */
 } Iarenaplace;
 
 

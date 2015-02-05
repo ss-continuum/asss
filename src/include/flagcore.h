@@ -96,11 +96,11 @@ typedef struct Iflagcore
 	/* pyint: use */
 
 	int (*GetFlags)(Arena *a, int fid, FlagInfo *fis, int count);
-	/* pyint: arena, int, flaginfo out, one -> int */
+	/* pyint: arena_not_none, int, flaginfo out, one -> int */
 	int (*SetFlags)(Arena *a, int fid, FlagInfo *fis, int count);
-	/* pyint: arena, int, flaginfo, one -> int */
+	/* pyint: arena_not_none, int, flaginfo, one -> int */
 	void (*FlagReset)(Arena *a, int freq, int points);
-	/* pyint: arena, int, int -> void */
+	/* pyint: arena_not_none, int, int -> void */
 
 	/* convenience: */
 	int (*CountFlags)(Arena *a);
@@ -111,9 +111,9 @@ typedef struct Iflagcore
 	/* used during initialization: */
 
 	void (*SetCarryMode)(Arena *a, int carrymode);
-	/* pyint: arena, int -> void */
+	/* pyint: arena_not_none, int -> void */
 	void (*ReserveFlags)(Arena *a, int flagcount);
-	/* pyint: arena, int -> void */
+	/* pyint: arena_not_none, int -> void */
 } Iflagcore;
 
 
@@ -128,19 +128,19 @@ typedef struct Iflaggame
 	 * @threading called from any
 	 */ 
 	void (*Init)(Arena *a);
-	/* pyint: arena -> void */
+	/* pyint: arena_not_none -> void */
 
 	/** a player touched a flag 
 	 * @threading called from any
 	 */
 	void (*FlagTouch)(Arena *a, Player *p, int fid);
-	/* pyint: arena, player, int -> void */
+	/* pyint: arena_not_none, player_not_none, int -> void */
 	
 	/** a flag needs to be cleaned up for some reason 
 	 * @threading called from any 
 	 */
 	void (*Cleanup)(Arena *a, int fid, int reason, Player *oldcarrier, int oldfreq);
-	/* pyint: arena, int, int, player, int -> void */
+	/* pyint: arena_not_none, int, int, player_not_none, int -> void */
 } Iflaggame;
 
 #endif

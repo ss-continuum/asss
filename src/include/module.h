@@ -184,13 +184,13 @@ typedef struct Imodman
 	 * loading, and occasionally while the arena is running also.
 	 */
 	int (*AttachModule)(const char *modname, Arena *arena);
-	/* pyint: string, arena -> int */
+	/* pyint: string, arena_not_none -> int */
 	/** Detaches a module from an arena.
 	 * This is called by the arena manager at the proper stage of arena
 	 * loading, and occasionally while the arena is running also.
 	 */
 	int (*DetachModule)(const char *modname, Arena *arena);
-	/* pyint: string, arena -> int */
+	/* pyint: string, arena_not_none -> int */
 
 
 	/* interface stuff */

@@ -34,7 +34,7 @@ typedef struct Ibricks
 	/* pyint: use */
 
 	void (*DropBrick)(Arena *arena, int freq, int x1, int y1, int x2, int y2);
-	/* pyint: arena, int, int, int, int, int -> void */
+	/* pyint: arena_not_none, int, int, int, int, int -> void */
 } Ibricks;
 
 #define I_BRICK_HANDLER "bh-2"

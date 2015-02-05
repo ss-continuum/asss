@@ -17,7 +17,7 @@ typedef struct Iredirect
 			int arenatype, const char *arenaname);
 	/* pyint: target, string, int, int, string -> int */
 	int (*ArenaRequest)(Player *p, const char *arenaname);
-	/* pyint: player, string -> int */
+	/* pyint: player_not_none, string -> int */
 } Iredirect;
 
 #endif
