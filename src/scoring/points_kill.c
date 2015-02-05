@@ -64,6 +64,10 @@ local int MyKillPoints(Arena *arena, Player *killer, Player *killed, int bounty,
 {
 	int tk, fixedreward, pts;
 
+	/* cfghelp: Kill:FixedKillReward, arena, int, def: -1
+	 * If -1 use the bounty of the killed player to calculate kill reward.
+	 * Otherwise use this fixed value	 
+	 */
 	tk = killer->p_freq == killed->p_freq;
 	fixedreward = cfg->GetInt(arena->cfg, "Kill", "FixedKillReward", -1);
 	pts = (fixedreward != -1) ? fixedreward : bounty;
