@@ -263,6 +263,17 @@ class type_player(type_gen):
 	def parse_converter(me):
 		return 'cvt_p2c_player'
 
+class type_player_not_none(type_gen):
+	def format_char(me):
+		return 'O&'
+	def decl(me, s):
+		return 'Player *' + s
+	def build_converter(me):
+		return 'cvt_c2p_player_not_none'
+	def parse_converter(me):
+		return 'cvt_p2c_player_not_none'
+
+
 class type_arena(type_gen):
 	def format_char(me):
 		return 'O&'
@@ -272,6 +283,16 @@ class type_arena(type_gen):
 		return 'cvt_c2p_arena'
 	def parse_converter(me):
 		return 'cvt_p2c_arena'
+
+class type_arena_not_none(type_gen):
+	def format_char(me):
+		return 'O&'
+	def decl(me, s):
+		return 'Arena *' + s
+	def build_converter(me):
+		return 'cvt_c2p_arena_not_none'
+	def parse_converter(me):
+		return 'cvt_p2c_arena_not_none'
 
 class type_config(type_gen):
 	def format_char(me):

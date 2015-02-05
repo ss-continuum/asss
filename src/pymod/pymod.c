@@ -297,6 +297,46 @@ local int cvt_p2c_player(PyObject *o, Player **pp)
 	}
 }
 
+local PyObject * cvt_c2p_player_not_none(Player *p)
+{
+	PyObject *o;
+	if (p)
+	{
+		o = (PyObject*)((pdata*)PPDATA(p, pdkey))->obj;
+	}
+	else
+	{
+		o = Py_None;
+		lm->Log(L_ERROR, "<pymod> NULL player was passed to python however this parameter was defined as player_not_none");
+	}
+	Py_XINCREF(o);
+	return o;
+}
+
+local int cvt_p2c_player_not_none(PyObject *o, Player **pp)
+{
+	if (o == Py_None)
+	{
+		*pp = NULL;
+		PyErr_SetString(PyExc_ValueError, "player object must not be None (cvt_p2c_player_not_none)");
+		return FALSE;
+	}
+	else if (o->ob_type == &PlayerType)
+	{
+		*pp = ((PlayerObject*)o)->p;
+		if (!*pp)
+		{
+			PyErr_SetString(PyExc_ValueError, "stale player object (cvt_p2c_player_not_none)");
+			return FALSE;
+		}
+		return TRUE;
+	}
+	else
+	{
+		PyErr_SetString(PyExc_TypeError, "arg isn't a player object (cvt_p2c_player_not_none)");
+		return FALSE;
+	}
+}
 
 local PyObject * cvt_c2p_arena(Arena *a)
 {
@@ -329,6 +369,47 @@ local int cvt_p2c_arena(PyObject *o, Arena **ap)
 	else
 	{
 		PyErr_SetString(PyExc_TypeError, "arg isn't a arena object (cvt_p2c_arena)");
+		return FALSE;
+	}
+}
+
+local PyObject * cvt_c2p_arena_not_none(Arena *a)
+{
+	PyObject *o;
+	if (a)
+	{
+		o = (PyObject*)((adata*)P_ARENA_DATA(a, adkey))->obj;
+	}
+	else
+	{
+		o = Py_None;
+		lm->Log(L_ERROR, "<pymod> NULL arena was passed to python however this parameter was defined as arena_not_none");
+	}
+	Py_XINCREF(o);
+	return o;
+}
+
+local int cvt_p2c_arena_not_none(PyObject *o, Arena **ap)
+{
+	if (o == Py_None)
+	{
+		*ap = NULL;
+		PyErr_SetString(PyExc_ValueError, "arena object must not be None (cvt_p2c_arena_not_none)");
+		return FALSE;
+	}
+	else if (o->ob_type == &ArenaType)
+	{
+		*ap = ((ArenaObject*)o)->a;
+		if (!*ap)
+		{
+			PyErr_SetString(PyExc_ValueError, "stale arena object (cvt_p2c_arena_not_none)");
+			return FALSE;
+		}
+		return TRUE;
+	}
+	else
+	{
+		PyErr_SetString(PyExc_TypeError, "arg isn't a arena object (cvt_p2c_arena_not_none)");
 		return FALSE;
 	}
 }
@@ -2135,21 +2216,21 @@ local PyObject * mthd_for_each_arena(PyObject *self, PyObject *args)
 local PyObject * mthd_is_standard(PyObject *self, PyObject *args)
 {
 	Player *p;
-	if (!PyArg_ParseTuple(args, "O&", cvt_p2c_player, &p)) return NULL;
+	if (!PyArg_ParseTuple(args, "O&", cvt_p2c_player_not_none, &p)) return NULL;
 	return PyInt_FromLong(IS_STANDARD(p));
 }
 
 local PyObject * mthd_is_chat(PyObject *self, PyObject *args)
 {
 	Player *p;
-	if (!PyArg_ParseTuple(args, "O&", cvt_p2c_player, &p)) return NULL;
+	if (!PyArg_ParseTuple(args, "O&", cvt_p2c_player_not_none, &p)) return NULL;
 	return PyInt_FromLong(IS_CHAT(p));
 }
 
 local PyObject * mthd_is_human(PyObject *self, PyObject *args)
 {
 	Player *p;
-	if (!PyArg_ParseTuple(args, "O&", cvt_p2c_player, &p)) return NULL;
+	if (!PyArg_ParseTuple(args, "O&", cvt_p2c_player_not_none, &p)) return NULL;
 	return PyInt_FromLong(IS_HUMAN(p));
 }
 
