@@ -40,7 +40,7 @@ enum
 	CLEANUP_SHIPCHANGE,     /* ship change */
 	CLEANUP_FREQCHANGE,     /* freq change */
 	CLEANUP_LEFTARENA,      /* carrier left arena/quit game */
-	CLEANUP_KILL_NORMAL,    /* flag got transfered for kill */
+	CLEANUP_KILL_NORMAL,    /* flag got transferred for kill */
 	CLEANUP_KILL_TK,        /* carrier was team-killed */
 	CLEANUP_KILL_CANTCARRY, /* carrier was killed, but killer can't carry more flags */
 	CLEANUP_KILL_FAKE,      /* carrier was killed by a fake player */
