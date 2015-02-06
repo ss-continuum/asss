@@ -9,3 +9,4 @@ cmd_sg_info
 privcmd_sg_info
 cmd_sg_lag
 privcmd_sg_lag
+privcmd_sg_spec

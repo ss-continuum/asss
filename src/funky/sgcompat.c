@@ -15,6 +15,7 @@ local Ilagquery *lagq;
 local Inet *net;
 local Igroupman *groupman;
 local Iidle *idle;
+local Igame *game;
 
 local HashTable *aliases;
 
@@ -75,6 +76,7 @@ local void setup_aliases(void)
 	ALIAS("*where",       "sg_where");
 	ALIAS("*info",        "sg_info");
 	ALIAS("*lag",         "sg_lag");
+	ALIAS("*spec",        "sg_spec");
 #undef ALIAS
 }
 
@@ -250,7 +252,40 @@ local void Csg_lag(const char *tc, const char *params, Player *p, const Target *
 
 #undef AVG_PING
 
+local void Csg_spec(const char *tc, const char *params, Player *p, const Target *target)
+{
+	if (target->type != T_PLAYER)
+	{
+	        chat->SendMessage(p, "This command can only be sent to a player");
+	        return;
+	}
+
+        Player *t = target->u.p;
+
+        if (game->HasLock(t))
+        {
+        	game->Unlock(target, 0);
+        }
+        else
+        {
+                game->Lock(target, 0, 1, 0);
+        }
+}
+
 EXPORT const char info_sgcompat[] = CORE_MOD_INFO("sgcompat");
+
+local void releaseInterfaces(Imodman *mm)
+{
+        mm->ReleaseInterface(cmd);
+        mm->ReleaseInterface(pd);
+        mm->ReleaseInterface(lm);
+        mm->ReleaseInterface(chat);
+        mm->ReleaseInterface(lagq);
+        mm->ReleaseInterface(net);
+        mm->ReleaseInterface(groupman);
+        mm->ReleaseInterface(idle);
+        mm->ReleaseInterface(game);
+}
 
 EXPORT int MM_sgcompat(int action, Imodman *mm, Arena *arena)
 {
@@ -264,6 +299,14 @@ EXPORT int MM_sgcompat(int action, Imodman *mm, Arena *arena)
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		groupman = mm->GetInterface(I_GROUPMAN, ALLARENAS);
 		idle = mm->GetInterface(I_IDLE, ALLARENAS);
+		game = mm->GetInterface(I_GAME, ALLARENAS);
+
+		if (!cmd || !pd || !lm || !chat || !lagq || !net || !groupman || !idle || !game)
+		{
+		        printf("<sgcompat> Missing interface\n");
+		        releaseInterfaces(mm);
+		        return MM_FAIL;
+		}
 
 		cmd->AddCommand("sg_einfo", Csg_einfo, ALLARENAS, NULL);
 		cmd->AddCommand("sg_tinfo", Csg_tinfo, ALLARENAS, NULL);
@@ -271,6 +314,7 @@ EXPORT int MM_sgcompat(int action, Imodman *mm, Arena *arena)
 		cmd->AddCommand("sg_where", Csg_where, ALLARENAS, NULL);
 		cmd->AddCommand("sg_info", Csg_info, ALLARENAS, NULL);
 		cmd->AddCommand("sg_lag", Csg_lag, ALLARENAS, NULL);
+		cmd->AddCommand("sg_spec", Csg_spec, ALLARENAS, NULL);
 
 		setup_aliases();
 		mm->RegCallback(CB_REWRITECOMMAND, rewritecommand, ALLARENAS);
@@ -285,16 +329,11 @@ EXPORT int MM_sgcompat(int action, Imodman *mm, Arena *arena)
 		cmd->RemoveCommand("sg_where", Csg_where, ALLARENAS);
 		cmd->RemoveCommand("sg_info", Csg_info, ALLARENAS);
 		cmd->RemoveCommand("sg_lag", Csg_lag, ALLARENAS);
+		cmd->RemoveCommand("sg_spec", Csg_spec, ALLARENAS);
+
 		mm->UnregCallback(CB_REWRITECOMMAND, rewritecommand, ALLARENAS);
 		cleanup_aliases();
-		mm->ReleaseInterface(cmd);
-		mm->ReleaseInterface(pd);
-		mm->ReleaseInterface(lm);
-		mm->ReleaseInterface(chat);
-		mm->ReleaseInterface(lagq);
-		mm->ReleaseInterface(net);
-		mm->ReleaseInterface(groupman);
-		mm->ReleaseInterface(idle);
+		releaseInterfaces(mm);
 		return MM_OK;
 	}
 	else
