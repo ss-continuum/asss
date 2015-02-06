@@ -24,8 +24,6 @@
  * necessarily equal to the killed->position.bounty)
  * @param flags the number of flags the killed player was carrying
  * @param pts a pointer to the total number of points this kill was worth.
- * NOTE: pts should not be altered. Use the kill adviser for changing 
- * the points from a kill.
  * @param green a pointer to the the kill green that was placed for this death.
  * NOTE: green should not be altered. Use the killgreen interface for selecting 
  * the kill green.
