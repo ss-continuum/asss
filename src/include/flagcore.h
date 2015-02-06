@@ -63,7 +63,7 @@ typedef struct FlagInfo
  */
 #define CB_FLAGGAIN "flaggain"
 typedef void (*FlagGainFunc)(Arena *a, Player *p, int fid, int how);
-/* pycb: arena, player, int, int */
+/* pycb: arena_not_none, player_not_none, int, int */
 
 /** run when a player isn't carrying a flag anymore. how will be one of
  * the CLEANUP_ constants.
@@ -71,21 +71,21 @@ typedef void (*FlagGainFunc)(Arena *a, Player *p, int fid, int how);
  */
 #define CB_FLAGLOST "flaglost"
 typedef void (*FlagLostFunc)(Arena *a, Player *p, int fid, int how);
-/* pycb: arena, player, int, int */
+/* pycb: arena_not_none, player_not_none, int, int */
 
 /** run when a flag appears on the map in a new location or with a new owner
  * @threading called from any 
  */
 #define CB_FLAGONMAP "flagonmap"
 typedef void (*FlagOnMapFunc)(Arena *a, int fid, int x, int y, int freq);
-/* pycb: arena, int, int, int, int */
+/* pycb: arena_not_none, int, int, int, int */
 
 /** run when the flag game is reset (either a win or a forced reset)
  * @threading called from any  
  */
 #define CB_FLAGRESET "flagreset"
 typedef void (*FlagResetFunc)(Arena *a, int freq, int points);
-/* pycb: arena, int, int */
+/* pycb: arena_not_none, int, int */
 
 
 #define I_FLAGCORE "flagcore-4"

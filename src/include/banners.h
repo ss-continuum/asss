@@ -11,7 +11,7 @@
  */ 
 #define CB_SET_BANNER "setbanner"
 typedef void (*SetBannerFunc)(Player *p, Banner *banner, int from_player);
-/* pycb: player, banner, int */
+/* pycb: player_not_none, banner, int */
 
 
 #define I_BANNERS "banners-3"

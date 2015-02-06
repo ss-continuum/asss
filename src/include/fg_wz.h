@@ -10,7 +10,7 @@
  */
 #define CB_WARZONEWIN "warzonewin"
 typedef void (*WarzoneWinFunc)(Arena *a, int freq, int *points);
-/* pycb: arena, int, int inout */
+/* pycb: arena_not_none, int, int inout */
 
 #endif
 

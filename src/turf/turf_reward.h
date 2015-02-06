@@ -29,7 +29,7 @@ struct Iturfrewardpoints;
  */
 #define CB_TURFSTEAL "turfsteal"
 typedef void (*TurfStealFunc)(Arena *arena, Player *p, int fid);
-/* pycb: arena, player, int */
+/* pycb: arena_not_none, player_not_none, int */
 
 /* called when a flag is 'recovered' (note: CB_TURFTAG will still be called)
  * possible use would be to have a module that manipulates lvz objects telling
@@ -39,7 +39,7 @@ typedef void (*TurfStealFunc)(Arena *arena, Player *p, int fid);
 #define CB_TURFRECOVER "turfrecover"
 typedef void (*TurfRecoverFunc)(Arena *arena, int fid, int pid, int freq,
 	int dings, int weight, int recovered);
-/* pycb: arena, int, int, int, int, int, int */
+/* pycb: arena_not_none, int, int, int, int, int, int */
 
 /* called when a flag is 'lost' (note: CB_TURFTAG will still be called) possible
  * use would be to have a module that manipulates lvz objects telling players
@@ -49,7 +49,7 @@ typedef void (*TurfRecoverFunc)(Arena *arena, int fid, int pid, int freq,
 #define CB_TURFLOST "turflost"
 typedef void (*TurfLostFunc)(Arena *arena, int fid, int pid, int freq,
 	int dings, int weight, int recovered);
-/* pycb: arena, int, int, int, int, int, int */
+/* pycb: arena_not_none, int, int, int, int, int, int */
 
 /* A special callback!! - the turf_arena data is LOCKED when this is called
  * This is called AFTER players are awarded points (good time for history stuff
@@ -64,7 +64,7 @@ typedef void (*TurfPostRewardFunc)(Arena *arena, struct TurfArena *ta);
 /* NOT CURRENTLY IMPLEMENTED */
 #define CB_TURFVICTORY "turfvictory"
 typedef void (*TurfVictoryFunc) (Arena *arena);
-/* pycb: arena */
+/* pycb: arena_not_none */
 
 
 /* for linked list for data on teams that have a chance to 'recover' */

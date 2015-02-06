@@ -25,28 +25,28 @@ typedef enum
  */
 #define CB_BALLCOUNTCHANGE "ballcountchange"
 typedef void (*BallCountChangeFunc)(Arena *arena, int newcount, int oldcount);
-/* pycb: arena, int, int */
+/* pycb: arena_not_none, int, int */
 
 /* called when a player picks up a ball
  * @threading called from net
  */
 #define CB_BALLPICKUP "ballpickup"
 typedef void (*BallPickupFunc)(Arena *arena, Player *p, int bid);
-/* pycb: arena, player, int */
+/* pycb: arena_not_none, player_not_none, int */
 
 /* called when a player fires a ball 
  * @threading called from any
  */
 #define CB_BALLFIRE "ballfire"
 typedef void (*BallFireFunc)(Arena *arena, Player *p, int bid);
-/* pycb: arena, player, int */
+/* pycb: arena_not_none, player_not_none, int */
 
 /* called when a player scores a goal 
  * @threading called from any
  */
 #define CB_GOAL "goal"
 typedef void (*GoalFunc)(Arena *arena, Player *p, int bid, int x, int y);
-/* pycb: arena, player, int, int, int */
+/* pycb: arena_not_none, player_not_none, int, int, int */
 
 
 struct BallData

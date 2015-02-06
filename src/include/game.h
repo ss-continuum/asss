@@ -30,7 +30,7 @@
  */
 typedef void (*KillFunc)(Arena *arena, Player *killer, Player *killed,
 		int bounty, int flags, int pts, int green);
-/* pycb: arena, player, player, int, int, int, int */
+/* pycb: arena_not_none, player_not_none, player_not_none, int, int, int, int */
 
 
 #define I_KILL_GREEN "kill-green-1"
@@ -97,7 +97,7 @@ typedef struct Akill
  * @param oldfreq the player's old frequency
  */
 typedef void (*PreShipFreqChangeFunc)(Player *p, int newship, int oldship, int newfreq, int oldfreq);
-/* pycb: player, int, int, int, int */
+/* pycb: player_not_none, int, int, int, int */
 
 
 /** this callback is to be called when a player changes ship or freq.
@@ -112,7 +112,7 @@ typedef void (*PreShipFreqChangeFunc)(Player *p, int newship, int oldship, int n
  * @param oldfreq the player's old frequency
  */
 typedef void (*ShipFreqChangeFunc)(Player *p, int newship, int oldship, int newfreq, int oldfreq);
-/* pycb: player, int, int, int, int */
+/* pycb: player_not_none, int, int, int, int */
 
 
 /** this callback will be called when the player respawns after dying, or enters the game.
@@ -126,7 +126,7 @@ typedef void (*ShipFreqChangeFunc)(Player *p, int newship, int oldship, int newf
  * @param reason a bitwise combination of applicable SPAWN_ values
  */
 typedef void (*SpawnFunc)(Player *p, int reason);
-/* pycb: player, int */
+/* pycb: player_not_none, int */
 
 /* pyconst: define int, "SPAWN_*" */
 /* the player died and is respawning now */
@@ -149,7 +149,7 @@ typedef void (*SpawnFunc)(Player *p, int reason);
  * @param arena the arena whose timer is ending
  */
 typedef void (*GameTimerFunc)(Arena *arena);
-/* pycb: arena */
+/* pycb: arena_not_none */
 
 
 /** this callback is called when someone enters or leaves a safe zone.
@@ -163,7 +163,7 @@ typedef void (*GameTimerFunc)(Arena *arena);
  * @param entering true if entering, false if exiting
  */
 typedef void (*SafeZoneFunc)(Player *p, int x, int y, int entering);
-/* pycb: player, int, int, int */
+/* pycb: player_not_none, int, int, int */
 
 /** this callback is called when someone warps. this player event is estimated 
  * by looking at changes in his position and STATUS_FLASH. this behaviour can 
@@ -179,7 +179,7 @@ typedef void (*SafeZoneFunc)(Player *p, int x, int y, int entering);
  * @param newY 
  */
 typedef void (*WarpFunc)(Player *p, int oldX, int oldY, int newX, int newY);
-/* pycb: player, int, int, int, int */
+/* pycb: player_not_none, int, int, int, int */
 
 /** this callback is called when someone enters or leaves a region.
  * @threading called from main 
@@ -193,7 +193,7 @@ typedef void (*WarpFunc)(Player *p, int oldX, int oldY, int newX, int newY);
  * @param entering true if entering, false if exiting
  */
 typedef void (*RegionFunc)(Player *p, Region *rgn, int x, int y, int entering);
-/* NOTYETpycb: player, void, int, int, int */
+/* NOTYETpycb: player_not_none, void, int, int, int */
 
 
 /** this callback is called whenever someone picks up a green.
@@ -207,7 +207,7 @@ typedef void (*RegionFunc)(Player *p, Region *rgn, int x, int y, int entering);
  * @param prize the type of green picked up
  */
 typedef void (*GreenFunc)(Player *p, int x, int y, int prize);
-/* pycb: player, int, int, int */
+/* pycb: player_not_none, int, int, int */
 
 
 /** this callback is called whenever someone attaches or detaches. 
@@ -219,7 +219,7 @@ typedef void (*GreenFunc)(Player *p, int x, int y, int prize);
  * @param to the player being attached to, or NULL when detaching
  */
 typedef void (*AttachFunc)(Player *p, Player *to);
-/* pycb: player, player */
+/* pycb: player_not_none, player */
 
 /** this calllback is called whenever a position packet is handled.
  * Note that this callback is not called for spectators.

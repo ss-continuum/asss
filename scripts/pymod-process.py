@@ -448,9 +448,9 @@ def create_c_to_py_func(name, func):
 			allargs.append(typ.decl(argname))
 
 			# the arena value can only be an inarg
-			if av_arena is None and arg.tp == 'arena':
+			if av_arena is None and (arg.tp == 'arena' or arg.tp == 'arena_not_none'):
 				av_arena = argname
-			elif av_player is None and arg.tp == 'player':
+			elif av_player is None and (arg.tp == 'player' or arg.tp == 'player_not_none'):
 				av_player = argname + '->arena'
 
 		elif 'out' in opts:

@@ -98,7 +98,7 @@ enum
  * the arena being entered or left.
  */
 typedef void (*PlayerActionFunc)(Player *p, int action, Arena *arena);
-/* pycb: player, int, arena */
+/* pycb: player_not_none, int, arena */
 
 /** the interface id for Iauth */
 #define I_AUTH "auth-2"

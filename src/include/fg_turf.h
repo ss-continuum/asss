@@ -13,7 +13,7 @@
  */
 #define CB_TURFTAG "turftag"
 typedef void (*TurfTagFunc)(Arena *a, Player *p, int fid, int oldfreq, int newfreq);
-/* pycb: arena, player, int, int, int */
+/* pycb: arena_not_none, player_not_none, int, int, int */
 
 #endif
 

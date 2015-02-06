@@ -45,7 +45,7 @@
  */
 typedef void (*ChatMsgFunc)(Player *p, int type, int sound, Player *target,
 		int freq, const char *text);
-/* pycb: player, int, int, player, int, string */
+/* pycb: player_not_none, int, int, player, int, string */
 
 
 /* this isn't for general use
