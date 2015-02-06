@@ -265,7 +265,7 @@ typedef struct Appk
 } Appk;
 
 /** the game interface id */
-#define I_GAME "game-A"
+#define I_GAME "game-B"
 
 /** the game interface struct */
 typedef struct Igame
@@ -381,6 +381,9 @@ typedef struct Igame
 	 */
 	void (*UnlockArena)(Arena *a, int notify, int onlyarenastate);
 	/* pyint: arena_not_none, int, int -> void */
+	
+	int (*HasArenaLock)(Arena *a);
+	/* pyint: arena_not_none -> int */
 
 	void (*FakePosition)(Player *p, struct C2SPosition *pos, int len);
 	void (*FakeKill)(Player *killer, Player *killed, int pts, int flags);
