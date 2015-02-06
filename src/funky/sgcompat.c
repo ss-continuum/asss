@@ -77,6 +77,8 @@ local void setup_aliases(void)
 	ALIAS("*info",        "sg_info");
 	ALIAS("*lag",         "sg_lag");
 	ALIAS("*spec",        "sg_spec");
+	ALIAS("*setship",     "setship -f");
+	ALIAS("*setfreq",     "setfreq -f");
 #undef ALIAS
 }
 
