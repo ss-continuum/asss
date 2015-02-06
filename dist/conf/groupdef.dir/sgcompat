@@ -10,3 +10,4 @@ privcmd_sg_info
 cmd_sg_lag
 privcmd_sg_lag
 privcmd_sg_spec
+cmd_sg_lock

@@ -77,6 +77,7 @@ local void setup_aliases(void)
 	ALIAS("*info",        "sg_info");
 	ALIAS("*lag",         "sg_lag");
 	ALIAS("*spec",        "sg_spec");
+	ALIAS("*lock",        "sg_lock");
 	ALIAS("*setship",     "setship -f");
 	ALIAS("*setfreq",     "setfreq -f");
 #undef ALIAS
@@ -258,35 +259,55 @@ local void Csg_spec(const char *tc, const char *params, Player *p, const Target 
 {
 	if (target->type != T_PLAYER)
 	{
-	        chat->SendMessage(p, "This command can only be sent to a player");
-	        return;
+		chat->SendMessage(p, "This command can only be sent to a player");
+		return;
 	}
 
-        Player *t = target->u.p;
+	Player *t = target->u.p;
+	
+	if (game->HasLock(t))
+	{
+		game->Unlock(target, 0);
+	}
+	else
+	{
+		game->Lock(target, 0, 1, 0);
+	}
+}
 
-        if (game->HasLock(t))
-        {
-        	game->Unlock(target, 0);
-        }
-        else
-        {
-                game->Lock(target, 0, 1, 0);
-        }
+local void Csg_lock(const char *tc, const char *params, Player *p, const Target *target)
+{
+	if (target->type != T_ARENA)
+	{
+		chat->SendMessage(p, "This command can only be sent to an arena");
+		return;
+	}
+
+	Arena *arena = target->u.arena;
+	
+	if (game->HasArenaLock(arena))
+	{
+		game->UnlockArena(arena, 0, 0);
+	}
+	else
+	{
+		game->LockArena(arena, 0, 0, 0, 1);
+	}
 }
 
 EXPORT const char info_sgcompat[] = CORE_MOD_INFO("sgcompat");
 
 local void releaseInterfaces(Imodman *mm)
 {
-        mm->ReleaseInterface(cmd);
-        mm->ReleaseInterface(pd);
-        mm->ReleaseInterface(lm);
-        mm->ReleaseInterface(chat);
-        mm->ReleaseInterface(lagq);
-        mm->ReleaseInterface(net);
-        mm->ReleaseInterface(groupman);
-        mm->ReleaseInterface(idle);
-        mm->ReleaseInterface(game);
+	mm->ReleaseInterface(cmd);
+	mm->ReleaseInterface(pd);
+	mm->ReleaseInterface(lm);
+	mm->ReleaseInterface(chat);
+	mm->ReleaseInterface(lagq);
+	mm->ReleaseInterface(net);
+	mm->ReleaseInterface(groupman);
+	mm->ReleaseInterface(idle);
+	mm->ReleaseInterface(game);
 }
 
 EXPORT int MM_sgcompat(int action, Imodman *mm, Arena *arena)
@@ -317,6 +338,7 @@ EXPORT int MM_sgcompat(int action, Imodman *mm, Arena *arena)
 		cmd->AddCommand("sg_info", Csg_info, ALLARENAS, NULL);
 		cmd->AddCommand("sg_lag", Csg_lag, ALLARENAS, NULL);
 		cmd->AddCommand("sg_spec", Csg_spec, ALLARENAS, NULL);
+		cmd->AddCommand("sg_lock", Csg_lock, ALLARENAS, NULL);
 
 		setup_aliases();
 		mm->RegCallback(CB_REWRITECOMMAND, rewritecommand, ALLARENAS);
@@ -332,6 +354,7 @@ EXPORT int MM_sgcompat(int action, Imodman *mm, Arena *arena)
 		cmd->RemoveCommand("sg_info", Csg_info, ALLARENAS);
 		cmd->RemoveCommand("sg_lag", Csg_lag, ALLARENAS);
 		cmd->RemoveCommand("sg_spec", Csg_spec, ALLARENAS);
+		cmd->RemoveCommand("sg_lock", Csg_lock, ALLARENAS);
 
 		mm->UnregCallback(CB_REWRITECOMMAND, rewritecommand, ALLARENAS);
 		cleanup_aliases();
