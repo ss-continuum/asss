@@ -101,6 +101,46 @@ local void aaction(Arena *arena, int action)
 
 			snprintf(key, sizeof(key), "PeriodicMessage%d", i);
 
+			/* cfghelp: Misc:PeriodicMessage0, arena, string
+		 	 * 10 20 periodic message.
+		 	 * 10 is the interval and 20 is the initial delay (in minutes) */
+		 	 
+		 	/* cfghelp: Misc:PeriodicMessage1, arena, string
+		 	 * 10 20 periodic message.
+		 	 * 10 is the interval and 20 is the initial delay (in minutes) */
+		 	 
+		 	/* cfghelp: Misc:PeriodicMessage2, arena, string
+		 	 * 10 20 periodic message.
+		 	 * 10 is the interval and 20 is the initial delay (in minutes) */
+		 	 
+		 	/* cfghelp: Misc:PeriodicMessage3, arena, string
+		 	 * 10 20 periodic message.
+		 	 * 10 is the interval and 20 is the initial delay (in minutes) */
+		 	 
+		 	/* cfghelp: Misc:PeriodicMessage4, arena, string
+		 	 * 10 20 periodic message.
+		 	 * 10 is the interval and 20 is the initial delay (in minutes) */
+		 	 
+		 	/* cfghelp: Misc:PeriodicMessage5, arena, string
+		 	 * 10 20 periodic message.
+		 	 * 10 is the interval and 20 is the initial delay (in minutes) */
+		 	 
+		 	/* cfghelp: Misc:PeriodicMessage6, arena, string
+		 	 * 10 20 periodic message.
+		 	 * 10 is the interval and 20 is the initial delay (in minutes) */
+		 	 
+		 	/* cfghelp: Misc:PeriodicMessage7, arena, string
+		 	 * 10 20 periodic message.
+		 	 * 10 is the interval and 20 is the initial delay (in minutes) */
+		 	 
+		 	/* cfghelp: Misc:PeriodicMessage8, arena, string
+		 	 * 10 20 periodic message.
+		 	 * 10 is the interval and 20 is the initial delay (in minutes) */
+		 	 
+		 	/* cfghelp: Misc:PeriodicMessage9, arena, string
+		 	 * 10 20 periodic message.
+		 	 * 10 is the interval and 20 is the initial delay (in minutes) */
+		 	
 			v = cfg->GetStr(arena->cfg, "Misc", key);
 
 			if (v)
