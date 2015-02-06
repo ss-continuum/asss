@@ -1853,6 +1853,12 @@ local void Unlock(const Target *t, int notify)
 }
 
 
+local int HasLock(Player *p)
+{
+	pdata *pdata = PPDATA(p, pdkey);
+	return pdata->lockship;
+}
+
 local void LockArena(Arena *a, int notify, int onlyarenastate, int initial, int spec)
 {
 	adata *ad = P_ARENA_DATA(a, adkey);
@@ -1994,7 +2000,7 @@ local Igame _myint =
 {
 	INTERFACE_HEAD_INIT(I_GAME, "game")
 	SetFreq, SetShip, SetShipAndFreq, WarpTo, GivePrize,
-	Lock, Unlock, LockArena, UnlockArena,
+	Lock, Unlock, HasLock, LockArena, UnlockArena,
 	FakePosition, FakeKill,
 	GetIgnoreWeapons, SetIgnoreWeapons,
 	ShipReset,

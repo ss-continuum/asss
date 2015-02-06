@@ -265,7 +265,7 @@ typedef struct Appk
 } Appk;
 
 /** the game interface id */
-#define I_GAME "game-9"
+#define I_GAME "game-A"
 
 /** the game interface struct */
 typedef struct Igame
@@ -345,6 +345,13 @@ typedef struct Igame
 	 */
 	void (*Unlock)(const Target *t, int notify);
 	/* pyint: target, int -> void */
+	
+	/** Find out if a specific player currenty has a lock.
+	 * @param p the player to query
+	 * @return TRUE if this player is locked	 	
+	 */
+	int (*HasLock)(Player *p);
+	/* pyint: player_not_none -> int */
 
 	/** Locks all players in the arena to spectator mode, or to their
 	 ** current ships.
