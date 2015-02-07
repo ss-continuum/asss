@@ -477,10 +477,13 @@ local int cvt_p2c_playerlist(PyObject *o, LinkedList **list)
 		{
 			PyObject *obj = PyList_GET_ITEM(o, i);
 			Player *p;
-			if(cvt_p2c_player(obj, &p) && p)
+			if(!cvt_p2c_player_not_none(obj, &p))
 			{
-				LLAdd(*list, p);
+				UNLOCK();
+				return FALSE;
 			}
+			
+			LLAdd(*list, p);
 		}
 		UNLOCK();
 		return TRUE;
