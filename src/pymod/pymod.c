@@ -545,12 +545,22 @@ local int cvt_p2c_target(PyObject *o, Target *t)
 	{
 		t->type = T_PLAYER;
 		t->u.p = ((PlayerObject*)o)->p;
+		if (!t->u.p)
+		{
+			PyErr_SetString(PyExc_ValueError, "stale player object (cvt_p2c_target)");
+			return FALSE;
+		}
 		return TRUE;
 	}
 	else if (o->ob_type == &ArenaType)
 	{
 		t->type = T_ARENA;
 		t->u.arena = ((ArenaObject*)o)->a;
+		if (!t->u.arena)
+		{
+			PyErr_SetString(PyExc_ValueError, "stale arena object (cvt_p2c_target)");
+			return FALSE;
+		}
 		return TRUE;
 	}
 	else if (PyTuple_Check(o))
@@ -558,7 +568,7 @@ local int cvt_p2c_target(PyObject *o, Target *t)
 		t->type = T_FREQ;
 		t->u.arena = ((ArenaObject*)o)->a;
 		return PyArg_ParseTuple(o, "O&i",
-				cvt_p2c_arena,
+				cvt_p2c_arena_not_none,
 				&t->u.freq.arena,
 				&t->u.freq.freq);
 	}
