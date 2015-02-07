@@ -151,7 +151,7 @@ local unsigned char fileAngle(int x, int y)
 
 local inline unsigned char fireControl(int x, int y, int x1, int y1, int vx, int vy, int vp)
 {
-	int t, guess, err, a, b;
+	int t, guess, err, a, b, iteration;
 
 	if (x < 0) x = -x;
 	if (y < 0) y = -y;
@@ -160,6 +160,7 @@ local inline unsigned char fireControl(int x, int y, int x1, int y1, int vx, int
 
 	t = 0;
 
+	iteration = 0;
 	do {
 		a = x1 + vx * t;
 		b = y1 + vy * t;
@@ -168,6 +169,9 @@ local inline unsigned char fireControl(int x, int y, int x1, int y1, int vx, int
 
 		err = abs(guess - t);
 		t = guess;
+		if (++iteration == 100)
+			break;
+
 	} while (err > 100);
 
 	return fileAngle(a - x, b - y);
