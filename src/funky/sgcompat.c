@@ -16,6 +16,7 @@ local Inet *net;
 local Igroupman *groupman;
 local Iidle *idle;
 local Igame *game;
+local Istats *stats;
 
 local HashTable *aliases;
 
@@ -80,6 +81,7 @@ local void setup_aliases(void)
 	ALIAS("*lock",        "sg_lock");
 	ALIAS("*setship",     "setship -f");
 	ALIAS("*setfreq",     "setfreq -f");
+	ALIAS("*scorereset",  "sg_scorereset");
 #undef ALIAS
 }
 
@@ -299,6 +301,24 @@ local void Csg_lock(const char *tc, const char *params, Player *p, const Target 
 	}
 }
 
+local void Csg_scorereset(const char *tc, const char *params, Player *p, const Target *target)
+{
+	LinkedList players = LL_INITIALIZER;
+	Player *q;
+	Link *link;
+
+	pd->TargetToSet(target, &players);
+
+	FOR_EACH(&players, q, link)
+	{
+		stats->ScoreReset(q, INTERVAL_RESET);
+	}
+
+	LLEmpty(&players);
+
+	stats->SendUpdates(NULL);
+}
+
 EXPORT const char info_sgcompat[] = CORE_MOD_INFO("sgcompat");
 
 local void releaseInterfaces(Imodman *mm)
@@ -312,6 +332,7 @@ local void releaseInterfaces(Imodman *mm)
 	mm->ReleaseInterface(groupman);
 	mm->ReleaseInterface(idle);
 	mm->ReleaseInterface(game);
+	mm->ReleaseInterface(stats);
 }
 
 EXPORT int MM_sgcompat(int action, Imodman *mm, Arena *arena)
@@ -327,8 +348,9 @@ EXPORT int MM_sgcompat(int action, Imodman *mm, Arena *arena)
 		groupman = mm->GetInterface(I_GROUPMAN, ALLARENAS);
 		idle = mm->GetInterface(I_IDLE, ALLARENAS);
 		game = mm->GetInterface(I_GAME, ALLARENAS);
+		stats = mm->GetInterface(I_STATS, ALLARENAS);
 
-		if (!cmd || !pd || !lm || !chat || !lagq || !net || !groupman || !idle || !game)
+		if (!cmd || !pd || !lm || !chat || !lagq || !net || !groupman || !idle || !game || !stats)
 		{
 		        printf("<sgcompat> Missing interface\n");
 		        releaseInterfaces(mm);
@@ -343,6 +365,7 @@ EXPORT int MM_sgcompat(int action, Imodman *mm, Arena *arena)
 		cmd->AddCommand("sg_lag", Csg_lag, ALLARENAS, NULL);
 		cmd->AddCommand("sg_spec", Csg_spec, ALLARENAS, NULL);
 		cmd->AddCommand("sg_lock", Csg_lock, ALLARENAS, NULL);
+		cmd->AddCommand("sg_scorereset", Csg_scorereset, ALLARENAS, NULL);
 
 		setup_aliases();
 		mm->RegCallback(CB_REWRITECOMMAND, rewritecommand, ALLARENAS);
@@ -359,6 +382,7 @@ EXPORT int MM_sgcompat(int action, Imodman *mm, Arena *arena)
 		cmd->RemoveCommand("sg_lag", Csg_lag, ALLARENAS);
 		cmd->RemoveCommand("sg_spec", Csg_spec, ALLARENAS);
 		cmd->RemoveCommand("sg_lock", Csg_lock, ALLARENAS);
+		cmd->RemoveCommand("sg_scorereset", Csg_scorereset, ALLARENAS);
 
 		mm->UnregCallback(CB_REWRITECOMMAND, rewritecommand, ALLARENAS);
 		cleanup_aliases();
