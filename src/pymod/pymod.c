@@ -1788,7 +1788,7 @@ local PyObject *mthd_set_timer(PyObject *self, PyObject *args)
 	}
 
 	/* use an extra level of indirection for the key to ensure each
-	 * timer can be destroyed indivudually even if multiple ones refer
+	 * timer can be destroyed individually even if multiple ones refer
 	 * to the same python function. */
 	funcptr = amalloc(sizeof(PyObject*));
 	*funcptr = func;
