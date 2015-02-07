@@ -288,10 +288,12 @@ local void Csg_lock(const char *tc, const char *params, Player *p, const Target 
 	if (game->HasArenaLock(arena))
 	{
 		game->UnlockArena(arena, 0, 0);
+		chat->SendMessage(p, "Arena UNLOCKED");
 	}
 	else
 	{
-		game->LockArena(arena, 0, 0, 0, 1);
+		game->LockArena(arena, 0, 0, 0, 0);
+		chat->SendMessage(p, "Arena LOCKED");
 	}
 }
 
