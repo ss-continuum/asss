@@ -268,10 +268,12 @@ local void Csg_spec(const char *tc, const char *params, Player *p, const Target 
 	if (game->HasLock(t))
 	{
 		game->Unlock(target, 0);
+		chat->SendMessage(p, "Player free to enter arena");
 	}
 	else
 	{
 		game->Lock(target, 0, 1, 0);
+		chat->SendMessage(p, "Player locked in spectator mode");
 	}
 }
 
