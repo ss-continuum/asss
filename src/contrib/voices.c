@@ -189,7 +189,7 @@ local void PVoice(Player *p, byte *pkt, int len)
 	struct S2CVoice *rvd;
 	int vid, rlen, slen;
 
-	if (len < sizeof(struct C2SVoice))
+	if (len < 0 || (size_t) len < sizeof(struct C2SVoice))
 	{
 		if (lm) lm->LogP(L_MALICIOUS, "voices", p, "bad packet len=%i", len);
 		return;
@@ -397,7 +397,7 @@ local void PVoiceSized(Player *p, byte *pkt, int len, int offset, int totallen)
 	{
 		/* just started */
 
-		if (totallen <= sizeof(struct C2SVoice) || len < sizeof(struct C2SVoice))
+		if (totallen < 0 || (size_t) totallen <= sizeof(struct C2SVoice) || len < 0 || (size_t) len < sizeof(struct C2SVoice))
 		{
 			if (lm) lm->LogP(L_MALICIOUS, "voices", p, "bad packet len=%i of %i", len, totallen);
 			MUTEX_UNLOCK(vd);
