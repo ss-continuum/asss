@@ -1003,6 +1003,8 @@ local PyMemberDef %(memberdeclname)s[] = {
 """ % vars()
 		typestructname = 'pyint_%s_type' % iid
 		typedecl = """
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 local PyTypeObject %(typestructname)s = {
 	PyObject_HEAD_INIT(NULL)
 	0,                         /*ob_size*/
@@ -1036,6 +1038,7 @@ local PyTypeObject %(typestructname)s = {
 	%(memberdeclname)s,        /*tp_members*/
 	/* rest are null */
 };
+#pragma GCC diagnostic pop
 """ % vars()
 		doinit = """\
 	if (PyType_Ready(&%(typestructname)s) < 0) return;
@@ -1269,6 +1272,8 @@ local PyMemberDef %(memberdeclname)s[] = {
 """ % vars()
 		typestructname = 'pyadv_%s_type' % aid
 		typedecl = """
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 local PyTypeObject %(typestructname)s = {
 	PyObject_HEAD_INIT(NULL)
 	0,                         /*ob_size*/
@@ -1302,6 +1307,7 @@ local PyTypeObject %(typestructname)s = {
 	%(memberdeclname)s,        /*tp_members*/
 	/* rest are null */
 };
+#pragma GCC diagnostic pop
 """ % vars()
 		doinit = """\
 	if (PyType_Ready(&%(typestructname)s) < 0) return;
@@ -1670,6 +1676,8 @@ local PyGetSetDef %(getsetters)s[] =
 	{NULL}
 };
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 local PyTypeObject %(typeobj)s =
 {
 	PyObject_HEAD_INIT(NULL)
@@ -1712,6 +1720,7 @@ local PyTypeObject %(typeobj)s =
 	0,                          /* tp_alloc */
 	0,                          /* tp_new */
 };
+#pragma GCC diagnostic push
 
 ATTR_UNUSED()
 local PyObject * cvt_c2p_%(name)s(void *p)

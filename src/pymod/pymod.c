@@ -1022,6 +1022,8 @@ local PyGetSetDef Player_getseters[] =
 	{NULL}
 };
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 local PyTypeObject PlayerType =
 {
 	PyObject_HEAD_INIT(NULL)
@@ -1064,7 +1066,7 @@ local PyTypeObject PlayerType =
 	0,                         /* tp_alloc */
 	0,                         /* tp_new */
 };
-
+#pragma GCC diagnostic pop
 
 /* arenas */
 
@@ -1138,6 +1140,8 @@ local PyGetSetDef Arena_getseters[] =
 	{NULL}
 };
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 local PyTypeObject ArenaType =
 {
 	PyObject_HEAD_INIT(NULL)
@@ -1180,6 +1184,7 @@ local PyTypeObject ArenaType =
 	0,                         /* tp_alloc */
 	0,                         /* tp_new */
 };
+#pragma GCC diagnostic pop
 
 /* player lists */
 
@@ -1212,9 +1217,11 @@ local PyMethodDef player_list_methods[] =
 		"Appends a player to the list"},
 	{"insert", mthd_playerlist_insert, METH_VARARGS,
 		"Inserts a player into to the list before an index"},
-	{NULL, NULL}
+	{NULL, NULL, 0, NULL}
 };
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 local PyTypeObject PlayerListType =
 {
 	PyObject_HEAD_INIT(NULL)
@@ -1258,7 +1265,7 @@ local PyTypeObject PlayerListType =
 	0,                         /* tp_alloc */
 	0,                         /* tp_new */
 };
-
+#pragma GCC diagnostic pop
 
 
 /* associating asss objects with python objects */
@@ -2514,10 +2521,11 @@ EXPORT int MM_pymod(int action, Imodman *mm_, Arena *arena)
 			const char *tmp = NULL;
 			while (strsplit(CFG_PYTHON_IMPORT_PATH, ":", dir, sizeof(dir), &tmp))
 			{
-				if (snprintf(code, sizeof(code),
-							"import sys, os\n"
-							"sys.path.append(os.path.join(os.getcwd(), '%s'))\n",
-							dir) > sizeof(code))
+				int wouldWrite = snprintf(code, sizeof(code),
+					"import sys, os\n"
+					"sys.path.append(os.path.join(os.getcwd(), '%s'))\n",
+					dir);
+				if (wouldWrite < 0 || (size_t) wouldWrite > sizeof(code))
 					continue;
 				PyRun_SimpleString(code);
 			}
