@@ -31,7 +31,7 @@ include os.mk
 
 # apply build options
 ifeq ($(debug),yes)
-DEBUG_CFLAGS = -g -Wall
+DEBUG_CFLAGS = -g -Wall -Wextra -Wno-unused-parameter
 endif
 
 ifeq ($(prof),yes)
@@ -39,7 +39,7 @@ PROF_FLAGS = -pg
 endif
 
 ifeq ($(opt),yes)
-OPT_CFLAGS = -O2 -Wall
+OPT_CFLAGS = -O2 -Wall -Wextra -Wno-unused-parameter
 endif
 
 # for older gcc, remove the -std option
