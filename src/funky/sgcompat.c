@@ -35,13 +35,13 @@ local void rewritecommand(int initial, char *buf, int len)
 	while (*b && *b != ' ' && *b != '=')
 	{
 		*k++ = *b++;
-		if ((k-key) >= sizeof(key))
+		if ((k-key) >= (int) sizeof(key))
 			return;
 	}
 	*k = '\0';
 
 	new = HashGetOne(aliases, key);
-	if (new && (strlen(new) + strlen(b) + 1) < len)
+	if (new && (strlen(new) + strlen(b) + 1) < (size_t) len)
 	{
 		memmove(buf + strlen(new), b, strlen(b) + 1);
 		memcpy(buf, new, strlen(new));
