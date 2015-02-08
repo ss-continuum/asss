@@ -711,7 +711,7 @@ local void PArena(Player *p, byte *pkt, int len)
 	 * If true, players will always start with the obscenity filter on
 	 * by default. If false, use their preference. */
 	complete_go(p, name, go->shiptype, go->xres, go->yres,
-			(len >= LEN_GOARENAPACKET_CONT) ? go->optionalgraphics : 0,
+			(len >= (int) LEN_GOARENAPACKET_CONT) ? go->optionalgraphics : 0,
 			go->wavmsg,
 			go->obscenity_filter || cfg->GetInt(GLOBAL, "Chat", "ForceFilter", 0),
 			spx, spy);
@@ -1038,7 +1038,8 @@ local Iarenaman myint =
 	GetPopulationSummary,
 	AllocateArenaData, FreeArenaData,
 	Lock, Unlock,
-	Hold, Unhold
+	Hold, Unhold,
+	LL_INITIALIZER
 };
 
 struct Iarenaman_old
