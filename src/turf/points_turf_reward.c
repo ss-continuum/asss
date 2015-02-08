@@ -243,7 +243,7 @@ local void crStandard(Arena *arena, TurfArena *ta)
 	/* figure out percent of jackpot team will recieve and how many points
 	 * that relates to */
 	if(ta->settings.reward_style == TR_STYLE_STD_BTY)
-		ta->numPoints = (ta->bountyExchanged<0) ? 0 : ta->bountyExchanged;
+		ta->numPoints = ta->bountyExchanged; // (unsigned)
 	else
 		ta->numPoints = ta->settings.reward_modifier * ta->numPlayers;
 
