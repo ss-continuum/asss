@@ -31,6 +31,7 @@ local pthread_mutex_t plock;
 #endif
 
 #define pd (&pdint)
+#define pd_old (&pdint_old)
 
 /* the pidmap doubles as a freelist of pids */
 local struct
@@ -44,8 +45,17 @@ local int pidmapsize;
 local int perplayerspace;
 local pthread_mutexattr_t recmtxattr;
 
+struct Iplayerdata_old
+{
+	INTERFACE_HEAD_DECL
+	void *funcs[12];
+	LinkedList playerlist;
+};
+
 /* forward declaration */
 local Iplayerdata pdint;
+local struct Iplayerdata_old pdint_old;
+
 
 
 local void Lock(void)
@@ -131,6 +141,7 @@ local Player * NewPlayer(int type)
 	p->connectas = NULL;
 
 	LLAdd(&pd->playerlist, p);
+	LLAdd(&pd_old->playerlist, p);
 
 	WULOCK();
 
@@ -146,6 +157,7 @@ local void FreePlayer(Player *p)
 
 	WRLOCK();
 	LLRemove(&pd->playerlist, p);
+	LLRemove(&pd_old->playerlist, p);
 	pidmap[p->pid].p = NULL;
 	pidmap[p->pid].available = time(NULL) + PID_REUSE_DELAY;
 	pidmap[p->pid].next = firstfreepid;
@@ -362,13 +374,8 @@ local Iplayerdata pdint =
 	PidToPlayer, FindPlayer, IsValidPointer,
 	TargetToSet,
 	AllocatePlayerData, FreePlayerData,
-	Lock, WriteLock, Unlock, WriteUnlock
-};
-
-struct Iplayerdata_old
-{
-	INTERFACE_HEAD_DECL
-	void *funcs[12];
+	Lock, WriteLock, Unlock, WriteUnlock,
+	LL_INITIALIZER
 };
 
 local struct Iplayerdata_old pdint_old =
@@ -378,7 +385,8 @@ local struct Iplayerdata_old pdint_old =
 	PidToPlayer, FindPlayer,
 	TargetToSet,
 	AllocatePlayerData, FreePlayerData,
-	Lock, WriteLock, Unlock, WriteUnlock }
+	Lock, WriteLock, Unlock, WriteUnlock },
+	LL_INITIALIZER
 };
 
 EXPORT const char info_playerdata[] = CORE_MOD_INFO("playerdata");
@@ -415,6 +423,7 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 		firstfreepid = 0;
 
 		LLInit(&pd->playerlist);
+		LLInit(&pd_old->playerlist);
 
 		LLInit(&blocks);
 		pthread_mutex_init(&blockmtx, NULL);
@@ -448,6 +457,7 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 		afree(pidmap);
 		LLEnum(&pd->playerlist, afree);
 		LLEmpty(&pd->playerlist);
+		LLEmpty(&pd_old->playerlist);
 		return MM_OK;
 	}
 	return MM_FAIL;
