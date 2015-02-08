@@ -186,7 +186,7 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 				break;
 		}
 		/* regardless of the type of output, don't buffer overrun */
-		if (newPacketLen > sizeof(buf))
+		if (newPacketLen < 0 || (size_t) newPacketLen > sizeof(buf))
 			break;
 
 		if (a->status == ARENA_RUNNING &&
@@ -227,7 +227,7 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 						break;
 				}
 
-				if (newPacketLen > sizeof(buf))
+				if (newPacketLen < 0 || (size_t)newPacketLen > sizeof(buf))
 					break;
 
 				/* every arena must have an arena.conf. this filters out
@@ -1840,7 +1840,8 @@ local void Cprize(const char *tc, const char *params, Player *p, const Target *t
 #define BAD_TYPE 10000
 	const char *tmp = NULL;
 	char word[32];
-	int i, type, count = 1, t;
+	size_t i;
+	int type, count = 1, t;
 	enum { last_none, last_count, last_word } last = last_none;
 	struct
 	{
