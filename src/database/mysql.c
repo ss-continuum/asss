@@ -170,7 +170,8 @@ local int GetStatus()
 	return connected;
 }
 
-
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 local int Query(query_callback cb, void *clos, int notifyfail, const char *fmt, ...)
 {
 	va_list ap;
@@ -230,6 +231,7 @@ local int Query(query_callback cb, void *clos, int notifyfail, const char *fmt, 
 
 	return 1;
 }
+#pragma GCC diagnostic pop
 
 
 local int GetRowCount(db_res *res)
