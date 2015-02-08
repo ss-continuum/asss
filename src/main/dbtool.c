@@ -404,7 +404,7 @@ local int stats_match(DBT *key, DBT *val)
 		return FALSE;
 	if (k->key != KEY_STATS)
 		return FALSE;
-	if (args.iv != k->interval)
+	if ((short) args.iv != k->interval)
 		return FALSE;
 	if (args.serial != k->serialno)
 		return FALSE;
@@ -669,7 +669,7 @@ local int serials_get_names(DBT *key, DBT *val)
 		return FALSE;
 	if (strncmp(k->arenagrp, serials_ag, sizeof(k->arenagrp)))
 		return FALSE;
-	if (k->interval != args.iv)
+	if (k->interval != (short) args.iv)
 		return FALSE;
 
 	snprintf(n, sizeof(n), "%u", k->serialno);
