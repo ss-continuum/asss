@@ -2284,6 +2284,6 @@ local void clear_tr_owners(Arena *arena, void *v)
 local ArenaPersistentData persist_tr_owners =
 {
 	KEY_TR_OWNERS, INTERVAL_GAME, PERSIST_ALLARENAS,
-	get_tr_owners, set_tr_owners, clear_tr_owners
+	get_tr_owners, set_tr_owners, clear_tr_owners, NULL
 };
 
