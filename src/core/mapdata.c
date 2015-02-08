@@ -11,8 +11,10 @@
 
 /* extra includes */
 #include "pathutil.h"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #include "sparse.inc"
-
+#pragma GCC diagnostic pop
 
 #define METADATA_MAGIC 0x6c766c65
 #define MAX_CHUNK_SIZE (128*1024)
