@@ -124,7 +124,7 @@ local int read_chunks(HashTable *chunks, const byte *d, int len)
 		/* first check chunk header */
 		tc = (chunk*)d;
 
-		if (tc->size > MAX_CHUNK_SIZE || (tc->size + 8) > len)
+		if (tc->size > MAX_CHUNK_SIZE || (tc->size + 8) > (unsigned) len)
 			break;
 
 		/* allocate space for the chunk and copy it in */
@@ -436,19 +436,21 @@ local int load_from_file(ELVL *lvl, const char *lvlname)
 	if (!map)
 		return FALSE;
 
+	unsigned map_len_u = map->len;
+
 	lvl->tiles = init_sparse();
 
 	d = map->data;
 	bmfh = (struct bitmap_file_header_t*)d;
-	if (map->len >= sizeof(*bmfh) && bmfh->bm == 19778)
+	if (map_len_u >= sizeof(*bmfh) && bmfh->bm == 19778)
 	{
 		if (bmfh->res1 != 0)
 		{
 			/* possible metadata, try to read it */
 			mdhead = (struct metadata_header_t*)(d + bmfh->res1);
-			if (map->len >= (bmfh->res1 + 12) &&
+			if (map_len_u >= (bmfh->res1 + 12) &&
 			    mdhead->magic == METADATA_MAGIC &&
-			    map->len >= bmfh->res1 + mdhead->totalsize)
+			    map_len_u >= bmfh->res1 + mdhead->totalsize)
 			{
 				/* looks good. start reading chunks. */
 				lvl->rawchunks = HashAlloc();
