@@ -161,7 +161,7 @@ struct region_cb_params
 
 local void DoWeaponChecksum(struct S2CWeapons *pkt)
 {
-	int i;
+	size_t i;
 	u8 ck = 0;
 	pkt->checksum = 0;
 	for (i = 0; i < sizeof(struct S2CWeapons) - sizeof(struct ExtraPosData); i++)
@@ -1868,7 +1868,7 @@ local void LockArena(Arena *a, int notify, int onlyarenastate, int initial, int 
 		ad->initspec = TRUE;
 	if (!onlyarenastate)
 	{
-		Target t = { T_ARENA };
+		Target t = { T_ARENA, {0} };
 		t.u.arena = a;
 		lock_work(&t, TRUE, notify, spec, 0);
 	}
@@ -1883,7 +1883,7 @@ local void UnlockArena(Arena *a, int notify, int onlyarenastate)
 	ad->initspec = FALSE;
 	if (!onlyarenastate)
 	{
-		Target t = { T_ARENA };
+		Target t = { T_ARENA, {0} };
 		t.u.arena = a;
 		lock_work(&t, FALSE, notify, FALSE, 0);
 	}
@@ -1994,7 +1994,7 @@ local void set_data(Player *p, void *data, int len, void *v)
 local PlayerPersistentData persdata =
 {
 	KEY_SHIPLOCK, INTERVAL_FOREVER_NONSHARED, PERSIST_ALLARENAS,
-	get_data, set_data, clear_data
+	get_data, set_data, clear_data, NULL
 };
 
 local Appk _region_ppk_adv = 
