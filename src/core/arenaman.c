@@ -301,7 +301,7 @@ local inline void send_enter(Player *p, Player *to, int already)
 local void SendArenaResponse(Player *p)
 {
 	/* LOCK: maybe should lock more in here? */
-	struct SimplePacket whoami = { S2C_WHOAMI, 0 };
+	struct SimplePacket whoami = { S2C_WHOAMI, 0, 0, 0, 0, 0 };
 	Arena *a;
 	Player *op;
 	Link *link;
@@ -369,7 +369,7 @@ local void SendArenaResponse(Player *p)
 
 		if (sp->x > 0 && sp->y > 0 && sp->x < 1024 && sp->y < 1024)
 		{
-			struct SimplePacket wto = { S2C_WARPTO, sp->x, sp->y };
+			struct SimplePacket wto = { S2C_WARPTO, sp->x, sp->y, 0, 0, 0 };
 			net->SendToOne(p, (byte *)&wto, 5, NET_RELIABLE);
 		}
 	}
@@ -450,7 +450,7 @@ local void LeaveArena(Player *p)
 
 	if (notify)
 	{
-		struct SimplePacket pk = { S2C_PLAYERLEAVING, p->pid };
+		struct SimplePacket pk = { S2C_PLAYERLEAVING, p->pid, 0, 0, 0, 0 };
 		if (net) net->SendToArena(a, p, (byte*)&pk, 3, NET_RELIABLE);
 		if (chatnet) chatnet->SendToArena(a, p, "LEAVING:%s", p->name);
 		lm->Log(L_INFO, "<arenaman> {%s} [%s] leaving arena", a->name, p->name);

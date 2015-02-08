@@ -1266,7 +1266,7 @@ local void PSetShip(Player *p, byte *pkt, int len)
 
 local void SetFreq(Player *p, int freq)
 {
-	struct SimplePacket to = { S2C_FREQCHANGE, p->pid, freq, -1};
+	struct SimplePacket to = { S2C_FREQCHANGE, p->pid, freq, -1, 0, 0};
 	Arena *arena = p->arena;
 	int oldfreq = p->p_freq;
 
@@ -1604,7 +1604,7 @@ local void PAttach(Player *p, byte *pkt2, int len)
 	/* only send it if state has changed */
 	if (p->p_attached != pid2)
 	{
-		struct SimplePacket pkt = { S2C_TURRET, p->pid, pid2 };
+		struct SimplePacket pkt = { S2C_TURRET, p->pid, pid2, 0, 0, 0 };
 		net->SendToArena(arena, NULL, (byte*)&pkt, 5, NET_RELIABLE);
 		p->p_attached = pid2;
 
@@ -1615,7 +1615,7 @@ local void PAttach(Player *p, byte *pkt2, int len)
 
 local void PKickoff(Player *p, byte *pkt2, int len)
 {
-	struct SimplePacket pkt = { S2C_TURRETKICKOFF, p->pid };
+	struct SimplePacket pkt = { S2C_TURRETKICKOFF, p->pid, 0, 0, 0, 0 };
 
 	if (p->status == S_PLAYING)
 		net->SendToArena(p->arena, NULL, (byte*)&pkt, 3, NET_RELIABLE);
@@ -1624,14 +1624,14 @@ local void PKickoff(Player *p, byte *pkt2, int len)
 
 local void WarpTo(const Target *target, int x, int y)
 {
-	struct SimplePacket wto = { S2C_WARPTO, x, y };
+	struct SimplePacket wto = { S2C_WARPTO, x, y, 0, 0, 0 };
 	net->SendToTarget(target, (byte *)&wto, 5, NET_RELIABLE | NET_URGENT);
 }
 
 
 local void GivePrize(const Target *target, int type, int count)
 {
-	struct SimplePacket prize = { S2C_PRIZERECV, (short)count, (short)type };
+	struct SimplePacket prize = { S2C_PRIZERECV, (short)count, (short)type, 0, 0, 0 };
 	net->SendToTarget(target, (byte*)&prize, 5, NET_RELIABLE);
 }
 

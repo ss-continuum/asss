@@ -52,7 +52,7 @@ local int end_fake_timer_callback(void *clos)
 {
 	Player *p = clos;
 	Arena *arena = p->arena;
-	struct SimplePacket pk = { S2C_PLAYERLEAVING };
+	struct SimplePacket pk = { S2C_PLAYERLEAVING, 0, 0, 0, 0, 0 };
 
 	/* leave arena */
 	if (arena)
