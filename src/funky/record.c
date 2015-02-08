@@ -398,7 +398,7 @@ local void *recorder_thread(void *v)
 		if (gzwrite(ra->gzf, ev, len) == len)
 		{
 			pid = get_event_pid(ev);
-			if (pid > ra->maxpid)
+			if (pid > (int) ra->maxpid)
 				ra->maxpid = pid;
 			afree(ev);
 			ra->events++;
@@ -434,7 +434,7 @@ local void write_current_players(Arena *a)
 			ev.head.tm = 0;
 			ev.head.type = EV_ENTER;
 			ev.pid = p->pid;
-			if (p->pid > ra->maxpid)
+			if (p->pid > (int) ra->maxpid)
 				ra->maxpid = p->pid;
 			astrncpy(ev.name, p->name, sizeof(ev.name));
 			astrncpy(ev.squad, p->squad, sizeof(ev.squad));
@@ -475,7 +475,7 @@ local int start_recording(Arena *a, const char *file, const char *recorder, cons
 		{
 			/* leave the header wrong until we finish it properly in
 			 * stop_recording */
-			struct file_header header = { "ass$game" };
+			struct file_header header = { "ass$game", 0, 0, 0, 0, 0, 0, 0, 0, {0}, {0} };
 
 			/* fill in file header */
 			header.version = FILE_VERSION;
@@ -910,9 +910,9 @@ local void *playback_thread(void *v)
 		if (!ra->ispaused)
 			ra->curpos = 100.0*(double)TICK_DIFF(now, started)/(double)ra->total;
 
-		/* only process it if its time has come aready. if not, sleep
+		/* only process it if its time has come already. if not, sleep
 		 * for a bit and go for another iteration around the loop. */
-		if (!ra->ispaused && TICK_DIFF(now, started) >= ev.head.tm)
+		if (!ra->ispaused && TICK_DIFF(now, started) >= (int) ev.head.tm)
 		{
 			Player *p1, *p2;
 
@@ -1001,7 +1001,7 @@ local void *playback_thread(void *v)
 					}
 					break;
 				case EV_POS:
-					CHECK(ev.pos.pos.time)
+					CHECK((int) ev.pos.pos.time)
 					p1 = pidmap[ev.pos.pos.time];
 					if (p1)
 					{
