@@ -711,6 +711,8 @@ struct LVZ_HEADER
 	u32 num_sections;
 };
 
+const int LVZ_HEADER_SIZE = (signed int) sizeof(struct LVZ_HEADER);
+
 struct SECTION_HEADER
 {
 	u32 CONT;
@@ -721,6 +723,8 @@ struct SECTION_HEADER
 	/* compressed data */
 };
 
+const int SECTION_HEADER_SIZE = (signed int) sizeof(struct SECTION_HEADER);
+
 struct OBJECT_SECTION
 {
 	u32 version;
@@ -730,33 +734,37 @@ struct OBJECT_SECTION
 	/* image data */
 };
 
+const int OBJECT_SECTION_SIZE = (signed int) sizeof(struct OBJECT_SECTION);
+
 void ReadLVZFile(Arena *a, byte *file, int flen, int opt)
 {
 	aodata *ad = P_ARENA_DATA(a, aokey);
 	struct LVZ_HEADER *lvzh = (struct LVZ_HEADER *)file;
 	int num_sections;
 
-	if (flen <= sizeof(struct LVZ_HEADER)) return;
+	if (flen <= LVZ_HEADER_SIZE) return;
 
 	num_sections = lvzh->num_sections;
 	if (lvzh->CONT != HEADER_CONT || num_sections <= 0) return;
 
-	file += sizeof(struct LVZ_HEADER);
-	flen -= sizeof(struct LVZ_HEADER);
+	file += LVZ_HEADER_SIZE;
+	flen -= LVZ_HEADER_SIZE;
 
 	while (num_sections--)
 	{
 		struct SECTION_HEADER *secth = (struct SECTION_HEADER *)file;
 		int namelen;
 
-		if (flen <= sizeof(struct SECTION_HEADER)) return;
+		// Important: sizeof(struct SECTION_HEADER) is usually unsigned!
+		// SECTION_HEADER_SIZE is signed, otherwise the comparison you see below is not valid
+		if (flen <= SECTION_HEADER_SIZE) return;
 
-		if (secth->CONT != HEADER_CONT) return;
+		if (secth->CONT != HEADER_CONT) return; // crash! (reading past the object file)
 		/* if EOF without a nul-term, we're sunk */
 		namelen = strlen(secth->fname);
 
-		file += sizeof(struct SECTION_HEADER) + namelen;
-		flen -= sizeof(struct SECTION_HEADER) + namelen;
+		file += SECTION_HEADER_SIZE + namelen;
+		flen -= SECTION_HEADER_SIZE + namelen;
 
 		if (namelen == 0 && secth->file_time == 0)
 		{
@@ -770,7 +778,7 @@ void ReadLVZFile(Arena *a, byte *file, int flen, int opt)
 				struct ObjectData *objd = (struct ObjectData *)(objs + 1);
 
 				/* we're looking for object sections */
-				if ((dlen > sizeof(struct OBJECT_SECTION)) &&
+				if (dlen > OBJECT_SECTION_SIZE &&
 				    (objs->version == HEADER_CLV1 ||
 				     objs->version == HEADER_CLV2))
 				{
