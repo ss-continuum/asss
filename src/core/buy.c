@@ -100,7 +100,8 @@ items[] =
 
 local void print_costs(ConfigHandle ch, Player *p)
 {
-	int i, avail = 0;
+	size_t i;
+	int avail = 0;
 
 	for (i = 0; i < sizeof(items)/sizeof(items[0]); i++)
 	{
@@ -128,7 +129,8 @@ local void Cbuy(const char *tc, const char *params, Player *p, const Target *tar
 		print_costs(ch, p);
 	else
 	{
-		int i, item = -1;
+		size_t i;
+		int item = -1;
 		for (i = 0; i < sizeof(items)/sizeof(items[0]); i++)
 			if (strstr(params, items[i].string))
 				item = i;
