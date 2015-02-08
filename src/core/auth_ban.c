@@ -44,7 +44,7 @@ local void Authenticate(Player *p, struct LoginPacket *lp, int lplen,
 		time_t now = time(NULL);
 		if (now < bn->expire)
 		{
-			AuthData data = { 0, AUTH_CUSTOMTEXT, 0 };
+			AuthData data = { 0, AUTH_CUSTOMTEXT, 0, {0}, {0}, {0}, {0} };
 			if (!bn->reason[0])
 				snprintf(data.customtext, sizeof(data.customtext), "You have been temporarily kicked. You may log in again in %ldm%lds.", (bn->expire-now)/60, (bn->expire-now)%60);
 			else
