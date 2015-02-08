@@ -552,7 +552,7 @@ void AddPacket(int t, PacketFunc f)
 	if (t >= 0 && t < MAXTYPES)
 		LLAdd(handlers+t, f);
 	else if ((t & 0xff) == 0 && b2 >= 0 &&
-	         b2 < (sizeof(nethandlers)/sizeof(nethandlers[0])) &&
+	         b2 < (int)(sizeof(nethandlers)/sizeof(nethandlers[0])) &&
 	         nethandlers[b2] == NULL)
 		nethandlers[b2] = f;
 }
@@ -562,7 +562,7 @@ void RemovePacket(int t, PacketFunc f)
 	if (t >= 0 && t < MAXTYPES)
 		LLRemove(handlers+t, f);
 	else if ((t & 0xff) == 0 && b2 >= 0 &&
-	         b2 < (sizeof(nethandlers)/sizeof(nethandlers[0])) &&
+	         b2 < (int)(sizeof(nethandlers)/sizeof(nethandlers[0])) &&
 	         nethandlers[b2] == f)
 		nethandlers[b2] = NULL;
 }
@@ -1192,14 +1192,14 @@ local void handle_ping_packet(ListenData *ld)
 #define PING_GLOBAL_SUMMARY 0x01
 #define PING_ARENA_SUMMARY  0x02
 		if ((optsin & PING_GLOBAL_SUMMARY) &&
-		    (pos-buf+8) < sizeof(buf))
+		    (pos-buf+8) < (int) sizeof(buf))
 		{
 			memcpy(pos, &sdata.global, 8);
 			pos += 8;
 			optsout |= PING_GLOBAL_SUMMARY;
 		}
 		if ((optsin & PING_ARENA_SUMMARY) &&
-		    (pos-buf+sdata.apslen) < sizeof(buf))
+		    (pos-buf+sdata.apslen) < (int) sizeof(buf))
 		{
 			memcpy(pos, sdata.aps, sdata.apslen);
 			pos += sdata.apslen;
@@ -2153,7 +2153,7 @@ void ProcessSyncRequest(Buffer *buf)
 {
 	ConnData *conn = buf->conn;
 	struct TimeSyncC2S *cts = (struct TimeSyncC2S*)(buf->d.raw);
-	struct TimeSyncS2C ts = { 0x00, 0x06, cts->time };
+	struct TimeSyncS2C ts = { 0x00, 0x06, cts->time, current_ticks() };
 
 	if (buf->len != 14)
 	{
@@ -2162,7 +2162,6 @@ void ProcessSyncRequest(Buffer *buf)
 	}
 
 	pthread_mutex_lock(&conn->olmtx);
-	ts.servertime = current_ticks();
 	/* note: this bypasses bandwidth limits */
 	SendRaw(conn, (byte*)&ts, sizeof(ts));
 
