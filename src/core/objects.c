@@ -162,7 +162,8 @@ local helptext_t objmove_help =
 
 local void Cobjmove(const char *cmd, const char *params, Player *p, const Target *target)
 {
-	int offset, i = 0, j = 0, v[5] = {0,0,0,0,0};
+	int offset, v[5] = {0,0,0,0,0};
+	size_t i = 0, j = 0;
 	char ch, field[256];
 
 	do
