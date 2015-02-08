@@ -1,11 +1,10 @@
 syntax: regexp
-^src/system.mk
-^src/contenc
+^src\/system.mk
+^src\/contenc
 ^bin
 ^build
-^doc/doxygen
+^doc\/doxygen
 ^windeps
-^.vagrant
-syntax: glob
-.idea/
-*.iml
+^\.vagrant
+^\.idea\/
+^[^\/]*\.iml
