@@ -1213,7 +1213,8 @@ void SBInit(StringBuffer *sb)
 void SBPrintf(StringBuffer *sb, const char *fmt, ...)
 {
 	va_list args;
-	int len, used, needed;
+	int len, used;
+	size_t needed;
 
 	/* figure out how long the result is */
 	va_start(args, fmt);
