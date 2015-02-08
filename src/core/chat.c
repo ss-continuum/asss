@@ -392,9 +392,9 @@ local void run_commands(const char *text, Player *p, Target *target, int sound)
 		while (*text == CMD_MULTI_CHAR)
 			text++;
 		b = buf;
-		while (*text && (!multi || *text != CMD_MULTI_CHAR) && (b-buf) < sizeof(buf))
+		while (*text && (!multi || *text != CMD_MULTI_CHAR) && (b-buf) < (int) sizeof(buf))
 			*b++ = *text++;
-		if ((b-buf) >= sizeof(buf))
+		if ((b-buf) >= (int) sizeof(buf))
 			break;
 		*b = '\0';
 		/* give modules a chance to rewrite the command */
@@ -917,7 +917,7 @@ local void set_data(Player *p, void *data, int len, void *v)
 local PlayerPersistentData pdata =
 {
 	KEY_CHAT, INTERVAL_FOREVER_NONSHARED, PERSIST_ALLARENAS,
-	get_data, set_data, clear_data
+	get_data, set_data, clear_data, NULL
 };
 
 
