@@ -168,6 +168,14 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 {
 	pdata *data = PPDATA(p, pdkey);
 
+	if (lplen < 0)
+	{
+		fallback_done(p, BILLING_FALLBACK_NOT_FOUND);
+		return;
+	}
+
+	size_t lplen_size = (size_t) lplen;
+
 	pthread_mutex_lock(&mtx);
 
 	/* default to false */
@@ -188,7 +196,7 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 		if (pending_auths < 15 && interrupted_auths < 20)
 		{
 			struct S2B_UserLogin pkt;
-			int pktsize;
+			size_t pktsize;
 
 			pkt.Type = S2B_USER_LOGIN;
 			pkt.MakeNew = lp->flags;
@@ -203,9 +211,9 @@ local void authenticate(Player *p, struct LoginPacket *lp, int lplen,
 			pkt.ClientVersion = lp->cversion;
 
 			pktsize = offsetof(struct S2B_UserLogin, ClientExtraData);
-			if (lplen > offsetof(struct LoginPacket, contid))
+			if (lplen_size > offsetof(struct LoginPacket, contid))
 			{
-				int extlen = lplen-offsetof(struct LoginPacket, contid);
+				size_t extlen = lplen_size - offsetof(struct LoginPacket, contid);
 				if (extlen > sizeof(pkt.ClientExtraData))
 					extlen = sizeof(pkt.ClientExtraData);
 				memcpy(pkt.ClientExtraData,lp->contid,extlen);
@@ -250,8 +258,8 @@ local struct Iauth myauth =
 
 local int update_score(Player *p, struct PlayerScore *s)
 {
-	if (p->pkt.killpoints != s->Score ||
-	    p->pkt.flagpoints != s->FlagScore ||
+	if ((unsigned) p->pkt.killpoints != s->Score ||
+	    (unsigned) p->pkt.flagpoints != s->FlagScore ||
 	    p->pkt.wins != s->Kills ||
 	    p->pkt.losses != s->Deaths ||
 	    p->pkt.flagscarried != s->Flags)
@@ -475,7 +483,7 @@ local void rewrite_chat_command(Player *p, const char *line, struct S2B_UserComm
 local void Cdefault(const char *tc, const char *line, Player *p, const Target *target)
 {
 	pdata *data = PPDATA(p, pdkey);
-	struct S2B_UserCommand pkt = { S2B_USER_COMMAND, p->pid };
+	struct S2B_UserCommand pkt = { S2B_USER_COMMAND, p->pid, {0} };
 
 	if (!data->knowntobiller)
 		return;
@@ -617,7 +625,7 @@ local void process_user_login(const char *data,int len)
 	AuthData ad;
 	pdata *bdata;
 
-	if (len < offsetof(struct B2S_UserLogin, Score))
+	if (len < 0 || (size_t) len < offsetof(struct B2S_UserLogin, Score))
 	{
 		lm->Log(L_WARN, "<billing_ssc> invalid login packet len %d", len);
 		return;
@@ -702,8 +710,10 @@ local void process_rmt(const char *data,int len)
 {
 	struct B2S_UserPrivateChat *pkt = (struct B2S_UserPrivateChat *)data;
 
-	if (len < offsetof(struct B2S_UserPrivateChat, Text[1]) || pkt->SubType!=2 ||
-			!memchr(pkt->Text, 0, len-offsetof(struct B2S_UserPrivateChat,Text)))
+	if (len < 0 ||
+	    (size_t) len < offsetof(struct B2S_UserPrivateChat, Text[1]) ||
+	    pkt->SubType!=2 ||
+	    !memchr(pkt->Text, 0, len - offsetof(struct B2S_UserPrivateChat,Text)) )
 	{
 		lm->Log(L_WARN, "<billing_ssc> invalid chat packet len %d", len);
 		return;
@@ -778,7 +788,7 @@ local void process_kickout(const char *data,int len)
 	struct B2S_UserKickout *pkt = (struct B2S_UserKickout *)data;
 	Player *p;
 
-	if (len < sizeof(*pkt))
+	if (len < 0 || (size_t) len < sizeof(*pkt))
 	{
 		lm->Log(L_WARN, "<billing_ssc> invalid kickout packet len %d", len);
 		return;
@@ -798,8 +808,9 @@ local void process_chanchat(const char *data,int len)
 	struct B2S_UserChannelChat *pkt = (struct B2S_UserChannelChat *)data;
 	Player *p;
 
-	if (len < offsetof(struct B2S_UserChannelChat, Text[1]) ||
-			!memchr(pkt->Text, 0, len-offsetof(struct B2S_UserChannelChat,Text)))
+	if (len < 0 ||
+	    (size_t) len < offsetof(struct B2S_UserChannelChat, Text[1]) ||
+	    !memchr(pkt->Text, 0, len-offsetof(struct B2S_UserChannelChat,Text)))
 	{
 		lm->Log(L_WARN, "<billing_ssc> invalid chat channel packet len %d", len);
 		return;
@@ -826,7 +837,8 @@ local void process_mchanchat(const char *data, int len)
 	const char *txt;
 	int i;
 
-	if (len < offsetof(struct B2S_UserMChannelChat, Recipient[1]) ||
+	if (len < 0 ||
+	    (size_t) len < offsetof(struct B2S_UserMChannelChat, Recipient[1]) ||
 	    ((txt=(const char *)&pkt->Recipient[pkt->Count]) - data) > len ||
 	    !memchr(txt,0,data+len-txt))
 	{
@@ -856,8 +868,9 @@ local void process_cmdchat(const char *data,int len)
 	struct B2S_UserCommandChat *pkt = (struct B2S_UserCommandChat *)data;
 	Player *p;
 
-	if (len < offsetof(struct B2S_UserCommandChat, Text[1]) ||
-			!memchr(pkt->Text, 0, len-offsetof(struct B2S_UserCommandChat,Text)))
+	if (len < 0 ||
+	    (size_t) len < offsetof(struct B2S_UserCommandChat, Text[1]) ||
+	    !memchr(pkt->Text, 0, len-offsetof(struct B2S_UserCommandChat,Text)))
 	{
 		lm->Log(L_WARN, "<billing_ssc> invalid command chat packet len %d", len);
 		return;
@@ -928,7 +941,7 @@ local void process_scorereset(const char *data,int len)
 {
 	struct B2S_Scorereset *pkt = (struct B2S_Scorereset *)data;
 
-	if (len < sizeof(*pkt) || (i32)pkt->ScoreID != -(i32)pkt->ScoreIDNeg)
+	if (len < 0 || (size_t) len < sizeof(*pkt) || (i32)pkt->ScoreID != -(i32)pkt->ScoreIDNeg)
 	{
 		lm->Log(L_WARN, "<billing_ssc> invalid scorereset packet len %d", len);
 		return;
@@ -961,11 +974,13 @@ local void process_scorereset(const char *data,int len)
 local void process_identity(const char *data, int len)
 {
 	struct B2S_BillingIdentity *pkt = (struct B2S_BillingIdentity *)data;
-	len--;
-	if (len > sizeof(identity))
-		len = sizeof(identity);
-	memcpy(identity, pkt->IDData, len);
-	idlen = len;
+	if (len < 1) return;
+	size_t id_size = (size_t) len - 1;
+
+	if (id_size > sizeof(identity))
+		id_size = sizeof(identity);
+	memcpy(identity, pkt->IDData, id_size);
+	idlen = (signed) id_size;
 }
 
 /* the dispatcher */
@@ -1162,7 +1177,7 @@ local void PDemographics(Player *p, byte *opkt, int l)
 	pdata *data = PPDATA(p, pdkey);
 	struct S2B_UserDemographics pkt;
 
-	if(l - 1 > sizeof(pkt.Data))
+	if (l < 1 || (size_t) l - 1 > sizeof(pkt.Data))
 	{
 		lm->LogP(L_MALICIOUS, "billing_ssc", p, "invalid demographics packet len %d.", l);
 		return;
