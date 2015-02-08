@@ -642,7 +642,7 @@ local int CanChangeFreq(Player *p, int new_freq, char *err_buf, int buf_len)
 local struct Aenforcer lockspec =
 {
 	ADVISER_HEAD_INIT(A_ENFORCER)
-	GetAllowableShips, CanChangeFreq
+	GetAllowableShips, CanChangeFreq, NULL, NULL
 };
 
 
