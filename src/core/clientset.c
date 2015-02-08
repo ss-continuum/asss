@@ -62,7 +62,7 @@ local Iarenaman *aman;
 local void load_settings(adata *ad, ConfigHandle conf)
 {
 	struct ClientSettings *cs = &ad->cs;
-	int i, j;
+	size_t i, j;
 	unsigned short total = 0;
 
 	/* clear and set type */
@@ -182,7 +182,7 @@ local override_key_t GetOverrideKey(const char *section, const char *key)
 #define MAKE_SIGNED_KEY(field, len) (MAKE_UNSIGNED_KEY(field, len) | 0x80000000u) 
 #define MAKE_BKEY(field, off, len) ((((offsetof(struct ClientSettings, field)) << 3) + (off)) | ((len) << 16))
 	char fullkey[MAXSECTIONLEN+MAXKEYLEN];
-	int i, j;
+	size_t i, j;
 
 	/* do prizeweights */
 	if (strcasecmp(section, "PrizeWeight") == 0)
@@ -521,7 +521,7 @@ local void do_mask(
 		overridedata *od1,
 		overridedata *od2)
 {
-	int i;
+	size_t i;
 	unsigned int *s = (unsigned int*)src;
 	unsigned int *d = (unsigned int*)dest;
 	unsigned int *o1 = (unsigned int*)od1->bits;
@@ -629,7 +629,7 @@ local u32 GetChecksum(Player *p, u32 key)
 	pdata *data = PPDATA(p, pdkey);
 	u32 *bits;
 	u32 csum = 0;
-	int i;
+	size_t i;
 
 	if (p->status != S_PLAYING)
 		return -1;
