@@ -2,7 +2,7 @@
 # these modules get compiled into the asss binary
 INTERNAL_MODULES = \
 	config prng player core logman idle \
-	mainloop net enc_null enc_vie arenaman mapdata \
+	mainloop net enc_null enc_vie security arenaman mapdata \
 	mapnewsdl clientset capman lagdata lagaction \
 	bw_default bw_nolimit freqman \
 	log_file log_console log_sysop log_staff \
