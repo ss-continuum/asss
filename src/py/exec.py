@@ -8,6 +8,15 @@ def try_interface(name):
 		return asss.get_interface(name)
 	except:
 		return None
+	
+def arenaToPlayerList(arena):
+	def each(player):
+		if player.arena == arena:
+			playerList.append(player)
+
+	playerList = asss.PlayerListType()
+	asss.for_each_player(each)
+	return playerList
 
 env = {}
 # `CB_SOMETHING` and `asss.CB_SOMETHING` are both correct
@@ -32,6 +41,7 @@ env['objects'] = try_interface(asss.I_OBJECTS)
 env['playerdata'] = try_interface(asss.I_PLAYERDATA)
 env['redirect'] = try_interface(asss.I_REDIRECT)
 env['stats'] = try_interface(asss.I_STATS)
+env['arenaToPlayerList'] = arenaToPlayerList
 
 chat = asss.get_interface(asss.I_CHAT)
 orig_sys_stdout = sys.stdout
