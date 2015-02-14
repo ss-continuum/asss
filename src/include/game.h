@@ -315,7 +315,9 @@ typedef struct Igame
 	/** Gives out prizes to a set of players.
 	 * @param target the things to give prizes to
 	 * @param type the type of the prizes to give, or 0 for random
-	 * @param count the number of prizes to give
+	 * @param count the number of prizes to give.
+	                Do not pass a negative value for count, negate the
+	                type instead
 	 */
 	void (*GivePrize)(const Target *target, int type, int count);
 	/* pyint: target, int, int -> void */
