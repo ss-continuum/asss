@@ -24,6 +24,18 @@ Vagrant.configure('2') do |config|
 			apt-get install -y build-essential python2.7 python2.7-dev python2.7-dbg \
 			libdb5.3-dev mysql-client libmysqlclient-dev gdb mercurial wget nano
 		fi
+
+		if [ ! -f /root/.bash_aliases ]; then
+			echo "alias src='cd /asss/src'" > /root/.bash_aliases
+			echo "alias zone='cd /zone'" >> /root/.bash_aliases
+			echo "alias runzone='cd /zone && bin/asss'" >> /root/.bash_aliases
+		fi
+
+		if [ ! -f /home/vagrant/.bash_aliases ]; then
+			echo "alias src='cd /asss/src'" > /home/vagrant/.bash_aliases
+			echo "alias zone='cd /zone'" >> /home/vagrant/.bash_aliases
+			echo "alias runzone='cd /zone && bin/asss'" >> /home/vagrant/.bash_aliases
+		fi
 		
 		rsync -rt /vagrant/ /asss/
 		mkdir -p /asss/bin
