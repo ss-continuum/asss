@@ -9,14 +9,14 @@
 # Anytime you change the source and you would like to rebuild, run "vagrant provision"
 #
 
-Vagrant.configure("2") do |config|
-	config.vm.box = "ubuntu/trusty64"
-	config.vm.box_url = "http://cloud-images.ubuntu.com/vagrant/trusty/current/trusty-server-cloudimg-amd64-vagrant-disk1.box"
+Vagrant.configure('2') do |config|
+	config.vm.box = 'ubuntu/trusty64'
+	config.vm.box_url = 'http://cloud-images.ubuntu.com/vagrant/trusty/current/trusty-server-cloudimg-amd64-vagrant-disk1.box'
 	config.vm.network :forwarded_port, guest: 5000, host: 5000, protocol: "udp"
 	config.vm.network :forwarded_port, guest: 5000, host: 5000, protocol: "tcp"
 	config.vm.network :forwarded_port, guest: 5001, host: 5001, protocol: "udp"
 
-	config.vm.provision "shell", inline: <<-SHELL
+	config.vm.provision 'shell', inline: <<-SHELL
 		let "UPDATE_AGO = $(date +%s) - $(date -r ~/last-apt-update +%s)"
 		if [ ! -f ~/last-apt-update ] || [ $UPDATE_AGO -gt 86400 ]; then
 			apt-get update
