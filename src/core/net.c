@@ -21,6 +21,7 @@
 #include "net-client.h"
 #include "bwlimit.h"
 #include "protutil.h"
+#include "peer.h"
 
 
 /* configuration stuff */
@@ -155,18 +156,6 @@ typedef struct Buffer
 	} d;
 } Buffer;
 
-
-typedef struct ListenData
-{
-	int gamesock, pingsock;
-	int port;
-	const char *connectas;
-	int allowvie, allowcont;
-	/* dynamic population data */
-	int total, playing;
-} ListenData;
-
-
 struct ClientConnection
 {
 	ConnData c;
@@ -196,12 +185,12 @@ local void SendWithCallback(Player *p, byte *data, int length,
 local int SendSized(Player *p, void *clos, int len,
 		void (*req)(void *clos, int offset, byte *buf, int needed));
 
-local void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len, void *v);
+local void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len, ListenData *ld);
 local void AddPacket(int, PacketFunc);
 local void RemovePacket(int, PacketFunc);
 local void AddSizedPacket(int, SizedPacketFunc);
 local void RemoveSizedPacket(int, SizedPacketFunc);
-local Player * NewConnection(int type, struct sockaddr_in *, Iencrypt *enc, void *v);
+local Player * NewConnection(int type, struct sockaddr_in *, Iencrypt *enc, ListenData *ld);
 local void GetStats(struct net_stats *stats);
 local void GetClientStats(Player *p, struct net_client_stats *stats);
 local int GetLastPacketTime(Player *p);
@@ -260,7 +249,6 @@ local Iprng *prng;
 local LinkedList handlers[MAXTYPES];
 local LinkedList sizedhandlers[MAXTYPES];
 
-local LinkedList listening = LL_INITIALIZER;
 local HashTable *listenmap;
 local int clientsock;
 
@@ -337,7 +325,9 @@ local Inet netint =
 
 	ReallyRawSend, NewConnection,
 
-	GetStats, GetClientStats, GetLastPacketTime, GetListenData, GetLDPopulation
+	GetStats, GetClientStats, GetLastPacketTime, GetListenData, GetLDPopulation,
+
+	LL_INITIALIZER
 };
 
 
@@ -518,14 +508,14 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		MPDestroy(&relqueue);
 
 		/* close all our sockets */
-		for (link = LLGetHead(&listening); link; link = link->next)
+		for (link = LLGetHead(&netint.listening); link; link = link->next)
 		{
 			ListenData *ld = link->data;
 			closesocket(ld->gamesock);
 			closesocket(ld->pingsock);
 		}
-		LLEnum(&listening, afree);
-		LLEmpty(&listening);
+		LLEnum(&netint.listening, afree);
+		LLEmpty(&netint.listening);
 		HashFree(listenmap);
 		closesocket(clientsock);
 
@@ -839,7 +829,7 @@ int InitSockets(void)
 		connectas = cfg->GetStr(GLOBAL, secname, "ConnectAs");
 		ld->connectas = connectas ? astrdup(connectas) : NULL;
 
-		LLAdd(&listening, ld);
+		LLAdd(&netint.listening, ld);
 		if (connectas)
 			HashAdd(listenmap, connectas, ld);
 
@@ -886,7 +876,7 @@ int GetListenData(unsigned index, int *port, char *connectasbuf, int buflen)
 	/* er, this is going to be quadratic in the common case of iterating
 	 * through the list. if it starts getting called from lots of
 	 * places, i'll fix it. */
-	l = LLGetHead(&listening);
+	l = LLGetHead(&netint.listening);
 	while (l && index > 0)
 		index--, l = l->next;
 
@@ -1087,7 +1077,7 @@ local void handle_ping_packet(ListenData *ld)
 		if (!aman) return;
 
 		/* clear population fields in listendata */
-		for (link = LLGetHead(&listening); link; link = link->next)
+		for (link = LLGetHead(&netint.listening); link; link = link->next)
 		{
 			xld = link->data;
 			xld->total = xld->playing = 0;
@@ -1300,7 +1290,7 @@ void * RecvThread(void *dummy)
 
 	/* set up the fd set we'll be using */
 	FD_ZERO(&myfds);
-	for (l = LLGetHead(&listening); l; l = l->next)
+	for (l = LLGetHead(&netint.listening); l; l = l->next)
 	{
 		ListenData *ld = l->data;
 		FD_SET(ld->pingsock, &myfds);
@@ -1328,7 +1318,7 @@ void * RecvThread(void *dummy)
 		} while (select(maxfd+1, &selfds, NULL, NULL, &tv) < 1);
 
 		/* process whatever we got */
-		for (l = LLGetHead(&listening); l; l = l->next)
+		for (l = LLGetHead(&netint.listening); l; l = l->next)
 		{
 			ListenData *ld = l->data;
 			if (FD_ISSET(ld->gamesock, &selfds))
@@ -1897,12 +1887,11 @@ void ProcessBuffer(Buffer *buf)
 }
 
 
-Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v_ld)
+Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, ListenData *ld)
 {
 	int bucket;
 	Player *p;
 	ConnData *conn;
-	ListenData *ld = v_ld;
 	char ipbuf[INET_ADDRSTRLEN];
 
 	/* certain ports might allow only one or another client */
@@ -2415,9 +2404,8 @@ void ProcessSpecial(Buffer *buf)
 }
 
 
-void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len, void *v_ld)
+void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len, ListenData *ld)
 {
-	ListenData *ld = v_ld;
 #ifdef CFG_DUMP_RAW_PACKETS
 	printf("SENDRAW: %d bytes\n", len);
 	dump_pk(pkt, len);
