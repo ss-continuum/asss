@@ -115,12 +115,17 @@ typedef struct Ipeer
 		ATTR_FORMAT(printf, 1, 2);
 	/* pyint: formatted -> void */
 
-	/** Sends a moderator chat message to all connected staff in all the peer zones.
-	  * Note: not supported by subgame
+	/** Sends an alert message to all connected staff in all the peer zones.
+	  * This is the same as ?help and ?cheater in subgame
+	  * (see Misc:AlertCommand in subgame)
+	  * @param alertName The command that this alert was generated from e.g. "cheater"
+	  * @param playerName
+	  * @param arenaName
+	  * @param format
 	  */
-	void (*SendModMessage)(const char *format, ...)
-		ATTR_FORMAT(printf, 1, 2);
-	/* pyint: formatted -> void */
+	void (*SendAlertMessage)(const char *alertName, const char *playerName, const char *arenaName, const char *format, ...)
+		ATTR_FORMAT(printf, 4, 5);
+	/* pyint: string, string, string, formatted -> void */
 
 	/** Locks the global peer zone lock.
 	 * There is a lock protecting the peer zone list, which you need to hold

@@ -160,12 +160,12 @@ local void ReadConfig()
 		peerZone->config.sendPlayerList = !!cfg->GetInt(GLOBAL, peerSection, "SendPlayerList", 1);
 
 		/* cfghelp: Peer0:SendOnly, global, boolean
-		 * If set, forward mod and zone (?z) messages to the peer
+		 * If set, forward alert and zone (?z) messages to the peer
 		 */
 		peerZone->config.sendMessages = !!cfg->GetInt(GLOBAL, peerSection, "SendMessages", 1);
 
 		/* cfghelp: Peer0:SendOnly, global, boolean
-		 * If set, display the zone (*zone) and mod messages from this peer
+		 * If set, display the zone (*zone) and alert messages from this peer
 		 */
 		peerZone->config.receiveMessages = !!cfg->GetInt(GLOBAL, peerSection, "ReceiveMessages", 1);
 
@@ -372,7 +372,7 @@ PeerZone* FindZone(struct sockaddr_in *sin) /* call with lock */
 	return NULL;
 }
 
-local void SendMessage(u8 packetType, u8 messageType, const char *format, va_list args)
+local void SendMessage(u8 packetType, u8 messageType, const char *message)
 {
 	ticks_t now = current_ticks();
 
@@ -381,15 +381,9 @@ local void SendMessage(u8 packetType, u8 messageType, const char *format, va_lis
 	messagePacket[sizeof(struct PeerPacket)] = messageType;
 
 	char *line = (char*) (messagePacket + sizeof(struct PeerPacket) + 1);
-	int wouldWrite = vsnprintf(line, 250, format, args);
+	astrncpy(line, message, 250);
 
 	size_t messagePacketSize = sizeof(struct PeerPacket) + 1 + strlen(line) + 1;
-
-	if (wouldWrite < 0)
-	{
-		lm->Log(L_ERROR, "<peer> Invalid format string: %s", format);
-		return;
-	}
 
 	ListenData *ld = NULL;;
 	if (LLGetHead(&net->listening))
@@ -559,8 +553,8 @@ local void HandleMessage(PeerZone* peerZone, u8 packetType, byte *payload, int l
 
 			chat->SendArenaMessage(ALLARENAS, "%s", line);
 			break;
-		case 0x03: // mod
-			lm->Log(L_INFO, "<peer> zone peer %s:%d sent us a mod message (type=%x): %s",
+		case 0x03: // alert
+			lm->Log(L_INFO, "<peer> zone peer %s:%d sent us a alert message (type=%x): %s",
 				ipbuf, port, messageType, line);
 
 			chat->SendModMessage("%s", line);
@@ -794,16 +788,41 @@ local int ArenaRequest(Player *p, int arenaType, const char *arenaName)
 local void SendZoneMessage(const char *format, ...)
 {
 	va_list args;
+	char line[250];
+
 	va_start(args, format);
-	SendMessage(0x02, 0x00, format, args);
+
+	if (vsnprintf(line, 250, format, args) < 0)
+	{
+		lm->Log(L_ERROR, "<peer> Invalid format string in SendZoneMessage: %s", format);
+		va_end(args);
+		return;
+	}
+
+	SendMessage(0x02, 0x00, line);
 	va_end(args);
 }
 
-local void SendModMessage(const char *format, ...)
+local void SendAlertMessage(const char *alertName, const char *playerName, const char *arenaName, const char *format, ...)
 {
 	va_list args;
+	char line[250];
+	char line2[250];
+
 	va_start(args, format);
-	SendMessage(0x03, 0x00, format, args);
+
+	if (vsnprintf(line, 250, format, args) < 0)
+	{
+		lm->Log(L_ERROR, "<peer> Invalid format string in SendAlertMessage: %s", format);
+		va_end(args);
+		return;
+	}
+	line[249] = 0;
+
+	sprintf(line2, "%s: (%s) (%s): %s", alertName, playerName, arenaName, line);
+	line2[249] = 0;
+
+	SendMessage(0x03, 0x00, line2);
 	va_end(args);
 }
 
@@ -846,7 +865,7 @@ local Ipeer myint =
 	FindPlayer,
 	ArenaRequest,
 	SendZoneMessage,
-	SendModMessage,
+	SendAlertMessage,
 	Lock, Unlock,
 	FindZone, FindArena,
 	LL_INITIALIZER
