@@ -39,6 +39,7 @@ typedef ssize_t         Py_ssize_t;
 #include "fg_turf.h"
 #include "idle.h"
 #include "redirect.h"
+#include "peer.h"
 #include "brickwriter.h"
 
 #include "turf/turf_reward.h"

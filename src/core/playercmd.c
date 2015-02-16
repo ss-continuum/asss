@@ -20,6 +20,7 @@
 #include "jackpot.h"
 #include "persist.h"
 #include "redirect.h"
+#include "peer.h"
 
 
 /* global data */
@@ -162,6 +163,12 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 	Link *link;
 	int cutoff = 0;
 	int chatBasedOutput = (IS_CHAT(p) || strstr(params, "-t"));
+	int showAllPeer = !!strstr(params, "-p");
+	Ipeer *peer = mm->GetInterface(I_PEER, ALLARENAS);
+	PeerZone *peerZone;
+	Link *link2;
+	PeerArena *peerArena;
+	const char *peerArenaName;
 
 	*pos++ = S2C_ARENA;
 
@@ -204,6 +211,43 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 	}
 
 	aman->Unlock();
+
+	if (peer)
+	{
+		peer->Lock();
+
+		FOR_EACH_PEER_ZONE(peerZone)
+			FOR_EACH(&peerZone->arenas, peerArena, link2)
+		{
+			if (!peerArena->configured && !showAllPeer)
+				continue;
+
+			peerArenaName = peerArena->name;
+
+			int nameLen = strlen(peerArenaName) + 1;
+			int newPacketLen = (pos - buf) + 2 + nameLen;
+
+			if (!cutoff && newPacketLen > (MAXPACKET-6))
+			{
+				if (chatBasedOutput)
+					cutoff = pos-buf;
+				else
+					break;
+			}
+
+			if (newPacketLen < 0 || (size_t) newPacketLen > sizeof(buf))
+				break;
+
+			if (peerArenaName[0] != '#' || seehid)
+			{
+				int count = peerArena->playerCount;
+				memcpy(pos, peerArenaName, nameLen);
+				pos += nameLen;
+				*pos++ = (count >> 0) & 0xFF;
+				*pos++ = (count >> 8) & 0xFF;
+			}
+		}
+	}
 
 #ifdef CFG_DO_EXTRAARENAS
 	/* add in more arenas if requested */
@@ -249,8 +293,45 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 			}
 			closedir(dir);
 		}
+
+
+		if (peer)
+		{
+			FOR_EACH_PEER_ZONE(peerZone)
+				FOR_EACH(&peerZone->config.arenas, peerArenaName, link2)
+			{
+				int nameLen = strlen(peerArenaName) + 1;
+				int newPacketLen = (pos - buf) + 2 + nameLen;
+
+				if (!cutoff && newPacketLen > (MAXPACKET-6))
+				{
+					if (chatBasedOutput)
+						cutoff = pos-buf;
+					else
+						break;
+				}
+
+				if (newPacketLen < 0 || (size_t) newPacketLen > sizeof(buf))
+					break;
+
+				if ((peerArenaName[0] != '#' || seehid) &&
+				   !HashGetOne(&peerZone->arenaTable, peerArenaName)) // already in the list?
+				{
+					memcpy(pos, peerArenaName, nameLen);
+					pos += nameLen;
+					*pos++ = 0;
+					*pos++ = 0;
+				}
+			}
+		}
 	}
 #endif
+
+	if (peer)
+	{
+		peer->Unlock();
+	}
+	mm->ReleaseInterface(peer);
 
 	/* send it */
 	if (chatBasedOutput)
@@ -985,8 +1066,12 @@ local helptext_t find_help =
 local void Cfind(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Link *link;
-	Player *i, *best = NULL;
+	Player *i;
 	int score = INT_MAX; /* lower is better */
+	const char *bestArena = NULL;
+	const char *bestPlayer = NULL;
+	char bufArena[24] = {0};
+	char bufPlayer[24] = {0};
 
 	if (target->type != T_ARENA || !*params) return;
 
@@ -999,7 +1084,8 @@ local void Cfind(const char *tc, const char *params, Player *p, const Target *ta
 		if (strcasecmp(i->name, params) == 0)
 		{
 			/* exact matches always win */
-			best = i;
+			bestPlayer = i->name;
+			bestArena = i->arena->name;
 			break;
 		}
 		pos = strcasestr(i->name, params);
@@ -1010,21 +1096,36 @@ local void Cfind(const char *tc, const char *params, Player *p, const Target *ta
 			int newscore = pos - i->name;
 			if (newscore < score)
 			{
-				best = i;
+				bestPlayer = i->name;
+				bestArena = i->arena->name;
 				score = newscore;
 			}
 		}
 	}
 	pd->Unlock();
 
-	if (best)
+	if (score > 0)
 	{
-		if (best->arena->name[0] != '#' ||
+		Ipeer *peer = mm->GetInterface(I_PEER, ALLARENAS);
+		if (peer)
+		{
+			if (peer->FindPlayer(params, &score, bufPlayer, bufArena, 24))
+			{
+				bestPlayer = bufPlayer;
+				bestArena = bufArena;
+			}
+			mm->ReleaseInterface(peer);
+		}
+	}
+
+	if (bestPlayer)
+	{
+		if (bestArena[0] != '#' ||
 		    capman->HasCapability(p, CAP_SEEPRIVARENA) ||
-		    p->arena == best->arena)
-			chat->SendMessage(p, "%s is in arena %s.", best->name, best->arena->name);
+		    !strcasecmp(p->arena->name, bestArena))
+			chat->SendMessage(p, "%s is in arena %s.", bestPlayer, bestArena);
 		else
-			chat->SendMessage(p, "%s is in a private arena.", best->name);
+			chat->SendMessage(p, "%s is in a private arena.", bestPlayer);
 	}
 	else
 	{
@@ -1589,6 +1690,13 @@ local void Cz(const char *tc, const char *params, Player *p, const Target *targe
 {
 	int sound = tc[strlen(tc)+1];
 	chat->SendArenaSoundMessage(NULL, sound, "%s  -%s", params, p->name);
+
+	Ipeer *peer = mm->GetInterface(I_PEER, ALLARENAS);
+	if (peer)
+	{
+		peer->SendZoneMessage("%s  -%s", params, p->name);
+		mm->ReleaseInterface(peer);
+	}
 }
 
 
@@ -1601,6 +1709,13 @@ local void Caz(const char *tc, const char *params, Player *p, const Target *targ
 {
 	int sound = tc[strlen(tc)+1];
 	chat->SendArenaSoundMessage(NULL, sound, "%s", params);
+
+	Ipeer *peer = mm->GetInterface(I_PEER, ALLARENAS);
+	if (peer)
+	{
+		peer->SendZoneMessage("%s", params);
+		mm->ReleaseInterface(peer);
+	}
 }
 
 

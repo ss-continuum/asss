@@ -12,6 +12,7 @@
 #include "clientset.h"
 #include "persist.h"
 #include "redirect.h"
+#include "peer.h"
 #include "log_file.h"
 
 #include "packets/goarena.h"
@@ -675,13 +676,6 @@ local void PArena(Player *p, byte *pkt, int len)
 	{
 		if (!has_cap_go(p)) return;
 		astrncpy(name, go->arenaname, 16);
-		if (p->type == T_CONT)
-		{
-			Iredirect *redir = mm->GetInterface(I_REDIRECT, ALLARENAS);
-			int handled = redir && redir->ArenaRequest(p, name);
-			mm->ReleaseInterface(redir);
-			if (handled) return;
-		}
 	}
 	else if (go->arenatype == -2 || go->arenatype == -1)
 	{
@@ -704,6 +698,27 @@ local void PArena(Player *p, byte *pkt, int len)
 	{
 		lm->Log(L_MALICIOUS, "<arenaman> [%s] bad arenatype in arena request", p->name);
 		return;
+	}
+
+	if (p->type == T_CONT)
+	{
+		// First handle peer redirects
+		Ipeer *peer = mm->GetInterface(I_PEER, ALLARENAS);
+		int handled = peer && peer->ArenaRequest(p, go->arenatype, name);
+		mm->ReleaseInterface(peer);
+		if (handled)
+		{
+			return;
+		}
+
+		// Then handle general redirects
+		Iredirect *redir = mm->GetInterface(I_REDIRECT, ALLARENAS);
+		handled = redir && redir->ArenaRequest(p, name);
+		mm->ReleaseInterface(redir);
+		if(handled)
+		{
+			return;
+		}
 	}
 
 	/* only use extra byte if it's there */

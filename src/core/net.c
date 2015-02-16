@@ -1088,7 +1088,10 @@ local void handle_ping_packet(ListenData *ld)
 			xld->total = xld->playing = 0;
 		}
 
+		Ipeer *peer = mm->GetInterface(I_PEER, ALLARENAS);
+
 		/* fill in arena summary packet with info from aman */
+		// todo: peer
 		aman->Lock();
 		aman->GetPopulationSummary(&total, &playing);
 		FOR_EACH_ARENA(a)
@@ -1121,6 +1124,14 @@ local void handle_ping_packet(ListenData *ld)
 		sdata.global.playing = playing;
 
 		mm->ReleaseInterface(aman);
+
+		if (peer)
+		{
+			sdata.global.total += peer->GetPopulationSummary();
+			// peer protocol does not provide a "playing" count
+		}
+
+		mm->ReleaseInterface(peer);
 
 		sdata.refresh = now;
 	}

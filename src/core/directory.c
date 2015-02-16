@@ -20,7 +20,7 @@
 #include <stdio.h>
 
 #include "asss.h"
-
+#include "peer.h"
 
 /* the thing to send */
 #pragma pack(push, 1)
@@ -59,6 +59,7 @@ local int SendUpdates(void *dummy)
 	Link *link, *l, *k;
 	Player *p;
 	Icapman *capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
+	Ipeer *peer = mm->GetInterface(I_PEER, ALLARENAS);
 
 	lm->Log(L_DRIVEL, "<directory> sending information to directory servers");
 
@@ -73,6 +74,11 @@ local int SendUpdates(void *dummy)
 		(!capman || !capman->HasCapability(p, CAP_EXCLUDE_POPULATION)))
 			count++;
 	pd->Unlock();
+
+	if (peer)
+	{
+		count += peer->GetPopulationSummary();
+	}
 
 	for (k = LLGetHead(&packets); k; k = k->next)
 	{
@@ -94,6 +100,7 @@ local int SendUpdates(void *dummy)
 	}
 
 	mm->ReleaseInterface(capman);
+	mm->ReleaseInterface(peer);
 	return TRUE;
 }
 
