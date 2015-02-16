@@ -152,7 +152,7 @@ typedef struct Buffer
 	union
 	{
 		struct ReliablePacket rel;
-		byte raw[MAXPACKET+4];
+		byte raw[MAXCONNINITPACKET+4];
 	} d;
 } Buffer;
 
@@ -927,7 +927,7 @@ local void handle_game_packet(ListenData *ld)
 
 	buf = GetBuffer();
 	sinsize = sizeof(sin);
-	len = recvfrom(ld->gamesock, buf->d.raw, MAXPACKET, 0,
+	len = recvfrom(ld->gamesock, buf->d.raw, MAXCONNINITPACKET, 0,
 			(struct sockaddr*)&sin, &sinsize);
 
 	if (len < 1) goto freebuf;
@@ -958,6 +958,11 @@ local void handle_game_packet(ListenData *ld)
 					buf->d.raw[0], len);
 #endif
 		goto freebuf;
+	}
+
+	if (len > MAXPACKET)
+	{
+		len = MAXPACKET;
 	}
 
 	/* grab the status */

@@ -25,6 +25,7 @@
 
 /* important constants */
 #define MAXPACKET 512
+#define MAXCONNINITPACKET 2048
 #define MAXBIGPACKET CFG_MAX_BIG_PACKET
 
 /* bits in the flags parameter to the SendX functions */
