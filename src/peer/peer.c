@@ -925,7 +925,7 @@ EXPORT int MM_peer(int action, Imodman *mm_, Arena *arena)
 			return MM_OK;
 
 		case MM_UNLOAD:
-			if (!mm->UnregInterface(&myint, ALLARENAS))
+			if (mm->UnregInterface(&myint, ALLARENAS))
 			{
 				return MM_FAIL;
 			}
