@@ -931,10 +931,14 @@ EXPORT int MM_peer(int action, Imodman *mm_, Arena *arena)
 			}
 
 			ml->ClearTimer(PeriodicUpdate, NULL);
-
 			mm->UnregCallback(CB_CONNINIT, PeerConnInitCB, ALLARENAS);
 
 			aman->FreeArenaData(arenaDataKey);
+
+			WRLOCK();
+			LLEnum(&peer->peers, (void (*)(const void *)) CleanupPeerZone);
+			LLEmpty(&peer->peers);
+			WRUNLOCK();
 
 			ReleaseInterfaces();
 
