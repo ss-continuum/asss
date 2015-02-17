@@ -116,7 +116,7 @@ local void ReadConfig()
 
 		u32 hash = 0xDEADBEEF;
 
-		/* cfghelp: Peer0:Port, global, string
+		/* cfghelp: Peer0:Password, global, string
 		 * Peers must agree upon a common password
 		 */
 		const char *password = cfg->GetStr(GLOBAL, peerSection, "Password");
@@ -125,7 +125,7 @@ local void ReadConfig()
 			hash = ~crc32(0, (unsigned char *) password, strlen(password));
 		}
 
-		/* cfghelp: Peer0:Port, global, string
+		/* cfghelp: Peer0:Arenas, global, string
 		 * A list of arena's that belong to the peer. This server will redirect players that try to ?go to
 		 * this arena. These arena's will also be used for ?find and will be shown in ?arena
 		 */
@@ -154,22 +154,22 @@ local void ReadConfig()
 		 */
 		peerZone->config.sendOnly = !!cfg->GetInt(GLOBAL, peerSection, "SendOnly", 0);
 
-		/* cfghelp: Peer0:SendOnly, global, boolean
+		/* cfghelp: Peer0:SendPlayerList, global, boolean
 		 * If set, send a full arena and player list to the peer. Otherwise only send a summary of our population
 		 */
 		peerZone->config.sendPlayerList = !!cfg->GetInt(GLOBAL, peerSection, "SendPlayerList", 1);
 
-		/* cfghelp: Peer0:SendOnly, global, boolean
+		/* cfghelp: Peer0:SendMessages, global, boolean
 		 * If set, forward alert and zone (?z) messages to the peer
 		 */
 		peerZone->config.sendMessages = !!cfg->GetInt(GLOBAL, peerSection, "SendMessages", 1);
 
-		/* cfghelp: Peer0:SendOnly, global, boolean
+		/* cfghelp: Peer0:ReceiveMessages, global, boolean
 		 * If set, display the zone (*zone) and alert messages from this peer
 		 */
 		peerZone->config.receiveMessages = !!cfg->GetInt(GLOBAL, peerSection, "ReceiveMessages", 1);
 
-		/* cfghelp: Peer0:SendOnly, global, boolean
+		/* cfghelp: Peer0:IncludeInPopulation, global, boolean
 		 * If set, include the population count of this peer in the ping protocol.
 		 */
 		peerZone->config.includeInPopulation  = !!cfg->GetInt(GLOBAL, peerSection, "IncludeInPopulation", 1);
