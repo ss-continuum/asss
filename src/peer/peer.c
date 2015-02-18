@@ -589,7 +589,7 @@ local void PeerConnInitCB(struct sockaddr_in *sin, u8 *pkt, int len, ListenData 
 	#define FAIL(msg) do { \
 		int port = ntohs(sin->sin_port); \
 		char ipbuf[INET_ADDRSTRLEN]; \
-		inet_ntop(AF_INET, sin, ipbuf, INET_ADDRSTRLEN); \
+		inet_ntop(AF_INET, &sin->sin_addr, ipbuf, INET_ADDRSTRLEN); \
 		lm->Log(L_DRIVEL, "<peer> received something that looks like peer data at %s:%d, " msg, ipbuf, port); \
 	} while(0)
 
