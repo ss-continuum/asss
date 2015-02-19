@@ -228,7 +228,13 @@ local void mlfunc()
 		struct TurretData *td = l->data;
 		next = l->next; /* so we can remove during the loop */
 		now = current_ticks();
-		if (TICK_GT(now, td->endtime) || !td->p->arena)
+
+		if (!pd->IsValidPointer(td->p)) /* ?killfake was used */
+		{
+			LLRemove(&turrets, td);
+			afree(td);
+		}
+		else if (TICK_GT(now, td->endtime) || !td->p->arena)
 		{
 			/* remove it from the list, kill the turret, and free the
 			 * memory */
