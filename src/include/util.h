@@ -12,6 +12,7 @@
 /* include for size_t */
 #include <stddef.h>
 #include <time.h>
+#include "sizes.h"
 
 #ifndef ATTR_FORMAT
 #define ATTR_FORMAT(a,b,c)
@@ -36,7 +37,7 @@ int rpl_asprintf(char **, const char *, ...);
  * ticks are 31 bits in size. the value is stored in the lower 31 bits
  * of an unsigned int. don't do arithmetic on these directly, use the
  * TICK_* macros, to handle wraparound. */
-typedef unsigned int ticks_t;
+typedef u32 ticks_t;
 
 /** the difference between two ticks_t values */
 #define TICK_DIFF(a,b) ((signed int)(((a)<<1)-((b)<<1))>>1)

@@ -41,9 +41,16 @@ struct HashEntry
 ticks_t current_ticks(void)
 {
 #ifndef WIN32
-	struct timeval tv;
-	gettimeofday(&tv,NULL);
-	return TICK_MAKE(tv.tv_sec * 100 + tv.tv_usec / 10000);
+	struct timespec ts;
+	// not affected by leap seconds, user changing the clock, etc
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+
+	// (ticks_t is unsigned)
+	ticks_t ticks = TICK_MAKE(ts.tv_sec);
+	ticks *= 100U; // (ticks * 100) % 2^32
+	ticks += ts.tv_nsec / 10000000;
+
+	return TICK_MAKE(ticks);
 #else
 	return TICK_MAKE(GetTickCount() / 10);
 #endif
@@ -53,9 +60,16 @@ ticks_t current_ticks(void)
 ticks_t current_millis(void)
 {
 #ifndef WIN32
-	struct timeval tv;
-	gettimeofday(&tv,NULL);
-	return TICK_MAKE(tv.tv_sec * 1000 + tv.tv_usec / 1000);
+	struct timespec ts;
+	// not affected by leap seconds, user changing the clock, etc
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+
+	// (ticks_t is unsigned)
+	ticks_t ticks = TICK_MAKE(ts.tv_sec);
+	ticks *= 1000U; // (ticks * 1000) % 2^32
+	ticks += ts.tv_nsec / 1000000;
+
+	return TICK_MAKE(ticks);
 #else
 	return TICK_MAKE(GetTickCount());
 #endif
