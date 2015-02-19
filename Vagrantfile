@@ -51,9 +51,9 @@ Vagrant.configure('2') do |config|
 			ln -s /asss/bin /zone/bin
 		fi
 		
-		if [ ! -f /asss/bin/security.so ]; then
-			wget --output-document=/asss/bin/security.so https://bitbucket.org/grelminar/asss/downloads/security_x86-64_debian_libc2.11.3.so
-			chown vagrant:vagrant /asss/bin/security.so
+		if [ ! -f /asss/bin/enc_cont.so ]; then
+			wget --output-document=/asss/bin/enc_cont.so https://bitbucket.org/jowie/asss/downloads/enc_cont_2ef8d7651b9b_x86_64-ubuntu-glibc-4.8.2.so
+			chown vagrant:vagrant /asss/bin/enc_cont.so
 		fi
 		
 		cd /asss/src/
