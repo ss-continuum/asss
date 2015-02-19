@@ -70,7 +70,7 @@ local struct TurretData * new_turret(Player *p, int timeout, int interval,
 local helptext_t dropturret_help =
 "Module: autoturret\n"
 "Targets: none\n"
-"Args: none\n"
+"Args: [<freq>]\n"
 "Drops a turret right where your ship is. The turret will fire 10 level 1\n"
 "bombs, 1.5 seconds apart, and then disappear.\n";
 
@@ -78,6 +78,14 @@ local void Cdropturret(const char *tc, const char *params, Player *p, const Targ
 {
 	Player *turret;
 	int count;
+	int freq;
+	char *next;
+
+	freq = (int) strtol(params, &next, 0);
+	if (freq < 0 || freq > 9999 || params == next)
+	{
+		freq = p->p_freq;
+	}
 
 	pthread_mutex_lock(&turret_mtx);
 	count = LLCount(&turrets);
@@ -89,7 +97,7 @@ local void Cdropturret(const char *tc, const char *params, Player *p, const Targ
 				"<autoturret>",
 				p->arena,
 				SHIP_WARBIRD,
-				p->p_freq);
+				freq);
 		new_turret(turret, 1500, 150, p);
 	}
 }
