@@ -34,7 +34,7 @@ int rpl_asprintf(char **, const char *, ...);
 
 /** represents a time, either absolute or relative.
  * ticks are 31 bits in size. the value is stored in the lower 31 bits
- * of an unsigned int. don't do arithmatic on these directly, use the
+ * of an unsigned int. don't do arithmetic on these directly, use the
  * TICK_* macros, to handle wraparound. */
 typedef unsigned int ticks_t;
 
