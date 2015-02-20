@@ -57,7 +57,7 @@ typedef int socklen_t;
 
 /* a few things that windows is missing */
 const char * strcasestr(const char* haystack, const char* needle);
-int mkstemp(char *template);
+int mkstemp(char *templ);
 
 
 /* directory listing */
