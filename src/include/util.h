@@ -47,7 +47,17 @@ typedef u32 ticks_t;
  ** ticks value. use like: TICK_MAKE(current_ticks() + 1000). */
 #define TICK_MAKE(a) ((a) & 0x7fffffff)
 
-/* miscelaneous stuff */
+
+typedef struct TimeoutSpec
+{
+#ifndef WIN32
+	struct timespec target;
+#else
+	u32 target; /* milliseconds */
+#endif
+} TimeoutSpec;
+
+/* miscellaneous stuff */
 
 /** gets the current server time in ticks (1/100ths of a second). ticks
  ** are used for all game-related purposes. */
@@ -61,6 +71,12 @@ void fullsleep(long millis);
 
 /** portable localtime_r wrapper */
 void alocaltime_r(time_t *t, struct tm *_tm);
+
+/** Some functions let you specific a timeout using a absolute time value.
+ * This method creates such an absolute time value from a relative value.
+ * @param milliseconds How many milliseconds from now that this timeout expires
+ */
+TimeoutSpec schedule_timeout(unsigned milliseconds);
 
 /** strips a trailing CR or LF off the end of a string. this modifies
  ** the string, and returns it. */
@@ -390,6 +406,7 @@ typedef struct MPQueue
 	LinkedList list;
 	pthread_mutex_t mtx;
 	pthread_cond_t cond;
+	pthread_condattr_t condattr;
 } MPQueue;
 
 /** initalizes an mpqueue. you need to allocate memory for it yourself. */
@@ -403,9 +420,16 @@ void MPAdd(MPQueue *mpq, void *data);
  * NULL. this will not block. */
 void * MPTryRemove(MPQueue *mpq);
 /** removes an item from the front of the queue.
- * if there queue is empty, this will block until there's something to
+ * if the queue is empty, this will block until there's something to
  * remove, and then return it. */
 void * MPRemove(MPQueue *mpq);
+/** Removes an item from the front of the queue.
+ * this function will wait up to the specified milliseconds (see schedule_timeout()) if necessary
+ * for an item to become available. If an item becomes available
+ * before that timeout this function will return early with that item.
+ * This function only returns NULL if the given timeout has expired.
+ */
+void * MPTimeoutRemove(MPQueue *q, TimeoutSpec timeout);
 /** clear the current contents of the queue. */
 void MPClear(MPQueue *mpq);
 /** clear all instances of this item from the queue. */
