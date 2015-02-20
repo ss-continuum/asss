@@ -65,21 +65,14 @@ struct ChatMsgDTO
 	const char *text;
 };
 
-local int run_chatmsg_cb(void *param)
+local void run_chatmsg_cb(void *param)
 {
 	struct ChatMsgDTO *dto = (struct ChatMsgDTO *) param;
-	
-	if ( (dto->p == NULL      || pd->IsValidPointer(dto->p)) && 
-	     (dto->target == NULL || pd->IsValidPointer(dto->target)) && 
-	     (dto->a == ALLARENAS || aman->IsValidPointer(dto->a))
-           )
-	{
-		DO_CBS(CB_CHATMSG, dto->a, ChatMsgFunc, (dto->p, dto->type, dto->sound, dto->target, dto->freq, dto->text));
-	}
+
+	DO_CBS(CB_CHATMSG, dto->a, ChatMsgFunc, (dto->p, dto->type, dto->sound, dto->target, dto->freq, dto->text));
 	
 	afree(dto->text);
 	afree(dto);
-	return FALSE; // stop timer
 }
 
 local void do_chatmsg_cb(Arena *a, Player *p, int type, int sound, Player *target, int freq, const char *text)
@@ -92,8 +85,8 @@ local void do_chatmsg_cb(Arena *a, Player *p, int type, int sound, Player *targe
 	dto->target = target;
 	dto->freq = freq;
 	dto->text = astrdup(text);
-	
-	ml->SetTimer(run_chatmsg_cb, 0, 0, dto, NULL);
+
+	ml->RunInMain(run_chatmsg_cb, dto);
 }
 
 /* call with lock */
@@ -1014,6 +1007,7 @@ EXPORT int MM_chat(int action, Imodman *mm_, Arena *arena)
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
 		if (persist)
 			persist->UnregPlayerPD(&pdata);
+		ml->WaitRunInMainDrain();
 		aman->FreeArenaData(cmkey);
 		pd->FreePlayerData(pmkey);
 		mm->ReleaseInterface(pd);
