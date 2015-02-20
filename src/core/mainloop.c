@@ -23,7 +23,17 @@ typedef struct WorkData
 	void *param;
 } WorkData;
 
+typedef struct RunInMainData
+{
+	RunInMainFunc func;
+	void *param;
 
+	int iswait;
+	int waitresolved;
+	pthread_cond_t wait_cond;
+} RunInMainData;
+
+local pthread_t main_thread = NULL;
 local int privatequit;
 local TimerData *thistimer;
 local LinkedList timers;
@@ -32,10 +42,38 @@ local Imodman *mm;
 local pthread_t worker_threads[CFG_THREAD_POOL_WORKER_THREADS];
 local MPQueue work_queue;
 
+local MPQueue runinmain_queue;
+local pthread_mutex_t runinmain_wait_mtx = PTHREAD_MUTEX_INITIALIZER;
+
 local pthread_mutex_t tmrmtx = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK() pthread_mutex_lock(&tmrmtx)
 #define UNLOCK() pthread_mutex_unlock(&tmrmtx)
 
+void handleRunInMain(RunInMainData *md)
+{
+	if (md->iswait)
+	{
+		pthread_mutex_lock(&runinmain_wait_mtx);
+		md->waitresolved = 1;
+		pthread_cond_signal(&md->wait_cond);
+		pthread_mutex_unlock(&runinmain_wait_mtx);
+		// other thread takes care of cleanup
+	}
+	else
+	{
+		md->func(md->param);
+		afree(md);
+	}
+}
+
+void drainRunInMain()
+{
+	RunInMainData *md;
+	while ( (md = MPTryRemove(&runinmain_queue)) )
+	{
+		handleRunInMain(md);
+	}
+}
 
 int RunLoop(void)
 {
@@ -43,10 +81,14 @@ int RunLoop(void)
 	Link *l;
 	ticks_t gtc;
 
+	main_thread = pthread_self();
+
 	while (!privatequit)
 	{
 		/* call all funcs */
 		DO_CBS(CB_MAINLOOP, ALLARENAS, MainLoopFunc, ());
+
+		drainRunInMain();
 
 		/* do timers */
 		LOCK();
@@ -75,8 +117,24 @@ startover:
 		}
 		UNLOCK();
 
-		/* rest a bit */
-		fullsleep(10);
+		drainRunInMain();
+
+		/* rest a bit (10ms) */
+		TimeoutSpec timeout = schedule_timeout(10);
+
+		RunInMainData *md;
+		do
+		{
+			/* keep sleeping until the timeout is over */
+			md = MPTimeoutRemove(&runinmain_queue, timeout);
+			if (md)
+			{
+				handleRunInMain(md);
+
+				/* handle remaining functions as fast as possible */
+				drainRunInMain();
+			}
+		} while(md); /* MPTimeoutRemove returns NULL if the timeout expired */
 	}
 
 	return privatequit & 0xff;
@@ -161,12 +219,51 @@ local void *thread_main(void *dummy)
 	}
 }
 
+local void RunInMain(RunInMainFunc func, void *param)
+{
+	RunInMainData *md = amalloc(sizeof(*md));
+	md->func = func;
+	md->param = param;
+	md->iswait = 0;
+	MPAdd(&runinmain_queue, md);
+}
+
+local void WaitRunInMainDrain()
+{
+	if (pthread_equal(main_thread, pthread_self()))
+	{
+		drainRunInMain();
+	}
+	else
+	{
+		RunInMainData *md = amalloc(sizeof(*md));
+		md->iswait = 1;
+		md->waitresolved = 0;
+		pthread_cond_init(&md->wait_cond, NULL);
+
+		pthread_cleanup_push((void(*)(void*)) pthread_mutex_unlock, (void*) &runinmain_wait_mtx);
+		pthread_mutex_lock(&runinmain_wait_mtx);
+
+		MPAdd(&runinmain_queue, md);
+
+		while (!md->waitresolved)
+		{
+			pthread_cond_wait(&md->wait_cond, &runinmain_wait_mtx);
+		}
+
+		pthread_cleanup_pop(1);
+
+		pthread_cond_destroy(&md->wait_cond);
+		afree(md);
+	}
+}
 
 local Imainloop _int =
 {
 	INTERFACE_HEAD_INIT(I_MAINLOOP, "mainloop")
 	StartTimer, ClearTimer, CleanupTimer, RunLoop, KillML,
-	RunInThread
+	RunInThread,
+	RunInMain, WaitRunInMainDrain
 };
 
 EXPORT const char info_mainloop[] = CORE_MOD_INFO("mainloop");
@@ -180,6 +277,7 @@ EXPORT int MM_mainloop(int action, Imodman *mm_, Arena *arena)
 		privatequit = 0;
 		LLInit(&timers);
 		MPInit(&work_queue);
+		MPInit(&runinmain_queue);
 		for (i = 0; i < CFG_THREAD_POOL_WORKER_THREADS; i++)
 			pthread_create(&worker_threads[i], NULL, thread_main, NULL);
 		mm->RegInterface(&_int, ALLARENAS);
@@ -194,6 +292,7 @@ EXPORT int MM_mainloop(int action, Imodman *mm_, Arena *arena)
 		for (i = 0; i < CFG_THREAD_POOL_WORKER_THREADS; i++)
 			pthread_join(worker_threads[i], NULL);
 		MPDestroy(&work_queue);
+		MPDestroy(&runinmain_queue);
 		if (mm->UnregInterface(&_int, ALLARENAS))
 			return MM_FAIL;
 		return MM_OK;
