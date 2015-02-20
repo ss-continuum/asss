@@ -216,6 +216,8 @@ local int ProcessArenaStates(void *dummy)
 					else
 					{
 						LLRemove(&aman->arenalist, a);
+						/* RunInMain calls that refer to this arena might still be pending */
+						ml->WaitRunInMainDrain();
 						afree(a);
 					}
 				}

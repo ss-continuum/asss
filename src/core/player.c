@@ -15,6 +15,7 @@
 /* static data */
 
 local Imodman *mm;
+local Imainloop *ml;
 local int dummykey, magickey;
 #ifdef USE_RWLOCK
 local rwlock_t plock;
@@ -152,6 +153,9 @@ local void FreePlayer(Player *p)
 	pidmap[p->pid].next = firstfreepid;
 	firstfreepid = p->pid;
 	WULOCK();
+
+	/* RunInMain calls that refer to this player might still be pending */
+	ml->WaitRunInMainDrain();
 
 	afree(p);
 }
@@ -377,6 +381,12 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 		Iconfig *cfg;
 
 		mm = mm_;
+		ml = mm->GetInterface(I_MAINLOOP, NULL);
+		if (!ml)
+		{
+			mm->ReleaseInterface(ml);
+			return MM_FAIL;
+		}
 
 		/* init locks */
 		pthread_mutexattr_init(&recmtxattr);
@@ -430,6 +440,9 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 		afree(pidmap);
 		LLEnum(&pd->playerlist, afree);
 		LLEmpty(&pd->playerlist);
+
+		mm->ReleaseInterface(ml);
+
 		return MM_OK;
 	}
 	return MM_FAIL;
