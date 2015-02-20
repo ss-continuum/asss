@@ -48,7 +48,7 @@ local Player * CreateFakePlayer(const char *name, Arena *arena, int ship, int fr
 	return p;
 }
 
-local int end_fake_timer_callback(void *clos)
+local void end_fake_mainthread(void *clos)
 {
 	Player *p = clos;
 	Arena *arena = p->arena;
@@ -71,8 +71,6 @@ local int end_fake_timer_callback(void *clos)
 
 	/* leave game */
 	pd->FreePlayer(p);
-
-	return FALSE;
 }
 
 local int EndFaked(Player *p)
@@ -84,7 +82,7 @@ local int EndFaked(Player *p)
 	if (p->status != S_PLAYING || !p->arena)
 		lm->LogP(L_WARN, "fake", p, "fake player with bad status");
 
-	ml->SetTimer(end_fake_timer_callback, 0, 0, p, p);	
+	ml->RunInMain(end_fake_mainthread, p);
 
 	return 1;
 }
@@ -137,6 +135,7 @@ EXPORT int MM_fake(int action, Imodman *mm_, Arena *arena)
 			return MM_FAIL;
 		cmd->RemoveCommand("makefake", Cmakefake, ALLARENAS);
 		cmd->RemoveCommand("killfake", Ckillfake, ALLARENAS);
+		ml->WaitRunInMainDrain();
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);
 		mm->ReleaseInterface(cmd);
