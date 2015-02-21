@@ -427,7 +427,7 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 
 		for (i = 0; i < relthdcount; i++)
 		{
-			snprintf(buf, sizeof(buf), "asss-net-rel-%d", i);
+			snprintf(buf, sizeof(buf), "asss-net-rel-%ld", i);
 
 			thd = amalloc(sizeof(pthread_t));
 			pthread_create(thd, NULL, RelThread, (void*)i);
