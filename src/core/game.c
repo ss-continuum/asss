@@ -99,7 +99,7 @@ DEFINE_FROM_STRING(see_nrg_val, SEE_ENERGY_MAP)
 struct RegionCallbackDTO
 {
 	Player *p;
-	Arena *a;
+	Arena *arena;
 	Region *rgn;
 	int x;
 	int y;
@@ -117,7 +117,7 @@ struct SafeZoneDTO
 
 struct ShipFreqChangeDTO
 {
-	Arena *a;
+	Arena *arena;
 	Player *p;
 	int newship;
 	int oldship;
@@ -127,7 +127,7 @@ struct ShipFreqChangeDTO
 
 struct WarpDTO
 {
-	Arena *a;
+	Arena *arena;
 	Player *p;
 	int oldX;
 	int oldY;
@@ -148,7 +148,7 @@ struct KillCallbackDTO
 
 struct SpawnDTO
 {
-	Arena *a;
+	Arena *arena;
 	Player *p;
 	int reason;
 };
@@ -169,154 +169,142 @@ local void DoWeaponChecksum(struct S2CWeapons *pkt)
 	pkt->checksum = ck;
 }
 
-local int run_region_cb(void *param)
+local void run_region_cb(void *param)
 {
 	struct RegionCallbackDTO *dto = (struct RegionCallbackDTO *) param;
 	
 	// do not fire the callback if the player changed arena
-	// (or if the arena no longer exists, which would mean
-	//  the region will have been freed)
-	if (pd->IsValidPointer(dto->p) && dto->a == dto->p->arena)
+	if (dto->arena == dto->p->arena)
 	{
-		DO_CBS(CB_REGION, dto->a, RegionFunc, (dto->p, dto->rgn, dto->x, dto->y, dto->entering));
+		DO_CBS(CB_REGION, dto->arena, RegionFunc, (dto->p, dto->rgn, dto->x, dto->y, dto->entering));
 	}
 	
 	afree(dto);
-	return FALSE; // stop timer
 }
 
 local void do_region_cb(Player *p, Region *rgn, int x, int y, int entering)
 {
 	struct RegionCallbackDTO *dto = amalloc(sizeof(struct RegionCallbackDTO));
 	dto->p = p;
-	dto->a = p->arena;
+	dto->arena = p->arena;
 	dto->rgn = rgn;
 	dto->x = x;
 	dto->y = y;
 	dto->entering = entering;
 	
-	ml->SetTimer(run_region_cb, 0, 0, dto, NULL);
+	ml->RunInMain(run_region_cb, dto);
 }
 
-local int run_enter_game_cb(void *clos)
+local void run_enter_game_cb(void *clos)
 {
 	Player *p = (Player *)clos;
-	if (pd->IsValidPointer(p) && p->status == S_PLAYING)
+	if (p->status == S_PLAYING)
 	{
 		DO_CBS(CB_PLAYERACTION,
 				p->arena,
 				PlayerActionFunc,
 				(p, PA_ENTERGAME, p->arena));
 	}
-	return FALSE;
 }
 
-local int run_safezone_cb(void *clos)
+local void run_safezone_cb(void *clos)
 {
 	struct SafeZoneDTO *dto = (struct SafeZoneDTO *)clos;
 	
-	if (pd->IsValidPointer(dto->p) && aman->IsValidPointer(dto->arena))
+	if (dto->arena == dto->p->arena)
 	{
 		DO_CBS(CB_SAFEZONE, dto->arena, SafeZoneFunc, (dto->p, dto->x, dto->y, dto->entering));
 	}
 
 	afree(dto);
-
-	return FALSE;
 }
 
-local int run_spawn_cb(void *clos)
+local void run_spawn_cb(void *clos)
 {
 	struct SpawnDTO *dto = (struct SpawnDTO *) clos;
 	
-	if (pd->IsValidPointer(dto->p) && aman->IsValidPointer((dto->a)))
+	if (dto->arena == dto->p->arena)
 	{
-		DO_CBS(CB_SPAWN, dto->a, SpawnFunc, (dto->p, dto->reason));
+		DO_CBS(CB_SPAWN, dto->arena, SpawnFunc, (dto->p, dto->reason));
 	}
 	
 	afree(dto);
-	return FALSE;
 }
 
 local void do_spawn_cb(Player *p, int reason)
 {
 	struct SpawnDTO *dto = amalloc(sizeof(struct SpawnDTO));
-	dto->a = p->arena;
+	dto->arena = p->arena;
 	dto->p = p;
 	dto->reason = reason;
-	ml->SetTimer(run_spawn_cb, 0, 0, dto, NULL);
+	ml->RunInMain(run_spawn_cb, dto);
 }
 
-local int run_shipfreqchange_cb(void *param)
+local void run_shipfreqchange_cb(void *param)
 {
 	struct ShipFreqChangeDTO *dto = (struct ShipFreqChangeDTO *) param;
 	
-	if (pd->IsValidPointer(dto->p) && aman->IsValidPointer(dto->a))
+	if (dto->arena == dto->p->arena)
 	{
-		DO_CBS(CB_SHIPFREQCHANGE, dto->a, ShipFreqChangeFunc,
+		DO_CBS(CB_SHIPFREQCHANGE, dto->arena, ShipFreqChangeFunc,
 			(dto->p, dto->newship, dto->oldship, dto->newfreq, dto->oldfreq));
 	}
 	
 	afree(dto);
-	return FALSE; // stop timer
 }
 
 local void do_shipfreqchange_cb(Player *p, int newship, int oldship, int newfreq, int oldfreq)
 {
 	struct ShipFreqChangeDTO *dto = amalloc(sizeof(struct ShipFreqChangeDTO));
 	
-	dto->a = p->arena;
+	dto->arena = p->arena;
 	dto->p = p;
 	dto->newship = newship;
 	dto->oldship = oldship;
 	dto->newfreq = newfreq;
 	dto->oldfreq = oldfreq;
 	
-	ml->SetTimer(run_shipfreqchange_cb, 0, 0, dto, NULL);
+	ml->RunInMain(run_shipfreqchange_cb, dto);
 }
 
-local int run_warp_cb(void *param)
+local void run_warp_cb(void *param)
 {
 	struct WarpDTO *dto = (struct WarpDTO *) param;
 	
-	if (pd->IsValidPointer(dto->p) && aman->IsValidPointer(dto->a))
+	if (dto->arena == dto->p->arena)
 	{
-		DO_CBS(CB_WARP, dto->a, WarpFunc,
+		DO_CBS(CB_WARP, dto->arena, WarpFunc,
 			(dto->p, dto->oldX, dto->oldY, dto->newX, dto->newY));
 	}
 	
 	afree(dto);
-	return FALSE; // stop timer
 }
 
 local void do_warp_cb(Player *p, int oldX, int oldY, int newX, int newY)
 {
 	struct WarpDTO *dto = amalloc(sizeof(struct WarpDTO));
 	
-	dto->a = p->arena;
+	dto->arena = p->arena;
 	dto->p = p;
 	dto->oldX = oldX;
 	dto->oldY = oldY;
 	dto->newX = newX;
 	dto->newY = newY;
 	
-	ml->SetTimer(run_warp_cb, 0, 0, dto, NULL);
+	ml->RunInMain(run_warp_cb, dto);
 }
 
-local int run_kill_cb(void *param)
+local void run_kill_cb(void *param)
 {
 	struct KillCallbackDTO *dto = (struct KillCallbackDTO *) param;
 	
-	if (aman->IsValidPointer(dto->arena) 
-	    && pd->IsValidPointer(dto->killer) 
-	    && pd->IsValidPointer(dto->killed))
+	if (dto->arena == dto->killer->arena && dto->arena == dto->killed->arena)
 	{
 		DO_CBS(CB_KILL, dto->arena, KillFunc,
 	                (dto->arena, dto->killer, dto->killed, dto->bounty, dto->flags, dto->pts, dto->green));
 	}
 	
 	afree(dto);
-	return FALSE; // stop timer
 }
 
 
@@ -371,7 +359,7 @@ local void update_regions(Player *p, int x, int y)
 
 	mapdata->EnumContaining(p->arena, x, y, ppk_region_cb, &params);
 
-	/* sort new list so we can do a linear diff */
+	/* sort new list so we can do arena linear diff */
 	LLSort(&params.newrgnset, NULL);
 
 	/* now walk through both in parallel and call appropriate callbacks */
@@ -485,7 +473,7 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 			dto->x = pos->x;
 			dto->y = pos->y;
 			dto->entering = pos->status & STATUS_SAFEZONE;
-			ml->SetTimer(run_safezone_cb, 0, 0, dto, NULL);
+			ml->RunInMain(run_safezone_cb, dto);
 		}
 		
 		if (((pos->status ^ data->pos.status) & STATUS_FLASH) && 
@@ -531,7 +519,7 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 	if (p->flags.sent_ppk == 0 && !isfake)
 	{
 		p->flags.sent_ppk = 1;
-		ml->SetTimer(run_enter_game_cb, 0, 0, p, NULL);
+		ml->RunInMain(run_enter_game_cb, p);
 	}
 
 	/* speccers don't get their position sent to anyone */
@@ -1509,7 +1497,7 @@ local void PDie(Player *p, byte *pkt, int len)
 	kill_dto->pts = pts;
 	kill_dto->green = green;
 
-	ml->SetTimer(run_kill_cb, 0, 0, kill_dto, NULL);
+	ml->RunInMain(run_kill_cb, kill_dto);
 
 	lm->Log(L_INFO, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d,pts=%d)",
 			arena->name,
@@ -2125,13 +2113,8 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 		if (persist)
 			persist->UnregPlayerPD(&persdata);
-		
-		ml->ClearTimer(run_region_cb, NULL);
-		ml->ClearTimer(run_enter_game_cb, NULL);
-		ml->ClearTimer(run_safezone_cb, NULL);
-		ml->ClearTimer(run_spawn_cb, NULL);
-		ml->ClearTimer(run_shipfreqchange_cb, NULL);
-		ml->ClearTimer(run_kill_cb, NULL);
+
+		ml->WaitRunInMainDrain();
 		
 		aman->FreeArenaData(adkey);
 		pd->FreePlayerData(pdkey);
