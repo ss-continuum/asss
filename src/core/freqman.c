@@ -1208,15 +1208,15 @@ void update_config(Arena *arena)
 	 * once. Zero means no limit. */
 	ad->cfg_maxPlaying = cfg->GetInt(ch, "General", "MaxPlaying", 100);
 
-	/* cfghelp: Team:MaxPerTeam, arena, int, def: 0
-	 * The maximum number of players on a public freq. Zero means no
-	 * limit. */
-	ad->cfg_maxPublicFreqSize = cfg->GetInt(ch, "Team", "MaxPerTeam", 0);
+	/* cfghelp: Team:MaxPerTeam, arena, int, def: 1000
+	 * The maximum number of players on a public freq. Zero means these teams are not
+	 * accessible */
+	ad->cfg_maxPublicFreqSize = cfg->GetInt(ch, "Team", "MaxPerTeam", 1000);
 
-	/* cfghelp: Team:MaxPerPrivateTeam, arena, int, def: 0
-	 * The maximum number of players on a private freq. Zero means
-	 * no limit. */
-	ad->cfg_maxPrivateFreqSize = cfg->GetInt(ch, "Team", "MaxPerPrivateTeam", 0);
+	/* cfghelp: Team:MaxPerPrivateTeam, arena, int, def: 1000
+	 * The maximum number of players on a private freq. Zero means these teams are not
+	 * accessible. */
+	ad->cfg_maxPrivateFreqSize = cfg->GetInt(ch, "Team", "MaxPerPrivateTeam", 1000);
 
 	/* cfghelp: Team:IncludeSpectators, arena, bool, def: 0
 	 * Whether to include spectators when enforcing maximum freq sizes. */
