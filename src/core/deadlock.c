@@ -49,6 +49,9 @@ EXPORT int MM_deadlock(int action, Imodman *mm, Arena *arena)
 	if (action == MM_LOAD)
 	{
 		pthread_create(&thd, NULL, thread_check, NULL);
+#ifndef WIN32
+		pthread_setname_np(thd, "asss-deadlock");
+#endif
 		mm->RegCallback(CB_MAINLOOP, increment, ALLARENAS);
 		return MM_OK;
 	}

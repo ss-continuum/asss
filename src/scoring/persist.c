@@ -1011,6 +1011,9 @@ EXPORT int MM_persist(int action, Imodman *mm_, Arena *arena)
 		MPInit(&dbq);
 
 		pthread_create(&dbthread, NULL, DBThread, NULL);
+#ifndef WIN32
+		pthread_setname_np(dbthread, "asss-persist");
+#endif
 
 		mm->RegInterface(&_myint, ALLARENAS);
 

@@ -5,6 +5,7 @@
 #include <unistd.h>
 #endif
 
+#include <stdio.h>
 #include "asss.h"
 
 
@@ -82,6 +83,10 @@ int RunLoop(void)
 	ticks_t gtc;
 
 	main_thread = pthread_self();
+
+#ifndef WIN32
+	pthread_setname_np(main_thread, "asss-main");
+#endif
 
 	while (!privatequit)
 	{
@@ -271,6 +276,8 @@ EXPORT const char info_mainloop[] = CORE_MOD_INFO("mainloop");
 EXPORT int MM_mainloop(int action, Imodman *mm_, Arena *arena)
 {
 	int i;
+	char buf[16];
+
 	if (action == MM_LOAD)
 	{
 		mm = mm_;
@@ -279,7 +286,13 @@ EXPORT int MM_mainloop(int action, Imodman *mm_, Arena *arena)
 		MPInit(&work_queue);
 		MPInit(&runinmain_queue);
 		for (i = 0; i < CFG_THREAD_POOL_WORKER_THREADS; i++)
+		{
+			snprintf(buf, sizeof(buf), "asss-worker-%d", i);
 			pthread_create(&worker_threads[i], NULL, thread_main, NULL);
+#ifndef WIN32
+			pthread_setname_np(worker_threads[i], buf);
+#endif
+		}
 		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;
 	}

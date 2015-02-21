@@ -49,6 +49,9 @@ EXPORT int MM_logman(int action, Imodman *mm_, Arena *arena)
 	{
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
 		pthread_create(&thd, NULL, LoggingThread, NULL);
+#ifndef WIN32
+		pthread_setname_np(thd, "asss-logman");
+#endif
 	}
 	else if (action == MM_PREUNLOAD)
 	{

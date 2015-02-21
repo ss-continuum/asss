@@ -323,6 +323,9 @@ EXPORT int MM_mysql(int action, Imodman *mm, Arena *arena)
 		/* oldh = signal(SIGPIPE, SIG_IGN); */
 
 		pthread_create(&wthd, NULL, work_thread, NULL);
+#ifndef WIN32
+		pthread_setname_np(wthd, "asss-mysql");
+#endif
 
 		mm->RegInterface(&my_int, ALLARENAS);
 		return MM_OK;
