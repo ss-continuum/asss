@@ -490,7 +490,7 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 	{
 		Link *link;
 
-		/* uninstall ourself */
+		/* uninstall our self */
 		if (mm->UnregInterface(&netint, ALLARENAS))
 			return MM_FAIL;
 
@@ -512,6 +512,8 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 			afree(thd);
 		}
 		LLEmpty(&threads);
+
+		ml->WaitRunInMainDrain();
 
 		/* clean up */
 		for (i = 0; i < MAXTYPES; i++)
@@ -1864,6 +1866,28 @@ void * RelThread(void *dummy)
 	return 0; // should never reach this point.
 }
 
+void CallPacketFunctions(Buffer *buf)
+{
+	ConnData *conn = buf->conn;
+
+	if (conn->p)
+	{
+		LinkedList *lst = handlers + (int)buf->d.rel.t1;
+		Link *l;
+
+		for (l = LLGetHead(lst); l; l = l->next)
+		{
+			((PacketFunc)(l->data))(conn->p, buf->d.raw, buf->len);
+		}
+	}
+	else if (conn->cc)
+	{
+		conn->cc->i->HandlePacket(buf->d.raw, buf->len);
+	}
+
+	FreeBuffer(buf);
+}
+
 
 /* ProcessBuffer
  * unreliable packets will be processed before the call returns and freed.
@@ -1891,18 +1915,7 @@ void ProcessBuffer(Buffer *buf)
 	}
 	else if (buf->d.rel.t1 < MAXTYPES)
 	{
-		if (conn->p)
-		{
-			LinkedList *lst = handlers + (int)buf->d.rel.t1;
-			Link *l;
-
-			for (l = LLGetHead(lst); l; l = l->next)
-				((PacketFunc)(l->data))(conn->p, buf->d.raw, buf->len);
-		}
-		else if (conn->cc)
-			conn->cc->i->HandlePacket(buf->d.raw, buf->len);
-
-		FreeBuffer(buf);
+		ml->RunInMain((RunInMainFunc) CallPacketFunctions, buf);
 	}
 	else
 	{
@@ -2223,6 +2236,32 @@ void ProcessDrop(Buffer *buf)
 	FreeBuffer(buf);
 }
 
+struct BigDataPacketFunctionsDTO
+{
+	ConnData *conn;
+	byte *pkt;
+	int size;
+};
+
+void CallBigDataPacketFunctions(struct BigDataPacketFunctionsDTO *dto)
+{
+	if (dto->conn->p)
+	{
+		LinkedList *lst = handlers + (int)dto->pkt[0];
+		Link *l;
+		for (l = LLGetHead(lst); l; l = l->next)
+		{
+			((PacketFunc)(l->data))(dto->conn->p, dto->pkt, dto->size);
+		}
+	}
+	else
+	{
+		dto->conn->cc->i->HandlePacket(dto->pkt, dto->size);
+	}
+
+	afree(dto);
+	afree(dto->pkt);
+}
 
 void ProcessBigData(Buffer *buf)
 {
@@ -2283,15 +2322,12 @@ void ProcessBigData(Buffer *buf)
 
 	if (newbuf[0] > 0 && newbuf[0] < MAXTYPES)
 	{
-		if (conn->p)
-		{
-			LinkedList *lst = handlers + (int)newbuf[0];
-			Link *l;
-			for (l = LLGetHead(lst); l; l = l->next)
-				((PacketFunc)(l->data))(conn->p, newbuf, newsize);
-		}
-		else
-			conn->cc->i->HandlePacket(newbuf, newsize);
+		struct BigDataPacketFunctionsDTO *dto = amalloc(sizeof(struct BigDataPacketFunctionsDTO));
+		dto->conn = conn;
+		dto->pkt = conn->bigrecv.buf;
+		dto->size = conn->bigrecv.size;
+		ml->RunInMain((RunInMainFunc) CallBigDataPacketFunctions, dto);
+		goto unsetbigbuf; /* CallBigDataPacketFunctions will free() */
 	}
 	else
 	{
@@ -2303,6 +2339,7 @@ void ProcessBigData(Buffer *buf)
 
 freebigbuf:
 	afree(conn->bigrecv.buf);
+unsetbigbuf:
 	conn->bigrecv.buf = NULL;
 	conn->bigrecv.size = 0;
 	conn->bigrecv.room = 0;

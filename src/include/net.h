@@ -53,10 +53,12 @@ typedef struct ListenData
 	int total, playing;
 } ListenData;
 
+/** @threading called from main */
 typedef void (*PacketFunc)(Player *p, byte *data, int length);
+/** @threading called from net */
 typedef void (*SizedPacketFunc)
 	(Player *p, byte *data, int len, int offset, int totallen);
-
+/** @threading called from net */
 typedef void (*RelCallback)(Player *p, int success, void *clos);
 
 /** @threading called from net */
