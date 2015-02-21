@@ -20,6 +20,7 @@ set print frame-arguments all
 set print pretty on
 set print union on
 set print object on
+info thread
 thread apply all bt full
 quit
 '
