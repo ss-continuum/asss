@@ -25,6 +25,8 @@ struct db_cmd
 		CMD_QUERY,
 	} type;
 	query_callback cb;
+	int cb_status;
+	db_res *cb_res;
 	void *clos;
 	int qlen, flags;
 #define FLAG_NOTIFYFAIL 0x01
@@ -33,6 +35,7 @@ struct db_cmd
 
 
 local Iconfig *cfg;
+local Imainloop *ml;
 local Ilogman *lm;
 
 local const char *host, *user, *pw, *dbname;
@@ -43,10 +46,27 @@ local volatile int connected;
 
 local MYSQL *mydb;
 
+local void run_query_cb(struct db_cmd *cmd)
+{
+	if (cmd->cb && (cmd->cb_status == 0 || cmd->flags & FLAG_NOTIFYFAIL))
+	{
+		cmd->cb(cmd->cb_status, cmd->cb_res, cmd->clos);
+	}
+
+	if (cmd->cb_res)
+	{
+		mysql_free_result((MYSQL_RES *) cmd->cb_res);
+	}
+
+	afree(cmd);
+}
 
 local void do_query(struct db_cmd *cmd)
 {
 	int q;
+
+	cmd->cb_status = 0;
+	cmd->cb_res = NULL;
 
 #ifdef CFG_LOG_MYSQL_QUERIES
 	if (lm) lm->Log(L_DRIVEL, "<mysql> query: %s", cmd->query);
@@ -58,16 +78,16 @@ local void do_query(struct db_cmd *cmd)
 	{
 		if (lm)
 			lm->Log(L_WARN, "<mysql> error in query: %s", mysql_error(mydb));
-		if (cmd->cb && (cmd->flags & FLAG_NOTIFYFAIL))
-			cmd->cb(mysql_errno(mydb), NULL, cmd->clos);
+
+		cmd->cb_status = mysql_errno(mydb);
+		ml->RunInMain((RunInMainFunc) run_query_cb, cmd);
 		return;
 	}
 
 	if (mysql_field_count(mydb) == 0)
 	{
 		/* this wasn't a select, we have no data to report */
-		if (cmd->cb)
-			cmd->cb(0, NULL, cmd->clos);
+		ml->RunInMain((RunInMainFunc) run_query_cb, cmd);
 	}
 	else
 	{
@@ -77,16 +97,14 @@ local void do_query(struct db_cmd *cmd)
 		{
 			if (lm)
 				lm->Log(L_WARN, "<mysql> error in store_result: %s", mysql_error(mydb));
-			if (cmd->cb && (cmd->flags & FLAG_NOTIFYFAIL))
-				cmd->cb(mysql_errno(mydb), NULL, cmd->clos);
+
+			cmd->cb_status = mysql_errno(mydb);
+			ml->RunInMain((RunInMainFunc) run_query_cb, cmd);
 			return;
 		}
 
-		if (cmd->cb)
-			cmd->cb(0, (db_res*)res, cmd->clos);
-
-		if (res)
-			mysql_free_result(res);
+		cmd->cb_res = (db_res*) res;
+		ml->RunInMain((RunInMainFunc) run_query_cb, cmd);
 	}
 }
 
@@ -147,16 +165,15 @@ local void * work_thread(void *dummy)
 		switch (cmd->type)
 		{
 			case CMD_NULL:
-				if (cmd->cb)
-					cmd->cb(0, NULL, cmd->clos);
+				cmd->cb_status = 0;
+				cmd->cb_res = NULL;
+				ml->RunInMain((RunInMainFunc) run_query_cb, cmd);
 				break;
 
 			case CMD_QUERY:
 				do_query(cmd);
 				break;
 		}
-
-		afree(cmd);
 	}
 
 	pthread_cleanup_pop(1);
@@ -292,9 +309,15 @@ EXPORT int MM_mysql(int action, Imodman *mm, Arena *arena)
 	if (action == MM_LOAD)
 	{
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
 		lm = mm->GetInterface(I_LOGMAN, ALLARENAS);
-		if (!cfg)
+		if (!cfg || !ml)
+		{
+			mm->ReleaseInterface(cfg);
+			mm->ReleaseInterface(ml);
+			mm->ReleaseInterface(lm);
 			return MM_FAIL;
+		}
 
 		connected = 0;
 		MPInit(&dbq);
@@ -313,8 +336,12 @@ EXPORT int MM_mysql(int action, Imodman *mm, Arena *arena)
 		dbname = cfg->GetStr(GLOBAL, "mysql", "database");
 
 		if (!host || !user || !pw || !dbname)
+		{
+			mm->ReleaseInterface(cfg);
+			mm->ReleaseInterface(ml);
+			mm->ReleaseInterface(lm);
 			return MM_FAIL;
-
+		}
 		host = astrdup(host);
 		user = astrdup(user);
 		pw = astrdup(pw);
@@ -339,10 +366,13 @@ EXPORT int MM_mysql(int action, Imodman *mm, Arena *arena)
 		pthread_cancel(wthd);
 		pthread_join(wthd, NULL);
 
+		ml->WaitRunInMainDrain();
+
 		MPDestroy(&dbq);
 		afree(host); afree(user); afree(pw); afree(dbname);
 
 		mm->ReleaseInterface(cfg);
+		mm->ReleaseInterface(ml);
 		mm->ReleaseInterface(lm);
 
 		/* signal(SIGPIPE, oldh); */

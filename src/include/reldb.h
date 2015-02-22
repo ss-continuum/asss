@@ -10,6 +10,7 @@ typedef struct db_res db_res;
 typedef struct db_row db_row;
 /* pytype: opaque, db_row *, db_row */
 
+/* @threading called from main */
 typedef void (*query_callback)(int status, db_res *res, void *clos);
 
 
