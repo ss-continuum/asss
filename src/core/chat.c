@@ -54,39 +54,9 @@ local pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK() pthread_mutex_lock(&mtx)
 #define UNLOCK() pthread_mutex_unlock(&mtx)
 
-struct ChatMsgDTO
-{
-	Arena *a;
-	Player *p;
-	int type;
-	int sound;
-	Player *target;
-	int freq;
-	const char *text;
-};
-
-local void run_chatmsg_cb(void *param)
-{
-	struct ChatMsgDTO *dto = (struct ChatMsgDTO *) param;
-
-	DO_CBS(CB_CHATMSG, dto->a, ChatMsgFunc, (dto->p, dto->type, dto->sound, dto->target, dto->freq, dto->text));
-	
-	afree(dto->text);
-	afree(dto);
-}
-
 local void do_chatmsg_cb(Arena *a, Player *p, int type, int sound, Player *target, int freq, const char *text)
 {
-	struct ChatMsgDTO *dto = amalloc(sizeof(struct ChatMsgDTO));
-	dto->a = a;
-	dto->p = p;
-	dto->type = type;
-	dto->sound = sound;
-	dto->target = target;
-	dto->freq = freq;
-	dto->text = astrdup(text);
-
-	ml->RunInMain(run_chatmsg_cb, dto);
+	DO_CBS(CB_CHATMSG, a, ChatMsgFunc, (p, type, sound, target, freq, text));
 }
 
 /* call with lock */
