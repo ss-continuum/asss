@@ -226,6 +226,13 @@ local void *thread_main(void *dummy)
 
 local void RunInMain(RunInMainFunc func, void *param)
 {
+	if (privatequit)
+	{
+		/* the main loop has quit */
+		func(param);
+		return;
+	}
+
 	RunInMainData *md = amalloc(sizeof(*md));
 	md->func = func;
 	md->param = param;
