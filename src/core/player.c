@@ -77,6 +77,15 @@ local Player * alloc_player(void)
 	return p;
 }
 
+local void run_newplayer_new(Player *p)
+{
+	WRLOCK();
+	LLAdd(&pd->playerlist, p);
+	WULOCK();
+
+	DO_CBS(CB_NEWPLAYER, ALLARENAS, NewPlayerFunc, (p, TRUE));
+}
+
 local Player * NewPlayer(int type)
 {
 	time_t now;
@@ -132,20 +141,21 @@ local Player * NewPlayer(int type)
 	p->connecttime = current_ticks();
 	p->connectas = NULL;
 
-	LLAdd(&pd->playerlist, p);
-
 	WULOCK();
 
-	DO_CBS(CB_NEWPLAYER, ALLARENAS, NewPlayerFunc, (p, TRUE));
+	ml->RunInMain((RunInMainFunc) run_newplayer_new, p);
 
 	return p;
 }
 
+local void run_newplayer_free(Player *p)
+{
+	DO_CBS(CB_NEWPLAYER, ALLARENAS, NewPlayerFunc, (p, FALSE));
+	afree(p);
+}
 
 local void FreePlayer(Player *p)
 {
-	DO_CBS(CB_NEWPLAYER, ALLARENAS, NewPlayerFunc, (p, FALSE));
-
 	WRLOCK();
 	LLRemove(&pd->playerlist, p);
 	pidmap[p->pid].p = NULL;
@@ -154,10 +164,10 @@ local void FreePlayer(Player *p)
 	firstfreepid = p->pid;
 	WULOCK();
 
-	/* RunInMain calls that refer to this player might still be pending */
-	ml->WaitRunInMainDrain();
-
-	afree(p);
+	/* Run CB_NEWPLAYER in main
+	 * This also ensures that any pending RunInMainFuncs
+	 * that refer to this player will be resolved first */
+	ml->RunInMain((RunInMainFunc) run_newplayer_free, p);
 }
 
 
