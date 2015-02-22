@@ -7,7 +7,7 @@
 #include "packets/watchdamage.h"
 
 /* called when get player damage
- * @threading called from net 
+ * @threading called from main
  */
 #define CB_PLAYERDAMAGE "playerdamage"
 typedef void (*PlayerDamage)(Arena *arena, Player *p, struct S2CWatchDamage *damage, int count);

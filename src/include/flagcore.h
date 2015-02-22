@@ -59,7 +59,7 @@ typedef struct FlagInfo
 
 /** run when a player is carrying a new flag. how will be one of the
  * FLAGGAIN_ constants.
- * @threading called from any  
+ * @threading called from main
  */
 #define CB_FLAGGAIN "flaggain"
 typedef void (*FlagGainFunc)(Arena *a, Player *p, int fid, int how);
@@ -67,21 +67,21 @@ typedef void (*FlagGainFunc)(Arena *a, Player *p, int fid, int how);
 
 /** run when a player isn't carrying a flag anymore. how will be one of
  * the CLEANUP_ constants.
- * @threading called from any
+ * @threading called from main
  */
 #define CB_FLAGLOST "flaglost"
 typedef void (*FlagLostFunc)(Arena *a, Player *p, int fid, int how);
 /* pycb: arena_not_none, player_not_none, int, int */
 
 /** run when a flag appears on the map in a new location or with a new owner
- * @threading called from any 
+ * @threading called from main
  */
 #define CB_FLAGONMAP "flagonmap"
 typedef void (*FlagOnMapFunc)(Arena *a, int fid, int x, int y, int freq);
 /* pycb: arena_not_none, int, int, int, int */
 
 /** run when the flag game is reset (either a win or a forced reset)
- * @threading called from any  
+ * @threading called from main
  */
 #define CB_FLAGRESET "flagreset"
 typedef void (*FlagResetFunc)(Arena *a, int freq, int points);
@@ -90,6 +90,7 @@ typedef void (*FlagResetFunc)(Arena *a, int freq, int points);
 
 #define I_FLAGCORE "flagcore-4"
 
+/* @threading should be called from main */
 typedef struct Iflagcore
 {
 	INTERFACE_HEAD_DECL
@@ -125,19 +126,19 @@ typedef struct Iflaggame
 	/* pyint: impl */
 
 	/** implementation should call flagcore->SetCarryMode.
-	 * @threading called from any
+	 * @threading called from main
 	 */ 
 	void (*Init)(Arena *a);
 	/* pyint: arena_not_none -> void */
 
 	/** a player touched a flag 
-	 * @threading called from any
+	 * @threading called from main
 	 */
 	void (*FlagTouch)(Arena *a, Player *p, int fid);
 	/* pyint: arena_not_none, player_not_none, int -> void */
 	
 	/** a flag needs to be cleaned up for some reason 
-	 * @threading called from any 
+	 * @threading called from main
 	 */
 	void (*Cleanup)(Arena *a, int fid, int reason, Player *oldcarrier, int oldfreq);
 	/* pyint: arena_not_none, int, int, player_not_none, int -> void */

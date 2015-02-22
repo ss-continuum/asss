@@ -21,28 +21,28 @@ typedef enum
 } ballstate_t;
 
 /* called when the number of balls changes
- * @threading called from any
+ * @threading fired by SetBallCount
  */
 #define CB_BALLCOUNTCHANGE "ballcountchange"
 typedef void (*BallCountChangeFunc)(Arena *arena, int newcount, int oldcount);
 /* pycb: arena_not_none, int, int */
 
 /* called when a player picks up a ball
- * @threading called from net
+ * @threading called from main
  */
 #define CB_BALLPICKUP "ballpickup"
 typedef void (*BallPickupFunc)(Arena *arena, Player *p, int bid);
 /* pycb: arena_not_none, player_not_none, int */
 
 /* called when a player fires a ball 
- * @threading called from any
+ * @threading called from main
  */
 #define CB_BALLFIRE "ballfire"
 typedef void (*BallFireFunc)(Arena *arena, Player *p, int bid);
 /* pycb: arena_not_none, player_not_none, int */
 
 /* called when a player scores a goal 
- * @threading called from any
+ * @threading called from main
  */
 #define CB_GOAL "goal"
 typedef void (*GoalFunc)(Arena *arena, Player *p, int bid, int x, int y);
@@ -120,7 +120,7 @@ typedef struct Iballs
 } Iballs;
 
 
-/** @threading called from any */
+/** @threading called from main */
 #define A_BALLS "balls-adv"
 
 typedef struct Aballs

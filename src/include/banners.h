@@ -7,7 +7,7 @@
 #include "packets/banners.h"
 
 /** called when the player sets a new banner
- * @threading called from any 
+ * @threading normally called from main, also fired by the interface functions
  */ 
 #define CB_SET_BANNER "setbanner"
 typedef void (*SetBannerFunc)(Player *p, Banner *banner, int from_player);

@@ -86,7 +86,7 @@ typedef struct Akill
 /** this callback is to be called when a player changes ship or freq.
  * intended for internal or core use only. no recursive shipchanges should
  * happen as a result of this callback.
- * @threading called from any 
+ * @threading triggered by the interface functions SetShip, SetFreq and SetShipAndFreq
  */
 #define CB_PRESHIPFREQCHANGE "preshipfreqchange"
 /* the type of CB_PRESHIPFREQCHANGE
@@ -197,7 +197,7 @@ typedef void (*RegionFunc)(Player *p, Region *rgn, int x, int y, int entering);
 
 
 /** this callback is called whenever someone picks up a green.
- * @threading called from net 
+ * @threading called from main
  */
 #define CB_GREEN "green-1"
 /** the type of CB_GREEN
@@ -211,7 +211,7 @@ typedef void (*GreenFunc)(Player *p, int x, int y, int prize);
 
 
 /** this callback is called whenever someone attaches or detaches. 
- * @threading called from net 
+ * @threading called from main
  */
 #define CB_ATTACH "attach-1"
 /** the type of CB_ATTACH
@@ -223,7 +223,7 @@ typedef void (*AttachFunc)(Player *p, Player *to);
 
 /** this calllback is called whenever a position packet is handled.
  * Note that this callback is not called for spectators.
- * @threading called from net 
+ * @threading called from main
  */
 #define CB_PPK "cbppk-1"
 /** the type of CB_PPK
@@ -239,7 +239,7 @@ enum { ENERGY_SEE_NONE, ENERGY_SEE_ALL, ENERGY_SEE_TEAM, ENERGY_SEE_SPEC };
 #define A_PPK "ppk-1"
 
 /** the position packet adviser struct 
- * @threading called from net
+ * @threading called from main
  */
 typedef struct Appk
 {

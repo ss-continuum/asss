@@ -49,7 +49,7 @@ typedef void (*ChatMsgFunc)(Player *p, int type, int sound, Player *target,
 
 
 /* this isn't for general use
- * @threading called from net 
+ * @threading called from main
  */
 #define CB_REWRITECOMMAND "rewritecommand"
 typedef void (*CommandRewriterFunc)(int initial, char *buf, int len);

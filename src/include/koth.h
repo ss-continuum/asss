@@ -17,7 +17,7 @@ enum
 };
 
 /** called whenever a player gains or loses a crown in the koth game.
- * @threading called from main & net 
+ * @threading called from main
  */
 #define CB_CROWNCHANGE "crownchange-1"
 /** the type of CB_CROWNCHANGE.
