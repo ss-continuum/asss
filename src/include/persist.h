@@ -89,8 +89,8 @@ typedef struct ArenaPersistentData
 
 
 /** this will be called after any interval is ended; it will probably be
- * preceeded by a lot of ClearData calls.
- * @threading called from persist  
+ * preceded by a lot of ClearData calls.
+ * @threading called from main
  */
 #define CB_INTERVAL_ENDED "endinterval"
 typedef void (*EndIntervalFunc)(void);
@@ -109,10 +109,12 @@ typedef struct Ipersist
 	void (*RegArenaPD)(const ArenaPersistentData *pd);
 	void (*UnregArenaPD)(const ArenaPersistentData *pd);
 
+	/* callbacks are called from main */
 	void (*PutPlayer)(Player *p, Arena *a, void (*callback)(Player *p));
 	void (*GetPlayer)(Player *p, Arena *a, void (*callback)(Player *p));
 	/* a == NULL means global data */
 
+	/* callbacks are called from main */
 	void (*PutArena)(Arena *a, void (*callback)(Arena *a));
 	void (*GetArena)(Arena *a, void (*callback)(Arena *a));
 
@@ -124,7 +126,7 @@ typedef struct Ipersist
 	/* generic db interface */
 
 	/** Read key/value pair.
-	 * callback(clos, TRUE) will be called when if the key is present
+	 * callback(clos, TRUE) will be called (from main) when if the key is present
 	 * and val will be filled in.
 	 * callback(clos, FALSE) will be called if it's not found.
 	 * key/keylen do not have to be preserve once this returns.
@@ -136,7 +138,7 @@ typedef struct Ipersist
 			void (*callback)(void *clos, int present),
 			void *clos);
 	/** Write key/value pair.
-	 * callback(clos, _) will be called when the value is written.
+	 * callback(clos, _) will be called (from main) when the value is written.
 	 * key/keylen/val/vallen do not have to be preserved once this
 	 * returns.
 	 */
