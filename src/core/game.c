@@ -55,6 +55,9 @@ typedef struct
 	int regionchecktime;
 	int nosafeanti;
 	long warptresholddelta;
+	int cfg_pospix;
+	int cfg_sendanti;
+	int wpnrange[WEAPONCOUNT]; /* there are 5 bits in the weapon type */
 } adata;
 
 /* global data */
@@ -77,9 +80,6 @@ local Ipersist *persist;
 
 local int adkey, pdkey;
 
-local int cfg_bulletpix, cfg_wpnpix, cfg_pospix;
-local int cfg_sendanti;
-local int wpnrange[WEAPONCOUNT]; /* there are 5 bits in the weapon type */
 local pthread_mutex_t specmtx = PTHREAD_MUTEX_INITIALIZER;
 local pthread_mutex_t freqshipmtx = PTHREAD_MUTEX_INITIALIZER;
 
@@ -476,7 +476,7 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 		/* send some percent of antiwarp positions to everyone */
 		if ( pos->weapon.type == 0 &&
 		     (pos->status & STATUS_ANTIWARP) &&
-		     prng->Rand() < cfg_sendanti)
+		     prng->Rand() < adata->cfg_sendanti)
 			sendtoall = TRUE;
 
 		/* send safe zone enters to everyone, reliably */
@@ -522,7 +522,7 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 
 				/* determine the packet range */
 				if (sendwpn && pos->weapon.type)
-					range = wpnrange[pos->weapon.type];
+					range = adata->wpnrange[pos->weapon.type];
 				else
 					range = i->xres + i->yres;
 
@@ -535,8 +535,8 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 						i->p_attached == p->pid ||
 						/* and send some radar packets */
 						( pos->weapon.type == W_NULL &&
-						  dist <= cfg_pospix &&
-						  randnum > ((double)dist / (double)cfg_pospix *
+						  dist <= adata->cfg_pospix &&
+						  randnum > ((double)dist / (double)adata->cfg_pospix *
 								(RAND_MAX+1.0))) ||
 						/* bots */
 						i->flags.see_all_posn)
@@ -1648,6 +1648,35 @@ local void ArenaAction(Arena *arena, int action)
 
 		ad->personalgreen = pg;
 
+		/* cfghelp: Net:BulletPixels, arena, int, def: 1500
+		 * How far away to always send bullets (in pixels) */
+		int cfg_bulletpix = cfg->GetInt(arena->cfg, "Net", "BulletPixels", 1500);
+
+		/* cfghelp: Net:WeaponPixels, arena, int, def: 2000
+		 * How far away to always send weapons (in pixels) */
+		int cfg_wpnpix = cfg->GetInt(arena->cfg, "Net", "WeaponPixels", 2000);
+
+		/* cfghelp: Net:PositionExtraPixels, arena, int, def: 8000
+		 * How far away to send positions of players on radar */
+		ad->cfg_pospix = cfg->GetInt(arena->cfg, "Net", "PositionExtraPixels", 8000);
+
+		/* cfghelp: Net:AntiWarpSendPercent, arena, int, def: 5
+		 * Percent of position packets with antiwarp enabled to send to
+		 * the whole arena. */
+		ad->cfg_sendanti = cfg->GetInt(arena->cfg, "Net", "AntiWarpSendPercent", 5);
+		/* convert to a percentage of RAND_MAX */
+		ad->cfg_sendanti = RAND_MAX / 100 * ad->cfg_sendanti;
+		
+		for (int i = 0; i < WEAPONCOUNT; i++)
+		{
+			ad->wpnrange[i] = cfg_wpnpix;
+		}
+
+		/* exceptions: */
+		ad->wpnrange[W_BULLET] = cfg_bulletpix;
+		ad->wpnrange[W_BOUNCEBULLET] = cfg_bulletpix;
+		ad->wpnrange[W_THOR] = 30000;
+
 		if (action == AA_CREATE)
 			ad->initlockship = ad->initspec = FALSE;
 	}
@@ -1866,8 +1895,6 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
-		int i;
-
 		mm = mm_;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
@@ -1892,29 +1919,6 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 
 		if (persist)
 			persist->RegPlayerPD(&persdata);
-
-		/* cfghelp: Net:BulletPixels, global, int, def: 1500
-		 * How far away to always send bullets (in pixels). */
-		cfg_bulletpix = cfg->GetInt(GLOBAL, "Net", "BulletPixels", 1500);
-		/* cfghelp: Net:WeaponPixels, global, int, def: 2000
-		 * How far away to always send weapons (in pixels). */
-		cfg_wpnpix = cfg->GetInt(GLOBAL, "Net", "WeaponPixels", 2000);
-		/* cfghelp: Net:PositionExtraPixels, global, int, def: 8000
-		 * How far away to send positions of players on radar. */
-		cfg_pospix = cfg->GetInt(GLOBAL, "Net", "PositionExtraPixels", 8000);
-		/* cfghelp: Net:AntiwarpSendPercent, global, int, def: 5
-		 * Percent of position packets with antiwarp enabled to send to
-		 * the whole arena. */
-		cfg_sendanti = cfg->GetInt(GLOBAL, "Net", "AntiwarpSendPercent", 5);
-		/* convert to a percentage of RAND_MAX */
-		cfg_sendanti = RAND_MAX / 100 * cfg_sendanti;
-
-		for (i = 0; i < WEAPONCOUNT; i++)
-			wpnrange[i] = cfg_wpnpix;
-		/* exceptions: */
-		wpnrange[W_BULLET] = cfg_bulletpix;
-		wpnrange[W_BOUNCEBULLET] = cfg_bulletpix;
-		wpnrange[W_THOR] = 30000;
 
 		mm->RegCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
 		mm->RegCallback(CB_NEWPLAYER, NewPlayer, ALLARENAS);
