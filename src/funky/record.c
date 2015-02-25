@@ -522,9 +522,7 @@ local int start_recording(Arena *a, const char *file, const char *recorder, cons
 				ra->state = s_recording;
 
 				pthread_create(&ra->thd, NULL, recorder_thread, a);
-#ifndef WIN32
-				pthread_setname_np(ra->thd, "asss-record-recorder");
-#endif
+				set_thread_name(ra->thd, "asss-record-recorder");
 
 				ok = TRUE;
 			}
@@ -1130,9 +1128,7 @@ local int start_playback(Arena *a, const char *file)
 					ra->state = s_playing;
 
 					pthread_create(&ra->thd, NULL, playback_thread, a);
-#ifndef WIN32
-					pthread_setname_np(ra->thd, "asss-record-playblack");
-#endif
+					set_thread_name(ra->thd, "asss-record-playblack");
 					pthread_detach(ra->thd);
 
 					ok = TRUE;

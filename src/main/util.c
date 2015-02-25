@@ -192,6 +192,24 @@ void Error(int level, char *format, ...)
 	exit(level);
 }
 
+void set_thread_name(pthread_t thread, const char *format, ...)
+{
+#ifndef WIN32
+	va_list args;
+	char name[255];
+
+	va_start(args, format);
+
+	if (vsnprintf(name, 255, format, args) < 0)
+	{
+		va_end(args);
+		return;
+	}
+
+	pthread_setname_np(thread, name);
+	va_end(args);
+#endif
+}
 
 char *astrncpy(char *dest, const char *source, size_t n)
 {

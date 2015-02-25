@@ -13,6 +13,7 @@
 #include <stddef.h>
 #include <time.h>
 #include "sizes.h"
+#include "pthread.h"
 
 #ifndef ATTR_FORMAT
 #define ATTR_FORMAT(a,b,c)
@@ -158,6 +159,12 @@ void wrap_text(const char *txt, int mlen, char delim,
  */
 void Error(int code, char *message, ...) ATTR_FORMAT(printf, 2, 3);
 
+/** Set the name of the given thread (or do nothing is this is not supported on your platform).
+ * To see this name try `ps H -o 'pid tid cmd comm'` or `info thread` when you are debugging in GDB
+ * @param thread posix thread
+ * @name format printf format string
+ */
+void set_thread_name(pthread_t thread, const char *format, ...) ATTR_FORMAT(printf, 2, 3);
 
 /* list manipulation functions */
 
@@ -394,8 +401,6 @@ struct StringBuffer
 
 
 #ifndef NOMPQUEUE
-
-#include "pthread.h"
 
 /* message passing queue stuff */
 

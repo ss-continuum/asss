@@ -84,9 +84,7 @@ int RunLoop(void)
 
 	main_thread = pthread_self();
 
-#ifndef WIN32
-	pthread_setname_np(main_thread, "asss-main");
-#endif
+	set_thread_name(main_thread, "asss-main");
 
 	while (!privatequit)
 	{
@@ -283,7 +281,6 @@ EXPORT const char info_mainloop[] = CORE_MOD_INFO("mainloop");
 EXPORT int MM_mainloop(int action, Imodman *mm_, Arena *arena)
 {
 	int i;
-	char buf[16];
 
 	if (action == MM_LOAD)
 	{
@@ -294,11 +291,8 @@ EXPORT int MM_mainloop(int action, Imodman *mm_, Arena *arena)
 		MPInit(&runinmain_queue);
 		for (i = 0; i < CFG_THREAD_POOL_WORKER_THREADS; i++)
 		{
-			snprintf(buf, sizeof(buf), "asss-worker-%d", i);
 			pthread_create(&worker_threads[i], NULL, thread_main, NULL);
-#ifndef WIN32
-			pthread_setname_np(worker_threads[i], buf);
-#endif
+			set_thread_name(worker_threads[i], "asss-worker-%d", i);
 		}
 		mm->RegInterface(&_int, ALLARENAS);
 		return MM_OK;

@@ -349,7 +349,6 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 {
 	long i, relthdcount;
 	pthread_t *thd;
-	char buf[16];
 
 	assert(sizeof(global_stats) == 256);
 	assert(NET_PRI_STATS_LEN == BW_PRIS);
@@ -413,27 +412,22 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		/* start the threads */
 		thd = amalloc(sizeof(pthread_t));
 		pthread_create(thd, NULL, RecvThread, NULL);
-#ifndef WIN32
-		pthread_setname_np(*thd, "asss-net-recv");
-#endif
+		set_thread_name(*thd, "asss-net-recv");
+
 		LLAdd(&threads, thd);
 
 		thd = amalloc(sizeof(pthread_t));
 		pthread_create(thd, NULL, SendThread, NULL);
-#ifndef WIN32
-		pthread_setname_np(*thd, "asss-net-send");
-#endif
+		set_thread_name(*thd, "asss-net-send");
+
 		LLAdd(&threads, thd);
 
 		for (i = 0; i < relthdcount; i++)
 		{
-			snprintf(buf, sizeof(buf), "asss-net-rel-%ld", i);
-
 			thd = amalloc(sizeof(pthread_t));
 			pthread_create(thd, NULL, RelThread, (void*)i);
-#ifndef WIN32
-			pthread_setname_np(*thd, buf);
-#endif
+			set_thread_name(*thd, "asss-net-rel-%ld", i);
+
 			LLAdd(&threads, thd);
 		}
 
