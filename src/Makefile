@@ -46,7 +46,7 @@ endif
 CC = gcc -std=gnu99 -pipe
 STD_CFLAGS = -I. -Iinclude -I$(BUILDDIR) $(EXTRA_INCLUDE_DIRS) -D_REENTRANT -D_GNU_SOURCE $(DASH_F_PIC)
 CFLAGS = $(STD_CFLAGS) $(DEBUG_CFLAGS) $(PROF_FLAGS) $(OPT_CFLAGS)
-LDFLAGS = $(DASH_PTHREAD) $(DASH_F_PIC) $(PROF_FLAGS)
+LDFLAGS = $(DASH_PTHREAD) $(DASH_F_PIC) $(PROF_FLAGS) -lrt
 
 # some macros to help with putting output in $(BUILDDIR)
 tobuild = $(addprefix $(BUILDDIR)/,$(1))
