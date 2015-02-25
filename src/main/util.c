@@ -192,6 +192,10 @@ void Error(int level, char *format, ...)
 	exit(level);
 }
 
+#ifndef __GLIBC_PREREQ
+#define __GLIBC_PREREQ(maj, min) 0
+#endif
+
 void set_thread_name(pthread_t thread, const char *format, ...)
 {
 #if !defined(WIN32) && __GLIBC_PREREQ(2, 12)
