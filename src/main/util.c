@@ -194,7 +194,7 @@ void Error(int level, char *format, ...)
 
 void set_thread_name(pthread_t thread, const char *format, ...)
 {
-#ifndef WIN32
+#if !defined(WIN32) && __GLIBC_PREREQ(2, 12)
 	va_list args;
 	char name[255];
 
