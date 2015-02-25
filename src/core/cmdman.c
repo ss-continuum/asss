@@ -263,7 +263,7 @@ void Command(const char *line, Player *p, const Target *target, int sound)
 
 	/* find end of command */
 	t = cmd;
-	while (*line && *line != ' ' && *line != '=' && (t-cmd) < 30)
+	while (*line && *line != ' ' && *line != '=' && *line != '#' && (t-cmd) < 30)
 		*t++ = *line++;
 	/* close it off and add sound hack */
 	*t++ = 0;
