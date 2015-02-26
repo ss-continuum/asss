@@ -7,6 +7,12 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#ifndef WIN32
+#include <unistd.h>
+#include <sys/types.h>
+#include <dirent.h>
+#endif
+
 #include "asss.h"
 #include "rwlock.h"
 #include "clientset.h"
@@ -58,6 +64,7 @@ local int adkey;
 /* forward declaration */
 local Iarenaman myint;
 
+int known_arena_names_busy = FALSE;
 
 local void do_attach(Arena *a)
 {
@@ -1043,7 +1050,53 @@ local void GetPopulationSummary(int *totalp, int *playingp)
 	mm->ReleaseInterface(capman);
 }
 
+local void UpdateKnownArenas(void *unused)
+{
+	WRLOCK();
+	known_arena_names_busy = TRUE;
+	LLEnum(&aman->known_arena_names, afree);
+	LLEmpty(&aman->known_arena_names);
 
+	char confPath[PATH_MAX];
+	DIR *dir = opendir("arenas");
+	struct dirent *de;
+
+	if (dir)
+	{
+		while ((de = readdir(dir)))
+		{
+			/* every arena must have an arena.conf.  */
+			snprintf(confPath, sizeof(confPath), "arenas/%s/arena.conf", de->d_name);
+
+			if (de->d_name[0] == '(' ||
+			    de->d_name[0] == '.')
+			{
+				continue;
+			}
+
+			if (access(confPath, R_OK))
+			{
+				continue;
+			}
+
+			LLAdd(&aman->known_arena_names, astrdup(de->d_name));
+		}
+		closedir(dir);
+	}
+
+	known_arena_names_busy = FALSE;
+	WRUNLOCK();
+}
+
+local int UpdateKnownArenasTimer(void *unused)
+{
+	if (!known_arena_names_busy)
+	{
+		ml->RunInThread(UpdateKnownArenas, NULL);
+	}
+
+	return TRUE; /* keep running */
+}
 
 local Iarenaman myint =
 {
@@ -1056,6 +1109,7 @@ local Iarenaman myint =
 	AllocateArenaData, FreeArenaData,
 	Lock, Unlock,
 	Hold, Unhold,
+	LL_INITIALIZER,
 	LL_INITIALIZER
 };
 
@@ -1100,6 +1154,7 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 
 		ml->SetTimer(ProcessArenaStates, 10, 10, NULL, NULL);
 		ml->SetTimer(ReapArenas, 170, 170, NULL, NULL);
+		ml->SetTimer(UpdateKnownArenasTimer, 0, 1000, NULL, NULL);
 
 		mm->RegInterface(&myint, ALLARENAS);
 		return MM_OK;
@@ -1149,6 +1204,7 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 		}
 		ml->ClearTimer(ProcessArenaStates, NULL);
 		ml->ClearTimer(ReapArenas, NULL);
+		ml->ClearTimer(UpdateKnownArenasTimer, NULL);
 		pd->FreePlayerData(spawnkey);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);

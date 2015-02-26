@@ -122,7 +122,7 @@ enum
 
 
 /** the interface id for arenaman */
-#define I_ARENAMAN "arenaman-10"
+#define I_ARENAMAN "arenaman-B"
 
 /** the arenaman interface struct */
 typedef struct Iarenaman
@@ -229,6 +229,14 @@ typedef struct Iarenaman
 	 * @see FOR_EACH_ARENA_P
 	 */
 	LinkedList arenalist;
+
+	/** This is a list of all the arena names (const char *) that are present in the arenas directory.
+	 * Only directories that contain a file named "arena.conf" will be included. For example if the
+	 * file "arenas/foo/arena.conf" is found, this list will contain a "foo" entry.
+	 * "(default)", "(public)" and any directory beginning with a dot are not included.
+	 * Don't forget the lock.
+	 */
+	LinkedList known_arena_names;
 } Iarenaman;
 
 
