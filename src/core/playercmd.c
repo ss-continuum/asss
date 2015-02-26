@@ -306,7 +306,7 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 					break;
 
 				if ((peerArenaName[0] != '#' || seehid) &&
-				   !HashGetOne(&peerZone->arenaTable, peerArenaName)) // already in the list?
+				   check_arena((char *)buf, pos-buf, peerArenaName))
 				{
 					memcpy(pos, peerArenaName, nameLen);
 					pos += nameLen;
