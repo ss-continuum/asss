@@ -254,6 +254,11 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 		aman->Lock();
 		FOR_EACH(&aman->known_arena_names, arenaName, link)
 		{
+			if (!strcmp(arenaName, "(public)"))
+			{
+				arenaName = "0";
+			}
+                        
 			int nameLen = strlen(arenaName) + 1;
 			int newPacketLen = (pos - buf) + 2 + nameLen;
 

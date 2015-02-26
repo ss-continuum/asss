@@ -233,7 +233,7 @@ typedef struct Iarenaman
 	/** This is a list of all the arena names (const char *) that are present in the arenas directory.
 	 * Only directories that contain a file named "arena.conf" will be included. For example if the
 	 * file "arenas/foo/arena.conf" is found, this list will contain a "foo" entry.
-	 * "(default)", "(public)" and any directory beginning with a dot are not included.
+	 * "(default)" and any directory beginning with a dot are not included. "(public)" IS included.
 	 * Don't forget the lock.
 	 */
 	LinkedList known_arena_names;

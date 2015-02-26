@@ -1068,8 +1068,12 @@ local void UpdateKnownArenas(void *unused)
 			/* every arena must have an arena.conf.  */
 			snprintf(confPath, sizeof(confPath), "arenas/%s/arena.conf", de->d_name);
 
-			if (de->d_name[0] == '(' ||
-			    de->d_name[0] == '.')
+			if (!strcmp(de->d_name, "(default)"))
+			{
+				continue;
+			}
+
+			if (de->d_name[0] == '.')
 			{
 				continue;
 			}
@@ -1078,7 +1082,7 @@ local void UpdateKnownArenas(void *unused)
 			{
 				continue;
 			}
-
+                        
 			LLAdd(&aman->known_arena_names, astrdup(de->d_name));
 		}
 		closedir(dir);
