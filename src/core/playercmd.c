@@ -8,11 +8,8 @@
 #include <ctype.h>
 
 #ifndef WIN32
-#include <sys/types.h>
 #include <arpa/inet.h>
 #include <sys/utsname.h>
-#include <dirent.h>
-#include <unistd.h>
 #endif
 
 
@@ -133,7 +130,7 @@ local void translate_arena_packet(Player *p, char *pkt, int len)
 }
 
 /* returns 0 if found, 1 if not */
-local int check_arena(char *pkt, int len, char *check)
+local int check_arena(char *pkt, int len, const char *check)
 {
 	char *pos = pkt + 1;
 	while (pos-pkt < len)
@@ -161,6 +158,7 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 	int l, seehid;
 	Arena *a;
 	Link *link;
+	const char *arenaName;
 	int cutoff = 0;
 	int chatBasedOutput = (IS_CHAT(p) || strstr(params, "-t"));
 	int showAllPeer = !!strstr(params, "-p");
@@ -253,46 +251,34 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 	/* add in more arenas if requested */
 	if (strstr(params, "-a"))
 	{
-		char aconf[PATH_MAX];
-		DIR *dir = opendir("arenas");
-		if (dir)
+		aman->Lock();
+		FOR_EACH(&aman->known_arena_names, arenaName, link)
 		{
-			struct dirent *de;
-			while ((de = readdir(dir)))
+			int nameLen = strlen(arenaName) + 1;
+			int newPacketLen = (pos - buf) + 2 + nameLen;
+
+			if (!cutoff && newPacketLen > (MAXPACKET-6))
 			{
-				int nameLen = strlen(de->d_name) + 1;
-				int newPacketLen = (pos - buf) + 2 + nameLen;
-
-				if (!cutoff && newPacketLen > (MAXPACKET-6))
-				{
-					if (chatBasedOutput)
-						cutoff = pos-buf;
-					else
-						break;
-				}
-
-				if (newPacketLen < 0 || (size_t)newPacketLen > sizeof(buf))
+				if (chatBasedOutput)
+					cutoff = pos-buf;
+				else
 					break;
-
-				/* every arena must have an arena.conf. this filters out
-				 * ., .., CVS, etc. */
-				snprintf(aconf, sizeof(aconf), "arenas/%s/arena.conf", de->d_name);
-				if (
-						de->d_name[0] != '(' &&
-						access(aconf, R_OK) == 0 &&
-						(de->d_name[0] != '#' || seehid) &&
-						check_arena((char *)buf, pos-buf, de->d_name)
-				   )
-				{
-					l = strlen(de->d_name) + 1;
-					strncpy((char *)pos, de->d_name, l);
-					pos += l;
-					*pos++ = 0;
-					*pos++ = 0;
-				}
 			}
-			closedir(dir);
+
+			if (newPacketLen < 0 || (size_t)newPacketLen > sizeof(buf))
+				break;
+
+			if ( (arenaName[0] != '#' || seehid) &&
+			     check_arena((char *)buf, pos-buf, arenaName) )
+			{
+				l = strlen(arenaName) + 1;
+				strncpy((char *)pos, arenaName, l);
+				pos += l;
+				*pos++ = 0;
+				*pos++ = 0;
+			}
 		}
+		aman->Unlock();
 
 
 		if (peer)
