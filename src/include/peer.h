@@ -98,7 +98,7 @@ typedef struct Ipeer
 	 * @return TRUE if a match has been found
 	 */
 	int (*FindPlayer)(const char *findName, int *score, char *name, char *arena, int bufLen);
-	/* pyint: string, int, string out, string out, int buflen */
+	/* pyint: string in, int inout, string out, string out, int buflen -> int */
 
 	/** Attempt to place the given player in the arena of one of the peer zones.
 	 * Only arenas that the peer module been configured for will be handled (PeerX:Arenas).
