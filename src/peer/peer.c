@@ -24,6 +24,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <ctype.h>
 
 #ifndef WIN32
 #include <sys/socket.h>
@@ -151,29 +152,28 @@ local void ReadConfig()
 		peerZone->config.passwordHash = hash;
 
 		/* cfghelp: Peer0:SendOnly, global, boolean
-		 * If set, we send data to our peer but we reject any that we might receive
-		 */
+		 * If set, we send data to our peer but we reject any that we might receive */
 		peerZone->config.sendOnly = !!cfg->GetInt(GLOBAL, peerSection, "SendOnly", 0);
 
 		/* cfghelp: Peer0:SendPlayerList, global, boolean
-		 * If set, send a full arena and player list to the peer. Otherwise only send a summary of our population
-		 */
+		 * If set, send a full arena and player list to the peer. Otherwise only send a summary of our population */
 		peerZone->config.sendPlayerList = !!cfg->GetInt(GLOBAL, peerSection, "SendPlayerList", 1);
 
 		/* cfghelp: Peer0:SendMessages, global, boolean
-		 * If set, forward alert and zone (?z) messages to the peer
-		 */
+		 * If set, forward alert and zone (?z) messages to the peer */
 		peerZone->config.sendMessages = !!cfg->GetInt(GLOBAL, peerSection, "SendMessages", 1);
 
 		/* cfghelp: Peer0:ReceiveMessages, global, boolean
-		 * If set, display the zone (*zone) and alert messages from this peer
-		 */
+		 * If set, display the zone (*zone) and alert messages from this peer */
 		peerZone->config.receiveMessages = !!cfg->GetInt(GLOBAL, peerSection, "ReceiveMessages", 1);
 
 		/* cfghelp: Peer0:IncludeInPopulation, global, boolean
-		 * If set, include the population count of this peer in the ping protocol.
-		 */
+		 * If set, include the population count of this peer in the ping protocol. */
 		peerZone->config.includeInPopulation  = !!cfg->GetInt(GLOBAL, peerSection, "IncludeInPopulation", 1);
+
+		/* cfghelp: Peer0:ProvidesDefaultArenas, global, boolean
+		 * If set, any arena that would normally end up as (default) will be redirected to this peer zone */
+		peerZone->config.providesDefaultArenas  = !!cfg->GetInt(GLOBAL, peerSection, "ProvidesDefaultArenas", 0);
 
 		char nameBuf[20];
 		const char *tmp = NULL;
@@ -441,19 +441,44 @@ local int WalkPastNil(u8 **payload, int *len)
 	return TRUE;
 }
 
-local int HasArenaConfigured(PeerZone* peerZone, PeerArena* peerArena) /* call with lock */
+local int HasArenaConfigured(PeerZone* peerZone, const char *peerArenaName) /* call with lock */
 {
 	Link *link;
 	const char *configuredArenaName;
+	const char *arenaName;
 
+	/* explicitly configured */
 	FOR_EACH(&peerZone->config.arenas, configuredArenaName, link)
 	{
-		const char *peerArenaName = peerArena->name;
-
 		if (strcasecmp(configuredArenaName, peerArenaName) == 0)
 		{
 			return TRUE;
 		}
+	}
+
+	if (peerZone->config.providesDefaultArenas)
+	{
+		/* find the base name. baa5aar123 -> baa5aar */
+		size_t n = strlen(peerArenaName);
+		for (; n > 0 && isdigit(peerArenaName[n - 1]); --n);
+		if (!n)
+		{
+			peerArenaName = "(public)";
+			n = 8;
+		}
+
+		aman->Lock();
+		FOR_EACH(&aman->known_arena_names, arenaName, link)
+		{
+			if (strncasecmp(arenaName, peerArenaName, n) == 0)
+			{
+                                aman->Unlock();
+				return FALSE;
+			}
+		}
+		aman->Unlock();
+
+		return TRUE;
 	}
 
 	return FALSE;
@@ -498,11 +523,8 @@ local void HandlePlayerList(PeerZone* peerZone, u8 *payloadStart, int payloadLen
 		}
 
 		peerArena->id = id;
-
-		peerArena->configured = HasArenaConfigured(peerZone, peerArena);
-
+		peerArena->configured = HasArenaConfigured(peerZone, peerArena->name);
 		peerArena->playerCount = 0;
-
 		peerArena->lastUpdate = now;
 
 		LLEnum(&peerArena->players, afree);
@@ -758,16 +780,8 @@ local int ArenaRequest(Player *p, int arenaType, const char *arenaName)
 	PeerZone *peerZone;
 	FOR_EACH_PEER_ZONE(peerZone)
 	{
-		Link *link2;
-		const char *peerArenaName;
-
-		FOR_EACH(&peerZone->config.arenas, peerArenaName, link2)
+		if (HasArenaConfigured(peerZone, arenaName))
 		{
-			if (strcasecmp(arenaName, peerArenaName))
-			{
-				continue;
-			}
-
 			Target t;
 			t.type = T_PLAYER;
 			t.u.p = p;
@@ -777,7 +791,6 @@ local int ArenaRequest(Player *p, int arenaType, const char *arenaName)
 			inet_ntop(AF_INET, &peerZone->config.sin.sin_addr, ipbuf, INET_ADDRSTRLEN);
 
 			RDUNLOCK();
-
 			return redirect->RawRedirect(&t, ipbuf, port, arenaType, arenaName);
 		}
 	}

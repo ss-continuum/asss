@@ -4,7 +4,7 @@
 #ifndef PEER_H
 #define PEER_H
 
-#define I_PEER "peer-2"
+#define I_PEER "peer-3"
 
 /* Only the peer module should modify any PeerArena and PeerZone instances. */
 
@@ -18,7 +18,7 @@ typedef struct PeerArena
 	/** the name of the peer arena. */
 	char name[20];
 
-	/** If this value is set this arena is present in the PeerX:Arenas config value */
+	/** If this value is set, this arena is present in the PeerX:Arenas config value */
 	int configured;
 
 	ticks_t lastUpdate;
@@ -42,11 +42,13 @@ typedef struct PeerZone
 		  */
 		u32 passwordHash;
 
+		/* Config values: */
 		int sendOnly;
 		int sendPlayerList;
 		int sendMessages;
 		int receiveMessages;
 		int includeInPopulation;
+		int providesDefaultArenas;
 
 		/**
 		* A list of arenas (strings) for which we will display a player count and redirect to this peer zone.
