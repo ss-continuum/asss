@@ -19,6 +19,7 @@ def get_type(attrs):
 	for t, n in [
 		('int', 'Integer'),
 		('bool', 'Boolean'),
+		('boolean', 'Boolean'),
 		('string', 'String'),
 		('enum', 'Enumerated')]:
 		if t in attrs:
