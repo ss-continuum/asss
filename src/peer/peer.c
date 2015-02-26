@@ -261,14 +261,14 @@ local int PeriodicUpdate(void* unused)
 		buf += 4;
 
 		ENSURE_CAPACITY(20);
-		(u8*) astrncpy((char*) buf, arena->name, 20);
+		astrncpy((char*) buf, arena->name, 20);
 		SKIP_PAST_STRING;
 
 		pd->Lock();
 		FOR_EACH_PLAYER_IN_ARENA(p, arena)
 		{
 			ENSURE_CAPACITY(24);
-			(u8*) astrncpy((char*) buf, p->name, 24);
+			astrncpy((char*) buf, p->name, 24);
 			SKIP_PAST_STRING;
 		}
 		pd->Unlock();
