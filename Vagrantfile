@@ -28,7 +28,6 @@ Vagrant.configure('2') do |config|
 		if [ ! -f /root/.bash_aliases ]; then
 			echo "alias src='cd /asss/src'" > /root/.bash_aliases
 			echo "alias zone='cd /zone'" >> /root/.bash_aliases
-			echo "alias runzone='cd /zone && bin/asss'" >> /root/.bash_aliases
 		fi
 
 		if [ ! -f /home/vagrant/.bash_aliases ]; then
