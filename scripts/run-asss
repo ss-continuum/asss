@@ -3,7 +3,7 @@
 # dist: public
 
 # change this to the root of your asss installation
-ASSSHOME=$HOME/src/asss
+ASSSHOME=$HOME/zone
 
 # start of stuff not to change
 

@@ -30,13 +30,37 @@ sudo yum install python-libs python-devel python-debuginfo db4-devel mysql-libs 
 ```
 
 ## Installing on GNU/Linux
-1. Create src/system.mk using one of the example system.mk.*.dist files.
-2. cd src && make 
-3. Copy the dist folder your desired zone folder (e.g. ~/zone)
-4. Copy or symlink bin into your zone folder (e.g. ~/zone/bin
-5. Download the correct security.so file from https://bitbucket.org/jowie/asss/downloads into bin (e.g. ~/zone/bin.security.so)
-6. (Optional) run "continuum.exe Z" and copy "scrty" and "scrty1" into the zone folder (e.g. ~/zone)
-7. You can now run the zone by running "bin/asss" in your zone folder (e.g. cd ~/zone && bin/asss)
+Each step has an example for Ubuntu 14.04 Trusty (64 bit)
+
+1. Install the dependencies listed in the previous section  
+   `sudo apt-get install build-essential python2.7 python2.7-dev python2.7-dbg libdb5.3-dev mysql-client libmysqlclient-dev gdb mercurial`
+2. Clone/download this repository  
+   `hg clone https://jowie@bitbucket.org/jowie/asss ~/asss-src`  
+   `cd ~/asss-src`  
+   `hg update jowie`
+3. Create src/system.mk using one of the example system.mk.*.dist files  
+   `cp ~/asss-src/src/system.mk.trusty.dist ~/asss-src/src/system.mk`
+4. Run make in the src directory  
+   `cd ~/asss-src/src && make`
+5. Copy the dist folder to the location where your zone should live  
+   `cp -R ~/asss-src/dist ~/zone`
+6. Symlink (or copy) the bin directory into your zone folder  
+   `ln -s ~/asss-src/bin ~/zone/bin`
+7. Download the correct enc_cont.so file from the [downloads section](downloads) into bin  
+   `cd ~/zone/bin`  
+   `wget --output-document=enc_cont.so https://bitbucket.org/jowie/asss/downloads/enc_cont_8d454bb0c6e6_x86_64-ubuntu-glibc-4.8.2.so`
+8. Run "continuum.exe Z" on windows/wine and copy "scrty" and "scrty1" into the zone folder, overwriting the existing files
+   You will have to keep these files private, so make sure you close down the file permissions  
+    _The path in the example will look like: `~/zone/scrty` and `~/zone/scrty1`_  
+   `chmod 0600 ~/zone/scrty*`
+9. You can now run the zone by running "bin/asss" in your zone folder  
+    `cd ~/zone && bin/asss`
+10. Optionally, you can run asss using the `run-asss` script that automatically restarts the zone if it crashes or if a
+    sysop uses `?recyclezone` (this command will not work properly without this script)  
+    `cp ~/asss-src/scripts/run-asss ~/zone`  
+    `nano ~/zone/run-asss` and make sure the line `ASSSHOME=$HOME/zone` is correct  
+    `cd ~/zone && ./run-asss`
+11. It is also possible to run asss as a service, you can find an example ubuntu init file in the `scripts` directory
 
 
 ## Vagrant
@@ -46,9 +70,9 @@ You can automatically set up a virtual machine that runs your zone using vagrant
 2. Install Vagrant: http://www.vagrantup.com/
 3. Run "vagrant up" in this directory to set up the VM
 4. Run "vagrant ssh" to login
-5. "cd /zone" and "bin/asss" to run the server! 
+5. Type "runzone" to run the server!
 
-Anytime you change the source and you would like to rebuild, run "vagrant provision"
+Anytime you change the source and you would like to rebuild, run "vagrant provision" on the host (not in the VM)
 
 ## Documentation
-There is more documention in the doc/ directory, however some sections are outdated.
+There is more documention in the doc/ directory, however most sections are outdated.
