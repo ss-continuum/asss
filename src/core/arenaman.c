@@ -770,7 +770,7 @@ local void MArena(Player *p, const char *line)
 
 local void SendToArena(Player *p, const char *aname, int spawnx, int spawny)
 {
-	if (p->type == T_CONT)
+	if (p->type == T_CONT || p->type == T_VIE)
 		complete_go(p, aname, p->p_ship, p->xres, p->yres,
 				p->flags.want_all_lvz, p->pkt.acceptaudio,
 				p->flags.obscenity_filter, spawnx, spawny);

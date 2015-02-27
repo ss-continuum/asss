@@ -1789,11 +1789,11 @@ local void Csend(const char *tc, const char *params, Player *p, const Target *ta
 	Player *t = target->u.p;
 	if (target->type != T_PLAYER || *params == '\0')
 		return;
-	if (t->type == T_CONT || t->type == T_CHAT)
+	if (t->type == T_CONT || t->type == T_CHAT || t->type == T_VIE)
 		aman->SendToArena(t, params, 0, 0);
 	else
 		chat->SendMessage(p,
-				"You can only use ?send on players using Continuum or chat clients");
+				"You can only use ?send on players using Continuum, Subspace or chat clients");
 }
 
 
