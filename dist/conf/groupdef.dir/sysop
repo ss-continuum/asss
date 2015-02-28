@@ -4,6 +4,7 @@ seesysoplogall
 
 ; setgroup:
 higher_than_smod
+higher_than_sysop
 
 ; prefix chars
 prefix_#
