@@ -1352,7 +1352,7 @@ local void py_newplayer(Player *p, int isnew)
 	{
 		if (d->obj->ob_refcnt != 1)
 			lm->Log(L_ERROR, "<pymod> there are %lu remaining references to a player object!",
-					(unsigned long)d->obj->ob_refcnt);
+					(unsigned long)d->obj->ob_refcnt - 1);
 
 		/* this stuff would usually be done in dealloc, but I want to
 		 * make sure player objects for players who are gone are
@@ -1397,7 +1397,7 @@ local void py_aaction(Arena *a, int action)
 	{
 		if (d->obj->ob_refcnt != 1)
 			lm->Log(L_ERROR, "<pymod> there are %lu remaining references to an arena object!",
-					(unsigned long)d->obj->ob_refcnt);
+					(unsigned long)d->obj->ob_refcnt - 1);
 
 		/* see notes for py_newplayer as to why this is done here. */
 		d->obj->a = NULL;
@@ -2382,7 +2382,7 @@ local int unload_py_module(mod_args_t *args)
 	if (mod->ob_refcnt != 2)
 	{
 		lm->Log(L_WARN, "<pymod> there are %lu remaining references to module %s",
-				(unsigned long)mod->ob_refcnt, mname);
+				(unsigned long)mod->ob_refcnt - 2, mname);
 		return MM_FAIL;
 	}
 
