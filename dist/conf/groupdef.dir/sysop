@@ -42,6 +42,8 @@ cmd_makearena
 
 cmd_disablecmdgroup
 cmd_enablecmdgroup
+cmd_allcommands
+privcmd_commands
 
 cmd_admlogfile
 cmd_reloadconf
