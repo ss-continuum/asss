@@ -945,6 +945,7 @@ EXPORT int MM_peer(int action, Imodman *mm_, Arena *arena)
 			}
 
 			ml->ClearTimer(PeriodicUpdate, NULL);
+			ml->ClearTimer(RemoveStaleArenas, NULL);
 			mm->UnregCallback(CB_CONNINIT, PeerConnInitCB, ALLARENAS);
 
 			aman->FreeArenaData(arenaDataKey);
