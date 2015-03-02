@@ -17,6 +17,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "scoring", "scoring\scoring.
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "database", "database\database.vcxproj", "{68775E7F-0CAA-4F18-9B4B-B94EDCC454CC}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pymod", "pymod\pymod.vcxproj", "{B2526042-D57C-4ED0-9467-93E2CD99AEBE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -51,6 +53,10 @@ Global
 		{68775E7F-0CAA-4F18-9B4B-B94EDCC454CC}.Debug|Win32.Build.0 = Debug|Win32
 		{68775E7F-0CAA-4F18-9B4B-B94EDCC454CC}.Release|Win32.ActiveCfg = Release|Win32
 		{68775E7F-0CAA-4F18-9B4B-B94EDCC454CC}.Release|Win32.Build.0 = Release|Win32
+		{B2526042-D57C-4ED0-9467-93E2CD99AEBE}.Debug|Win32.ActiveCfg = Debug|Win32
+		{B2526042-D57C-4ED0-9467-93E2CD99AEBE}.Debug|Win32.Build.0 = Debug|Win32
+		{B2526042-D57C-4ED0-9467-93E2CD99AEBE}.Release|Win32.ActiveCfg = Release|Win32
+		{B2526042-D57C-4ED0-9467-93E2CD99AEBE}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
