@@ -15,6 +15,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "turf", "turf\turf.vcxproj",
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "scoring", "scoring\scoring.vcxproj", "{2AFF2443-4E09-41DE-A237-C85FD5386A49}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "database", "database\database.vcxproj", "{68775E7F-0CAA-4F18-9B4B-B94EDCC454CC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -45,6 +47,10 @@ Global
 		{2AFF2443-4E09-41DE-A237-C85FD5386A49}.Debug|Win32.Build.0 = Debug|Win32
 		{2AFF2443-4E09-41DE-A237-C85FD5386A49}.Release|Win32.ActiveCfg = Release|Win32
 		{2AFF2443-4E09-41DE-A237-C85FD5386A49}.Release|Win32.Build.0 = Release|Win32
+		{68775E7F-0CAA-4F18-9B4B-B94EDCC454CC}.Debug|Win32.ActiveCfg = Debug|Win32
+		{68775E7F-0CAA-4F18-9B4B-B94EDCC454CC}.Debug|Win32.Build.0 = Debug|Win32
+		{68775E7F-0CAA-4F18-9B4B-B94EDCC454CC}.Release|Win32.ActiveCfg = Release|Win32
+		{68775E7F-0CAA-4F18-9B4B-B94EDCC454CC}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
