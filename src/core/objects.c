@@ -129,8 +129,8 @@ local void Cobjset(const char *cmd, const char *params, Player *p, const Target 
 {
 	int l = strlen(params) + 1;
 	const char *c = params;
-	short objs[l];
-	char ons[l];
+	short *objs = alloca(sizeof(short) * l);
+	char *ons = alloca(sizeof(char) * l);
 
 	l = 0;
 	for (;;)
@@ -858,8 +858,8 @@ void SendState(Player *p)
 {
 	aodata *ad = P_ARENA_DATA(p->arena, aokey);
 	u32 t = 0, e = 0;
-	byte toggle[1 + 2 * ad->tog_diffs];
-	byte extra[1 + 11 * ad->ext_diffs];
+	byte *toggle = alloca(1 + 2 * ad->tog_diffs);
+	byte *extra = alloca(1 + 11 * ad->ext_diffs);
 	
 	Link *l;
 
@@ -936,7 +936,7 @@ void Toggle(const Target *t, int id, int on)
 void ToggleSet(const Target *t, short *id, char *ons, int size)
 {
 	int pktlen = 1 + 2 * size;
-	byte pkt[pktlen];
+	byte *pkt = alloca(pktlen);
 
 	pkt[0] = S2C_TOGGLEOBJ;
 
