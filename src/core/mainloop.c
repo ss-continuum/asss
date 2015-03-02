@@ -34,7 +34,7 @@ typedef struct RunInMainData
 	pthread_cond_t wait_cond;
 } RunInMainData;
 
-local pthread_t main_thread = NULL;
+local pthread_t main_thread;
 local int privatequit;
 local TimerData *thistimer;
 local LinkedList timers;
