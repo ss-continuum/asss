@@ -16,7 +16,7 @@ local volatile int counter;
 local void * thread_check(void *dummy)
 {
 #ifdef WIN32
-	/* nanosleep isn't a cancellation point on windows, so we use
+	/* Sleep isn't a cancellation point on windows, so we use
 	 * asynchronous cancellation there. */
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 #endif

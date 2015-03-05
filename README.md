@@ -72,7 +72,29 @@ You can automatically set up a virtual machine that runs your zone using vagrant
 4. Run "vagrant ssh" to login
 5. Type "runzone" to run the server!
 
-Anytime you change the source and you would like to rebuild, run "vagrant provision" on the host (not in the VM)
+Any time you change the source and you would like to rebuild, run "vagrant provision" on the host (not in the VM)
+
+
+## Building on windows
+Using Visual Studio 2013
+
+1. Install [VS Express 2013 for Windows Desktop](https://www.visualstudio.com/products/visual-studio-express-vs) (this edition is free, other editions should also work)
+2. Install [Python 2.7 32 bit](https://www.python.org/downloads/) and make sure python is on your %PATH% (you might need to reboot)
+3. Install [Berkeley DB 4.8](http://www.oracle.com/technetwork/database/database-technologies/berkeleydb/downloads/index.html)
+4. Install [MySQL Connector/C 32 bit](https://dev.mysql.com/downloads/connector/c/)
+5. Download [pthreads win32](https://sourceware.org/pthreads-win32/) and unzip it wherever you like.  
+   You need 32-bit (x86) dll, lib and header files. The specific version you need is labelled "VC2"
+6. Download the [zlib developer files and binaries](http://gnuwin32.sourceforge.net/packages/zlib.htm) and unzip it wherever you like
+7. Clone/download this repository
+8. Open "src/asss.sln" in Visual Studio
+9. Open the "Property Manager" window _(View -> Other Windows -> Property Manager)_
+10. In this window find an entry named "Microsoft.Cpp.Win32.user" _(note that you will find this entry multiple times, but they all point to the same thing)_. And right click it to open "Properties"
+11. You will need to find a setting called "Additional **Include** Directories" _(Common Properties -> C/C++ -> General)_. This value should contain all the directories that contain ".h" files of the libraries that were installed/unziped in step 2 - 6. Here is an example:  
+    `C:\Program Files (x86)\MySQL\MySQL Connector C 6.1\include;C:\Program Files (x86)\Oracle\Berkeley DB 4.8.30\include;C:\Python27\include;c:\libs\pthread\pthreads.2;c:\libs\zlib\include%(AdditionalIncludeDirectories)`
+12. You will need to find a setting called "Additional **Library** Directories" _(Common Properties -> Linker -> General)_. This value should contain all directories that contain ".inc" files of the libraries. Make sure you are using 32 bit versions. Here is an example:  
+    `C:\Program Files (x86)\Oracle\Berkeley DB 4.8.30\lib;C:\Program Files (x86)\MySQL\MySQL Connector C 6.1\lib\vs11;C:\Program Files (x86)\MySQL\MySQL Connector C 6.1\lib;C:\Python27\libs;c:\libs\pthread\Pre-built.2\lib\x86;c:\libs\zlib\lib%(AdditionalLibraryDirectories)`
+13. You can now build the solution _(Build -> Build Solution)_. This will create .exe and .dll files in the "build" directory.
+14. To run your zone copy the "dist" folder to wherever you would like and create a new folder called "bin". Place asss.exe and all the .dll files in this "bin" folder. You will also want to place the dll files of the libraries in here _(libdb48.dll, libmysql.dll, pthreadVC2.dll, zlib1.dll)_
 
 ## Documentation
 There is more documention in the doc/ directory, however most sections are outdated.

@@ -10,6 +10,7 @@
 
 /* another nasty hack */
 #undef _XOPEN_SOURCE
+#undef _DEBUG
 #include "Python.h"
 #include "structmember.h"
 
@@ -69,10 +70,10 @@ typedef struct ArenaObject
 	PyObject *dict;
 } ArenaObject;
 
-typedef struct PlayerListObject
+/*typedef struct PlayerListObject
 {
 //blank?
-} PlayerListObject;
+} PlayerListObject;*/
 
 local PyTypeObject PlayerType;
 local PyTypeObject ArenaType;
@@ -1228,7 +1229,7 @@ local PyTypeObject PlayerListType =
 	PyObject_HEAD_INIT(NULL)
 	0,                         /*ob_size*/
 	"asss.PlayerList",         /*tp_name*/
-	sizeof(PlayerListObject),  /*tp_basicsize*/
+	0 /*sizeof(PlayerListObject)*/,  /*tp_basicsize*/
 	0,                         /*tp_itemsize*/
 	0,                         /*tp_dealloc*/
 	0,                         /*tp_print*/

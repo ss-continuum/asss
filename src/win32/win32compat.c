@@ -7,10 +7,10 @@
 #include <string.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <string.h>
 
 #include "win32compat.h"
 #include "util.h"
-
 
 /* taken from
  * http://www2.ics.hawaii.edu/~esb/2001fall.ics451/strcasestr.html */
@@ -103,6 +103,16 @@ const char* inet_ntop(int af, const void* src, char* dst, int cnt)
 		return NULL;
 	}
 	return dst;
+}
+
+int inet_pton(int af, const char *src, void *dst)
+{
+	int (WSAAPI *pInetPton)(int, const char *, void *);
+
+	HMODULE hws2_32 = GetModuleHandleA("ws2_32.dll");
+	pInetPton = (void *)GetProcAddress(hws2_32, "inet_pton");
+	printf("wtf 3\n");
+	return pInetPton(af, src, dst);
 }
 
 #endif

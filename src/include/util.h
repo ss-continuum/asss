@@ -24,6 +24,7 @@
 
 #ifdef USING_MSVC
 #include <stdarg.h>
+#include <stdio.h>
 #define vsnprintf rpl_vsnprintf
 #define snprintf rpl_snprintf
 #define vasprintf rpl_vasprintf

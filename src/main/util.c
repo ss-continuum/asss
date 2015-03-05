@@ -91,8 +91,18 @@ void fullsleep(long millis)
 			/* retry if interrupted */;
 	}
 #else
-	/* FIXME: can we do this more accurately? */
-	usleep(millis * 1000L);
+	/* pthread cancel does not cancel the thread during Sleep (unless a special driver is installed).
+	 * This implementation sleeps for 512ms at a time to work around this issue.
+	 * (Without this fix deadlock blocks asss shutdown for a long time)
+	 */
+	int count = millis / 512;
+	for (int i = 0; i < count; ++i)
+	{
+		Sleep(512);
+	}
+
+	int remain = millis % 512;
+	Sleep(remain);
 #endif
 }
 

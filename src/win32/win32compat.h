@@ -4,8 +4,8 @@
 #ifdef WIN32
 
 #define WIN32_LEAN_AND_MEAN
+#include <WinSock2.h>
 #include <windows.h>
-#include <winsock.h>
 #include <limits.h>
 #include <malloc.h>
 #include <io.h>
@@ -22,8 +22,8 @@
 #define inline __inline
 #endif
 
-#define strcasecmp(a,b) stricmp((a),(b))
-#define strncasecmp(a,b,c) strnicmp((a),(b),(c))
+#define strcasecmp(a,b) _stricmp((a),(b))
+#define strncasecmp(a,b,c) _strnicmp((a),(b),(c))
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -33,7 +33,7 @@
 #ifndef NAME_MAX
 #define NAME_MAX 256
 #endif
-//#define usleep(x) Sleep((x)/1000)
+#define usleep(x) Sleep((x)/1000)
 #define sleep(x) Sleep((x)*1000)
 #define mkdir(a,b) _mkdir(a)
 #ifndef alloca
@@ -74,6 +74,6 @@ void closedir(DIR *dir);
 
 int inet_aton(const char *cp, struct in_addr *pin);
 const char* inet_ntop(int af, const void* src, char* dst, int cnt);
+int inet_pton(int af, const char *src, void *dst);
 
 #endif
-

@@ -364,7 +364,7 @@ local void ADisplay(Arena *arena, int histNum)
 	TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
 	Link *l;
 	int x;
-	TurfStatsData *tsd;
+	TurfStatsData *tsd = NULL;
 	TurfTeam *pFreq;
 
 	if (!arena || !*p_ts) return; else ts = *p_ts;
@@ -381,6 +381,8 @@ local void ADisplay(Arena *arena, int histNum)
 			break;
 		}
 	}
+
+	if (!tsd) return;
 
 	chat->SendArenaMessage(arena, "Freq Plyrs Flags %%Flgs  Wghts %%Wghts   PerCap   %%JP    Pts");
 	chat->SendArenaMessage(arena, "---- ----- ----- ----- ------ ------ -------- ----- ------");
@@ -438,7 +440,7 @@ local void PDisplay(Arena *arena, Player *pid, int histNum)
 	TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
 	Link *l;
 	int x;
-	TurfStatsData *tsd;
+	TurfStatsData *tsd = NULL;
 	TurfTeam *pFreq;
 
 	if (!arena || !*p_ts) return; else ts = *p_ts;
@@ -458,6 +460,8 @@ local void PDisplay(Arena *arena, Player *pid, int histNum)
 			break;
 		}
 	}
+
+	if (!tsd) return;
 
 	chat->SendMessage(pid, "Freq Plyrs Flags %%Flgs  Wghts %%Wghts   PerCap   %%JP    Pts");
 	chat->SendMessage(pid, "---- ----- ----- ----- ------ ------ -------- ----- ------");

@@ -373,7 +373,7 @@ PeerZone* FindZone(struct sockaddr_in *sin) /* call with lock */
 	return NULL;
 }
 
-local void SendMessage(u8 packetType, u8 messageType, const char *message)
+local void SendMessageToPeer(u8 packetType, u8 messageType, const char *message)
 {
 	ticks_t now = current_ticks();
 
@@ -813,7 +813,7 @@ local void SendZoneMessage(const char *format, ...)
 		return;
 	}
 
-	SendMessage(0x02, 0x00, line);
+	SendMessageToPeer(0x02, 0x00, line);
 	va_end(args);
 }
 
@@ -836,7 +836,7 @@ local void SendAlertMessage(const char *alertName, const char *playerName, const
 	sprintf(line2, "%s: (%s) (%s): %s", alertName, playerName, arenaName, line);
 	line2[249] = 0;
 
-	SendMessage(0x03, 0x00, line2);
+	SendMessageToPeer(0x03, 0x00, line2);
 	va_end(args);
 }
 
