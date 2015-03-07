@@ -1,5 +1,5 @@
 # A Small Subspace Server
-A server for the multiplayer game subspace. This is a fork that is running on SSCJ Devastation. This fork fixes numerous stability issues, and should make installation easier.
+A zone server for the multiplayer game subspace.
 
 ## Dependencies
 * Python 2
