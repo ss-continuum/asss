@@ -51,7 +51,7 @@ Vagrant.configure('2') do |config|
 		fi
 		
 		if [ ! -f /asss/bin/enc_cont.so ]; then
-			wget --output-document=/asss/bin/enc_cont.so https://bitbucket.org/jowie/asss/downloads/enc_cont_8d454bb0c6e6_x86_64-ubuntu-glibc-4.8.2.so
+			wget --output-document=/asss/bin/enc_cont.so https://bitbucket.org/grelminar/asss/downloads/enc_cont_1.6.0_libc2.11.1_64bit.so
 			chown vagrant:vagrant /asss/bin/enc_cont.so
 		fi
 		
