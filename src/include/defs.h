@@ -25,14 +25,20 @@
 #define ATTR_UNUSED()
 #endif
 
+#define STR_HELPER(a) #a
+#define STR(a) STR_HELPER(a)
+
 /** a version number, represented as a string */
 #define ASSSVERSION "1.5.5"
 /** a version number, represented as an integer */
 #define ASSSVERSION_NUM 0x00010505
 #define BUILDDATE __DATE__ " " __TIME__
 
-#define CORE_MOD_INFO(module) (module " (" ASSSVERSION ", " BUILDDATE ")")
-
+#if defined __GLIBC__ && defined __GLIBC_MINOR__
+	#define CORE_MOD_INFO(module) (module " (" ASSSVERSION ", " BUILDDATE ", glibc " STR(__GLIBC__) "." STR(__GLIBC_MINOR__) ")")
+#else
+	#define CORE_MOD_INFO(module) (module " (" ASSSVERSION ", " BUILDDATE ")")
+#endif
 
 /** a useful typedef */
 typedef unsigned char byte;
