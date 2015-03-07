@@ -164,7 +164,7 @@ local void arenaAction(Arena *arena, int action);
 local void flagTag(Arena *arena, Player *p, int fid, int oldteam, int newteam);
 local void shipFreqChange(Player *p, int newship, int oldship, int newfreq, int oldfreq);
 local void killEvent(Arena *arena, Player *killer, Player *killed,
-		int bounty, int flags, int *pts, int *green);
+		int bounty, int flags, int pts, int green);
 local int turfRewardTimer(void *v);
 
 
@@ -285,7 +285,7 @@ DEFINE_FROM_STRING(tr_recovery_val, TR_RECOVERY_MAP)
 
 
 EXPORT const char info_turf_reward[]
-	= "v0.5.6 by GiGaKiLLeR <gigamon@hotmail.com>";
+	= CORE_MOD_INFO("v0.5.6 by GiGaKiLLeR <gigamon@hotmail.com>");
 
 
 /* the actual entrypoint into this module */
@@ -836,7 +836,7 @@ local void clearFlagsData(Arena *arena, int init)
 local void flagTag(Arena *arena, Player *p, int fid, int oldfreq, int freq)
 {
 	TurfArena *ta, **p_ta = P_ARENA_DATA(arena, trkey);
-	int r_freq=-1, r_dings, r_weight, r_pid, r_rec, r_tc, /* flag recover data */
+	int r_freq=-1, r_dings, r_weight, r_pid, r_rec/*, r_tc*/, /* flag recover data */
 	    l_freq=-1, l_dings, l_weight, l_rec, l_tc; /* flag lost data */
 	TurfFlag *pTF   = NULL;  /* pointer to turf flag that was tagged */
 	TurfFlagPrevious *oPtr  = NULL; /* pointer to node of linked list holding */
@@ -966,7 +966,7 @@ local void flagTag(Arena *arena, Player *p, int fid, int oldfreq, int freq)
 			r_dings  = pTF->dings  = oPtr->dings;
 			r_weight = pTF->weight = oPtr->weight;
 			r_rec    = pTF->recovered = oPtr->recovered + 1;
-			r_tc     = pTF->tagTC     = oPtr->tagTC;
+			/*r_tc     = */pTF->tagTC     = oPtr->tagTC;
 
 			/* remove node from linked list */
 			LLRemove(&pTF->old, oPtr);
@@ -2046,7 +2046,7 @@ local void shipFreqChange(Player *p, int newship, int oldship, int newfreq, int 
 
 
 local void killEvent(Arena *arena, Player *killer, Player *killed,
-		int bounty, int flags, int *pts, int *green)
+		int bounty, int flags, int pts, int green)
 {
 	TurfTeam *pTeam = NULL;
 	TurfPlayer *pPlayer = NULL;
@@ -2284,6 +2284,6 @@ local void clear_tr_owners(Arena *arena, void *v)
 local ArenaPersistentData persist_tr_owners =
 {
 	KEY_TR_OWNERS, INTERVAL_GAME, PERSIST_ALLARENAS,
-	get_tr_owners, set_tr_owners, clear_tr_owners
+	get_tr_owners, set_tr_owners, clear_tr_owners, NULL
 };
 

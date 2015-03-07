@@ -65,7 +65,7 @@ local shipmask_t GetAllowableShips(Player *p, int ship, int freq, char *err_buf,
 local Aenforcer enforceradv =
 {
 	ADVISER_HEAD_INIT(A_ENFORCER)
-	GetAllowableShips, NULL
+	GetAllowableShips, NULL, NULL, NULL
 };
 
 EXPORT const char info_enf_shipcount[] = CORE_MOD_INFO("enf_shipcount");

@@ -47,7 +47,7 @@ typedef struct Icapman
 	 * @return true if the player has the capability
 	 */
 	int (*HasCapability)(Player *p, const char *cap);
-	/* pyint: player, string -> int */
+	/* pyint: player_not_none, string -> int */
 
 	/** Check if a player has a given capability, using a name instead
 	 ** a player pointer.
@@ -67,7 +67,7 @@ typedef struct Icapman
 	 * if he were in that arena
 	 */
 	int (*HasCapabilityInArena)(Player *p, Arena *a, const char *cap);
-	/* pyint: player, arena, string -> int */
+	/* pyint: player_not_none, arena, string -> int */
 
 	/** Determines if a player can perform actions on another player.
 	 * For certain actions (e.g., /?kick), you need to know if a player
@@ -79,7 +79,7 @@ typedef struct Icapman
 	 * @return true if a is higher than b, false if not
 	 */
 	int (*HigherThan)(Player *a, Player *b);
-	/* pyint: player, player -> int */
+	/* pyint: player_not_none, player_not_none -> int */
 } Icapman;
 
 
@@ -100,23 +100,23 @@ typedef struct Igroupman
 	 * copy if you need to refer to it later.
 	 */
 	const char *(*GetGroup)(Player *p);
-	/* pyint: player -> string */
+	/* pyint: player_not_none -> string */
 
 	/** Changes a player's group (permanently).
 	 * info is as in Iconfig::SetStr
 	 */
 	void (*SetPermGroup)(Player *p, const char *group, int global, const char *info);
-	/* pyint: player, string, int, zstring -> void */
+	/* pyint: player_not_none, string, int, zstring -> void */
 
 	/** Changes a players group (temporarily, until arena change). */
 	void (*SetTempGroup)(Player *p, const char *group);
-	/* pyint: player, string -> void */
+	/* pyint: player_not_none, string -> void */
 
 	/** Changes a player's group back to the default (permanently).
 	 * info is as in Iconfig::SetStr
 	 */
 	void (*RemoveGroup)(Player *p, const char *info);
-	/* pyint: player, zstring -> void */
+	/* pyint: player_not_none, zstring -> void */
 
 	/** Checks if a group password is correct.
 	 * @return true if pwd is the password for group, false if not
@@ -172,6 +172,7 @@ typedef struct Igroupman
 #define CAP_SEE_ALL_STAFF         "seeallstaff"
 /** if a player always forces a change with setship or setfreq instead of going by the arena freqman */
 #define CAP_FORCE_SHIPFREQCHANGE  "forceshipfreqchange"
-
+/** if a player is excluded from the population count (useful for bots) */
+#define CAP_EXCLUDE_POPULATION    "excludepopulation"
 #endif
 

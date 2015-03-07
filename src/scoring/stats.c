@@ -299,7 +299,7 @@ local int dirty_count(stat_info *si)
 local void SendUpdates(Player *exclude)
 {
 	pdata *stats;
-	struct ScorePacket sp = { S2C_SCOREUPDATE };
+	struct ScorePacket sp = { S2C_SCOREUPDATE, 0, 0, 0, 0, 0 };
 	Player *p;
 	Link *link;
 
@@ -388,8 +388,8 @@ local void set_##ival##_data(Player *p, void *data, int len, void *v)          \
     pdata *stats = PPDATA(p, pdkey);                                           \
     struct stored_stat *ss = (struct stored_stat*)data;                        \
     LOCK_PLAYER(stats);                                                        \
-    for ( ; len >= sizeof(struct stored_stat);                                 \
-            ss++, len -= sizeof(struct stored_stat))                           \
+    for ( ; len >= (int) sizeof(struct stored_stat);                           \
+            ss++, len -= (int) sizeof(struct stored_stat))                     \
         set_stat(ss->stat, &stats->ival, ss->value);                           \
     UNLOCK_PLAYER(stats);                                                      \
 }                                                                              \
@@ -405,7 +405,7 @@ local void clear_##ival##_data(Player *p, void *v)                             \
 local PlayerPersistentData my_##ival##_data =                                  \
 {                                                                              \
     KEY_STATS, code, PERSIST_ALLARENAS,                                        \
-    get_##ival##_data, set_##ival##_data, clear_##ival##_data                  \
+    get_##ival##_data, set_##ival##_data, clear_##ival##_data, NULL            \
 };
 
 DO_PERSISTENT_DATA(forever, INTERVAL_FOREVER)
@@ -430,13 +430,13 @@ local void clear_ending_time(Arena *arena, void *v) { /* noop */ }
 local ArenaPersistentData my_reset_end_time_data =
 {
 	KEY_ENDING_TIME, INTERVAL_RESET, PERSIST_ALLARENAS,
-	get_ending_time, set_ending_time, clear_ending_time
+	get_ending_time, set_ending_time, clear_ending_time, NULL
 };
 
 local ArenaPersistentData my_game_end_time_data =
 {
 	KEY_ENDING_TIME, INTERVAL_GAME, PERSIST_ALLARENAS,
-	get_ending_time, set_ending_time, clear_ending_time
+	get_ending_time, set_ending_time, clear_ending_time, NULL
 };
 
 

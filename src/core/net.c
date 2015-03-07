@@ -21,6 +21,7 @@
 #include "net-client.h"
 #include "bwlimit.h"
 #include "protutil.h"
+#include "peer.h"
 
 
 /* configuration stuff */
@@ -151,21 +152,9 @@ typedef struct Buffer
 	union
 	{
 		struct ReliablePacket rel;
-		byte raw[MAXPACKET+4];
+		byte raw[MAXCONNINITPACKET+4];
 	} d;
 } Buffer;
-
-
-typedef struct ListenData
-{
-	int gamesock, pingsock;
-	int port;
-	const char *connectas;
-	int allowvie, allowcont;
-	/* dynamic population data */
-	int total, playing;
-} ListenData;
-
 
 struct ClientConnection
 {
@@ -196,12 +185,12 @@ local void SendWithCallback(Player *p, byte *data, int length,
 local int SendSized(Player *p, void *clos, int len,
 		void (*req)(void *clos, int offset, byte *buf, int needed));
 
-local void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len, void *v);
+local void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len, ListenData *ld);
 local void AddPacket(int, PacketFunc);
 local void RemovePacket(int, PacketFunc);
 local void AddSizedPacket(int, SizedPacketFunc);
 local void RemoveSizedPacket(int, SizedPacketFunc);
-local Player * NewConnection(int type, struct sockaddr_in *, Iencrypt *enc, void *v);
+local Player * NewConnection(int type, struct sockaddr_in *, Iencrypt *enc, ListenData *ld);
 local void GetStats(struct net_stats *stats);
 local void GetClientStats(Player *p, struct net_client_stats *stats);
 local int GetLastPacketTime(Player *p);
@@ -260,7 +249,6 @@ local Iprng *prng;
 local LinkedList handlers[MAXTYPES];
 local LinkedList sizedhandlers[MAXTYPES];
 
-local LinkedList listening = LL_INITIALIZER;
 local HashTable *listenmap;
 local int clientsock;
 
@@ -276,6 +264,9 @@ local int connkey;
 local Player * clienthash[CFG_HASHSIZE];
 local pthread_mutex_t hashmtx;
 
+#define POPMODE_TOTAL 1
+#define POPMODE_PLAYING 2
+
 local struct
 {
 	int droptimeout, maxoutlist;
@@ -289,6 +280,8 @@ local struct
 	int overhead;
 	/* how often to refresh the ping packet data */
 	int pingrefreshtime;
+	/* display total or playing in simple ping responses? */
+	int simplepingpopulationmode;
 } config;
 
 local volatile struct net_stats global_stats;
@@ -332,7 +325,9 @@ local Inet netint =
 
 	ReallyRawSend, NewConnection,
 
-	GetStats, GetClientStats, GetLastPacketTime, GetListenData, GetLDPopulation
+	GetStats, GetClientStats, GetLastPacketTime, GetListenData, GetLDPopulation,
+
+	LL_INITIALIZER
 };
 
 
@@ -389,6 +384,12 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		relthdcount = cfg->GetInt(GLOBAL, "Net", "ReliableThreads", 1);
 		config.overhead = cfg->GetInt(GLOBAL, "Net", "PerPacketOverhead", 28);
 		config.pingrefreshtime = cfg->GetInt(GLOBAL, "Net", "PingDataRefreshTime", 200);
+		/* cfghelp: Net:SimplePingPopulationMode, global, int, def: 1
+		 * Display what value in the simple ping reponse (used by continuum)?
+		 * 1 = display total player count (default);
+		 * 2 = display playing count (in ships);
+		 * 3 = alternate between 1 and 2 */
+		config.simplepingpopulationmode = cfg->GetInt(GLOBAL, "Net", "SimplePingPopulationMode", 1);
 
 		/* get the sockets */
 		if (InitSockets())
@@ -411,14 +412,22 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		/* start the threads */
 		thd = amalloc(sizeof(pthread_t));
 		pthread_create(thd, NULL, RecvThread, NULL);
+		set_thread_name(*thd, "asss-net-recv");
+
 		LLAdd(&threads, thd);
+
 		thd = amalloc(sizeof(pthread_t));
 		pthread_create(thd, NULL, SendThread, NULL);
+		set_thread_name(*thd, "asss-net-send");
+
 		LLAdd(&threads, thd);
+
 		for (i = 0; i < relthdcount; i++)
 		{
 			thd = amalloc(sizeof(pthread_t));
 			pthread_create(thd, NULL, RelThread, (void*)i);
+			set_thread_name(*thd, "asss-net-rel-%ld", i);
+
 			LLAdd(&threads, thd);
 		}
 
@@ -475,7 +484,7 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 	{
 		Link *link;
 
-		/* uninstall ourself */
+		/* uninstall our self */
 		if (mm->UnregInterface(&netint, ALLARENAS))
 			return MM_FAIL;
 
@@ -498,6 +507,8 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		}
 		LLEmpty(&threads);
 
+		ml->WaitRunInMainDrain();
+
 		/* clean up */
 		for (i = 0; i < MAXTYPES; i++)
 		{
@@ -507,14 +518,14 @@ EXPORT int MM_net(int action, Imodman *mm_, Arena *a)
 		MPDestroy(&relqueue);
 
 		/* close all our sockets */
-		for (link = LLGetHead(&listening); link; link = link->next)
+		for (link = LLGetHead(&netint.listening); link; link = link->next)
 		{
 			ListenData *ld = link->data;
 			closesocket(ld->gamesock);
 			closesocket(ld->pingsock);
 		}
-		LLEnum(&listening, afree);
-		LLEmpty(&listening);
+		LLEnum(&netint.listening, afree);
+		LLEmpty(&netint.listening);
 		HashFree(listenmap);
 		closesocket(clientsock);
 
@@ -541,7 +552,7 @@ void AddPacket(int t, PacketFunc f)
 	if (t >= 0 && t < MAXTYPES)
 		LLAdd(handlers+t, f);
 	else if ((t & 0xff) == 0 && b2 >= 0 &&
-	         b2 < (sizeof(nethandlers)/sizeof(nethandlers[0])) &&
+	         b2 < (int)(sizeof(nethandlers)/sizeof(nethandlers[0])) &&
 	         nethandlers[b2] == NULL)
 		nethandlers[b2] = f;
 }
@@ -551,7 +562,7 @@ void RemovePacket(int t, PacketFunc f)
 	if (t >= 0 && t < MAXTYPES)
 		LLRemove(handlers+t, f);
 	else if ((t & 0xff) == 0 && b2 >= 0 &&
-	         b2 < (sizeof(nethandlers)/sizeof(nethandlers[0])) &&
+	         b2 < (int)(sizeof(nethandlers)/sizeof(nethandlers[0])) &&
 	         nethandlers[b2] == f)
 		nethandlers[b2] = NULL;
 }
@@ -828,7 +839,7 @@ int InitSockets(void)
 		connectas = cfg->GetStr(GLOBAL, secname, "ConnectAs");
 		ld->connectas = connectas ? astrdup(connectas) : NULL;
 
-		LLAdd(&listening, ld);
+		LLAdd(&netint.listening, ld);
 		if (connectas)
 			HashAdd(listenmap, connectas, ld);
 
@@ -875,7 +886,7 @@ int GetListenData(unsigned index, int *port, char *connectasbuf, int buflen)
 	/* er, this is going to be quadratic in the common case of iterating
 	 * through the list. if it starts getting called from lots of
 	 * places, i'll fix it. */
-	l = LLGetHead(&listening);
+	l = LLGetHead(&netint.listening);
 	while (l && index > 0)
 		index--, l = l->next;
 
@@ -926,7 +937,7 @@ local void handle_game_packet(ListenData *ld)
 
 	buf = GetBuffer();
 	sinsize = sizeof(sin);
-	len = recvfrom(ld->gamesock, buf->d.raw, MAXPACKET, 0,
+	len = recvfrom(ld->gamesock, buf->d.raw, MAXCONNINITPACKET, 0,
 			(struct sockaddr*)&sin, &sinsize);
 
 	if (len < 1) goto freebuf;
@@ -957,6 +968,11 @@ local void handle_game_packet(ListenData *ld)
 					buf->d.raw[0], len);
 #endif
 		goto freebuf;
+	}
+
+	if (len > MAXPACKET)
+	{
+		len = MAXPACKET;
 	}
 
 	/* grab the status */
@@ -1076,13 +1092,16 @@ local void handle_ping_packet(ListenData *ld)
 		if (!aman) return;
 
 		/* clear population fields in listendata */
-		for (link = LLGetHead(&listening); link; link = link->next)
+		for (link = LLGetHead(&netint.listening); link; link = link->next)
 		{
 			xld = link->data;
 			xld->total = xld->playing = 0;
 		}
 
+		Ipeer *peer = mm->GetInterface(I_PEER, ALLARENAS);
+
 		/* fill in arena summary packet with info from aman */
+		// todo: peer
 		aman->Lock();
 		aman->GetPopulationSummary(&total, &playing);
 		FOR_EACH_ARENA(a)
@@ -1116,20 +1135,62 @@ local void handle_ping_packet(ListenData *ld)
 
 		mm->ReleaseInterface(aman);
 
+		if (peer)
+		{
+			sdata.global.total += peer->GetPopulationSummary();
+			// peer protocol does not provide a "playing" count
+		}
+
+		mm->ReleaseInterface(peer);
+
 		sdata.refresh = now;
 	}
 
 	if (len == 4 && (ld->connectas == NULL || ld->connectas[0] == '\0'))
 	{
 		data[1] = data[0];
-		data[0] = sdata.global.total;
+		data[0] = 0;
+		
+		if (config.simplepingpopulationmode & POPMODE_TOTAL)
+		{
+			if (config.simplepingpopulationmode & POPMODE_PLAYING)
+			{
+				data[0] = data[1] % 600 < 300 ? sdata.global.total : sdata.global.playing;
+			}
+			else
+			{
+				data[0] = sdata.global.total;
+			}
+		}
+		else if (config.simplepingpopulationmode & POPMODE_PLAYING)
+		{
+			data[0] = sdata.global.playing;
+		}
+		
 		sendto(ld->pingsock, (char*)data, 8, 0,
 				(struct sockaddr*)&sin, sinsize);
 	}
 	else if (len == 4)
 	{
 		data[1] = data[0];
-		data[0] = ld->total;
+		data[0] = 0;
+		
+		if (config.simplepingpopulationmode & POPMODE_TOTAL)
+		{
+			if (config.simplepingpopulationmode & POPMODE_PLAYING)
+			{
+				data[0] = data[1] % 1000 < 500 ? ld->total : ld->playing;
+			}
+			else
+			{
+				data[0] = ld->total;
+			}
+		}
+		else if (config.simplepingpopulationmode & POPMODE_PLAYING)
+		{
+			data[0] = ld->playing;
+		}
+		
 		sendto(ld->pingsock, (char*)data, 8, 0,
 				(struct sockaddr*)&sin, sinsize);
 	}
@@ -1147,14 +1208,14 @@ local void handle_ping_packet(ListenData *ld)
 #define PING_GLOBAL_SUMMARY 0x01
 #define PING_ARENA_SUMMARY  0x02
 		if ((optsin & PING_GLOBAL_SUMMARY) &&
-		    (pos-buf+8) < sizeof(buf))
+		    (pos-buf+8) < (int) sizeof(buf))
 		{
 			memcpy(pos, &sdata.global, 8);
 			pos += 8;
 			optsout |= PING_GLOBAL_SUMMARY;
 		}
 		if ((optsin & PING_ARENA_SUMMARY) &&
-		    (pos-buf+sdata.apslen) < sizeof(buf))
+		    (pos-buf+sdata.apslen) < (int) sizeof(buf))
 		{
 			memcpy(pos, sdata.aps, sdata.apslen);
 			pos += sdata.apslen;
@@ -1255,7 +1316,7 @@ void * RecvThread(void *dummy)
 
 	/* set up the fd set we'll be using */
 	FD_ZERO(&myfds);
-	for (l = LLGetHead(&listening); l; l = l->next)
+	for (l = LLGetHead(&netint.listening); l; l = l->next)
 	{
 		ListenData *ld = l->data;
 		FD_SET(ld->pingsock, &myfds);
@@ -1283,7 +1344,7 @@ void * RecvThread(void *dummy)
 		} while (select(maxfd+1, &selfds, NULL, NULL, &tv) < 1);
 
 		/* process whatever we got */
-		for (l = LLGetHead(&listening); l; l = l->next)
+		for (l = LLGetHead(&netint.listening); l; l = l->next)
 		{
 			ListenData *ld = l->data;
 			if (FD_ISSET(ld->gamesock, &selfds))
@@ -1799,6 +1860,28 @@ void * RelThread(void *dummy)
 	return 0; // should never reach this point.
 }
 
+void CallPacketFunctions(Buffer *buf)
+{
+	ConnData *conn = buf->conn;
+
+	if (conn->p)
+	{
+		LinkedList *lst = handlers + (int)buf->d.rel.t1;
+		Link *l;
+
+		for (l = LLGetHead(lst); l; l = l->next)
+		{
+			((PacketFunc)(l->data))(conn->p, buf->d.raw, buf->len);
+		}
+	}
+	else if (conn->cc)
+	{
+		conn->cc->i->HandlePacket(buf->d.raw, buf->len);
+	}
+
+	FreeBuffer(buf);
+}
+
 
 /* ProcessBuffer
  * unreliable packets will be processed before the call returns and freed.
@@ -1826,18 +1909,7 @@ void ProcessBuffer(Buffer *buf)
 	}
 	else if (buf->d.rel.t1 < MAXTYPES)
 	{
-		if (conn->p)
-		{
-			LinkedList *lst = handlers + (int)buf->d.rel.t1;
-			Link *l;
-
-			for (l = LLGetHead(lst); l; l = l->next)
-				((PacketFunc)(l->data))(conn->p, buf->d.raw, buf->len);
-		}
-		else if (conn->cc)
-			conn->cc->i->HandlePacket(buf->d.raw, buf->len);
-
-		FreeBuffer(buf);
+		ml->RunInMain((RunInMainFunc) CallPacketFunctions, buf);
 	}
 	else
 	{
@@ -1852,12 +1924,11 @@ void ProcessBuffer(Buffer *buf)
 }
 
 
-Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v_ld)
+Player * NewConnection(int type, struct sockaddr_in *sin, Iencrypt *enc, ListenData *ld)
 {
 	int bucket;
 	Player *p;
 	ConnData *conn;
-	ListenData *ld = v_ld;
 	char ipbuf[INET_ADDRSTRLEN];
 
 	/* certain ports might allow only one or another client */
@@ -2108,7 +2179,7 @@ void ProcessSyncRequest(Buffer *buf)
 {
 	ConnData *conn = buf->conn;
 	struct TimeSyncC2S *cts = (struct TimeSyncC2S*)(buf->d.raw);
-	struct TimeSyncS2C ts = { 0x00, 0x06, cts->time };
+	struct TimeSyncS2C ts = { 0x00, 0x06, cts->time, current_ticks() };
 
 	if (buf->len != 14)
 	{
@@ -2117,7 +2188,6 @@ void ProcessSyncRequest(Buffer *buf)
 	}
 
 	pthread_mutex_lock(&conn->olmtx);
-	ts.servertime = current_ticks();
 	/* note: this bypasses bandwidth limits */
 	SendRaw(conn, (byte*)&ts, sizeof(ts));
 
@@ -2160,6 +2230,32 @@ void ProcessDrop(Buffer *buf)
 	FreeBuffer(buf);
 }
 
+struct BigDataPacketFunctionsDTO
+{
+	ConnData *conn;
+	byte *pkt;
+	int size;
+};
+
+void CallBigDataPacketFunctions(struct BigDataPacketFunctionsDTO *dto)
+{
+	if (dto->conn->p)
+	{
+		LinkedList *lst = handlers + (int)dto->pkt[0];
+		Link *l;
+		for (l = LLGetHead(lst); l; l = l->next)
+		{
+			((PacketFunc)(l->data))(dto->conn->p, dto->pkt, dto->size);
+		}
+	}
+	else
+	{
+		dto->conn->cc->i->HandlePacket(dto->pkt, dto->size);
+	}
+
+	afree(dto);
+	afree(dto->pkt);
+}
 
 void ProcessBigData(Buffer *buf)
 {
@@ -2220,15 +2316,12 @@ void ProcessBigData(Buffer *buf)
 
 	if (newbuf[0] > 0 && newbuf[0] < MAXTYPES)
 	{
-		if (conn->p)
-		{
-			LinkedList *lst = handlers + (int)newbuf[0];
-			Link *l;
-			for (l = LLGetHead(lst); l; l = l->next)
-				((PacketFunc)(l->data))(conn->p, newbuf, newsize);
-		}
-		else
-			conn->cc->i->HandlePacket(newbuf, newsize);
+		struct BigDataPacketFunctionsDTO *dto = amalloc(sizeof(struct BigDataPacketFunctionsDTO));
+		dto->conn = conn;
+		dto->pkt = conn->bigrecv.buf;
+		dto->size = conn->bigrecv.size;
+		ml->RunInMain((RunInMainFunc) CallBigDataPacketFunctions, dto);
+		goto unsetbigbuf; /* CallBigDataPacketFunctions will free() */
 	}
 	else
 	{
@@ -2240,6 +2333,7 @@ void ProcessBigData(Buffer *buf)
 
 freebigbuf:
 	afree(conn->bigrecv.buf);
+unsetbigbuf:
 	conn->bigrecv.buf = NULL;
 	conn->bigrecv.size = 0;
 	conn->bigrecv.room = 0;
@@ -2371,9 +2465,8 @@ void ProcessSpecial(Buffer *buf)
 }
 
 
-void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len, void *v_ld)
+void ReallyRawSend(struct sockaddr_in *sin, byte *pkt, int len, ListenData *ld)
 {
-	ListenData *ld = v_ld;
 #ifdef CFG_DUMP_RAW_PACKETS
 	printf("SENDRAW: %d bytes\n", len);
 	dump_pk(pkt, len);

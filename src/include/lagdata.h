@@ -54,28 +54,28 @@ typedef struct Ilagquery
 	/* pyint: use */
 
 	void (*QueryPPing)(Player *p, struct PingSummary *ping);
-	/* pyint: player, pingsummary out -> void */
+	/* pyint: player_not_none, pingsummary out -> void */
 	void (*QueryCPing)(Player *p, struct PingSummary *ping);
-	/* pyint: player, pingsummary out -> void */
+	/* pyint: player_not_none, pingsummary out -> void */
 	void (*QueryRPing)(Player *p, struct PingSummary *ping);
-	/* pyint: player, pingsummary out -> void */
+	/* pyint: player_not_none, pingsummary out -> void */
 
 	void (*QueryPLoss)(Player *p, struct PLossSummary *d);
-	/* pyint: player, plosssummary out -> void */
+	/* pyint: player_not_none, plosssummary out -> void */
 	void (*QueryRelLag)(Player *p, struct ReliableLagData *d);
-	/* pyint: player, reliablelagdata out -> void */
+	/* pyint: player_not_none, reliablelagdata out -> void */
 
 	void (*QueryTimeSyncHistory)(Player *p, struct TimeSyncHistory *d);
 
 	void (*DoPHistogram)(Player *p,
 			void (*callback)(Player *p, int bucket, int count, int maxcount, void *clos),
 			void *clos);
-	/* pyint: player, (player, int, int, int, clos -> void), clos -> void */
+	/* pyint: player_not_none, (player_not_none, int, int, int, clos -> void), clos -> void */
 
 	void (*DoRHistogram)(Player *p,
 			void (*callback)(Player *p, int bucket, int count, int maxcount, void *clos),
 			void *clos);
-	/* pyint: player, (player, int, int, int, clos -> void), clos -> void */
+	/* pyint: player_not_none, (player_not_none, int, int, int, clos -> void), clos -> void */
 } Ilagquery;
 
 

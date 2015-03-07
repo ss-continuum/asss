@@ -15,6 +15,7 @@
 /* static data */
 
 local Imodman *mm;
+local Imainloop *ml;
 local int dummykey, magickey;
 #ifdef USE_RWLOCK
 local rwlock_t plock;
@@ -48,6 +49,7 @@ local pthread_mutexattr_t recmtxattr;
 local Iplayerdata pdint;
 
 
+
 local void Lock(void)
 {
 	RDLOCK();
@@ -73,6 +75,15 @@ local Player * alloc_player(void)
 	Player *p = amalloc(sizeof(*p) + perplayerspace);
 	*(unsigned*)PPDATA(p, magickey) = MODMAN_MAGIC;
 	return p;
+}
+
+local void run_newplayer_new(Player *p)
+{
+	WRLOCK();
+	LLAdd(&pd->playerlist, p);
+	WULOCK();
+
+	DO_CBS(CB_NEWPLAYER, ALLARENAS, NewPlayerFunc, (p, TRUE));
 }
 
 local Player * NewPlayer(int type)
@@ -130,20 +141,21 @@ local Player * NewPlayer(int type)
 	p->connecttime = current_ticks();
 	p->connectas = NULL;
 
-	LLAdd(&pd->playerlist, p);
-
 	WULOCK();
 
-	DO_CBS(CB_NEWPLAYER, ALLARENAS, NewPlayerFunc, (p, TRUE));
+	ml->RunInMain((RunInMainFunc) run_newplayer_new, p);
 
 	return p;
 }
 
+local void run_newplayer_free(Player *p)
+{
+	DO_CBS(CB_NEWPLAYER, ALLARENAS, NewPlayerFunc, (p, FALSE));
+	afree(p);
+}
 
 local void FreePlayer(Player *p)
 {
-	DO_CBS(CB_NEWPLAYER, ALLARENAS, NewPlayerFunc, (p, FALSE));
-
 	WRLOCK();
 	LLRemove(&pd->playerlist, p);
 	pidmap[p->pid].p = NULL;
@@ -152,7 +164,10 @@ local void FreePlayer(Player *p)
 	firstfreepid = p->pid;
 	WULOCK();
 
-	afree(p);
+	/* Run CB_NEWPLAYER in main
+	 * This also ensures that any pending RunInMainFuncs
+	 * that refer to this player will be resolved first */
+	ml->RunInMain((RunInMainFunc) run_newplayer_free, p);
 }
 
 
@@ -210,6 +225,24 @@ local Player * FindPlayer(const char *name)
 		}
 	RULOCK();
 	return NULL;
+}
+
+local int IsValidPointer(Player *r)
+{
+	Link *link;
+	Player *p;
+
+	RDLOCK();
+	FOR_EACH_PLAYER(p)
+	{
+		if (p == r)
+		{
+			RULOCK();
+			return TRUE;
+		}
+	}
+	RULOCK();
+	return FALSE;
 }
 
 
@@ -341,10 +374,11 @@ local Iplayerdata pdint =
 {
 	INTERFACE_HEAD_INIT(I_PLAYERDATA, "playerdata")
 	NewPlayer, FreePlayer, KickPlayer,
-	PidToPlayer, FindPlayer,
+	PidToPlayer, FindPlayer, IsValidPointer,
 	TargetToSet,
 	AllocatePlayerData, FreePlayerData,
-	Lock, WriteLock, Unlock, WriteUnlock
+	Lock, WriteLock, Unlock, WriteUnlock,
+	LL_INITIALIZER
 };
 
 EXPORT const char info_playerdata[] = CORE_MOD_INFO("playerdata");
@@ -357,6 +391,12 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 		Iconfig *cfg;
 
 		mm = mm_;
+		ml = mm->GetInterface(I_MAINLOOP, NULL);
+		if (!ml)
+		{
+			mm->ReleaseInterface(ml);
+			return MM_FAIL;
+		}
 
 		/* init locks */
 		pthread_mutexattr_init(&recmtxattr);
@@ -410,6 +450,9 @@ EXPORT int MM_playerdata(int action, Imodman *mm_, Arena *arena)
 		afree(pidmap);
 		LLEnum(&pd->playerlist, afree);
 		LLEmpty(&pd->playerlist);
+
+		mm->ReleaseInterface(ml);
+
 		return MM_OK;
 	}
 	return MM_FAIL;

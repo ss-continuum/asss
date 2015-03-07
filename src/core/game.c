@@ -42,6 +42,7 @@ typedef struct
 	time_t expires; /* when the lock expires, or 0 for session-long lock */
 	ticks_t lastrgncheck; /* when we last updated the region-based flags */
 	LinkedList lastrgnset;
+	int ppklastship;
 } pdata;
 
 typedef struct
@@ -53,16 +54,11 @@ typedef struct
 	int deathwofiring;
 	int regionchecktime;
 	int nosafeanti;
+	long warptresholddelta;
+	int cfg_pospix;
+	int cfg_sendanti;
+	int wpnrange[WEAPONCOUNT]; /* there are 5 bits in the weapon type */
 } adata;
-
-typedef struct safezone_closure_t
-{
-	Arena *arena;
-	Player *p;
-	int x;
-	int y;
-	int entering;
-} safezone_closure_t;
 
 /* global data */
 
@@ -84,9 +80,6 @@ local Ipersist *persist;
 
 local int adkey, pdkey;
 
-local int cfg_bulletpix, cfg_wpnpix, cfg_pospix;
-local int cfg_sendanti;
-local int wpnrange[WEAPONCOUNT]; /* there are 5 bits in the weapon type */
 local pthread_mutex_t specmtx = PTHREAD_MUTEX_INITIALIZER;
 local pthread_mutex_t freqshipmtx = PTHREAD_MUTEX_INITIALIZER;
 
@@ -102,15 +95,87 @@ DEFINE_ENUM(SEE_ENERGY_MAP)
 DEFINE_FROM_STRING(see_nrg_val, SEE_ENERGY_MAP)
 
 
+// Data Transfer Objects for asynchronous callbacks
+
+struct ShipFreqChangeDTO
+{
+	Arena *arena;
+	Player *p;
+	int newship;
+	int oldship;
+	int newfreq;
+	int oldfreq;
+};
+
+struct SpawnDTO
+{
+	Arena *arena;
+	Player *p;
+	int reason;
+};
+
+struct region_cb_params
+{
+	pdata *data;
+	LinkedList newrgnset;
+};
 
 local void DoWeaponChecksum(struct S2CWeapons *pkt)
 {
-	int i;
+	size_t i;
 	u8 ck = 0;
 	pkt->checksum = 0;
 	for (i = 0; i < sizeof(struct S2CWeapons) - sizeof(struct ExtraPosData); i++)
 		ck ^= ((unsigned char*)pkt)[i];
 	pkt->checksum = ck;
+}
+
+local void run_spawn_cb(void *clos)
+{
+	struct SpawnDTO *dto = (struct SpawnDTO *) clos;
+	
+	if (dto->arena == dto->p->arena)
+	{
+		DO_CBS(CB_SPAWN, dto->arena, SpawnFunc, (dto->p, dto->reason));
+	}
+	
+	afree(dto);
+}
+
+local void do_spawn_cb(Player *p, int reason)
+{
+	struct SpawnDTO *dto = amalloc(sizeof(struct SpawnDTO));
+	dto->arena = p->arena;
+	dto->p = p;
+	dto->reason = reason;
+	ml->RunInMain(run_spawn_cb, dto);
+}
+
+local void run_shipfreqchange_cb(void *param)
+{
+	struct ShipFreqChangeDTO *dto = (struct ShipFreqChangeDTO *) param;
+	
+	if (dto->arena == dto->p->arena)
+	{
+		DO_CBS(CB_SHIPFREQCHANGE, dto->arena, ShipFreqChangeFunc,
+			(dto->p, dto->newship, dto->oldship, dto->newfreq, dto->oldfreq));
+	}
+	
+	afree(dto);
+}
+
+local void do_shipfreqchange_cb(Player *p, int newship, int oldship, int newfreq, int oldfreq)
+{
+	struct ShipFreqChangeDTO *dto = amalloc(sizeof(struct ShipFreqChangeDTO));
+	
+	dto->arena = p->arena;
+	dto->p = p;
+	dto->newship = newship;
+	dto->oldship = oldship;
+	dto->newfreq = newfreq;
+	dto->oldfreq = oldfreq;
+	
+	ml->RunInMain(run_shipfreqchange_cb, dto);
 }
 
 
@@ -136,13 +201,6 @@ local inline long lhypot (register long dx, register long dy)
 	return (long)r;
 }
 
-
-struct region_cb_params
-{
-	pdata *data;
-	LinkedList newrgnset;
-};
-
 local void ppk_region_cb(void *clos, Region *rgn)
 {
 	struct region_cb_params *params = clos;
@@ -157,11 +215,9 @@ local void ppk_region_cb(void *clos, Region *rgn)
 		params->data->rgnnorecvweps = 1;
 }
 
-local void do_region_callback(Player *p, Region *rgn, int x, int y, int entering)
-{
-	/* FIXME: make this asynchronous? */
-	DO_CBS(CB_REGION, p->arena, RegionFunc, (p, rgn, x, y, entering));
-}
+
+
+
 
 local void update_regions(Player *p, int x, int y)
 {
@@ -173,7 +229,7 @@ local void update_regions(Player *p, int x, int y)
 
 	mapdata->EnumContaining(p->arena, x, y, ppk_region_cb, &params);
 
-	/* sort new list so we can do a linear diff */
+	/* sort new list so we can do arena linear diff */
 	LLSort(&params.newrgnset, NULL);
 
 	/* now walk through both in parallel and call appropriate callbacks */
@@ -183,13 +239,13 @@ local void update_regions(Player *p, int x, int y)
 		if (!nl || (ol && ol->data < nl->data))
 		{
 			/* the new set is missing an old one. this is a region exit. */
-			do_region_callback(p, ol->data, x, y, FALSE);
+			DO_CBS(CB_REGION, p->arena, RegionFunc, (p, ol->data, x, y, FALSE));
 			ol = ol->next;
 		}
 		else if (!ol || (nl && ol->data > nl->data))
 		{
 			/* this is a region enter. */
-			do_region_callback(p, nl->data, x, y, TRUE);
+			DO_CBS(CB_REGION, p->arena, RegionFunc, (p, nl->data, x, y, TRUE));
 			nl = nl->next;
 		}
 		else /* ol->data == nl->data */
@@ -205,42 +261,6 @@ local void update_regions(Player *p, int x, int y)
 }
 
 
-local int run_enter_game_cb(void *clos)
-{
-	Player *p = (Player *)clos;
-	if (p->status == S_PLAYING)
-		DO_CBS(CB_PLAYERACTION,
-				p->arena,
-				PlayerActionFunc,
-				(p, PA_ENTERGAME, p->arena));
-	return FALSE;
-}
-
-local int run_safezone_cb(void *clos)
-{
-	safezone_closure_t *closure = (safezone_closure_t *)clos;
-
-	DO_CBS(CB_SAFEZONE, closure->arena, SafeZoneFunc, (closure->p, closure->x, closure->y, closure->entering));
-
-	afree(closure);
-
-	return FALSE;
-}
-
-local int run_spawn_cb(void *clos)
-{
-	Player *p = (Player *)clos;
-	pd->Lock();
-	/* check is_dead to make sure that someone else hasn't
-	 * already done the CB_SPAWN call. */
-	if (p->flags.is_dead)
-	{
-		p->flags.is_dead = 0;
-		DO_CBS(CB_SPAWN, p->arena, SpawnFunc, (p, SPAWN_AFTERDEATH));
-	}
-	pd->Unlock();
-	return FALSE;
-}
 
 local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 {
@@ -317,13 +337,24 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 		/* call the safety zone callback asynchronously */
 		if (((pos->status ^ data->pos.status) & STATUS_SAFEZONE) && !isfake)
 		{
-			safezone_closure_t *closure = amalloc(sizeof(*closure));
-			closure->arena = arena;
-			closure->p = p;
-			closure->x = pos->x;
-			closure->y = pos->y;
-			closure->entering = pos->status & STATUS_SAFEZONE;
-			ml->SetTimer(run_safezone_cb, 0, 0, closure, NULL);
+			DO_CBS(CB_SAFEZONE, p->arena, SafeZoneFunc, (p, pos->x, pos->y, pos->status & STATUS_SAFEZONE));
+		}
+		
+		if (((pos->status ^ data->pos.status) & STATUS_FLASH) && 
+		    !isfake && 
+		    p->p_ship != SHIP_SPEC &&
+		    p->p_ship == data->ppklastship &&
+		    p->flags.sent_ppk && 
+		    !p->flags.is_dead &&
+		    adata->warptresholddelta > 0)
+		{
+			long dx = data->pos.x - pos->x;
+			long dy = data->pos.y - pos->y;
+			
+			if (dx*dx + dy*dy >= adata->warptresholddelta)
+			{
+				DO_CBS(CB_WARP, p->arena, WarpFunc, (p, data->pos.x, data->pos.y, pos->x, pos->y));
+			}
 		}
 
 		/* copy the whole thing. this will copy the epd, or, if the client
@@ -352,7 +383,7 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 	if (p->flags.sent_ppk == 0 && !isfake)
 	{
 		p->flags.sent_ppk = 1;
-		ml->SetTimer(run_enter_game_cb, 0, 0, p, NULL);
+		DO_CBS(CB_PLAYERACTION, p->arena, PlayerActionFunc, (p, PA_ENTERGAME, p->arena));
 	}
 
 	/* speccers don't get their position sent to anyone */
@@ -445,7 +476,7 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 		/* send some percent of antiwarp positions to everyone */
 		if ( pos->weapon.type == 0 &&
 		     (pos->status & STATUS_ANTIWARP) &&
-		     prng->Rand() < cfg_sendanti)
+		     prng->Rand() < adata->cfg_sendanti)
 			sendtoall = TRUE;
 
 		/* send safe zone enters to everyone, reliably */
@@ -475,8 +506,9 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 		 * before their expected respawn. */
 		if (p->flags.is_dead && TICK_DIFF(gtc, p->last_death) >= 50 && TICK_DIFF(p->next_respawn, gtc) <= 50)
 		{
-			/* setup the CB_SPAWN callback to run asynchronously. */
-			ml->SetTimer(run_spawn_cb, 0, 0, p, NULL);
+			p->flags.is_dead = 0;
+			do_spawn_cb(p, SPAWN_AFTERDEATH);
+			
 		}
 
 		FOR_EACH_PLAYER_P(i, idata, pdkey)
@@ -490,7 +522,7 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 
 				/* determine the packet range */
 				if (sendwpn && pos->weapon.type)
-					range = wpnrange[pos->weapon.type];
+					range = adata->wpnrange[pos->weapon.type];
 				else
 					range = i->xres + i->yres;
 
@@ -503,8 +535,8 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 						i->p_attached == p->pid ||
 						/* and send some radar packets */
 						( pos->weapon.type == W_NULL &&
-						  dist <= cfg_pospix &&
-						  randnum > ((double)dist / (double)cfg_pospix *
+						  dist <= adata->cfg_pospix &&
+						  randnum > ((double)dist / (double)adata->cfg_pospix *
 								(RAND_MAX+1.0))) ||
 						/* bots */
 						i->flags.see_all_posn)
@@ -639,6 +671,8 @@ local void handle_ppk(Player *p, struct C2SPosition *pos, int len, int isfake)
 		/* do the position packet callback */
 		DO_CBS(CB_PPK, arena, PPKFunc, (p, pos));
 	}
+	
+	data->ppklastship = p->p_ship;
 }
 
 local void Pppk(Player *p, byte *pkt, int len)
@@ -919,13 +953,13 @@ local void expire_lock(Player *p)
 		}
 }
 
-
 local void reset_during_change(Player *p, int success, void *dummy)
 {
 	pthread_mutex_lock(&freqshipmtx);
 	p->flags.during_change = 0;
 	pthread_mutex_unlock(&freqshipmtx);
 }
+
 
 
 local void SetShipAndFreq(Player *p, int ship, int freq)
@@ -977,8 +1011,7 @@ local void SetShipAndFreq(Player *p, int ship, int freq)
 
 	DO_CBS(CB_PRESHIPFREQCHANGE, arena, PreShipFreqChangeFunc,
 			(p, ship, oldship, freq, oldfreq));
-	DO_CBS(CB_SHIPFREQCHANGE, arena, ShipFreqChangeFunc,
-			(p, ship, oldship, freq, oldfreq));
+	do_shipfreqchange_cb(p, ship, oldship, freq, oldfreq);
 
 	/* now setup for the CB_SPAWN callback. */
 	pd->Lock();
@@ -995,7 +1028,8 @@ local void SetShipAndFreq(Player *p, int ship, int freq)
 		/* flags = SPAWN_SHIPCHANGE set at the top of the function */
 		if (oldship == SHIP_SPEC)
 			flags |= SPAWN_INITIAL;
-		DO_CBS(CB_SPAWN, arena, SpawnFunc, (p, flags));
+		do_spawn_cb(p, flags);
+		
 	}
 
 	lm->LogP(L_INFO, "game", p, "changed ship/freq to ship %d, freq %d",
@@ -1084,7 +1118,7 @@ local void PSetShip(Player *p, byte *pkt, int len)
 
 local void SetFreq(Player *p, int freq)
 {
-	struct SimplePacket to = { S2C_FREQCHANGE, p->pid, freq, -1};
+	struct SimplePacket to = { S2C_FREQCHANGE, p->pid, freq, -1, 0, 0};
 	Arena *arena = p->arena;
 	int oldfreq = p->p_freq;
 
@@ -1115,7 +1149,7 @@ local void SetFreq(Player *p, int freq)
 				p->name, p->p_ship, p->p_freq);
 
 	DO_CBS(CB_PRESHIPFREQCHANGE, arena, PreShipFreqChangeFunc, (p, p->p_ship, p->p_ship, freq, oldfreq));
-	DO_CBS(CB_SHIPFREQCHANGE, arena, ShipFreqChangeFunc, (p, p->p_ship, p->p_ship, freq, oldfreq));
+	do_shipfreqchange_cb(p, p->p_ship, p->p_ship, freq, oldfreq);
 
 	lm->LogP(L_INFO, "game", p, "changed freq to %d", freq);
 }
@@ -1189,6 +1223,10 @@ local void notify_kill(Player *killer, Player *killed, int bty, int flags, int g
 		chatnet->SendToArena(killer->arena, NULL, "KILL:%s:%s:%d:%d",
 				killer->name, killed->name, bty, flags);
 }
+
+
+
+
 
 local void PDie(Player *p, byte *pkt, int len)
 {
@@ -1314,8 +1352,7 @@ local void PDie(Player *p, byte *pkt, int len)
 
 	notify_kill(killer, p, pts, flagcount, green);
 
-	DO_CBS(CB_KILL, arena, KillFunc,
-	                (arena, killer, p, bty, flagcount, &pts, &green));
+	DO_CBS(CB_KILL, arena, KillFunc, (arena, killer, p, bty, flagcount, pts, green));
 
 	lm->Log(L_INFO, "<game> {%s} [%s] killed by [%s] (bty=%d,flags=%d,pts=%d)",
 			arena->name,
@@ -1410,7 +1447,7 @@ local void PAttach(Player *p, byte *pkt2, int len)
 	/* only send it if state has changed */
 	if (p->p_attached != pid2)
 	{
-		struct SimplePacket pkt = { S2C_TURRET, p->pid, pid2 };
+		struct SimplePacket pkt = { S2C_TURRET, p->pid, pid2, 0, 0, 0 };
 		net->SendToArena(arena, NULL, (byte*)&pkt, 5, NET_RELIABLE);
 		p->p_attached = pid2;
 
@@ -1421,7 +1458,7 @@ local void PAttach(Player *p, byte *pkt2, int len)
 
 local void PKickoff(Player *p, byte *pkt2, int len)
 {
-	struct SimplePacket pkt = { S2C_TURRETKICKOFF, p->pid };
+	struct SimplePacket pkt = { S2C_TURRETKICKOFF, p->pid, 0, 0, 0, 0 };
 
 	if (p->status == S_PLAYING)
 		net->SendToArena(p->arena, NULL, (byte*)&pkt, 3, NET_RELIABLE);
@@ -1430,14 +1467,14 @@ local void PKickoff(Player *p, byte *pkt2, int len)
 
 local void WarpTo(const Target *target, int x, int y)
 {
-	struct SimplePacket wto = { S2C_WARPTO, x, y };
+	struct SimplePacket wto = { S2C_WARPTO, x, y, 0, 0, 0 };
 	net->SendToTarget(target, (byte *)&wto, 5, NET_RELIABLE | NET_URGENT);
 }
 
 
 local void GivePrize(const Target *target, int type, int count)
 {
-	struct SimplePacket prize = { S2C_PRIZERECV, (short)count, (short)type };
+	struct SimplePacket prize = { S2C_PRIZERECV, (short)count, (short)type, 0, 0, 0 };
 	net->SendToTarget(target, (byte*)&prize, 5, NET_RELIABLE);
 }
 
@@ -1464,6 +1501,8 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 			p->p_freq = arena->specfreq;
 		}
 		p->p_attached = -1;
+		
+		data->ppklastship = -1; 
 
 		pd->Lock();
 		p->flags.is_dead = 0;
@@ -1518,7 +1557,7 @@ local void PlayerAction(Player *p, int action, Arena *arena)
 	{
 		if (p->p_ship != SHIP_SPEC)
 		{
-			DO_CBS(CB_SPAWN, arena, SpawnFunc, (p, SPAWN_INITIAL));
+			do_spawn_cb(p, SPAWN_INITIAL);
 		}
 	}
 }
@@ -1587,6 +1626,13 @@ local void ArenaAction(Arena *arena, int action)
 		ad->nosafeanti = 
 			cfg->GetInt(arena->cfg, "Misc", "NoSafeAntiwarp", 0);
 
+		/* cfghelp: Misc:WarpTresholdDelta, arena, int, def: 320
+		 * The amount of change in a players position that is considered a warp
+		 * (only while he is flashing). value is in pixels */
+		ad->warptresholddelta = 
+			cfg->GetInt(arena->cfg, "Misc", "WarpTresholdDelta", 320);
+		ad->warptresholddelta = ad->warptresholddelta * ad->warptresholddelta;
+		
 		/* cfghelp: Prize:DontShareThor, arena, bool, def: 0
 		 * Whether Thor greens don't go to the whole team. */
 		if (cfg->GetInt(arena->cfg, "Prize", "DontShareThor", 0))
@@ -1601,6 +1647,35 @@ local void ArenaAction(Arena *arena, int action)
 			pg |= (1<<personal_brick);
 
 		ad->personalgreen = pg;
+
+		/* cfghelp: Net:BulletPixels, arena, int, def: 1500
+		 * How far away to always send bullets (in pixels) */
+		int cfg_bulletpix = cfg->GetInt(arena->cfg, "Net", "BulletPixels", 1500);
+
+		/* cfghelp: Net:WeaponPixels, arena, int, def: 2000
+		 * How far away to always send weapons (in pixels) */
+		int cfg_wpnpix = cfg->GetInt(arena->cfg, "Net", "WeaponPixels", 2000);
+
+		/* cfghelp: Net:PositionExtraPixels, arena, int, def: 8000
+		 * How far away to send positions of players on radar */
+		ad->cfg_pospix = cfg->GetInt(arena->cfg, "Net", "PositionExtraPixels", 8000);
+
+		/* cfghelp: Net:AntiWarpSendPercent, arena, int, def: 5
+		 * Percent of position packets with antiwarp enabled to send to
+		 * the whole arena. */
+		ad->cfg_sendanti = cfg->GetInt(arena->cfg, "Net", "AntiWarpSendPercent", 5);
+		/* convert to a percentage of RAND_MAX */
+		ad->cfg_sendanti = RAND_MAX / 100 * ad->cfg_sendanti;
+		
+		for (int i = 0; i < WEAPONCOUNT; i++)
+		{
+			ad->wpnrange[i] = cfg_wpnpix;
+		}
+
+		/* exceptions: */
+		ad->wpnrange[W_BULLET] = cfg_bulletpix;
+		ad->wpnrange[W_BOUNCEBULLET] = cfg_bulletpix;
+		ad->wpnrange[W_THOR] = 30000;
 
 		if (action == AA_CREATE)
 			ad->initlockship = ad->initspec = FALSE;
@@ -1650,6 +1725,12 @@ local void Unlock(const Target *t, int notify)
 }
 
 
+local int HasLock(Player *p)
+{
+	pdata *pdata = PPDATA(p, pdkey);
+	return pdata->lockship;
+}
+
 local void LockArena(Arena *a, int notify, int onlyarenastate, int initial, int spec)
 {
 	adata *ad = P_ARENA_DATA(a, adkey);
@@ -1659,7 +1740,7 @@ local void LockArena(Arena *a, int notify, int onlyarenastate, int initial, int 
 		ad->initspec = TRUE;
 	if (!onlyarenastate)
 	{
-		Target t = { T_ARENA };
+		Target t = { T_ARENA, {0} };
 		t.u.arena = a;
 		lock_work(&t, TRUE, notify, spec, 0);
 	}
@@ -1674,10 +1755,17 @@ local void UnlockArena(Arena *a, int notify, int onlyarenastate)
 	ad->initspec = FALSE;
 	if (!onlyarenastate)
 	{
-		Target t = { T_ARENA };
+		Target t = { T_ARENA, {0} };
 		t.u.arena = a;
 		lock_work(&t, FALSE, notify, FALSE, 0);
 	}
+}
+
+
+local int HasArenaLock(Arena *a)
+{
+	adata *ad = P_ARENA_DATA(a, adkey);
+	return ad->initlockship;
 }
 
 
@@ -1718,7 +1806,7 @@ local void ShipReset(const Target *target)
 			p->flags.is_dead = 0;
 			flags |= SPAWN_AFTERDEATH;
 		}
-		DO_CBS(CB_SPAWN, p->arena, SpawnFunc, (p, flags));
+		do_spawn_cb(p, flags);
 	}
 
 	pd->Unlock();
@@ -1778,7 +1866,7 @@ local void set_data(Player *p, void *data, int len, void *v)
 local PlayerPersistentData persdata =
 {
 	KEY_SHIPLOCK, INTERVAL_FOREVER_NONSHARED, PERSIST_ALLARENAS,
-	get_data, set_data, clear_data
+	get_data, set_data, clear_data, NULL
 };
 
 local Appk _region_ppk_adv = 
@@ -1791,7 +1879,7 @@ local Igame _myint =
 {
 	INTERFACE_HEAD_INIT(I_GAME, "game")
 	SetFreq, SetShip, SetShipAndFreq, WarpTo, GivePrize,
-	Lock, Unlock, LockArena, UnlockArena,
+	Lock, Unlock, HasLock, LockArena, UnlockArena, HasArenaLock,
 	FakePosition, FakeKill,
 	GetIgnoreWeapons, SetIgnoreWeapons,
 	ShipReset,
@@ -1807,8 +1895,6 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 {
 	if (action == MM_LOAD)
 	{
-		int i;
-
 		mm = mm_;
 		pd = mm->GetInterface(I_PLAYERDATA, ALLARENAS);
 		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
@@ -1833,29 +1919,6 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 
 		if (persist)
 			persist->RegPlayerPD(&persdata);
-
-		/* cfghelp: Net:BulletPixels, global, int, def: 1500
-		 * How far away to always send bullets (in pixels). */
-		cfg_bulletpix = cfg->GetInt(GLOBAL, "Net", "BulletPixels", 1500);
-		/* cfghelp: Net:WeaponPixels, global, int, def: 2000
-		 * How far away to always send weapons (in pixels). */
-		cfg_wpnpix = cfg->GetInt(GLOBAL, "Net", "WeaponPixels", 2000);
-		/* cfghelp: Net:PositionExtraPixels, global, int, def: 8000
-		 * How far away to send positions of players on radar. */
-		cfg_pospix = cfg->GetInt(GLOBAL, "Net", "PositionExtraPixels", 8000);
-		/* cfghelp: Net:AntiwarpSendPercent, global, int, def: 5
-		 * Percent of position packets with antiwarp enabled to send to
-		 * the whole arena. */
-		cfg_sendanti = cfg->GetInt(GLOBAL, "Net", "AntiwarpSendPercent", 5);
-		/* convert to a percentage of RAND_MAX */
-		cfg_sendanti = RAND_MAX / 100 * cfg_sendanti;
-
-		for (i = 0; i < WEAPONCOUNT; i++)
-			wpnrange[i] = cfg_wpnpix;
-		/* exceptions: */
-		wpnrange[W_BULLET] = cfg_bulletpix;
-		wpnrange[W_BOUNCEBULLET] = cfg_bulletpix;
-		wpnrange[W_THOR] = 30000;
 
 		mm->RegCallback(CB_PLAYERACTION, PlayerAction, ALLARENAS);
 		mm->RegCallback(CB_NEWPLAYER, NewPlayer, ALLARENAS);
@@ -1909,8 +1972,9 @@ EXPORT int MM_game(int action, Imodman *mm_, Arena *arena)
 		mm->UnregCallback(CB_ARENAACTION, ArenaAction, ALLARENAS);
 		if (persist)
 			persist->UnregPlayerPD(&persdata);
-		ml->ClearTimer(run_enter_game_cb, NULL);
-		ml->ClearTimer(run_spawn_cb, NULL);
+
+		ml->WaitRunInMainDrain();
+		
 		aman->FreeArenaData(adkey);
 		pd->FreePlayerData(pdkey);
 		mm->ReleaseInterface(pd);

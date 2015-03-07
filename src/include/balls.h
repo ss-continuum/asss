@@ -20,25 +20,33 @@ typedef enum
 	BALL_WAITING  /* the ball is waiting to be spawned again */
 } ballstate_t;
 
-/* called when the number of balls changes */
+/* called when the number of balls changes
+ * @threading fired by SetBallCount
+ */
 #define CB_BALLCOUNTCHANGE "ballcountchange"
 typedef void (*BallCountChangeFunc)(Arena *arena, int newcount, int oldcount);
-/* pycb: arena, int, int */
+/* pycb: arena_not_none, int, int */
 
-/* called when a player picks up a ball */
+/* called when a player picks up a ball
+ * @threading called from main
+ */
 #define CB_BALLPICKUP "ballpickup"
 typedef void (*BallPickupFunc)(Arena *arena, Player *p, int bid);
-/* pycb: arena, player, int */
+/* pycb: arena_not_none, player_not_none, int */
 
-/* called when a player fires a ball */
+/* called when a player fires a ball 
+ * @threading called from main
+ */
 #define CB_BALLFIRE "ballfire"
 typedef void (*BallFireFunc)(Arena *arena, Player *p, int bid);
-/* pycb: arena, player, int */
+/* pycb: arena_not_none, player_not_none, int */
 
-/* called when a player scores a goal */
+/* called when a player scores a goal 
+ * @threading called from main
+ */
 #define CB_GOAL "goal"
 typedef void (*GoalFunc)(Arena *arena, Player *p, int bid, int x, int y);
-/* pycb: arena, player, int, int, int */
+/* pycb: arena_not_none, player_not_none, int, int, int */
 
 
 struct BallData
@@ -91,20 +99,20 @@ typedef struct Iballs
 	/* sets the number of balls in the arena. if the new count is higher
 	 * than the current one, new balls are spawned. if it's lower, the
 	 * dead balls are "phased" in the upper left corner. */
-	/* pyint: arena, int -> void  */
+	/* pyint: arena_not_none, int -> void  */
 
 	void (*PlaceBall)(Arena *arena, int bid, struct BallData *newpos);
 	/* sets the parameters of the ball to those in the given BallData
 	 * struct */
-	/* pyint: arena, int, balldata -> void */
+	/* pyint: arena_not_none, int, balldata -> void */
 
 	void (*EndGame)(Arena *arena);
 	/* ends the ball game */
-	/* pyint: arena -> void  */
+	/* pyint: arena_not_none -> void  */
 
 	void (*SpawnBall)(Arena *arena, int bid);
 	/* respawns the specified ball. no effect on balls that don't exist. */
-	/* pyint: arena, int -> void */
+	/* pyint: arena_not_none, int -> void */
 
 	ArenaBallData * (*GetBallData)(Arena *arena);
 	void (*ReleaseBallData)(Arena *arena);
@@ -112,6 +120,7 @@ typedef struct Iballs
 } Iballs;
 
 
+/** @threading called from main */
 #define A_BALLS "balls-adv"
 
 typedef struct Aballs

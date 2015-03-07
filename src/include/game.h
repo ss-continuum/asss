@@ -12,8 +12,10 @@
  * packet routing, and prizes.
  */
 
-/** this callback is be called whenever a kill occurs */
-#define CB_KILL "kill-2"
+/** this callback is be called whenever a kill occurs
+ * @threading called from main 
+ */
+#define CB_KILL "kill-3"
 /** the type of CB_KILL.
  * @param arena the arena the kill took place in
  * @param killer the player who made the kill
@@ -22,15 +24,13 @@
  * necessarily equal to the killed->position.bounty)
  * @param flags the number of flags the killed player was carrying
  * @param pts a pointer to the total number of points this kill was worth.
- * NOTE: pts should not be altered. Use the kill adviser for changing 
- * the points from a kill.
  * @param green a pointer to the the kill green that was placed for this death.
  * NOTE: green should not be altered. Use the killgreen interface for selecting 
  * the kill green.
  */
 typedef void (*KillFunc)(Arena *arena, Player *killer, Player *killed,
-		int bounty, int flags, int *pts, int *green);
-/* pycb: arena, player, player, int, int, int inout, int inout */
+		int bounty, int flags, int pts, int green);
+/* pycb: arena_not_none, player_not_none, player_not_none, int, int, int, int */
 
 
 #define I_KILL_GREEN "kill-green-1"
@@ -51,7 +51,7 @@ typedef struct Ikillgreen
 	 * @param green The default kill green
 	 */
 	int (*KillGreen)(Arena *arena, Player *killer, Player *killed, int bounty, int flags, int pts, int green);
-	/* pyint: arena, player, player, int, int, int, int -> int */
+	/* pyint: arena_not_none, player_not_none, player_not_none, int, int, int, int -> int */
 } Ikillgreen;
 
 #define A_KILL "kill-2"
@@ -85,7 +85,9 @@ typedef struct Akill
 
 /** this callback is to be called when a player changes ship or freq.
  * intended for internal or core use only. no recursive shipchanges should
- * happen as a result of this callback. */
+ * happen as a result of this callback.
+ * @threading triggered by the interface functions SetShip, SetFreq and SetShipAndFreq
+ */
 #define CB_PRESHIPFREQCHANGE "preshipfreqchange"
 /* the type of CB_PRESHIPFREQCHANGE
  * @param p the player changing ship or freq
@@ -95,10 +97,12 @@ typedef struct Akill
  * @param oldfreq the player's old frequency
  */
 typedef void (*PreShipFreqChangeFunc)(Player *p, int newship, int oldship, int newfreq, int oldfreq);
-/* pycb: player, int, int, int, int */
+/* pycb: player_not_none, int, int, int, int */
 
 
-/** this callback is to be called when a player changes ship or freq. */
+/** this callback is to be called when a player changes ship or freq.
+ * @threading called from main
+ */
 #define CB_SHIPFREQCHANGE "shipfreqchange"
 /* the type of CB_SHIPFREQCHANGE
  * @param p the player changing ship or freq
@@ -108,19 +112,21 @@ typedef void (*PreShipFreqChangeFunc)(Player *p, int newship, int oldship, int n
  * @param oldfreq the player's old frequency
  */
 typedef void (*ShipFreqChangeFunc)(Player *p, int newship, int oldship, int newfreq, int oldfreq);
-/* pycb: player, int, int, int, int */
+/* pycb: player_not_none, int, int, int, int */
 
 
 /** this callback will be called when the player respawns after dying, or enters the game.
  * 'reason' is a bitwise combination of the applicable SPAWN_ values, so use something like
- * (reason & SPAWN_SHIPRESET) to check, rather than ==. */
+ * (reason & SPAWN_SHIPRESET) to check, rather than ==.
+ * @threading called from main
+ */
 #define CB_SPAWN "spawn"
 /** the type of CB_SPAWN
  * @param p the player who has spawned
  * @param reason a bitwise combination of applicable SPAWN_ values
  */
 typedef void (*SpawnFunc)(Player *p, int reason);
-/* pycb: player, int */
+/* pycb: player_not_none, int */
 
 /* pyconst: define int, "SPAWN_*" */
 /* the player died and is respawning now */
@@ -135,18 +141,20 @@ typedef void (*SpawnFunc)(Player *p, int reason);
 #define SPAWN_INITIAL 16
 
 
-/** this callback called when the game timer expires. */
+/** this callback called when the game timer expires.
+ * @threading called from main 
+ */
 #define CB_TIMESUP "timesup"
 /** the type of CB_TIMESUP
  * @param arena the arena whose timer is ending
  */
 typedef void (*GameTimerFunc)(Arena *arena);
-/* pycb: arena */
+/* pycb: arena_not_none */
 
 
 /** this callback is called when someone enters or leaves a safe zone.
- * be careful about what you do in here; this runs in the unreliable
- * packet handler thread (for now). */
+ * @threading called from main
+ */
 #define CB_SAFEZONE "safezone"
 /** the type of CB_SAFEZONE
  * @param p the player entering/leaving the safe zone
@@ -155,10 +163,27 @@ typedef void (*GameTimerFunc)(Arena *arena);
  * @param entering true if entering, false if exiting
  */
 typedef void (*SafeZoneFunc)(Player *p, int x, int y, int entering);
-/* pycb: player, int, int, int */
+/* pycb: player_not_none, int, int, int */
 
+/** this callback is called when someone warps. this player event is estimated 
+ * by looking at changes in his position and STATUS_FLASH. this behaviour can 
+ * be fine tuning by the arena setting Misc:WarpTresholdDelta
+ * @threading called from main
+ */
+#define CB_WARP "warp"
+/** the type of CB_WARP
+ * @param p the player that has warped
+ * @param oldX 
+ * @param oldY
+ * @param newX
+ * @param newY 
+ */
+typedef void (*WarpFunc)(Player *p, int oldX, int oldY, int newX, int newY);
+/* pycb: player_not_none, int, int, int, int */
 
-/** this callback is called when someone enters or leaves a region. */
+/** this callback is called when someone enters or leaves a region.
+ * @threading called from main 
+ */
 #define CB_REGION "region-1"
 /** the type of CB_REGION
  * @param p the player entering/leaving the region
@@ -168,10 +193,12 @@ typedef void (*SafeZoneFunc)(Player *p, int x, int y, int entering);
  * @param entering true if entering, false if exiting
  */
 typedef void (*RegionFunc)(Player *p, Region *rgn, int x, int y, int entering);
-/* NOTYETpycb: player, void, int, int, int */
+/* NOTYETpycb: player_not_none, void, int, int, int */
 
 
-/** this callback is called whenever someone picks up a green. */
+/** this callback is called whenever someone picks up a green.
+ * @threading called from main
+ */
 #define CB_GREEN "green-1"
 /** the type of CB_GREEN
  * @param p the player who picked up the green
@@ -180,20 +207,24 @@ typedef void (*RegionFunc)(Player *p, Region *rgn, int x, int y, int entering);
  * @param prize the type of green picked up
  */
 typedef void (*GreenFunc)(Player *p, int x, int y, int prize);
-/* pycb: player, int, int, int */
+/* pycb: player_not_none, int, int, int */
 
 
-/** this callback is called whenever someone attaches or detaches. */
+/** this callback is called whenever someone attaches or detaches. 
+ * @threading called from main
+ */
 #define CB_ATTACH "attach-1"
 /** the type of CB_ATTACH
  * @param p the player who is attaching or detaching
  * @param to the player being attached to, or NULL when detaching
  */
 typedef void (*AttachFunc)(Player *p, Player *to);
-/* pycb: player, player */
+/* pycb: player_not_none, player */
 
 /** this calllback is called whenever a position packet is handled.
- * Note that this callback is not called for spectators.*/
+ * Note that this callback is not called for spectators.
+ * @threading called from main
+ */
 #define CB_PPK "cbppk-1"
 /** the type of CB_PPK
  * @param p the player that the position packet belongs to
@@ -207,7 +238,9 @@ enum { ENERGY_SEE_NONE, ENERGY_SEE_ALL, ENERGY_SEE_TEAM, ENERGY_SEE_SPEC };
 
 #define A_PPK "ppk-1"
 
-/** the position packet adviser struct */
+/** the position packet adviser struct 
+ * @threading called from main
+ */
 typedef struct Appk
 {
 	ADVISER_HEAD_DECL
@@ -232,7 +265,7 @@ typedef struct Appk
 } Appk;
 
 /** the game interface id */
-#define I_GAME "game-9"
+#define I_GAME "game-B"
 
 /** the game interface struct */
 typedef struct Igame
@@ -247,7 +280,7 @@ typedef struct Igame
 	 * @param freq the freq to change to
 	 */
 	void (*SetFreq)(Player *p, int freq);
-	/* pyint: player, int -> void */
+	/* pyint: player_not_none, int -> void */
 
 	/** Changes a player's ship.
 	 * This is an unconditional change; it doesn't go through the freq
@@ -256,7 +289,7 @@ typedef struct Igame
 	 * @param ship the freq to change to
 	 */
 	void (*SetShip)(Player *p, int ship);
-	/* pyint: player, int -> void */
+	/* pyint: player_not_none, int -> void */
 
 	/** Changes a player's ship and freq together.
 	 * This is an unconditional change; it doesn't go through the freq
@@ -266,7 +299,7 @@ typedef struct Igame
 	 * @param freq the freq to change to
 	 */
 	void (*SetShipAndFreq)(Player *p, int ship, int freq);
-	/* pyint: player, int, int -> void */
+	/* pyint: player_not_none, int, int -> void */
 
 	/** Moves a set of playes to a specific location.
 	 * This uses the Continuum warp feature, so it causes the little
@@ -282,7 +315,9 @@ typedef struct Igame
 	/** Gives out prizes to a set of players.
 	 * @param target the things to give prizes to
 	 * @param type the type of the prizes to give, or 0 for random
-	 * @param count the number of prizes to give
+	 * @param count the number of prizes to give.
+	                Do not pass a negative value for count, negate the
+	                type instead
 	 */
 	void (*GivePrize)(const Target *target, int type, int count);
 	/* pyint: target, int, int -> void */
@@ -312,6 +347,13 @@ typedef struct Igame
 	 */
 	void (*Unlock)(const Target *t, int notify);
 	/* pyint: target, int -> void */
+	
+	/** Find out if a specific player currenty has a lock.
+	 * @param p the player to query
+	 * @return TRUE if this player is locked	 	
+	 */
+	int (*HasLock)(Player *p);
+	/* pyint: player_not_none -> int */
 
 	/** Locks all players in the arena to spectator mode, or to their
 	 ** current ships.
@@ -330,7 +372,7 @@ typedef struct Igame
 	 * locking them
 	 */
 	void (*LockArena)(Arena *a, int notify, int onlyarenastate, int initial, int spec);
-	/* pyint: arena, int, int, int, int -> void */
+	/* pyint: arena_not_none, int, int, int, int -> void */
 
 	/** Undoes the effect of LockArena by changing the arena lock state
 	 ** and unlocking current players.
@@ -340,7 +382,10 @@ typedef struct Igame
 	 * @param onlyarenastate whether to apply changes to the default
 	 */
 	void (*UnlockArena)(Arena *a, int notify, int onlyarenastate);
-	/* pyint: arena, int, int -> void */
+	/* pyint: arena_not_none, int, int -> void */
+	
+	int (*HasArenaLock)(Arena *a);
+	/* pyint: arena_not_none -> int */
 
 	void (*FakePosition)(Player *p, struct C2SPosition *pos, int len);
 	void (*FakeKill)(Player *killer, Player *killed, int pts, int flags);

@@ -93,12 +93,12 @@ local void clear_data(Arena *arena, void *v)
 local ArenaPersistentData persistdata =
 {
 	KEY_JACKPOT, INTERVAL_GAME, PERSIST_ALLARENAS,
-	get_data, set_data, clear_data
+	get_data, set_data, clear_data, NULL
 };
 
 
 local void mykill(Arena *arena, int killer, int killed,
-		int bounty, int flags, int *pts, int *green)
+		int bounty, int flags, int pts, int green)
 {
 	jpdata *jpd = P_ARENA_DATA(arena, jpkey);
 	LOCK();

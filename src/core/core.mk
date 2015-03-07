@@ -2,20 +2,20 @@
 # these modules get compiled into the asss binary
 INTERNAL_MODULES = \
 	config prng player core logman idle \
-	mainloop net enc_null enc_vie arenaman mapdata \
+	mainloop net enc_null enc_vie security arenaman mapdata \
 	mapnewsdl clientset capman lagdata lagaction \
 	bw_default bw_nolimit freqman \
 	log_file log_console log_sysop log_staff \
 	game game_timer chat flagcore balls \
 	banners bricks objects messages koth enf_lockspec \
 	cmdman playercmd admincmd watchdamage buy help notify \
-	directory billing billing_ssc pwcache \
+	directory billing billing_ssc \
 	cfghelp filetrans quickfix \
 	freqowners arenaperm auth_prefix fake chatnet \
 	enf_legalship enf_shipcount \
 	ap_multipub sendfile auth_ban auth_file obscene \
 	enf_shipchange enf_flagwin \
-	deadlock redirect $(unixsignal)
+	deadlock redirect cmdlist $(unixsignal)
 
 # generated file for mapdata
 $(call tobuild, sparse.inc): $(builddir) $(SCRIPTS)/gensparse.py $(SCRIPTS)/sparse_params.py

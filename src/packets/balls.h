@@ -33,6 +33,13 @@ struct C2SGoal
 	i16 y;
 };
 
+struct S2CGoal
+{
+	u8 type; /* 0x0B */
+	u16 freq;
+	i32 points; /* points given to entire team */
+};
+
 #pragma pack(pop)
 
 #endif

@@ -25,6 +25,7 @@
 
 /* important constants */
 #define MAXPACKET 512
+#define MAXCONNINITPACKET 2048
 #define MAXBIGPACKET CFG_MAX_BIG_PACKET
 
 /* bits in the flags parameter to the SendX functions */
@@ -42,15 +43,27 @@
 #define NET_PRI_P4      0x64
 #define NET_PRI_P5      0x74
 
+typedef struct ListenData
+{
+	int gamesock, pingsock;
+	int port;
+	const char *connectas;
+	int allowvie, allowcont;
+	/* dynamic population data */
+	int total, playing;
+} ListenData;
 
+/** @threading called from main */
 typedef void (*PacketFunc)(Player *p, byte *data, int length);
+/** @threading called from net */
 typedef void (*SizedPacketFunc)
 	(Player *p, byte *data, int len, int offset, int totallen);
-
+/** @threading called from net */
 typedef void (*RelCallback)(Player *p, int success, void *clos);
 
+/** @threading called from net */
 #define CB_CONNINIT "conninit"
-typedef void (*ConnectionInitFunc)(struct sockaddr_in *sin, byte *pkt, int len, void *v);
+typedef void (*ConnectionInitFunc)(struct sockaddr_in *sin, byte *pkt, int len, ListenData *ld);
 
 
 struct net_stats
@@ -84,7 +97,6 @@ struct net_client_stats
 	byte reserved[170];
 };
 
-
 #include "encrypt.h"
 
 
@@ -110,8 +122,8 @@ typedef struct Inet
 	void (*RemoveSizedPacket)(int pktype, SizedPacketFunc func);
 
 	/* only to be used by encryption modules! */
-	void (*ReallyRawSend)(struct sockaddr_in *sin, byte *pkt, int len, void *v);
-	Player * (*NewConnection)(int type, struct sockaddr_in *sin, Iencrypt *enc, void *v);
+	void (*ReallyRawSend)(struct sockaddr_in *sin, byte *pkt, int len, ListenData *ld);
+	Player * (*NewConnection)(int type, struct sockaddr_in *sin, Iencrypt *enc, ListenData *ld);
 
 	void (*GetStats)(struct net_stats *stats);
 	void (*GetClientStats)(Player *p, struct net_client_stats *stats);
@@ -122,6 +134,11 @@ typedef struct Inet
 	/* pyint: int, int out, string out, int buflen -> int */
 	int (*GetLDPopulation)(const char *connectas);
 	/* pyint: string -> int */
+
+	/* The game sockets that we are listening on, contains pointers to ListenData
+	 * Do not modify this list or its contents
+	 */
+	LinkedList listening;
 } Inet;
 
 

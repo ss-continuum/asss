@@ -15,6 +15,9 @@ local Ilagquery *lagq;
 local Inet *net;
 local Igroupman *groupman;
 local Iidle *idle;
+local Igame *game;
+local Istats *stats;
+local Iconfig *cfg;
 
 local HashTable *aliases;
 
@@ -33,13 +36,13 @@ local void rewritecommand(int initial, char *buf, int len)
 	while (*b && *b != ' ' && *b != '=')
 	{
 		*k++ = *b++;
-		if ((k-key) >= sizeof(key))
+		if ((k-key) >= (int) sizeof(key))
 			return;
 	}
 	*k = '\0';
 
 	new = HashGetOne(aliases, key);
-	if (new && (strlen(new) + strlen(b) + 1) < len)
+	if (new && (strlen(new) + strlen(b) + 1) < (size_t) len)
 	{
 		memmove(buf + strlen(new), b, strlen(b) + 1);
 		memcpy(buf, new, strlen(new));
@@ -48,6 +51,15 @@ local void rewritecommand(int initial, char *buf, int len)
 	}
 }
 
+local void read_config()
+{
+	/* cfghelp: SGCompat:TemporarySet, global, bool
+	 * If this setting is 0, the `?set` command will be mapped to `?seta`.
+	 * If this setting is 1, the `?set` command will be mapped to `?seta -t`. */
+	int temporary_set = cfg->GetInt(GLOBAL, "SGCompat", "TemporarySet", FALSE);
+	HashRemoveAny(aliases, "?set");
+	HashAdd(aliases, "?set", temporary_set ? "seta -t" : "seta");
+}
 
 local void setup_aliases(void)
 {
@@ -55,7 +67,7 @@ local void setup_aliases(void)
 #define ALIAS(x, y) HashAdd(aliases, x, y)
 	ALIAS("?recycle",     "recyclearena");
 	ALIAS("?get",         "geta");
-	ALIAS("?set",         "seta");
+	/*ALIAS("?set",       "seta");*/
 	ALIAS("?setlevel",    "putmap");
 	ALIAS("*listban",     "listmidbans");
 	ALIAS("*removeban",   "delmidban");
@@ -75,6 +87,11 @@ local void setup_aliases(void)
 	ALIAS("*where",       "sg_where");
 	ALIAS("*info",        "sg_info");
 	ALIAS("*lag",         "sg_lag");
+	ALIAS("*spec",        "sg_spec");
+	ALIAS("*lock",        "sg_lock");
+	ALIAS("*setship",     "setship -f");
+	ALIAS("*setfreq",     "setfreq -f");
+	ALIAS("*scorereset",  "sg_scorereset");
 #undef ALIAS
 }
 
@@ -250,7 +267,84 @@ local void Csg_lag(const char *tc, const char *params, Player *p, const Target *
 
 #undef AVG_PING
 
+local void Csg_spec(const char *tc, const char *params, Player *p, const Target *target)
+{
+	if (target->type != T_PLAYER)
+	{
+		chat->SendMessage(p, "This command can only be sent to a player");
+		return;
+	}
+
+	Player *t = target->u.p;
+	
+	if (game->HasLock(t))
+	{
+		game->Unlock(target, 0);
+		chat->SendMessage(p, "Player free to enter arena");
+	}
+	else
+	{
+		game->Lock(target, 0, 1, 0);
+		chat->SendMessage(p, "Player locked in spectator mode");
+	}
+}
+
+local void Csg_lock(const char *tc, const char *params, Player *p, const Target *target)
+{
+	if (target->type != T_ARENA)
+	{
+		chat->SendMessage(p, "This command can only be sent to an arena");
+		return;
+	}
+
+	Arena *arena = target->u.arena;
+	
+	if (game->HasArenaLock(arena))
+	{
+		game->UnlockArena(arena, 0, 0);
+		chat->SendMessage(p, "Arena UNLOCKED");
+	}
+	else
+	{
+		game->LockArena(arena, 0, 0, 0, 0);
+		chat->SendMessage(p, "Arena LOCKED");
+	}
+}
+
+local void Csg_scorereset(const char *tc, const char *params, Player *p, const Target *target)
+{
+	LinkedList players = LL_INITIALIZER;
+	Player *q;
+	Link *link;
+
+	pd->TargetToSet(target, &players);
+
+	FOR_EACH(&players, q, link)
+	{
+		stats->ScoreReset(q, INTERVAL_RESET);
+	}
+
+	LLEmpty(&players);
+
+	stats->SendUpdates(NULL);
+}
+
 EXPORT const char info_sgcompat[] = CORE_MOD_INFO("sgcompat");
+
+local void releaseInterfaces(Imodman *mm)
+{
+	mm->ReleaseInterface(cmd);
+	mm->ReleaseInterface(pd);
+	mm->ReleaseInterface(lm);
+	mm->ReleaseInterface(chat);
+	mm->ReleaseInterface(lagq);
+	mm->ReleaseInterface(net);
+	mm->ReleaseInterface(groupman);
+	mm->ReleaseInterface(idle);
+	mm->ReleaseInterface(game);
+	mm->ReleaseInterface(stats);
+	mm->ReleaseInterface(cfg);
+}
 
 EXPORT int MM_sgcompat(int action, Imodman *mm, Arena *arena)
 {
@@ -264,6 +358,16 @@ EXPORT int MM_sgcompat(int action, Imodman *mm, Arena *arena)
 		net = mm->GetInterface(I_NET, ALLARENAS);
 		groupman = mm->GetInterface(I_GROUPMAN, ALLARENAS);
 		idle = mm->GetInterface(I_IDLE, ALLARENAS);
+		game = mm->GetInterface(I_GAME, ALLARENAS);
+		stats = mm->GetInterface(I_STATS, ALLARENAS);
+		cfg = mm->GetInterface(I_CONFIG, ALLARENAS);
+
+		if (!cmd || !pd || !lm || !chat || !lagq || !net || !groupman || !idle || !game || !stats || !cfg)
+		{
+		        printf("<sgcompat> Missing interface\n");
+		        releaseInterfaces(mm);
+		        return MM_FAIL;
+		}
 
 		cmd->AddCommand("sg_einfo", Csg_einfo, ALLARENAS, NULL);
 		cmd->AddCommand("sg_tinfo", Csg_tinfo, ALLARENAS, NULL);
@@ -271,8 +375,13 @@ EXPORT int MM_sgcompat(int action, Imodman *mm, Arena *arena)
 		cmd->AddCommand("sg_where", Csg_where, ALLARENAS, NULL);
 		cmd->AddCommand("sg_info", Csg_info, ALLARENAS, NULL);
 		cmd->AddCommand("sg_lag", Csg_lag, ALLARENAS, NULL);
+		cmd->AddCommand("sg_spec", Csg_spec, ALLARENAS, NULL);
+		cmd->AddCommand("sg_lock", Csg_lock, ALLARENAS, NULL);
+		cmd->AddCommand("sg_scorereset", Csg_scorereset, ALLARENAS, NULL);
 
 		setup_aliases();
+		read_config();
+		mm->RegCallback(CB_GLOBALCONFIGCHANGED, read_config, ALLARENAS);
 		mm->RegCallback(CB_REWRITECOMMAND, rewritecommand, ALLARENAS);
 
 		return MM_OK;
@@ -285,16 +394,14 @@ EXPORT int MM_sgcompat(int action, Imodman *mm, Arena *arena)
 		cmd->RemoveCommand("sg_where", Csg_where, ALLARENAS);
 		cmd->RemoveCommand("sg_info", Csg_info, ALLARENAS);
 		cmd->RemoveCommand("sg_lag", Csg_lag, ALLARENAS);
+		cmd->RemoveCommand("sg_spec", Csg_spec, ALLARENAS);
+		cmd->RemoveCommand("sg_lock", Csg_lock, ALLARENAS);
+		cmd->RemoveCommand("sg_scorereset", Csg_scorereset, ALLARENAS);
+
+		mm->UnregCallback(CB_GLOBALCONFIGCHANGED, read_config, ALLARENAS);
 		mm->UnregCallback(CB_REWRITECOMMAND, rewritecommand, ALLARENAS);
 		cleanup_aliases();
-		mm->ReleaseInterface(cmd);
-		mm->ReleaseInterface(pd);
-		mm->ReleaseInterface(lm);
-		mm->ReleaseInterface(chat);
-		mm->ReleaseInterface(lagq);
-		mm->ReleaseInterface(net);
-		mm->ReleaseInterface(groupman);
-		mm->ReleaseInterface(idle);
+		releaseInterfaces(mm);
 		return MM_OK;
 	}
 	else

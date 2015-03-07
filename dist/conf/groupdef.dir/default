@@ -1,5 +1,6 @@
 ; conf/groups/default
 
+cmd_man
 cmd_help
 cmd_go
 cmd_arena
@@ -17,6 +18,7 @@ cmd_cheater
 cmd_where
 cmd_zone
 cmd_obscene
+privcmd_reply
 
 cmd_version
 cmd_uptime
@@ -29,9 +31,12 @@ cmd_listmod
 cmd_getgroup
 privcmd_getgroup
 cmd_grplogin
+cmd_commands
 
 cmd_lag
 privcmd_lag
+cmd_laghist
+privcmd_laghist
 
 cmd_last
 cmd_listarena
@@ -56,6 +61,7 @@ cmd_passwd
 cmd_local_password
 
 cmd_sheep
+cmd_owner
 
 privcmd_sendfile
 cmd_cancelfile

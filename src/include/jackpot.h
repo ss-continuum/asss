@@ -21,13 +21,13 @@ typedef struct Ijackpot
 	/* pyint: use */
 
 	void (*ResetJP)(Arena *arena);
-	/* pyint: arena -> void */
+	/* pyint: arena_not_none -> void */
 	void (*AddJP)(Arena *arena, int pts);
-	/* pyint: arena, int -> void */
+	/* pyint: arena_not_none, int -> void */
 	int (*GetJP)(Arena *arena);
-	/* pyint: arena -> int */
+	/* pyint: arena_not_none -> int */
 	void (*SetJP)(Arena *arena, int pts);
-	/* pyint: arena, int -> void */
+	/* pyint: arena_not_none, int -> void */
 } Ijackpot;
 
 #endif

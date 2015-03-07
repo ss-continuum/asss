@@ -58,7 +58,7 @@ local struct Iturfrewardpoints myint =
 
 
 EXPORT const char info_points_turf_reward[]
-	= "v2.2 by GiGaKiLLeR <gigamon@hotmail.com>";
+	= CORE_MOD_INFO("v2.2 by GiGaKiLLeR <gigamon@hotmail.com>");
 
 EXPORT int MM_points_turf_reward(int action, Imodman *mm, Arena *arena)
 {
@@ -243,7 +243,7 @@ local void crStandard(Arena *arena, TurfArena *ta)
 	/* figure out percent of jackpot team will recieve and how many points
 	 * that relates to */
 	if(ta->settings.reward_style == TR_STYLE_STD_BTY)
-		ta->numPoints = (ta->bountyExchanged<0) ? 0 : ta->bountyExchanged;
+		ta->numPoints = ta->bountyExchanged; // (unsigned)
 	else
 		ta->numPoints = ta->settings.reward_modifier * ta->numPlayers;
 

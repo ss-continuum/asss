@@ -29,7 +29,9 @@
 
 
 /** this callback is called when most types of chat messages pass
- ** through the server. */
+ * through the server.
+ * @threading called from main
+ */
 #define CB_CHATMSG "chatmsg"
 /** the type of CB_CHATMSG callbacks.
  * @param p the player initiating the chat message
@@ -43,10 +45,12 @@
  */
 typedef void (*ChatMsgFunc)(Player *p, int type, int sound, Player *target,
 		int freq, const char *text);
-/* pycb: player, int, int, player, int, string */
+/* pycb: player_not_none, int, int, player, int, string */
 
 
-/* this isn't for general use */
+/* this isn't for general use
+ * @threading called from main
+ */
 #define CB_REWRITECOMMAND "rewritecommand"
 typedef void (*CommandRewriterFunc)(int initial, char *buf, int len);
 
@@ -80,7 +84,7 @@ typedef struct Ichat
 	/** Send a green arena message to a player. */
 	void (*SendMessage)(Player *p, const char *format, ...)
 		ATTR_FORMAT(printf, 2, 3);
-	/* pyint: player, formatted -> void */
+	/* pyint: player_not_none, formatted -> void */
 
 	/** Sends a command response to a player.
 	 * For Continuum clients, this is the same as an arena message, but
@@ -88,7 +92,7 @@ typedef struct Ichat
 	 */
 	void (*SendCmdMessage)(Player *p, const char *format, ...)
 		ATTR_FORMAT(printf, 2, 3);
-	/* pyint: player, formatted -> void */
+	/* pyint: player_not_none, formatted -> void */
 
 	/** Sends a green arena message to a set of players. */
 	void (*SendSetMessage)(LinkedList *set, const char *format, ...)
@@ -98,7 +102,7 @@ typedef struct Ichat
 	/** Sends a green arena message plus sound code to a player. */
 	void (*SendSoundMessage)(Player *p, char sound, const char *format, ...)
 		ATTR_FORMAT(printf, 3, 4);
-	/* pyint: player, int, formatted -> void */
+	/* pyint: player_not_none, int, formatted -> void */
 
 	/** Sends a green arena message plus sound code to a set of players. */
 	void (*SendSetSoundMessage)(LinkedList *set, char sound, const char *format, ...)
@@ -136,19 +140,19 @@ typedef struct Ichat
 
 	/** Retrives the chat mask for an arena. */
 	chat_mask_t (*GetArenaChatMask)(Arena *arena);
-	/* pyint: arena -> int */
+	/* pyint: arena_not_none -> int */
 
 	/** Sets the chat mask for an arena. */
 	void (*SetArenaChatMask)(Arena *arena, chat_mask_t mask);
-	/* pyint: arena, int -> void */
+	/* pyint: arena_not_none, int -> void */
 
 	/** Retrives the chat mask for a player. */
 	chat_mask_t (*GetPlayerChatMask)(Player *p);
-	/* pyint: player -> int */
+	/* pyint: player_not_none -> int */
 
 	/** Retrievs the remaining time (in seconds) on the chat mask */
 	int (*GetPlayerChatMaskTime)(Player *p);
-	/* pyint: player -> int */
+	/* pyint: player_not_none -> int */
 
 	/** Sets the chat mask for a player.
 	 * @param p the player whose mask to modify
@@ -157,7 +161,7 @@ typedef struct Ichat
 	 * arena change), or a number of seconds for the mask to be valid
 	 */
 	void (*SetPlayerChatMask)(Player *p, chat_mask_t mask, int timeout);
-	/* pyint: player, int, int -> void */
+	/* pyint: player_not_none, int, int -> void */
 
 	/** A utility function for sending lists of items in a chat message. */
 	void (*SendWrappedText)(Player *p, const char *text);

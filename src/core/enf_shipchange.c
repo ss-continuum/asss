@@ -91,7 +91,7 @@ local void ship_change_cb(Player *p, int newship, int oldship, int newfreq, int 
 local Aenforcer myadv =
 {
 	ADVISER_HEAD_INIT(A_ENFORCER)
-	GetAllowableShips, NULL
+	GetAllowableShips, NULL, NULL, NULL
 };
 
 EXPORT const char info_enf_shipchange[] = CORE_MOD_INFO("enf_shipchange");

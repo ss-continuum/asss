@@ -40,7 +40,7 @@ enum
 	CLEANUP_SHIPCHANGE,     /* ship change */
 	CLEANUP_FREQCHANGE,     /* freq change */
 	CLEANUP_LEFTARENA,      /* carrier left arena/quit game */
-	CLEANUP_KILL_NORMAL,    /* flag got transfered for kill */
+	CLEANUP_KILL_NORMAL,    /* flag got transferred for kill */
 	CLEANUP_KILL_TK,        /* carrier was team-killed */
 	CLEANUP_KILL_CANTCARRY, /* carrier was killed, but killer can't carry more flags */
 	CLEANUP_KILL_FAKE,      /* carrier was killed by a fake player */
@@ -57,42 +57,51 @@ typedef struct FlagInfo
 } FlagInfo;
 
 
+/** run when a player is carrying a new flag. how will be one of the
+ * FLAGGAIN_ constants.
+ * @threading called from main
+ */
 #define CB_FLAGGAIN "flaggain"
 typedef void (*FlagGainFunc)(Arena *a, Player *p, int fid, int how);
-/* pycb: arena, player, int, int */
-/* run when a player is carrying a new flag. how will be one of the
- * FLAGGAIN_ constants. */
+/* pycb: arena_not_none, player_not_none, int, int */
 
+/** run when a player isn't carrying a flag anymore. how will be one of
+ * the CLEANUP_ constants.
+ * @threading called from main
+ */
 #define CB_FLAGLOST "flaglost"
 typedef void (*FlagLostFunc)(Arena *a, Player *p, int fid, int how);
-/* pycb: arena, player, int, int */
-/* run when a player isn't carrying a flag anymore. how will be one of
- * the CLEANUP_ constants. */
+/* pycb: arena_not_none, player_not_none, int, int */
 
+/** run when a flag appears on the map in a new location or with a new owner
+ * @threading called from main
+ */
 #define CB_FLAGONMAP "flagonmap"
 typedef void (*FlagOnMapFunc)(Arena *a, int fid, int x, int y, int freq);
-/* pycb: arena, int, int, int, int */
-/* run when a flag appears on the map in a new location or with a new owner */
+/* pycb: arena_not_none, int, int, int, int */
 
+/** run when the flag game is reset (either a win or a forced reset)
+ * @threading called from main
+ */
 #define CB_FLAGRESET "flagreset"
 typedef void (*FlagResetFunc)(Arena *a, int freq, int points);
-/* pycb: arena, int, int */
-/* run when the flag game is reset (either a win or a forced reset) */
+/* pycb: arena_not_none, int, int */
 
 
 #define I_FLAGCORE "flagcore-4"
 
+/* @threading should be called from main */
 typedef struct Iflagcore
 {
 	INTERFACE_HEAD_DECL
 	/* pyint: use */
 
 	int (*GetFlags)(Arena *a, int fid, FlagInfo *fis, int count);
-	/* pyint: arena, int, flaginfo out, one -> int */
+	/* pyint: arena_not_none, int, flaginfo out, one -> int */
 	int (*SetFlags)(Arena *a, int fid, FlagInfo *fis, int count);
-	/* pyint: arena, int, flaginfo, one -> int */
+	/* pyint: arena_not_none, int, flaginfo, one -> int */
 	void (*FlagReset)(Arena *a, int freq, int points);
-	/* pyint: arena, int, int -> void */
+	/* pyint: arena_not_none, int, int -> void */
 
 	/* convenience: */
 	int (*CountFlags)(Arena *a);
@@ -103,9 +112,9 @@ typedef struct Iflagcore
 	/* used during initialization: */
 
 	void (*SetCarryMode)(Arena *a, int carrymode);
-	/* pyint: arena, int -> void */
+	/* pyint: arena_not_none, int -> void */
 	void (*ReserveFlags)(Arena *a, int flagcount);
-	/* pyint: arena, int -> void */
+	/* pyint: arena_not_none, int -> void */
 } Iflagcore;
 
 
@@ -116,17 +125,23 @@ typedef struct Iflaggame
 	INTERFACE_HEAD_DECL
 	/* pyint: impl */
 
+	/** implementation should call flagcore->SetCarryMode.
+	 * @threading called from main
+	 */ 
 	void (*Init)(Arena *a);
-	/* pyint: arena -> void */
-	/* implementation should call flagcore->SetCarryMode */
+	/* pyint: arena_not_none -> void */
 
+	/** a player touched a flag 
+	 * @threading called from main
+	 */
 	void (*FlagTouch)(Arena *a, Player *p, int fid);
-	/* pyint: arena, player, int -> void */
-	/* a player touched a flag */
-
+	/* pyint: arena_not_none, player_not_none, int -> void */
+	
+	/** a flag needs to be cleaned up for some reason 
+	 * @threading called from main
+	 */
 	void (*Cleanup)(Arena *a, int fid, int reason, Player *oldcarrier, int oldfreq);
-	/* pyint: arena, int, int, player, int -> void */
-	/* a flag needs to be cleaned up for some reason */
+	/* pyint: arena_not_none, int, int, player_not_none, int -> void */
 } Iflaggame;
 
 #endif

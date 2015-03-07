@@ -141,7 +141,7 @@ EXPORT int MM_help(int action, Imodman *mm, Arena *arena)
 		if (cfg)
 			command_name = astrdup(cfg->GetStr(GLOBAL, "Help", "CommandName"));
 		if (!command_name)
-			command_name = astrdup("help");
+			command_name = astrdup("man");
 
 		cmdman->AddCommand(command_name, Chelp, ALLARENAS, help_help);
 		return MM_OK;

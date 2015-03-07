@@ -8,7 +8,7 @@
  * this module will handle all object-related packets
  */
 
-#define I_OBJECTS "objects-3"
+#define I_OBJECTS "objects-4"
 
 typedef struct Iobjects
 {
@@ -17,7 +17,7 @@ typedef struct Iobjects
 
 	/* sends the current LVZ object state to a player */
 	void (*SendState)(Player *p);
-	/* pyint: player -> void */
+	/* pyint: player_not_none -> void */
 
 	/* if target is an arena, the defaults are changed */
 	void (*Toggle)(const Target *t, int id, int on);
@@ -35,6 +35,15 @@ typedef struct Iobjects
 	/* pyint: target, int, int -> void */
 	void (*Mode)(const Target *t, int id, int mode);
 	/* pyint: target, int, int -> void */
+	
+	// toggle's the lvz off and remove's any modified info like its position
+	void (*Reset)(Arena *arena, int id);
+	/* pyint: arena_not_none, int -> void */
+
+	int (*InfoDefault)(Arena *arena, int id, int *off, int *image, int *layer, int *mode, int *mapobj, int *x, int *y, int *rx, int *ry);
+
+	//the same as ?objinfo
+	int (*InfoCurrent)(Arena *arena, int id, int *off, int *image, int *layer, int *mode, int *mapobj, int *x, int *y, int *rx, int *ry);
 } Iobjects;
 
 #endif

@@ -63,13 +63,15 @@ enum
 
 
 /** this callback is called when an arena is created or destroyed, or
- ** some configuration value for the arena changes. */
+ * some configuration value for the arena changes.
+ * @threading called from main  
+ */
 #define CB_ARENAACTION "arenaaction"
 /** the type of CB_ARENAACTION callbacks.
  * @param a the arena that something is happening to
  * @param action what is happening. @see AA_CREATE, etc. */
 typedef void (*ArenaActionFunc)(Arena *arena, int action);
-/* pycb: arena, int */
+/* pycb: arena_not_none, int */
 
 /** arena states */
 enum
@@ -120,7 +122,7 @@ enum
 
 
 /** the interface id for arenaman */
-#define I_ARENAMAN "arenaman-9"
+#define I_ARENAMAN "arenaman-B"
 
 /** the arenaman interface struct */
 typedef struct Iarenaman
@@ -140,7 +142,7 @@ typedef struct Iarenaman
 	/** Recycles an arena by suspending all the players, unloading and
 	 ** reloading the arena, and then letting the players back in. */
 	int (*RecycleArena)(Arena *a);
-	/* pyint: arena -> int */
+	/* pyint: arena_not_none -> int */
 
 	/** Moves a player into a specific arena.
 	 * Works on Continuum clients only.
@@ -150,7 +152,7 @@ typedef struct Iarenaman
 	 * @param spawny the y coord he should spawn at, or 0 for default
 	 */
 	void (*SendToArena)(Player *p, const char *aname, int spawnx, int spawny);
-	/* pyint: player, string, int, int -> void */
+	/* pyint: player_not_none, string, int, int -> void */
 
 	/** This is a multi-purpose function for locating and counting
 	 ** arenas.
@@ -160,6 +162,13 @@ typedef struct Iarenaman
 	 * and the number of non-spec players in the arena. */
 	Arena * (*FindArena)(const char *name, int *totalcount, int *playing);
 	/* pyint: string, int out, int out -> arena */
+	
+	/** Is the given arena still valid?.
+	 * Use this method to prevent use-after-free when using arenas 
+	 * in things like callbacks.
+	 * @return TRUE if the given pointer is still a valid arena.
+	 */
+	int (*IsValidPointer)(Arena *a);
 
 	/** This counts the number of players in the server and in each
 	 ** arena.
@@ -205,13 +214,13 @@ typedef struct Iarenaman
 	 * AA_CREATE and AA_DESTROY actions.
 	 */
 	void (*Hold)(Arena *a);
-	/* pyint: arena -> void */
+	/* pyint: arena_not_none -> void */
 	/** Removes a "hold" on an arena.
 	 * This must be called exactly once for each time Hold is called. It
 	 * may be called from any thread.
 	 */
 	void (*Unhold)(Arena *a);
-	/* pyint: arena -> void */
+	/* pyint: arena_not_none -> void */
 
 	/** This is a list of all the arenas the server knows about.
 	 * Don't forget the lock. You shouldn't use this directly, but use
@@ -220,6 +229,14 @@ typedef struct Iarenaman
 	 * @see FOR_EACH_ARENA_P
 	 */
 	LinkedList arenalist;
+
+	/** This is a list of all the arena names (const char *) that are present in the arenas directory.
+	 * Only directories that contain a file named "arena.conf" will be included. For example if the
+	 * file "arenas/foo/arena.conf" is found, this list will contain a "foo" entry.
+	 * "(default)" and any directory beginning with a dot are not included. "(public)" IS included.
+	 * Don't forget the lock.
+	 */
+	LinkedList known_arena_names;
 } Iarenaman;
 
 
@@ -289,7 +306,7 @@ typedef struct Iarenaplace
 	 * @return true if name was filled in, false on any error
 	 */
 	int (*Place)(char *name, int namelen, int *spawnx, int *spawny, Player *p);
-	/* pyint: string out, int buflen, int out, int out, player -> int */
+	/* pyint: string out, int buflen, int out, int out, player_not_none -> int */
 } Iarenaplace;
 
 

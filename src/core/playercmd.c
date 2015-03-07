@@ -8,11 +8,8 @@
 #include <ctype.h>
 
 #ifndef WIN32
-#include <sys/types.h>
 #include <arpa/inet.h>
 #include <sys/utsname.h>
-#include <dirent.h>
-#include <unistd.h>
 #endif
 
 
@@ -20,6 +17,7 @@
 #include "jackpot.h"
 #include "persist.h"
 #include "redirect.h"
+#include "peer.h"
 
 
 /* global data */
@@ -132,7 +130,7 @@ local void translate_arena_packet(Player *p, char *pkt, int len)
 }
 
 /* returns 0 if found, 1 if not */
-local int check_arena(char *pkt, int len, char *check)
+local int check_arena(char *pkt, int len, const char *check)
 {
 	char *pos = pkt + 1;
 	while (pos-pkt < len)
@@ -160,8 +158,15 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 	int l, seehid;
 	Arena *a;
 	Link *link;
+	const char *arenaName;
 	int cutoff = 0;
 	int chatBasedOutput = (IS_CHAT(p) || strstr(params, "-t"));
+	int showAllPeer = !!strstr(params, "-p");
+	Ipeer *peer = mm->GetInterface(I_PEER, ALLARENAS);
+	PeerZone *peerZone;
+	Link *link2;
+	PeerArena *peerArena;
+	const char *peerArenaName;
 
 	*pos++ = S2C_ARENA;
 
@@ -186,7 +191,7 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 				break;
 		}
 		/* regardless of the type of output, don't buffer overrun */
-		if (newPacketLen > sizeof(buf))
+		if (newPacketLen < 0 || (size_t) newPacketLen > sizeof(buf))
 			break;
 
 		if (a->status == ARENA_RUNNING &&
@@ -205,18 +210,88 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 
 	aman->Unlock();
 
+	if (peer)
+	{
+		peer->Lock();
+
+		FOR_EACH_PEER_ZONE(peerZone)
+			FOR_EACH(&peerZone->arenas, peerArena, link2)
+		{
+			if (!peerArena->configured && !showAllPeer)
+				continue;
+
+			peerArenaName = peerArena->name;
+
+			int nameLen = strlen(peerArenaName) + 1;
+			int newPacketLen = (pos - buf) + 2 + nameLen;
+
+			if (!cutoff && newPacketLen > (MAXPACKET-6))
+			{
+				if (chatBasedOutput)
+					cutoff = pos-buf;
+				else
+					break;
+			}
+
+			if (newPacketLen < 0 || (size_t) newPacketLen > sizeof(buf))
+				break;
+
+			if (peerArenaName[0] != '#' || seehid)
+			{
+				int count = peerArena->playerCount;
+				memcpy(pos, peerArenaName, nameLen);
+				pos += nameLen;
+				*pos++ = (count >> 0) & 0xFF;
+				*pos++ = (count >> 8) & 0xFF;
+			}
+		}
+	}
+
 #ifdef CFG_DO_EXTRAARENAS
 	/* add in more arenas if requested */
 	if (strstr(params, "-a"))
 	{
-		char aconf[PATH_MAX];
-		DIR *dir = opendir("arenas");
-		if (dir)
+		aman->Lock();
+		FOR_EACH(&aman->known_arena_names, arenaName, link)
 		{
-			struct dirent *de;
-			while ((de = readdir(dir)))
+			if (!strcmp(arenaName, "(public)"))
 			{
-				int nameLen = strlen(de->d_name) + 1;
+				arenaName = "0";
+			}
+                        
+			int nameLen = strlen(arenaName) + 1;
+			int newPacketLen = (pos - buf) + 2 + nameLen;
+
+			if (!cutoff && newPacketLen > (MAXPACKET-6))
+			{
+				if (chatBasedOutput)
+					cutoff = pos-buf;
+				else
+					break;
+			}
+
+			if (newPacketLen < 0 || (size_t)newPacketLen > sizeof(buf))
+				break;
+
+			if ( (arenaName[0] != '#' || seehid) &&
+			     check_arena((char *)buf, pos-buf, arenaName) )
+			{
+				l = strlen(arenaName) + 1;
+				strncpy((char *)pos, arenaName, l);
+				pos += l;
+				*pos++ = 0;
+				*pos++ = 0;
+			}
+		}
+		aman->Unlock();
+
+
+		if (peer)
+		{
+			FOR_EACH_PEER_ZONE(peerZone)
+				FOR_EACH(&peerZone->config.arenas, peerArenaName, link2)
+			{
+				int nameLen = strlen(peerArenaName) + 1;
 				int newPacketLen = (pos - buf) + 2 + nameLen;
 
 				if (!cutoff && newPacketLen > (MAXPACKET-6))
@@ -227,30 +302,27 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 						break;
 				}
 
-				if (newPacketLen > sizeof(buf))
+				if (newPacketLen < 0 || (size_t) newPacketLen > sizeof(buf))
 					break;
 
-				/* every arena must have an arena.conf. this filters out
-				 * ., .., CVS, etc. */
-				snprintf(aconf, sizeof(aconf), "arenas/%s/arena.conf", de->d_name);
-				if (
-						de->d_name[0] != '(' &&
-						access(aconf, R_OK) == 0 &&
-						(de->d_name[0] != '#' || seehid) &&
-						check_arena((char *)buf, pos-buf, de->d_name)
-				   )
+				if ((peerArenaName[0] != '#' || seehid) &&
+				   check_arena((char *)buf, pos-buf, peerArenaName))
 				{
-					l = strlen(de->d_name) + 1;
-					strncpy((char *)pos, de->d_name, l);
-					pos += l;
+					memcpy(pos, peerArenaName, nameLen);
+					pos += nameLen;
 					*pos++ = 0;
 					*pos++ = 0;
 				}
 			}
-			closedir(dir);
 		}
 	}
 #endif
+
+	if (peer)
+	{
+		peer->Unlock();
+	}
+	mm->ReleaseInterface(peer);
 
 	/* send it */
 	if (chatBasedOutput)
@@ -775,25 +847,13 @@ local void Cversion(const char *tc, const char *params, Player *p, const Target 
 	}
 #else
 	{
-		OSVERSIONINFO vi;
 		DWORD len;
 		char name[MAX_COMPUTERNAME_LENGTH + 1];
-
-		vi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-		GetVersionEx(&vi);
 
 		len = MAX_COMPUTERNAME_LENGTH + 1;
 		GetComputerName(name, &len);
 
-		chat->SendMessage(p, "Running on %s %s (version %ld.%ld.%ld), host: %s",
-			vi.dwPlatformId == VER_PLATFORM_WIN32s ? "Windows 3.11" :
-				vi.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS ?
-					(vi.dwMinorVersion == 0 ? "Windows 95" : "Windows 98") :
-				vi.dwPlatformId == VER_PLATFORM_WIN32_NT ? "Windows NT" : "Windows",
-			vi.szCSDVersion,
-			vi.dwMajorVersion, vi.dwMinorVersion,
-			vi.dwBuildNumber,
-			name);
+		chat->SendMessage(p, "Running on Windows, host: %s", name);
 	}
 #endif
 #endif
@@ -985,8 +1045,12 @@ local helptext_t find_help =
 local void Cfind(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Link *link;
-	Player *i, *best = NULL;
+	Player *i;
 	int score = INT_MAX; /* lower is better */
+	const char *bestArena = NULL;
+	const char *bestPlayer = NULL;
+	char bufArena[24] = {0};
+	char bufPlayer[24] = {0};
 
 	if (target->type != T_ARENA || !*params) return;
 
@@ -999,7 +1063,8 @@ local void Cfind(const char *tc, const char *params, Player *p, const Target *ta
 		if (strcasecmp(i->name, params) == 0)
 		{
 			/* exact matches always win */
-			best = i;
+			bestPlayer = i->name;
+			bestArena = i->arena->name;
 			break;
 		}
 		pos = strcasestr(i->name, params);
@@ -1010,21 +1075,36 @@ local void Cfind(const char *tc, const char *params, Player *p, const Target *ta
 			int newscore = pos - i->name;
 			if (newscore < score)
 			{
-				best = i;
+				bestPlayer = i->name;
+				bestArena = i->arena->name;
 				score = newscore;
 			}
 		}
 	}
 	pd->Unlock();
 
-	if (best)
+	if (score > 0)
 	{
-		if (best->arena->name[0] != '#' ||
+		Ipeer *peer = mm->GetInterface(I_PEER, ALLARENAS);
+		if (peer)
+		{
+			if (peer->FindPlayer(params, &score, bufPlayer, bufArena, 24))
+			{
+				bestPlayer = bufPlayer;
+				bestArena = bufArena;
+			}
+			mm->ReleaseInterface(peer);
+		}
+	}
+
+	if (bestPlayer)
+	{
+		if (bestArena[0] != '#' ||
 		    capman->HasCapability(p, CAP_SEEPRIVARENA) ||
-		    p->arena == best->arena)
-			chat->SendMessage(p, "%s is in arena %s.", best->name, best->arena->name);
+		    !strcasecmp(p->arena->name, bestArena))
+			chat->SendMessage(p, "%s is in arena %s.", bestPlayer, bestArena);
 		else
-			chat->SendMessage(p, "%s is in a private arena.", best->name);
+			chat->SendMessage(p, "%s is in a private arena.", bestPlayer);
 	}
 	else
 	{
@@ -1589,6 +1669,13 @@ local void Cz(const char *tc, const char *params, Player *p, const Target *targe
 {
 	int sound = tc[strlen(tc)+1];
 	chat->SendArenaSoundMessage(NULL, sound, "%s  -%s", params, p->name);
+
+	Ipeer *peer = mm->GetInterface(I_PEER, ALLARENAS);
+	if (peer)
+	{
+		peer->SendZoneMessage("%s  -%s", params, p->name);
+		mm->ReleaseInterface(peer);
+	}
 }
 
 
@@ -1601,6 +1688,13 @@ local void Caz(const char *tc, const char *params, Player *p, const Target *targ
 {
 	int sound = tc[strlen(tc)+1];
 	chat->SendArenaSoundMessage(NULL, sound, "%s", params);
+
+	Ipeer *peer = mm->GetInterface(I_PEER, ALLARENAS);
+	if (peer)
+	{
+		peer->SendZoneMessage("%s", params);
+		mm->ReleaseInterface(peer);
+	}
 }
 
 
@@ -1683,11 +1777,11 @@ local void Csend(const char *tc, const char *params, Player *p, const Target *ta
 	Player *t = target->u.p;
 	if (target->type != T_PLAYER || *params == '\0')
 		return;
-	if (t->type == T_CONT || t->type == T_CHAT)
+	if (t->type == T_CONT || t->type == T_CHAT || t->type == T_VIE)
 		aman->SendToArena(t, params, 0, 0);
 	else
 		chat->SendMessage(p,
-				"You can only use ?send on players using Continuum or chat clients");
+				"You can only use ?send on players using Continuum, Subspace or chat clients");
 }
 
 
@@ -1840,7 +1934,8 @@ local void Cprize(const char *tc, const char *params, Player *p, const Target *t
 #define BAD_TYPE 10000
 	const char *tmp = NULL;
 	char word[32];
-	int i, type, count = 1, t;
+	size_t i;
+	int type, count = 1, t;
 	enum { last_none, last_count, last_word } last = last_none;
 	struct
 	{

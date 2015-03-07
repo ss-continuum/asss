@@ -51,13 +51,16 @@ typedef struct ConfigHandle_ *ConfigHandle;
 #define GLOBAL ((ConfigHandle)(-3))
 
 /** pass functions of this type to LoadConfigFile to be notified when
- ** the given file is changed. */
+ * the given file is changed.
+ * @threading called from main
+ */
 typedef void (*ConfigChangedFunc)(void *clos);
 
 
 /** this callback is called when the global config file has been changed. */
 #define CB_GLOBALCONFIGCHANGED "gconfchanged"
-/** the type of the CB_GLOBALCONFIGCHANGED callback. */
+/** the type of the CB_GLOBALCONFIGCHANGED callback.
+    @threading called from main */
 typedef void (*GlobalConfigChangedFunc)(void);
 /* pycb: void */
 
@@ -167,6 +170,7 @@ typedef struct Iconfig
 	 * You shouldn't have to use this, as the server automatically
 	 * checks config files for modifications periodically.
 	 * @param ch the config file to reload
+	 * @threading call from main
 	 */
 	void (*ReloadConfigFile)(ConfigHandle ch);
 	/* pyint: config -> void */
@@ -183,6 +187,7 @@ typedef struct Iconfig
 	/** Forces the server to write changes back to config files on disk.
 	 * You shouldn't have to call this, as it's done automatically
 	 * periocally.
+	 * @threading call from main
 	 */
 	void (*FlushDirtyValues)(void);
 	/* pyint: void -> void */
@@ -191,6 +196,7 @@ typedef struct Iconfig
 	 ** modifications since they were last loaded.
 	 * You shouldn't have to call this, as it's done automatically
 	 * periocally.
+	 * @threading call from main
 	 */
 	void (*CheckModifiedFiles)(void);
 	/* pyint: void -> void */
@@ -198,6 +204,7 @@ typedef struct Iconfig
 	/** Forces a reload of one or more config files.
 	 * Pass in NULL to force a reload of all open files. Pass in a
 	 * string to limit reloading to files containing that string.
+	 * @threading call from main
 	 */
 	void (*ForceReload)(const char *pathname,
 			void (*callback)(const char *pathname, void *clos), void *clos);

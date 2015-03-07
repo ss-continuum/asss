@@ -11,7 +11,7 @@ typedef struct Ibrickwriter
 	INTERFACE_HEAD_DECL
 	/* pyint: use */
 	void (*BrickWrite)(Arena *arena, int freq, int x, int y, const char *text);
-	/* pyint: arena, int, int, int, string -> void */
+	/* pyint: arena_not_none, int, int, int, string -> void */
 } Ibrickwriter;
 
 #endif

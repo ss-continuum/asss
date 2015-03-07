@@ -132,7 +132,7 @@ local void clear_timeouts(Arena *arena)
 local Aenforcer myadv =
 {
 	ADVISER_HEAD_INIT(A_ENFORCER)
-	NULL, CanChangeFreq
+	NULL, CanChangeFreq, NULL, NULL
 };
 
 EXPORT const char info_enf_flagwin[] = CORE_MOD_INFO("enf_flagwin");

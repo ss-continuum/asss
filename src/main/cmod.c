@@ -98,13 +98,14 @@ local int load_c_module(const char *spec_, mod_args_t *args)
 		path = NULL;
 		while (strsplit(CFG_CMOD_SEARCH_PATH, ":", dir, sizeof(dir), &tmp))
 		{
-			if (snprintf(buf, sizeof(buf), "%s/%s/%s"
+			int written =  snprintf(buf, sizeof(buf), "%s/%s/%s"
 #ifndef WIN32
 						".so",
 #else
 						".dll",
 #endif
-						cwd, dir, filename) > sizeof(buf))
+						cwd, dir, filename);
+			if (written < 0 || written >= (int) sizeof(buf))
 				continue;
 			if (access(buf, F_OK) == 0)
 			{

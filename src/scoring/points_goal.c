@@ -6,7 +6,7 @@
 #include <stdio.h>
 
 #include "asss.h"
-
+#include "packets/balls.h"
 
 /* Soccer modes:
  * ALL - All goals are open for scoring by any freq.
@@ -82,6 +82,7 @@ local Iconfig *cfg;
 local Ichat *chat;
 local Icmdman *cmd;
 local Istats *stats;
+local Inet *net;
 
 EXPORT const char info_points_goal[] = CORE_MOD_INFO("points_goal");
 
@@ -97,6 +98,20 @@ EXPORT int MM_points_goal(int action, Imodman *mm_, Arena *arena)
 		chat = mm->GetInterface(I_CHAT, ALLARENAS);
 		cmd = mm->GetInterface(I_CMDMAN, ALLARENAS);
 		stats = mm->GetInterface(I_STATS, ALLARENAS);
+		net = mm->GetInterface(I_NET, ALLARENAS);
+
+		if (!pd || !balls || !aman || !cfg || !chat || !chat || !cmd || !stats || !net)
+		{
+			mm->ReleaseInterface(chat);
+			mm->ReleaseInterface(cfg);
+			mm->ReleaseInterface(aman);
+			mm->ReleaseInterface(balls);
+			mm->ReleaseInterface(pd);
+			mm->ReleaseInterface(cmd);
+			mm->ReleaseInterface(stats);
+			mm->ReleaseInterface(net);
+			return MM_FAIL;
+		}
 
 		scrkey = aman->AllocateArenaData(sizeof(struct ArenaScores));
 		if (scrkey == -1) return MM_FAIL;
@@ -119,6 +134,7 @@ EXPORT int MM_points_goal(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(cmd);
 		mm->ReleaseInterface(stats);
+		mm->ReleaseInterface(net);
 		return MM_OK;
 	}
 	else if (action == MM_ATTACH)
@@ -307,16 +323,15 @@ void MyGoal(Arena *arena, Player *p, int bid, int x, int y)
 		}
 	pd->Unlock();
 
+	int points = 0;
 	if (scores->reward)
 	{
-		int points = RewardPoints(arena, freq);
+		points = RewardPoints(arena, freq);
 
 		chat->SendSetSoundMessage(&teamset, SOUND_GOAL,
 			"Team Goal! by %s  Reward:%d", p->name, points);
 		chat->SendSetSoundMessage(&nmeset, SOUND_GOAL,
 			"Enemy Goal! by %s  Reward:%d", p->name, points);
-
-		stats->SendUpdates(NULL);
 	}
 	else
 	{
@@ -325,6 +340,19 @@ void MyGoal(Arena *arena, Player *p, int bid, int x, int y)
 		if (nullgoal) chat->SendArenaMessage(arena,"Enemy goal had no points to give.");
 	}
 	LLEmpty(&teamset); LLEmpty(&nmeset);
+
+
+	/* bots might use this packet for their events */
+	struct S2CGoal s2cGoal = {S2C_SOCCERGOAL, freq, points};
+	if (freq < 0)
+	{
+		/* soccer mode not configured */
+		s2cGoal.freq = p->p_freq;
+		s2cGoal.points = 0;
+	}
+	net->SendToArena(arena, NULL, (byte*) &s2cGoal, sizeof(s2cGoal), NET_RELIABLE | NET_PRI_P4);
+
+	stats->SendUpdates(NULL);
 
 	if (scores->mode)
 	{

@@ -7,11 +7,18 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#ifndef WIN32
+#include <unistd.h>
+#include <sys/types.h>
+#include <dirent.h>
+#endif
+
 #include "asss.h"
 #include "rwlock.h"
 #include "clientset.h"
 #include "persist.h"
 #include "redirect.h"
+#include "peer.h"
 #include "log_file.h"
 
 #include "packets/goarena.h"
@@ -57,6 +64,7 @@ local int adkey;
 /* forward declaration */
 local Iarenaman myint;
 
+int known_arena_names_busy = FALSE;
 
 local void do_attach(Arena *a)
 {
@@ -215,6 +223,8 @@ local int ProcessArenaStates(void *dummy)
 					else
 					{
 						LLRemove(&aman->arenalist, a);
+						/* RunInMain calls that refer to this arena might still be pending */
+						ml->WaitRunInMainDrain();
 						afree(a);
 					}
 				}
@@ -301,7 +311,7 @@ local inline void send_enter(Player *p, Player *to, int already)
 local void SendArenaResponse(Player *p)
 {
 	/* LOCK: maybe should lock more in here? */
-	struct SimplePacket whoami = { S2C_WHOAMI, 0 };
+	struct SimplePacket whoami = { S2C_WHOAMI, 0, 0, 0, 0, 0 };
 	Arena *a;
 	Player *op;
 	Link *link;
@@ -369,7 +379,7 @@ local void SendArenaResponse(Player *p)
 
 		if (sp->x > 0 && sp->y > 0 && sp->x < 1024 && sp->y < 1024)
 		{
-			struct SimplePacket wto = { S2C_WARPTO, sp->x, sp->y };
+			struct SimplePacket wto = { S2C_WARPTO, sp->x, sp->y, 0, 0, 0 };
 			net->SendToOne(p, (byte *)&wto, 5, NET_RELIABLE);
 		}
 	}
@@ -450,7 +460,7 @@ local void LeaveArena(Player *p)
 
 	if (notify)
 	{
-		struct SimplePacket pk = { S2C_PLAYERLEAVING, p->pid };
+		struct SimplePacket pk = { S2C_PLAYERLEAVING, p->pid, 0, 0, 0, 0 };
 		if (net) net->SendToArena(a, p, (byte*)&pk, 3, NET_RELIABLE);
 		if (chatnet) chatnet->SendToArena(a, p, "LEAVING:%s", p->name);
 		lm->Log(L_INFO, "<arenaman> {%s} [%s] leaving arena", a->name, p->name);
@@ -675,13 +685,6 @@ local void PArena(Player *p, byte *pkt, int len)
 	{
 		if (!has_cap_go(p)) return;
 		astrncpy(name, go->arenaname, 16);
-		if (p->type == T_CONT)
-		{
-			Iredirect *redir = mm->GetInterface(I_REDIRECT, ALLARENAS);
-			int handled = redir && redir->ArenaRequest(p, name);
-			mm->ReleaseInterface(redir);
-			if (handled) return;
-		}
 	}
 	else if (go->arenatype == -2 || go->arenatype == -1)
 	{
@@ -706,12 +709,33 @@ local void PArena(Player *p, byte *pkt, int len)
 		return;
 	}
 
+	if (p->type == T_CONT)
+	{
+		// First handle peer redirects
+		Ipeer *peer = mm->GetInterface(I_PEER, ALLARENAS);
+		int handled = peer && peer->ArenaRequest(p, go->arenatype, name);
+		mm->ReleaseInterface(peer);
+		if (handled)
+		{
+			return;
+		}
+
+		// Then handle general redirects
+		Iredirect *redir = mm->GetInterface(I_REDIRECT, ALLARENAS);
+		handled = redir && redir->ArenaRequest(p, name);
+		mm->ReleaseInterface(redir);
+		if(handled)
+		{
+			return;
+		}
+	}
+
 	/* only use extra byte if it's there */
 	/* cfghelp: Chat:ForceFilter, global, boolean, default: 0
 	 * If true, players will always start with the obscenity filter on
 	 * by default. If false, use their preference. */
 	complete_go(p, name, go->shiptype, go->xres, go->yres,
-			(len >= LEN_GOARENAPACKET_CONT) ? go->optionalgraphics : 0,
+			(len >= (int) LEN_GOARENAPACKET_CONT) ? go->optionalgraphics : 0,
 			go->wavmsg,
 			go->obscenity_filter || cfg->GetInt(GLOBAL, "Chat", "ForceFilter", 0),
 			spx, spy);
@@ -746,7 +770,7 @@ local void MArena(Player *p, const char *line)
 
 local void SendToArena(Player *p, const char *aname, int spawnx, int spawny)
 {
-	if (p->type == T_CONT)
+	if (p->type == T_CONT || p->type == T_VIE)
 		complete_go(p, aname, p->p_ship, p->xres, p->yres,
 				p->flags.want_all_lvz, p->pkt.acceptaudio,
 				p->flags.obscenity_filter, spawnx, spawny);
@@ -853,6 +877,23 @@ local Arena * FindArena(const char *name, int *totalp, int *playingp)
 	return arena;
 }
 
+local int IsValidPointer(Arena *b)
+{
+	Link *link;
+	Arena *a;
+	
+	RDLOCK();
+	FOR_EACH_ARENA(a)
+	{
+		if (a == b)
+		{
+			RDUNLOCK();
+			return TRUE;
+		}
+	}
+	RDUNLOCK();
+	return FALSE;
+}
 
 local LinkedList blocks;
 struct block
@@ -980,6 +1021,7 @@ local void GetPopulationSummary(int *totalp, int *playingp)
 	Arena *a;
 	Player *p;
 	int total = 0, playing = 0;
+	Icapman *capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 
 	FOR_EACH_ARENA(a)
 		a->playing = a->total = 0;
@@ -989,7 +1031,8 @@ local void GetPopulationSummary(int *totalp, int *playingp)
 	FOR_EACH_PLAYER(p)
 		if (p->status == S_PLAYING &&
 		    p->type != T_FAKE &&
-		    p->arena)
+		    p->arena &&
+		    (!capman || !capman->HasCapability(p, CAP_EXCLUDE_POPULATION)))
 		{
 			total++;
 			p->arena->total++;
@@ -1003,9 +1046,61 @@ local void GetPopulationSummary(int *totalp, int *playingp)
 
 	if (totalp) *totalp = total;
 	if (playingp) *playingp = playing;
+	
+	mm->ReleaseInterface(capman);
 }
 
+local void UpdateKnownArenas(void *unused)
+{
+	WRLOCK();
+	known_arena_names_busy = TRUE;
+	LLEnum(&aman->known_arena_names, afree);
+	LLEmpty(&aman->known_arena_names);
 
+	char confPath[PATH_MAX];
+	DIR *dir = opendir("arenas");
+	struct dirent *de;
+
+	if (dir)
+	{
+		while ((de = readdir(dir)))
+		{
+			/* every arena must have an arena.conf.  */
+			snprintf(confPath, sizeof(confPath), "arenas/%s/arena.conf", de->d_name);
+
+			if (!strcmp(de->d_name, "(default)"))
+			{
+				continue;
+			}
+
+			if (de->d_name[0] == '.')
+			{
+				continue;
+			}
+
+			if (access(confPath, R_OK))
+			{
+				continue;
+			}
+                        
+			LLAdd(&aman->known_arena_names, astrdup(de->d_name));
+		}
+		closedir(dir);
+	}
+
+	known_arena_names_busy = FALSE;
+	WRUNLOCK();
+}
+
+local int UpdateKnownArenasTimer(void *unused)
+{
+	if (!known_arena_names_busy)
+	{
+		ml->RunInThread(UpdateKnownArenas, NULL);
+	}
+
+	return TRUE; /* keep running */
+}
 
 local Iarenaman myint =
 {
@@ -1013,10 +1108,13 @@ local Iarenaman myint =
 	SendArenaResponse, LeaveArena,
 	RecycleArena,
 	SendToArena, FindArena,
+	IsValidPointer,
 	GetPopulationSummary,
 	AllocateArenaData, FreeArenaData,
 	Lock, Unlock,
-	Hold, Unhold
+	Hold, Unhold,
+	LL_INITIALIZER,
+	LL_INITIALIZER
 };
 
 EXPORT const char info_arenaman[] = CORE_MOD_INFO("arenaman");
@@ -1060,6 +1158,7 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 
 		ml->SetTimer(ProcessArenaStates, 10, 10, NULL, NULL);
 		ml->SetTimer(ReapArenas, 170, 170, NULL, NULL);
+		ml->SetTimer(UpdateKnownArenasTimer, 0, 1000, NULL, NULL);
 
 		mm->RegInterface(&myint, ALLARENAS);
 		return MM_OK;
@@ -1109,6 +1208,7 @@ EXPORT int MM_arenaman(int action, Imodman *mm_, Arena *a)
 		}
 		ml->ClearTimer(ProcessArenaStates, NULL);
 		ml->ClearTimer(ReapArenas, NULL);
+		ml->ClearTimer(UpdateKnownArenasTimer, NULL);
 		pd->FreePlayerData(spawnkey);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(net);

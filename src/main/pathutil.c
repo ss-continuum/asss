@@ -48,7 +48,7 @@ int macro_expand_string(
 					{
 						const char *with = repls[i].with;
 						i = replslen + 7;
-						if (strlen(with) < ((end-curpos)-1))
+						if (strlen(with) < (size_t) ((end-curpos)-1))
 						{
 							/* custom strcat */
 							while ((*curpos++ = *with++)) ;
@@ -134,7 +134,7 @@ int find_file_on_path(
 				stat(file, &st);
 				if (!S_ISDIR(st.st_mode))
 				{
-					if (strlen(file) >= destlen)
+					if (strlen(file) >= (size_t) destlen)
 					{
 						/* buffer isn't big enough */
 						return -1;

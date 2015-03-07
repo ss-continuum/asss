@@ -28,10 +28,19 @@ typedef struct BallSpawn
 	int x, y, r;
 } BallSpawn;
 
+typedef struct ExtraBallStateInfo
+{
+	Player *lastKiller;
+	ticks_t killerValidPickupTime;
+} ExtraBallStateInfo;
+
 typedef struct InternalBallData
 {
 	/* array of spawn locations */
 	BallSpawn *spawns;
+	
+	/* some extra info about balls that others shouldn't touch really. */
+	ExtraBallStateInfo *extraBallStateInfo;
 
 	/* when we last send ball packets out to the arena. */
 	ticks_t lastSendTime;
@@ -49,6 +58,10 @@ typedef struct InternalBallData
 
 	/* this controls whether a death on a goal tile scores or not */
 	int cfg_deathScoresGoal;
+	
+	/* how much "pass delay" should be trimmed off for someone killing a ball
+	 * carrier. */
+	int cfg_killerIgnorePassDelay;
 
 	/* if setballcount has been used, we don't want to override that if the settings change,
 	 * especially since the soccer:ballcount setting might not have been the one that changed. */
@@ -62,7 +75,7 @@ local void ChangeBallCount(Arena *arena, int count);
 local void AABall(Arena *arena, int action);
 local void PABall(Player *p, int action, Arena *arena);
 local void ShipFreqChange(Player *, int, int, int, int);
-local void BallKill(Arena *, Player *, Player *, int, int, int *, int *);
+local void BallKill(Arena *, Player *, Player *, int, int, int, int);
 
 /* timers */
 local int BasicBallTimer(void *);
@@ -177,9 +190,11 @@ EXPORT int MM_balls(int action, Imodman *mm_, Arena *arena)
 
 local void send_ball_packet(Arena *arena, int bid)
 {
+	InternalBallData *pbd = P_ARENA_DATA(arena, pbdkey);
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
 	struct BallPacket bp;
 	struct BallData *bd = abd->balls + bid;
+	ExtraBallStateInfo *extraInfo = pbd->extraBallStateInfo + bid;
 
 	LOCK_STATUS(arena);
 	bp.type = S2C_BALL;
@@ -200,10 +215,16 @@ local void send_ball_packet(Arena *arena, int bid)
 	}
 	UNLOCK_STATUS(arena);
 
-	net->SendToArena(arena, NULL, (byte*)&bp, sizeof(bp),
-			NET_UNRELIABLE | BALL_SEND_PRI);
+	net->SendToArena(arena, extraInfo->lastKiller, (byte*)&bp, sizeof(bp),
+		NET_UNRELIABLE | BALL_SEND_PRI);
+			
+	if (extraInfo->lastKiller && bd->state == BALL_ONMAP)
+	{
+		bp.time = extraInfo->killerValidPickupTime;
+		net->SendToOne(extraInfo->lastKiller, (byte*)&bp, sizeof(bp),
+			NET_RELIABLE | BALL_SEND_PRI);
+	}
 }
-
 
 local void InitBall(Arena *arena, int bid)
 {
@@ -342,6 +363,7 @@ void ChangeBallCount(Arena *arena, int ballcount)
 void PlaceBall(Arena *arena, int bid, struct BallData *newpos)
 {
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
+	InternalBallData *pbd = P_ARENA_DATA(arena, pbdkey);
 
 	if (!newpos) return;
 
@@ -354,8 +376,10 @@ void PlaceBall(Arena *arena, int bid, struct BallData *newpos)
 	LOCK_STATUS(arena);
 	if (bid >= 0 && bid < abd->ballcount)
 	{
+		ExtraBallStateInfo *extraInfo = pbd->extraBallStateInfo + bid;
 		memcpy(abd->previous + bid, abd->balls + bid, sizeof(struct BallData));
 		memcpy(abd->balls + bid, newpos, sizeof(struct BallData));
+		extraInfo->lastKiller = NULL;
 		send_ball_packet(arena, bid);
 	}
 	UNLOCK_STATUS(arena);
@@ -518,6 +542,11 @@ local int load_ball_settings(Arena *arena)
 	 * on a goal tile. */
 	pbd->cfg_deathScoresGoal = cfg->GetInt(c, "Soccer", "AllowGoalByDeath", 0);
 
+	/* cfghelp: Soccer:KillerIgnorePassDelay, arena, int, def: 0
+	 * How much 'pass delay' should be trimmed off for someone killing a ball
+	 * carrier. */
+	pbd->cfg_killerIgnorePassDelay = cfg->GetInt(c, "Soccer", "KillerIgnorePassDelay", 0);
+	
 	UNLOCK_STATUS(arena);
 
 	return newBallCount;
@@ -551,6 +580,7 @@ void AABall(Arena *arena, int action)
 		pbd->lastSendTime = current_ticks();
 		pbd->spawnCount = 0;
 		pbd->ballcountOverridden = FALSE;
+		pbd->extraBallStateInfo = amalloc(MAXBALLS * sizeof(ExtraBallStateInfo));
 
 		abd->ballcount = load_ball_settings(arena);
 
@@ -586,6 +616,7 @@ void AABall(Arena *arena, int action)
 
 		/* clean up internal data */
 		afree(pbd->spawns);
+		afree(pbd->extraBallStateInfo);
 		pbd->spawnCount = 0;
 		pbd->ballcountOverridden = FALSE;
 	}
@@ -606,17 +637,25 @@ void AABall(Arena *arena, int action)
 }
 
 
-local void CleanupAfter(Arena *arena, Player *p, int neut, int leaving)
+local void CleanupAfter(Arena *arena, Player *p, Player *killer, int neut, int leaving)
 {
 	/* make sure that if someone leaves, his ball drops */
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
+	InternalBallData *pbd = P_ARENA_DATA(arena, pbdkey);
 	int i;
 	struct BallData *b = abd->balls;
 	struct BallData *prev = abd->previous;
+	ExtraBallStateInfo *extraInfo = pbd->extraBallStateInfo;
 
 	LOCK_STATUS(arena);
-	for (i = 0; i < abd->ballcount; i++, b++, prev++)
+	for (i = 0; i < abd->ballcount; i++, b++, prev++, extraInfo++)
 	{
+		if (extraInfo->lastKiller == p)
+		{
+			/* this info no longer applies to this player. */
+			extraInfo->lastKiller = NULL;
+		}
+		
 		if (leaving && prev->carrier == p)
 		{
 			/* prevent stale pointer from appearing in historical data. */
@@ -666,7 +705,18 @@ local void CleanupAfter(Arena *arena, Player *p, int neut, int leaving)
 				memcpy(b, &defaultbd, sizeof(struct BallData));
 			}
 
-			send_ball_packet(arena, i);
+			if (killer && pbd->cfg_killerIgnorePassDelay)
+			{
+				extraInfo->lastKiller = killer;
+				extraInfo->killerValidPickupTime = b->time - pbd->cfg_killerIgnorePassDelay;
+				send_ball_packet(arena, i);
+			}
+			else
+			{
+				extraInfo->lastKiller = NULL;
+				send_ball_packet(arena, i);
+			}
+			
 
 			/* don't forget fire callbacks. even if advisers disallowed it the ball is stil leaving the player like it or not, so we must fire
 			 * the callback. */
@@ -699,19 +749,19 @@ void PABall(Player *p, int action, Arena *arena)
 	/* if he's entering arena, the timer event will send him the ball
 	 * info. */
 	if (action == PA_LEAVEARENA)
-		CleanupAfter(arena, p, 1, 1);
+		CleanupAfter(arena, p, NULL, 1, 1);
 }
 
 void ShipFreqChange(Player *p, int newship, int oldship, int newfreq, int oldfreq)
 {
-	CleanupAfter(p->arena, p, 1, 0);
+	CleanupAfter(p->arena, p, NULL, 1, 0);
 }
 
 void BallKill(Arena *arena, Player *killer, Player *killed, int bounty,
-		int flags, int *pts, int *green)
+		int flags, int pts, int green)
 {
 	InternalBallData *pbd = P_ARENA_DATA(arena, pbdkey);
-	CleanupAfter(arena, killed, !pbd->cfg_deathScoresGoal, 0);
+	CleanupAfter(arena, killed, killer, !pbd->cfg_deathScoresGoal, 0);
 }
 
 
@@ -719,10 +769,12 @@ void PPickupBall(Player *p, byte *pkt, int len)
 {
 	Arena *arena = p->arena;
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
-
+	InternalBallData *pbd = P_ARENA_DATA(arena, pbdkey);
+	
 	int i;
 	struct BallData *bd;
 	struct C2SPickupBall *bp = (struct C2SPickupBall*)pkt;
+	ExtraBallStateInfo *extraInfo;
 	int bid = bp->ballid;
 
 	LinkedList advisers = LL_INITIALIZER;
@@ -766,6 +818,7 @@ void PPickupBall(Player *p, byte *pkt, int len)
 	}
 
 	bd = abd->balls + bid;
+	extraInfo = pbd->extraBallStateInfo + bid;
 
 	/* make sure someone else didn't get it first */
 	if (bd->state != BALL_ONMAP)
@@ -775,7 +828,7 @@ void PPickupBall(Player *p, byte *pkt, int len)
 		return;
 	}
 
-	if (bp->time != bd->time)
+	if (bp->time != bd->time && (p != extraInfo->lastKiller || bp->time != extraInfo->killerValidPickupTime))
 	{
 		logm->LogP(L_WARN, "balls", p, "state sync problem: tried to pick up a ball from stale coords");
 		UNLOCK_STATUS(arena);
@@ -823,6 +876,7 @@ void PPickupBall(Player *p, byte *pkt, int len)
 	else
 	{
 		memcpy(abd->previous + bid, &defaultbd, sizeof(struct BallData));
+		extraInfo->lastKiller = NULL;
 		send_ball_packet(arena, bp->ballid);
 		
 		/* now call callbacks */
@@ -843,8 +897,10 @@ void PFireBall(Player *p, byte *pkt, int len)
 {
 	Arena *arena = p->arena;
 	ArenaBallData *abd = P_ARENA_DATA(arena, abdkey);
+	InternalBallData *pbd = P_ARENA_DATA(arena, pbdkey);
 
 	struct BallData *bd;
+	ExtraBallStateInfo *extraInfo;
 	struct BallPacket *fb = (struct BallPacket *)pkt;
 	int bid = fb->ballid;
 
@@ -882,6 +938,7 @@ void PFireBall(Player *p, byte *pkt, int len)
 	}
 
 	bd = abd->balls + bid;
+	extraInfo = pbd->extraBallStateInfo + bid;
 
 	if (bd->state != BALL_CARRIED || bd->carrier != p)
 	{
@@ -921,6 +978,7 @@ void PFireBall(Player *p, byte *pkt, int len)
 	}
 	else
 	{
+		extraInfo->lastKiller = NULL;
 		memcpy(abd->previous + bid, &defaultbd, sizeof(struct BallData));
 		send_ball_packet(arena, bid);
 		

@@ -20,7 +20,7 @@
 #include <stdio.h>
 
 #include "asss.h"
-
+#include "peer.h"
 
 /* the thing to send */
 #pragma pack(push, 1)
@@ -49,6 +49,7 @@ local Ilogman *lm;
 local Imodman *mm;
 
 local LinkedList servers;
+local pthread_mutex_t servers_mtx = PTHREAD_MUTEX_INITIALIZER;
 local LinkedList packets;
 local int sock;
 
@@ -58,6 +59,8 @@ local int SendUpdates(void *dummy)
 	int n, count = 0;
 	Link *link, *l, *k;
 	Player *p;
+	Icapman *capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
+	Ipeer *peer = mm->GetInterface(I_PEER, ALLARENAS);
 
 	lm->Log(L_DRIVEL, "<directory> sending information to directory servers");
 
@@ -67,9 +70,16 @@ local int SendUpdates(void *dummy)
 	/* figure out player count */
 	pd->Lock();
 	FOR_EACH_PLAYER(p)
-		if (p->status == S_PLAYING && p->type != T_FAKE)
+		if (p->status == S_PLAYING && 
+		p->type != T_FAKE &&
+		(!capman || !capman->HasCapability(p, CAP_EXCLUDE_POPULATION)))
 			count++;
 	pd->Unlock();
+
+	if (peer)
+	{
+		count += peer->GetPopulationSummary();
+	}
 
 	for (k = LLGetHead(&packets); k; k = k->next)
 	{
@@ -80,6 +90,10 @@ local int SendUpdates(void *dummy)
 			data->players = count;
 		n = offsetof(struct S2DInfo, description) + strlen(data->description) + 1;
 
+		/* no need to lock servers_mtx here because
+		 * init_servers_work is the only thing called from a non main thread.
+		 * (That function is the one that sets this timer upon its completion)
+		 */
 		for (l = LLGetHead(&servers); l; l = l->next)
 			sendto(
 					sock,
@@ -90,6 +104,8 @@ local int SendUpdates(void *dummy)
 					sizeof(struct sockaddr_in));
 	}
 
+	mm->ReleaseInterface(capman);
+	mm->ReleaseInterface(peer);
 	return TRUE;
 }
 
@@ -170,11 +186,12 @@ local void init_data(void)
 }
 
 
-local void init_servers(void)
+local void init_servers_work(void *unused)
 {
 	char skey[] = "Server#", pkey[] = "Port#";
 	unsigned short i, defport, port;
 
+	pthread_mutex_lock(&servers_mtx);
 	LLInit(&servers);
 
 	/* cfghelp: Directory:Port, global, int, def: 4991
@@ -208,13 +225,20 @@ local void init_servers(void)
 			}
 		}
 	}
+
+	pthread_mutex_unlock(&servers_mtx);
+	ml->SetTimer(SendUpdates, 1000, 6000, NULL, NULL);
 }
 
 
 local void deinit_all(void)
 {
+	/* will block if init_servers_work is still busy */
+	pthread_mutex_lock(&servers_mtx);
 	LLEnum(&servers, afree);
 	LLEmpty(&servers);
+	pthread_mutex_unlock(&servers_mtx);
+
 	LLEnum(&packets, afree);
 	LLEmpty(&packets);
 }
@@ -250,9 +274,8 @@ EXPORT int MM_directory(int action, Imodman *mm_, Arena *arena)
 		}
 
 		init_data();
-		init_servers();
+		ml->RunInThread(init_servers_work, NULL);
 
-		ml->SetTimer(SendUpdates, 1000, 6000, NULL, NULL);
 		return MM_OK;
 	}
 	else if (action == MM_UNLOAD)

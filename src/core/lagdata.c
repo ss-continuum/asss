@@ -291,7 +291,8 @@ local Ilagcollect lcint =
 {
 	INTERFACE_HEAD_INIT(I_LAGCOLLECT, "lagdata")
 	Position, RelDelay, ClientLatency,
-	TimeSync, RelStats
+	TimeSync, RelStats,
+	NULL // implementation missing
 };
 
 

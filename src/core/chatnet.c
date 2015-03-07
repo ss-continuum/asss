@@ -166,7 +166,7 @@ local int do_one_iter(void *dummy)
 	Player *p;
 	sp_conn *cli;
 	Link *link;
-	int max, ret;
+	int max;
 	ticks_t gtc = current_ticks();
 	fd_set readset, writeset;
 	struct timeval tv = { 0, 0 };
@@ -218,7 +218,7 @@ local int do_one_iter(void *dummy)
 		pd->FreePlayer(link->data);
 	LLEmpty(&toremove);
 
-	ret = select(max + 1, &readset, &writeset, NULL, &tv);
+	select(max + 1, &readset, &writeset, NULL, &tv);
 
 	/* new connections? */
 	if (FD_ISSET(mysock, &readset))
@@ -277,6 +277,12 @@ local void AddHandler(const char *type, MessageFunc f)
 	LOCK();
 	HashAdd(handlers, type, f);
 	UNLOCK();
+}
+
+local void CallHandler(Player *p, const char *type, const char *line)
+{
+	MessageFunc func = (MessageFunc)HashGetOne(handlers, type);
+        func(p, line);
 }
 
 local void RemoveHandler(const char *type, MessageFunc f)
@@ -387,7 +393,7 @@ local void do_final_shutdown(void)
 local Ichatnet _int =
 {
 	INTERFACE_HEAD_INIT(I_CHATNET, "net-chat")
-	AddHandler, RemoveHandler,
+	AddHandler, CallHandler, RemoveHandler,
 	SendToOne, SendToArena, SendToSet,
 	GetClientStats
 };

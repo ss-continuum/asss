@@ -67,6 +67,7 @@ typedef struct DBMessage
 	void *val;
 	int vallen;
 	void (*gencb)(void *clos, int result);
+	int gencb_result;
 	void *clos;
 } DBMessage;
 
@@ -98,7 +99,29 @@ local DB *db;
 
 local int cfg_syncseconds;
 
+local void run_dbmessage_cb(DBMessage *msg)
+{
+	if (msg->playercb)
+	{
+		msg->playercb(msg->p);
+	}
+	if (msg->arenacb)
+	{
+		msg->arenacb(msg->arena);
+	}
+	if (msg->gencb)
+	{
+		msg->gencb(msg->clos, msg->gencb_result);
+	}
 
+	if (msg->command == DBCMD_ENDINTERVAL)
+	{
+		DO_CBS(CB_INTERVAL_ENDED, ALLARENAS, EndIntervalFunc, ());
+	}
+
+	/* free the message */
+	afree(msg);
+}
 
 local void fill_in_ag(char buf[MAXAGLEN], Arena *arena, int interval)
 {
@@ -572,7 +595,6 @@ local void *DBThread(void *dummy)
 	Link *l, *link;
 	Arena *arena;
 	Player *i;
-	int result;
 
 	for (;;)
 	{
@@ -582,7 +604,7 @@ local void *DBThread(void *dummy)
 		/* break on null */
 		if (!msg) break;
 
-		result = 0;
+		msg->gencb_result = 0;
 
 		/* lock data descriptor lists */
 		pthread_mutex_lock(&dbmtx);
@@ -650,26 +672,19 @@ local void *DBThread(void *dummy)
 				break;
 
 			case DBCMD_GET_GENERIC:
-				result = get_generic(msg);
+				msg->gencb_result = get_generic(msg);
 				break;
 
 			case DBCMD_PUT_GENERIC:
-				result = put_generic(msg);
+				msg->gencb_result = put_generic(msg);
 				break;
 		}
 
 		/* and unlock */
 		pthread_mutex_unlock(&dbmtx);
 
-		/* if we were looking for notification, notify */
-		if (msg->playercb) msg->playercb(msg->p);
-		if (msg->arenacb) msg->arenacb(msg->arena);
-		if (msg->gencb) msg->gencb(msg->clos, result);
-		if (msg->command == DBCMD_ENDINTERVAL)
-			DO_CBS(CB_INTERVAL_ENDED, ALLARENAS, EndIntervalFunc, ());
-
-		/* free the message */
-		afree(msg);
+		/* message is free()d by this RunInMainFunc */
+		ml->RunInMain((RunInMainFunc) run_dbmessage_cb, msg);
 
 		/* and give up some time */
 		usleep(1000);
@@ -1011,6 +1026,7 @@ EXPORT int MM_persist(int action, Imodman *mm_, Arena *arena)
 		MPInit(&dbq);
 
 		pthread_create(&dbthread, NULL, DBThread, NULL);
+		set_thread_name(dbthread, "asss-persist");
 
 		mm->RegInterface(&_myint, ALLARENAS);
 
@@ -1030,6 +1046,7 @@ EXPORT int MM_persist(int action, Imodman *mm_, Arena *arena)
 			return MM_FAIL;
 		ml->ClearTimer(SyncTimer, NULL);
 		mm->UnregCallback(CB_ARENAACTION, aaction, ALLARENAS);
+		ml->WaitRunInMainDrain();
 		aman->FreeArenaData(adkey);
 		mm->ReleaseInterface(pd);
 		mm->ReleaseInterface(aman);

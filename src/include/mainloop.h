@@ -14,20 +14,31 @@
  * @param param is a closure argument
  * @return true if the timer wants to continue running, false if it
  * wants to be cancelled
+ * @threading called from main 
  */
 typedef int (*TimerFunc)(void *param);
 
 /** timer cleanup functions must be of this type.
  * @param param the same closure argument that gets passed to the timer
  * function
+ * @threading called from main  
  */
 typedef void (*CleanupFunc)(void *param);
 
-/** threadpool work functions must be of this type. */
+/** threadpool work functions must be of this type.
+ * @threading called from worker  
+ */
 typedef void (*WorkFunc)(void *param);
+
+/** A function that should be run on the main thread as soon as possible
+ * (much faster than a timer)
+ * @threading called from main
+ */
+typedef void (*RunInMainFunc)(void *param);
 
 /** this callback is called once per iteration of the main loop.
  * probably a few hundred times per second.
+ * @threading called from main  
  */
 #define CB_MAINLOOP "mainloop"
 /** the type of CB_MAINLOOP callbacks */
@@ -36,7 +47,7 @@ typedef void (*MainLoopFunc)(void);
 
 
 /** the interface id for Imainloop */
-#define I_MAINLOOP "mainloop-3"
+#define I_MAINLOOP "mainloop-4"
 
 /** the interface struct for Imainloop */
 typedef struct Imainloop
@@ -88,6 +99,18 @@ typedef struct Imainloop
 
 	/** Runs the given function on some other thread. */
 	void (*RunInThread)(WorkFunc func, void *param);
+
+	/** Runs the given function on the main thread as soon as possible.
+	 * The function will be called much faster than if you were to use a timer.
+	 */
+	void (*RunInMain)(RunInMainFunc func, void *param);
+
+	/**
+	 * This call blocks until all the current scheduled RunInMain functions have been called.
+	 * If your modules uses RunInMain, call this upon MM_UNLOAD to make sure the RunInMainFunc and its params
+	 * are still valid.
+	 */
+	void (*WaitRunInMainDrain)();
 } Imainloop;
 
 

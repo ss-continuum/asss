@@ -87,6 +87,7 @@ enum
 /** this callback is called at several important points, including when
  ** players connect, disconnect, enter and leave arenas.
  * most basic per-player [de]initialization should happen here.
+ * @threading called from main 
  */
 #define CB_PLAYERACTION "playeraction"
 /** the type of the CB_PLAYERACTION callback.
@@ -97,51 +98,7 @@ enum
  * the arena being entered or left.
  */
 typedef void (*PlayerActionFunc)(Player *p, int action, Arena *arena);
-/* pycb: player, int, arena */
-
-
-/** the interface id for Ifreqman */
-/*#define I_FREQMAN "freqman-1"*/
-
-/** the interface struct for Ifreqman.
- * this interface is designed to be implemented by a non-core module,
- * and probably registered per-arena (as a result of attaching a module
- * to an arena). its functions are then called by core modules when a
- * player's ship/freq need to be changed for any reason. they will see
- * the player whose ship/freq is being changed, and the requested ship
- * and freq. they may modify the requested ship and freq. if the freq
- * isn't determined yet (as for InitialFreq, freq will contain -1).
- * if you want to deny the change request, just set ship and freq to the
- * same as the current values:
- * @code
- *     *ship = p->p_ship; *freq = p->p_freq;
- * @endcode
- */
-/*typedef struct Ifreqman
-{
-	INTERFACE_HEAD_DECL
-	/ * pyint: use, impl * /
-
-
-	/ ** called when a player connects and needs to be assigned to a freq.
-	 * ship will initially contain the requested ship, and freq will
-	 * contain -1. * /
-	void (*InitialFreq)(Player *p, int *ship, int *freq);
-	/ * pyint: player, int inout, int inout -> void * /
-
-	/ ** called when a player requests a ship change.
-	 * ship will initially contain the ship request, and freq will
-	 * contain the player's current freq. * /
-	void (*ShipChange)(Player *p, int *ship, int *freq);
-	/ * pyint: player, int inout, int inout -> void * /
-
-	/ ** called when a player requests a freq change.
-	 * ship will initially contain the player's ship, and freq will
-	 * contain the requested freq. * /
-	void (*FreqChange)(Player *p, int *ship, int *freq);
-	/ * pyint: player, int inout, int inout -> void * /
-} Ifreqman;*/
-
+/* pycb: player_not_none, int, arena */
 
 /** the interface id for Iauth */
 #define I_AUTH "auth-2"

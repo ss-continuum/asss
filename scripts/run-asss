@@ -1,9 +1,9 @@
-#!/bin/sh
+#!/bin/bash
 # vim: et sw=2 ts=2
 # dist: public
 
 # change this to the root of your asss installation
-ASSSHOME=$HOME/src/asss
+ASSSHOME=$HOME/zone
 
 # start of stuff not to change
 

@@ -20,6 +20,10 @@ higher_than_default
 prefix_+
 
 cmd_ballcount
+cmd_ballinfo
+cmd_giveball
+cmd_moveball
+cmd_spawnball
 cmd_flagreset
 cmd_listmod
 cmd_a
@@ -33,6 +37,9 @@ cmd_recyclearena
 privcmd_kick
 cmd_listmidbans
 cmd_delmidban
+cmd_delkick
+cmd_liftkick
+cmd_listkick
 cmd_setjackpot
 privcmd_where
 

@@ -98,7 +98,7 @@ local void clearHistory(Arena *arena);
 local void ADisplay(Arena *arena, int histNum);
 local void PDisplay(Arena *arena, Player *pid, int histNum);
 
-EXPORT const char info_turf_stats[] = "v0.2.4 by GiGaKiLLeR <gigamon@hotmail.com>";
+EXPORT const char info_turf_stats[] = CORE_MOD_INFO("turf_stats v0.2.4 by GiGaKiLLeR <gigamon@hotmail.com>");
 
 EXPORT int MM_turf_stats(int action, Imodman *_mm, Arena *arena)
 {
@@ -150,6 +150,19 @@ EXPORT int MM_turf_stats(int action, Imodman *_mm, Arena *arena)
 		/* create all necessary callbacks */
 		mm->RegCallback(CB_ARENAACTION, arenaAction, arena);
 		mm->RegCallback(CB_TURFPOSTREWARD, postReward, arena);
+		
+		
+		if (arena->status > ARENA_WAIT_HOLDS0)
+		{
+			// ?attmod
+			arenaAction(arena, AA_PRECREATE);
+		}
+		
+		if (arena->status > ARENA_WAIT_HOLDS1)
+		{
+			arenaAction(arena, AA_CREATE);
+		}
+		
 		return MM_OK;
 	}
 	else if (action == MM_DETACH)
@@ -157,6 +170,18 @@ EXPORT int MM_turf_stats(int action, Imodman *_mm, Arena *arena)
 		/* unregister all the callbacks */
 		mm->UnregCallback(CB_ARENAACTION, arenaAction, arena);
 		mm->UnregCallback(CB_TURFPOSTREWARD, postReward, arena);
+		
+		if (arena->status < ARENA_WAIT_HOLDS2)
+		{
+			// ?detmod
+			arenaAction(arena, AA_DESTROY);
+		}
+		
+		if (arena->status < ARENA_DO_DESTROY2)
+		{
+			arenaAction(arena, AA_POSTDESTROY);
+		}
+		
 		return MM_OK;
 	}
 	return MM_FAIL;
@@ -174,8 +199,10 @@ local void arenaAction(Arena *arena, int action)
 		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 		pthread_mutex_init((pthread_mutex_t*)P_ARENA_DATA(arena, mtxkey), &attr);
 		pthread_mutexattr_destroy(&attr);
+		return;
 	}
-	else if (action == AA_PRECREATE)
+	
+	if (action == AA_CREATE)
 	{
 		ts = amalloc(sizeof(TurfStats));
 		*p_ts = ts;
@@ -263,8 +290,11 @@ local void postReward(Arena *arena, TurfArena *ta)
 		}
 
 		l = LLGetHead(&ts->stats);  /* l now points to the end of the LinkedList */
-		data = l->data;
-		LLRemove(&ts->stats, data); /* remove the link */
+		if (l)
+		{
+			data = l->data;
+			LLRemove(&ts->stats, data); /* remove the link */
+		}
 		ts->numStats--;
 	}
 
@@ -334,7 +364,7 @@ local void ADisplay(Arena *arena, int histNum)
 	TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
 	Link *l;
 	int x;
-	TurfStatsData *tsd;
+	TurfStatsData *tsd = NULL;
 	TurfTeam *pFreq;
 
 	if (!arena || !*p_ts) return; else ts = *p_ts;
@@ -352,6 +382,8 @@ local void ADisplay(Arena *arena, int histNum)
 		}
 	}
 
+	if (!tsd) return;
+
 	chat->SendArenaMessage(arena, "Freq Plyrs Flags %%Flgs  Wghts %%Wghts   PerCap   %%JP    Pts");
 	chat->SendArenaMessage(arena, "---- ----- ----- ----- ------ ------ -------- ----- ------");
 
@@ -359,7 +391,7 @@ local void ADisplay(Arena *arena, int histNum)
 	for(l = LLGetHead(&tsd->teams); l; l = l->next)
 	{
 		int freq, numFlags, numPlayers;
-		unsigned int tags, steals, recoveries, lost, numPoints;
+		unsigned int /*tags, steals, recoveries, lost,*/ numPoints;
 		long int numWeights;
 		double percentFlags, percentWeights, perCapita, percent;
 		pFreq = l->data;
@@ -370,10 +402,10 @@ local void ADisplay(Arena *arena, int histNum)
 		percentFlags   = pFreq->percentFlags;
 		numWeights     = pFreq->numWeights;
 		percentWeights = pFreq->percentWeights;
-		tags           = pFreq->tags;
+		/*tags           = pFreq->tags;
 		steals         = pFreq->steals;
 		recoveries     = pFreq->recoveries;
-		lost           = pFreq->lost;
+		lost           = pFreq->lost;*/
 		numPlayers     = pFreq->numPlayers;
 		perCapita      = pFreq->perCapitaWeights;
 		percent        = pFreq->percent;
@@ -408,7 +440,7 @@ local void PDisplay(Arena *arena, Player *pid, int histNum)
 	TurfStats *ts, **p_ts = P_ARENA_DATA(arena, tskey);
 	Link *l;
 	int x;
-	TurfStatsData *tsd;
+	TurfStatsData *tsd = NULL;
 	TurfTeam *pFreq;
 
 	if (!arena || !*p_ts) return; else ts = *p_ts;
@@ -429,6 +461,8 @@ local void PDisplay(Arena *arena, Player *pid, int histNum)
 		}
 	}
 
+	if (!tsd) return;
+
 	chat->SendMessage(pid, "Freq Plyrs Flags %%Flgs  Wghts %%Wghts   PerCap   %%JP    Pts");
 	chat->SendMessage(pid, "---- ----- ----- ----- ------ ------ -------- ----- ------");
 
@@ -436,7 +470,7 @@ local void PDisplay(Arena *arena, Player *pid, int histNum)
 	for(l = LLGetHead(&tsd->teams) ; l ; l=l->next)
 	{
 		int freq, numFlags, numPlayers;
-		unsigned int tags, steals, recoveries, lost, numPoints;
+		unsigned int /*tags, steals, recoveries, lost,*/ numPoints;
 		long int numWeights;
 		double percentFlags, percentWeights, perCapita, percent;
 		pFreq = l->data;
@@ -447,10 +481,10 @@ local void PDisplay(Arena *arena, Player *pid, int histNum)
 		percentFlags   = pFreq->percentFlags;
 		numWeights     = pFreq->numWeights;
 		percentWeights = pFreq->percentWeights;
-		tags           = pFreq->tags;
+		/*tags           = pFreq->tags;
 		steals         = pFreq->steals;
 		recoveries     = pFreq->recoveries;
-		lost           = pFreq->lost;
+		lost           = pFreq->lost;*/
 		numPlayers     = pFreq->numPlayers;
 		perCapita      = pFreq->perCapitaWeights;
 		percent        = pFreq->percent;

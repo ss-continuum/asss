@@ -275,8 +275,10 @@ struct Player
 
 
 /** this callback is called whenever a Player struct is allocated or
- ** deallocated. in general you probably want to use CB_PLAYERACTION
- ** instead of this callback for general initialization tasks. */
+ * deallocated. in general you probably want to use CB_PLAYERACTION
+ * instead of this callback for general initialization tasks.
+ * @threading called from main
+ */
 #define CB_NEWPLAYER "newplayer"
 /** the type of CB_NEWPLAYER
  * @param p the player struct being allocated/deallocated
@@ -286,7 +288,7 @@ typedef void (*NewPlayerFunc)(Player *p, int isnew);
 
 
 /** the interface id for playerdata */
-#define I_PLAYERDATA "playerdata-8"
+#define I_PLAYERDATA "playerdata-9"
 
 /** the playerdata interface struct */
 typedef struct Iplayerdata
@@ -301,6 +303,7 @@ typedef struct Iplayerdata
 	 * @return the newly allocated player struct
 	 */
 	Player * (*NewPlayer)(int type);
+	/* pyint: int -> player_not_none */
 
 	/** Frees memory associated with a player.
 	 * This is called by the network modules when a connection has
@@ -317,7 +320,7 @@ typedef struct Iplayerdata
 	 * @param p the player to kick
 	 */
 	void (*KickPlayer)(Player *p);
-	/* pyint: player -> void */
+	/* pyint: player_not_none -> void */
 
 
 	/** Finds the player with the given pid.
@@ -334,6 +337,13 @@ typedef struct Iplayerdata
 	 */
 	Player * (*FindPlayer)(const char *name);
 	/* pyint: string -> player */
+	
+	/** Is the given player still valid?.
+	 * Use this method to prevent use-after-free when using players 
+	 * in things like callbacks.	
+	 * @return TRUE if the given pointer is still a valid player.
+	 */
+	int (*IsValidPointer)(Player *p);
 
 	/** Converts a Target to a specific list of players.
 	 * The players represented by the target will be added to the given

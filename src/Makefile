@@ -31,7 +31,7 @@ include os.mk
 
 # apply build options
 ifeq ($(debug),yes)
-DEBUG_CFLAGS = -g -Wall
+DEBUG_CFLAGS = -g -Wall -Wextra -Wno-unused-parameter
 endif
 
 ifeq ($(prof),yes)
@@ -39,14 +39,14 @@ PROF_FLAGS = -pg
 endif
 
 ifeq ($(opt),yes)
-OPT_CFLAGS = -O2 -Wall
+OPT_CFLAGS = -O2 -Wall -Wextra -Wno-unused-parameter
 endif
 
 # for older gcc, remove the -std option
 CC = gcc -std=gnu99 -pipe
 STD_CFLAGS = -I. -Iinclude -I$(BUILDDIR) $(EXTRA_INCLUDE_DIRS) -D_REENTRANT -D_GNU_SOURCE $(DASH_F_PIC)
 CFLAGS = $(STD_CFLAGS) $(DEBUG_CFLAGS) $(PROF_FLAGS) $(OPT_CFLAGS)
-LDFLAGS = $(DASH_PTHREAD) $(DASH_F_PIC) $(PROF_FLAGS)
+LDFLAGS = $(DASH_PTHREAD) $(DASH_F_PIC) $(PROF_FLAGS) -lrt
 
 # some macros to help with putting output in $(BUILDDIR)
 tobuild = $(addprefix $(BUILDDIR)/,$(1))

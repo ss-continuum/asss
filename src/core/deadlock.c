@@ -16,7 +16,7 @@ local volatile int counter;
 local void * thread_check(void *dummy)
 {
 #ifdef WIN32
-	/* nanosleep isn't a cancellation point on windows, so we use
+	/* Sleep isn't a cancellation point on windows, so we use
 	 * asynchronous cancellation there. */
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 #endif
@@ -49,6 +49,7 @@ EXPORT int MM_deadlock(int action, Imodman *mm, Arena *arena)
 	if (action == MM_LOAD)
 	{
 		pthread_create(&thd, NULL, thread_check, NULL);
+		set_thread_name(thd, "asss-deadlock");
 		mm->RegCallback(CB_MAINLOOP, increment, ALLARENAS);
 		return MM_OK;
 	}

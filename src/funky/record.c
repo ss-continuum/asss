@@ -271,7 +271,7 @@ local void cb_shipfreqchange(Player *p, int newship, int oldship, int newfreq, i
 }
 
 local void cb_kill(Arena *a, Player *killer, Player *killed,
-		int bty, int flags, int *pts, int *green)
+		int bty, int flags, int pts, int green)
 {
 	rec_adata *ra = P_ARENA_DATA(a, adkey);
 	struct event_kill *ev = amalloc(sizeof(*ev));
@@ -280,7 +280,7 @@ local void cb_kill(Arena *a, Player *killer, Player *killed,
 	ev->head.type = EV_KILL;
 	ev->killer = killer->pid;
 	ev->killed = killed->pid;
-	ev->pts = *pts; /* FIXME: this is only accurate if this is the last callback to get called */
+	ev->pts = pts;
 	ev->flags = flags;
 	MPAdd(&ra->mpq, ev);
 }
@@ -398,7 +398,7 @@ local void *recorder_thread(void *v)
 		if (gzwrite(ra->gzf, ev, len) == len)
 		{
 			pid = get_event_pid(ev);
-			if (pid > ra->maxpid)
+			if (pid > (int) ra->maxpid)
 				ra->maxpid = pid;
 			afree(ev);
 			ra->events++;
@@ -434,7 +434,7 @@ local void write_current_players(Arena *a)
 			ev.head.tm = 0;
 			ev.head.type = EV_ENTER;
 			ev.pid = p->pid;
-			if (p->pid > ra->maxpid)
+			if (p->pid > (int) ra->maxpid)
 				ra->maxpid = p->pid;
 			astrncpy(ev.name, p->name, sizeof(ev.name));
 			astrncpy(ev.squad, p->squad, sizeof(ev.squad));
@@ -475,7 +475,7 @@ local int start_recording(Arena *a, const char *file, const char *recorder, cons
 		{
 			/* leave the header wrong until we finish it properly in
 			 * stop_recording */
-			struct file_header header = { "ass$game" };
+			struct file_header header = { "ass$game", 0, 0, 0, 0, 0, 0, 0, 0, {0}, {0} };
 
 			/* fill in file header */
 			header.version = FILE_VERSION;
@@ -515,13 +515,14 @@ local int start_recording(Arena *a, const char *file, const char *recorder, cons
 				/* FIXME: clientset->Reconfigure(a); */
 
 				ra->started = current_ticks();
-				ra->fname = astrdup(file);
+				ra->fname = astrdup(fullpath);
 
 				chat->SendArenaMessage(a, "Starting game recording");
 
 				ra->state = s_recording;
 
 				pthread_create(&ra->thd, NULL, recorder_thread, a);
+				set_thread_name(ra->thd, "asss-record-recorder");
 
 				ok = TRUE;
 			}
@@ -642,7 +643,7 @@ local int CanChangeFreq(Player *p, int new_freq, char *err_buf, int buf_len)
 local struct Aenforcer lockspec =
 {
 	ADVISER_HEAD_INIT(A_ENFORCER)
-	GetAllowableShips, CanChangeFreq
+	GetAllowableShips, CanChangeFreq, NULL, NULL
 };
 
 
@@ -910,9 +911,9 @@ local void *playback_thread(void *v)
 		if (!ra->ispaused)
 			ra->curpos = 100.0*(double)TICK_DIFF(now, started)/(double)ra->total;
 
-		/* only process it if its time has come aready. if not, sleep
+		/* only process it if its time has come already. if not, sleep
 		 * for a bit and go for another iteration around the loop. */
-		if (!ra->ispaused && TICK_DIFF(now, started) >= ev.head.tm)
+		if (!ra->ispaused && TICK_DIFF(now, started) >= (int) ev.head.tm)
 		{
 			Player *p1, *p2;
 
@@ -1001,7 +1002,7 @@ local void *playback_thread(void *v)
 					}
 					break;
 				case EV_POS:
-					CHECK(ev.pos.pos.time)
+					CHECK((int) ev.pos.pos.time)
 					p1 = pidmap[ev.pos.pos.time];
 					if (p1)
 					{
@@ -1127,6 +1128,7 @@ local int start_playback(Arena *a, const char *file)
 					ra->state = s_playing;
 
 					pthread_create(&ra->thd, NULL, playback_thread, a);
+					set_thread_name(ra->thd, "asss-record-playblack");
 					pthread_detach(ra->thd);
 
 					ok = TRUE;

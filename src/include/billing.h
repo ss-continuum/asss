@@ -26,5 +26,22 @@ typedef struct Ibilling
 
 } Ibilling;
 
+#define I_BILLING_FALLBACK "billing-fallback-1"
+
+enum BillingFallbackResult
+{
+	BILLING_FALLBACK_MATCH,      /* player has entry, matches */
+	BILLING_FALLBACK_MISMATCH,   /* player has entry, but wrong password */
+	BILLING_FALLBACK_NOT_FOUND   /* player has no entry */
+};
+
+typedef struct Ibillingfallback
+{
+	INTERFACE_HEAD_DECL
+
+	void (*Check)(Player *p, const char *name, const char *pwd,
+	              void (*done)(void *clos, enum BillingFallbackResult result), void *clos);
+} Ibillingfallback;
+
 #endif
 

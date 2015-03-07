@@ -18,7 +18,7 @@ local shipmask_t GetAllowableShips(Player *p, int ship, int freq, char *err_buf,
 local Aenforcer my_adv =
 {
 	ADVISER_HEAD_INIT(A_ENFORCER)
-	GetAllowableShips, NULL
+	GetAllowableShips, NULL, NULL, NULL
 };
 
 EXPORT const char info_enf_lockspec[] = CORE_MOD_INFO("enf_lockspec");

@@ -34,6 +34,7 @@ local Iarenaman *aman;
 local Icapman *capman;
 local Ipersist *persist;
 local Iobscene *obscene;
+local Imainloop *ml;
 
 struct player_mask_t
 {
@@ -53,6 +54,10 @@ local pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK() pthread_mutex_lock(&mtx)
 #define UNLOCK() pthread_mutex_unlock(&mtx)
 
+local void do_chatmsg_cb(Arena *a, Player *p, int type, int sound, Player *target, int freq, const char *text)
+{
+	DO_CBS(CB_CHATMSG, a, ChatMsgFunc, (p, type, sound, target, freq, text));
+}
 
 /* call with lock */
 local void expire_mask(Player *p)
@@ -350,9 +355,9 @@ local void run_commands(const char *text, Player *p, Target *target, int sound)
 		while (*text == CMD_MULTI_CHAR)
 			text++;
 		b = buf;
-		while (*text && (!multi || *text != CMD_MULTI_CHAR) && (b-buf) < sizeof(buf))
+		while (*text && (!multi || *text != CMD_MULTI_CHAR) && (b-buf) < (int) sizeof(buf))
 			*b++ = *text++;
-		if ((b-buf) >= sizeof(buf))
+		if ((b-buf) >= (int) sizeof(buf))
 			break;
 		*b = '\0';
 		/* give modules a chance to rewrite the command */
@@ -449,7 +454,7 @@ local void handle_pub(Player *p, const char *msg, int ismacro, int isallcmd, int
 		LinkedList set = LL_INITIALIZER;
 		get_arena_set(&set, arena, p);
 		send_reply(&set, type, sound, p, p->pid, msg, 0);
-		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, type, sound, NULL, -1, msg));
+		do_chatmsg_cb(arena, p, type, sound, NULL, -1, msg);
 		lm->LogP(L_DRIVEL, "chat", p, "pub msg: %s", msg);
 	}
 }
@@ -468,7 +473,7 @@ local void handle_modchat(Player *p, const char *msg, int sound)
 			snprintf(buf, sizeof(buf)-10, "%s> %s", p->name, msg);
 
 			send_reply(&set, MSG_MODCHAT, sound, p, -1, buf, strlen(p->name) + 2);
-			DO_CBS(CB_CHATMSG, ALLARENAS, ChatMsgFunc, (p, MSG_MODCHAT, sound, NULL, -1, msg));
+			do_chatmsg_cb(ALLARENAS, p, MSG_MODCHAT, sound, NULL, -1, msg);
 			lm->LogP(L_DRIVEL, "chat", p, "mod chat: %s", msg);
 		}
 		else
@@ -515,7 +520,7 @@ local void handle_freq(Player *p, int freq, const char *msg, int sound)
 		pd->Unlock();
 
 		send_reply(&set, type, sound, p, p->pid, msg, 0);
-		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_FREQ, sound, NULL, freq, msg));
+		do_chatmsg_cb(arena, p, MSG_FREQ, sound, NULL, freq, msg);
 		lm->LogP(L_DRIVEL, "chat", p, "freq msg (%d): %s", freq, msg);
 	}
 }
@@ -541,7 +546,7 @@ local void handle_priv(Player *p, Player *dst, const char *msg, int isallcmd, in
 		LinkedList set = LL_INITIALIZER;
 		LLAdd(&set, dst);
 		send_reply(&set, MSG_PRIV, sound, p, p->pid, msg, 0);
-		DO_CBS(CB_CHATMSG, arena, ChatMsgFunc, (p, MSG_PRIV, sound, dst, -1, msg));
+		do_chatmsg_cb(arena, p, MSG_PRIV, sound, dst, -1, msg);
 #ifdef CFG_LOG_PRIVATE
 		lm->LogP(L_DRIVEL, "chat", p, "to [%s] priv msg: %s",
 				dst->name, msg);
@@ -593,7 +598,7 @@ local void handle_remote_priv(Player *p, const char *msg, int isallcmd, int soun
 		 * overload the meaning of the text field: if dest is non-null,
 		 * text is the text of the message. if it is null, text is
 		 * ":target:msg". */
-		DO_CBS(CB_CHATMSG, ALLARENAS, ChatMsgFunc, (p, MSG_REMOTEPRIV, sound, d, -1, d ? t : msg));
+		do_chatmsg_cb(ALLARENAS, p, MSG_REMOTEPRIV, sound, d, -1, d ? t : msg);
 
 #ifdef CFG_LOG_PRIVATE
 		lm->LogP(L_DRIVEL, "chat", p, "to [%s] remote priv: %s", dest, t);
@@ -611,7 +616,7 @@ local void handle_chat(Player *p, const char *msg, int sound)
 			msg++;
 
 		/* msg should look like "text" or "#;text" */
-		DO_CBS(CB_CHATMSG, ALLARENAS, ChatMsgFunc, (p, MSG_CHAT, sound, NULL, -1, msg));
+		do_chatmsg_cb(ALLARENAS, p, MSG_CHAT, sound, NULL, -1, msg);
 #ifdef CFG_LOG_PRIVATE
 		lm->LogP(L_DRIVEL, "chat", p, "chat msg: %s", msg);
 #endif
@@ -875,7 +880,7 @@ local void set_data(Player *p, void *data, int len, void *v)
 local PlayerPersistentData pdata =
 {
 	KEY_CHAT, INTERVAL_FOREVER_NONSHARED, PERSIST_ALLARENAS,
-	get_data, set_data, clear_data
+	get_data, set_data, clear_data, NULL
 };
 
 
@@ -923,7 +928,8 @@ EXPORT int MM_chat(int action, Imodman *mm_, Arena *arena)
 		capman = mm->GetInterface(I_CAPMAN, ALLARENAS);
 		persist = mm->GetInterface(I_PERSIST, ALLARENAS);
 		obscene = mm->GetInterface(I_OBSCENE, ALLARENAS);
-		if (!cfg || !aman || !pd || !lm) return MM_FAIL;
+		ml = mm->GetInterface(I_MAINLOOP, ALLARENAS);
+		if (!cfg || !aman || !pd || !lm || !ml) return MM_FAIL;
 
 		cmkey = aman->AllocateArenaData(sizeof(chat_mask_t));
 		pmkey = pd->AllocatePlayerData(sizeof(struct player_mask_t));
@@ -971,6 +977,7 @@ EXPORT int MM_chat(int action, Imodman *mm_, Arena *arena)
 		mm->UnregCallback(CB_PLAYERACTION, paction, ALLARENAS);
 		if (persist)
 			persist->UnregPlayerPD(&pdata);
+		ml->WaitRunInMainDrain();
 		aman->FreeArenaData(cmkey);
 		pd->FreePlayerData(pmkey);
 		mm->ReleaseInterface(pd);
@@ -983,6 +990,7 @@ EXPORT int MM_chat(int action, Imodman *mm_, Arena *arena)
 		mm->ReleaseInterface(capman);
 		mm->ReleaseInterface(persist);
 		mm->ReleaseInterface(obscene);
+		mm->ReleaseInterface(ml);
 		return MM_OK;
 	}
 	return MM_FAIL;

@@ -49,14 +49,18 @@ local int Place(char *retname, int namelen, int *x, int *y, Player *pp)
 
 	/* if we don't find anything in 9 passes (unlikely), just do the
 	 * default action */
-	for (pass = 1; pass < 10; pass++)
+	for (pass = 0; pass < 10; pass++)
 		for (l = LLGetHead(trylist); l; l = l->next)
 		{
 			const char *name = l->data;
 			int total, playing, des;
 			Arena *arena;
 
-			snprintf(buf, sizeof(buf), "%s%d", name, pass);
+			if (pass)
+				snprintf(buf, sizeof(buf), "%s%d", name, pass);
+			else
+				snprintf(buf, sizeof(buf), "%s", name);
+
 			arena = aman->FindArena(buf, &total, &playing);
 			if (!arena)
 			{
