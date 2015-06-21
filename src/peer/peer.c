@@ -161,7 +161,7 @@ local void ReadConfig()
                 
 		/* cfghelp: Peer0:SendZeroPlayerCount, global, boolean
 		 * If set and SendPlayerList is not set, always send a population count of 0 */
-		peerZone->config.sendZeroPlayerCount = !!cfg->GetInt(GLOBAL, peerSection, "SendZeroPlayerCount", 1);
+		peerZone->config.sendZeroPlayerCount = !!cfg->GetInt(GLOBAL, peerSection, "SendZeroPlayerCount", 0);
 
 		/* cfghelp: Peer0:SendMessages, global, boolean
 		 * If set, forward alert and zone (?z) messages to the peer */
