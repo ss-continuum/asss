@@ -158,6 +158,10 @@ local void ReadConfig()
 		/* cfghelp: Peer0:SendPlayerList, global, boolean
 		 * If set, send a full arena and player list to the peer. Otherwise only send a summary of our population */
 		peerZone->config.sendPlayerList = !!cfg->GetInt(GLOBAL, peerSection, "SendPlayerList", 1);
+                
+		/* cfghelp: Peer0:SendZeroPlayerCount, global, boolean
+		 * If set and SendPlayerList is not set, always send a population count of 0 */
+		peerZone->config.sendZeroPlayerCount = !!cfg->GetInt(GLOBAL, peerSection, "SendZeroPlayerCount", 1);
 
 		/* cfghelp: Peer0:SendMessages, global, boolean
 		 * If set, forward alert and zone (?z) messages to the peer */
@@ -203,7 +207,8 @@ local int PeriodicUpdate(void* unused)
 	Link *link;
 	static int playerListBufferSize = 512;
 	static u8* playerListBuffer;
-	u8 playerCountBuffer[ sizeof(struct PeerPacket) + 2 ];
+	u8 playerCountBuffer[sizeof(struct PeerPacket) + 2] = { 0 };
+	u8 playerCountZeroBuffer[sizeof(struct PeerPacket) + 2] = { 0 };
 	u16 *totalPopulation = (u16*) (playerCountBuffer + sizeof(struct PeerPacket));
 
 	if (!playerListBuffer)
@@ -292,7 +297,14 @@ local int PeriodicUpdate(void* unused)
 		}
 		else
 		{
-			packetHeader = (struct PeerPacket*) playerCountBuffer;
+			if (peerZone->config.sendZeroPlayerCount)
+			{
+				packetHeader = (struct PeerPacket*) playerCountZeroBuffer;
+			}
+			else
+			{
+				packetHeader = (struct PeerPacket*) playerCountBuffer;
+			}
 		}
 
 		packetHeader->t1 = 0x00;

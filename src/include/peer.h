@@ -45,6 +45,7 @@ typedef struct PeerZone
 		/* Config values: */
 		int sendOnly;
 		int sendPlayerList;
+		int sendZeroPlayerCount;
 		int sendMessages;
 		int receiveMessages;
 		int includeInPopulation;
