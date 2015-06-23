@@ -760,7 +760,7 @@ void ReadLVZFile(Arena *a, byte *file, int flen, int opt)
 		// SECTION_HEADER_SIZE is signed, otherwise the comparison you see below is not valid
 		if (flen <= SECTION_HEADER_SIZE) return;
 
-		if (secth->CONT != HEADER_CONT) return; // crash! (reading past the object file)
+		if (secth->CONT != HEADER_CONT) return;
 		/* if EOF without a nul-term, we're sunk */
 		namelen = strlen(secth->fname);
 
