@@ -67,7 +67,7 @@ typedef struct PeerZone
 		/**
 		* A list of arenas (a string) for which we will display 
 		* a player count and redirect to this peer zone.
-		* The value is the same as `remoteName` in PeerArena
+		* The value is the same as `localName` in PeerArena
 		* This holds the value of PeerX:Arenas
 		*/
 		LinkedList arenas;

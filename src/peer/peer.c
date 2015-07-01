@@ -174,8 +174,8 @@ local void ReadConfig()
 		/* cfghelp: Peer0:Arenas, global, string
 		* A list of arena's that belong to the peer. This server will redirect players that try to ?go to
 		* this arena. These arena's will also be used for ?find and will be shown in ?arena. If you are also
-		* using Peer0:RenameArenas, you should put the remote arena name here; this is the one you would see
-		* in the ?arena list if you are in the peer zone */
+		* using Peer0:RenameArenas, you should put the local arena name here; this is the one you would see
+		* in the ?arena list if you are in this zone */
 		const char *arenas = cfg->GetStr(GLOBAL, peerSection, "Arenas");
 		arenas = arenas ? arenas : "";
 
@@ -500,7 +500,7 @@ local int WalkPastNil(u8 **payload, int *len)
 	return TRUE;
 }
 
-local int HasArenaConfigured(PeerZone* peerZone, const PeerArenaName *peerArenaName) /* call with lock */
+local int HasArenaConfigured(PeerZone* peerZone, const char *localName) /* call with lock */
 {
 	Link *link;
 	const char *configuredArenaName;
@@ -509,7 +509,7 @@ local int HasArenaConfigured(PeerZone* peerZone, const PeerArenaName *peerArenaN
 	/* explicitly configured */
 	FOR_EACH(&peerZone->config.arenas, configuredArenaName, link)
 	{
-		if (strcasecmp(configuredArenaName, peerArenaName->remoteName) == 0)
+		if (strcasecmp(configuredArenaName, localName) == 0)
 		{
 			return TRUE;
 		}
@@ -517,7 +517,6 @@ local int HasArenaConfigured(PeerZone* peerZone, const PeerArenaName *peerArenaN
 
 	if (peerZone->config.providesDefaultArenas)
 	{
-		const char *localName = peerArenaName->localName;
 		/* find the base name. baa5aar123 -> baa5aar */
 		size_t n = strlen(localName);
 		for (; n > 0 && isdigit(localName[n - 1]); --n);
@@ -593,7 +592,7 @@ local void HandlePlayerList(PeerZone* peerZone, u8 *payloadStart, int payloadLen
 		}
 
 		peerArena->id = id;
-		peerArena->configured = HasArenaConfigured(peerZone, &peerArena->name);
+		peerArena->configured = HasArenaConfigured(peerZone, &peerArena->name.localName);
 		peerArena->playerCount = 0;
 		peerArena->lastUpdate = now;
 
@@ -844,10 +843,6 @@ EXIT_OUTER_LOOP:
 
 local int ArenaRequest(Player *p, int arenaType, const char *arenaName)
 {
-	PeerArenaName nameArg;
-	astrncpy(nameArg.remoteName, arenaName, sizeof(nameArg.remoteName));
-	astrncpy(nameArg.localName, arenaName, sizeof(nameArg.localName));
-	
 	RDLOCK();
 
 	Link *link;
@@ -857,7 +852,7 @@ local int ArenaRequest(Player *p, int arenaType, const char *arenaName)
 	{
 		PeerArenaName *name = FindPeerArenaName(peerZone, arenaName, false);
 
-		if (HasArenaConfigured(peerZone, name ? name : &nameArg))
+		if (HasArenaConfigured(peerZone, arenaName))
 		{
 			Target t;
 			t.type = T_PLAYER;
@@ -868,7 +863,9 @@ local int ArenaRequest(Player *p, int arenaType, const char *arenaName)
 			inet_ntop(AF_INET, &peerZone->config.sin.sin_addr, ipbuf, INET_ADDRSTRLEN);
 
 			RDUNLOCK();
-			return redirect->RawRedirect(&t, ipbuf, port, arenaType, (name ? name : &nameArg)->remoteName);
+			const char *targetArena = (name ? name->remoteName : arenaName);
+			lm->LogP(L_INFO, "peer", p, "Redirecting to %s:%d : \"%s\"", ipbuf, port, targetArena);
+			return redirect->RawRedirect(&t, ipbuf, port, arenaType, targetArena);
 		}
 	}
 
