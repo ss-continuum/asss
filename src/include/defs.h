@@ -11,6 +11,7 @@
 
 #include <stddef.h>
 #include <limits.h>
+#include <stdbool.h>
 
 #undef ATTR_FORMAT
 #undef ATTR_MALLOC
