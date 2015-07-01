@@ -592,7 +592,7 @@ local void HandlePlayerList(PeerZone* peerZone, u8 *payloadStart, int payloadLen
 		}
 
 		peerArena->id = id;
-		peerArena->configured = HasArenaConfigured(peerZone, &peerArena->name.localName);
+		peerArena->configured = HasArenaConfigured(peerZone, peerArena->name.localName);
 		peerArena->playerCount = 0;
 		peerArena->lastUpdate = now;
 
