@@ -864,6 +864,11 @@ local int ArenaRequest(Player *p, int arenaType, const char *arenaName)
 
 			RDUNLOCK();
 			const char *targetArena = (name ? name->remoteName : arenaName);
+			if (targetArena[0] == '0' && targetArena[1] == '\0')
+			{
+				// workaround for subgame
+				targetArena = "";
+			}
 			lm->LogP(L_INFO, "peer", p, "Redirecting to %s:%d : \"%s\"", ipbuf, port, targetArena);
 			return redirect->RawRedirect(&t, ipbuf, port, arenaType, targetArena);
 		}
