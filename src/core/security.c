@@ -401,7 +401,7 @@ local int send_timer(void *dummy)
 
 	LLEmpty(&reqset);
 
-	lm->Log(L_INFO, "<security> sent security packet to %d players: green=%lx, door=%lx, timestamp=%lu",
+	lm->Log(L_DRIVEL, "<security> sent security packet to %d players: green=%lx, door=%lx, timestamp=%lu",
 		count,
 		(long unsigned) packet.greenseed,
 		(long unsigned) packet.doorseed,
