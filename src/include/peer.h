@@ -4,9 +4,20 @@
 #ifndef PEER_H
 #define PEER_H
 
-#define I_PEER "peer-3"
+#define I_PEER "peer-4"
 
 /* Only the peer module should modify any PeerArena and PeerZone instances. */
+
+typedef struct PeerArenaName
+{
+	/** The name of the peer arena on this server. */
+	char localName[20];
+
+	/** The name of the peer arena on the peer server.
+	* This is the same as `name` unless an entry for it exists in Peer0:RenameArenas
+	*/
+	char remoteName[20];
+} PeerArenaName;
 
 typedef struct PeerArena
 {
@@ -15,10 +26,9 @@ typedef struct PeerArena
 	 */
 	u32 id;
 
-	/** the name of the peer arena. */
-	char name[20];
+	PeerArenaName name;
 
-	/** If this value is set, this arena is present in the PeerX:Arenas config value */
+	/** If this value is set, this arena is present in the PeerX:Arenas config value (the remoteName) */
 	int configured;
 
 	ticks_t lastUpdate;
@@ -34,6 +44,9 @@ typedef struct PeerZone
 {
 	struct PeerZoneConfig
 	{
+		// [Peer3] -> 3
+		int id;
+
 		/** A peer zone is uniquely identified by its IP + port combination. */
 		struct sockaddr_in sin;
 
@@ -52,10 +65,18 @@ typedef struct PeerZone
 		int providesDefaultArenas;
 
 		/**
-		* A list of arenas (strings) for which we will display a player count and redirect to this peer zone.
+		* A list of arenas (a string) for which we will display 
+		* a player count and redirect to this peer zone.
+		* The value is the same as `remoteName` in PeerArena
 		* This holds the value of PeerX:Arenas
 		*/
 		LinkedList arenas;
+
+		/**
+		* A list of arenas (PeerArenaName) which will be displayed
+		* using an altername name on this server in ?arena and ?go
+		*/
+		LinkedList renamedArenas;
 	} config;
 
 	/** If the peer is not sending a player list this will hold the content of the player count
@@ -71,7 +92,7 @@ typedef struct PeerZone
 	LinkedList arenas;
 
 	/** This is a hash table of all the peer arenas we received from this peer zone
-	 * Keys are arena names, values are "struct PeerArena" pointers.
+	 * Key is arena `remoteName`, value is a "struct PeerArena" pointer.
 	 */
 	HashTable arenaTable;
 
@@ -96,7 +117,7 @@ typedef struct Ipeer
 	 * @param findName The player name to find
 	 * @param score The score this function has to beat, it is modified if a match is found
 	 * @param name A buffer to place the name of the found player in
-	 * @param arena A buffer to place the arena name of the player in
+	 * @param arena A buffer to place the arena name of the player in (the localName)
 	 * @param buflen The length of both the name and arena buffers
 	 * @return TRUE if a match has been found
 	 */
@@ -151,13 +172,14 @@ typedef struct Ipeer
 	 */
 	PeerZone* (*FindZone)(struct sockaddr_in *sin);
 
-	/** Find a peer arena with the given name. This may also return arena's that we are not configured to
-	 * display to players
+	/** Find a peer arena with the given `name`. This may also return arena's that we are not configured to
+	 * display to players for.
 	 * Make sure you Lock()
 	 * @param arena Arena name to match
+	 * @param remote If false, match using the arena `localName`; if true, match using the arena `remoteName`
 	 * @return The first match or NULL
 	 */
-	PeerArena* (*FindArena)(const char *arenaName);
+	PeerArena* (*FindArena)(const char *arenaName, bool remote);
 
 	/** This is a list of all the peer zone we know about.
 	 * Don't forget the lock.

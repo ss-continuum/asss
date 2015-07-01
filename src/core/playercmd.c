@@ -220,7 +220,7 @@ local void Carena(const char *tc, const char *params, Player *p, const Target *t
 			if (!peerArena->configured && !showAllPeer)
 				continue;
 
-			peerArenaName = peerArena->name;
+			peerArenaName = peerArena->name.localName;
 
 			int nameLen = strlen(peerArenaName) + 1;
 			int newPacketLen = (pos - buf) + 2 + nameLen;
