@@ -85,6 +85,8 @@ local void CleanupPeerZone(PeerZone* peerZone)
 	LLEmpty(&peerZone->arenas);
 	HashDeinit(&peerZone->arenaTable);
 
+	afree(peerZone->playerListBuffer);
+
 	afree(peerZone);
 }
 
@@ -129,6 +131,7 @@ local void ReadConfig()
 
 		PeerZone* peerZone = amalloc(sizeof(PeerZone));
 		HashInit(&peerZone->arenaTable);
+		peerZone->playerListBufferSize = 512; // initial size
 
 		peerZone->config.id = i;
 
@@ -171,6 +174,10 @@ local void ReadConfig()
 		 * If set, any arena that would normally end up as (default) will be redirected to this peer zone */
 		peerZone->config.providesDefaultArenas  = !!cfg->GetInt(GLOBAL, peerSection, "ProvidesDefaultArenas", 0);
 
+
+		char nameBuf[20];
+		const char *tmp = NULL;
+
 		/* cfghelp: Peer0:Arenas, global, string
 		* A list of arena's that belong to the peer. This server will redirect players that try to ?go to
 		* this arena. These arena's will also be used for ?find and will be shown in ?arena. If you are also
@@ -178,12 +185,21 @@ local void ReadConfig()
 		* in the ?arena list if you are in this zone */
 		const char *arenas = cfg->GetStr(GLOBAL, peerSection, "Arenas");
 		arenas = arenas ? arenas : "";
-
-		char nameBuf[20];
-		const char *tmp = NULL;
+		tmp = NULL;
 		while (strsplit(arenas, " \t:;,", nameBuf, sizeof(nameBuf), &tmp))
 		{
 			LLAdd(&peerZone->config.arenas, astrdup(nameBuf));
+		}
+
+		/* cfghelp: Peer0:SendDummyArenas, global, string
+		* A list of arena's that we send to the peer with a single dummy player. Instead of the full
+		* player list. This will keep the arena in the arena list of the peer with a fixed count of 1*/
+		arenas = cfg->GetStr(GLOBAL, peerSection, "SendDummyArenas");
+		arenas = arenas ? arenas : "";
+		tmp = NULL;
+		while (strsplit(arenas, " \t:;,", nameBuf, sizeof(nameBuf), &tmp))
+		{
+			LLAdd(&peerZone->config.sendDummyArenas, astrdup(nameBuf));
 		}
 
 		/* cfghelp: Peer0:RenameArenas, global, string
@@ -231,6 +247,65 @@ local void ReadConfig()
 	ml->SetTimer(RemoveStaleArenas, 1000, 1000, NULL, NULL);
 }
 
+local int HasArenaConfigured(PeerZone* peerZone, const char *localName) /* call with lock */
+{
+	Link *link;
+	const char *configuredArenaName;
+	const char *arenaName;
+
+	/* explicitly configured */
+	FOR_EACH(&peerZone->config.arenas, configuredArenaName, link)
+	{
+		if (strcasecmp(configuredArenaName, localName) == 0)
+		{
+			return TRUE;
+		}
+	}
+
+	if (peerZone->config.providesDefaultArenas)
+	{
+		/* find the base name. baa5aar123 -> baa5aar */
+		size_t n = strlen(localName);
+		for (; n > 0 && isdigit(localName[n - 1]); --n);
+		if (!n)
+		{
+			localName = "(public)";
+			n = 8;
+		}
+
+		aman->Lock();
+		FOR_EACH(&aman->known_arena_names, arenaName, link)
+		{
+			if (strncasecmp(arenaName, localName, n) == 0)
+			{
+				aman->Unlock();
+				return FALSE;
+			}
+		}
+		aman->Unlock();
+
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+local int HasArenaConfiguredAsSendDummy(PeerZone* peerZone, const char *localName) /* call with lock */
+{
+	Link *link;
+	const char *configuredArenaName;
+
+	FOR_EACH(&peerZone->config.sendDummyArenas, configuredArenaName, link)
+	{
+		if (strcasecmp(configuredArenaName, localName) == 0)
+		{
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
 PeerArenaName* FindPeerArenaName(PeerZone *peerZone, const char *arenaName, bool remote)  /* call with lock */
 {
 	Link *link;
@@ -247,20 +322,18 @@ PeerArenaName* FindPeerArenaName(PeerZone *peerZone, const char *arenaName, bool
 	return NULL;
 }
 
-local int PeriodicUpdate(void* unused)
+local void SendUpdatesToPeer(PeerZone *peerZone)
 {
 	Arena *arena;
-	ticks_t now = current_ticks();
 	Link *link;
-	static int playerListBufferSize = 512;
-	static u8* playerListBuffer;
+	ticks_t now = current_ticks();
 	u8 playerCountBuffer[sizeof(struct PeerPacket) + 2] = { 0 };
 	u8 playerCountZeroBuffer[sizeof(struct PeerPacket) + 2] = { 0 };
 	u16 *totalPopulation = (u16*) (playerCountBuffer + sizeof(struct PeerPacket));
 
-	if (!playerListBuffer)
+	if (!peerZone->playerListBuffer)
 	{
-		playerListBuffer = amalloc(playerListBufferSize);
+		peerZone->playerListBuffer = amalloc(peerZone->playerListBufferSize);
 	}
 
 	ListenData *ld = NULL;;
@@ -271,7 +344,7 @@ local int PeriodicUpdate(void* unused)
 
 	if (!ld)
 	{
-		return TRUE; // try again later
+		return; // try again later
 	}
 
 	aman->Lock();
@@ -280,18 +353,18 @@ local int PeriodicUpdate(void* unused)
 	aman->GetPopulationSummary(&total, NULL);
 	*totalPopulation = total;
 
-	u8 *buf = playerListBuffer + sizeof(struct PeerPacket);
+	u8 *buf = peerZone->playerListBuffer + sizeof(struct PeerPacket);
 
 	#define SKIP_PAST_STRING for (; *buf; ++buf); ++buf
 	#define ENSURE_CAPACITY(amount) do { \
-		while (playerListBufferSize - (buf - playerListBuffer) < amount) \
+		while (peerZone->playerListBufferSize - (buf - peerZone->playerListBuffer) < amount) \
 		{ \
-			int oldSize = playerListBufferSize; \
-			u8* old = playerListBuffer; \
+			int oldSize = peerZone->playerListBufferSize; \
+			u8* old = peerZone->playerListBuffer; \
 			\
-			playerListBufferSize *= 2; \
-			playerListBuffer = amalloc(playerListBufferSize); \
-			memcpy(playerListBuffer, old, oldSize); \
+			peerZone->playerListBufferSize *= 2; \
+			peerZone->playerListBuffer = amalloc(peerZone->playerListBufferSize); \
+			memcpy(peerZone->playerListBuffer, old, oldSize); \
 			afree(old); \
 		} \
 	} while(0)
@@ -316,60 +389,77 @@ local int PeriodicUpdate(void* unused)
 		astrncpy((char*) buf, arena->name, 20);
 		SKIP_PAST_STRING;
 
-		pd->Lock();
-		FOR_EACH_PLAYER_IN_ARENA(p, arena)
+		if (HasArenaConfiguredAsSendDummy(peerZone, arena->name))
 		{
 			ENSURE_CAPACITY(24);
-			astrncpy((char*) buf, p->name, 24);
+			*buf = ':'; // : is not allowed in real player names
+			// use the arena name as the player name to ensure it is unique
+			astrncpy( (char*) buf + 1, arena->name, 23);
 			SKIP_PAST_STRING;
 		}
-		pd->Unlock();
+		else
+		{
+			pd->Lock();
+			FOR_EACH_PLAYER_IN_ARENA(p, arena)
+			{
+				ENSURE_CAPACITY(24);
+				astrncpy((char*) buf, p->name, 24);
+				SKIP_PAST_STRING;
+			}
+			pd->Unlock();
+		}
 
 		ENSURE_CAPACITY(1);
 		*buf = 0;
 		++buf;
 	}
-	int playerListSize = buf - playerListBuffer;
+	int playerListSize = buf - peerZone->playerListBuffer;
 
 	aman->Unlock();
 
+
+	struct PeerPacket* packetHeader;
+	if (peerZone->config.sendPlayerList)
+	{
+		packetHeader = (struct PeerPacket*) peerZone->playerListBuffer;
+	}
+	else
+	{
+		if (peerZone->config.sendZeroPlayerCount)
+		{
+			packetHeader = (struct PeerPacket*) playerCountZeroBuffer;
+		}
+		else
+		{
+			packetHeader = (struct PeerPacket*) playerCountBuffer;
+		}
+	}
+
+	packetHeader->t1 = 0x00;
+	packetHeader->t2 = 0x01;
+	packetHeader->password = peerZone->config.passwordHash;
+	packetHeader->t3 = 0xFF;
+	packetHeader->type = peerZone->config.sendPlayerList ? 0x01 : 0x04;
+	packetHeader->timestamp = now;
+
+	if (peerZone->config.sendPlayerList)
+	{
+		net->ReallyRawSend(&peerZone->config.sin, peerZone->playerListBuffer, playerListSize, ld);
+	}
+	else
+	{
+		net->ReallyRawSend(&peerZone->config.sin, playerCountBuffer, sizeof(playerCountBuffer), ld);
+	}
+}
+
+local int PeriodicUpdate(void* unused)
+{
 	RDLOCK();
 	PeerZone *peerZone;
+	Link *link;
 	FOR_EACH_PEER_ZONE(peerZone)
 	{
-		struct PeerPacket* packetHeader;
-		if (peerZone->config.sendPlayerList)
-		{
-			packetHeader = (struct PeerPacket*) playerListBuffer;
-		}
-		else
-		{
-			if (peerZone->config.sendZeroPlayerCount)
-			{
-				packetHeader = (struct PeerPacket*) playerCountZeroBuffer;
-			}
-			else
-			{
-				packetHeader = (struct PeerPacket*) playerCountBuffer;
-			}
-		}
-
-		packetHeader->t1 = 0x00;
-		packetHeader->t2 = 0x01;
-		packetHeader->password = peerZone->config.passwordHash;
-		packetHeader->t3 = 0xFF;
-		packetHeader->type = peerZone->config.sendPlayerList ? 0x01 : 0x04;
-		packetHeader->timestamp = now;
-
-		if (peerZone->config.sendPlayerList)
-		{
-			net->ReallyRawSend(&peerZone->config.sin, playerListBuffer, playerListSize, ld);
-		}
-		else
-		{
-			net->ReallyRawSend(&peerZone->config.sin, playerCountBuffer, sizeof(playerCountBuffer), ld);
-		}
-
+		SendUpdatesToPeer(peerZone);
 	}
 	RDUNLOCK();
 
@@ -498,49 +588,6 @@ local int WalkPastNil(u8 **payload, int *len)
 	--(*len);
 
 	return TRUE;
-}
-
-local int HasArenaConfigured(PeerZone* peerZone, const char *localName) /* call with lock */
-{
-	Link *link;
-	const char *configuredArenaName;
-	const char *arenaName;
-
-	/* explicitly configured */
-	FOR_EACH(&peerZone->config.arenas, configuredArenaName, link)
-	{
-		if (strcasecmp(configuredArenaName, localName) == 0)
-		{
-			return TRUE;
-		}
-	}
-
-	if (peerZone->config.providesDefaultArenas)
-	{
-		/* find the base name. baa5aar123 -> baa5aar */
-		size_t n = strlen(localName);
-		for (; n > 0 && isdigit(localName[n - 1]); --n);
-		if (!n)
-		{
-			localName = "(public)";
-			n = 8;
-		}
-
-		aman->Lock();
-		FOR_EACH(&aman->known_arena_names, arenaName, link)
-		{
-			if (strncasecmp(arenaName, localName, n) == 0)
-			{
-				aman->Unlock();
-				return FALSE;
-			}
-		}
-		aman->Unlock();
-
-		return TRUE;
-	}
-
-	return FALSE;
 }
 
 local void HandlePlayerList(PeerZone* peerZone, u8 *payloadStart, int payloadLen) /* call with lock */

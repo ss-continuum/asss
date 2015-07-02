@@ -75,8 +75,17 @@ typedef struct PeerZone
 		/**
 		* A list of arenas (PeerArenaName) which will be displayed
 		* using an alternate name on this server in ?arena and ?go
+		* This holds the value of PeerX:RenameArenas
 		*/
 		LinkedList renamedArenas;
+
+		/**
+		* A list of arenas (a string) for which instead of a full player list,
+		* a single dummy player will be sent to this peer.
+		* The value is the same as `localName` in PeerArena
+                * This holds the value of PeerX:SendDummyArenas
+		*/
+		LinkedList sendDummyArenas;
 	} config;
 
 	/** If the peer is not sending a player list this will hold the content of the player count
@@ -96,7 +105,10 @@ typedef struct PeerZone
 	 */
 	HashTable arenaTable;
 
+	// A bunch of private stuff that is not very useful outside of this module
 	u32 timestamps[0x100];
+	int playerListBufferSize;
+	u8* playerListBuffer;
 } PeerZone;
 
 typedef struct Ipeer
