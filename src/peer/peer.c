@@ -562,12 +562,23 @@ local void HandlePlayerList(PeerZone* peerZone, u8 *payloadStart, int payloadLen
 		payload += 4;
 		len -= 4;
 
-		const char *remoteName = (const char *)payload;
+		const char *remoteNamePayload = (const char *) payload;
 		if (!WalkPastNil(&payload, &len)) // unterminated string?
 		{
 			lm->Log(L_WARN, "<peer> zone peer %s:%d sent us a player list with an unterminated arena name. %d",
 				ipbuf, port, payloadLen);
 			break;
+		}
+
+		char remoteName[20];
+		astrncpy(remoteName, remoteNamePayload, sizeof(remoteName));
+		for (char *c = remoteName; *c; ++c)
+		{
+			// lower case remote arena name (just like normal arena's in asss)
+			// this ensures proper sorting in continuum.
+			// note: _renamed_ local arena names are kept in the character casing
+			// of the config specification (PeerX:RenameArenas)
+			*c = tolower(*c);
 		}
 
 		PeerArena* peerArena = HashGetOne(&peerZone->arenaTable, remoteName);

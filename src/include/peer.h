@@ -74,7 +74,7 @@ typedef struct PeerZone
 
 		/**
 		* A list of arenas (PeerArenaName) which will be displayed
-		* using an altername name on this server in ?arena and ?go
+		* using an alternate name on this server in ?arena and ?go
 		*/
 		LinkedList renamedArenas;
 	} config;
