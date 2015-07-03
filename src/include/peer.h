@@ -14,9 +14,12 @@ typedef struct PeerArenaName
 	char localName[20];
 
 	/** The name of the peer arena on the peer server.
-	* This is the same as `name` unless an entry for it exists in Peer0:RenameArenas
+	* This is the same as `localName` unless an entry for it exists in Peer0:RenameArenas
 	*/
 	char remoteName[20];
+
+	/** if set, the difference between localName and remoteName is only in the character casing */
+	bool caseChange;
 } PeerArenaName;
 
 typedef struct PeerArena
@@ -26,10 +29,18 @@ typedef struct PeerArena
 	 */
 	u32 id;
 
+	/** A locally generated id. This id is unique across all configured peer servers.
+	 * This is used when relaying peer arenas
+	 */
+	u32 localId;
+
 	PeerArenaName name;
 
-	/** If this value is set, this arena is present in the PeerX:Arenas config value (the remoteName) */
+	/** If this value is set, this arena is present in the PeerX:Arenas config value */
 	int configured;
+
+	/** If this value is set, this arena is present in the PeerX:RelayArenas config value */
+	int relay;
 
 	ticks_t lastUpdate;
 
@@ -83,9 +94,15 @@ typedef struct PeerZone
 		* A list of arenas (a string) for which instead of a full player list,
 		* a single dummy player will be sent to this peer.
 		* The value is the same as `localName` in PeerArena
-                * This holds the value of PeerX:SendDummyArenas
+		* This holds the value of PeerX:SendDummyArenas
 		*/
 		LinkedList sendDummyArenas;
+
+		/**
+		* A list of arenas (a string) of this peer that will be relayed to other peers.
+		* This holds the value of PeerX:RelayArenas
+		*/
+		LinkedList relayArenas;
 	} config;
 
 	/** If the peer is not sending a player list this will hold the content of the player count

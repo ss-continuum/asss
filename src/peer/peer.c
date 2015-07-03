@@ -81,6 +81,12 @@ local void CleanupPeerZone(PeerZone* peerZone)
 	LLEnum(&peerZone->config.renamedArenas, afree);
 	LLEmpty(&peerZone->config.renamedArenas);
 
+	LLEnum(&peerZone->config.sendDummyArenas, afree);
+	LLEmpty(&peerZone->config.sendDummyArenas);
+
+	LLEnum(&peerZone->config.relayArenas, afree);
+	LLEmpty(&peerZone->config.relayArenas);
+
 	LLEnum(&peerZone->arenas, (void (*)(const void *)) CleanupPeerArena);
 	LLEmpty(&peerZone->arenas);
 	HashDeinit(&peerZone->arenaTable);
@@ -194,12 +200,22 @@ local void ReadConfig()
 		/* cfghelp: Peer0:SendDummyArenas, global, string
 		* A list of arena's that we send to the peer with a single dummy player. Instead of the full
 		* player list. This will keep the arena in the arena list of the peer with a fixed count of 1*/
-		arenas = cfg->GetStr(GLOBAL, peerSection, "SendDummyArenas");
-		arenas = arenas ? arenas : "";
+		const char *sendDummyArenas = cfg->GetStr(GLOBAL, peerSection, "SendDummyArenas");
+		sendDummyArenas = sendDummyArenas ? sendDummyArenas : "";
 		tmp = NULL;
-		while (strsplit(arenas, " \t:;,", nameBuf, sizeof(nameBuf), &tmp))
+		while (strsplit(sendDummyArenas, " \t:;,", nameBuf, sizeof(nameBuf), &tmp))
 		{
 			LLAdd(&peerZone->config.sendDummyArenas, astrdup(nameBuf));
+		}
+
+		/* cfghelp: Peer0:RelayArenas, global, string
+		* A list of arena's of this peer that will be relayed to other peers. */
+		const char *relayArenas = cfg->GetStr(GLOBAL, peerSection, "RelayArenas");
+		relayArenas = relayArenas ? relayArenas : "";
+		tmp = NULL;
+		while (strsplit(relayArenas, " \t:;,", nameBuf, sizeof(nameBuf), &tmp))
+		{
+			LLAdd(&peerZone->config.relayArenas, astrdup(nameBuf));
 		}
 
 		/* cfghelp: Peer0:RenameArenas, global, string
@@ -221,6 +237,7 @@ local void ReadConfig()
 			else
 			{
 				astrncpy(name->localName, nameBuf, 20);
+				name->caseChange = strcasecmp(name->remoteName, name->localName) == 0;
 				LLAdd(&peerZone->config.renamedArenas, name);
 				name = NULL;
 			}
@@ -306,7 +323,23 @@ local int HasArenaConfiguredAsSendDummy(PeerZone* peerZone, const char *localNam
 	return FALSE;
 }
 
-PeerArenaName* FindPeerArenaName(PeerZone *peerZone, const char *arenaName, bool remote)  /* call with lock */
+local int HasArenaConfiguredAsRelay(PeerZone* peerZone, const char *localName) /* call with lock */
+{
+	Link *link;
+	const char *configuredArenaName;
+
+	FOR_EACH(&peerZone->config.relayArenas, configuredArenaName, link)
+	{
+		if (strcasecmp(configuredArenaName, localName) == 0)
+		{
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+PeerArenaName* FindPeerArenaRename(PeerZone *peerZone, const char *arenaName, bool remote)  /* call with lock */
 {
 	Link *link;
 	PeerArenaName *name;
@@ -357,7 +390,8 @@ local void SendUpdatesToPeer(PeerZone *peerZone)
 
 	#define SKIP_PAST_STRING for (; *buf; ++buf); ++buf
 	#define ENSURE_CAPACITY(amount) do { \
-		while (peerZone->playerListBufferSize - (buf - peerZone->playerListBuffer) < amount) \
+	    int offset = buf - peerZone->playerListBuffer; \
+		while (peerZone->playerListBufferSize - offset < (amount)) \
 		{ \
 			int oldSize = peerZone->playerListBufferSize; \
 			u8* old = peerZone->playerListBuffer; \
@@ -367,6 +401,7 @@ local void SendUpdatesToPeer(PeerZone *peerZone)
 			memcpy(peerZone->playerListBuffer, old, oldSize); \
 			afree(old); \
 		} \
+		buf = peerZone->playerListBuffer + offset; \
 	} while(0)
 
 	// (x86 is little endian)
@@ -413,6 +448,69 @@ local void SendUpdatesToPeer(PeerZone *peerZone)
 		*buf = 0;
 		++buf;
 	}
+
+	PeerZone *otherPeerZone;
+	PeerArena *otherPeerArena;
+	FOR_EACH_PEER_ZONE(otherPeerZone)
+	{
+		if (otherPeerZone == peerZone)
+		{
+			continue;
+		}
+
+		Link *link2;
+		FOR_EACH(&otherPeerZone->arenas, otherPeerArena, link2)
+		{
+			if (!otherPeerArena->relay)
+			{
+				continue;
+			}
+
+#ifdef PEER_PRINT_OUTGOING_RELAY
+			printf("%d: %d %s = ", peerZone->config.id, otherPeerArena->localId, otherPeerArena->name.localName);
+#endif
+			ENSURE_CAPACITY(4);
+			*((u32*)buf) = otherPeerArena->localId;
+			buf += 4;
+
+			ENSURE_CAPACITY(20);
+			astrncpy((char*)buf, otherPeerArena->name.localName, 20);
+			SKIP_PAST_STRING;
+
+			if (HasArenaConfiguredAsSendDummy(peerZone, otherPeerArena->name.localName))
+			{
+#ifdef PEER_PRINT_OUTGOING_RELAY
+				printf(":%s ", otherPeerArena->name.localName);
+#endif
+				ENSURE_CAPACITY(24);
+				*buf = ':';
+				astrncpy((char*)buf + 1, otherPeerArena->name.localName, 23);
+				SKIP_PAST_STRING;
+			}
+			else
+			{
+				Link *link3;
+				const char *playerName;
+				FOR_EACH(&otherPeerArena->players, playerName, link3)
+				{
+#ifdef PEER_PRINT_OUTGOING_RELAY
+					printf("%s ", playerName);
+#endif
+					ENSURE_CAPACITY(24);
+					astrncpy((char*)buf, playerName, 24);
+					SKIP_PAST_STRING;
+				}
+			}
+
+#ifdef PEER_PRINT_OUTGOING_RELAY
+			printf("\n");
+#endif
+			ENSURE_CAPACITY(1);
+			*buf = 0;
+			++buf;
+		}
+	}
+
 	int playerListSize = buf - peerZone->playerListBuffer;
 
 	aman->Unlock();
@@ -628,12 +726,39 @@ local void HandlePlayerList(PeerZone* peerZone, u8 *payloadStart, int payloadLen
 			*c = tolower(*c);
 		}
 
+		// if this arena exists as a rename target (the bar in foo=bar), ignore it
+		// except if the rename is just a difference in the character case (foo=FOO)
+		PeerArenaName *rename = FindPeerArenaRename(peerZone, remoteName, false);
+		if (rename && !rename->caseChange)
+		{
+			while (len > 0)
+			{
+				if (!*payload)
+				{
+					++payload;
+					--len;
+					break; // end of player list
+				}
+
+				if (!WalkPastNil(&payload, &len)) // unterminated string?
+				{
+					lm->Log(L_WARN, "<peer> zone peer %s:%d sent us a player list with an unterminated player name. %d",
+						ipbuf, port, payloadLen);
+					return;
+				}
+			}
+
+			// handle next arena
+			continue;
+		}
+
 		PeerArena* peerArena = HashGetOne(&peerZone->arenaTable, remoteName);
 
 		if (!peerArena)
 		{
 			peerArena = amalloc(sizeof(PeerArena));
-			PeerArenaName *name = FindPeerArenaName(peerZone, remoteName, true);
+			peerArena->localId = nextArenaId++;
+			PeerArenaName *name = FindPeerArenaRename(peerZone, remoteName, true);
 			if (name)
 			{
 				peerArena->name = *name;
@@ -651,6 +776,7 @@ local void HandlePlayerList(PeerZone* peerZone, u8 *payloadStart, int payloadLen
 
 		peerArena->id = id;
 		peerArena->configured = HasArenaConfigured(peerZone, peerArena->name.localName);
+		peerArena->relay = HasArenaConfiguredAsRelay(peerZone, peerArena->name.localName);
 		peerArena->playerCount = 0;
 		peerArena->lastUpdate = now;
 
@@ -663,15 +789,15 @@ local void HandlePlayerList(PeerZone* peerZone, u8 *payloadStart, int payloadLen
 			{
 				++payload;
 				--len;
-				break; // end of player list
+				break; // end of player list: player\0player\0\0
 			}
 
 			const char* player = (const char*) payload;
 			if (!WalkPastNil(&payload, &len)) // unterminated string?
 			{
 				lm->Log(L_WARN, "<peer> zone peer %s:%d sent us a player list with an unterminated player name. %d",
-				ipbuf, port, payloadLen);
-				break;
+					ipbuf, port, payloadLen);
+				return;
 			}
 
 			++peerArena->playerCount;
@@ -908,7 +1034,7 @@ local int ArenaRequest(Player *p, int arenaType, const char *arenaName)
 
 	FOR_EACH_PEER_ZONE(peerZone)
 	{
-		PeerArenaName *name = FindPeerArenaName(peerZone, arenaName, false);
+		PeerArenaName *name = FindPeerArenaRename(peerZone, arenaName, false);
 
 		if (HasArenaConfigured(peerZone, arenaName))
 		{
