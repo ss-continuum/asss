@@ -768,6 +768,7 @@ local void HandlePlayerList(PeerZone* peerZone, u8 *payloadStart, int payloadLen
 				name = &peerArena->name;
 				astrncpy(name->remoteName, remoteName, sizeof(name->remoteName));
 				astrncpy(name->localName, remoteName, sizeof(name->localName));
+				name->caseChange = name->caseChange;
 			}
 			
 			LLAdd(&peerZone->arenas, peerArena);
