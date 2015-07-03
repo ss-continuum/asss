@@ -589,14 +589,33 @@ local void complete_go(Player *p, const char *reqname, int ship,
 	/* remove all illegal characters, and lowercase name */
 	astrncpy(name, reqname, sizeof(name));
 	for (t = name; *t; t++)
+	{
 		if (*t == '#' && t == name)
 			/* initial pound sign allowed */;
 		else if (!isalnum(*t))
 			*t = 'x';
 		else if (isupper(*t))
 			*t = tolower(*t);
+	}
+
+	// this might occur when a player is redirected to us from another zone
 	if (name[0] == '\0')
-		strcpy(name, "x");
+	{
+		Iarenaplace *ap = mm->GetInterface(I_ARENAPLACE, ALLARENAS);
+		if (ap)
+		{
+			int spx = 0, spy = 0;
+			if (!ap->Place(name, sizeof(name), &spx, &spy, p))
+			{
+				strcpy(name, "0");
+			}
+			mm->ReleaseInterface(ap);
+		}
+		else
+		{
+			strcpy(name, "0");
+		}
+	}
 
 	if (p->arena != NULL)
 		LeaveArena(p);
