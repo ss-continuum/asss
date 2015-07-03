@@ -4,7 +4,7 @@
 #ifndef PEER_H
 #define PEER_H
 
-#define I_PEER "peer-4"
+#define I_PEER "peer-5"
 
 /* Only the peer module should modify any PeerArena and PeerZone instances. */
 
