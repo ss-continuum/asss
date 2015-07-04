@@ -1438,7 +1438,7 @@ void * MPTimeoutRemove(MPQueue *q, TimeoutSpec timeout)
 			return data;
 		}
 
-		Sleep(0);
+		Sleep(1);
 	}
 }
 
