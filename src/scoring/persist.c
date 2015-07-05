@@ -1019,6 +1019,8 @@ EXPORT int MM_persist(int action, Imodman *mm_, Arena *arena)
 		adkey = aman->AllocateArenaData(sizeof(struct adata));
 		if (adkey == -1) return MM_FAIL;
 
+		lm->Log(L_INFO | L_SYNC, "<persist> Compiled with %s", DB_VERSION_STRING);
+
 		mm->RegCallback(CB_ARENAACTION, aaction, ALLARENAS);
 
 		LLInit(&playerpd);
