@@ -868,13 +868,26 @@ struct lsmod_ctx
 {
 	LinkedList names;
 	const char *substr;
+	bool matchLoader;
 };
 
 local void add_mod(const char *name, const char *info, void *clos)
 {
 	struct lsmod_ctx *ctx = clos;
-	if (ctx->substr == NULL || strcasestr(name, ctx->substr) != NULL)
+	const char *loader = mm->GetModuleLoader(name); // "c" or "py"
+
+	if (ctx->matchLoader)
+	{
+		if (loader && strcasecmp(ctx->substr, loader) == 0)
+		{
+			LLAdd(&ctx->names, name);
+		}
+
+	}
+	else if (ctx->substr == NULL || strcasestr(name, ctx->substr) != NULL)
+	{
 		LLAdd(&ctx->names, name);
+	}
 }
 
 local helptext_t lsmod_help =
@@ -882,8 +895,9 @@ local helptext_t lsmod_help =
 "Args: [{-a}] [{-s}] [<text>]\n"
 "Lists all the modules currently loaded into the server. With {-a}, lists\n"
 "only modules attached to this arena. With {-s}, sorts by name.\n"
-"With optional text, limits modules displayed to those whose names\n"
-"contain the given text.\n";
+"With optional `text`, limits modules displayed to those whose names\n"
+"contain the given text. By using <c> or <py> as the `text`, modules of a "
+"specific module loader are listed\n";
 
 local void Clsmod(const char *tc, const char *params, Player *p, const Target *target)
 {
@@ -895,6 +909,7 @@ local void Clsmod(const char *tc, const char *params, Player *p, const Target *t
 
 	LLInit(&ctx.names);
 	ctx.substr = NULL;
+	ctx.matchLoader = false;
 
 	while (strsplit(params, " ", word, sizeof(word), &tmp))
 	{
@@ -906,6 +921,21 @@ local void Clsmod(const char *tc, const char *params, Player *p, const Target *t
 		{
 			astrncpy(substr, word, sizeof(substr));
 			ctx.substr = substr;
+		}
+	}
+
+	if (ctx.substr && substr[0] == '<')
+	{
+		ctx.matchLoader = true;
+		ctx.substr = substr + 1;
+
+		for (char *c = substr + 1; *c; ++c)
+		{
+			if (*c == '>')
+			{
+				*c = '\0';
+				break;
+			}
 		}
 	}
 
