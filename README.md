@@ -35,7 +35,7 @@ Each step has an example for Ubuntu 14.04 Trusty (64 bit)
 1. Install the dependencies listed in the previous section  
    `sudo apt-get install build-essential python2.7 python2.7-dev python2.7-dbg libdb5.3-dev mysql-client libmysqlclient-dev gdb mercurial`
 2. Clone/download this repository  
-   `hg clone https://jowie@bitbucket.org/jowie/asss ~/asss-src`  
+   `hg clone https://bitbucket.org/grelminar/asss ~/asss-src`  
    `cd ~/asss-src`  
    `hg update jowie`
 3. Create src/system.mk using one of the example system.mk.*.dist files  
