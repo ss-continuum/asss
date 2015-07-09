@@ -36,8 +36,7 @@ Each step has an example for Ubuntu 14.04 Trusty (64 bit)
    `sudo apt-get install build-essential python2.7 python2.7-dev python2.7-dbg libdb5.3-dev mysql-client libmysqlclient-dev gdb mercurial`
 2. Clone/download this repository  
    `hg clone https://bitbucket.org/grelminar/asss ~/asss-src`  
-   `cd ~/asss-src`  
-   `hg update jowie`
+   `cd ~/asss-src`
 3. Create src/system.mk using one of the example system.mk.*.dist files  
    `cp ~/asss-src/src/system.mk.trusty.dist ~/asss-src/src/system.mk`
 4. Run make in the src directory  
@@ -48,7 +47,7 @@ Each step has an example for Ubuntu 14.04 Trusty (64 bit)
    `ln -s ~/asss-src/bin ~/zone/bin`
 7. Download the correct enc_cont.so file from the [downloads section](downloads) into bin  
    `cd ~/zone/bin`  
-   `wget --output-document=enc_cont.so https://bitbucket.org/jowie/asss/downloads/enc_cont_8d454bb0c6e6_x86_64-ubuntu-glibc-4.8.2.so`
+   `wget --output-document=enc_cont.so https://bitbucket.org/grelminar/asss/downloads/enc_cont_1.6.0_libc2.11.1_64bit.so`
 8. Run "continuum.exe Z" on windows/wine and copy "scrty" and "scrty1" into the zone folder, overwriting the existing files
    You will have to keep these files private, so make sure you close down the file permissions  
     _The path in the example will look like: `~/zone/scrty` and `~/zone/scrty1`_  
