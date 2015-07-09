@@ -1086,6 +1086,8 @@ local void SendAlertMessage(const char *alertName, const char *playerName, const
 	va_list args;
 	char line[250];
 	char line2[250];
+	bool isPublic;
+	const char *c;
 
 	va_start(args, format);
 
@@ -1097,7 +1099,20 @@ local void SendAlertMessage(const char *alertName, const char *playerName, const
 	}
 	line[249] = 0;
 
-	sprintf(line2, "%s: (%s) (%s): %s", alertName, playerName, arenaName, line);
+	isPublic = true;
+	for (c = arenaName; *c; ++c)
+	{
+		if (!isdigit(*c))
+		{
+			isPublic = false;
+			break;
+		}
+	}
+
+	sprintf(
+		line2, 
+		isPublic ? "%s: (%s) (Public %s): %s" : "%s: (%s) (%s): %s",
+		alertName, playerName, arenaName, line);
 	line2[249] = 0;
 
 	SendMessageToPeer(0x03, 0x00, line2);

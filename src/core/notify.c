@@ -17,12 +17,27 @@ local helptext_t notify_help =
 local void Cnotify(const char *tc, const char *params, Player *p, const Target *target)
 {
 	Arena *arena = p->arena;
+	const char *c;
+	bool isPublic = true;
+
+	for (c = arena->name; *c; ++c)
+	{
+		if (!isdigit(*c))
+		{
+			isPublic = false;
+			break;
+		}
+	}
+
 	if (IS_ALLOWED(chat->GetPlayerChatMask(p), MSG_MODCHAT))
 	{
 		if (params && *params)
 		{
-			chat->SendModMessage("%s {%s} %s: %s", tc,
-					arena->name, p->name, params);
+			// same format as subgame
+			chat->SendModMessage(
+				isPublic ? "%s: (%s) (Public %s): %s" : "%s: (%s) (%s): %s",
+				tc, p->name, arena->name, params
+			);
 			chat->SendMessage(p, "Message has been sent to online staff.");
 		}
 		else
