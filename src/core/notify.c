@@ -2,6 +2,7 @@
 /* dist: public */
 
 #include "asss.h"
+#include <ctype.h>
 
 local Ichat *chat;
 local Icmdman *cmd;
