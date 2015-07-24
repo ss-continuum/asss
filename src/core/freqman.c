@@ -512,7 +512,7 @@ void Initial(Player *p, int *ship, int *freq)
 	if (!arena)
 		return;
 		
-	if (ad->cfg_alwaysStartInSpec || enforcers_can_enter_game(arena, p, NULL, 0))
+	if (ad->cfg_alwaysStartInSpec || !enforcers_can_enter_game(arena, p, NULL, 0))
 	{
 		workingShip = SHIP_SPEC;
 	}
