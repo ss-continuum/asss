@@ -114,6 +114,13 @@ struct SpawnDTO
 	int reason;
 };
 
+struct AttachDTO
+{
+	Arena *arena;
+	Player *p;
+	Player *to;
+};
+
 struct region_cb_params
 {
 	pdata *data;
@@ -149,6 +156,27 @@ local void do_spawn_cb(Player *p, int reason)
 	dto->p = p;
 	dto->reason = reason;
 	ml->RunInMain(run_spawn_cb, dto);
+}
+
+local void run_attach_cb(void *clos)
+{
+	struct AttachDTO *dto = (struct AttachDTO *) clos;
+
+	if (dto->arena == dto->p->arena)
+	{
+		DO_CBS(CB_ATTACH, dto->arena, AttachFunc, (dto->p, dto->to));
+	}
+
+	afree(dto);
+}
+
+local void do_attach_cb(Player *p, Player *to)
+{
+	struct AttachDTO *dto = amalloc(sizeof(struct AttachDTO));
+	dto->arena = p->arena;
+	dto->p = p;
+	dto->to = to;
+	ml->RunInMain(run_attach_cb, dto);
 }
 
 local void run_shipfreqchange_cb(void *param)
@@ -1455,6 +1483,16 @@ local void PAttach(Player *p, byte *pkt2, int len)
 	}
 }
 
+local void Attach(Player *p, Player *to)
+{
+	Arena *arena = p->arena;
+	int pid_to = to ? to->pid : -1;
+	struct SimplePacket pkt = { S2C_TURRET, p->pid, pid_to, 0, 0, 0 };
+	net->SendToArena(arena, NULL, (byte*)&pkt, 5, NET_RELIABLE);
+	p->p_attached = pid_to;
+
+	do_attach_cb(p, to);
+}
 
 local void PKickoff(Player *p, byte *pkt2, int len)
 {
@@ -1886,7 +1924,8 @@ local Igame _myint =
 	IncrementWeaponPacketCount,
 	SetPlayerEnergyViewing, SetSpectatorEnergyViewing,
 	ResetPlayerEnergyViewing, ResetSpectatorEnergyViewing,
-	DoWeaponChecksum, IsAntiwarped
+	DoWeaponChecksum, IsAntiwarped, 
+	Attach
 };
 
 EXPORT const char info_game[] = CORE_MOD_INFO("game");

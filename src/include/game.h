@@ -265,7 +265,7 @@ typedef struct Appk
 } Appk;
 
 /** the game interface id */
-#define I_GAME "game-B"
+#define I_GAME "game-C"
 
 /** the game interface struct */
 typedef struct Igame
@@ -402,9 +402,16 @@ typedef struct Igame
 	void (*IncrementWeaponPacketCount)(Player *p, int packets);
 
 	void (*SetPlayerEnergyViewing)(Player *p, int value);
+	/* pyint: player_not_none, int -> void */
+
 	void (*SetSpectatorEnergyViewing)(Player *p, int value);
+	/* pyint: player_not_none, int -> void */
+
 	void (*ResetPlayerEnergyViewing)(Player *p);
+	/* pyint: player_not_none -> void */
+
 	void (*ResetSpectatorEnergyViewing)(Player *p);
+	/* pyint: player_not_none -> void */
 
 	void (*DoWeaponChecksum)(struct S2CWeapons *pkt);
 
@@ -418,6 +425,15 @@ typedef struct Igame
 	 * @return TRUE if antiwarped, FALSE otherwise
 	 */
 	int (*IsAntiwarped)(Player *p, LinkedList *players);
+
+	/** Forcefully attach a player to another player.
+	 * Note that continuum is not able to handle going over the TurretLimit
+	 * @param p the attacher
+	 * @param to the player to attach to
+	 */
+	void (*Attach)(Player *p, Player *to);
+	/* pyint: player_not_none, player -> void */
+
 } Igame;
 
 
