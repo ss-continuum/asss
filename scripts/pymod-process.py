@@ -637,6 +637,8 @@ def create_py_to_c_func(func):
 			cbcode.append("""
 local %(retdecl)s %(cbfuncname)s(%(allargs)s)
 {
+	NEEDS_GIL;
+	GI_LOCK();
 	PyObject *args, *out;
 %(decls)s
 	args = Py_BuildValue("(%(informat)s)"%(inargs)s);
@@ -644,6 +646,7 @@ local %(retdecl)s %(cbfuncname)s(%(allargs)s)
 	{
 		log_py_exception(L_ERROR, "python error building args for "
 				"interface argument function");
+		GI_UNLOCK();
 		return %(defretval)s;
 	}
 	out = PyObject_Call(closobj, args, NULL);
@@ -653,6 +656,7 @@ local %(retdecl)s %(cbfuncname)s(%(allargs)s)
 	{
 		log_py_exception(L_ERROR, "python error calling "
 				"interface argument function");
+		GI_UNLOCK();
 		return %(defretval)s;
 	}
 """)
@@ -663,6 +667,7 @@ local %(retdecl)s %(cbfuncname)s(%(allargs)s)
 		Py_DECREF(out);
 		log_py_exception(L_ERROR, "python error unpacking results of "
 				"interface argument function");
+		GI_UNLOCK();
 		return %(defretval)s;
 	}
 """)
@@ -672,12 +677,14 @@ local %(retdecl)s %(cbfuncname)s(%(allargs)s)
 	{
 		Py_DECREF(out);
 		log_py_exception(L_ERROR, "interface argument function didn't return None as expected");
+		GI_UNLOCK();
 		return %(defretval)s;
 	}
 """)
 			cbcode.append("""
 %(extras3)s
 	Py_DECREF(out);
+	GI_UNLOCK();
 }
 """)
 			cbcode = ''.join(cbcode) % cbdict
