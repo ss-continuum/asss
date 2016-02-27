@@ -67,7 +67,7 @@ You can automatically set up a virtual machine that runs your zone using vagrant
 
 1. Install VirtualBox https://www.virtualbox.org/ (or another provider that vagrant supports)
 2. Install Vagrant: http://www.vagrantup.com/
-3. Run "vagrant up" in this directory to set up the VM
+3. Run "vagrant up" in the directory with the 'Vagrantfile' from the repository, to set up the VM
 4. Run "vagrant ssh" to login
 5. Type "runzone" to run the server!
 
