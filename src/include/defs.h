@@ -30,9 +30,9 @@
 #define STR(a) STR_HELPER(a)
 
 /** a version number, represented as a string */
-#define ASSSVERSION "1.6.1"
+#define ASSSVERSION "1.6.2"
 /** a version number, represented as an integer */
-#define ASSSVERSION_NUM 0x00010601
+#define ASSSVERSION_NUM 0x00010602
 #define BUILDDATE __DATE__ " " __TIME__
 
 #if defined __GLIBC__ && defined __GLIBC_MINOR__
